@@ -13,16 +13,6 @@ const PILLARS = [
   { key: 'assertiveness', label: 'ASSERTIVENESS', desc: 'How you hold your ground.', icon: Shield },
 ];
 
-function SoulPrintLogo({ size = 56 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
-      <path d="M40 8 C55 8, 70 18, 70 35 C70 52, 55 62, 40 55 C25 48, 15 35, 22 22 C29 9, 42 12, 48 20 C54 28, 50 40, 42 44 C34 48, 28 42, 30 36 C32 30, 38 28, 42 32" stroke="#f97316" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.9"/>
-      <path d="M40 14 C52 14, 64 22, 64 36 C64 50, 52 58, 40 52 C28 46, 20 34, 26 24 C32 14, 44 16, 49 23 C54 30, 51 40, 44 43 C37 46, 32 41, 34 36 C36 31, 40 30, 43 33" stroke="#f97316" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.6"/>
-      <path d="M40 20 C49 20, 58 26, 58 37 C58 48, 49 54, 40 49 C31 44, 25 35, 30 27 C35 19, 45 21, 49 27 C53 33, 51 41, 45 43 C39 45, 35 41, 37 37 C39 33, 42 32, 44 34" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.4"/>
-    </svg>
-  );
-}
-
 export default function AssessmentPage() {
   const router = useRouter();
   const [progress, setProgress] = useState({ answered: [], count: 0 });
