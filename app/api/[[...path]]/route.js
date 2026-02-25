@@ -469,10 +469,14 @@ async function handleChatStream(request) {
   const body = await request.json();
   const {
     conversationId, content, model = 'gpt-4o',
-    provider: providerName = 'hosted',
+    provider: providerNameRaw = null,
     attachments = [],   // [{ type: 'image'|'document', base64: '...', mimeType: '...', name: '...', text: '...' }]
     enableWebSearch = true,
   } = body;
+  // Derive provider from model info; fall back to openai
+  const { getModelInfo } = await import('@/lib/llm/providers');
+  const modelInfo = getModelInfo(model);
+  const providerName = (providerNameRaw && providerNameRaw !== 'hosted') ? providerNameRaw : (modelInfo?.provider || 'openai');
   if (!content && attachments.length === 0) return err('content required');
 
   const db = await getDb();
