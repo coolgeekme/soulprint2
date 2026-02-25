@@ -2309,9 +2309,135 @@ async function handleTelegramWebhook(request) {
       `*📱 Social Media Posts*\n/post [platform] [topic] — Write a platform-optimized post with real-time data\n` +
       `Platforms: twitter, instagram, linkedin, tiktok, facebook, threads, youtube\n` +
       `Example: /post twitter AI trends this week\n\n` +
+      `*⏰ Scheduled Tasks*\n/schedule — Create or manage scheduled tasks\n/schedule list — View your schedules\n/schedule delete [id] — Remove a schedule\n\n` +
       `*🌐 Web Search*\n/search [query] — Force a real-time web search\nOr just ask about current events naturally!\n\n` +
       `*🤖 AI Models*\n/model — See & switch AI model\n/model sonar — Switch to Perplexity (online AI)\n\n` +
       `*Misc*\n/start — Link your account\n/help — This menu`
+    );
+    return ok({ ok: true });
+  }
+
+  // ── /schedule command — create and manage scheduled tasks ─────────────────
+  if (text === '/schedule' || text.startsWith('/schedule ')) {
+    if (!mapping?.linked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
+      return ok({ ok: true });
+    }
+    const parts = text.split(' ');
+    const subCommand = parts[1]?.toLowerCase();
+
+    // /schedule list — show user's schedules
+    if (subCommand === 'list') {
+      const tasks = await db.collection('scheduled_tasks')
+        .find({ user_id: mapping.user_id })
+        .sort({ created_at: -1 })
+        .toArray();
+      
+      if (tasks.length === 0) {
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+          `📋 *Your Schedules*\n\nNo scheduled tasks yet.\n\nUse /schedule to create one!`
+        );
+        return ok({ ok: true });
+      }
+
+      const taskList = tasks.map((t, i) => {
+        const status = t.active ? '✅' : '⏸️';
+        const timeStr = `${String(t.local_hour).padStart(2, '0')}:${String(t.minute || 0).padStart(2, '0')} ${t.timezone_label || 'UTC'}`;
+        const typeEmoji = t.schedule_type === 'weekly' ? '📅' : t.schedule_type === 'weekdays' ? '💼' : '🔄';
+        return `${status} *${i + 1}. ${t.name}*\n   ${typeEmoji} ${t.schedule_type} at ${timeStr}\n   ID: \`${t.id.slice(0, 8)}\``;
+      }).join('\n\n');
+
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `📋 *Your Schedules* (${tasks.length})\n\n${taskList}\n\n_Use /schedule delete [ID] to remove_`
+      );
+      return ok({ ok: true });
+    }
+
+    // /schedule delete [id] — delete a schedule
+    if (subCommand === 'delete' && parts[2]) {
+      const idPrefix = parts[2].toLowerCase();
+      const task = await db.collection('scheduled_tasks').findOne({
+        user_id: mapping.user_id,
+        id: { $regex: `^${idPrefix}`, $options: 'i' }
+      });
+      
+      if (!task) {
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ No schedule found with ID starting with "${idPrefix}"`);
+        return ok({ ok: true });
+      }
+
+      await db.collection('scheduled_tasks').deleteOne({ id: task.id });
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `🗑️ Deleted schedule: *${task.name}*`);
+      return ok({ ok: true });
+    }
+
+    // /schedule pause/resume [id]
+    if ((subCommand === 'pause' || subCommand === 'resume') && parts[2]) {
+      const idPrefix = parts[2].toLowerCase();
+      const task = await db.collection('scheduled_tasks').findOne({
+        user_id: mapping.user_id,
+        id: { $regex: `^${idPrefix}`, $options: 'i' }
+      });
+      
+      if (!task) {
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ No schedule found with ID starting with "${idPrefix}"`);
+        return ok({ ok: true });
+      }
+
+      const newActive = subCommand === 'resume';
+      const updates = { active: newActive };
+      if (newActive) {
+        updates.next_run_at = getNextRunAt(task.hour_utc, task.minute, task.schedule_type, task.day_of_week);
+      }
+      await db.collection('scheduled_tasks').updateOne({ id: task.id }, { $set: updates });
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `${newActive ? '▶️' : '⏸️'} Schedule *${task.name}* ${newActive ? 'resumed' : 'paused'}`
+      );
+      return ok({ ok: true });
+    }
+
+    // /schedule [template_id] — quick create from template
+    const templateIds = SCHEDULE_TEMPLATES.map(t => t.id);
+    if (templateIds.includes(subCommand)) {
+      const template = SCHEDULE_TEMPLATES.find(t => t.id === subCommand);
+      // Default to 8 AM in user's assumed timezone (UTC for now)
+      const hourUTC = 8;
+      const nextRun = getNextRunAt(hourUTC, 0, 'daily', null);
+      
+      const task = {
+        id: uuidv4(),
+        user_id: mapping.user_id,
+        name: template.name,
+        prompt: template.prompt,
+        local_hour: 8,
+        minute: 0,
+        hour_utc: hourUTC,
+        timezone_offset: 0,
+        timezone_label: 'UTC',
+        schedule_type: 'daily',
+        day_of_week: null,
+        active: true,
+        delivery: 'telegram',
+        last_run_at: null,
+        next_run_at: nextRun,
+        run_count: 0,
+        created_at: new Date(),
+      };
+      await db.collection('scheduled_tasks').insertOne(task);
+      
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `✅ *Schedule Created!*\n\n📋 *${template.name}*\n⏰ Daily at 08:00 UTC\n\nI'll send you this briefing every day!\n\n_Use /schedule list to see all schedules_`
+      );
+      return ok({ ok: true });
+    }
+
+    // /schedule (no args) — show menu with templates
+    const templateList = SCHEDULE_TEMPLATES.filter(t => t.id !== 'custom').map(t =>
+      `• \`/schedule ${t.id}\` — ${t.name}`
+    ).join('\n');
+
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+      `⏰ *Schedule a Recurring Task*\n\nQuick templates (daily at 8 AM UTC):\n${templateList}\n\n*Commands:*\n• /schedule list — View your schedules\n• /schedule delete [id] — Remove a schedule\n• /schedule pause [id] — Pause a schedule\n• /schedule resume [id] — Resume a schedule\n\n💡 _For custom schedules, use the web app Settings → Schedules tab._`
     );
     return ok({ ok: true });
   }
