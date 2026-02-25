@@ -733,7 +733,7 @@ async function handleChatStream(request) {
     return null;
   };
 
-  const mediaIntent = detectMediaIntent(content);
+  const mediaIntent = detectMediaIntent(sanitizedContent);
 
   const stream = new ReadableStream({
     async start(controller) {
