@@ -692,32 +692,80 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   const tabs = ['imports', 'telegram', 'schedules', 'profile'];
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-5 border-b border-white/10">
-          <h2 className="text-white font-semibold">Settings</h2>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 safe-area-all">
+      <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] sm:max-h-[85vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-white/10">
+          <h2 className="text-white font-semibold text-sm sm:text-base">Settings</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
         </div>
-        <div className="flex border-b border-white/10">
+        <div className="flex border-b border-white/10 overflow-x-auto">
           {tabs.map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-5 py-3 text-xs font-bold tracking-widest uppercase transition-colors ${activeTab === tab ? 'text-orange-500 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-300'}`}>
+              className={`px-3 sm:px-5 py-3 text-[10px] sm:text-xs font-bold tracking-widest uppercase transition-colors whitespace-nowrap flex-shrink-0 ${activeTab === tab ? 'text-orange-500 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-300'}`}>
               {tab}
             </button>
           ))}
         </div>
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
           {/* IMPORTS TAB */}
           {activeTab === 'imports' && (
-            <div className="space-y-6">
+            <div className="space-y-5 sm:space-y-6">
               <div>
                 <h3 className="text-white text-sm font-semibold mb-1">📥 Import Your Data</h3>
                 <p className="text-gray-500 text-xs mb-4">Upload your ChatGPT or Facebook data export (ZIP file). I'll analyze your communication style to personalize your experience.</p>
                 
                 {uploadProgress && (
                   <div className="mb-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
-                    <p className="text-orange-400 text-xs flex items-center gap-2">
-                      <Loader2 className="w-3 h-3 animate-spin" /> {uploadProgress}
+                    <p className="text-orange-400 text-xs flex items-center gap-2 break-words">
+                      <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" /> {uploadProgress}
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-3">
+                  {/* ChatGPT Upload */}
+                  <div className="p-3 sm:p-4 rounded-xl bg-[#1a1a1a] border border-white/5">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center justify-center flex-shrink-0">
+                        <span className="text-lg sm:text-xl">💬</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium">ChatGPT Export</p>
+                        <p className="text-gray-600 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Export from Settings → Data controls → Export data</p>
+                        <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-xs hover:bg-green-500/15 transition-colors">
+                          <Upload className="w-3.5 h-3.5" /> 
+                          <span className="hidden sm:inline">Select ZIP File</span>
+                          <span className="sm:hidden">Upload</span>
+                          <input type="file" accept=".zip" className="hidden" onChange={(e) => { handleDataImportUpload(e.target.files[0], 'chatgpt'); e.target.value = ''; }} disabled={uploading} />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Facebook Upload */}
+                  <div className="p-3 sm:p-4 rounded-xl bg-[#1a1a1a] border border-white/5">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                        <span className="text-lg sm:text-xl">📘</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium">Facebook Archive</p>
+                        <p className="text-gray-600 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Download from Settings → Your Information → Download</p>
+                        <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400 text-xs hover:bg-blue-500/15 transition-colors">
+                          <Upload className="w-3.5 h-3.5" /> 
+                          <span className="hidden sm:inline">Select ZIP File</span>
+                          <span className="sm:hidden">Upload</span>
+                          <input type="file" accept=".zip" className="hidden" onChange={(e) => { handleDataImportUpload(e.target.files[0], 'facebook'); e.target.value = ''; }} disabled={uploading} />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-gray-700 text-[10px] mt-3 text-center">
+                  🔒 Your raw data is analyzed and immediately deleted. Only the insights are saved.
+                </p>
+              </div>
                     </p>
                     {uploadProgress.includes('%') && (
                       <div className="mt-2 h-1.5 bg-black/30 rounded-full overflow-hidden">
