@@ -415,10 +415,20 @@ export default function ChatPage() {
   const [token, setToken] = useState('');
   const [attachments, setAttachments] = useState([]); // [{type, base64/text, name, mimeType}]
   const [fileError, setFileError] = useState('');
+  // Media generation state
+  const [streamingImageUrl, setStreamingImageUrl] = useState(null);
+  const [streamingRevPrompt, setStreamingRevPrompt] = useState('');
+  const [streamingVideoTask, setStreamingVideoTask] = useState(null); // { taskId, status, prompt }
+  const streamingImageUrlRef = useRef(null);
+  const streamingVideoTaskRef = useRef(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const [interimText, setInterimText] = useState('');
+
+  // Keep refs in sync with state
+  useEffect(() => { streamingImageUrlRef.current = streamingImageUrl; }, [streamingImageUrl]);
+  useEffect(() => { streamingVideoTaskRef.current = streamingVideoTask; }, [streamingVideoTask]);
 
   // Speech-to-text hook — needs token so init after token is set
   const speech = useSpeechRecognition({
