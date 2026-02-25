@@ -2826,6 +2826,10 @@ export async function PUT(request, { params }) {
   try {
     if (pathStr === 'profile') return handleProfileUpdate(request);
     if (pathStr === 'telegram/model') return handleTelegramSetModel(request);
+    if (pathStr.startsWith('schedules/') && pathArr.length === 2) {
+      const taskId = pathArr[1];
+      return handleUpdateSchedule(request, taskId);
+    }
 
     // Admin user update: admin/users/:id
     if (pathStr.startsWith('admin/users/') && pathStr.endsWith('/accept')) {
