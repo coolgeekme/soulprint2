@@ -199,17 +199,18 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
   if (status === 'success' && videoUrl) {
     return (
       <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#111]">
-        {thumbnailUrl && (
-          <div className="relative">
-            <img src={thumbnailUrl} alt="Video thumbnail" className="w-full max-h-64 object-cover" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <a href={videoUrl} target="_blank" rel="noopener noreferrer"
-                className="w-14 h-14 rounded-full bg-black/70 border-2 border-white/30 flex items-center justify-center hover:bg-black/90 transition-colors">
-                <Play className="w-6 h-6 text-white ml-1" />
-              </a>
-            </div>
-          </div>
-        )}
+        {/* Embedded Video Player */}
+        <div className="relative bg-black">
+          <video
+            src={videoUrl}
+            controls
+            playsInline
+            className="w-full max-h-80 object-contain"
+            poster={thumbnailUrl || undefined}
+          >
+            Your browser does not support the video tag.
+          </video>
+        </div>
         <div className="p-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold text-green-400 flex items-center gap-1.5">
