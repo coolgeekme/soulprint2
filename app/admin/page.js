@@ -734,6 +734,17 @@ export default function AdminPage() {
   const [token, setToken] = useState('');
   const [adminRole, setAdminRole] = useState('admin');
   const [loading, setLoading] = useState(true);
+  const [waitlistCount, setWaitlistCount] = useState(0);
+
+  const loadMetrics = (t) => {
+    fetch('/api/admin/metrics', { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.json())
+      .then(d => {
+        setMetrics(d);
+        setWaitlistCount(d.waitlist_count || 0);
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     const t = localStorage.getItem('sp_token');
@@ -752,10 +763,7 @@ export default function AdminPage() {
       })
       .catch(() => router.push('/auth'));
 
-    fetch('/api/admin/metrics', { headers: { Authorization: `Bearer ${t}` } })
-      .then(r => r.json())
-      .then(setMetrics)
-      .catch(() => {});
+    loadMetrics(t);
   }, []);
 
   if (loading) {
@@ -765,6 +773,11 @@ export default function AdminPage() {
       </div>
     );
   }
+
+  // Cost by model table helper
+  const costByModelEntries = metrics?.cost_by_model
+    ? Object.entries(metrics.cost_by_model).sort((a, b) => b[1].cost - a[1].cost)
+    : [];
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex">
@@ -782,11 +795,17 @@ export default function AdminPage() {
         <nav className="flex-1 p-2">
           {TABS.map(tab => {
             const Icon = tab.icon;
+            const isWaitlist = tab.id === 'waitlist';
             return (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm transition-all mb-1 ${activeTab === tab.id ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : 'text-gray-500 hover:text-gray-300 hover:bg-white/3'}`}>
                 <Icon className="w-4 h-4" />
-                {tab.label}
+                <span className="flex-1 text-left">{tab.label}</span>
+                {isWaitlist && waitlistCount > 0 && (
+                  <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0">
+                    {waitlistCount > 99 ? '99+' : waitlistCount}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -807,33 +826,118 @@ export default function AdminPage() {
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-xl font-bold text-white">
+              <h1 className="text-xl font-bold text-white flex items-center gap-2">
                 {TABS.find(t => t.id === activeTab)?.label}
+                {activeTab === 'waitlist' && waitlistCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold">
+                    {waitlistCount} pending
+                  </span>
+                )}
               </h1>
               <p className="text-gray-600 text-xs mt-0.5 capitalize">{adminRole} access</p>
             </div>
+            {activeTab === 'metrics' && (
+              <button onClick={() => loadMetrics(token)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors px-3 py-1.5 bg-white/3 border border-white/8 rounded-lg">
+                <RefreshCw className="w-3.5 h-3.5" /> Refresh
+              </button>
+            )}
           </div>
 
           {activeTab === 'metrics' && metrics && (
             <div className="space-y-6">
+              {/* Row 1: Users & Activity */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <MetricCard label="Total Users" value={metrics.total_users} icon={Users} color="orange" />
+                <MetricCard label="Total Users" value={metrics.total_users} sub={`${metrics.accepted_users || 0} approved · ${metrics.waitlist_count || 0} waiting`} icon={Users} color="orange" />
                 <MetricCard label="WAU" value={metrics.wau} sub="Weekly Active Users" icon={TrendingUp} color="green" />
                 <MetricCard label="Day 7 Retention" value={metrics.day7_retention != null ? `${metrics.day7_retention}%` : '—'} icon={UserCheck} color="blue" />
                 <MetricCard label="CSAT" value={metrics.csat != null ? `${metrics.csat}%` : '—'} sub={`${metrics.thumbs_up || 0}↑ ${metrics.thumbs_down || 0}↓`} icon={ThumbsUp} color="purple" />
               </div>
+
+              {/* Row 2: Engagement */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <MetricCard label="Avg Sessions/User (7d)" value={metrics.avg_sessions_per_user_7d} icon={Clock} color="orange" />
                 <MetricCard label="Msgs/Session" value={metrics.avg_messages_per_session} icon={MessageSquare} color="green" />
                 <MetricCard label="Assessment Rate" value={`${metrics.assessment_completion_rate}%`} icon={FileText} color="blue" />
                 <MetricCard label="Import Rate" value={`${metrics.import_adoption_rate}%`} icon={Upload} color="purple" />
               </div>
+
+              {/* Row 3: More stats */}
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <MetricCard label="Multi-Session Rate" value={`${metrics.multi_session_rate}%`} sub="Users with 2+ conversations" icon={Database} color="orange" />
                 <MetricCard label="Total Messages" value={metrics.total_messages} icon={MessageSquare} color="green" />
                 <MetricCard label="New Users (30d)" value={metrics.recent_signups_30d} icon={Users} color="blue" />
               </div>
+
+              {/* Cost Section */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <DollarSign className="w-4 h-4 text-orange-400" />
+                  <h3 className="text-sm font-bold text-white tracking-wide">LLM Cost Estimates</h3>
+                  <span className="text-[10px] text-gray-600 bg-white/5 border border-white/8 px-2 py-0.5 rounded-full">mid-2025 pricing</span>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                  <MetricCard
+                    label="Est. Cost / User / Month"
+                    value={metrics.est_cost_per_user_month != null ? `$${metrics.est_cost_per_user_month.toFixed(4)}` : '—'}
+                    sub="Based on last 30d usage"
+                    icon={DollarSign}
+                    color="green"
+                  />
+                  <MetricCard
+                    label="Est. Monthly Total"
+                    value={metrics.est_projected_monthly_cost != null ? `$${metrics.est_projected_monthly_cost.toFixed(3)}` : '—'}
+                    sub={`Across ${metrics.accepted_users || 0} active users`}
+                    icon={TrendingUp}
+                    color="orange"
+                  />
+                  <MetricCard
+                    label="Total Est. Cost (All-time)"
+                    value={metrics.est_total_cost != null ? `$${metrics.est_total_cost.toFixed(3)}` : '—'}
+                    sub={`From ${metrics.total_messages || 0} total messages`}
+                    icon={Zap}
+                    color="purple"
+                  />
+                </div>
+
+                {/* Cost by model breakdown */}
+                {costByModelEntries.length > 0 && (
+                  <div className="bg-[#111] border border-white/8 rounded-xl p-4">
+                    <p className="text-[10px] font-bold text-gray-600 tracking-widest uppercase mb-3">Cost Breakdown by Model</p>
+                    <div className="space-y-2">
+                      {costByModelEntries.map(([modelName, data]) => {
+                        const maxCost = costByModelEntries[0][1].cost || 1;
+                        const pct = Math.round((data.cost / maxCost) * 100);
+                        return (
+                          <div key={modelName} className="flex items-center gap-3">
+                            <span className="text-xs text-gray-400 w-48 truncate flex-shrink-0">{modelName}</span>
+                            <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                              <div className="h-full bg-orange-500/60 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="text-xs text-orange-400 w-16 text-right flex-shrink-0">${data.cost.toFixed(4)}</span>
+                            <span className="text-[10px] text-gray-600 w-16 text-right flex-shrink-0">{data.messages} msgs</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-gray-700 mt-3 pt-3 border-t border-white/5">
+                      Prices based on: GPT-4o $5/$15, GPT-4o-mini $0.15/$0.60, Claude Sonnet $3/$15, Gemini Flash $0.075/$0.30, Sonar $1/$1 per 1M tokens (input/output)
+                    </p>
+                  </div>
+                )}
+                {costByModelEntries.length === 0 && (
+                  <div className="bg-[#111] border border-white/8 rounded-xl p-5 text-center text-gray-600 text-xs">
+                    Cost breakdown will appear here after users start chatting
+                  </div>
+                )}
+              </div>
             </div>
+          )}
+
+          {activeTab === 'waitlist' && token && (
+            <WaitlistTab
+              token={token}
+              onCountChange={(count) => setWaitlistCount(count)}
+            />
           )}
 
           {activeTab === 'users' && token && (
