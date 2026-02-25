@@ -7,6 +7,10 @@ import path from 'path';
 import fs from 'fs';
 import { writeFile, mkdir, rm } from 'fs/promises';
 
+// Configure route for large file uploads (App Router style)
+export const maxDuration = 60; // 60 seconds max for this route
+export const dynamic = 'force-dynamic';
+
 // ============================================================
 // DATA IMPORT ANALYSIS (ChatGPT / Facebook)
 // ============================================================
