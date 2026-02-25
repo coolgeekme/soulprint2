@@ -515,6 +515,7 @@ function err(msg, status = 400) {
 async function buildSystemPrompt(db, userId) {
   const user = await db.collection('users').findOne({ id: userId });
   const profile = await db.collection('profiles').findOne({ user_id: userId });
+  const soulProfile = await db.collection('soul_profiles').findOne({ user_id: userId });
   const answers = await db.collection('assessment_answers')
     .find({ user_id: userId })
     .sort({ created_at: 1 })
@@ -525,8 +526,8 @@ async function buildSystemPrompt(db, userId) {
   const descriptors = profile?.descriptors || [];
   const field = profile?.field || '';
   const helpWith = profile?.help_with || [];
-  const soulSummary = profile?.soul_profile_summary || '';
 
+  // Build assessment context from answers
   let assessmentContext = '';
   if (answers.length > 0) {
     const questionIds = answers.map(a => a.question_id);
@@ -537,28 +538,250 @@ async function buildSystemPrompt(db, userId) {
     const answersText = answers.map(a => {
       const q = qMap[a.question_id];
       return q ? `Q (${q.pillar}): ${q.question_text}\nA: ${a.answer_text}` : '';
-    }).filter(Boolean).slice(0, 10).join('\n\n');
-    assessmentContext = `\n\nASSESSMENT INSIGHTS:\n${answersText}`;
+    }).filter(Boolean).slice(0, 12).join('\n\n');
+    assessmentContext = `\n## Assessment Insights\n${answersText}`;
   }
 
-  return `You are ${assistantName}, a personal AI companion for ${displayName}.
+  // Build rich soul profile context from data imports
+  let soulProfileContext = '';
+  if (soulProfile?.insights) {
+    const insights = soulProfile.insights;
+    const sections = [];
+    
+    // Communication Style
+    if (insights.communicationStyle) {
+      const styles = [];
+      for (const [source, style] of Object.entries(insights.communicationStyle)) {
+        if (style) {
+          styles.push(`  - **${source}**: ${style.formality || 'mixed'} formality, ${style.verbosity || 'balanced'} verbosity, ${style.tone || 'neutral'} tone`);
+          if (style.description) styles.push(`    _${style.description}_`);
+        }
+      }
+      if (styles.length > 0) {
+        sections.push(`### Communication Style\n${styles.join('\n')}`);
+      }
+    }
+    
+    // Interests
+    if (insights.interests?.length > 0) {
+      sections.push(`### Topics of Interest\n${insights.interests.slice(0, 15).map(i => `- ${i}`).join('\n')}`);
+    }
+    
+    // Vocabulary Preferences
+    if (insights.vocabulary) {
+      const vocabParts = [];
+      for (const [source, vocab] of Object.entries(insights.vocabulary)) {
+        if (vocab) {
+          vocabParts.push(`- **${source}**: ${vocab.complexity || 'moderate'} complexity`);
+          if (vocab.uniquePhrases?.length > 0) {
+            vocabParts.push(`  - Distinctive phrases: "${vocab.uniquePhrases.slice(0, 5).join('", "')}"`);
+          }
+          if (vocab.emoji_usage) vocabParts.push(`  - Emoji usage: ${vocab.emoji_usage}`);
+        }
+      }
+      if (vocabParts.length > 0) {
+        sections.push(`### Vocabulary & Expression\n${vocabParts.join('\n')}`);
+      }
+    }
+    
+    // Question Style
+    if (insights.questionStyle) {
+      const qStyles = [];
+      for (const [source, style] of Object.entries(insights.questionStyle)) {
+        if (style) qStyles.push(`- **${source}**: ${style}`);
+      }
+      if (qStyles.length > 0) {
+        sections.push(`### How They Ask Questions\n${qStyles.join('\n')}`);
+      }
+    }
+    
+    // Personality Insights
+    if (insights.insights?.length > 0) {
+      sections.push(`### Personality Insights\n${insights.insights.slice(0, 8).map(i => `- ${i}`).join('\n')}`);
+    }
+    
+    // Latest Summary
+    if (insights.latestSummary) {
+      sections.push(`### Summary\n${insights.latestSummary}`);
+    }
+    
+    if (sections.length > 0) {
+      soulProfileContext = `\n## Soul Profile (from imported data)\n${sections.join('\n\n')}`;
+    }
+  }
 
-USER PROFILE:
-- Name: ${displayName}
-- Role: ${descriptors.join(', ') || 'Not specified'}
-- Field: ${field || 'Not specified'}
-- Needs help with: ${helpWith.join(', ') || 'General assistance'}
+  return `You are **${assistantName}**, a personal AI companion for **${displayName}**.
+
+# User Profile
+
+## Basic Info
+- **Name**: ${displayName}
+- **Role**: ${descriptors.join(', ') || 'Not specified'}
+- **Field**: ${field || 'Not specified'}
+- **Needs help with**: ${helpWith.join(', ') || 'General assistance'}
 ${assessmentContext}
-${soulSummary ? `\nSOUL PROFILE (from personal data):\n${soulSummary}` : ''}
+${soulProfileContext}
 
-INSTRUCTIONS:
-- You are ${displayName}'s personal AI — think of yourself as their intelligent best friend
-- Address them by name occasionally and naturally
-- Adapt your tone to match their professional background and communication style
-- Be direct, insightful, and genuinely helpful
-- Remember the context of our conversation
-- Keep responses concise unless depth is needed
-- Never mention you are an AI unless explicitly asked`;
+# Communication Guidelines
+
+Based on ${displayName}'s profile, follow these guidelines:
+
+1. **Tone & Style**: Match their communication style - ${soulProfile?.insights?.communicationStyle ? 'adapt to their preferred formality and verbosity as noted above' : 'be conversational but professional'}
+2. **Vocabulary**: ${soulProfile?.insights?.vocabulary ? 'Use vocabulary complexity that matches their style' : 'Use clear, accessible language'}
+3. **Personalization**: Address them by name naturally, reference their interests when relevant
+4. **Directness**: Be direct and insightful - they value substance over fluff
+5. **Context**: Remember conversation history and build on previous discussions
+6. **Brevity**: Keep responses concise unless depth is specifically needed or requested
+
+You are ${displayName}'s intelligent companion - be genuinely helpful, remember what matters to them, and adapt your communication to feel natural and personalized.`;
+}
+
+// Generate user profile as structured markdown (for export/viewing)
+async function generateProfileMarkdown(db, userId) {
+  const user = await db.collection('users').findOne({ id: userId });
+  const profile = await db.collection('profiles').findOne({ user_id: userId });
+  const soulProfile = await db.collection('soul_profiles').findOne({ user_id: userId });
+  const answers = await db.collection('assessment_answers')
+    .find({ user_id: userId })
+    .sort({ created_at: 1 })
+    .toArray();
+  const imports = await db.collection('data_imports')
+    .find({ user_id: userId, status: 'complete' })
+    .sort({ created_at: -1 })
+    .toArray();
+
+  const displayName = profile?.display_name || user?.email?.split('@')[0] || 'User';
+  const assistantName = profile?.assistant_name || 'SoulPrint';
+  
+  let md = `# ${displayName}'s SoulPrint Profile\n\n`;
+  md += `> Generated: ${new Date().toISOString().split('T')[0]}\n`;
+  md += `> AI Companion: ${assistantName}\n\n`;
+  
+  // Basic Profile
+  md += `## 👤 Basic Information\n\n`;
+  md += `| Field | Value |\n|-------|-------|\n`;
+  md += `| Name | ${displayName} |\n`;
+  md += `| Email | ${user?.email || 'N/A'} |\n`;
+  md += `| Role | ${profile?.descriptors?.join(', ') || 'Not specified'} |\n`;
+  md += `| Field/Industry | ${profile?.field || 'Not specified'} |\n`;
+  md += `| Needs Help With | ${profile?.help_with?.join(', ') || 'General assistance'} |\n\n`;
+  
+  // Soul Profile from Imports
+  if (soulProfile?.insights) {
+    const insights = soulProfile.insights;
+    
+    md += `## 🧠 Soul Profile\n\n`;
+    
+    if (insights.latestSummary) {
+      md += `### Summary\n${insights.latestSummary}\n\n`;
+    }
+    
+    // Communication Style
+    if (insights.communicationStyle) {
+      md += `### 💬 Communication Style\n\n`;
+      for (const [source, style] of Object.entries(insights.communicationStyle)) {
+        if (style) {
+          md += `**From ${source} data:**\n`;
+          md += `- Formality: ${style.formality || 'mixed'}\n`;
+          md += `- Verbosity: ${style.verbosity || 'balanced'}\n`;
+          md += `- Tone: ${style.tone || 'neutral'}\n`;
+          if (style.description) md += `- Description: _${style.description}_\n`;
+          md += `\n`;
+        }
+      }
+    }
+    
+    // Interests
+    if (insights.interests?.length > 0) {
+      md += `### 🎯 Topics of Interest\n\n`;
+      insights.interests.forEach(i => { md += `- ${i}\n`; });
+      md += `\n`;
+    }
+    
+    // Vocabulary
+    if (insights.vocabulary) {
+      md += `### 📝 Vocabulary & Expression\n\n`;
+      for (const [source, vocab] of Object.entries(insights.vocabulary)) {
+        if (vocab) {
+          md += `**From ${source}:**\n`;
+          md += `- Complexity: ${vocab.complexity || 'moderate'}\n`;
+          if (vocab.uniquePhrases?.length > 0) {
+            md += `- Distinctive phrases: "${vocab.uniquePhrases.slice(0, 5).join('", "')}"\n`;
+          }
+          if (vocab.emoji_usage) md += `- Emoji usage: ${vocab.emoji_usage}\n`;
+          md += `\n`;
+        }
+      }
+    }
+    
+    // Question Style
+    if (insights.questionStyle) {
+      md += `### ❓ Question Style\n\n`;
+      for (const [source, style] of Object.entries(insights.questionStyle)) {
+        if (style) md += `- **${source}**: ${style}\n`;
+      }
+      md += `\n`;
+    }
+    
+    // Personality Insights
+    if (insights.insights?.length > 0) {
+      md += `### ✨ Personality Insights\n\n`;
+      insights.insights.forEach(i => { md += `- ${i}\n`; });
+      md += `\n`;
+    }
+    
+    // Data Sources
+    if (insights.sources?.length > 0) {
+      md += `### 📊 Data Sources\n\n`;
+      md += `Profile built from: ${insights.sources.join(', ')}\n\n`;
+    }
+  }
+  
+  // Assessment Answers
+  if (answers.length > 0) {
+    const questionIds = answers.map(a => a.question_id);
+    const questions = await db.collection('assessment_questions')
+      .find({ id: { $in: questionIds } })
+      .toArray();
+    const qMap = Object.fromEntries(questions.map(q => [q.id, q]));
+    
+    md += `## 📋 Assessment Responses\n\n`;
+    md += `Completed ${answers.length} of 36 questions.\n\n`;
+    
+    // Group by pillar
+    const pillars = {};
+    answers.forEach(a => {
+      const q = qMap[a.question_id];
+      if (q) {
+        const pillar = q.pillar || 'other';
+        if (!pillars[pillar]) pillars[pillar] = [];
+        pillars[pillar].push({ question: q.question_text, answer: a.answer_text });
+      }
+    });
+    
+    for (const [pillar, qas] of Object.entries(pillars)) {
+      md += `### ${pillar.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}\n\n`;
+      qas.forEach(qa => {
+        md += `**Q:** ${qa.question}\n`;
+        md += `**A:** ${qa.answer}\n\n`;
+      });
+    }
+  }
+  
+  // Import History
+  if (imports.length > 0) {
+    md += `## 📥 Import History\n\n`;
+    md += `| Date | Source | Status |\n|------|--------|--------|\n`;
+    imports.forEach(imp => {
+      const date = new Date(imp.created_at).toISOString().split('T')[0];
+      md += `| ${date} | ${imp.source} | ${imp.status} |\n`;
+    });
+    md += `\n`;
+  }
+  
+  md += `---\n*This profile is used to personalize your AI companion across all platforms (web, Telegram, etc.)*\n`;
+  
+  return md;
 }
 
 // Ensure uploads directory exists
