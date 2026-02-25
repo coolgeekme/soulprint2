@@ -3265,8 +3265,6 @@ async function handleTelegramWebhook(request) {
     try {
       // Handle places/location request
       if (isPlacesRequest) {
-        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '🔍 Searching for places...');
-        
         // Parse location from query
         let locationName = parseLocationQuery(sanitizedText);
         let coords = null;
@@ -3277,15 +3275,27 @@ async function handleTelegramWebhook(request) {
           if (userLocation && userLocation.lat && userLocation.lng) {
             coords = { lat: userLocation.lat, lng: userLocation.lng };
             locationName = userLocation.address || 'your location';
+            await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '🔍 Searching for places...');
           } else {
-            await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
-              `📍 I don't have your location yet.\n\n` +
-              `Please share your location, or specify one:\n` +
-              `Example: "Find restaurants near Times Square"`
+            // Store pending search and request location
+            const searchTerm = sanitizedText.replace(/\s+(near|in|around|at|close to)\s+.*/i, '')
+              .replace(/^(find|where|what|show me|looking for|recommend|suggest)\s+(me\s+)?(a\s+|some\s+)?(good\s+|best\s+|closest\s+|nearest\s+)?/i, '')
+              .replace(/\?+$/, '')
+              .trim();
+            
+            await db.collection('user_locations').updateOne(
+              { user_id: userId },
+              { $set: { pending_search: searchTerm || 'places', pending_search_at: new Date() } },
+              { upsert: true }
+            );
+            
+            await requestTelegramLocation(chatId, TELEGRAM_BOT_TOKEN,
+              `📍 *Share your location to find ${searchTerm || 'places'} near you!*\n\nTap the button below to share your current location.`
             );
             return ok({ ok: true });
           }
         } else {
+          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '🔍 Searching for places...');
           coords = await geocodeAddress(locationName);
           if (!coords) {
             await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Could not find location: "${locationName}"`);
