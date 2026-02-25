@@ -901,6 +901,9 @@ export default function ChatPage() {
   const [token, setToken] = useState('');
   const [attachments, setAttachments] = useState([]); // [{type, base64/text, name, mimeType}]
   const [fileError, setFileError] = useState('');
+  // Location state
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
   // Media generation state
   const [streamingImageUrl, setStreamingImageUrl] = useState(null);
   const [streamingRevPrompt, setStreamingRevPrompt] = useState('');
