@@ -355,8 +355,75 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
       .then(r => r.json()).then(d => setProfile(d.profile)).catch(() => {});
     fetch('/api/telegram/status', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(setTelegramStatus).catch(() => {});
+    fetch('/api/data-imports', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => {
+        setDataImports(d.imports || []);
+        setSoulProfile(d.soulProfile || null);
+      }).catch(() => {});
     fetchSchedules();
   }, [token]);
+
+  // Handle data import ZIP upload
+  async function handleDataImportUpload(file, source) {
+    if (!file) return;
+    setUploading(true);
+    setUploadProgress(`Uploading ${file.name}...`);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('source', source);
+      
+      setUploadProgress('Analyzing your data... This may take a minute.');
+      
+      const res = await fetch('/api/data-import/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        setUploadProgress('');
+        // Refresh data imports
+        const refreshRes = await fetch('/api/data-imports', { headers: { Authorization: `Bearer ${token}` } });
+        const refreshData = await refreshRes.json();
+        setDataImports(refreshData.imports || []);
+        setSoulProfile(refreshData.soulProfile || null);
+        setShowInsights(true); // Show the new insights
+      } else {
+        setUploadProgress(`Error: ${data.error || 'Upload failed'}`);
+        setTimeout(() => setUploadProgress(''), 5000);
+      }
+    } catch (e) {
+      setUploadProgress(`Error: ${e.message}`);
+      setTimeout(() => setUploadProgress(''), 5000);
+    }
+    setUploading(false);
+  }
+
+  // Handle assessment reset
+  async function handleResetAssessment() {
+    if (!confirm('Are you sure you want to retake the 36-question assessment? Your previous answers will be archived.')) return;
+    
+    try {
+      const res = await fetch('/api/assessment/reset', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (res.ok) {
+        onAssessmentReset?.();
+        onClose();
+        window.location.href = '/assessment';
+      } else {
+        alert('Failed to reset assessment');
+      }
+    } catch (e) {
+      alert(`Error: ${e.message}`);
+    }
+  }
 
   async function fetchSchedules() {
     setLoadingSchedules(true);
