@@ -2896,6 +2896,7 @@ async function handleTelegramWebhook(request) {
       `*🎨 Image Generation*\n/image [prompt] — Generate with Kie.ai (GPT-4o Image)\nExample: /image neon city at night\n\n` +
       `*🎬 Video Generation*\n/video [prompt] — Generate with Kie.ai\nExample: /video ocean waves at sunset\n\n` +
       `*🔗 Web Reading*\n/read [URL] — Read and summarize any webpage\nOr just paste a URL in your message!\nExample: /read https://example.com/article\n\n` +
+      `*📍 Location Search*\n/nearby [type] in [location] — Find places\n/find [search] near [location]\nShare your location to use "near me"\nExample: /nearby restaurants in Austin, TX\n\n` +
       `*📱 Social Media Posts*\n/post [platform] [topic] — Write a platform-optimized post with real-time data\n` +
       `Platforms: twitter, instagram, linkedin, tiktok, facebook, threads, youtube\n` +
       `Example: /post twitter AI trends this week\n\n` +
