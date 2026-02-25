@@ -573,12 +573,21 @@ async function handleChatStream(request) {
           }
         }
 
+        // Estimate token usage (chars / 4 is a reasonable approximation)
+        const inputText = systemPrompt + historyMessages.map(m =>
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+        ).join(' ');
+        const estInputTokens = Math.round(inputText.length / 4);
+        const estOutputTokens = Math.round(fullContent.length / 4);
+
         // Save assistant message
         await db.collection('messages').insertOne({
           id: assistantMsgId, conversation_id: convId, user_id: user.id,
           role: 'assistant', content: fullContent, created_at: new Date(),
           model_used: model, provider_used: providerName,
           web_search_used: didSearch,
+          est_input_tokens: estInputTokens,
+          est_output_tokens: estOutputTokens,
         });
 
         await db.collection('conversations').updateOne(
