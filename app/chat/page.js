@@ -10,6 +10,7 @@ import {
   MapPin
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
+import InstallPrompt from '@/app/components/InstallPrompt';
 
 const MODELS = [
   // OpenAI
