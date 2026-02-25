@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Backend Test Suite for SoulPrint Engine
-Testing Kimi AI Integration, Telegram API, and Web Search Integration
+Testing Task Scheduling API, Kimi AI Integration, Telegram API, and Web Search Integration
 """
 import requests
 import json
