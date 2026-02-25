@@ -741,9 +741,9 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                         <p className="text-gray-600 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Export from Settings → Data controls → Export data</p>
                         <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-xs hover:bg-green-500/15 transition-colors">
                           <Upload className="w-3.5 h-3.5" /> 
-                          <span className="hidden sm:inline">Select ZIP File</span>
+                          <span className="hidden sm:inline">Select ZIP File(s)</span>
                           <span className="sm:hidden">Upload</span>
-                          <input type="file" accept=".zip" className="hidden" onChange={(e) => { handleDataImportUpload(e.target.files[0], 'chatgpt'); e.target.value = ''; }} disabled={uploading} />
+                          <input type="file" accept=".zip" multiple className="hidden" onChange={(e) => { handleDataImportUpload(e.target.files, 'chatgpt'); e.target.value = ''; }} disabled={uploading} />
                         </label>
                       </div>
                     </div>
@@ -757,12 +757,12 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium">Facebook Archive</p>
-                        <p className="text-gray-600 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Download from Settings → Your Information → Download</p>
+                        <p className="text-gray-600 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Select all ZIP files from your Facebook export</p>
                         <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400 text-xs hover:bg-blue-500/15 transition-colors">
                           <Upload className="w-3.5 h-3.5" /> 
-                          <span className="hidden sm:inline">Select ZIP File</span>
+                          <span className="hidden sm:inline">Select ZIP File(s)</span>
                           <span className="sm:hidden">Upload</span>
-                          <input type="file" accept=".zip" className="hidden" onChange={(e) => { handleDataImportUpload(e.target.files[0], 'facebook'); e.target.value = ''; }} disabled={uploading} />
+                          <input type="file" accept=".zip" multiple className="hidden" onChange={(e) => { handleDataImportUpload(e.target.files, 'facebook'); e.target.value = ''; }} disabled={uploading} />
                         </label>
                       </div>
                     </div>
