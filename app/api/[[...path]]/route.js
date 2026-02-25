@@ -612,6 +612,162 @@ async function handleChatStream(request) {
   });
 }
 
+// IMAGE GENERATION - DALL-E 3
+async function handleGenerateImage(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { prompt, size = '1024x1024', quality = 'standard', style = 'vivid' } = body;
+  if (!prompt) return err('prompt required');
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return err('OpenAI key not configured', 500);
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size, quality, style }),
+    });
+    const data = await res.json();
+    if (data.error) return err(data.error.message, 400);
+
+    const imageUrl = data.data?.[0]?.url;
+    const revisedPrompt = data.data?.[0]?.revised_prompt || prompt;
+
+    // Save as a message in DB if conversationId provided
+    const { conversationId } = body;
+    if (conversationId) {
+      const db = await getDb();
+      await db.collection('messages').insertOne({
+        id: uuidv4(), conversation_id: conversationId, user_id: user.id,
+        role: 'assistant',
+        content: `![Generated Image](${imageUrl})\n\n*Prompt: ${revisedPrompt}*`,
+        content_type: 'image',
+        image_url: imageUrl,
+        created_at: new Date(),
+        model_used: 'dall-e-3',
+        provider_used: 'openai',
+        est_input_tokens: Math.round(prompt.length / 4),
+        est_output_tokens: 0,
+      });
+    }
+
+    return ok({ url: imageUrl, revised_prompt: revisedPrompt });
+  } catch (e) {
+    console.error('Image generation error:', e);
+    return err('Image generation failed: ' + e.message, 500);
+  }
+}
+
+// VIDEO GENERATION - Kie.ai Runway
+async function handleGenerateVideo(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { prompt, duration = 5, quality = '720p', aspectRatio = '16:9', conversationId } = body;
+  if (!prompt) return err('prompt required');
+
+  const kieKey = process.env.KIE_API_KEY;
+  if (!kieKey) return err('Kie.ai key not configured', 500);
+
+  try {
+    const res = await fetch('https://api.kie.ai/api/v1/runway/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+      body: JSON.stringify({ prompt, duration, quality, aspectRatio, waterMark: '' }),
+    });
+    const data = await res.json();
+    if (data.code !== 200) return err(data.msg || 'Video generation failed', 400);
+
+    const taskId = data.data?.taskId;
+    if (!taskId) return err('No task ID returned', 500);
+
+    // Store task in DB
+    const db = await getDb();
+    const jobId = uuidv4();
+    await db.collection('video_jobs').insertOne({
+      id: jobId, task_id: taskId, user_id: user.id,
+      prompt, duration, quality, aspect_ratio: aspectRatio,
+      status: 'generating',
+      conversation_id: conversationId || null,
+      created_at: new Date(),
+      expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+    });
+
+    return ok({ jobId, taskId, status: 'generating' });
+  } catch (e) {
+    console.error('Video generation error:', e);
+    return err('Video generation failed: ' + e.message, 500);
+  }
+}
+
+// VIDEO STATUS - Poll Kie.ai
+async function handleVideoStatus(request, taskId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  const job = await db.collection('video_jobs').findOne({ task_id: taskId, user_id: user.id });
+  if (!job) return err('Job not found', 404);
+
+  // If already complete, return cached result
+  if (job.status === 'success') {
+    return ok({ status: 'success', videoUrl: job.video_url, thumbnailUrl: job.thumbnail_url, prompt: job.prompt });
+  }
+  if (job.status === 'failed') {
+    return ok({ status: 'failed', error: job.error });
+  }
+
+  // Poll Kie.ai
+  const kieKey = process.env.KIE_API_KEY;
+  try {
+    const res = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+      headers: { Authorization: `Bearer ${kieKey}` },
+    });
+    const data = await res.json();
+    if (data.code !== 200) return err(data.msg || 'Status check failed', 400);
+
+    const state = data.data?.state;
+    const resultUrls = data.data?.response?.resultUrls || [];
+    const thumbnailUrl = data.data?.response?.imageUrl || data.data?.response?.result_image_url || null;
+    const videoUrl = resultUrls[0] || null;
+
+    if (state === 'success' && videoUrl) {
+      await db.collection('video_jobs').updateOne({ task_id: taskId }, {
+        $set: { status: 'success', video_url: videoUrl, thumbnail_url: thumbnailUrl, completed_at: new Date() },
+      });
+      // If linked to conversation, save as message
+      if (job.conversation_id) {
+        await db.collection('messages').insertOne({
+          id: uuidv4(), conversation_id: job.conversation_id, user_id: user.id,
+          role: 'assistant',
+          content: `🎬 **Video generated!**\n\n**Prompt:** ${job.prompt}\n\n[▶ Download / View Video](${videoUrl})${thumbnailUrl ? `\n\n![Thumbnail](${thumbnailUrl})` : ''}`,
+          content_type: 'video',
+          video_url: videoUrl,
+          created_at: new Date(),
+          model_used: 'runway',
+          provider_used: 'kie.ai',
+        });
+      }
+      return ok({ status: 'success', videoUrl, thumbnailUrl, prompt: job.prompt });
+    } else if (state === 'fail') {
+      const errMsg = data.data?.errorMessage || 'Generation failed';
+      await db.collection('video_jobs').updateOne({ task_id: taskId }, {
+        $set: { status: 'failed', error: errMsg },
+      });
+      return ok({ status: 'failed', error: errMsg });
+    }
+
+    return ok({ status: 'generating', progress: data.data?.progress || null });
+  } catch (e) {
+    console.error('Video status error:', e);
+    return err('Status check failed: ' + e.message, 500);
+  }
+}
+
 // FEEDBACK - Submit
 async function handleSubmitFeedback(request) {
   const user = await authenticate(request);
