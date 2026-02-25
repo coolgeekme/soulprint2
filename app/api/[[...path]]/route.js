@@ -2175,25 +2175,23 @@ async function generateImageWithKie(prompt, aspectRatio = '1:1') {
   const kieKey = process.env.KIE_API_KEY;
   if (!kieKey) throw new Error('Kie.ai key not configured');
 
-  // Submit task
-  const res = await fetch('https://api.kie.ai/api/v1/4o-image/generate', {
+  // Submit task (updated endpoint: gpt4o-image)
+  const res = await fetch('https://api.kie.ai/api/v1/gpt4o-image/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
     body: JSON.stringify({
       prompt,
-      aspectRatio,
+      size: aspectRatio, // API uses 'size' not 'aspectRatio'
       nVariants: 1,
-      outputFormat: 'png',
-      outputQuality: 90,
     }),
   });
   const data = await res.json();
   if (data.code !== 200) throw new Error(data.msg || 'Image generation failed');
 
-  const taskId = data.data?.task_id;
+  const taskId = data.data?.taskId;
   if (!taskId) throw new Error('No task ID returned');
 
-  // Poll for completion
+  // Poll for completion (updated endpoint: jobs/recordInfo)
   let imageUrl = null;
   let attempts = 0;
   const maxAttempts = 30;
@@ -2202,15 +2200,16 @@ async function generateImageWithKie(prompt, aspectRatio = '1:1') {
     await new Promise(r => setTimeout(r, 3000));
     attempts++;
     
-    const statusRes = await fetch(`https://api.kie.ai/api/v1/record-info?taskId=${taskId}`, {
+    const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
       headers: { Authorization: `Bearer ${kieKey}` },
     });
     const statusData = await statusRes.json();
     
-    if (statusData.code === 200 && statusData.data?.status === 'success') {
+    // Status: 0=generating, 1=success, 2=failed
+    if (statusData.code === 200 && statusData.data?.status === 1) {
       imageUrl = statusData.data?.output?.[0] || statusData.data?.outputUrl;
       break;
-    } else if (statusData.data?.status === 'failed') {
+    } else if (statusData.data?.status === 2) {
       throw new Error('Image generation failed');
     }
   }
