@@ -4670,6 +4670,9 @@ export async function POST(request, { params }) {
     if (pathStr === 'places/geocode') return handleGeocode(request);
     if (pathStr === 'user/location') return handleSaveUserLocation(request);
     if (pathStr === 'data-import/upload') return handleDataImportUpload(request);
+    if (pathStr === 'data-import/chunked/init') return handleChunkedUploadInit(request);
+    if (pathStr === 'data-import/chunked/chunk') return handleChunkedUploadChunk(request);
+    if (pathStr === 'data-import/chunked/complete') return handleChunkedUploadComplete(request);
     if (pathStr === 'assessment/reset') return handleResetAssessment(request);
 
     // Admin routes
