@@ -4421,6 +4421,9 @@ async function handleChunkedUploadComplete(request) {
       { upsert: true }
     );
 
+    // Invalidate system prompt cache so both web and Telegram get updated profile
+    invalidateSystemPromptCache(user.id);
+
     // Delete chunked upload record
     await db.collection('chunked_uploads').deleteOne({ id: uploadId });
 
