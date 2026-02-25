@@ -2859,5 +2859,15 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   const pathArr = params?.path || [];
   const pathStr = pathArr.join('/');
-  return err('Not implemented', 404);
+
+  try {
+    if (pathStr.startsWith('schedules/') && pathArr.length === 2) {
+      const taskId = pathArr[1];
+      return handleDeleteSchedule(request, taskId);
+    }
+    return err('Not found', 404);
+  } catch (error) {
+    console.error('DELETE error:', error);
+    return err(error.message, 500);
+  }
 }
