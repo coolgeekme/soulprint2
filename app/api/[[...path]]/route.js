@@ -3955,7 +3955,230 @@ async function handleConnectorStub(platform) {
 // DATA IMPORT & ANALYSIS ENDPOINTS
 // ============================================================
 
-// Handle data import (ChatGPT or Facebook ZIP upload)
+// Chunked upload: Initialize an upload session
+async function handleChunkedUploadInit(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { filename, fileSize, source, totalChunks } = body;
+  
+  if (!filename || !fileSize || !totalChunks) {
+    return err('filename, fileSize, and totalChunks required');
+  }
+
+  const db = await getDb();
+  const uploadId = uuidv4();
+  
+  // Create upload session
+  await db.collection('chunked_uploads').insertOne({
+    id: uploadId,
+    user_id: user.id,
+    filename,
+    file_size: fileSize,
+    source: source || 'unknown',
+    total_chunks: totalChunks,
+    received_chunks: [],
+    status: 'uploading',
+    created_at: new Date(),
+  });
+  
+  // Create temp directory for chunks
+  const uploadDir = `/tmp/uploads/${uploadId}`;
+  await mkdir(uploadDir, { recursive: true });
+  
+  return ok({ uploadId, message: 'Upload session created' });
+}
+
+// Chunked upload: Receive a chunk
+async function handleChunkedUploadChunk(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const formData = await request.formData();
+    const uploadId = formData.get('uploadId');
+    const chunkIndex = parseInt(formData.get('chunkIndex'));
+    const chunk = formData.get('chunk');
+    
+    if (!uploadId || chunkIndex === undefined || !chunk) {
+      return err('uploadId, chunkIndex, and chunk required');
+    }
+
+    const db = await getDb();
+    const upload = await db.collection('chunked_uploads').findOne({ id: uploadId, user_id: user.id });
+    
+    if (!upload) return err('Upload session not found', 404);
+    if (upload.status !== 'uploading') return err('Upload already completed or failed');
+
+    // Save chunk to temp file
+    const chunkBuffer = Buffer.from(await chunk.arrayBuffer());
+    const chunkPath = `/tmp/uploads/${uploadId}/chunk_${String(chunkIndex).padStart(5, '0')}`;
+    await writeFile(chunkPath, chunkBuffer);
+    
+    // Update received chunks
+    await db.collection('chunked_uploads').updateOne(
+      { id: uploadId },
+      { $addToSet: { received_chunks: chunkIndex } }
+    );
+    
+    return ok({ 
+      received: chunkIndex, 
+      message: `Chunk ${chunkIndex + 1} received` 
+    });
+  } catch (e) {
+    console.error('Chunk upload error:', e);
+    return err(`Chunk upload failed: ${e.message}`, 500);
+  }
+}
+
+// Chunked upload: Complete and process
+async function handleChunkedUploadComplete(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { uploadId } = body;
+  
+  if (!uploadId) return err('uploadId required');
+
+  const db = await getDb();
+  const upload = await db.collection('chunked_uploads').findOne({ id: uploadId, user_id: user.id });
+  
+  if (!upload) return err('Upload session not found', 404);
+  if (upload.status !== 'uploading') return err('Upload already completed or failed');
+  
+  // Verify all chunks received
+  if (upload.received_chunks.length !== upload.total_chunks) {
+    return err(`Missing chunks: received ${upload.received_chunks.length} of ${upload.total_chunks}`);
+  }
+
+  try {
+    // Update status
+    await db.collection('chunked_uploads').updateOne(
+      { id: uploadId },
+      { $set: { status: 'assembling' } }
+    );
+
+    // Assemble chunks into complete file
+    const uploadDir = `/tmp/uploads/${uploadId}`;
+    const chunks = [];
+    
+    for (let i = 0; i < upload.total_chunks; i++) {
+      const chunkPath = `${uploadDir}/chunk_${String(i).padStart(5, '0')}`;
+      const chunkData = fs.readFileSync(chunkPath);
+      chunks.push(chunkData);
+    }
+    
+    const completeBuffer = Buffer.concat(chunks);
+    
+    // Update status
+    await db.collection('chunked_uploads').updateOne(
+      { id: uploadId },
+      { $set: { status: 'analyzing' } }
+    );
+
+    // Parse based on source
+    let parsedData;
+    if (upload.source === 'chatgpt') {
+      parsedData = await parseChatGPTExport(completeBuffer);
+    } else if (upload.source === 'facebook') {
+      parsedData = await parseFacebookExport(completeBuffer);
+    } else {
+      // Auto-detect
+      const AdmZip = (await import('adm-zip')).default;
+      const zip = new AdmZip(completeBuffer);
+      const entries = zip.getEntries().map(e => e.entryName.toLowerCase());
+      
+      if (entries.some(e => e.includes('conversations.json'))) {
+        parsedData = await parseChatGPTExport(completeBuffer);
+      } else if (entries.some(e => e.includes('messages/') || e.includes('posts/'))) {
+        parsedData = await parseFacebookExport(completeBuffer);
+      } else {
+        throw new Error('Could not detect data format');
+      }
+    }
+
+    // Create import record
+    const importId = uuidv4();
+    await db.collection('data_imports').insertOne({
+      id: importId,
+      user_id: user.id,
+      filename: upload.filename,
+      source: parsedData.source,
+      status: 'analyzing',
+      file_size: upload.file_size,
+      parsed_stats: {
+        source: parsedData.source,
+        conversationCount: parsedData.conversationCount || 0,
+        messageCount: parsedData.userMessageCount || parsedData.messageCount || 0,
+        postCount: parsedData.postCount || 0,
+      },
+      created_at: new Date(),
+    });
+
+    // Analyze communication style
+    const analysis = await analyzeCommmunicationStyle(parsedData);
+    
+    if (analysis.error) {
+      await db.collection('data_imports').updateOne(
+        { id: importId },
+        { $set: { status: 'error', error: analysis.error } }
+      );
+      throw new Error(analysis.error);
+    }
+
+    // Save analysis results
+    await db.collection('data_imports').updateOne(
+      { id: importId },
+      { $set: { status: 'complete', analysis, completed_at: new Date() } }
+    );
+
+    // Update soul profile
+    const existingProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
+    const updatedInsights = mergeInsights(existingProfile?.insights || {}, analysis, parsedData.source);
+    
+    await db.collection('soul_profiles').updateOne(
+      { user_id: user.id },
+      { 
+        $set: { insights: updatedInsights, updated_at: new Date() },
+        $push: { import_history: { import_id: importId, source: parsedData.source, analyzed_at: new Date() } }
+      },
+      { upsert: true }
+    );
+
+    // Clean up temp files
+    await rm(uploadDir, { recursive: true, force: true });
+    await db.collection('chunked_uploads').deleteOne({ id: uploadId });
+
+    return ok({
+      success: true,
+      importId,
+      analysis,
+      stats: {
+        source: parsedData.source,
+        conversationsAnalyzed: parsedData.conversationCount || 0,
+        messagesAnalyzed: parsedData.userMessageCount || parsedData.messageCount || 0,
+        postsAnalyzed: parsedData.postCount || 0,
+      }
+    });
+
+  } catch (e) {
+    console.error('Upload complete error:', e);
+    
+    // Clean up on error
+    const uploadDir = `/tmp/uploads/${uploadId}`;
+    await rm(uploadDir, { recursive: true, force: true }).catch(() => {});
+    await db.collection('chunked_uploads').updateOne(
+      { id: uploadId },
+      { $set: { status: 'error', error: e.message } }
+    );
+    
+    return err(`Processing failed: ${e.message}`, 500);
+  }
+}
+
+// Handle data import (small files - direct upload, kept for backward compatibility)
 async function handleDataImportUpload(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
