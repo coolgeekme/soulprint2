@@ -784,6 +784,53 @@ async function generateProfileMarkdown(db, userId) {
   return md;
 }
 
+// API handler to export user profile as markdown
+async function handleProfileExport(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const db = await getDb();
+    const markdown = await generateProfileMarkdown(db, user.id);
+    
+    return ok({
+      markdown,
+      filename: `soulprint-profile-${new Date().toISOString().split('T')[0]}.md`,
+    });
+  } catch (e) {
+    console.error('Profile export error:', e);
+    return err(`Export failed: ${e.message}`, 500);
+  }
+}
+
+// API handler to get full soul profile data (JSON)
+async function handleGetSoulProfile(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const db = await getDb();
+    const profile = await db.collection('profiles').findOne({ user_id: user.id });
+    const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
+    const userDoc = await db.collection('users').findOne({ id: user.id });
+    
+    return ok({
+      basicProfile: {
+        displayName: profile?.display_name || userDoc?.email?.split('@')[0] || 'User',
+        assistantName: profile?.assistant_name || 'SoulPrint',
+        descriptors: profile?.descriptors || [],
+        field: profile?.field || '',
+        helpWith: profile?.help_with || [],
+      },
+      soulProfile: soulProfile?.insights || null,
+      lastUpdated: soulProfile?.updated_at || profile?.created_at || null,
+    });
+  } catch (e) {
+    console.error('Soul profile fetch error:', e);
+    return err(`Failed to fetch profile: ${e.message}`, 500);
+  }
+}
+
 // Ensure uploads directory exists
 const UPLOADS_DIR = '/tmp/soulprint_uploads';
 async function ensureUploadsDir() {
