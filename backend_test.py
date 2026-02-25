@@ -201,6 +201,475 @@ class SoulPrintTester:
         except Exception as e:
             print(f"❌ {test_name} error: {e}")
             return False
+
+    async def test_image_generation_chat_stream(self):
+        """Test image generation via chat stream auto-detection"""
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.auth_token}"
+            }
+            
+            chat_data = {
+                "content": "generate an image of a golden sunset over mountains",
+                "model": "gpt-4o",
+                "enableWebSearch": False
+            }
+            
+            print(f"\n🧪 Testing Image Generation via Chat Stream Auto-detection...")
+            
+            async with self.session.post(f"{self.base_url}/api/chat/stream",
+                                       json=chat_data, headers=headers) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    print(f"❌ Image generation chat stream failed: {resp.status} - {error_text}")
+                    return False
+                
+                chunks = []
+                meta_received = False
+                image_chunk_received = False
+                done_received = False
+                delta_count = 0
+                image_url = None
+                
+                # Read streaming response line by line
+                async for line in resp.content:
+                    line = line.decode('utf-8').strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        chunk = json.loads(line)
+                        chunks.append(chunk)
+                        
+                        if chunk.get('type') == 'meta':
+                            meta_received = True
+                            print(f"   📋 Meta chunk received")
+                            
+                        elif chunk.get('type') == 'image':
+                            image_chunk_received = True
+                            image_url = chunk.get('url')
+                            revised_prompt = chunk.get('revised_prompt', '')
+                            print(f"   🎨 Image chunk received with URL: {image_url[:50]}...")
+                            print(f"   📝 Revised prompt: {revised_prompt[:100]}...")
+                            
+                        elif chunk.get('type') == 'delta':
+                            delta_count += 1
+                            content = chunk.get('content', '')
+                            if delta_count <= 3:
+                                print(f"   📝 Delta {delta_count}: '{content[:50]}...'")
+                                
+                        elif chunk.get('type') == 'done':
+                            done_received = True
+                            print(f"   ✅ Done chunk received")
+                            break
+                            
+                        elif chunk.get('type') == 'error':
+                            error_msg = chunk.get('error', 'Unknown error')
+                            print(f"❌ Image generation stream error: {error_msg}")
+                            return False
+                            
+                    except json.JSONDecodeError:
+                        print(f"⚠️ Invalid JSON chunk: {line[:100]}")
+                        continue
+                
+                # Validate expected structure
+                if not meta_received:
+                    print(f"❌ No meta chunk received")
+                    return False
+                    
+                if not image_chunk_received:
+                    print(f"❌ No image chunk received")
+                    return False
+                
+                if not image_url or not image_url.startswith('https://'):
+                    print(f"❌ Invalid image URL: {image_url}")
+                    return False
+                    
+                if delta_count == 0:
+                    print(f"❌ No delta chunks received")
+                    return False
+                    
+                if not done_received:
+                    print(f"❌ No done chunk received")
+                    return False
+                
+                print(f"✅ Image Generation Chat Stream SUCCESS:")
+                print(f"   📊 Total chunks: {len(chunks)}")
+                print(f"   🎨 Image URL: {image_url[:60]}...")
+                print(f"   📝 Delta chunks: {delta_count}")
+                
+                return True
+                
+        except Exception as e:
+            print(f"❌ Image generation chat stream error: {e}")
+            return False
+
+    async def test_video_generation_chat_stream(self):
+        """Test video generation via chat stream auto-detection"""
+        try:
+            headers = {
+                "Content-Type": "application/json", 
+                "Authorization": f"Bearer {self.auth_token}"
+            }
+            
+            chat_data = {
+                "content": "generate a video of waves crashing on the beach",
+                "model": "gpt-4o",
+                "enableWebSearch": False
+            }
+            
+            print(f"\n🧪 Testing Video Generation via Chat Stream Auto-detection...")
+            
+            async with self.session.post(f"{self.base_url}/api/chat/stream",
+                                       json=chat_data, headers=headers) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    print(f"❌ Video generation chat stream failed: {resp.status} - {error_text}")
+                    return False
+                
+                chunks = []
+                meta_received = False
+                video_task_chunk_received = False
+                done_received = False
+                delta_count = 0
+                task_id = None
+                
+                # Read streaming response line by line
+                async for line in resp.content:
+                    line = line.decode('utf-8').strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        chunk = json.loads(line)
+                        chunks.append(chunk)
+                        
+                        if chunk.get('type') == 'meta':
+                            meta_received = True
+                            print(f"   📋 Meta chunk received")
+                            
+                        elif chunk.get('type') == 'video_task':
+                            video_task_chunk_received = True
+                            task_id = chunk.get('taskId')
+                            status = chunk.get('status')
+                            prompt = chunk.get('prompt', '')
+                            print(f"   🎬 Video task chunk received with taskId: {task_id}")
+                            print(f"   📊 Status: {status}")
+                            print(f"   📝 Prompt: {prompt[:100]}...")
+                            
+                        elif chunk.get('type') == 'delta':
+                            delta_count += 1
+                            content = chunk.get('content', '')
+                            if delta_count <= 3:
+                                print(f"   📝 Delta {delta_count}: '{content[:50]}...'")
+                                
+                        elif chunk.get('type') == 'done':
+                            done_received = True
+                            print(f"   ✅ Done chunk received")
+                            break
+                            
+                        elif chunk.get('type') == 'error':
+                            error_msg = chunk.get('error', 'Unknown error')
+                            print(f"❌ Video generation stream error: {error_msg}")
+                            return False
+                            
+                    except json.JSONDecodeError:
+                        print(f"⚠️ Invalid JSON chunk: {line[:100]}")
+                        continue
+                
+                # Validate expected structure
+                if not meta_received:
+                    print(f"❌ No meta chunk received")
+                    return False
+                    
+                if not video_task_chunk_received:
+                    print(f"❌ No video_task chunk received")
+                    return False
+                
+                if not task_id:
+                    print(f"❌ No taskId in video_task chunk")
+                    return False
+                    
+                if delta_count == 0:
+                    print(f"❌ No delta chunks received")
+                    return False
+                    
+                if not done_received:
+                    print(f"❌ No done chunk received")
+                    return False
+                
+                print(f"✅ Video Generation Chat Stream SUCCESS:")
+                print(f"   📊 Total chunks: {len(chunks)}")
+                print(f"   🎬 Task ID: {task_id}")
+                print(f"   📝 Delta chunks: {delta_count}")
+                
+                # Store task_id for later status polling
+                self.video_task_id = task_id
+                return True
+                
+        except Exception as e:
+            print(f"❌ Video generation chat stream error: {e}")
+            return False
+
+    async def test_direct_image_generation(self):
+        """Test direct image generation API"""
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.auth_token}"
+            }
+            
+            image_data = {
+                "prompt": "A beautiful abstract painting with orange and blue colors"
+            }
+            
+            print(f"\n🧪 Testing Direct Image Generation API...")
+            
+            async with self.session.post(f"{self.base_url}/api/generate/image",
+                                       json=image_data, headers=headers) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    print(f"❌ Direct image generation failed: {resp.status} - {error_text}")
+                    return False
+                
+                data = await resp.json()
+                
+                # Check required fields
+                if 'url' not in data:
+                    print(f"❌ Missing 'url' field in response")
+                    return False
+                
+                if 'revised_prompt' not in data:
+                    print(f"❌ Missing 'revised_prompt' field in response")
+                    return False
+                
+                url = data['url']
+                revised_prompt = data['revised_prompt']
+                
+                if not url.startswith('https://'):
+                    print(f"❌ Invalid URL format: {url}")
+                    return False
+                
+                print(f"✅ Direct Image Generation SUCCESS:")
+                print(f"   🎨 URL: {url[:60]}...")
+                print(f"   📝 Revised prompt: {revised_prompt[:100]}...")
+                
+                return True
+                
+        except Exception as e:
+            print(f"❌ Direct image generation error: {e}")
+            return False
+
+    async def test_direct_video_generation(self):
+        """Test direct video generation API"""
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.auth_token}"
+            }
+            
+            video_data = {
+                "prompt": "A timelapse of city lights at night",
+                "duration": 5,
+                "quality": "720p", 
+                "aspectRatio": "16:9"
+            }
+            
+            print(f"\n🧪 Testing Direct Video Generation API...")
+            
+            async with self.session.post(f"{self.base_url}/api/generate/video",
+                                       json=video_data, headers=headers) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    print(f"❌ Direct video generation failed: {resp.status} - {error_text}")
+                    return False
+                
+                data = await resp.json()
+                
+                # Check required fields
+                required_fields = ['jobId', 'taskId', 'status']
+                for field in required_fields:
+                    if field not in data:
+                        print(f"❌ Missing '{field}' field in response")
+                        return False
+                
+                job_id = data['jobId']
+                task_id = data['taskId']
+                status = data['status']
+                
+                if status != 'generating':
+                    print(f"❌ Unexpected status: {status}")
+                    return False
+                
+                print(f"✅ Direct Video Generation SUCCESS:")
+                print(f"   🎬 Job ID: {job_id}")
+                print(f"   🎬 Task ID: {task_id}")
+                print(f"   📊 Status: {status}")
+                
+                # Store for status polling
+                self.direct_video_task_id = task_id
+                return True
+                
+        except Exception as e:
+            print(f"❌ Direct video generation error: {e}")
+            return False
+
+    async def test_video_status_poll(self, task_id=None):
+        """Test video status polling API"""
+        try:
+            # Use provided task_id or fallback to stored ones
+            test_task_id = task_id or getattr(self, 'video_task_id', None) or getattr(self, 'direct_video_task_id', None)
+            
+            if not test_task_id:
+                print(f"⚠️ No task ID available for video status polling - skipping test")
+                return True  # Not a failure, just no task to poll
+            
+            headers = {
+                "Authorization": f"Bearer {self.auth_token}"
+            }
+            
+            print(f"\n🧪 Testing Video Status Poll API...")
+            print(f"   🎬 Polling task ID: {test_task_id}")
+            
+            async with self.session.get(f"{self.base_url}/api/generate/video/{test_task_id}",
+                                      headers=headers) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    print(f"❌ Video status poll failed: {resp.status} - {error_text}")
+                    return False
+                
+                data = await resp.json()
+                
+                # Check status field exists
+                if 'status' not in data:
+                    print(f"❌ Missing 'status' field in response")
+                    return False
+                
+                status = data['status']
+                valid_statuses = ['generating', 'success', 'failed']
+                
+                if status not in valid_statuses:
+                    print(f"❌ Invalid status: {status}")
+                    return False
+                
+                print(f"✅ Video Status Poll SUCCESS:")
+                print(f"   📊 Status: {status}")
+                
+                if status == 'success':
+                    video_url = data.get('videoUrl')
+                    thumbnail_url = data.get('thumbnailUrl')
+                    print(f"   🎬 Video URL: {video_url[:60] if video_url else 'N/A'}...")
+                    print(f"   🖼️  Thumbnail URL: {thumbnail_url[:60] if thumbnail_url else 'N/A'}...")
+                elif status == 'failed':
+                    error = data.get('error', 'Unknown error')
+                    print(f"   ❌ Error: {error}")
+                elif status == 'generating':
+                    progress = data.get('progress')
+                    print(f"   ⏳ Progress: {progress if progress else 'Unknown'}")
+                
+                return True
+                
+        except Exception as e:
+            print(f"❌ Video status poll error: {e}")
+            return False
+
+    async def test_regular_chat_still_works(self):
+        """Test that regular chat still works without triggering media generation"""
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.auth_token}"
+            }
+            
+            chat_data = {
+                "content": "hello, how are you?",
+                "model": "gpt-4o",
+                "enableWebSearch": False
+            }
+            
+            print(f"\n🧪 Testing Regular Chat (No Media Generation)...")
+            
+            async with self.session.post(f"{self.base_url}/api/chat/stream",
+                                       json=chat_data, headers=headers) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    print(f"❌ Regular chat failed: {resp.status} - {error_text}")
+                    return False
+                
+                chunks = []
+                meta_received = False
+                done_received = False
+                delta_count = 0
+                media_chunk_received = False
+                
+                # Read streaming response line by line
+                async for line in resp.content:
+                    line = line.decode('utf-8').strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        chunk = json.loads(line)
+                        chunks.append(chunk)
+                        
+                        chunk_type = chunk.get('type')
+                        
+                        if chunk_type == 'meta':
+                            meta_received = True
+                            print(f"   📋 Meta chunk received")
+                            
+                        elif chunk_type in ['image', 'video_task']:
+                            media_chunk_received = True
+                            print(f"   ❌ Unexpected media chunk: {chunk_type}")
+                            
+                        elif chunk_type == 'delta':
+                            delta_count += 1
+                            content = chunk.get('content', '')
+                            if delta_count <= 3:
+                                print(f"   📝 Delta {delta_count}: '{content[:50]}...'")
+                                
+                        elif chunk_type == 'done':
+                            done_received = True
+                            print(f"   ✅ Done chunk received")
+                            break
+                            
+                        elif chunk_type == 'error':
+                            error_msg = chunk.get('error', 'Unknown error')
+                            print(f"❌ Regular chat stream error: {error_msg}")
+                            return False
+                            
+                    except json.JSONDecodeError:
+                        print(f"⚠️ Invalid JSON chunk: {line[:100]}")
+                        continue
+                
+                # Validate normal chat behavior
+                if not meta_received:
+                    print(f"❌ No meta chunk received")
+                    return False
+                    
+                if media_chunk_received:
+                    print(f"❌ Media generation triggered unexpectedly")
+                    return False
+                    
+                if delta_count == 0:
+                    print(f"❌ No delta chunks received")
+                    return False
+                    
+                if not done_received:
+                    print(f"❌ No done chunk received")
+                    return False
+                
+                print(f"✅ Regular Chat SUCCESS:")
+                print(f"   📊 Total chunks: {len(chunks)}")
+                print(f"   📝 Delta chunks: {delta_count}")
+                print(f"   ✅ No media generation triggered")
+                
+                return True
+                
+        except Exception as e:
+            print(f"❌ Regular chat error: {e}")
+            return False
     
     async def run_all_tests(self):
         """Run complete test suite"""
