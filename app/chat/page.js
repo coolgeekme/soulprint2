@@ -6,7 +6,8 @@ import remarkGfm from 'remark-gfm';
 import {
   Plus, Mic, Send, Settings, ChevronLeft, ThumbsUp, ThumbsDown,
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
-  Image as ImageIcon, Paperclip, Search, Video, Download, RefreshCw, Play
+  Image as ImageIcon, Paperclip, Search, Video, Download, RefreshCw, Play,
+  MapPin
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
