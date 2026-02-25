@@ -656,13 +656,15 @@ async function handleChatStream(request) {
     role: 'user', content: storedContent, created_at: new Date(), model_used: model,
   });
 
-  // Get recent messages for context
+  // Get recent messages for context (best practice: use smart token-aware trimming)
   const recentMessages = await db.collection('messages')
     .find({ conversation_id: convId, id: { $ne: userMsgId } })
-    .sort({ created_at: -1 }).limit(20).toArray();
+    .sort({ created_at: -1 }).limit(30).toArray();
   recentMessages.reverse();
 
-  const historyMessages = recentMessages.map(m => ({ role: m.role, content: m.content }));
+  // Apply smart token-aware trimming (best practice: stay within 6k context tokens for history)
+  const rawHistory = recentMessages.map(m => ({ role: m.role, content: m.content }));
+  const historyMessages = trimHistory(rawHistory, 6000);
 
   // Build the current user message — support images (vision) + documents
   let userMessageContent;
