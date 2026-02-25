@@ -5,7 +5,182 @@ import { generateToken, verifyToken, hashPassword, comparePassword, getTokenFrom
 import { getProvider, AVAILABLE_MODELS } from '@/lib/llm/providers';
 import path from 'path';
 import fs from 'fs';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, rm } from 'fs/promises';
+
+// ============================================================
+// DATA IMPORT ANALYSIS (ChatGPT / Facebook)
+// ============================================================
+
+// Parse ChatGPT export ZIP and extract conversations
+async function parseChatGPTExport(zipBuffer) {
+  const AdmZip = (await import('adm-zip')).default;
+  const zip = new AdmZip(zipBuffer);
+  const entries = zip.getEntries();
+  
+  let conversations = [];
+  let userMessages = [];
+  
+  for (const entry of entries) {
+    if (entry.entryName.endsWith('conversations.json') || entry.entryName === 'conversations.json') {
+      try {
+        const content = entry.getData().toString('utf8');
+        const data = JSON.parse(content);
+        
+        if (Array.isArray(data)) {
+          for (const conv of data) {
+            const title = conv.title || 'Untitled';
+            const mapping = conv.mapping || {};
+            
+            for (const [, node] of Object.entries(mapping)) {
+              if (node?.message?.author?.role === 'user' && node?.message?.content?.parts) {
+                const text = node.message.content.parts.join(' ').trim();
+                if (text && text.length > 10) {
+                  userMessages.push(text);
+                }
+              }
+            }
+            conversations.push({ title, messageCount: Object.keys(mapping).length });
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing conversations.json:', e.message);
+      }
+    }
+  }
+  
+  return { 
+    source: 'chatgpt', 
+    conversationCount: conversations.length, 
+    userMessageCount: userMessages.length,
+    sampleMessages: userMessages.slice(0, 100), // Limit for analysis
+    conversations: conversations.slice(0, 50)
+  };
+}
+
+// Parse Facebook export ZIP and extract messages/posts
+async function parseFacebookExport(zipBuffer) {
+  const AdmZip = (await import('adm-zip')).default;
+  const zip = new AdmZip(zipBuffer);
+  const entries = zip.getEntries();
+  
+  let messages = [];
+  let posts = [];
+  
+  for (const entry of entries) {
+    const name = entry.entryName.toLowerCase();
+    
+    // Parse messages
+    if (name.includes('messages/') && name.endsWith('.json')) {
+      try {
+        const content = entry.getData().toString('utf8');
+        const data = JSON.parse(content);
+        
+        if (data.messages && Array.isArray(data.messages)) {
+          for (const msg of data.messages) {
+            if (msg.content && msg.sender_name) {
+              // Decode Facebook's encoding
+              const text = decodeURIComponent(escape(msg.content));
+              if (text.length > 10) {
+                messages.push({ text, sender: msg.sender_name });
+              }
+            }
+          }
+        }
+      } catch (e) { /* skip invalid files */ }
+    }
+    
+    // Parse posts
+    if ((name.includes('posts/') || name.includes('your_posts')) && name.endsWith('.json')) {
+      try {
+        const content = entry.getData().toString('utf8');
+        const data = JSON.parse(content);
+        
+        const postArray = Array.isArray(data) ? data : (data.posts || data.status_updates || []);
+        for (const post of postArray) {
+          const text = post.data?.[0]?.post || post.post || post.title || '';
+          if (text && text.length > 10) {
+            posts.push(decodeURIComponent(escape(text)));
+          }
+        }
+      } catch (e) { /* skip invalid files */ }
+    }
+  }
+  
+  return {
+    source: 'facebook',
+    messageCount: messages.length,
+    postCount: posts.length,
+    sampleMessages: messages.slice(0, 100),
+    samplePosts: posts.slice(0, 50)
+  };
+}
+
+// Analyze communication style using LLM
+async function analyzeCommmunicationStyle(parsedData, existingProfile = null) {
+  const provider = getProvider('openai', 'gpt-4o-mini');
+  
+  let sampleText = '';
+  if (parsedData.source === 'chatgpt') {
+    sampleText = parsedData.sampleMessages.slice(0, 50).join('\n---\n');
+  } else if (parsedData.source === 'facebook') {
+    const msgTexts = parsedData.sampleMessages.slice(0, 30).map(m => m.text).join('\n---\n');
+    const postTexts = parsedData.samplePosts.slice(0, 20).join('\n---\n');
+    sampleText = `MESSAGES:\n${msgTexts}\n\nPOSTS:\n${postTexts}`;
+  }
+  
+  if (!sampleText || sampleText.length < 100) {
+    return { error: 'Not enough data to analyze' };
+  }
+  
+  const analysisPrompt = `Analyze the following user-written content and extract insights about their communication style and personality. This is from their ${parsedData.source === 'chatgpt' ? 'ChatGPT conversation history' : 'Facebook messages and posts'}.
+
+CONTENT TO ANALYZE:
+${sampleText.substring(0, 12000)}
+
+Provide a JSON response with the following structure:
+{
+  "summary": "A 2-3 sentence friendly summary of what you learned about this person",
+  "communicationStyle": {
+    "formality": "formal/casual/mixed",
+    "verbosity": "concise/detailed/balanced",
+    "tone": "analytical/emotional/supportive/humorous/direct/mixed",
+    "description": "Brief description of their communication style"
+  },
+  "interests": ["list", "of", "topics", "they", "discuss", "often"],
+  "vocabulary": {
+    "complexity": "simple/moderate/sophisticated",
+    "uniquePhrases": ["any", "distinctive", "phrases", "they", "use"],
+    "emoji_usage": "frequent/occasional/rare/none"
+  },
+  "questionStyle": "How they tend to ask questions (direct, context-heavy, etc)",
+  "insights": [
+    "Specific insight 1 about their personality or preferences",
+    "Specific insight 2",
+    "Specific insight 3"
+  ]
+}
+
+Return ONLY valid JSON, no markdown or explanation.`;
+
+  try {
+    const response = await provider.generateChatCompletion({
+      systemPrompt: 'You are an expert at analyzing communication patterns and personality from text. Return only valid JSON.',
+      messages: [{ role: 'user', content: analysisPrompt }],
+      model: 'gpt-4o-mini',
+      temperature: 0.3,
+    });
+    
+    // Parse the JSON response
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return { error: 'Could not parse analysis' };
+  } catch (e) {
+    console.error('Analysis error:', e);
+    return { error: e.message };
+  }
+}
 
 // ============================================================
 // URL CONTENT EXTRACTION
