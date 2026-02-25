@@ -548,7 +548,7 @@ async function handleChatStream(request) {
         // Send meta first
         send({ type: 'meta', conversationId: convId, messageId: assistantMsgId });
 
-        const { stream: aiStream, searchMeta, didSearch } = await provider.generateChatCompletionStream({
+        const { stream: aiStream, searchMeta, didSearch } = await provider.generateStream({
           systemPrompt,
           messages: historyMessages,
           model,
@@ -562,10 +562,10 @@ async function handleChatStream(request) {
         }
 
         for await (const chunk of aiStream) {
-          const delta = chunk.choices[0]?.delta?.content || '';
-          if (delta) {
-            fullContent += delta;
-            send({ type: 'delta', content: delta });
+          // Providers yield plain strings
+          if (chunk) {
+            fullContent += chunk;
+            send({ type: 'delta', content: chunk });
           }
         }
 
