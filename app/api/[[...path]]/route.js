@@ -3504,6 +3504,76 @@ async function handleConnectorStub(platform) {
   });
 }
 
+// PLACES SEARCH API - for web app
+async function handlePlacesSearch(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { query, location, lat, lng, radius = 2000, maxResults = 10 } = body;
+
+  if (!query && !location && (!lat || !lng)) {
+    return err('Either query with location, or lat/lng coordinates required');
+  }
+
+  try {
+    let coords = { lat, lng };
+    let locationName = location || 'selected location';
+
+    // If no coordinates, geocode the location
+    if (!lat || !lng) {
+      if (location) {
+        const geocoded = await geocodeAddress(location);
+        if (!geocoded) return err(`Could not find location: ${location}`);
+        coords = { lat: geocoded.lat, lng: geocoded.lng };
+        locationName = geocoded.formattedAddress;
+      } else {
+        return err('Location or coordinates required');
+      }
+    }
+
+    // Extract place type from query
+    const placeType = query ? extractPlaceType(query) : null;
+
+    const places = await searchNearbyPlaces({
+      lat: coords.lat,
+      lng: coords.lng,
+      query: placeType ? null : query,
+      type: placeType,
+      radius,
+      maxResults,
+    });
+
+    return ok({
+      places,
+      location: locationName,
+      coordinates: coords,
+      count: places.length,
+    });
+  } catch (e) {
+    return err(`Search failed: ${e.message}`, 500);
+  }
+}
+
+// GEOCODE API - convert address to coordinates
+async function handleGeocode(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { address } = body;
+
+  if (!address) return err('address required');
+
+  try {
+    const result = await geocodeAddress(address);
+    if (!result) return err(`Could not find location: ${address}`);
+    return ok(result);
+  } catch (e) {
+    return err(`Geocode failed: ${e.message}`, 500);
+  }
+}
+
 // TRANSCRIBE - Whisper audio transcription (fallback for non-Chrome browsers)
 async function handleTranscribe(request) {
   const user = await authenticate(request);
