@@ -771,8 +771,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Google Places Search API (POST /api/places/search)"
-    - "Google Places Geocode API (POST /api/places/geocode)"
+    []
   stuck_tasks: 
     - "Kimi AI Integration (POST /api/chat/stream + GET /api/models)"
   test_all: false
