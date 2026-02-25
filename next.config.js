@@ -7,6 +7,13 @@ const nextConfig = {
     // Remove if not using Server Components
     serverComponentsExternalPackages: ['mongodb'],
   },
+  // Increase body size limit for large file uploads (chunks up to 50MB)
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+    responseLimit: false,
+  },
   webpack(config, { dev }) {
     if (dev) {
       // Reduce CPU/memory from file watching
