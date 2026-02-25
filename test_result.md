@@ -624,6 +624,30 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: DELETE /api/schedules/{id} working perfectly! Successfully deletes schedule. Returns success response. Schedule completely removed from user's schedules list as verified by subsequent GET call."
 
+  - task: "Google Places Search API (POST /api/places/search)"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Google Places search endpoint implemented. Supports search by query+location or lat/lng coordinates. Returns array of nearby places with name, address, rating, Google Maps links."
+
+  - task: "Google Places Geocode API (POST /api/places/geocode)"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Google Places geocode endpoint implemented. Converts address to lat/lng coordinates and formatted address."
+
 frontend:
   - task: "Landing Page (/)"
     implemented: true
