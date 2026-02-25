@@ -491,7 +491,9 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Chat Stream (POST /api/chat/stream)"
+    - "Multi-LLM Provider Integration (OpenAI / Claude / Gemini / Perplexity)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -501,3 +503,5 @@ agent_communication:
     message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://soulprint-llm.preview.emergentagent.com. Test with fresh user registration first."
   - agent: "testing"
     message: "🎉 BACKEND TESTING COMPLETE! All critical endpoints tested successfully. Registration, login, assessment flow (36 questions), chat streaming with memory injection, admin APIs, and connector stubs all working perfectly. The SoulPrint Engine backend is fully functional and ready for production use."
+  - agent: "main"
+    message: "Multi-LLM provider integration completed. Key changes: (1) providers.js has 4 providers (OpenAI, Anthropic, Gemini, Perplexity) each with generateStream() yielding plain strings. (2) route.js now calls generateStream() and consumes plain string chunks. (3) Provider auto-detected from model name via getModelInfo(). (4) Anthropic and Gemini image format conversion added. (5) Frontend model picker updated with all 4 providers grouped. Please test: (a) OpenAI gpt-4o chat with simple text message, (b) Claude claude-sonnet-4-5-20250929 with text, (c) Gemini gemini-2.0-flash with text, (d) Perplexity sonar with text. Register new user or use existing. API keys are in .env."
