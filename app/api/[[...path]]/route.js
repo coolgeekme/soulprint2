@@ -1365,6 +1365,8 @@ export async function GET(request, { params }) {
     if (pathStr === 'messages') return handleGetMessages(request);
     if (pathStr === 'imports') return handleGetImports(request);
     if (pathStr === 'models') return handleGetModels(request);
+    if (pathStr === 'telegram/status') return handleTelegramStatus(request);
+    if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
 
     // Admin routes
     if (pathStr === 'admin/users') return handleAdminGetUsers(request);
