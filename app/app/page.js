@@ -364,6 +364,11 @@ function SettingsModal({ onClose, token }) {
     setSavingModel(false);
   }
 
+  // Sync model from status
+  useEffect(() => {
+    if (telegramStatus?.preferred_model) setTelegramModel(telegramStatus.preferred_model);
+  }, [telegramStatus]);
+
   const linkTelegramFn = async () => {
     if (!linkCode.trim()) return;
     setLinking(true);
