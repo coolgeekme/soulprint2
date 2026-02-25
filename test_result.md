@@ -626,27 +626,33 @@ backend:
 
   - task: "Google Places Search API (POST /api/places/search)"
     implemented: true
-    working: "NA"
+    working: true
     file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Google Places search endpoint implemented. Supports search by query+location or lat/lng coordinates. Returns array of nearby places with name, address, rating, Google Maps links."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Google Places Search API working perfectly! Successfully tested: (1) Restaurant search near Times Square returned 10 places with proper structure, coordinates (40.7579747, -73.9855426), and valid placeIds for Google Maps integration. (2) Coffee shop search with coordinates (37.4220, -122.0841) returned 10 relevant results. (3) Proper authentication required (401 without token). (4) Validation working (rejects empty parameters). All expected response fields present: places, location, coordinates, count."
 
   - task: "Google Places Geocode API (POST /api/places/geocode)"
     implemented: true
-    working: "NA"
+    working: true
     file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Google Places geocode endpoint implemented. Converts address to lat/lng coordinates and formatted address."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Google Places Geocode API working perfectly! Successfully geocoded '1600 Amphitheatre Parkway, Mountain View, CA' to coordinates (37.43517500000001, -122.0820435) with formatted address '1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA'. Coordinates within valid ranges (-90 to 90 lat, -180 to 180 lng). Authentication required. All expected fields present: lat, lng, formattedAddress."
 
 frontend:
   - task: "Landing Page (/)"
