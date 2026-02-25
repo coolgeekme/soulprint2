@@ -499,7 +499,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           conversationId: newConvId, content, model: selectedModel,
-          provider: 'hosted', attachments: currentAttachments, enableWebSearch: webSearchEnabled,
+          provider: currentModel.provider, attachments: currentAttachments, enableWebSearch: webSearchEnabled,
         }),
       });
 
