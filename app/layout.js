@@ -4,19 +4,20 @@ export const metadata = {
   title: 'SoulPrint — Your Personal AI',
   description: 'Stop re-explaining yourself to AI. SoulPrint remembers your tone, your tempo, and your life.',
   manifest: '/manifest.json',
-  themeColor: '#f97316',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'SoulPrint',
   },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-    viewportFit: 'cover',
-  },
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#f97316',
 }
 
 export default function RootLayout({ children }) {
@@ -24,7 +25,6 @@ export default function RootLayout({ children }) {
     <html lang="en" className="dark">
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#f97316" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="SoulPrint" />
