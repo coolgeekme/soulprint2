@@ -564,6 +564,66 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Smart history trimming working correctly! Existing conversations (27 found) load properly. Context queries work with conversation history. trimHistory function maintains most recent messages within 6k token budget to prevent context overflow."
 
+  - task: "Task Scheduling API (GET /api/schedules)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/schedules working correctly! Returns user's schedules array. Empty schedules for new user returns []. Authentication working properly."
+
+  - task: "Schedule Templates API (GET /api/schedules/templates)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: GET /api/schedules/templates working perfectly! Returns 6 predefined schedule templates (AI News, World News, Market, Tech, Crypto, Custom) with correct structure (id, name, prompt fields)."
+
+  - task: "Create Schedule API (POST /api/schedules)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: POST /api/schedules working correctly! Successfully creates schedule with name, prompt, timing, timezone. Returns complete schedule object with id, active=true, next_run_at timestamp. All required fields present in response."
+
+  - task: "Update Schedule API (PUT /api/schedules/{id})"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: PUT /api/schedules/{id} working correctly! Successfully toggles schedule active status (true→false). Returns success response. Changes persist and are verified via GET schedules."
+
+  - task: "Delete Schedule API (DELETE /api/schedules/{id})"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: DELETE /api/schedules/{id} working perfectly! Successfully deletes schedule. Returns success response. Schedule completely removed from user's schedules list as verified by subsequent GET call."
+
 frontend:
   - task: "Landing Page (/)"
     implemented: true
