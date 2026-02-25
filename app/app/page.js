@@ -19,6 +19,94 @@ const MODELS = [
 const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.md,.csv,.json,.docx';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+// ─── Speech recognition hook ─────────────────────────────────────────────────
+function useSpeechRecognition({ onTranscript, onInterim, token }) {
+  const recognitionRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const [isListening, setIsListening] = useState(false);
+  const [mode, setMode] = useState(null); // 'live' | 'whisper'
+
+  const hasNativeSpeech = typeof window !== 'undefined' &&
+    !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  function startLive() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+
+    rec.onresult = (e) => {
+      const interim = Array.from(e.results).map(r => r[0].transcript).join('');
+      const final = Array.from(e.results).filter(r => r.isFinal).map(r => r[0].transcript).join('');
+      if (final) onTranscript(final);
+      else onInterim(interim);
+    };
+    rec.onerror = (e) => { console.error('Speech error', e); setIsListening(false); };
+    rec.onend = () => setIsListening(false);
+
+    recognitionRef.current = rec;
+    rec.start();
+    setIsListening(true);
+    setMode('live');
+  }
+
+  async function startWhisper() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const form = new FormData();
+        form.append('audio', blob, 'recording.webm');
+        try {
+          const res = await fetch('/api/transcribe', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: form,
+          });
+          const data = await res.json();
+          if (data.text) onTranscript(data.text.trim());
+        } catch (err) { console.error('Whisper error', err); }
+        setIsListening(false);
+      };
+      mediaRecorderRef.current = mr;
+      mr.start();
+      setIsListening(true);
+      setMode('whisper');
+    } catch (err) {
+      console.error('Mic access denied', err);
+      setIsListening(false);
+    }
+  }
+
+  function start() {
+    if (hasNativeSpeech) startLive();
+    else startWhisper();
+  }
+
+  function stop() {
+    if (mode === 'live' && recognitionRef.current) {
+      recognitionRef.current.stop();
+    } else if (mode === 'whisper' && mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsListening(false);
+  }
+
+  function toggle() {
+    if (isListening) stop();
+    else start();
+  }
+
+  return { isListening, toggle, mode };
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function SoulPrintLogo({ size = 24 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
