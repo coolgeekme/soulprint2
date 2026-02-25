@@ -414,11 +414,14 @@ function ConversationsTab({ token }) {
 
   return (
     <div>
+      <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+        <p className="text-blue-400 text-xs">🔒 <strong>Privacy Mode:</strong> Conversation content is not visible to admins. Only general topic categories are shown.</p>
+      </div>
       {loading ? <div className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-600" /></div> : (
         <table className="w-full admin-table">
           <thead>
             <tr className="border-b border-white/5">
-              {['User', 'Title', 'Created', 'Last Active'].map(h => (
+              {['User', 'Topic Category', 'Messages', 'Created', 'Last Active'].map(h => (
                 <th key={h} className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">{h}</th>
               ))}
             </tr>
@@ -427,7 +430,8 @@ function ConversationsTab({ token }) {
             {convs.map(c => (
               <tr key={c.id} className="border-b border-white/3">
                 <td className="py-3 pr-4 text-gray-400 text-xs">{c.user_email}</td>
-                <td className="py-3 pr-4 text-white text-xs truncate max-w-[200px]">{c.title}</td>
+                <td className="py-3 pr-4 text-white text-xs">{c.topic || '💬 General Chat'}</td>
+                <td className="py-3 pr-4 text-gray-500 text-xs">{c.message_count || '—'}</td>
                 <td className="py-3 pr-4 text-gray-600 text-[10px]">{new Date(c.created_at).toLocaleDateString()}</td>
                 <td className="py-3 pr-4 text-gray-600 text-[10px]">{new Date(c.updated_at).toLocaleDateString()}</td>
               </tr>
