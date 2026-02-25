@@ -1461,6 +1461,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'feedback') return handleSubmitFeedback(request);
     if (pathStr === 'imports/upload') return handleImportUpload(request);
     if (pathStr === 'telegram/link') return handleTelegramLink(request);
+    if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
     if (pathStr === 'connectors/telegram/webhook') return handleTelegramWebhook(request);
 
     // Admin routes
