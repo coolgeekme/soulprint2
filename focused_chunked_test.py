@@ -188,7 +188,7 @@ def test_auto_detection_chunked_upload(token):
     """Test chunked upload with auto-detection (no source specified)"""
     print(f"\n🔍 TESTING AUTO-DETECTION CHUNKED UPLOAD...")
     
-    # Create ChatGPT data but don't specify source (test auto-detection)
+    # Create ChatGPT data with more content but don't specify source (test auto-detection)
     conversations_data = [
         {
             "title": "AI Ethics Discussion",
@@ -196,7 +196,42 @@ def test_auto_detection_chunked_upload(token):
                 "msg1": {
                     "message": {
                         "author": {"role": "user"},
-                        "content": {"parts": ["What are your thoughts on the ethical implications of AI in healthcare decision making?"]}
+                        "content": {"parts": ["What are your thoughts on the ethical implications of AI in healthcare decision making? I'm particularly concerned about bias in diagnostic algorithms."]}
+                    }
+                },
+                "msg2": {
+                    "message": {
+                        "author": {"role": "assistant"},
+                        "content": {"parts": ["AI in healthcare raises important ethical considerations..."]}
+                    }
+                },
+                "msg3": {
+                    "message": {
+                        "author": {"role": "user"},
+                        "content": {"parts": ["That's a comprehensive overview. I'm also wondering about the transparency requirements for AI systems used in critical medical decisions. How can we ensure doctors understand the reasoning behind AI recommendations?"]}
+                    }
+                }
+            }
+        },
+        {
+            "title": "Machine Learning Projects",
+            "mapping": {
+                "msg4": {
+                    "message": {
+                        "author": {"role": "user"},
+                        "content": {"parts": ["I'm working on a natural language processing project that analyzes patient feedback to improve healthcare services. What are the best approaches for sentiment analysis in this domain?"]}
+                    }
+                },
+                "msg5": {
+                    "message": {
+                        "author": {"role": "assistant"},
+                        "content": {"parts": ["Healthcare sentiment analysis has unique challenges..."]}
+                    }
+                },
+                "msg6": {
+                    "message": {
+                        "author": {"role": "user"},
+                        "content": {"parts": ["Excellent suggestions! I'm particularly interested in handling medical terminology and the nuanced emotional expressions patients use when describing their experiences."]}
                     }
                 }
             }
