@@ -377,11 +377,29 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     
     setUploading(true);
     
-    // Smaller chunks (2MB) for better reliability in deployed environments
-    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks - more reliable for cloud deployments
+    // Very small chunks (512KB) for maximum reliability in cloud deployments with strict timeouts
+    const CHUNK_SIZE = 512 * 1024; // 512KB chunks - optimized for cloud proxy timeouts
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 5;
+    const FETCH_TIMEOUT = 30000; // 30 second timeout per chunk
+    
+    // Helper function to fetch with timeout
+    async function fetchWithTimeout(url, options, timeout = FETCH_TIMEOUT) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          throw new Error('Request timed out');
+        }
+        throw err;
+      }
+    }
     
     // Helper function to upload a single chunk with retries
     async function uploadChunkWithRetry(uploadId, chunkIndex, chunkBlob, retries = 0) {
@@ -391,7 +409,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
       chunkFormData.append('chunk', chunkBlob);
       
       try {
-        const chunkRes = await fetch('/api/data-import/chunked/chunk', {
+        const chunkRes = await fetchWithTimeout('/api/data-import/chunked/chunk', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: chunkFormData,
@@ -404,8 +422,10 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
         return true;
       } catch (err) {
         if (retries < MAX_RETRIES) {
-          // Wait before retry (exponential backoff)
-          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+          // Wait before retry (exponential backoff: 1s, 2s, 4s, 8s, 16s)
+          const waitTime = 1000 * Math.pow(2, retries);
+          setUploadProgress(`Retry ${retries + 1}/${MAX_RETRIES} for chunk ${chunkIndex + 1}... (waiting ${waitTime/1000}s)`);
+          await new Promise(r => setTimeout(r, waitTime));
           return uploadChunkWithRetry(uploadId, chunkIndex, chunkBlob, retries + 1);
         }
         throw err;
@@ -413,8 +433,8 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     }
     
     try {
-      // For small files (< 20MB), use direct upload
-      if (file.size < 20 * 1024 * 1024) {
+      // For small files (< 10MB), use direct upload
+      if (file.size < 10 * 1024 * 1024) {
         setUploadProgress(`Uploading ${file.name} (${fileSizeMB}MB)...`);
         
         const formData = new FormData();
