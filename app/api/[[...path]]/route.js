@@ -543,6 +543,35 @@ async function handleChatStream(request) {
   const assistantMsgId = uuidv4();
   let fullContent = '';
 
+  // ── Media intent detection ──────────────────────────────────────────────
+  // Detect if user is asking to generate an image or video
+  const detectMediaIntent = (text) => {
+    if (!text) return null;
+    const lower = text.toLowerCase();
+    // Video detection (check first — more specific)
+    const videoPatterns = [
+      /\bgenerate\s+(?:a\s+)?video\b/i, /\bcreate\s+(?:a\s+)?video\b/i,
+      /\bmake\s+(?:a\s+)?video\b/i, /\bvideo\s+of\b/i,
+      /\banimate\b/i, /\banimation\s+of\b/i, /\bshort\s+(?:film|clip)\b/i,
+      /\bgenerate\s+(?:a\s+)?clip\b/i,
+    ];
+    if (videoPatterns.some(p => p.test(lower))) return 'video';
+    // Image detection
+    const imagePatterns = [
+      /\bgenerate\s+(?:an?\s+)?image\b/i, /\bcreate\s+(?:an?\s+)?image\b/i,
+      /\bmake\s+(?:an?\s+)?image\b/i, /\bdraw\s+(?:an?\s+|me\s+)?/i,
+      /\bpicture\s+of\b/i, /\bphoto\s+of\b/i, /\billustration\s+of\b/i,
+      /\bgenerate\s+(?:an?\s+)?illustration\b/i, /\bcreate\s+(?:an?\s+)?picture\b/i,
+      /\bgenerate\s+art\b/i, /\bcreate\s+art\b/i, /\bshow\s+me\s+(?:an?\s+)?image\b/i,
+      /\bpaint\s+(?:me\s+)?(?:an?\s+)?/i, /\bvisualize\b/i,
+      /\bdall-?e\b/i, /\bstable\s+diffusion\b/i,
+    ];
+    if (imagePatterns.some(p => p.test(lower))) return 'image';
+    return null;
+  };
+
+  const mediaIntent = detectMediaIntent(content);
+
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
@@ -551,6 +580,84 @@ async function handleChatStream(request) {
       try {
         // Send meta first
         send({ type: 'meta', conversationId: convId, messageId: assistantMsgId });
+
+        // ── Handle image generation ───────────────────────────────────────
+        if (mediaIntent === 'image' && attachments.length === 0) {
+          send({ type: 'delta', content: '🎨 Generating your image with DALL-E 3...\n\n' });
+          try {
+            const apiKey = process.env.OPENAI_API_KEY;
+            const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+              body: JSON.stringify({ model: 'dall-e-3', prompt: content, n: 1, size: '1024x1024', quality: 'standard', style: 'vivid' }),
+            });
+            const imgData = await imgRes.json();
+            if (imgData.error) throw new Error(imgData.error.message);
+            const imageUrl = imgData.data?.[0]?.url;
+            const revisedPrompt = imgData.data?.[0]?.revised_prompt || content;
+
+            fullContent = `![Generated Image](${imageUrl})\n\n*Prompt used: ${revisedPrompt}*`;
+            send({ type: 'image', url: imageUrl, revised_prompt: revisedPrompt });
+            send({ type: 'delta', content: fullContent });
+          } catch (imgErr) {
+            fullContent = `Sorry, image generation failed: ${imgErr.message}`;
+            send({ type: 'delta', content: fullContent });
+          }
+          // Save message
+          const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+          await db.collection('messages').insertOne({
+            id: assistantMsgId, conversation_id: convId, user_id: user.id,
+            role: 'assistant', content: fullContent, created_at: new Date(),
+            model_used: 'dall-e-3', provider_used: 'openai', content_type: 'image',
+            est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
+          });
+          await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+          send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+          controller.close();
+          return;
+        }
+
+        // ── Handle video generation ───────────────────────────────────────
+        if (mediaIntent === 'video' && attachments.length === 0) {
+          send({ type: 'delta', content: '🎬 Starting video generation with Runway (via Kie.ai)...\n\n' });
+          try {
+            const kieKey = process.env.KIE_API_KEY;
+            const vidRes = await fetch('https://api.kie.ai/api/v1/runway/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+              body: JSON.stringify({ prompt: content, duration: 5, quality: '720p', aspectRatio: '16:9', waterMark: '' }),
+            });
+            const vidData = await vidRes.json();
+            if (vidData.code !== 200) throw new Error(vidData.msg || 'Video generation failed');
+            const taskId = vidData.data?.taskId;
+
+            // Save job to DB
+            await db.collection('video_jobs').insertOne({
+              id: uuidv4(), task_id: taskId, user_id: user.id,
+              prompt: content, duration: 5, quality: '720p', aspect_ratio: '16:9',
+              status: 'generating', conversation_id: convId,
+              created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+            });
+
+            fullContent = `🎬 **Video generation started!**\n\nYour video is being generated by Runway AI. This usually takes 1-3 minutes.\n\n**Task ID:** \`${taskId}\`\n\n*I'll let you know when it's ready, or you can check the status in the video player below.*`;
+            send({ type: 'video_task', taskId, status: 'generating', prompt: content });
+            send({ type: 'delta', content: fullContent });
+          } catch (vidErr) {
+            fullContent = `Sorry, video generation failed: ${vidErr.message}`;
+            send({ type: 'delta', content: fullContent });
+          }
+          const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+          await db.collection('messages').insertOne({
+            id: assistantMsgId, conversation_id: convId, user_id: user.id,
+            role: 'assistant', content: fullContent, created_at: new Date(),
+            model_used: 'runway', provider_used: 'kie.ai', content_type: 'video',
+            est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
+          });
+          await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+          send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+          controller.close();
+          return;
+        }
 
         const { stream: aiStream, searchMeta, didSearch } = await provider.generateStream({
           systemPrompt,
