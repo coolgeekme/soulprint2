@@ -319,10 +319,11 @@ const TIMEZONES = [
 ];
 
 // Settings / Telegram / Imports Modal
-function SettingsModal({ onClose, token }) {
+function SettingsModal({ onClose, token, onAssessmentReset }) {
   const [activeTab, setActiveTab] = useState('imports');
   const [imports, setImports] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState('');
   const [profile, setProfile] = useState(null);
   const [telegramStatus, setTelegramStatus] = useState(null);
   const [linkCode, setLinkCode] = useState('');
@@ -330,6 +331,11 @@ function SettingsModal({ onClose, token }) {
   const [linkMsg, setLinkMsg] = useState('');
   const fileRef = useRef();
   const fbFileRef = useRef();
+  
+  // Data imports state
+  const [dataImports, setDataImports] = useState([]);
+  const [soulProfile, setSoulProfile] = useState(null);
+  const [showInsights, setShowInsights] = useState(false);
 
   // Schedules state
   const [schedules, setSchedules] = useState([]);
