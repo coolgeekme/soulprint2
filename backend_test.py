@@ -29,32 +29,40 @@ class SoulPrintTester:
     
     async def authenticate(self):
         """Login or register test user"""
-        try:
-            # Try login first with superadmin user
-            login_data = {
-                "email": "test@soulprint.com",
-                "passcode": "test123"
-            }
-            
-            async with self.session.post(f"{self.base_url}/api/auth/login", 
-                                       json=login_data) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    self.auth_token = data.get('token')
-                    print(f"✅ Logged in as existing user: {login_data['email']}")
-                    return True
-                elif resp.status in [401, 404]:
-                    print(f"⚠️ Login failed (status {resp.status}), trying registration...")
-                else:
-                    print(f"❌ Login error: {resp.status}")
-                    return False
-        except Exception as e:
-            print(f"❌ Login error: {e}")
+        # First try with the known superadmin test user
+        test_users = [
+            {"email": "test@soulprint.com", "passcode": "test123"},
+            {"email": "llmtest@soulprint.com", "passcode": "test123"},
+        ]
         
-        # Try registration
+        for login_data in test_users:
+            try:
+                async with self.session.post(f"{self.base_url}/api/auth/login", 
+                                           json=login_data) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        self.auth_token = data.get('token')
+                        accepted = data.get('accepted', False)
+                        role = data.get('role', 'user')
+                        print(f"✅ Logged in as: {login_data['email']} (role: {role}, accepted: {accepted})")
+                        if accepted:
+                            return True
+                        else:
+                            print(f"⚠️ User {login_data['email']} not accepted, trying next...")
+                            continue
+                    elif resp.status in [401, 404]:
+                        print(f"⚠️ User {login_data['email']} not found, trying next...")
+                        continue
+            except Exception as e:
+                print(f"❌ Login error for {login_data['email']}: {e}")
+                continue
+        
+        # If no existing users work, try creating a new unique user
         try:
+            import time
+            unique_email = f"llmtest{int(time.time())}@soulprint.com"
             register_data = {
-                "email": "llmtest@soulprint.com",
+                "email": unique_email,
                 "passcode": "test123"
             }
             
@@ -63,8 +71,14 @@ class SoulPrintTester:
                 if resp.status == 200:
                     data = await resp.json()
                     self.auth_token = data.get('token')
-                    print(f"✅ Registered new user: {register_data['email']} (first user is superadmin)")
-                    return True
+                    accepted = data.get('accepted', False)
+                    role = data.get('role', 'user')
+                    print(f"✅ Registered new user: {unique_email} (role: {role}, accepted: {accepted})")
+                    if accepted:
+                        return True
+                    else:
+                        print(f"⚠️ New user not auto-approved. This may be expected if other users exist.")
+                        return False
                 else:
                     error_text = await resp.text()
                     print(f"❌ Registration failed: {resp.status} - {error_text}")
