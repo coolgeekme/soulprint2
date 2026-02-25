@@ -126,15 +126,6 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SoulPrintLogo({ size = 24 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 80 80" fill="none">
-      <path d="M40 8 C55 8, 70 18, 70 35 C70 52, 55 62, 40 55 C25 48, 15 35, 22 22 C29 9, 42 12, 48 20 C54 28, 50 40, 42 44 C34 48, 28 42, 30 36 C32 30, 38 28, 42 32" stroke="#f97316" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.9"/>
-      <path d="M40 14 C52 14, 64 22, 64 36 C64 50, 52 58, 40 52 C28 46, 20 34, 26 24 C32 14, 44 16, 49 23 C54 30, 51 40, 44 43 C37 46, 32 41, 34 36 C36 31, 40 30, 43 33" stroke="#f97316" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.6"/>
-    </svg>
-  );
-}
-
 function TypingIndicator() {
   return (
     <div className="flex items-center gap-1.5 px-4 py-3">
