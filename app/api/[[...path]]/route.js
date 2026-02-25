@@ -2447,6 +2447,57 @@ async function handleTelegramWebhook(request) {
     return ok({ ok: true });
   }
 
+  // ── /read command — extract and summarize URL content ─────────────────────
+  if (text.startsWith('/read ') || text.startsWith('/url ')) {
+    if (!mapping?.linked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
+      return ok({ ok: true });
+    }
+    const urlMatch = text.match(/https?:\/\/[^\s]+/i);
+    if (!urlMatch) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '❌ Usage: /read [URL]\nExample: /read https://example.com/article');
+      return ok({ ok: true });
+    }
+    const url = urlMatch[0];
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '🔗 Reading and summarizing page...');
+    try {
+      const extracted = await extractUrlContent(url);
+      if (!extracted.success) {
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Could not read page: ${extracted.error}`);
+        return ok({ ok: true });
+      }
+      
+      // Get AI to summarize
+      const { getProvider: gp } = await import('@/lib/llm/providers');
+      const provider = gp(preferredProvider, preferredModel);
+      const summaryPrompt = `Summarize the following webpage content concisely. Include key points and main takeaways:\n\n**Title:** ${extracted.title}\n**URL:** ${url}\n\n${extracted.content}`;
+      
+      let summary;
+      try {
+        const { stream } = await provider.generateStream({
+          systemPrompt: 'You are a helpful assistant that summarizes web content clearly and concisely.',
+          messages: [{ role: 'user', content: summaryPrompt }],
+          model: preferredModel, temperature: 0.5,
+        });
+        summary = '';
+        for await (const chunk of stream) { summary += chunk; }
+      } catch {
+        summary = await provider.generateChatCompletion({
+          systemPrompt: 'You are a helpful assistant that summarizes web content.',
+          messages: [{ role: 'user', content: summaryPrompt }],
+          model: preferredModel, temperature: 0.5,
+        });
+      }
+      
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `📄 *${extracted.title || 'Page Summary'}*\n\n${summary}\n\n🔗 [Open original](${url})`
+      );
+    } catch (e) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Error: ${e.message}`);
+    }
+    return ok({ ok: true });
+  }
+
   // ── /post command — generate social media post ───────────────────────────────
   if (text.startsWith('/post ')) {
     if (!mapping?.linked) {
