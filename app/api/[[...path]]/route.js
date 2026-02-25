@@ -1298,12 +1298,38 @@ async function handleTelegramLink(request) {
   if (!link_code) return err('link_code required');
 
   const db = await getDb();
+
+  // Find mapping by code
   const mapping = await db.collection('telegram_mappings').findOne({ link_code: link_code.toUpperCase() });
-  if (!mapping) return err('Invalid link code. Please send /start to your bot first.', 404);
+  if (!mapping) return err('Invalid link code. Send /start to the bot to get a new one.', 404);
+
+  // Check expiry
+  if (mapping.expires_at && new Date() > new Date(mapping.expires_at)) {
+    return err('This link code has expired. Send /start to the bot to get a new one.', 410);
+  }
+
+  // Prevent one Telegram account from linking to multiple SoulPrint users
+  const alreadyLinked = await db.collection('telegram_mappings').findOne({
+    telegram_user_id: mapping.telegram_user_id,
+    linked: true,
+    user_id: { $exists: true },
+  });
+  if (alreadyLinked && alreadyLinked.user_id !== user.id) {
+    return err('This Telegram account is already linked to a different SoulPrint account.', 409);
+  }
+
+  // Prevent one SoulPrint user from linking multiple Telegram accounts
+  const userAlreadyLinked = await db.collection('telegram_mappings').findOne({
+    user_id: user.id,
+    linked: true,
+  });
+  if (userAlreadyLinked) {
+    return err('Your account is already linked to a Telegram account.', 409);
+  }
 
   await db.collection('telegram_mappings').updateOne(
     { link_code: link_code.toUpperCase() },
-    { $set: { user_id: user.id, linked: true, linked_at: new Date() } }
+    { $set: { user_id: user.id, linked: true, linked_at: new Date(), expires_at: null } }
   );
 
   // Notify via Telegram
@@ -1311,12 +1337,13 @@ async function handleTelegramLink(request) {
   if (TELEGRAM_BOT_TOKEN && mapping.telegram_chat_id) {
     const profile = await db.collection('profiles').findOne({ user_id: user.id });
     const botName = profile?.assistant_name || 'SoulPrint';
+    const displayName = profile?.display_name || 'there';
     await sendTelegramMessage(mapping.telegram_chat_id, TELEGRAM_BOT_TOKEN,
-      `✅ Account linked! ${botName} is ready. Just send me a message anytime.`
+      `✅ Linked! Hey ${displayName}, ${botName} is ready.\n\nYour conversations here are private — only you can see them. Just send a message anytime.`
     );
   }
 
-  return ok({ success: true, message: 'Telegram linked successfully!' });
+  return ok({ success: true, message: 'Telegram linked successfully! Check your bot for a confirmation.' });
 }
 
 // Telegram status + setup webhook
