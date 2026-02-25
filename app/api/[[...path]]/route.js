@@ -457,7 +457,159 @@ async function handleGetMessages(request) {
   })));
 }
 
-// CHAT STREAM - Streaming chat with web search + file vision
+// ── In-memory caches (per process) ───────────────────────────────────────────
+const _systemPromptCache = new Map(); // userId → { prompt, ts }
+const _rateLimitCache    = new Map(); // userId → { count, windowStart }
+
+// ── Rate Limiter ──────────────────────────────────────────────────────────────
+function checkRateLimit(userId, maxPerHour = 80) {
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000;
+  const entry = _rateLimitCache.get(userId) || { count: 0, windowStart: now };
+  if (now - entry.windowStart > windowMs) {
+    entry.count = 1;
+    entry.windowStart = now;
+  } else {
+    entry.count++;
+  }
+  _rateLimitCache.set(userId, entry);
+  return entry.count > maxPerHour;
+}
+
+// ── Input Sanitizer ───────────────────────────────────────────────────────────
+// Strips common prompt-injection patterns before sending to any LLM
+function sanitizeInput(text) {
+  if (!text || typeof text !== 'string') return text;
+  return text
+    .replace(/ignore\s+(previous|all|above|prior)\s+instructions?/gi, '[input filtered]')
+    .replace(/\bDAN\b/g, '[filtered]')
+    .replace(/<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>/g, '')
+    .replace(/```\s*(system|instructions?|prompt)\b/gi, '```')
+    .substring(0, 8000); // hard cap per message
+}
+
+// ── Smart History Trimmer (token-aware) ───────────────────────────────────────
+// Keeps the most recent messages that fit within a token budget
+// This is a best practice to avoid context window overflow and unnecessary token costs
+function trimHistory(messages, maxContextTokens = 6000) {
+  if (!messages || messages.length === 0) return [];
+  let total = 0;
+  const trimmed = [];
+  // Work backwards (most-recent first), keep messages that fit
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+    const est = Math.ceil(content.length / 4) + 4; // +4 for role overhead
+    if (total + est > maxContextTokens) break;
+    total += est;
+    trimmed.unshift(msg);
+  }
+  return trimmed;
+}
+
+// ── Cached System Prompt (5-min TTL) ─────────────────────────────────────────
+// Best practice: avoid rebuilding + re-querying profile on every message
+async function getSystemPrompt(db, userId) {
+  const cached = _systemPromptCache.get(userId);
+  if (cached && (Date.now() - cached.ts) < 5 * 60 * 1000) return cached.prompt;
+  const prompt = await buildSystemPrompt(db, userId);
+  _systemPromptCache.set(userId, { prompt, ts: Date.now() });
+  return prompt;
+}
+
+// Invalidate cache when profile changes
+function invalidateSystemPromptCache(userId) {
+  _systemPromptCache.delete(userId);
+}
+
+// ── Data Retention Cleanup (async, best-effort) ───────────────────────────────
+// Called opportunistically — deletes messages older than the retention window
+async function enforceDataRetention(db, userId) {
+  try {
+    const settings = await db.collection('app_settings').findOne({ key: 'global' });
+    const retentionDays = settings?.message_retention_days || 365; // default 1 year
+    if (retentionDays <= 0) return; // 0 = keep forever
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+    // Only run cleanup 1% of requests to avoid overhead
+    if (Math.random() < 0.01) {
+      await db.collection('messages').deleteMany({ user_id: userId, created_at: { $lt: cutoff } });
+    }
+  } catch { /* non-blocking */ }
+}
+
+// ── Social Media Platform Formats ─────────────────────────────────────────────
+const SOCIAL_PLATFORMS = {
+  twitter:   { name: 'Twitter/X',  maxChars: 280,  hashtags: 3,  emoji: true },
+  instagram: { name: 'Instagram',  maxChars: 2200, hashtags: 10, emoji: true  },
+  linkedin:  { name: 'LinkedIn',   maxChars: 1300, hashtags: 5,  emoji: false },
+  tiktok:    { name: 'TikTok',     maxChars: 300,  hashtags: 8,  emoji: true  },
+  facebook:  { name: 'Facebook',   maxChars: 500,  hashtags: 3,  emoji: true  },
+  threads:   { name: 'Threads',    maxChars: 500,  hashtags: 5,  emoji: true  },
+  youtube:   { name: 'YouTube',    maxChars: 5000, hashtags: 5,  emoji: false },
+};
+
+async function generateSocialPost({ platform, topic, userContext, model = 'gpt-4o', includeSearch = true }) {
+  const fmt = SOCIAL_PLATFORMS[platform.toLowerCase()] || SOCIAL_PLATFORMS.twitter;
+  let searchContext = '';
+
+  if (includeSearch) {
+    const { buildSearchContext } = await import('@/lib/llm/providers');
+    const ctx = await buildSearchContext(topic);
+    if (ctx) searchContext = `\n\nReal-time context:\n${ctx}`;
+  }
+
+  const systemMsg = `You are a professional social media copywriter. Create viral, engaging content that drives engagement. Follow platform best practices exactly.`;
+  const userMsg = `Create a ${fmt.name} post about: "${topic}"
+${searchContext}
+Platform rules:
+- Max ${fmt.maxChars} characters (STRICT — trim if needed)
+- Include ${fmt.hashtags} relevant hashtags
+- ${fmt.emoji ? 'Use appropriate emojis' : 'No emojis (LinkedIn professional)'}
+- ${platform === 'twitter' ? 'Make it punchy with a strong hook in first 5 words' : ''}
+- ${platform === 'instagram' ? 'Start with a visual hook, tell a story, end with a question or CTA' : ''}
+- ${platform === 'linkedin' ? 'Professional insight-driven post. Start with a bold statement. Include a clear business value and CTA' : ''}
+- ${platform === 'tiktok' ? 'Viral hook in first line. Include trending hashtags and suggest a sound or trend' : ''}
+${userContext ? `\nUser persona/voice: ${userContext}` : ''}
+Output ONLY the post text, no explanations. Include hashtags at the end.`;
+
+  const { getProvider } = await import('@/lib/llm/providers');
+  const provider = getProvider('openai', model);
+  const text = await provider.generateChatCompletion({
+    systemPrompt: systemMsg,
+    messages: [{ role: 'user', content: userMsg }],
+    model,
+    temperature: 0.8,
+  });
+
+  return { post: text, platform: fmt.name, maxChars: fmt.maxChars };
+}
+
+// ── Telegram helpers ──────────────────────────────────────────────────────────
+async function sendTelegramPhoto(chatId, token, photoUrl, caption = '') {
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, photo: photoUrl, caption: caption.substring(0, 1024), parse_mode: 'Markdown' }),
+    });
+  } catch (e) { console.error('sendTelegramPhoto error:', e.message); }
+}
+
+async function sendTelegramVideo(chatId, token, videoUrl, caption = '') {
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, video: videoUrl, caption: caption.substring(0, 1024), parse_mode: 'Markdown', supports_streaming: true }),
+    });
+    // Fallback to document if video fails
+    if (!res.ok) {
+      await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, document: videoUrl, caption: caption.substring(0, 1024) }),
+      });
+    }
+  } catch (e) { console.error('sendTelegramVideo error:', e.message); }
+}
+ web search + file vision
 async function handleChatStream(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
