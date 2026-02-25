@@ -2684,6 +2684,131 @@ async function handleTelegramWebhook(request) {
     return ok({ ok: true });
   }
 
+  // ── /nearby and /find commands — location-based place search ────────────────
+  if (text.startsWith('/nearby ') || text.startsWith('/find ') || text.startsWith('/places ')) {
+    if (!mapping?.linked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
+      return ok({ ok: true });
+    }
+    
+    const query = text.replace(/^\/(nearby|find|places)\s+/i, '').trim();
+    if (!query) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `📍 *Location Search*\n\n` +
+        `Usage:\n` +
+        `/nearby [type] in [location]\n` +
+        `/find [search] near [location]\n\n` +
+        `Examples:\n` +
+        `• /nearby restaurants in Austin, TX\n` +
+        `• /find coffee shops near Times Square\n` +
+        `• /nearby gas stations in 90210\n` +
+        `• /find Italian food near me (share location first)\n\n` +
+        `Types: restaurants, cafes, bars, hotels, gas stations, pharmacies, gyms, banks, parks, museums, etc.`
+      );
+      return ok({ ok: true });
+    }
+    
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '🔍 Searching for places...');
+    
+    try {
+      // Parse location from query
+      let locationName = parseLocationQuery(query);
+      let coords = null;
+      
+      // Check if user has shared location recently (stored in DB)
+      if (!locationName || locationName.toLowerCase() === 'me') {
+        const userLocation = await db.collection('user_locations').findOne({ user_id: userId });
+        if (userLocation && userLocation.lat && userLocation.lng) {
+          coords = { lat: userLocation.lat, lng: userLocation.lng };
+          locationName = userLocation.address || 'your location';
+        } else {
+          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+            `📍 Please share your location first, or specify a location:\n\n` +
+            `Example: /nearby restaurants in San Francisco`
+          );
+          return ok({ ok: true });
+        }
+      } else {
+        // Geocode the location
+        coords = await geocodeAddress(locationName);
+        if (!coords) {
+          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Could not find location: "${locationName}"`);
+          return ok({ ok: true });
+        }
+        locationName = coords.formattedAddress || locationName;
+      }
+      
+      // Extract place type from query
+      const searchTerm = query.replace(/\s+(near|in|around|at)\s+.+$/i, '').trim();
+      const placeType = extractPlaceType(searchTerm);
+      
+      // Search for places
+      const places = await searchNearbyPlaces({
+        lat: coords.lat,
+        lng: coords.lng,
+        query: placeType ? null : searchTerm, // Use text search if no specific type
+        type: placeType,
+        radius: 2000,
+        maxResults: 6,
+      });
+      
+      const response = formatPlacesForTelegram(places, locationName);
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, response);
+      
+    } catch (e) {
+      console.error('Places search error:', e);
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Search failed: ${e.message}`);
+    }
+    return ok({ ok: true });
+  }
+
+  // ── Handle shared location from Telegram ────────────────────────────────────
+  const location = message?.location;
+  if (location && location.latitude && location.longitude) {
+    if (!mapping?.linked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
+      return ok({ ok: true });
+    }
+    
+    try {
+      // Store user's location
+      await db.collection('user_locations').updateOne(
+        { user_id: userId },
+        { 
+          $set: { 
+            lat: location.latitude, 
+            lng: location.longitude, 
+            updated_at: new Date(),
+          } 
+        },
+        { upsert: true }
+      );
+      
+      // Reverse geocode to get address
+      const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+      const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${location.latitude},${location.longitude}&key=${apiKey}`);
+      const geoData = await geoRes.json();
+      const address = geoData.results?.[0]?.formatted_address || 'your location';
+      
+      await db.collection('user_locations').updateOne(
+        { user_id: userId },
+        { $set: { address } }
+      );
+      
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `📍 Location saved: *${address}*\n\n` +
+        `Now you can use:\n` +
+        `• /nearby restaurants\n` +
+        `• /find coffee shops\n` +
+        `• /nearby gas stations\n\n` +
+        `Or just ask: "What restaurants are near me?"`
+      );
+    } catch (e) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Error saving location: ${e.message}`);
+    }
+    return ok({ ok: true });
+  }
+
   // ── /post command — generate social media post ───────────────────────────────
   if (text.startsWith('/post ')) {
     if (!mapping?.linked) {
