@@ -1829,6 +1829,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'conversations') return handleCreateConversation(request);
     if (pathStr === 'chat/stream') return handleChatStream(request);
     if (pathStr === 'feedback') return handleSubmitFeedback(request);
+    if (pathStr === 'generate/image') return handleGenerateImage(request);
+    if (pathStr === 'generate/video') return handleGenerateVideo(request);
     if (pathStr === 'imports/upload') return handleImportUpload(request);
     if (pathStr === 'transcribe') return handleTranscribe(request);
     if (pathStr === 'telegram/link') return handleTelegramLink(request);
