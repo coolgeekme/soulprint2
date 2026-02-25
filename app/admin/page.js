@@ -505,13 +505,53 @@ function SettingsTab({ token }) {
         </div>
       </div>
 
+      {/* Telegram Setup */}
       <div>
-        <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-2">Connector Status</p>
+        <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-3">Telegram Bot</p>
+        <div className="p-4 bg-[#111] border border-white/8 rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#229ED9"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.012 9.483c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L6.32 14.617l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.496.969z"/></svg>
+              <span className="text-white text-sm">Telegram Connector</span>
+            </div>
+            <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${tgSetup?.configured ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-500'}`}>
+              {tgSetup?.configured ? `LIVE · ${tgSetup.linkedUsers || 0} users linked` : 'NOT SET UP'}
+            </span>
+          </div>
+          <p className="text-gray-600 text-xs">Register the webhook so Telegram can deliver messages to SoulPrint. Requires <code className="bg-white/10 px-1 rounded">TELEGRAM_BOT_TOKEN</code> in .env.</p>
+          <button onClick={setupTelegram} disabled={tgLoading}
+            className="btn-orange px-4 py-2 rounded-lg text-xs disabled:opacity-50 flex items-center gap-2">
+            {tgLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Setting up...</> : '🔗 Register Webhook'}
+          </button>
+          {tgSetup && (
+            <div className={`text-xs p-3 rounded-lg ${tgSetup.webhook?.ok ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+              {tgSetup.webhook?.ok
+                ? `✅ Webhook set! Bot: @${tgSetup.bot?.username} · Secret: ${tgSetup.secretProtected ? '🔒 Protected' : '⚠️ Unprotected (add TELEGRAM_WEBHOOK_SECRET)'}`
+                : `❌ ${JSON.stringify(tgSetup)}`}
+            </div>
+          )}
+          {!tgSetup && (
+            <div className="text-xs text-gray-600 p-3 rounded-lg bg-white/3 border border-white/5 space-y-1">
+              <p className="font-semibold text-gray-500">To activate Telegram:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>Open Telegram → search @BotFather → /newbot</li>
+                <li>Copy the token it gives you</li>
+                <li>Add <code className="bg-white/10 px-1 rounded">TELEGRAM_BOT_TOKEN=your_token</code> to .env</li>
+                <li>Optional: add <code className="bg-white/10 px-1 rounded">TELEGRAM_WEBHOOK_SECRET=random_string</code></li>
+                <li>Restart the server, then click Register Webhook above</li>
+              </ol>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-2">Other Connectors</p>
         <div className="space-y-2">
-          {['telegram', 'discord', 'whatsapp', 'sms'].map(c => (
+          {['discord', 'whatsapp', 'sms'].map(c => (
             <div key={c} className="flex items-center justify-between p-3 bg-[#111] border border-white/8 rounded-xl">
               <span className="text-gray-400 text-sm capitalize">{c}</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-500/20 text-gray-500 font-bold">DISABLED</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-500/20 text-gray-500 font-bold">COMING SOON</span>
             </div>
           ))}
         </div>
