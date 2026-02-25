@@ -2872,6 +2872,14 @@ async function handleTelegramWebhook(request) {
       }
     }
 
+    // ── Inject URL content into the message ───────────────────────────────────
+    if (urlContext) {
+      historyMessages = [
+        ...historyMessages.slice(0, -1),
+        { role: 'user', content: `${urlContext}User message: ${historyMessages[historyMessages.length - 1].content}` },
+      ];
+    }
+
     // ── Generate response ───────────────────────────────────────────────────
     const { getProvider: gp } = await import('@/lib/llm/providers');
     const provider = gp(preferredProvider, preferredModel);
