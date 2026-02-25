@@ -2920,6 +2920,10 @@ async function handleTelegramWebhook(request) {
     }
     
     try {
+      // Get any pending search query
+      const existingLocation = await db.collection('user_locations').findOne({ user_id: userId });
+      const pendingSearch = existingLocation?.pending_search;
+      
       // Store user's location
       await db.collection('user_locations').updateOne(
         { user_id: userId },
@@ -2928,7 +2932,8 @@ async function handleTelegramWebhook(request) {
             lat: location.latitude, 
             lng: location.longitude, 
             updated_at: new Date(),
-          } 
+          },
+          $unset: { pending_search: '', pending_search_at: '' }
         },
         { upsert: true }
       );
@@ -2944,16 +2949,38 @@ async function handleTelegramWebhook(request) {
         { $set: { address } }
       );
       
-      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
-        `📍 Location saved: *${address}*\n\n` +
-        `Now you can use:\n` +
-        `• /nearby restaurants\n` +
-        `• /find coffee shops\n` +
-        `• /nearby gas stations\n\n` +
-        `Or just ask: "What restaurants are near me?"`
-      );
+      // Remove the location keyboard
+      await removeTelegramKeyboard(chatId, TELEGRAM_BOT_TOKEN, `📍 Got it! Location: *${address}*`);
+      
+      // If there was a pending search, execute it now
+      if (pendingSearch) {
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `🔍 Now searching for ${pendingSearch}...`);
+        
+        // Extract search term from pending query
+        const searchTerm = pendingSearch.replace(/\s+(near|in|around|at)\s+.+$/i, '').trim();
+        const placeType = extractPlaceType(searchTerm);
+        
+        const places = await searchNearbyPlaces({
+          lat: location.latitude,
+          lng: location.longitude,
+          query: placeType ? null : searchTerm,
+          type: placeType,
+          radius: 2000,
+          maxResults: 6,
+        });
+        
+        const response = formatPlacesForTelegram(places, address);
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, response);
+      } else {
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+          `Now you can ask:\n` +
+          `• "Find restaurants near me"\n` +
+          `• "Where are coffee shops nearby?"\n` +
+          `• /nearby gas stations`
+        );
+      }
     } catch (e) {
-      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Error saving location: ${e.message}`);
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Error: ${e.message}`);
     }
     return ok({ ok: true });
   }
