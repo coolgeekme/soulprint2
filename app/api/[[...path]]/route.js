@@ -124,16 +124,20 @@ async function analyzeCommmunicationStyle(parsedData, existingProfile = null) {
   const provider = getProvider('openai', 'gpt-4o-mini');
   
   let sampleText = '';
-  if (parsedData.source === 'chatgpt') {
-    sampleText = parsedData.sampleMessages.slice(0, 50).join('\n---\n');
+  // Handle both sampleMessages (from full parsing) and userMessages (from batch processing)
+  const messages = parsedData.sampleMessages || parsedData.userMessages || [];
+  const posts = parsedData.samplePosts || [];
+  
+  if (parsedData.source === 'chatgpt' || parsedData.source === 'unknown') {
+    sampleText = messages.slice(0, 50).join('\n---\n');
   } else if (parsedData.source === 'facebook') {
-    const msgTexts = parsedData.sampleMessages.slice(0, 30).map(m => m.text).join('\n---\n');
-    const postTexts = parsedData.samplePosts.slice(0, 20).join('\n---\n');
+    const msgTexts = messages.slice(0, 30).map(m => typeof m === 'string' ? m : m.text).filter(Boolean).join('\n---\n');
+    const postTexts = posts.slice(0, 20).join('\n---\n');
     sampleText = `MESSAGES:\n${msgTexts}\n\nPOSTS:\n${postTexts}`;
   }
   
-  if (!sampleText || sampleText.length < 100) {
-    return { error: 'Not enough data to analyze' };
+  if (!sampleText || sampleText.length < 50) {
+    return { error: 'Not enough data to analyze. Please ensure your export contains conversation history.' };
   }
   
   const analysisPrompt = `Analyze the following user-written content and extract insights about their communication style and personality. This is from their ${parsedData.source === 'chatgpt' ? 'ChatGPT conversation history' : 'Facebook messages and posts'}.
