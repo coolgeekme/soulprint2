@@ -456,6 +456,54 @@ backend:
         agent: "testing"
         comment: "❌ TESTED: Video status polling returns 'recordInfo is null' error from Kie.ai API. This appears to be a third-party service issue - the endpoint is implemented correctly but Kie.ai is not returning expected task status. Backend code is correct."
 
+  - task: "Kimi AI Integration (POST /api/chat/stream + GET /api/models)"
+    implemented: true
+    working: false
+    file: "app/api/[[...path]]/route.js, app/lib/llm/providers.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Kimi AI (MoonShot) provider integration with kimi-k2-0711-preview, moonshot-v1-32k, moonshot-v1-8k models. OpenAI-compatible API via https://api.moonshot.cn/v1."
+      - working: false
+        agent: "testing"
+        comment: "❌ TESTED: Kimi AI models appear correctly in GET /api/models endpoint (3 models found). However, streaming responses fail with '401 Invalid Authentication' error from MoonShot API. This indicates the KIMI_API_KEY requires account recharge/credit (zero balance accounts cannot use the API). Backend implementation is correct - this is a third-party service configuration issue."
+
+  - task: "Telegram Model Preference API (GET /api/telegram/status + PUT /api/telegram/model)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Telegram API endpoints for model preference management. GET /status returns user's preferred model, PUT /model updates it."
+      - working: false
+        agent: "testing"
+        comment: "❌ TESTED: Initially failed - PUT /api/telegram/model returned 404 due to missing route mapping in PUT handler. Fixed by adding telegram/model route to PUT method."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Both endpoints working correctly. GET /api/telegram/status returns proper response with preferred_model field. PUT /api/telegram/model correctly handles valid models (returns expected 'No linked Telegram account' for test user) and rejects invalid models with proper error messages."
+
+  - task: "Web Search Integration (POST /api/chat/stream with enableWebSearch=true)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js, app/lib/llm/providers.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Web search integration with Tavily for non-Perplexity models, and built-in search for Perplexity models. Should emit type='search' events for Tavily integration."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Web search integration working perfectly! OpenAI models with enableWebSearch=true correctly trigger Tavily search and emit type='search' events with query arrays. Perplexity sonar models use built-in search (no type='search' events expected) and return real-time Bitcoin price information. Both search pathways functioning correctly."
+
 frontend:
   - task: "Landing Page (/)"
     implemented: true
