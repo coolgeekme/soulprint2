@@ -168,13 +168,6 @@ export default function AuthPage() {
             <p className="text-red-400 text-xs text-center bg-red-500/10 border border-red-500/20 rounded-lg py-2.5 px-3">{error}</p>
           )}
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 py-1">
-            <div className="h-px flex-1 bg-white/8" />
-            <span className="text-[10px] text-gray-600 tracking-[0.2em] uppercase">OR</span>
-            <div className="h-px flex-1 bg-white/8" />
-          </div>
-
           {/* Submit */}
           <button
             type="submit"
