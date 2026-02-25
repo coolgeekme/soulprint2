@@ -1975,7 +1975,30 @@ async function handleTelegramStatus(request) {
     configured: !!TELEGRAM_BOT_TOKEN,
     linked: !!mapping,
     telegram_user_id: mapping?.telegram_user_id || null,
+    preferred_model: mapping?.preferred_model || 'gpt-4o',
+    preferred_provider: mapping?.preferred_provider || 'openai',
   });
+}
+
+async function handleTelegramSetModel(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { model } = await request.json();
+  if (!model) return err('model required');
+
+  const { AVAILABLE_MODELS } = await import('@/lib/llm/providers');
+  const found = AVAILABLE_MODELS.find(m => m.value === model);
+  if (!found) return err('Unknown model');
+
+  const db = await getDb();
+  const result = await db.collection('telegram_mappings').updateOne(
+    { user_id: user.id, linked: true },
+    { $set: { preferred_model: found.value, preferred_provider: found.provider } }
+  );
+
+  if (result.matchedCount === 0) return err('No linked Telegram account found');
+  return ok({ success: true, model: found.value, label: found.label });
 }
 
 // CONNECTORS (stubs for others)
