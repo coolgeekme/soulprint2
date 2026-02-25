@@ -1155,8 +1155,19 @@ async function handleAdminInviteAdmin(request) {
 
 async function handleTelegramWebhook(request) {
   const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
+
   if (!TELEGRAM_BOT_TOKEN) {
     return NextResponse.json({ status: 'not_configured', message: 'TELEGRAM_BOT_TOKEN not set' });
+  }
+
+  // Verify webhook secret — prevents anyone who guesses the URL from spoofing messages
+  if (TELEGRAM_WEBHOOK_SECRET) {
+    const incoming = request.headers.get('x-telegram-bot-api-secret-token');
+    if (!incoming || incoming !== TELEGRAM_WEBHOOK_SECRET) {
+      console.warn('Telegram webhook: rejected request with invalid secret');
+      return new Response('Unauthorized', { status: 401 });
+    }
   }
 
   let update;
