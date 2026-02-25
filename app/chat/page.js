@@ -365,26 +365,26 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     fetchSchedules();
   }, [token]);
 
-  // Handle data import ZIP upload (chunked for large files)
-  async function handleDataImportUpload(file, source) {
-    if (!file) return;
+  // Handle data import ZIP upload - supports multiple files
+  async function handleDataImportUpload(files, source) {
+    const fileList = Array.isArray(files) ? files : (files instanceof FileList ? Array.from(files) : [files]);
+    if (!fileList.length || !fileList[0]) return;
     
-    // 3GB max file size
+    // 3GB max per file
     const MAX_IMPORT_SIZE = 3 * 1024 * 1024 * 1024;
-    if (file.size > MAX_IMPORT_SIZE) {
-      setUploadProgress(`Error: File too large (${(file.size / (1024 * 1024 * 1024)).toFixed(1)}GB). Maximum size is 3GB.`);
-      setTimeout(() => setUploadProgress(''), 8000);
-      return;
+    for (const file of fileList) {
+      if (file.size > MAX_IMPORT_SIZE) {
+        setUploadProgress(`Error: ${file.name} is too large (${(file.size / (1024 * 1024 * 1024)).toFixed(1)}GB). Maximum is 3GB per file.`);
+        setTimeout(() => setUploadProgress(''), 8000);
+        return;
+      }
     }
     
     setUploading(true);
     
-    // 1MB chunks with parallel uploads = fast and reliable
     const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB chunks
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
     const MAX_RETRIES = 5;
-    const FETCH_TIMEOUT = 30000; // 30 second timeout per chunk
+    const FETCH_TIMEOUT = 45000; // 45 second timeout per chunk
     
     // Helper function to fetch with timeout
     async function fetchWithTimeout(url, options, timeout = FETCH_TIMEOUT) {
@@ -397,7 +397,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
       } catch (err) {
         clearTimeout(timeoutId);
         if (err.name === 'AbortError') {
-          throw new Error('Request timed out');
+          throw new Error('Request timed out - please try again');
         }
         throw err;
       }
@@ -424,9 +424,8 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
         return true;
       } catch (err) {
         if (retries < MAX_RETRIES) {
-          // Wait before retry (exponential backoff: 1s, 2s, 4s, 8s, 16s)
           const waitTime = 1000 * Math.pow(2, retries);
-          setUploadProgress(`Retry ${retries + 1}/${MAX_RETRIES} for chunk ${chunkIndex + 1}... (waiting ${waitTime/1000}s)`);
+          setUploadProgress(`Retry ${retries + 1}/${MAX_RETRIES}... (waiting ${waitTime/1000}s)`);
           await new Promise(r => setTimeout(r, waitTime));
           return uploadChunkWithRetry(uploadId, chunkIndex, chunkBlob, retries + 1);
         }
@@ -434,14 +433,108 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
       }
     }
     
+    // Upload a single file
+    async function uploadSingleFile(file, fileIndex, totalFiles) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      const filePrefix = totalFiles > 1 ? `[${fileIndex + 1}/${totalFiles}] ` : '';
+      
+      try {
+        // For small files (< 10MB), use direct upload
+        if (file.size < 10 * 1024 * 1024) {
+          setUploadProgress(`${filePrefix}Uploading ${file.name} (${fileSizeMB}MB)...`);
+          
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('source', source);
+          
+          setUploadProgress(`${filePrefix}Analyzing ${file.name}...`);
+          
+          const res = await fetchWithTimeout('/api/data-import/upload', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          }, 120000); // 2 min timeout for processing
+          
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Upload failed');
+          return true;
+        } else {
+          // Large file: use chunked upload with PARALLEL uploads
+          setUploadProgress(`${filePrefix}Preparing ${file.name} (${fileSizeMB}MB)...`);
+          
+          // 1. Initialize upload session
+          const initRes = await fetchWithTimeout('/api/data-import/chunked/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ filename: file.name, fileSize: file.size, source, totalChunks }),
+          });
+          
+          const initData = await initRes.json();
+          if (!initRes.ok) throw new Error(initData.error || 'Failed to initialize upload');
+          
+          const { uploadId } = initData;
+          
+          // 2. Upload chunks in PARALLEL batches
+          const PARALLEL_UPLOADS = 6; // 6 parallel uploads
+          let completedChunks = 0;
+          
+          for (let batchStart = 0; batchStart < totalChunks; batchStart += PARALLEL_UPLOADS) {
+            const batchEnd = Math.min(batchStart + PARALLEL_UPLOADS, totalChunks);
+            const batchPromises = [];
+            
+            for (let i = batchStart; i < batchEnd; i++) {
+              const start = i * CHUNK_SIZE;
+              const end = Math.min(start + CHUNK_SIZE, file.size);
+              const chunk = file.slice(start, end);
+              batchPromises.push(uploadChunkWithRetry(uploadId, i, chunk));
+            }
+            
+            await Promise.all(batchPromises);
+            completedChunks = batchEnd;
+            
+            const progress = Math.round((completedChunks / totalChunks) * 100);
+            const uploadedMB = ((completedChunks * CHUNK_SIZE) / (1024 * 1024)).toFixed(1);
+            setUploadProgress(`${filePrefix}Uploading: ${progress}% (${Math.min(parseFloat(uploadedMB), parseFloat(fileSizeMB))}/${fileSizeMB}MB)`);
+          }
+          
+          // 3. Complete upload and process
+          setUploadProgress(`${filePrefix}✅ Upload complete! Analyzing...`);
+          
+          const completeRes = await fetchWithTimeout('/api/data-import/chunked/complete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ uploadId }),
+          }, 180000); // 3 min timeout for processing
+          
+          const completeData = await completeRes.json();
+          if (!completeRes.ok) throw new Error(completeData.error || 'Processing failed');
+          return true;
+        }
+      } catch (err) {
+        throw new Error(`${file.name}: ${err.message}`);
+      }
+    }
+    
     try {
-      // For small files (< 10MB), use direct upload
-      if (file.size < 10 * 1024 * 1024) {
-        setUploadProgress(`Uploading ${file.name} (${fileSizeMB}MB)...`);
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('source', source);
+      // Process all files
+      for (let i = 0; i < fileList.length; i++) {
+        await uploadSingleFile(fileList[i], i, fileList.length);
+      }
+      
+      // Refresh data after all uploads complete
+      setUploadProgress('');
+      const refreshRes = await fetch('/api/data-imports', { headers: { Authorization: `Bearer ${token}` } });
+      const refreshData = await refreshRes.json();
+      setDataImports(refreshData.imports || []);
+      setSoulProfile(refreshData.soulProfile || null);
+      setShowInsights(true);
+    } catch (e) {
+      setUploadProgress(`Error: ${e.message}`);
+      setTimeout(() => setUploadProgress(''), 10000);
+    }
+    setUploading(false);
+  }
         
         setUploadProgress('Analyzing your data... This may take a minute.');
         
