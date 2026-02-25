@@ -2508,6 +2508,11 @@ async function handleAdminGetMetrics(request) {
     'sonar-pro':                     { input: 3.00,  output: 15.00 },
     'sonar':                         { input: 1.00,  output: 1.00  },
     'sonar-reasoning':               { input: 1.00,  output: 5.00  },
+    // Kimi / Moonshot AI pricing (per 1M tokens, converted from CNY to USD)
+    'kimi-k2-0711-preview':          { input: 2.00,  output: 8.00  },
+    'moonshot-v1-8k':                { input: 1.50,  output: 1.50  },
+    'moonshot-v1-32k':               { input: 3.00,  output: 3.00  },
+    'moonshot-v1-128k':              { input: 8.00,  output: 8.00  },
   };
   const DEFAULT_PRICING = { input: 5.00, output: 15.00 }; // fallback = gpt-4o rate
 
