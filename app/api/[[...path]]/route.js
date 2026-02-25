@@ -971,7 +971,35 @@ function trimHistory(messages, maxContextTokens = 6000) {
     total += est;
     trimmed.unshift(msg);
   }
-  return trimmed;
+  // Ensure messages alternate between user and assistant (OpenAI requirement)
+  return ensureAlternatingMessages(trimmed);
+}
+
+// Ensure messages alternate between user and assistant roles
+// OpenAI API requires: system -> user -> assistant -> user -> assistant...
+function ensureAlternatingMessages(messages) {
+  if (!messages || messages.length === 0) return [];
+  
+  const result = [];
+  let lastRole = null;
+  
+  for (const msg of messages) {
+    // Skip consecutive messages of the same role (keep the latest one)
+    if (msg.role === lastRole) {
+      // If same role as previous, merge or replace
+      if (result.length > 0 && result[result.length - 1].role === msg.role) {
+        // Keep the more recent message (later in array = more recent after sorting)
+        result[result.length - 1] = msg;
+      }
+      continue;
+    }
+    
+    // If we have user followed by user, or assistant followed by assistant, skip the first
+    result.push(msg);
+    lastRole = msg.role;
+  }
+  
+  return result;
 }
 
 // ── Cached System Prompt (5-min TTL) ─────────────────────────────────────────
