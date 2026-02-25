@@ -971,6 +971,64 @@ export default function ChatPage() {
     e.target.value = '';
   }
 
+  // Request and save user's browser location
+  const requestLocation = useCallback(async () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+    
+    setLocationLoading(true);
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await fetch('/api/user/location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ lat: latitude, lng: longitude }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setUserLocation({ lat: latitude, lng: longitude, address: data.address });
+            // Show confirmation in chat
+            setMessages(prev => [...prev, {
+              id: `loc-${Date.now()}`, role: 'assistant',
+              content: `📍 **Location saved!**\n\n${data.address}\n\nYou can now ask me things like:\n- "Find restaurants near me"\n- "What coffee shops are nearby?"\n- "Show me gas stations close by"`,
+              created_at: new Date().toISOString(),
+            }]);
+          }
+        } catch (err) {
+          console.error('Failed to save location:', err);
+        }
+        setLocationLoading(false);
+      },
+      (error) => {
+        setLocationLoading(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          alert('Location permission denied. Please enable location access in your browser settings.');
+        } else {
+          alert('Could not get your location. Please try again.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
+  }, [token]);
+
+  // Fetch saved location on load
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/user/location', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.hasLocation) {
+          setUserLocation({ lat: d.lat, lng: d.lng, address: d.address });
+        }
+      })
+      .catch(() => {});
+  }, [token]);
+
   const sendMessage = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || loading) return;
     const content = input.trim();
