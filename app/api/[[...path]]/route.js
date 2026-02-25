@@ -1025,6 +1025,7 @@ async function handleAdminGetMetrics(request) {
 
   const totalUsers = await db.collection('users').countDocuments();
   const wauUsers = await db.collection('users').countDocuments({ last_active_at: { $gte: sevenDaysAgo } });
+  const waitlistCount = await db.collection('users').countDocuments({ accepted: false });
 
   // Multi-session rate
   const usersWithMultiConversations = await db.collection('conversations').aggregate([
@@ -1080,9 +1081,90 @@ async function handleAdminGetMetrics(request) {
   // Total messages
   const totalMessages = await db.collection('messages').countDocuments();
 
+  // ── Cost Estimation ──────────────────────────────────────────────────────
+  // Pricing per 1M tokens (USD) — approximate mid-2025 rates
+  const MODEL_PRICING = {
+    'gpt-4o':                        { input: 5.00,  output: 15.00 },
+    'gpt-4o-mini':                   { input: 0.15,  output: 0.60  },
+    'gpt-4.1':                       { input: 2.00,  output: 8.00  },
+    'gpt-4.1-mini':                  { input: 0.40,  output: 1.60  },
+    'claude-opus-4-5-20251101':      { input: 15.00, output: 75.00 },
+    'claude-sonnet-4-5-20250929':    { input: 3.00,  output: 15.00 },
+    'claude-3-5-haiku-20241022':     { input: 0.80,  output: 4.00  },
+    'gemini-2.5-pro':                { input: 1.25,  output: 10.00 },
+    'gemini-2.0-flash':              { input: 0.075, output: 0.30  },
+    'sonar-pro':                     { input: 3.00,  output: 15.00 },
+    'sonar':                         { input: 1.00,  output: 1.00  },
+    'sonar-reasoning':               { input: 1.00,  output: 5.00  },
+  };
+  const DEFAULT_PRICING = { input: 5.00, output: 15.00 }; // fallback = gpt-4o rate
+
+  // Aggregate tokens per model from assistant messages that have est_* fields
+  const tokensByModel = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', est_input_tokens: { $exists: true } } },
+    {
+      $group: {
+        _id: '$model_used',
+        total_input: { $sum: '$est_input_tokens' },
+        total_output: { $sum: '$est_output_tokens' },
+        count: { $sum: 1 },
+      },
+    },
+  ]).toArray();
+
+  // For messages without token tracking, fall back to content-length estimate
+  const untrackedMsgs = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', est_input_tokens: { $exists: false } } },
+    {
+      $group: {
+        _id: '$model_used',
+        total_content_len: { $sum: { $strLenCP: '$content' } },
+        count: { $sum: 1 },
+      },
+    },
+  ]).toArray();
+
+  const costByModel = {};
+  let totalEstCost = 0;
+
+  for (const row of tokensByModel) {
+    const p = MODEL_PRICING[row._id] || DEFAULT_PRICING;
+    const cost = (row.total_input / 1_000_000) * p.input + (row.total_output / 1_000_000) * p.output;
+    costByModel[row._id] = { cost: parseFloat(cost.toFixed(4)), messages: row.count };
+    totalEstCost += cost;
+  }
+  for (const row of untrackedMsgs) {
+    const p = MODEL_PRICING[row._id] || DEFAULT_PRICING;
+    // Estimate: avg 500 input tokens + output tokens from content
+    const estInput = row.count * 500;
+    const estOutput = Math.round(row.total_content_len / 4);
+    const cost = (estInput / 1_000_000) * p.input + (estOutput / 1_000_000) * p.output;
+    if (costByModel[row._id]) {
+      costByModel[row._id].cost += parseFloat(cost.toFixed(4));
+      costByModel[row._id].messages += row.count;
+    } else {
+      costByModel[row._id] = { cost: parseFloat(cost.toFixed(4)), messages: row.count };
+    }
+    totalEstCost += cost;
+  }
+
+  // Monthly cost projection (extrapolate from 30d data)
+  const totalMessagesLast30d = await db.collection('messages').countDocuments({
+    role: 'assistant',
+    created_at: { $gte: thirtyDaysAgo },
+  });
+  const acceptedUsers = await db.collection('users').countDocuments({ accepted: true });
+  const avgCostPerMsg = totalMessages > 0 ? totalEstCost / totalMessages : 0;
+  const projectedMonthlyCost = totalMessagesLast30d * avgCostPerMsg;
+  const costPerUserPerMonth = acceptedUsers > 0
+    ? parseFloat((projectedMonthlyCost / acceptedUsers).toFixed(4))
+    : 0;
+
   return ok({
     wau: wauUsers,
     total_users: totalUsers,
+    accepted_users: acceptedUsers,
+    waitlist_count: waitlistCount,
     multi_session_rate: totalUsers > 0 ? Math.round((multiSessionCount / totalUsers) * 100) : 0,
     day7_retention: day7Retention,
     avg_sessions_per_user_7d: avgSessionsPerUser,
@@ -1094,6 +1176,11 @@ async function handleAdminGetMetrics(request) {
     total_messages: totalMessages,
     thumbs_up: thumbsUp,
     thumbs_down: thumbsDown,
+    // Cost metrics
+    est_total_cost: parseFloat(totalEstCost.toFixed(4)),
+    est_cost_per_user_month: costPerUserPerMonth,
+    est_projected_monthly_cost: parseFloat(projectedMonthlyCost.toFixed(4)),
+    cost_by_model: costByModel,
   });
 }
 
