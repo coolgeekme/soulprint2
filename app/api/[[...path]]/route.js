@@ -2832,6 +2832,26 @@ async function handleTelegramWebhook(request) {
     // Use cached system prompt (best practice)
     const systemPrompt = await getSystemPrompt(db, userId);
 
+    // ── URL Content Extraction ────────────────────────────────────────────────
+    // Detect URLs in the message and extract their content
+    const urls = extractUrls(text);
+    let urlContext = '';
+    if (urls.length > 0) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `🔗 Reading ${urls.length > 1 ? `${urls.length} links` : 'link'}...`);
+      const urlContents = [];
+      for (const url of urls.slice(0, 3)) { // Max 3 URLs
+        const extracted = await extractUrlContent(url);
+        if (extracted.success) {
+          urlContents.push(`**[${extracted.title || url}](${url})**\n${extracted.description ? `_${extracted.description}_\n\n` : ''}${extracted.content}`);
+        } else {
+          urlContents.push(`**[${url}](${url})**\nCould not extract content: ${extracted.error}`);
+        }
+      }
+      if (urlContents.length > 0) {
+        urlContext = `\n\n---\n**WEBPAGE CONTENT FROM USER'S LINKS:**\n\n${urlContents.join('\n\n---\n\n')}\n---\n\n`;
+      }
+    }
+
     // ── Real-time web search ────────────────────────────────────────────────
     // Perplexity sonar models have built-in search — no need to inject
     const isPerplexity = preferredProvider === 'perplexity' || preferredModel.startsWith('sonar');
