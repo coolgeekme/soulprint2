@@ -46,6 +46,167 @@ function MetricCard({ label, value, sub, icon: Icon, color = 'orange' }) {
   );
 }
 
+// Waitlist Tab
+function WaitlistTab({ token, onCountChange }) {
+  const [users, setUsers] = useState([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState({});
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/waitlist?search=${search}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await res.json();
+      setUsers(d.users || []);
+      onCountChange?.(d.count || 0);
+    } catch (e) {}
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [search]);
+
+  async function approveUser(userId) {
+    setActionLoading(l => ({ ...l, [userId]: 'approve' }));
+    await fetch(`/api/admin/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ accepted: true }),
+    });
+    setActionLoading(l => ({ ...l, [userId]: null }));
+    load();
+  }
+
+  async function denyUser(userId) {
+    setActionLoading(l => ({ ...l, [userId]: 'deny' }));
+    await fetch(`/api/admin/users/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ accepted: false }),
+    });
+    setActionLoading(l => ({ ...l, [userId]: null }));
+    load();
+  }
+
+  async function approveAll() {
+    if (!confirm(`Approve all ${users.length} waitlisted users?`)) return;
+    setLoading(true);
+    await fetch('/api/admin/waitlist/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ approve_all: true }),
+    });
+    load();
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header bar */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by email..."
+            className="w-full bg-[#111] border border-white/10 text-white text-sm pl-9 pr-4 py-2.5 rounded-xl focus:border-orange-500/40 transition-colors"
+          />
+        </div>
+        <button onClick={load} className="p-2.5 bg-[#111] border border-white/10 rounded-xl text-gray-500 hover:text-white transition-colors">
+          <RefreshCw className="w-4 h-4" />
+        </button>
+        {users.length > 0 && (
+          <button onClick={approveAll}
+            className="flex items-center gap-2 px-4 py-2.5 bg-green-500/15 border border-green-500/30 text-green-400 text-sm rounded-xl hover:bg-green-500/25 transition-colors font-medium">
+            <Check className="w-4 h-4" />
+            Approve All ({users.length})
+          </button>
+        )}
+      </div>
+
+      {/* Count */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-600">{users.length} user{users.length !== 1 ? 's' : ''} waiting for approval</span>
+        {users.length > 0 && (
+          <span className="w-5 h-5 rounded-full bg-orange-500/20 text-orange-400 text-[9px] font-bold flex items-center justify-center">
+            {users.length}
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-orange-500" /></div>
+      ) : users.length === 0 ? (
+        <div className="text-center py-16 text-gray-600">
+          <UserCheck className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">No users on the waitlist</p>
+          <p className="text-xs mt-1">Everyone has been approved or waitlist is empty</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {users.map(u => (
+            <div key={u.id} className="flex items-center gap-4 bg-[#111] border border-white/8 rounded-xl px-5 py-4 hover:border-white/15 transition-colors">
+              {/* Avatar */}
+              <div className="w-9 h-9 rounded-full bg-orange-500/15 border border-orange-500/20 flex items-center justify-center text-orange-400 font-bold text-sm flex-shrink-0">
+                {(u.name || u.email || '?').charAt(0).toUpperCase()}
+              </div>
+
+              {/* User info */}
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-sm font-medium truncate">{u.email}</p>
+                {u.name && <p className="text-gray-500 text-xs truncate">{u.name}</p>}
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-[10px] text-gray-700">
+                    Joined {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
+                  </span>
+                  {u.onboarding_complete && (
+                    <span className="text-[10px] text-blue-400/80 flex items-center gap-0.5">
+                      <Check className="w-2.5 h-2.5" /> Onboarded
+                    </span>
+                  )}
+                  {u.assessment_complete && (
+                    <span className="text-[10px] text-purple-400/80 flex items-center gap-0.5">
+                      <Check className="w-2.5 h-2.5" /> Assessment done
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => approveUser(u.id)}
+                  disabled={!!actionLoading[u.id]}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-green-500/15 border border-green-500/30 text-green-400 text-xs rounded-lg hover:bg-green-500/25 transition-colors font-medium disabled:opacity-50"
+                >
+                  {actionLoading[u.id] === 'approve'
+                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : <Check className="w-3 h-3" />
+                  }
+                  Approve
+                </button>
+                <button
+                  onClick={() => denyUser(u.id)}
+                  disabled={!!actionLoading[u.id]}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-red-500/8 border border-red-500/20 text-red-500/70 text-xs rounded-lg hover:bg-red-500/15 hover:text-red-400 transition-colors font-medium disabled:opacity-50"
+                >
+                  {actionLoading[u.id] === 'deny'
+                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : <X className="w-3 h-3" />
+                  }
+                  Deny
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Users Tab
 function UsersTab({ token, adminRole }) {
   const [users, setUsers] = useState([]);
