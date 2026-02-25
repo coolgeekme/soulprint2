@@ -970,7 +970,7 @@ export default function ChatPage() {
               </button>
               {showModelPicker && (
                 <div className="absolute bottom-full mb-2 bg-[#111] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[240px] z-10 max-h-72 overflow-y-auto">
-                  {['OpenAI', 'Claude', 'Gemini', 'Perplexity'].map(group => {
+                  {['OpenAI', 'Claude', 'Gemini', 'Perplexity', 'Kimi'].map(group => {
                     const groupModels = MODELS.filter(m => m.group === group);
                     if (!groupModels.length) return null;
                     return (
