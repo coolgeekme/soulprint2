@@ -905,21 +905,39 @@ export default function ChatPage() {
             )}
 
             {/* Streaming */}
-            {streamingContent && (
+            {(streamingContent || streamingImageUrl || streamingVideoTask) && (
               <div className="msg-appear flex justify-start">
                 <div className="w-7 h-7 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
                   <SoulPrintLogo size={14} />
                 </div>
                 <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-white/4 border border-white/8 text-sm text-gray-200 leading-relaxed">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}
-                    components={{
-                      p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
-                      strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
-                      a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline">{children}</a>,
-                    }}>
-                    {streamingContent}
-                  </ReactMarkdown>
-                  <span className="inline-block w-0.5 h-4 bg-orange-500 ml-0.5 animate-pulse" />
+                  {/* Live image preview */}
+                  {streamingImageUrl && (
+                    <ImageCard url={streamingImageUrl} revisedPrompt={streamingRevPrompt} />
+                  )}
+                  {/* Live video card */}
+                  {streamingVideoTask && !streamingImageUrl && (
+                    <VideoCard
+                      taskId={streamingVideoTask.taskId}
+                      prompt={streamingVideoTask.prompt}
+                      token={token}
+                      initialStatus={streamingVideoTask.status}
+                    />
+                  )}
+                  {/* Regular text (only if not a pure image message) */}
+                  {streamingContent && !streamingImageUrl && (
+                    <>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                          strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
+                          a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline">{children}</a>,
+                        }}>
+                        {streamingContent}
+                      </ReactMarkdown>
+                      <span className="inline-block w-0.5 h-4 bg-orange-500 ml-0.5 animate-pulse" />
+                    </>
+                  )}
                 </div>
               </div>
             )}
