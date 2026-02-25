@@ -2054,7 +2054,16 @@ async function handleTelegramWebhook(request) {
   // ── /help command ───────────────────────────────────────────────────────────
   if (text === '/help') {
     await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
-      `🤖 *SoulPrint Bot Commands*\n\n/start — Link your account\n/model — View & switch AI model\n/model [name] — Switch to a specific AI (e.g. /model gpt-4o)\n/search [query] — Force a web search\n/help — Show this message\n\n💬 Just send any message to chat with your AI!\n\n🌐 *Real-time search is automatic* — just ask about current events, prices, news, etc.`
+      `🤖 *SoulPrint Bot Commands*\n\n` +
+      `*💬 Chat*\nJust send any message to chat with your AI!\n\n` +
+      `*🎨 Image Generation*\n/image [prompt] — Generate with DALL-E 3\nExample: /image neon city at night\n\n` +
+      `*🎬 Video Generation*\n/video [prompt] — Generate with Runway AI\nExample: /video ocean waves at sunset\n\n` +
+      `*📱 Social Media Posts*\n/post [platform] [topic] — Write a platform-optimized post with real-time data\n` +
+      `Platforms: twitter, instagram, linkedin, tiktok, facebook, threads, youtube\n` +
+      `Example: /post twitter AI trends this week\n\n` +
+      `*🌐 Web Search*\n/search [query] — Force a real-time web search\nOr just ask about current events naturally!\n\n` +
+      `*🤖 AI Models*\n/model — See & switch AI model\n/model sonar — Switch to Perplexity (online AI)\n\n` +
+      `*Misc*\n/start — Link your account\n/help — This menu`
     );
     return ok({ ok: true });
   }
