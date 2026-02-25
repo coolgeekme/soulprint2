@@ -1616,8 +1616,8 @@ export default function ChatPage() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 flex-shrink-0">
+        {/* Top bar - with safe area padding for PWA */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 flex-shrink-0 pwa-header bg-[#0a0a0a]">
           <div className="flex items-center gap-3">
             <button onClick={() => setShowSidebar(!showSidebar)} className="text-gray-500 hover:text-white transition-colors lg:hidden">
               <ChevronLeft className="w-5 h-5" />
