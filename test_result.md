@@ -558,8 +558,11 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Chat Stream (POST /api/chat/stream)"
-    - "Multi-LLM Provider Integration (OpenAI / Claude / Gemini / Perplexity)"
+    - "Image Generation via Chat Stream Auto-detection"
+    - "Video Generation via Chat Stream Auto-detection"  
+    - "Direct Image Generation API (POST /api/generate/image)"
+    - "Direct Video Generation API (POST /api/generate/video)"
+    - "Video Status Poll API (GET /api/generate/video/{taskId})"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
