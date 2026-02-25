@@ -4478,15 +4478,20 @@ async function handleChunkedUploadComplete(request) {
     // Clean up any remaining chunks
     await db.collection('upload_chunks').deleteMany({ upload_id: uploadId });
     
-    // Detect source if not specified
-    if (parsedData.source === 'unknown') {
-      parsedData.source = parsedData.userMessages.length > 0 ? 'chatgpt' : 'unknown';
-    }
-    
-    // Limit messages for analysis
-    parsedData.userMessages = parsedData.userMessages.slice(0, 300);
+    // Remove duplicates and limit messages for analysis
+    parsedData.userMessages = [...new Set(parsedData.userMessages)].slice(0, 200);
+    parsedData.sampleMessages = parsedData.userMessages; // For compatibility with analyzeCommmunicationStyle
     parsedData.userMessageCount = parsedData.userMessages.length;
     parsedData.conversationCount = Math.ceil(parsedData.userMessages.length / 10);
+    
+    console.log(`Extracted ${parsedData.userMessages.length} messages from ${processedChunks} chunks`);
+
+    // Check if we have enough data
+    if (parsedData.userMessages.length < 5) {
+      // Delete the upload record
+      await db.collection('chunked_uploads').deleteOne({ id: uploadId });
+      return err('Could not extract enough messages from your export. Please ensure the file contains conversation history.', 400);
+    }
 
     // Create import record
     const importId = uuidv4();
