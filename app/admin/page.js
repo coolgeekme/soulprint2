@@ -448,12 +448,12 @@ function AssessmentsTab({ token }) {
 function SettingsTab({ token }) {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [tgSetup, setTgSetup] = useState(null);
+  const [tgLoading, setTgLoading] = useState(false);
 
   useEffect(() => {
     fetch('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(setSettings)
-      .catch(() => {});
+      .then(r => r.json()).then(setSettings).catch(() => {});
   }, []);
 
   async function save() {
@@ -467,10 +467,23 @@ function SettingsTab({ token }) {
     alert('Settings saved');
   }
 
+  async function setupTelegram() {
+    setTgLoading(true);
+    try {
+      const res = await fetch('/api/telegram/setup', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await res.json();
+      setTgSetup(d);
+    } catch (e) { setTgSetup({ error: e.message }); }
+    setTgLoading(false);
+  }
+
   if (!settings) return <div className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-600" /></div>;
 
   return (
-    <div className="space-y-6 max-w-md">
+    <div className="space-y-6 max-w-lg">
       <div>
         <label className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-2 block">Default Model</label>
         <select value={settings.default_model || 'gpt-4o'} onChange={e => setSettings(s => ({ ...s, default_model: e.target.value }))}
