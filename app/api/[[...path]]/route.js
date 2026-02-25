@@ -4393,9 +4393,14 @@ async function handleChunkedUploadComplete(request) {
     // Strategy: Extract only the relevant data we need from the chunks
     // without loading the entire file into memory
     
-    let parsedData = { source: upload.source || 'unknown', userMessages: [], conversationCount: 0 };
+    let parsedData = { 
+      source: upload.source || 'chatgpt', 
+      userMessages: [], 
+      sampleMessages: [], // For compatibility
+      conversationCount: 0 
+    };
     let processedChunks = 0;
-    const BATCH_SIZE = 50; // Process 50 chunks at a time (~50MB)
+    const BATCH_SIZE = 30; // Process 30 chunks at a time (~30MB)
     
     // Process chunks in batches to extract text content
     for (let batchStart = 0; batchStart < upload.total_chunks; batchStart += BATCH_SIZE) {
@@ -4409,26 +4414,47 @@ async function handleChunkedUploadComplete(request) {
         .sort({ chunk_index: 1 })
         .toArray();
       
+      if (chunkDocs.length === 0) continue;
+      
       // Concatenate this batch
       const batchBuffers = chunkDocs.map(doc => Buffer.from(doc.data, 'base64'));
       const batchBuffer = Buffer.concat(batchBuffers);
       
       // Convert to string and look for JSON content
-      const textContent = batchBuffer.toString('utf8', 0, Math.min(batchBuffer.length, 10000000)); // Max 10MB per batch
+      const textContent = batchBuffer.toString('utf8', 0, Math.min(batchBuffer.length, 5000000)); // Max 5MB text per batch
       
-      // Extract messages from the text (may contain partial JSON)
-      const messageMatches = textContent.match(/"content":\s*{\s*"parts":\s*\[\s*"([^"]+)"/g) || [];
-      for (const match of messageMatches.slice(0, 100)) { // Limit per batch
-        const content = match.match(/"parts":\s*\[\s*"([^"]+)"/)?.[1];
-        if (content && content.length > 10 && content.length < 2000) {
+      // Extract messages - try multiple ChatGPT formats
+      // Format 1: "content": { "parts": ["message"] }
+      const chatgptMatches1 = textContent.match(/"parts"\s*:\s*\[\s*"([^"]{10,800})"/g) || [];
+      for (const match of chatgptMatches1.slice(0, 50)) {
+        const content = match.match(/"parts"\s*:\s*\[\s*"([^"]+)"/)?.[1];
+        if (content && content.length > 10 && !content.includes('\\u')) {
           parsedData.userMessages.push(content.substring(0, 500));
         }
       }
       
-      // Also look for Facebook message format
-      const fbMatches = textContent.match(/"content":\s*"([^"]{10,500})"/g) || [];
-      for (const match of fbMatches.slice(0, 100)) {
-        const content = match.match(/"content":\s*"([^"]+)"/)?.[1];
+      // Format 2: "text": "message" (newer format)
+      const chatgptMatches2 = textContent.match(/"text"\s*:\s*"([^"]{10,800})"/g) || [];
+      for (const match of chatgptMatches2.slice(0, 50)) {
+        const content = match.match(/"text"\s*:\s*"([^"]+)"/)?.[1];
+        if (content && content.length > 15 && !content.startsWith('http') && !content.includes('\\u')) {
+          parsedData.userMessages.push(content.substring(0, 500));
+        }
+      }
+      
+      // Format 3: "message": "..." (generic)
+      const chatgptMatches3 = textContent.match(/"message"\s*:\s*"([^"]{15,800})"/g) || [];
+      for (const match of chatgptMatches3.slice(0, 30)) {
+        const content = match.match(/"message"\s*:\s*"([^"]+)"/)?.[1];
+        if (content && content.length > 15) {
+          parsedData.userMessages.push(content.substring(0, 500));
+        }
+      }
+      
+      // Facebook format: "content": "message"
+      const fbMatches = textContent.match(/"content"\s*:\s*"([^"]{10,500})"/g) || [];
+      for (const match of fbMatches.slice(0, 50)) {
+        const content = match.match(/"content"\s*:\s*"([^"]+)"/)?.[1];
         if (content && content.length > 10) {
           parsedData.userMessages.push(content.substring(0, 500));
         }
@@ -4443,7 +4469,7 @@ async function handleChunkedUploadComplete(request) {
       processedChunks = batchEnd;
       
       // If we have enough messages, stop processing
-      if (parsedData.userMessages.length >= 500) break;
+      if (parsedData.userMessages.length >= 300) break;
       
       // Force garbage collection between batches
       if (global.gc) global.gc();
