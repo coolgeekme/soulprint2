@@ -31,6 +31,9 @@ const MODELS = [
   { value: 'moonshot-v1-8k',       label: 'Moonshot 8k (Fast)', provider: 'kimi', group: 'Kimi' },
 ];
 
+// Telegram model list — same as MODELS, used in Settings modal
+const TELEGRAM_MODELS = MODELS;
+
 const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.md,.csv,.json,.docx';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
