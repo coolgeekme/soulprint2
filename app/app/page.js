@@ -292,6 +292,31 @@ function ImageCard({ url, revisedPrompt }) {
   );
 }
 
+// Schedule templates for UI
+const SCHEDULE_TEMPLATES = [
+  { id: 'ai_news',    name: '🤖 AI News Digest',     prompt: 'Summarize the top 5 most important AI and machine learning stories from the last 24 hours. For each story include: what happened, why it matters, and a source if available. Format it clearly.' },
+  { id: 'world_news', name: '🌍 World News Brief',    prompt: 'What are the top 5 most important world news stories from the last 24 hours? Give a clear, concise summary of each.' },
+  { id: 'market',     name: '📈 Market Summary',      prompt: 'Give me a summary of today\'s financial markets: major indices performance, top gainers/losers, notable news, and key economic events from the last 24 hours.' },
+  { id: 'tech_news',  name: '💻 Tech News',           prompt: 'What are the most significant technology news stories from the last 24 hours? Focus on product launches, funding, acquisitions, and industry trends.' },
+  { id: 'crypto',     name: '₿ Crypto Brief',         prompt: 'Summarize the cryptocurrency market over the last 24 hours: Bitcoin and Ethereum prices, major movers, key news and developments.' },
+  { id: 'custom',     name: '✏️ Custom',              prompt: '' },
+];
+
+const TIMEZONES = [
+  { label: 'UTC', offset: 0 },
+  { label: 'EST (UTC-5)', offset: -5 },
+  { label: 'CST (UTC-6)', offset: -6 },
+  { label: 'MST (UTC-7)', offset: -7 },
+  { label: 'PST (UTC-8)', offset: -8 },
+  { label: 'London (UTC+0)', offset: 0 },
+  { label: 'Paris (UTC+1)', offset: 1 },
+  { label: 'Dubai (UTC+4)', offset: 4 },
+  { label: 'India (UTC+5:30)', offset: 5.5 },
+  { label: 'Singapore (UTC+8)', offset: 8 },
+  { label: 'Tokyo (UTC+9)', offset: 9 },
+  { label: 'Sydney (UTC+10)', offset: 10 },
+];
+
 // Settings / Telegram / Imports Modal
 function SettingsModal({ onClose, token }) {
   const [activeTab, setActiveTab] = useState('imports');
@@ -305,6 +330,17 @@ function SettingsModal({ onClose, token }) {
   const fileRef = useRef();
   const fbFileRef = useRef();
 
+  // Schedules state
+  const [schedules, setSchedules] = useState([]);
+  const [loadingSchedules, setLoadingSchedules] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newSchedule, setNewSchedule] = useState({
+    name: '', prompt: '', local_hour: 8, minute: 0, timezone_offset: 0, timezone_label: 'UTC', schedule_type: 'daily',
+  });
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [creatingSchedule, setCreatingSchedule] = useState(false);
+  const [scheduleError, setScheduleError] = useState('');
+
   useEffect(() => {
     fetch('/api/imports', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(d => setImports(Array.isArray(d) ? d : [])).catch(() => {});
@@ -312,7 +348,75 @@ function SettingsModal({ onClose, token }) {
       .then(r => r.json()).then(d => setProfile(d.profile)).catch(() => {});
     fetch('/api/telegram/status', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(setTelegramStatus).catch(() => {});
+    fetchSchedules();
   }, [token]);
+
+  async function fetchSchedules() {
+    setLoadingSchedules(true);
+    try {
+      const res = await fetch('/api/schedules', { headers: { Authorization: `Bearer ${token}` } });
+      const d = await res.json();
+      setSchedules(Array.isArray(d) ? d : []);
+    } catch { setSchedules([]); }
+    setLoadingSchedules(false);
+  }
+
+  async function createSchedule() {
+    if (!newSchedule.name || !newSchedule.prompt) {
+      setScheduleError('Name and prompt are required');
+      return;
+    }
+    setCreatingSchedule(true);
+    setScheduleError('');
+    try {
+      const res = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(newSchedule),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setSchedules(prev => [d, ...prev]);
+        setShowCreateForm(false);
+        setNewSchedule({ name: '', prompt: '', local_hour: 8, minute: 0, timezone_offset: 0, timezone_label: 'UTC', schedule_type: 'daily' });
+        setSelectedTemplate(null);
+      } else {
+        setScheduleError(d.error || 'Failed to create schedule');
+      }
+    } catch { setScheduleError('Connection error'); }
+    setCreatingSchedule(false);
+  }
+
+  async function toggleSchedule(taskId, active) {
+    try {
+      await fetch(`/api/schedules/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ active }),
+      });
+      setSchedules(prev => prev.map(s => s.id === taskId ? { ...s, active } : s));
+    } catch {}
+  }
+
+  async function deleteSchedule(taskId) {
+    if (!confirm('Delete this schedule?')) return;
+    try {
+      await fetch(`/api/schedules/${taskId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSchedules(prev => prev.filter(s => s.id !== taskId));
+    } catch {}
+  }
+
+  function selectTemplate(template) {
+    setSelectedTemplate(template.id);
+    setNewSchedule(prev => ({
+      ...prev,
+      name: template.name.replace(/^[^\w]+/, '').trim(),
+      prompt: template.prompt,
+    }));
+  }
 
   async function handleUpload(e, type) {
     const file = e.target.files?.[0];
