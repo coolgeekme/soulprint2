@@ -377,8 +377,8 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     
     setUploading(true);
     
-    // Very small chunks (512KB) for maximum reliability in cloud deployments with strict timeouts
-    const CHUNK_SIZE = 512 * 1024; // 512KB chunks - optimized for cloud proxy timeouts
+    // 1MB chunks with parallel uploads = fast and reliable
+    const CHUNK_SIZE = 1 * 1024 * 1024; // 1MB chunks
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
     const MAX_RETRIES = 5;
