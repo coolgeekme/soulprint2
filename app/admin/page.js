@@ -27,13 +27,13 @@ function MetricCard({ label, value, sub, icon: Icon, color = 'orange' }) {
     purple: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
   };
   return (
-    <div className="bg-[#111] border border-white/8 rounded-xl p-5">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-gray-500 text-xs font-bold tracking-widest uppercase">{label}</p>
-        {Icon && <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${colors[color]}`}><Icon className="w-4 h-4" /></div>}
+    <div className="bg-[#111] border border-white/8 rounded-xl p-3 sm:p-5">
+      <div className="flex items-center justify-between mb-2 sm:mb-3">
+        <p className="text-gray-500 text-[10px] sm:text-xs font-bold tracking-widest uppercase truncate pr-2">{label}</p>
+        {Icon && <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center border flex-shrink-0 ${colors[color]}`}><Icon className="w-3 h-3 sm:w-4 sm:h-4" /></div>}
       </div>
-      <p className="text-3xl font-bold text-white font-condensed">{value ?? '—'}</p>
-      {sub && <p className="text-gray-600 text-xs mt-1">{sub}</p>}
+      <p className="text-2xl sm:text-3xl font-bold text-white font-condensed">{value ?? '—'}</p>
+      {sub && <p className="text-gray-600 text-[10px] sm:text-xs mt-1 truncate">{sub}</p>}
     </div>
   );
 }
