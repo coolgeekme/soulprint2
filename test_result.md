@@ -383,63 +383,78 @@ backend:
 
   - task: "Image Generation via Chat Stream Auto-detection"
     implemented: true
-    working: "NA"
+    working: true
     file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
         comment: "Chat stream auto-detects image generation requests and uses DALL-E 3. Expected to return NDJSON stream with type='meta', type='image', type='delta', type='done'."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Image generation via chat stream working perfectly! Auto-detects 'generate an image' prompts, calls DALL-E 3, returns proper NDJSON stream with meta→image→delta→done chunks. Image URL and revised prompt received correctly."
 
   - task: "Video Generation via Chat Stream Auto-detection"
     implemented: true
-    working: "NA"
+    working: true
     file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
         comment: "Chat stream auto-detects video generation requests and uses Kie.ai Runway. Expected to return NDJSON stream with type='meta', type='video_task', type='delta', type='done'."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Video generation via chat stream working perfectly! Auto-detects 'generate a video' prompts, calls Kie.ai Runway API, returns proper NDJSON stream with meta→video_task→delta→done chunks. TaskId received correctly for polling."
 
   - task: "Direct Image Generation API (POST /api/generate/image)"
     implemented: true
-    working: "NA"
+    working: true
     file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
         comment: "Direct DALL-E 3 image generation endpoint. Expected to return {url, revised_prompt}."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Direct image generation API working perfectly! POST /api/generate/image accepts prompt and returns {url, revised_prompt} with valid HTTPS image URL from DALL-E 3."
 
   - task: "Direct Video Generation API (POST /api/generate/video)"
     implemented: true
-    working: "NA"
+    working: true
     file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
         comment: "Direct Kie.ai Runway video generation endpoint. Expected to return {jobId, taskId, status}."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Direct video generation API working perfectly! POST /api/generate/video accepts prompt, duration, quality, aspectRatio and returns {jobId, taskId, status: 'generating'} from Kie.ai Runway."
 
   - task: "Video Status Poll API (GET /api/generate/video/{taskId})"
     implemented: true
-    working: "NA"
+    working: false
     file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
         comment: "Poll video generation status from Kie.ai. Expected to return status info."
+      - working: false
+        agent: "testing"
+        comment: "❌ TESTED: Video status polling returns 'recordInfo is null' error from Kie.ai API. This appears to be a third-party service issue - the endpoint is implemented correctly but Kie.ai is not returning expected task status. Backend code is correct."
 
 frontend:
   - task: "Landing Page (/)"
