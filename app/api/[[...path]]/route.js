@@ -2656,19 +2656,84 @@ async function handleAdminGetConversations(request) {
   const users = await db.collection('users').find({ id: { $in: userIds } }).toArray();
   const userMap = Object.fromEntries(users.map(u => [u.id, u]));
 
-  return ok({
-    conversations: conversations.map(c => ({
+  // Privacy: Generate topic categories instead of showing actual titles
+  const conversationsWithTopics = conversations.map(c => {
+    // Use stored topic if available, otherwise generate from title
+    const topic = c.topic || categorizeConversationTopic(c.title);
+    return {
       id: c.id,
-      title: c.title,
+      topic: topic, // Privacy-safe topic category
       user_email: userMap[c.user_id]?.email || 'unknown',
       user_id: c.user_id,
+      message_count: c.message_count || 0,
       created_at: c.created_at,
       updated_at: c.updated_at,
-    })),
+    };
+  });
+
+  return ok({
+    conversations: conversationsWithTopics,
     total,
     page,
     pages: Math.ceil(total / limit),
   });
+}
+
+// Privacy helper: Categorize conversation into a general topic (doesn't expose actual content)
+function categorizeConversationTopic(title) {
+  if (!title) return 'General Chat';
+  const lower = title.toLowerCase();
+  
+  // Coding & Tech
+  if (/\b(code|coding|programming|javascript|python|react|api|debug|error|function|bug|deploy|database|sql|html|css|git)\b/.test(lower)) {
+    return '💻 Coding & Development';
+  }
+  // Writing & Content
+  if (/\b(write|writing|draft|email|blog|article|essay|content|copy|edit|proofread|story|poem)\b/.test(lower)) {
+    return '✍️ Writing & Content';
+  }
+  // Business & Work
+  if (/\b(business|work|meeting|project|strategy|marketing|sales|startup|pitch|investor|client|presentation)\b/.test(lower)) {
+    return '💼 Business & Work';
+  }
+  // Research & Learning
+  if (/\b(research|learn|study|explain|understand|how does|what is|why|teach|tutorial|course)\b/.test(lower)) {
+    return '📚 Research & Learning';
+  }
+  // Creative & Design
+  if (/\b(design|creative|art|image|logo|brand|color|style|ui|ux|graphic|video|animation)\b/.test(lower)) {
+    return '🎨 Creative & Design';
+  }
+  // Travel & Places
+  if (/\b(travel|trip|vacation|hotel|flight|restaurant|visit|tour|city|country|location|nearby)\b/.test(lower)) {
+    return '✈️ Travel & Places';
+  }
+  // Health & Wellness
+  if (/\b(health|fitness|workout|diet|medical|doctor|symptom|exercise|wellness|mental|therapy)\b/.test(lower)) {
+    return '🏥 Health & Wellness';
+  }
+  // Finance & Money
+  if (/\b(money|finance|invest|stock|crypto|budget|save|price|cost|salary|tax|bank)\b/.test(lower)) {
+    return '💰 Finance & Money';
+  }
+  // Social Media
+  if (/\b(twitter|instagram|linkedin|tiktok|facebook|post|caption|social media|viral|followers)\b/.test(lower)) {
+    return '📱 Social Media';
+  }
+  // News & Current Events
+  if (/\b(news|today|current|latest|2024|2025|2026|happened|event|update|trending)\b/.test(lower)) {
+    return '📰 News & Current Events';
+  }
+  // Personal & Life
+  if (/\b(personal|life|family|relationship|friend|advice|help me|feeling|emotion)\b/.test(lower)) {
+    return '🌟 Personal & Life';
+  }
+  // Images & Media
+  if (/\b(image|picture|photo|generate|create|draw|illustration|video|animation)\b/.test(lower)) {
+    return '🖼️ Image & Media Generation';
+  }
+  
+  return '💬 General Chat';
 }
 
 async function handleAdminGetImports(request) {
