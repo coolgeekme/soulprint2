@@ -609,7 +609,8 @@ async function sendTelegramVideo(chatId, token, videoUrl, caption = '') {
     }
   } catch (e) { console.error('sendTelegramVideo error:', e.message); }
 }
- web search + file vision
+
+// CHAT STREAM - Streaming chat with web search + file vision
 async function handleChatStream(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
