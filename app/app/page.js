@@ -531,13 +531,34 @@ export default function ChatPage() {
             } else if (data.type === 'search') {
               setSearchingWeb(true);
               setSearchQueries(data.queries || []);
+            } else if (data.type === 'image') {
+              // Image generated – store url for rendering
+              setStreamingImageUrl(data.url);
+              setStreamingRevPrompt(data.revised_prompt);
+            } else if (data.type === 'video_task') {
+              // Video job started – store taskId for polling
+              setStreamingVideoTask({ taskId: data.taskId, status: 'generating', prompt: data.prompt });
             } else if (data.type === 'delta') {
               setSearchingWeb(false);
-              fullContent += data.content;
-              setStreamingContent(fullContent);
+              // Skip the markdown content if it's an image (we render the image directly)
+              if (!streamingImageUrlRef.current) {
+                fullContent += data.content;
+                setStreamingContent(fullContent);
+              }
             } else if (data.type === 'done') {
-              setMessages(prev => [...prev, { id: `a-${Date.now()}`, role: 'assistant', content: fullContent, created_at: new Date().toISOString(), model_used: selectedModel }]);
+              const finalMsg = {
+                id: `a-${Date.now()}`,
+                role: 'assistant',
+                content: fullContent,
+                created_at: new Date().toISOString(),
+                model_used: selectedModel,
+                image_url: streamingImageUrlRef.current || undefined,
+                video_task: streamingVideoTaskRef.current || undefined,
+              };
+              setMessages(prev => [...prev, finalMsg]);
               setStreamingContent('');
+              setStreamingImageUrl(null);
+              setStreamingVideoTask(null);
               setSearchQueries([]);
               fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
                 .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : []));
