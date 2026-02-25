@@ -3668,6 +3668,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'connectors/telegram/webhook') return handleTelegramWebhook(request);
     if (pathStr === 'schedules') return handleCreateSchedule(request);
     if (pathStr === 'cron/run-schedules') return handleRunSchedules(request);
+    if (pathStr === 'places/search') return handlePlacesSearch(request);
+    if (pathStr === 'places/geocode') return handleGeocode(request);
 
     // Admin routes
     if (pathStr === 'admin/questions/seed') return handleAdminSeedQuestions(request);
