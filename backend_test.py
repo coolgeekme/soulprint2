@@ -240,6 +240,195 @@ class BackendTester:
         except Exception as e:
             print(f"❌ TELEGRAM INVALID MODEL: Error - {e}")
 
+    def test_task_scheduling_api(self):
+        """Test Task Scheduling API endpoints"""
+        print("\n⏰ TESTING TASK SCHEDULING API...")
+        
+        created_schedule_id = None
+        
+        # Test 1: GET /api/schedules - Get user's schedules (should be empty initially)
+        try:
+            headers = self.get_auth_headers()
+            response = requests.get(f"{self.base_url}/api/schedules", headers=headers)
+            
+            if response.status_code == 200:
+                schedules = response.json()
+                print(f"✅ GET SCHEDULES: Successfully retrieved {len(schedules)} schedules")
+                print(f"  📊 Initial schedules: {schedules}")
+            else:
+                print(f"❌ GET SCHEDULES: Failed with status {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            print(f"❌ GET SCHEDULES: Error - {e}")
+        
+        # Test 2: GET /api/schedules/templates - Get schedule templates
+        try:
+            headers = self.get_auth_headers()
+            response = requests.get(f"{self.base_url}/api/schedules/templates", headers=headers)
+            
+            if response.status_code == 200:
+                templates = response.json()
+                print(f"✅ GET TEMPLATES: Successfully retrieved {len(templates)} templates")
+                
+                # Check for expected template structure
+                if templates and isinstance(templates, list):
+                    first_template = templates[0]
+                    expected_fields = ['id', 'name', 'prompt']
+                    has_all_fields = all(field in first_template for field in expected_fields)
+                    
+                    if has_all_fields:
+                        print("✅ TEMPLATES: Template structure correct")
+                        print(f"  📋 Sample template: {first_template['name']}")
+                    else:
+                        print(f"⚠️ TEMPLATES: Missing expected fields in templates")
+                else:
+                    print("⚠️ TEMPLATES: Unexpected template format")
+                    
+            else:
+                print(f"❌ GET TEMPLATES: Failed with status {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            print(f"❌ GET TEMPLATES: Error - {e}")
+        
+        # Test 3: POST /api/schedules - Create a new schedule
+        try:
+            headers = self.get_auth_headers()
+            payload = {
+                "name": "Test Daily AI News",
+                "prompt": "Summarize the top 3 AI news stories from today",
+                "local_hour": 9,
+                "minute": 30,
+                "timezone_offset": 0,
+                "timezone_label": "UTC",
+                "schedule_type": "daily"
+            }
+            
+            response = requests.post(f"{self.base_url}/api/schedules", 
+                json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                schedule = response.json()
+                created_schedule_id = schedule.get('id')
+                print("✅ CREATE SCHEDULE: Successfully created schedule")
+                print(f"  📊 Created schedule ID: {created_schedule_id}")
+                print(f"  📊 Schedule name: {schedule.get('name')}")
+                print(f"  📊 Schedule active: {schedule.get('active')}")
+                print(f"  📊 Next run at: {schedule.get('next_run_at')}")
+                
+                # Verify required fields
+                required_fields = ['id', 'name', 'prompt', 'active', 'next_run_at', 'schedule_type']
+                has_all_fields = all(field in schedule for field in required_fields)
+                
+                if has_all_fields:
+                    print("✅ CREATE: Schedule object has all required fields")
+                else:
+                    missing_fields = [field for field in required_fields if field not in schedule]
+                    print(f"⚠️ CREATE: Missing fields: {missing_fields}")
+                    
+            else:
+                print(f"❌ CREATE SCHEDULE: Failed with status {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            print(f"❌ CREATE SCHEDULE: Error - {e}")
+        
+        # Test 4: GET /api/schedules again - Verify schedule was created
+        if created_schedule_id:
+            try:
+                headers = self.get_auth_headers()
+                response = requests.get(f"{self.base_url}/api/schedules", headers=headers)
+                
+                if response.status_code == 200:
+                    schedules = response.json()
+                    created_schedule = next((s for s in schedules if s.get('id') == created_schedule_id), None)
+                    
+                    if created_schedule:
+                        print("✅ VERIFY CREATION: Created schedule found in schedules list")
+                        print(f"  📊 Found schedule: {created_schedule.get('name')}")
+                    else:
+                        print("❌ VERIFY CREATION: Created schedule not found in schedules list")
+                        
+                else:
+                    print(f"❌ VERIFY CREATION: Failed with status {response.status_code}: {response.text}")
+                    
+            except Exception as e:
+                print(f"❌ VERIFY CREATION: Error - {e}")
+        
+        # Test 5: PUT /api/schedules/{id} - Update schedule (toggle active)
+        if created_schedule_id:
+            try:
+                headers = self.get_auth_headers()
+                payload = {"active": False}
+                
+                response = requests.put(f"{self.base_url}/api/schedules/{created_schedule_id}", 
+                    json=payload, headers=headers)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    print("✅ UPDATE SCHEDULE: Successfully toggled schedule to inactive")
+                    print(f"  📊 Update result: {result}")
+                    
+                    # Verify the update worked
+                    get_response = requests.get(f"{self.base_url}/api/schedules", headers=headers)
+                    if get_response.status_code == 200:
+                        schedules = get_response.json()
+                        updated_schedule = next((s for s in schedules if s.get('id') == created_schedule_id), None)
+                        
+                        if updated_schedule and updated_schedule.get('active') is False:
+                            print("✅ UPDATE VERIFY: Schedule successfully set to inactive")
+                        else:
+                            print("⚠️ UPDATE VERIFY: Schedule active status not updated as expected")
+                            
+                else:
+                    print(f"❌ UPDATE SCHEDULE: Failed with status {response.status_code}: {response.text}")
+                    
+            except Exception as e:
+                print(f"❌ UPDATE SCHEDULE: Error - {e}")
+        
+        # Test 6: DELETE /api/schedules/{id} - Delete the schedule  
+        if created_schedule_id:
+            try:
+                headers = self.get_auth_headers()
+                response = requests.delete(f"{self.base_url}/api/schedules/{created_schedule_id}", 
+                    headers=headers)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    print("✅ DELETE SCHEDULE: Successfully deleted schedule")
+                    print(f"  📊 Delete result: {result}")
+                    
+                    # Verify deletion worked
+                    get_response = requests.get(f"{self.base_url}/api/schedules", headers=headers)
+                    if get_response.status_code == 200:
+                        schedules = get_response.json()
+                        deleted_schedule = next((s for s in schedules if s.get('id') == created_schedule_id), None)
+                        
+                        if deleted_schedule is None:
+                            print("✅ DELETE VERIFY: Schedule successfully removed from schedules list")
+                        else:
+                            print("❌ DELETE VERIFY: Schedule still exists after deletion")
+                    else:
+                        print(f"⚠️ DELETE VERIFY: Could not verify deletion - API error")
+                        
+                else:
+                    print(f"❌ DELETE SCHEDULE: Failed with status {response.status_code}: {response.text}")
+                    
+            except Exception as e:
+                print(f"❌ DELETE SCHEDULE: Error - {e}")
+        
+        # Test 7: Test authentication required - try without token
+        try:
+            response = requests.get(f"{self.base_url}/api/schedules")
+            
+            if response.status_code == 401:
+                print("✅ AUTH TEST: Correctly returns 401 Unauthorized without token")
+            else:
+                print(f"⚠️ AUTH TEST: Expected 401, got {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ AUTH TEST: Error - {e}")
+        
+        print("✅ TASK SCHEDULING API: All tests completed")
+
     def test_web_search_integration(self):
         """Test Web search integration"""
         print("\n🌐 TESTING WEB SEARCH INTEGRATION...")
