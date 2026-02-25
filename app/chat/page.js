@@ -988,26 +988,49 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           )}
 
           {/* PROFILE TAB */}
-          {activeTab === 'profile' && profile && (
-            <div className="space-y-4">
-              {[
-                ['Display Name', profile.display_name],
-                ['Assistant Name', profile.assistant_name || 'SoulPrint'],
-                ['Field', profile.field],
-                ['Role', profile.descriptors?.join(', ')],
-              ].map(([label, val]) => (
-                <div key={label}>
-                  <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-1">{label}</p>
-                  <p className="text-white text-sm">{val || '—'}</p>
-                </div>
-              ))}
-              <div>
-                <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-2">Help With</p>
-                <div className="flex flex-wrap gap-1">
-                  {(profile.help_with || []).map(h => (
-                    <span key={h} className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20">{h}</span>
+          {activeTab === 'profile' && (
+            <div className="space-y-5">
+              {profile && (
+                <>
+                  {[
+                    ['Display Name', profile.display_name],
+                    ['Assistant Name', profile.assistant_name || 'SoulPrint'],
+                    ['Field', profile.field],
+                    ['Role', profile.descriptors?.join(', ')],
+                  ].map(([label, val]) => (
+                    <div key={label}>
+                      <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-1">{label}</p>
+                      <p className="text-white text-sm">{val || '—'}</p>
+                    </div>
                   ))}
-                </div>
+                  {profile.help_with?.length > 0 && (
+                    <div>
+                      <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-2">Help With</p>
+                      <div className="flex flex-wrap gap-1">
+                        {profile.help_with.map(h => (
+                          <span key={h} className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20">{h}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Retake Assessment Section */}
+              <div className="pt-5 border-t border-white/10">
+                <h3 className="text-white text-sm font-semibold mb-2">📋 36-Question Assessment</h3>
+                <p className="text-gray-500 text-xs mb-4">
+                  Your SoulPrint personality assessment helps me understand your communication style, preferences, and goals. 
+                  You can retake it anytime to update your profile.
+                </p>
+                <button
+                  onClick={handleResetAssessment}
+                  className="w-full py-2.5 px-4 bg-white/5 border border-white/10 rounded-lg text-white text-sm hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Retake Assessment
+                </button>
+                <p className="text-gray-700 text-[10px] mt-2 text-center">Your previous answers will be archived</p>
               </div>
             </div>
           )}
