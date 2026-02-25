@@ -1146,6 +1146,42 @@ async function sendTelegramVideo(chatId, token, videoUrl, caption = '') {
   } catch (e) { console.error('sendTelegramVideo error:', e.message); }
 }
 
+// Request location from user via Telegram keyboard button
+async function requestTelegramLocation(chatId, token, message) {
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          keyboard: [[{ text: '📍 Share My Location', request_location: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      }),
+    });
+  } catch (e) { console.error('requestTelegramLocation error:', e.message); }
+}
+
+// Remove the location keyboard after use
+async function removeTelegramKeyboard(chatId, token, message) {
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'Markdown',
+        reply_markup: { remove_keyboard: true },
+      }),
+    });
+  } catch (e) { console.error('removeTelegramKeyboard error:', e.message); }
+}
+
 // CHAT STREAM - Streaming chat with web search + file vision
 async function handleChatStream(request) {
   const user = await authenticate(request);
