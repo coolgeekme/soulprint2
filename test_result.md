@@ -798,13 +798,16 @@ metadata:
 
 test_plan:
   current_focus:
-    []
+    - "Chunked Data Import Upload (POST /api/data-import/chunked/*)"
+    - "Data Analysis for ChatGPT/Facebook Exports"
   stuck_tasks: 
     - "Kimi AI Integration (POST /api/chat/stream + GET /api/models)"
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    message: "PRIORITY: Test chunked data import system. MongoDB-based chunk storage now implemented. Test flow: (1) POST /api/data-import/chunked/init with {filename, fileSize, source, totalChunks} - should create upload session. (2) POST /api/data-import/chunked/chunk with FormData containing uploadId, chunkIndex, chunk blob - should store chunk in upload_chunks collection. (3) POST /api/data-import/chunked/complete with {uploadId} - should reassemble chunks, parse ZIP, analyze data, return analysis results. Create a small test ZIP file with mock conversations.json for ChatGPT format testing. Auth required for all endpoints."
   - agent: "main"
     message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://personality-ai-hub.preview.emergentagent.com. Test with fresh user registration first."
   - agent: "testing"
