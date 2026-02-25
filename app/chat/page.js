@@ -726,6 +726,14 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                     <p className="text-orange-400 text-xs flex items-center gap-2 break-words">
                       <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" /> {uploadProgress}
                     </p>
+                    {uploadProgress.includes('%') && (
+                      <div className="mt-2 h-1.5 bg-black/30 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-orange-500 transition-all duration-300"
+                          style={{ width: (uploadProgress.match(/(\d+)%/)?.[1] || '0') + '%' }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
