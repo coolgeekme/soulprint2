@@ -803,9 +803,7 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Chunked Data Import Upload (POST /api/data-import/chunked/*)"
-    - "Data Analysis for ChatGPT/Facebook Exports"
+  current_focus: []
   stuck_tasks: 
     - "Kimi AI Integration (POST /api/chat/stream + GET /api/models)"
   test_all: false
