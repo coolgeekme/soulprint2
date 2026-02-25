@@ -1352,14 +1352,18 @@ async function handleTelegramSetup(request) {
   if (!admin) return err('Forbidden', 403);
 
   const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-  if (!TELEGRAM_BOT_TOKEN) return ok({ configured: false, message: 'Add TELEGRAM_BOT_TOKEN to .env' });
+  if (!TELEGRAM_BOT_TOKEN) return ok({ configured: false, message: 'Add TELEGRAM_BOT_TOKEN to .env to enable Telegram.' });
 
+  const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
   const webhookUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/connectors/telegram/webhook`;
 
-  // Set the webhook
+  // Set the webhook with optional secret
+  const payload = { url: webhookUrl, drop_pending_updates: true, allowed_updates: ['message', 'edited_message'] };
+  if (TELEGRAM_WEBHOOK_SECRET) payload.secret_token = TELEGRAM_WEBHOOK_SECRET;
+
   const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: webhookUrl, drop_pending_updates: true }),
+    body: JSON.stringify(payload),
   });
   const data = await res.json();
 
@@ -1367,7 +1371,18 @@ async function handleTelegramSetup(request) {
   const infoRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe`);
   const info = await infoRes.json();
 
-  return ok({ configured: true, webhook: data, bot: info.result, webhookUrl });
+  // Count linked users
+  const db = await getDb();
+  const linkedCount = await db.collection('telegram_mappings').countDocuments({ linked: true });
+
+  return ok({
+    configured: true,
+    webhook: data,
+    bot: info.result,
+    webhookUrl,
+    secretProtected: !!TELEGRAM_WEBHOOK_SECRET,
+    linkedUsers: linkedCount,
+  });
 }
 
 async function handleTelegramStatus(request) {
