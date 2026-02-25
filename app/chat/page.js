@@ -1649,7 +1649,7 @@ export default function ChatPage() {
                         {msg.image_url && (
                           <ImageCard url={msg.image_url} revisedPrompt={msg.content?.match(/\*Prompt used: (.+)\*/)?.[1] || ''} />
                         )}
-                        {/* Video card */}
+                        {/* Video card - for polling state */}
                         {msg.video_task && (
                           <VideoCard
                             taskId={msg.video_task.taskId}
@@ -1658,8 +1658,27 @@ export default function ChatPage() {
                             initialStatus={msg.video_task.status}
                           />
                         )}
-                        {/* Regular text (skip for pure image messages) */}
-                        {!msg.image_url && (
+                        {/* Saved video - direct URL from database */}
+                        {msg.video_url && !msg.video_task && (
+                          <div className="mt-2 rounded-xl overflow-hidden border border-white/10 bg-[#111]">
+                            <video
+                              src={msg.video_url}
+                              controls
+                              playsInline
+                              className="w-full max-h-80 object-contain"
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                            <div className="p-2 flex justify-end">
+                              <a href={msg.video_url} target="_blank" rel="noopener noreferrer" download
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-lg hover:bg-orange-500/25 transition-colors">
+                                <Download className="w-3.5 h-3.5" /> Download
+                              </a>
+                            </div>
+                          </div>
+                        )}
+                        {/* Regular text (skip for pure image/video messages) */}
+                        {!msg.image_url && !msg.video_url && (
                           <ReactMarkdown remarkPlugins={[remarkGfm]}
                             components={{
                               p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
