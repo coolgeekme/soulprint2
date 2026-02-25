@@ -926,6 +926,94 @@ async function handleAdminResetPasscode(request, userId) {
   return ok({ success: true });
 }
 
+async function handleAdminGetWaitlist(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get('search') || '';
+
+  const query = { accepted: false };
+  if (search) query.email = { $regex: search, $options: 'i' };
+
+  const users = await db.collection('users')
+    .find(query)
+    .sort({ created_at: -1 })
+    .toArray();
+
+  const profiles = await db.collection('profiles')
+    .find({ user_id: { $in: users.map(u => u.id) } })
+    .toArray();
+  const profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p]));
+
+  return ok({
+    count: users.length,
+    users: users.map(u => ({
+      id: u.id,
+      email: u.email,
+      name: profileMap[u.id]?.display_name || u.name || '',
+      role: u.role,
+      accepted: u.accepted,
+      created_at: u.created_at,
+      assessment_complete: profileMap[u.id]?.assessment_complete || false,
+      onboarding_complete: profileMap[u.id]?.onboarding_complete || false,
+    })),
+  });
+}
+
+async function handleAdminApproveWaitlist(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { user_ids, approve_all } = body;
+  const db = await getDb();
+
+  if (approve_all) {
+    await db.collection('users').updateMany({ accepted: false }, { $set: { accepted: true } });
+    return ok({ success: true, message: 'All waitlisted users approved' });
+  }
+
+  if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
+    return err('user_ids array required');
+  }
+
+  await db.collection('users').updateMany(
+    { id: { $in: user_ids } },
+    { $set: { accepted: true } }
+  );
+
+  // Log action
+  await db.collection('admin_audit_log').insertOne({
+    id: uuidv4(),
+    admin_user_id: admin.id,
+    action: 'bulk_approve_waitlist',
+    metadata: { user_ids },
+    created_at: new Date(),
+  });
+
+  return ok({ success: true, approved: user_ids.length });
+}
+
+async function handleAdminDenyUser(request, userId) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  await db.collection('users').updateOne({ id: userId }, { $set: { accepted: false } });
+
+  await db.collection('admin_audit_log').insertOne({
+    id: uuidv4(),
+    admin_user_id: admin.id,
+    action: 'deny_user',
+    target_user_id: userId,
+    created_at: new Date(),
+  });
+
+  return ok({ success: true });
+}
+
 async function handleAdminGetMetrics(request) {
   const admin = await requireAdmin(request);
   if (!admin) return err('Forbidden', 403);
