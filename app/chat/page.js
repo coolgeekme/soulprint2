@@ -766,52 +766,14 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   🔒 Your raw data is analyzed and immediately deleted. Only the insights are saved.
                 </p>
               </div>
-                    </p>
-                    {uploadProgress.includes('%') && (
-                      <div className="mt-2 h-1.5 bg-black/30 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-orange-500 transition-all duration-300"
-                          style={{ width: uploadProgress.match(/(\d+)%/)?.[1] + '%' || '0%' }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="rounded-xl p-4 border border-white/10 bg-white/3">
-                    <FileText className="w-6 h-6 text-green-400 mb-2" />
-                    <p className="text-white text-sm font-medium mb-0.5">ChatGPT Export</p>
-                    <p className="text-gray-600 text-xs mb-3">ZIP file from ChatGPT</p>
-                    <input ref={fileRef} type="file" accept=".zip" className="hidden" 
-                      onChange={e => { if (e.target.files?.[0]) handleDataImportUpload(e.target.files[0], 'chatgpt'); e.target.value = ''; }} />
-                    <button onClick={() => fileRef.current?.click()} disabled={uploading}
-                      className="w-full py-2 text-xs btn-orange rounded-lg disabled:opacity-50">
-                      {uploading ? 'Processing...' : 'Upload ZIP'}
-                    </button>
-                  </div>
-                  <div className="rounded-xl p-4 border border-white/10 bg-white/3">
-                    <FileText className="w-6 h-6 text-blue-400 mb-2" />
-                    <p className="text-white text-sm font-medium mb-0.5">Facebook Archive</p>
-                    <p className="text-gray-600 text-xs mb-3">ZIP file from Facebook</p>
-                    <input ref={fbFileRef} type="file" accept=".zip" className="hidden" 
-                      onChange={e => { if (e.target.files?.[0]) handleDataImportUpload(e.target.files[0], 'facebook'); e.target.value = ''; }} />
-                    <button onClick={() => fbFileRef.current?.click()} disabled={uploading}
-                      className="w-full py-2 text-xs btn-orange rounded-lg disabled:opacity-50">
-                      {uploading ? 'Processing...' : 'Upload ZIP'}
-                    </button>
-                  </div>
-                </div>
-                <p className="text-gray-700 text-[10px] mb-4">💡 Your raw data is analyzed and immediately deleted. Only the insights are saved.</p>
-              </div>
 
               {/* Soul Profile Insights */}
               {soulProfile && (
                 <div className="border-t border-white/10 pt-5">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-white text-sm font-semibold">✨ What I've Learned About You</h3>
+                    <h3 className="text-white text-sm font-semibold">✨ What I've Learned</h3>
                     <button onClick={() => setShowInsights(!showInsights)} className="text-gray-500 hover:text-white text-xs">
-                      {showInsights ? 'Hide' : 'Show'} details
+                      {showInsights ? 'Hide' : 'Show'}
                     </button>
                   </div>
                   
@@ -838,10 +800,10 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                       {/* Communication Style */}
                       {soulProfile.communicationStyle && Object.keys(soulProfile.communicationStyle).map(source => (
                         <div key={source}>
-                          <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2">Communication Style ({source})</p>
+                          <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2">Style ({source})</p>
                           <div className="p-2.5 rounded-lg bg-white/3 border border-white/5">
                             <p className="text-gray-400 text-xs">{soulProfile.communicationStyle[source].description || 'Analyzed'}</p>
-                            <div className="flex gap-3 mt-2 text-[10px]">
+                            <div className="flex flex-wrap gap-2 mt-2 text-[10px]">
                               <span className="text-gray-600">Tone: <span className="text-gray-400">{soulProfile.communicationStyle[source].tone}</span></span>
                               <span className="text-gray-600">Style: <span className="text-gray-400">{soulProfile.communicationStyle[source].formality}</span></span>
                             </div>
