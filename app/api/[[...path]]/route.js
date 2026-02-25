@@ -457,7 +457,7 @@ async function handleGetMessages(request) {
   })));
 }
 
-// CHAT STREAM - Streaming chat
+// CHAT STREAM - Streaming chat with web search + file vision
 async function handleChatStream(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -467,8 +467,13 @@ async function handleChatStream(request) {
   }
 
   const body = await request.json();
-  const { conversationId, content, model = 'gpt-4o', provider: providerName = 'hosted' } = body;
-  if (!content) return err('content required');
+  const {
+    conversationId, content, model = 'gpt-4o',
+    provider: providerName = 'hosted',
+    attachments = [],   // [{ type: 'image'|'document', base64: '...', mimeType: '...', name: '...', text: '...' }]
+    enableWebSearch = true,
+  } = body;
+  if (!content && attachments.length === 0) return err('content required');
 
   const db = await getDb();
 
@@ -481,97 +486,105 @@ async function handleChatStream(request) {
   if (!conv) {
     convId = uuidv4();
     const now = new Date();
-    const title = content.slice(0, 50) + (content.length > 50 ? '...' : '');
+    const title = (content || 'File attachment').slice(0, 50) + ((content?.length > 50) ? '...' : '');
     await db.collection('conversations').insertOne({
-      id: convId,
-      user_id: user.id,
-      title,
-      created_at: now,
-      updated_at: now,
+      id: convId, user_id: user.id, title, created_at: now, updated_at: now,
     });
   }
 
-  // Save user message
+  // Save user message (text only for storage)
   const userMsgId = uuidv4();
+  const storedContent = content + (attachments.length > 0 ? ` [+${attachments.length} attachment(s)]` : '');
   await db.collection('messages').insertOne({
-    id: userMsgId,
-    conversation_id: convId,
-    user_id: user.id,
-    role: 'user',
-    content,
-    created_at: new Date(),
-    model_used: model,
+    id: userMsgId, conversation_id: convId, user_id: user.id,
+    role: 'user', content: storedContent, created_at: new Date(), model_used: model,
   });
 
   // Get recent messages for context
   const recentMessages = await db.collection('messages')
     .find({ conversation_id: convId, id: { $ne: userMsgId } })
-    .sort({ created_at: -1 })
-    .limit(20)
-    .toArray();
+    .sort({ created_at: -1 }).limit(20).toArray();
   recentMessages.reverse();
 
-  const historyMessages = recentMessages.map(m => ({
-    role: m.role,
-    content: m.content,
-  }));
-  historyMessages.push({ role: 'user', content });
+  const historyMessages = recentMessages.map(m => ({ role: m.role, content: m.content }));
+
+  // Build the current user message — support images (vision) + documents
+  let userMessageContent;
+  if (attachments.length > 0) {
+    userMessageContent = [];
+    if (content) userMessageContent.push({ type: 'text', text: content });
+
+    for (const att of attachments) {
+      if (att.type === 'image' && att.base64) {
+        userMessageContent.push({
+          type: 'image_url',
+          image_url: { url: `data:${att.mimeType || 'image/jpeg'};base64,${att.base64}`, detail: 'high' },
+        });
+      } else if (att.type === 'document' && att.text) {
+        userMessageContent.push({
+          type: 'text',
+          text: `\n\n[Attached document: ${att.name}]\n${att.text}\n[End of document]`,
+        });
+      }
+    }
+  } else {
+    userMessageContent = content;
+  }
+
+  historyMessages.push({ role: 'user', content: userMessageContent });
 
   // Build system prompt
   const systemPrompt = await buildSystemPrompt(db, user.id);
-
-  // Stream response
   const provider = getProvider(providerName, model);
   const assistantMsgId = uuidv4();
   let fullContent = '';
 
   const stream = new ReadableStream({
     async start(controller) {
+      const enc = new TextEncoder();
+      const send = (obj) => controller.enqueue(enc.encode(JSON.stringify(obj) + '\n'));
+
       try {
-        const aiStream = await provider.generateChatCompletionStream({
+        // Send meta first
+        send({ type: 'meta', conversationId: convId, messageId: assistantMsgId });
+
+        const { stream: aiStream, searchMeta, didSearch } = await provider.generateChatCompletionStream({
           systemPrompt,
           messages: historyMessages,
           model,
           temperature: 0.7,
+          enableWebSearch: enableWebSearch && attachments.length === 0, // disable search when analyzing files
         });
 
-        // Send conversation ID first
-        const metaChunk = JSON.stringify({ type: 'meta', conversationId: convId, messageId: assistantMsgId }) + '\n';
-        controller.enqueue(new TextEncoder().encode(metaChunk));
+        // If search was done, notify client
+        if (didSearch && searchMeta.length > 0) {
+          send({ type: 'search', queries: searchMeta.map(s => s.query) });
+        }
 
         for await (const chunk of aiStream) {
           const delta = chunk.choices[0]?.delta?.content || '';
           if (delta) {
             fullContent += delta;
-            const dataChunk = JSON.stringify({ type: 'delta', content: delta }) + '\n';
-            controller.enqueue(new TextEncoder().encode(dataChunk));
+            send({ type: 'delta', content: delta });
           }
         }
 
         // Save assistant message
         await db.collection('messages').insertOne({
-          id: assistantMsgId,
-          conversation_id: convId,
-          user_id: user.id,
-          role: 'assistant',
-          content: fullContent,
-          created_at: new Date(),
-          model_used: model,
-          provider_used: providerName,
+          id: assistantMsgId, conversation_id: convId, user_id: user.id,
+          role: 'assistant', content: fullContent, created_at: new Date(),
+          model_used: model, provider_used: providerName,
+          web_search_used: didSearch,
         });
 
-        // Update conversation timestamp + title if first message
         await db.collection('conversations').updateOne(
-          { id: convId },
-          { $set: { updated_at: new Date() } }
+          { id: convId }, { $set: { updated_at: new Date() } }
         );
 
-        const doneChunk = JSON.stringify({ type: 'done' }) + '\n';
-        controller.enqueue(new TextEncoder().encode(doneChunk));
+        send({ type: 'done' });
         controller.close();
       } catch (error) {
-        const errChunk = JSON.stringify({ type: 'error', error: error.message }) + '\n';
-        controller.enqueue(new TextEncoder().encode(errChunk));
+        send({ type: 'error', error: error.message });
         controller.close();
       }
     },
