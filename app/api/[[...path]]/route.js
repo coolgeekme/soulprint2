@@ -2190,26 +2190,33 @@ async function generateImageWithKie(prompt, aspectRatio = '1:1') {
   const taskId = data.data?.taskId;
   if (!taskId) throw new Error('No task ID returned');
 
-  // Poll for completion (updated endpoint: jobs/recordInfo)
+  // Poll for completion (correct endpoint: gpt4o-image/record-info)
   let imageUrl = null;
   let attempts = 0;
-  const maxAttempts = 30;
+  const maxAttempts = 40; // ~2 minutes
 
   while (!imageUrl && attempts < maxAttempts) {
     await new Promise(r => setTimeout(r, 3000));
     attempts++;
     
-    const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+    const statusRes = await fetch(`https://api.kie.ai/api/v1/gpt4o-image/record-info?taskId=${taskId}`, {
       headers: { Authorization: `Bearer ${kieKey}` },
     });
     const statusData = await statusRes.json();
     
-    // Status: 0=generating, 1=success, 2=failed
-    if (statusData.code === 200 && statusData.data?.status === 1) {
-      imageUrl = statusData.data?.output?.[0] || statusData.data?.outputUrl;
+    // Status: GENERATING, SUCCESS, FAILED
+    if (statusData.code === 200 && statusData.data?.status === 'SUCCESS') {
+      // Parse response JSON to get resultUrls
+      const response = statusData.data?.response;
+      if (typeof response === 'string') {
+        const parsed = JSON.parse(response);
+        imageUrl = parsed?.resultUrls?.[0];
+      } else if (response?.resultUrls) {
+        imageUrl = response.resultUrls[0];
+      }
       break;
-    } else if (statusData.data?.status === 2) {
-      throw new Error('Image generation failed');
+    } else if (statusData.data?.status === 'FAILED') {
+      throw new Error(statusData.data?.errorMessage || 'Image generation failed');
     }
   }
 
