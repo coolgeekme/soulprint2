@@ -2425,7 +2425,7 @@ async function handleTelegramWebhook(request) {
     await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
       `🤖 *SoulPrint Bot Commands*\n\n` +
       `*💬 Chat*\nJust send any message to chat with your AI!\n\n` +
-      `*🎨 Image Generation*\n/image [prompt] — Generate with DALL-E 3\nExample: /image neon city at night\n\n` +
+      `*🎨 Image Generation*\n/image [prompt] — Generate with Kie.ai (GPT-4o Image)\nExample: /image neon city at night\n\n` +
       `*🎬 Video Generation*\n/video [prompt] — Generate with Runway AI\nExample: /video ocean waves at sunset\n\n` +
       `*📱 Social Media Posts*\n/post [platform] [topic] — Write a platform-optimized post with real-time data\n` +
       `Platforms: twitter, instagram, linkedin, tiktok, facebook, threads, youtube\n` +
