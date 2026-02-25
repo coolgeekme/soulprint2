@@ -1,0 +1,204 @@
+<analysis>
+<original_problem_statement>
+Build a production-grade, multi-tenant web app called SoulPrint Engine. The goal is to replicate provided UI screenshots and deliver a SoulPrint experience which includes:
+-   Auth (email/passcode + Google OAuth)
+-   Onboarding profile form
+-   36-question assessment across 6 pillars
+-   Bot naming screen
+-   Waitlist/gating system
+-   Chat experience with model selector and memory injection
+-   Data imports from ChatGPT/Facebook exports
+-   A multi-admin dashboard to manage users, content, and metrics.
+
+**PRODUCT REQUIREMENTS:**
+-   **Tech Stack:** Next.js (App Router), TypeScript, TailwindCSS, shadcn/ui, Supabase for Auth/Postgres/RLS.
+-   **Architecture:** An LLM Provider abstraction () to support different models.
+-   **Routes:** Landing page, /auth, /onboarding, /assessment, /app (chat), /admin.
+-   **Data Imports:** User-initiated uploads of ChatGPT/Facebook data to be parsed and summarized into a SoulProfile.
+-   **Memory/Personalization:** System prompt should be built from user profile, assessment results, and import summaries.
+-   **Database:** A specific Postgres schema was provided with tables like , , , , etc., with RLS rules.
+-   **Styling:** Must match screenshots (dark grid background, orange accent, specific typography).
+</original_problem_statement>
+
+**User's preferred language**: English
+
+**what currently exists?**
+A full-stack Next.js application has been built with a MongoDB backend (a deviation from the specified Postgres). Most of the UI pages from the problem statement have been created (, , , , , ).
+
+Key implemented features include:
+-   User registration and login (with auto-registration for new users).
+-   A full 36-question assessment flow.
+-   Waitlist and admin-approval system for user access.
+-   A functional chat interface with conversation history.
+-   A basic admin dashboard for user management.
+-   Real-time web search in chat via Tavily integration.
+-   File uploads (images & documents) in chat, with image vision support.
+-   A secure, multi-user Telegram bot integration that syncs with the web chat.
+-   Microphone voice input in the chat, using the Web Speech API with a Whisper fallback.
+
+**Last working item**:
+-   Last item agent was working: The agent was in the process of implementing a multi-LLM provider abstraction layer to allow users to switch between different AI models (OpenAI, Claude, Perplexity, Gemini). It has installed the required Node.js SDKs (, , ) and has just completed a full rewrite of the  file to include all four providers under a unified streaming interface.
+-   Status: IN PROGRESS
+-   Agent Testing Done: N
+-   Which testing method agent to use? backend testing agent
+-   User Testing Done: N
+
+**All Pending/In progress Issue list**:
+-   Issue 1: Multi-LLM Provider Integration (P0)
+
+Issues Detail:
+-   Issue 1:
+    -   **Description**: The new multi-provider logic in  is written but not yet integrated into the main API or the frontend. The application will not function correctly until this is completed.
+    -   **Next debug checklist**:
+        1.  Modify the main API router in  to use the new provider factory from  based on a  parameter sent from the client.
+        2.  Update the chat API endpoint () to correctly pass the selected model and API keys to the new provider implementation.
+        3.  Update the frontend Chat UI in  to replace the hardcoded model selector with a dropdown that lists the available models from all integrated providers.
+        4.  Ensure API keys for Anthropic, Perplexity, and Gemini are correctly read from  and passed to their respective SDKs.
+        5.  Thoroughly test the chat functionality with each of the four providers (OpenAI, Claude, Perplexity, Gemini) to ensure the unified streaming interface works as expected.
+    -   **Why fix this issue and what will be achieved with the fix?**: This will complete the user's request to access other AI platforms (Claude, Perplexity, Gemini) from the chat interface, a core requirement.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** Both
+    -   **Blocked on other issue**: None
+
+**In progress Task List**:
+-   Task 1: Complete Multi-LLM Provider Integration (P0)
+
+Task Detail:
+-   Task 1:
+    -   **Where to resume**: The file  has been rewritten. The next step is to integrate this new provider module into the main API logic at .
+    -   **What will be achieved with this?**: Users will be able to select and chat with models from OpenAI, Anthropic, Perplexity, and Gemini.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: Both
+    -   **Blocked on something**: No
+
+**Upcoming and Future Tasks**
+Upcoming Tasks:
+-   **Data Imports (ChatGPT/Facebook) (P1)**: The API endpoint () exists, but the backend logic for processing the uploaded files (parsing, chunking, summarizing with an LLM into a ) is not implemented. This needs to be built in .
+-   **Admin Dashboard Enhancements (P1)**: The dashboard UI exists, but the tabs for , , , and  are not populated with real data. The backend needs to be updated to provide aggregation and metric data for these views.
+-   **Advanced Memory/RAG (P2)**: The current chat memory is basic. The full RAG (Retrieval-Augmented Generation) system, which involves creating and retrieving embeddings from the  table, is not implemented.
+
+Future Tasks:
+-   **Implement Connector Stubs (P2)**: The API routes for Discord (), WhatsApp, and SMS are currently stubs that return Not configured. They need to be fully implemented.
+-   **Refine DB Security Model (P2)**: The original requirement for Postgres with RLS was replaced by MongoDB. The agent claims  filtering is in place on all queries, but this needs a thorough audit to ensure robust multi-tenant data isolation.
+-   **Google OAuth (P3)**: The auth page has a button for Google OAuth, but the functionality is not implemented. This requires setting up credentials and implementing the OAuth flow on the backend.
+
+**Completed work in this session**
+-   Initial application scaffold with all pages (Landing, Auth, Onboarding, Assessment, Chat, Admin).
+-   User authentication system with email/passcode (MongoDB based).
+-   Full 36-question assessment flow, with answers saved to the DB.
+-   Waitlist and user acceptance flow controlled from the Admin dashboard.
+-   Real-time web search integrated into chat using Tavily.
+-   File uploads (images with vision, documents) in the chat interface.
+-   Secure, multi-user Telegram bot integration.
+-   Microphone voice input for chat.
+-   Fixed critical bugs related to user registration and admin access.
+
+**Earlier issues found/mentioned but not fixed**
+-   None. The agent has addressed the bugs reported by the user.
+
+**Known issue recurrence from previous fork**
+-   None.
+
+**Code Architecture**
+-   **Framework**: Next.js 14 (App Router)
+-   **Frontend**: React components located in .
+-   **Backend**: Monolithic API located in , handling all business logic from auth to chat streaming.
+-   **Database**: MongoDB, with connection logic in .
+-   **Authentication**: JWT-based, with helper functions in .
+-   **LLM Abstraction**: A provider model in  designed to handle multiple LLM services.
+
+**Key Technical Concepts**
+-   **Full-stack Next.js**: Using App Router for both frontend pages and backend API routes.
+-   **Monolithic API Route**: A single  file dynamically handles all API requests based on the URL path.
+-   **JWT Authentication**: Users are issued a JSON Web Token upon login, which is used to authenticate subsequent requests.
+-   **LLM Provider Abstraction**: A factory pattern in  to create instances for different LLM APIs (OpenAI, Claude, etc.) with a unified interface.
+-   **WebSockets/Streaming**: Server-Sent Events (SSE) are used for streaming LLM responses to the client.
+
+**key DB schema**
+The application uses MongoDB. Collections are implicitly defined in :
+-   : { ,  (hashed), , ,  ('user'/'admin'/'superadmin'),  (boolean), , , ,  }
+-   : { , ,  }
+-   : { , ,  }
+-   : { ,  ('user'/'assistant'), ,  }
+-   : { , , ,  }
+
+**changes in tech stack**
+-   **CRITICAL DEVIATION**: The project was specified to use **Supabase/Postgres** with Row Level Security. The agent, after a brief user query, switched to **MongoDB**. This impacts the data model, security architecture (no RLS), and seeding process.
+
+**All files of reference**
+-   : A critical, monolithic file containing the entire backend logic for all API endpoints. It has been modified extensively to add new features.
+-   : Recently rewritten to support multiple LLM providers (OpenAI, Anthropic, Perplexity, Gemini). This is the current focus of work.
+-   : The main Chat UI component. It has been updated multiple times to add file uploads, mic input, and web search indicators.
+-   : The Admin Dashboard component, updated to include a Telegram setup button.
+-   : Contains JWT generation and verification logic.
+-   : Handles the connection to the MongoDB database.
+-   : A new custom hook for handling voice input.
+
+**Areas that need refactoring**:
+-   The monolithic API in  is extremely large and difficult to maintain. It should be broken down into smaller, more focused API routes for better organization and scalability.
+
+**key api endpoints**
+All endpoints are handled dynamically within . Key routes include:
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+-   
+
+**Critical Info for New Agent**
+-   The backend database is **MongoDB**, not Supabase/Postgres as requested in the original problem statement. The user asked if it could work with MongoDB, and the agent proceeded with that change. All database logic must be written for MongoDB.
+-   The backend is a single, large monolithic API file: . Be prepared to navigate and modify this file carefully.
+-   You are resuming work mid-task. The immediate goal is to finish the multi-LLM provider integration. The new  is written but not yet integrated into the API or frontend.
+
+**documents created in this job**
+-   None.
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **user**:  - **Completed**.
+2.  **user**:  - **In Progress**.
+3.  **user**: Provides API keys for Claude, Perplexity, and Gemini. - **Acknowledged**.
+4.  **user**:  - **Completed**. Agent configured the Telegram bot.
+5.  **user**:  - **Completed**. Agent explained and hardened the security model.
+6.  **user**:  - **Completed**. All three features were implemented.
+7.  **user**: Provides Brave Search and Tavily API keys. - **Acknowledged**. Agent chose Tavily.
+8.  **user**:  - **Resolved**. User's account was not an admin and was not accepted. Agent manually promoted the user.
+9.  **user**:  - **Resolved**. User was on the waitlist. Agent explained the two options for proceeding.
+10. **user**:  - **Resolved**. Agent fixed a bug in the login/registration flow.
+
+**Project Health Check:**
+-   **Broken**: The chat functionality is currently broken because the multi-LLM provider integration is mid-implementation. The new  file is not yet wired up to the API.
+
+**3rd Party Integrations**
+-   **OpenAI GPT-4o**: For chat, vision, and transcription (Whisper). Requires .
+-   **Tavily**: For real-time web search. Requires .
+-   **Telegram**: For bot integration. Requires  and a .
+-   **Anthropic Claude**: (Implementation in progress) Requires .
+-   **Perplexity**: (Implementation in progress) Requires .
+-   **Google Gemini**: (Implementation in progress) Requires .
+
+**Testing status**
+-   **Testing agent used after significant changes**: NO. The backend was tested after the initial scaffold, but not after adding web search, file uploads, Telegram, mic input, or the current multi-LLM change.
+-   **Troubleshoot agent used after agent stuck in loop**: NO
+-   **Test files created**: None.
+-   **Known regressions**: Chat is likely non-functional due to the in-progress refactoring of .
+
+**Credentials to test flow:**
+-   The user  has been promoted to . You can log in with this email and any password to access the admin dashboard.
+-   The first registered user  is also a .
+
+**What agent forgot to execute**
+-   The agent deviated from the **Supabase/Postgres** requirement to **MongoDB** without fully explaining the consequences (loss of RLS, change in seeding strategy, etc.).
+-   The agent did not create separate test files; all testing has been ad-hoc via  or manual checks.
+-   The agent has not run tests after implementing several major features (web search, file uploads, Telegram, mic), increasing the risk of regressions. The current state is broken.
+</analysis>
+<SYS_PROMPT_SEPARATOR>
+<workspace_dir>
+/app
+</workspace_dir>

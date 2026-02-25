@@ -10,7 +10,7 @@ import sys
 from typing import Dict, Any, Optional
 
 # Test Configuration
-BASE_URL = "https://soul-chat-beta.preview.emergentagent.com"
+BASE_URL = "https://soulprint-llm.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 # Test data
