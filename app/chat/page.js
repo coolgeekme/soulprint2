@@ -1117,6 +1117,87 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                 </>
               )}
 
+              {/* Soul Profile Section */}
+              {soulProfile && (
+                <div className="pt-5 border-t border-white/10">
+                  <h3 className="text-white text-sm font-semibold mb-3">🧠 Soul Profile</h3>
+                  
+                  {soulProfile.latestSummary && (
+                    <div className="p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 mb-4">
+                      <p className="text-gray-300 text-xs leading-relaxed">{soulProfile.latestSummary}</p>
+                    </div>
+                  )}
+                  
+                  {/* Communication Style */}
+                  {soulProfile.communicationStyle && Object.keys(soulProfile.communicationStyle).length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2">💬 Communication Style</p>
+                      {Object.entries(soulProfile.communicationStyle).map(([source, style]) => style && (
+                        <div key={source} className="text-xs text-gray-400 mb-2">
+                          <span className="text-white capitalize">{source}:</span> {style.formality || 'mixed'} formality, {style.verbosity || 'balanced'} verbosity, {style.tone || 'neutral'} tone
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Interests */}
+                  {soulProfile.interests?.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2">🎯 Topics of Interest</p>
+                      <div className="flex flex-wrap gap-1">
+                        {soulProfile.interests.slice(0, 10).map(i => (
+                          <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/20">{i}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Insights */}
+                  {soulProfile.insights?.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2">✨ Personality Insights</p>
+                      <ul className="text-xs text-gray-400 space-y-1">
+                        {soulProfile.insights.slice(0, 5).map((ins, i) => (
+                          <li key={i}>• {ins}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Export Profile Section */}
+              <div className="pt-5 border-t border-white/10">
+                <h3 className="text-white text-sm font-semibold mb-2">📤 Export Profile</h3>
+                <p className="text-gray-500 text-xs mb-4">
+                  Download your complete SoulPrint profile as a markdown file. This includes your assessment answers, communication style, and personality insights.
+                </p>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/profile/export', { headers: { Authorization: `Bearer ${token}` } });
+                      const data = await res.json();
+                      if (data.markdown) {
+                        const blob = new Blob([data.markdown], { type: 'text/markdown' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = data.filename || 'soulprint-profile.md';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }
+                    } catch (e) {
+                      console.error('Export error:', e);
+                    }
+                  }}
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 rounded-lg text-white text-sm hover:from-purple-500/30 hover:to-blue-500/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Profile (Markdown)
+                </button>
+                <p className="text-gray-700 text-[10px] mt-2 text-center">Same profile powers both web & Telegram</p>
+              </div>
+
               {/* Retake Assessment Section */}
               <div className="pt-5 border-t border-white/10">
                 <h3 className="text-white text-sm font-semibold mb-2">📋 36-Question Assessment</h3>
