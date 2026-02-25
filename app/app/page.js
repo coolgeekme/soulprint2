@@ -8,6 +8,7 @@ import {
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
   Image as ImageIcon, Paperclip, Search, Video, Download, RefreshCw, Play
 } from 'lucide-react';
+import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 const MODELS = [
   // OpenAI
