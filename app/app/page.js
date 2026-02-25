@@ -761,17 +761,28 @@ export default function ChatPage() {
             <div className="flex justify-center mb-2 relative">
               <button onClick={() => setShowModelPicker(!showModelPicker)}
                 className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300 transition-colors bg-white/4 border border-white/8 px-3 py-1.5 rounded-full">
+                <span className="text-orange-400/80">{currentModel.group}</span>
+                <span className="text-gray-600">/</span>
                 <span>{currentModel.label}</span>
                 <ChevronDown className="w-3 h-3" />
               </button>
               {showModelPicker && (
-                <div className="absolute bottom-full mb-2 bg-[#111] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[220px] z-10">
-                  {MODELS.map(m => (
-                    <button key={m.value} onClick={() => { setSelectedModel(m.value); setShowModelPicker(false); }}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${selectedModel === m.value ? 'bg-orange-500/15 text-orange-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
-                      {m.label}
-                    </button>
-                  ))}
+                <div className="absolute bottom-full mb-2 bg-[#111] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[240px] z-10 max-h-72 overflow-y-auto">
+                  {['OpenAI', 'Claude', 'Gemini', 'Perplexity'].map(group => {
+                    const groupModels = MODELS.filter(m => m.group === group);
+                    if (!groupModels.length) return null;
+                    return (
+                      <div key={group}>
+                        <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider mt-1">{group}</div>
+                        {groupModels.map(m => (
+                          <button key={m.value} onClick={() => { setSelectedModel(m.value); setShowModelPicker(false); }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${selectedModel === m.value ? 'bg-orange-500/15 text-orange-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
