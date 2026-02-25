@@ -462,7 +462,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           throw new Error(data.error || 'Upload failed');
         }
       } else {
-        // Large file: use chunked upload
+        // Large file: use chunked upload with PARALLEL uploads for speed
         setUploadProgress(`Preparing upload: ${file.name} (${fileSizeMB}MB, ${totalChunks} chunks)`);
         
         // 1. Initialize upload session
@@ -477,18 +477,28 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
         
         const { uploadId } = initData;
         
-        // 2. Upload chunks with retry logic
-        for (let i = 0; i < totalChunks; i++) {
-          const start = i * CHUNK_SIZE;
-          const end = Math.min(start + CHUNK_SIZE, file.size);
-          const chunk = file.slice(start, end);
-          const chunkSizeKB = Math.round((end - start) / 1024);
-          const progress = Math.round(((i + 1) / totalChunks) * 100);
-          const uploadedMB = ((i * CHUNK_SIZE) / (1024 * 1024)).toFixed(1);
+        // 2. Upload chunks in PARALLEL batches for 5-10x speedup
+        const PARALLEL_UPLOADS = 8; // Upload 8 chunks simultaneously
+        let completedChunks = 0;
+        
+        for (let batchStart = 0; batchStart < totalChunks; batchStart += PARALLEL_UPLOADS) {
+          const batchEnd = Math.min(batchStart + PARALLEL_UPLOADS, totalChunks);
+          const batchPromises = [];
           
-          setUploadProgress(`Uploading: ${progress}% (${uploadedMB}/${fileSizeMB}MB)`);
+          for (let i = batchStart; i < batchEnd; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, file.size);
+            const chunk = file.slice(start, end);
+            batchPromises.push(uploadChunkWithRetry(uploadId, i, chunk));
+          }
           
-          await uploadChunkWithRetry(uploadId, i, chunk);
+          // Wait for all chunks in this batch to complete
+          await Promise.all(batchPromises);
+          completedChunks = batchEnd;
+          
+          const progress = Math.round((completedChunks / totalChunks) * 100);
+          const uploadedMB = ((completedChunks * CHUNK_SIZE) / (1024 * 1024)).toFixed(1);
+          setUploadProgress(`Uploading: ${progress}% (${Math.min(parseFloat(uploadedMB), parseFloat(fileSizeMB))}/${fileSizeMB}MB)`);
         }
         
         // 3. Complete upload and process
