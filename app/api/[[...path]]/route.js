@@ -2797,6 +2797,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
     if (pathStr === 'telegram/model') return handleTelegramSetModel(request);
     if (pathStr === 'connectors/telegram/webhook') return handleTelegramWebhook(request);
+    if (pathStr === 'schedules') return handleCreateSchedule(request);
+    if (pathStr === 'cron/run-schedules') return handleRunSchedules(request);
 
     // Admin routes
     if (pathStr === 'admin/questions/seed') return handleAdminSeedQuestions(request);
