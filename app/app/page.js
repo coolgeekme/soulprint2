@@ -407,6 +407,17 @@ export default function ChatPage() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const [interimText, setInterimText] = useState('');
+
+  // Speech-to-text hook — needs token so init after token is set
+  const speech = useSpeechRecognition({
+    token,
+    onTranscript: (text) => {
+      setInput(prev => (prev ? prev + ' ' + text : text));
+      setInterimText('');
+    },
+    onInterim: (text) => setInterimText(text),
+  });
 
   useEffect(() => {
     const t = localStorage.getItem('sp_token');
