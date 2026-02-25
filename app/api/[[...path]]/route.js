@@ -2758,6 +2758,8 @@ export async function GET(request, { params }) {
     }
     if (pathStr === 'telegram/status') return handleTelegramStatus(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
+    if (pathStr === 'schedules') return handleGetSchedules(request);
+    if (pathStr === 'schedules/templates') return ok(SCHEDULE_TEMPLATES);
 
     // Admin routes
     if (pathStr === 'admin/users') return handleAdminGetUsers(request);
