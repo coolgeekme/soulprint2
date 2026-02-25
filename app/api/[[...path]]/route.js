@@ -689,8 +689,19 @@ async function handleChatStream(request) {
 
   historyMessages.push({ role: 'user', content: userMessageContent });
 
-  // Build system prompt
-  const systemPrompt = await buildSystemPrompt(db, user.id);
+  // ── Best Practice: Rate Limiting ────────────────────────────────────────────
+  if (checkRateLimit(user.id)) {
+    return err('Rate limit exceeded — please slow down (max 80 messages/hour)', 429);
+  }
+
+  // ── Best Practice: Input Sanitization ───────────────────────────────────────
+  const sanitizedContent = sanitizeInput(content);
+
+  // ── Best Practice: Data Retention (async, best-effort) ───────────────────────
+  enforceDataRetention(db, user.id).catch(() => {});
+
+  // ── Best Practice: Cached System Prompt ──────────────────────────────────────
+  const systemPrompt = await getSystemPrompt(db, user.id);
   const provider = getProvider(providerName, model);
   const assistantMsgId = uuidv4();
   let fullContent = '';
