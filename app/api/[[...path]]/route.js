@@ -4016,9 +4016,13 @@ async function handleChunkedUploadChunk(request) {
     if (!upload) return err('Upload session not found', 404);
     if (upload.status !== 'uploading') return err('Upload already completed or failed');
 
+    // Ensure upload directory exists (create if not)
+    const uploadDir = `/tmp/uploads/${uploadId}`;
+    await mkdir(uploadDir, { recursive: true });
+
     // Save chunk to temp file
     const chunkBuffer = Buffer.from(await chunk.arrayBuffer());
-    const chunkPath = `/tmp/uploads/${uploadId}/chunk_${String(chunkIndex).padStart(5, '0')}`;
+    const chunkPath = `${uploadDir}/chunk_${String(chunkIndex).padStart(5, '0')}`;
     await writeFile(chunkPath, chunkBuffer);
     
     // Update received chunks
