@@ -1870,8 +1870,165 @@ async function handleTelegramWebhook(request) {
     return ok({ ok: true });
   }
 
-  // ── /search command — force a web search ────────────────────────────────────
-  if (text.startsWith('/search ')) {
+  // ── /image command — generate image with DALL-E 3 ───────────────────────────
+  if (text.startsWith('/image ') || text.startsWith('/img ')) {
+    if (!mapping?.linked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
+      return ok({ ok: true });
+    }
+    const prompt = text.replace(/^\/(image|img)\s+/, '').trim();
+    if (!prompt) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '❌ Usage: /image [your prompt]\nExample: /image a futuristic city at sunset');
+      return ok({ ok: true });
+    }
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, action: 'upload_photo' }),
+    });
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '🎨 Generating your image with DALL-E 3...');
+    try {
+      const apiKey = process.env.OPENAI_API_KEY;
+      const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1024', quality: 'standard', style: 'vivid' }),
+      });
+      const imgData = await imgRes.json();
+      if (imgData.error) throw new Error(imgData.error.message);
+      const imageUrl = imgData.data?.[0]?.url;
+      const revisedPrompt = imgData.data?.[0]?.revised_prompt || prompt;
+      await sendTelegramPhoto(chatId, TELEGRAM_BOT_TOKEN, imageUrl,
+        `🎨 *Generated Image*\n\n_Prompt: ${revisedPrompt.substring(0, 200)}_`
+      );
+    } catch (e) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Image generation failed: ${e.message}`);
+    }
+    return ok({ ok: true });
+  }
+
+  // ── /video command — generate video with Kie.ai Runway ───────────────────────
+  if (text.startsWith('/video ') || text.startsWith('/vid ')) {
+    if (!mapping?.linked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
+      return ok({ ok: true });
+    }
+    const prompt = text.replace(/^\/(video|vid)\s+/, '').trim();
+    if (!prompt) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '❌ Usage: /video [your prompt]\nExample: /video waves crashing on a beach at golden hour');
+      return ok({ ok: true });
+    }
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+      `🎬 *Starting video generation...*\n\n_"${prompt.substring(0, 150)}"_\n\nThis takes 1-3 minutes. I'll send the video when it's ready!`
+    );
+    try {
+      const kieKey = process.env.KIE_API_KEY;
+      const vidRes = await fetch('https://api.kie.ai/api/v1/runway/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+        body: JSON.stringify({ prompt, duration: 5, quality: '720p', aspectRatio: '16:9', waterMark: '' }),
+      });
+      const vidData = await vidRes.json();
+      if (vidData.code !== 200) throw new Error(vidData.msg || 'Video generation failed');
+      const taskId = vidData.data?.taskId;
+
+      // Poll for completion (up to 5 minutes)
+      let attempts = 0;
+      const maxAttempts = 30;
+      while (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 10000)); // wait 10s
+        attempts++;
+        const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+          headers: { Authorization: `Bearer ${kieKey}` },
+        });
+        const pollData = await pollRes.json();
+        const state = pollData.data?.state;
+        const resultUrls = pollData.data?.response?.resultUrls || [];
+        const thumbnailUrl = pollData.data?.response?.imageUrl || null;
+        const videoUrl = resultUrls[0];
+
+        if (state === 'success' && videoUrl) {
+          // Send thumbnail first (if available), then video link
+          if (thumbnailUrl) {
+            await sendTelegramPhoto(chatId, TELEGRAM_BOT_TOKEN, thumbnailUrl,
+              `🎬 *Video ready!*\n\n_"${prompt.substring(0, 150)}"_`
+            );
+          }
+          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+            `🎬 *Your video is ready!*\n\n[▶️ Download / Watch](${videoUrl})\n\n_Prompt: ${prompt.substring(0, 200)}_`
+          );
+          break;
+        } else if (state === 'fail') {
+          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '❌ Video generation failed. Please try again.');
+          break;
+        }
+        // Still generating — send progress update every ~60 seconds
+        if (attempts % 6 === 0) {
+          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `⏳ Still generating your video... (${Math.round(attempts * 10 / 60)} min elapsed)`);
+        }
+      }
+      if (attempts >= maxAttempts) {
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `⏱️ Video is taking longer than expected. Check back in a few minutes.`);
+      }
+    } catch (e) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Video generation failed: ${e.message}`);
+    }
+    return ok({ ok: true });
+  }
+
+  // ── /post command — generate social media post ───────────────────────────────
+  if (text.startsWith('/post ')) {
+    if (!mapping?.linked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
+      return ok({ ok: true });
+    }
+    const parts = text.slice(6).trim().split(' ');
+    const platform = parts[0]?.toLowerCase();
+    const topic = parts.slice(1).join(' ').trim();
+
+    if (!platform || !topic) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `❌ Usage: /post [platform] [topic]\n\nExamples:\n/post twitter Bitcoin is hitting ATH today\n/post instagram My morning productivity routine\n/post linkedin Leadership lessons from remote work\n\nPlatforms: twitter, instagram, linkedin, tiktok, facebook, threads, youtube`
+      );
+      return ok({ ok: true });
+    }
+
+    if (!SOCIAL_PLATFORMS[platform]) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `❌ Unknown platform: "${platform}"\n\nSupported: ${Object.keys(SOCIAL_PLATFORMS).join(', ')}`
+      );
+      return ok({ ok: true });
+    }
+
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
+    });
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+      `✍️ Generating ${SOCIAL_PLATFORMS[platform].name} post about *"${topic}"*...\n🌐 Searching for real-time data...`
+    );
+
+    try {
+      // Get user context for personalized post
+      const user = mapping ? await db.collection('users').findOne({ id: mapping.user_id }) : null;
+      const profile = user ? await db.collection('profiles').findOne({ user_id: user.id }) : null;
+      const userContext = profile ? `${profile.display_name || ''}, ${profile.descriptors?.join(', ') || ''}` : '';
+
+      const { post, platform: platformName, maxChars } = await generateSocialPost({
+        platform, topic, userContext,
+        model: mapping.preferred_model || 'gpt-4o',
+        includeSearch: true,
+      });
+
+      const charCount = post.length;
+      const overLimit = charCount > maxChars;
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `📱 *${platformName} Post*\n${overLimit ? `⚠️ ${charCount}/${maxChars} chars — may need trimming\n` : `✅ ${charCount}/${maxChars} chars\n`}\n${post}`
+      );
+    } catch (e) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Post generation failed: ${e.message}`);
+    }
+    return ok({ ok: true });
+  }
     if (!mapping?.linked) {
       await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
       return ok({ ok: true });
