@@ -2583,7 +2583,8 @@ async function handleTelegramWebhook(request) {
       `🤖 *SoulPrint Bot Commands*\n\n` +
       `*💬 Chat*\nJust send any message to chat with your AI!\n\n` +
       `*🎨 Image Generation*\n/image [prompt] — Generate with Kie.ai (GPT-4o Image)\nExample: /image neon city at night\n\n` +
-      `*🎬 Video Generation*\n/video [prompt] — Generate with Runway AI\nExample: /video ocean waves at sunset\n\n` +
+      `*🎬 Video Generation*\n/video [prompt] — Generate with Kie.ai\nExample: /video ocean waves at sunset\n\n` +
+      `*🔗 Web Reading*\n/read [URL] — Read and summarize any webpage\nOr just paste a URL in your message!\nExample: /read https://example.com/article\n\n` +
       `*📱 Social Media Posts*\n/post [platform] [topic] — Write a platform-optimized post with real-time data\n` +
       `Platforms: twitter, instagram, linkedin, tiktok, facebook, threads, youtube\n` +
       `Example: /post twitter AI trends this week\n\n` +
