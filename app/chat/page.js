@@ -1422,6 +1422,16 @@ export default function ChatPage() {
               </button>
               <input ref={fileInputRef} type="file" multiple accept={ACCEPTED_FILE_TYPES} className="hidden" onChange={handleFileSelect} />
 
+              {/* Location button */}
+              <button
+                onClick={requestLocation}
+                disabled={locationLoading}
+                title={userLocation ? `Location: ${userLocation.address}` : 'Share your location for "near me" searches'}
+                className={`flex-shrink-0 transition-colors ${userLocation ? 'text-green-500 hover:text-green-400' : 'text-gray-600 hover:text-orange-400'} ${locationLoading ? 'animate-pulse' : ''}`}
+              >
+                <MapPin className="w-5 h-5" />
+              </button>
+
               {/* Mic button */}
               <button
                 onClick={speech.toggle}
