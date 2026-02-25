@@ -741,9 +741,11 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Kimi AI Integration (POST /api/chat/stream + GET /api/models)"
-    - "Telegram Model Preference API (GET /api/telegram/status + PUT /api/telegram/model)" 
-    - "Web Search Integration (POST /api/chat/stream with enableWebSearch=true)"
+    - "Task Scheduling API (GET /api/schedules)"
+    - "Schedule Templates API (GET /api/schedules/templates)"
+    - "Create Schedule API (POST /api/schedules)"
+    - "Update Schedule API (PUT /api/schedules/{id})"
+    - "Delete Schedule API (DELETE /api/schedules/{id})"
   stuck_tasks: 
     - "Kimi AI Integration (POST /api/chat/stream + GET /api/models)"
   test_all: false
