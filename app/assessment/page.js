@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageSquare, Heart, Target, Users, Brain, Shield } from 'lucide-react';
+import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 const PILLARS = [
   { key: 'communication', label: 'COMMUNICATION', desc: 'How you express and connect.', icon: MessageSquare },
