@@ -654,6 +654,33 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Google Places Geocode API working perfectly! Successfully geocoded '1600 Amphitheatre Parkway, Mountain View, CA' to coordinates (37.43517500000001, -122.0820435) with formatted address '1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA'. Coordinates within valid ranges (-90 to 90 lat, -180 to 180 lng). Authentication required. All expected fields present: lat, lng, formattedAddress."
 
+  - task: "Chunked Data Import Upload (POST /api/data-import/chunked/*)"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "user"
+        comment: "User reported: Progress bar got to 99% then error 'ENOENT: no such file or directory' when trying to upload ChatGPT data export. Issue was chunks being stored in /tmp filesystem which doesn't work in multi-pod K8s environment."
+      - working: "NA"
+        agent: "main"
+        comment: "Refactored chunked upload system to use MongoDB instead of filesystem. Three endpoints: (1) POST /api/data-import/chunked/init - creates upload session in 'chunked_uploads' collection. (2) POST /api/data-import/chunked/chunk - stores each chunk as separate document in 'upload_chunks' collection to avoid 16MB limit. (3) POST /api/data-import/chunked/complete - retrieves all chunks from MongoDB, reassembles buffer, parses ZIP, analyzes with LLM, updates soul_profile. Chunks are deleted after processing. Full implementation complete with error handling and cleanup."
+
+  - task: "Data Analysis for ChatGPT/Facebook Exports"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented: (1) parseChatGPTExport - extracts conversations from conversations.json in ZIP, gets user messages for analysis. (2) parseFacebookExport - extracts messages from messages/*.json and posts from posts/*.json in ZIP. (3) analyzeCommmunicationStyle - uses GPT-4o-mini to analyze communication patterns and generate insights (formality, verbosity, tone, interests, vocabulary, question style). (4) mergeInsights - combines new analysis with existing soul_profile data. (5) Auto-detection if source unknown. Ready for testing."
+
 frontend:
   - task: "Landing Page (/)"
     implemented: true
