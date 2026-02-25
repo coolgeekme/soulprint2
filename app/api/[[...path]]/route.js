@@ -3945,6 +3945,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'cron/run-schedules') return handleRunSchedules(request);
     if (pathStr === 'places/search') return handlePlacesSearch(request);
     if (pathStr === 'places/geocode') return handleGeocode(request);
+    if (pathStr === 'user/location') return handleSaveUserLocation(request);
 
     // Admin routes
     if (pathStr === 'admin/questions/seed') return handleAdminSeedQuestions(request);
