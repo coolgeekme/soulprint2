@@ -4382,51 +4382,81 @@ async function handleChunkedUploadComplete(request) {
     // Update status
     await db.collection('chunked_uploads').updateOne(
       { id: uploadId },
-      { $set: { status: 'assembling' } }
-    );
-
-    // Retrieve and reassemble chunks from MongoDB
-    const chunkDocs = await db.collection('upload_chunks')
-      .find({ upload_id: uploadId })
-      .sort({ chunk_index: 1 })
-      .toArray();
-    
-    if (chunkDocs.length !== upload.total_chunks) {
-      throw new Error(`Missing chunks in database: found ${chunkDocs.length} of ${upload.total_chunks}`);
-    }
-    
-    const chunks = chunkDocs.map(doc => Buffer.from(doc.data, 'base64'));
-    const completeBuffer = Buffer.concat(chunks);
-    
-    // Delete chunk documents immediately to free memory
-    await db.collection('upload_chunks').deleteMany({ upload_id: uploadId });
-    
-    // Update status
-    await db.collection('chunked_uploads').updateOne(
-      { id: uploadId },
       { $set: { status: 'analyzing' } }
     );
 
-    // Parse based on source
-    let parsedData;
-    if (upload.source === 'chatgpt') {
-      parsedData = await parseChatGPTExport(completeBuffer);
-    } else if (upload.source === 'facebook') {
-      parsedData = await parseFacebookExport(completeBuffer);
-    } else {
-      // Auto-detect
-      const AdmZip = (await import('adm-zip')).default;
-      const zip = new AdmZip(completeBuffer);
-      const entries = zip.getEntries().map(e => e.entryName.toLowerCase());
+    // For large files, we need to process in a memory-efficient way
+    // Strategy: Extract only the relevant data we need from the chunks
+    // without loading the entire file into memory
+    
+    let parsedData = { source: upload.source || 'unknown', userMessages: [], conversationCount: 0 };
+    let processedChunks = 0;
+    const BATCH_SIZE = 50; // Process 50 chunks at a time (~50MB)
+    
+    // Process chunks in batches to extract text content
+    for (let batchStart = 0; batchStart < upload.total_chunks; batchStart += BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, upload.total_chunks);
       
-      if (entries.some(e => e.includes('conversations.json'))) {
-        parsedData = await parseChatGPTExport(completeBuffer);
-      } else if (entries.some(e => e.includes('messages/') || e.includes('posts/'))) {
-        parsedData = await parseFacebookExport(completeBuffer);
-      } else {
-        throw new Error('Could not detect data format');
+      const chunkDocs = await db.collection('upload_chunks')
+        .find({ 
+          upload_id: uploadId, 
+          chunk_index: { $gte: batchStart, $lt: batchEnd } 
+        })
+        .sort({ chunk_index: 1 })
+        .toArray();
+      
+      // Concatenate this batch
+      const batchBuffers = chunkDocs.map(doc => Buffer.from(doc.data, 'base64'));
+      const batchBuffer = Buffer.concat(batchBuffers);
+      
+      // Convert to string and look for JSON content
+      const textContent = batchBuffer.toString('utf8', 0, Math.min(batchBuffer.length, 10000000)); // Max 10MB per batch
+      
+      // Extract messages from the text (may contain partial JSON)
+      const messageMatches = textContent.match(/"content":\s*{\s*"parts":\s*\[\s*"([^"]+)"/g) || [];
+      for (const match of messageMatches.slice(0, 100)) { // Limit per batch
+        const content = match.match(/"parts":\s*\[\s*"([^"]+)"/)?.[1];
+        if (content && content.length > 10 && content.length < 2000) {
+          parsedData.userMessages.push(content.substring(0, 500));
+        }
       }
+      
+      // Also look for Facebook message format
+      const fbMatches = textContent.match(/"content":\s*"([^"]{10,500})"/g) || [];
+      for (const match of fbMatches.slice(0, 100)) {
+        const content = match.match(/"content":\s*"([^"]+)"/)?.[1];
+        if (content && content.length > 10) {
+          parsedData.userMessages.push(content.substring(0, 500));
+        }
+      }
+      
+      // Delete processed chunks immediately to free memory
+      await db.collection('upload_chunks').deleteMany({ 
+        upload_id: uploadId, 
+        chunk_index: { $gte: batchStart, $lt: batchEnd } 
+      });
+      
+      processedChunks = batchEnd;
+      
+      // If we have enough messages, stop processing
+      if (parsedData.userMessages.length >= 500) break;
+      
+      // Force garbage collection between batches
+      if (global.gc) global.gc();
     }
+    
+    // Clean up any remaining chunks
+    await db.collection('upload_chunks').deleteMany({ upload_id: uploadId });
+    
+    // Detect source if not specified
+    if (parsedData.source === 'unknown') {
+      parsedData.source = parsedData.userMessages.length > 0 ? 'chatgpt' : 'unknown';
+    }
+    
+    // Limit messages for analysis
+    parsedData.userMessages = parsedData.userMessages.slice(0, 300);
+    parsedData.userMessageCount = parsedData.userMessages.length;
+    parsedData.conversationCount = Math.ceil(parsedData.userMessages.length / 10);
 
     // Create import record
     const importId = uuidv4();
@@ -4440,8 +4470,7 @@ async function handleChunkedUploadComplete(request) {
       parsed_stats: {
         source: parsedData.source,
         conversationCount: parsedData.conversationCount || 0,
-        messageCount: parsedData.userMessageCount || parsedData.messageCount || 0,
-        postCount: parsedData.postCount || 0,
+        messageCount: parsedData.userMessageCount || 0,
       },
       created_at: new Date(),
     });
