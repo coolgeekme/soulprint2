@@ -696,7 +696,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     setLinking(false);
   }
 
-  const tabs = ['imports', 'telegram', 'schedules', 'profile'];
+  const tabs = ['imports', 'telegram', 'schedules', 'profile', 'feedback'];
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 safe-area-all">
