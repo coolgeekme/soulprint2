@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
 Backend Test Suite for SoulPrint Engine
-Testing Google Places API, Task Scheduling API, Kimi AI Integration, Telegram API, and Web Search Integration
+Testing Chunked Data Import System, Google Places API, Task Scheduling API, Kimi AI Integration, Telegram API, and Web Search Integration
 """
 import requests
 import json
 import time
 import os
+import zipfile
+import io
+import base64
 
 BASE_URL = "https://personality-ai-hub.preview.emergentagent.com"
 
