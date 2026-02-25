@@ -35,7 +35,7 @@ export default function AssessmentFinalPage() {
       const me = await meRes.json();
 
       if (me.accepted || me.role === 'admin' || me.role === 'superadmin') {
-        router.push('/app');
+        router.push('/chat');
       } else {
         router.push('/waitlist');
       }

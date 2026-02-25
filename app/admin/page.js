@@ -747,7 +747,7 @@ export default function AdminPage() {
       .then(r => r.json())
       .then(d => {
         if (!['admin', 'superadmin'].includes(d.role)) {
-          router.push('/app');
+          router.push('/chat');
           return;
         }
         setAdminRole(d.role);
@@ -803,7 +803,7 @@ export default function AdminPage() {
           })}
         </nav>
         <div className="p-3 border-t border-white/5 space-y-1">
-          <button onClick={() => router.push('/app')} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-600 hover:text-gray-400 transition-colors rounded-lg hover:bg-white/3">
+          <button onClick={() => router.push('/chat')} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-600 hover:text-gray-400 transition-colors rounded-lg hover:bg-white/3">
             <MessageSquare className="w-3.5 h-3.5" /> Go to Chat
           </button>
           <button onClick={() => { localStorage.clear(); router.push('/auth'); }}

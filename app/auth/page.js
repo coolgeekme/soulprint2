@@ -90,7 +90,7 @@ export default function AuthPage() {
     } else if (data.role === 'admin' || data.role === 'superadmin') {
       router.push('/admin');
     } else {
-      router.push('/app');
+      router.push('/chat');
     }
   }
 

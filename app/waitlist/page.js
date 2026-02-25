@@ -15,7 +15,7 @@ export default function WaitlistPage() {
       .then(r => r.json())
       .then(d => {
         if (d.accepted || d.role === 'admin' || d.role === 'superadmin') {
-          router.push('/app');
+          router.push('/chat');
         }
         if (d.profile?.assistant_name) setBotName(d.profile.assistant_name);
       })
