@@ -206,7 +206,7 @@ async function handleLogin(request) {
 
   const db = await getDb();
   const user = await db.collection('users').findOne({ email: email.toLowerCase() });
-  if (!user) return err('Invalid credentials', 401);
+  if (!user) return err('User not found', 404);  // distinct from wrong password
 
   const valid = await comparePassword(passcode, user.passcode_hash);
   if (!valid) return err('Invalid credentials', 401);
