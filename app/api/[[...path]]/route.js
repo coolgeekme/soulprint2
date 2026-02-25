@@ -3975,7 +3975,7 @@ async function handleChunkedUploadInit(request) {
   const db = await getDb();
   const uploadId = uuidv4();
   
-  // Create upload session
+  // Create upload session (chunks will be stored in MongoDB)
   await db.collection('chunked_uploads').insertOne({
     id: uploadId,
     user_id: user.id,
@@ -3984,18 +3984,15 @@ async function handleChunkedUploadInit(request) {
     source: source || 'unknown',
     total_chunks: totalChunks,
     received_chunks: [],
+    chunks: {}, // Will store chunk data as base64 keyed by index
     status: 'uploading',
     created_at: new Date(),
   });
   
-  // Create temp directory for chunks
-  const uploadDir = `/tmp/uploads/${uploadId}`;
-  await mkdir(uploadDir, { recursive: true });
-  
   return ok({ uploadId, message: 'Upload session created' });
 }
 
-// Chunked upload: Receive a chunk
+// Chunked upload: Receive a chunk (store in MongoDB)
 async function handleChunkedUploadChunk(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -4016,19 +4013,17 @@ async function handleChunkedUploadChunk(request) {
     if (!upload) return err('Upload session not found', 404);
     if (upload.status !== 'uploading') return err('Upload already completed or failed');
 
-    // Ensure upload directory exists (create if not)
-    const uploadDir = `/tmp/uploads/${uploadId}`;
-    await mkdir(uploadDir, { recursive: true });
-
-    // Save chunk to temp file
+    // Store chunk as base64 in MongoDB
     const chunkBuffer = Buffer.from(await chunk.arrayBuffer());
-    const chunkPath = `${uploadDir}/chunk_${String(chunkIndex).padStart(5, '0')}`;
-    await writeFile(chunkPath, chunkBuffer);
+    const chunkBase64 = chunkBuffer.toString('base64');
     
-    // Update received chunks
+    // Update with chunk data
     await db.collection('chunked_uploads').updateOne(
       { id: uploadId },
-      { $addToSet: { received_chunks: chunkIndex } }
+      { 
+        $addToSet: { received_chunks: chunkIndex },
+        $set: { [`chunks.${chunkIndex}`]: chunkBase64 }
+      }
     );
     
     return ok({ 
@@ -4069,14 +4064,14 @@ async function handleChunkedUploadComplete(request) {
       { $set: { status: 'assembling' } }
     );
 
-    // Assemble chunks into complete file
-    const uploadDir = `/tmp/uploads/${uploadId}`;
+    // Reassemble chunks from MongoDB
     const chunks = [];
-    
     for (let i = 0; i < upload.total_chunks; i++) {
-      const chunkPath = `${uploadDir}/chunk_${String(i).padStart(5, '0')}`;
-      const chunkData = fs.readFileSync(chunkPath);
-      chunks.push(chunkData);
+      const chunkBase64 = upload.chunks[i.toString()];
+      if (!chunkBase64) {
+        throw new Error(`Missing chunk ${i}`);
+      }
+      chunks.push(Buffer.from(chunkBase64, 'base64'));
     }
     
     const completeBuffer = Buffer.concat(chunks);
@@ -4156,8 +4151,7 @@ async function handleChunkedUploadComplete(request) {
       { upsert: true }
     );
 
-    // Clean up temp files
-    await rm(uploadDir, { recursive: true, force: true });
+    // Delete chunked upload record (raw data cleaned up)
     await db.collection('chunked_uploads').deleteOne({ id: uploadId });
 
     return ok({
@@ -4176,8 +4170,6 @@ async function handleChunkedUploadComplete(request) {
     console.error('Upload complete error:', e);
     
     // Clean up on error
-    const uploadDir = `/tmp/uploads/${uploadId}`;
-    await rm(uploadDir, { recursive: true, force: true }).catch(() => {});
     await db.collection('chunked_uploads').updateOne(
       { id: uploadId },
       { $set: { status: 'error', error: e.message } }
