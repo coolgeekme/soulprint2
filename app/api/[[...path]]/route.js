@@ -4044,17 +4044,24 @@ async function handleTelegramWebhook(request) {
     const isPerplexity = preferredProvider === 'perplexity' || preferredModel.startsWith('sonar');
     let searchNote = '';
     if (!isPerplexity) {
-      // Auto-detect if search is needed and inject context
-      const needsSearch = /today|current|latest|news|price|weather|stock|recent|2025|2026|who won|what happened/i.test(text);
+      // For Telegram, always try web search for better real-time responses
+      // Skip only for clearly personal/conversational queries
+      const skipSearch = /^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|sure|great|good|bye|goodbye|how are you)/i.test(text.trim());
+      const needsSearch = !skipSearch && text.length > 10; // Search for anything substantive
+      
       if (needsSearch) {
-        const { buildSearchContext: doSearch } = await import('@/lib/llm/providers');
-        const ctx = await doSearch(text);
-        if (ctx) {
-          searchNote = ' 🌐';
-          historyMessages = [
-            ...historyMessages.slice(0, -1),
-            { role: 'user', content: `${ctx}\n\n---\n\nUser question: ${text}` },
-          ];
+        try {
+          const { buildSearchContext: doSearch } = await import('@/lib/llm/providers');
+          const ctx = await doSearch(text);
+          if (ctx) {
+            searchNote = ' 🌐';
+            historyMessages = [
+              ...historyMessages.slice(0, -1),
+              { role: 'user', content: `${ctx}\n\n---\n\nUser question: ${text}` },
+            ];
+          }
+        } catch (searchErr) {
+          console.log('Web search failed, continuing without:', searchErr.message);
         }
       }
     }
