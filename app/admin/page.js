@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import {
   Users, BarChart2, MessageSquare, Upload, Settings, Shield,
   Search, ChevronLeft, Check, X, RefreshCw, TrendingUp,
-  UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database
+  UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
+  DollarSign, Zap, ListChecks
 } from 'lucide-react';
 
 function SoulPrintLogo({ size = 24 }) {
