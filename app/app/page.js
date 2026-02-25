@@ -339,7 +339,32 @@ function SettingsModal({ onClose, token }) {
     e.target.value = '';
   }
 
-  async function linkTelegram() {
+  const [telegramModel, setTelegramModel] = useState('gpt-4o');
+  const [savingModel, setSavingModel] = useState(false);
+  const [modelSaveMsg, setModelSaveMsg] = useState('');
+
+  async function saveTelegramModel(model) {
+    setSavingModel(true);
+    setModelSaveMsg('');
+    try {
+      const res = await fetch('/api/telegram/model', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ model }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setTelegramModel(model);
+        setModelSaveMsg('✅ Model updated!');
+        setTimeout(() => setModelSaveMsg(''), 2000);
+      } else {
+        setModelSaveMsg('❌ ' + (d.error || 'Failed'));
+      }
+    } catch { setModelSaveMsg('❌ Error'); }
+    setSavingModel(false);
+  }
+
+  const linkTelegramFn = async () => {
     if (!linkCode.trim()) return;
     setLinking(true);
     setLinkMsg('');
