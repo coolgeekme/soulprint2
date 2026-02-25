@@ -2618,19 +2618,15 @@ async function handleTelegramWebhook(request) {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chat_id: chatId, action: 'upload_photo' }),
         });
-        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '🎨 Generating your image with DALL-E 3...');
-        const apiKey = process.env.OPENAI_API_KEY;
-        const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1024', quality: 'standard', style: 'vivid' }),
-        });
-        const imgData = await imgRes.json();
-        if (imgData.error) throw new Error(imgData.error.message);
-        const imageUrl = imgData.data?.[0]?.url;
-        const revisedPrompt = imgData.data?.[0]?.revised_prompt || prompt;
-        await sendTelegramPhoto(chatId, TELEGRAM_BOT_TOKEN, imageUrl,
-          `🎨 *Generated Image*\n_${revisedPrompt.substring(0, 200)}_`
-        );
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '🎨 Generating your image with Kie.ai (GPT-4o Image)...\n_This may take 30-60 seconds_');
+        try {
+          const imageUrl = await generateImageWithKie(prompt, '1:1');
+          await sendTelegramPhoto(chatId, TELEGRAM_BOT_TOKEN, imageUrl,
+            `🎨 *Generated Image*\n_${prompt.substring(0, 200)}_`
+          );
+        } catch (imgErr) {
+          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Image generation failed: ${imgErr.message}`);
+        }
         return ok({ ok: true });
 
       } else if (isVideoRequest) {
