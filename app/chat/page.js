@@ -585,39 +585,131 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           {activeTab === 'imports' && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-white text-sm font-semibold mb-1">Import Your Data</h3>
-                <p className="text-gray-500 text-xs mb-4">Upload your ChatGPT or Facebook data to build a richer SoulProfile.</p>
+                <h3 className="text-white text-sm font-semibold mb-1">📥 Import Your Data</h3>
+                <p className="text-gray-500 text-xs mb-4">Upload your ChatGPT or Facebook data export (ZIP file). I'll analyze your communication style to personalize your experience.</p>
+                
+                {uploadProgress && (
+                  <div className="mb-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                    <p className="text-orange-400 text-xs flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 animate-spin" /> {uploadProgress}
+                    </p>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="rounded-xl p-4 border border-white/10 bg-white/3">
                     <FileText className="w-6 h-6 text-green-400 mb-2" />
                     <p className="text-white text-sm font-medium mb-0.5">ChatGPT Export</p>
-                    <p className="text-gray-600 text-xs mb-3">conversations.json or .zip</p>
-                    <input ref={fileRef} type="file" accept=".json,.zip" className="hidden" onChange={e => handleUpload(e, 'chatgpt')} />
+                    <p className="text-gray-600 text-xs mb-3">ZIP file from ChatGPT</p>
+                    <input ref={fileRef} type="file" accept=".zip" className="hidden" 
+                      onChange={e => { if (e.target.files?.[0]) handleDataImportUpload(e.target.files[0], 'chatgpt'); e.target.value = ''; }} />
                     <button onClick={() => fileRef.current?.click()} disabled={uploading}
                       className="w-full py-2 text-xs btn-orange rounded-lg disabled:opacity-50">
-                      {uploading ? 'Uploading...' : 'Upload'}
+                      {uploading ? 'Processing...' : 'Upload ZIP'}
                     </button>
                   </div>
                   <div className="rounded-xl p-4 border border-white/10 bg-white/3">
                     <FileText className="w-6 h-6 text-blue-400 mb-2" />
                     <p className="text-white text-sm font-medium mb-0.5">Facebook Archive</p>
-                    <p className="text-gray-600 text-xs mb-3">messages.json or .zip</p>
-                    <input ref={fbFileRef} type="file" accept=".json,.zip" className="hidden" onChange={e => handleUpload(e, 'facebook')} />
+                    <p className="text-gray-600 text-xs mb-3">ZIP file from Facebook</p>
+                    <input ref={fbFileRef} type="file" accept=".zip" className="hidden" 
+                      onChange={e => { if (e.target.files?.[0]) handleDataImportUpload(e.target.files[0], 'facebook'); e.target.value = ''; }} />
                     <button onClick={() => fbFileRef.current?.click()} disabled={uploading}
-                      className="w-full py-2 text-xs btn-orange rounded-lg disabled:opacity-50">Upload</button>
+                      className="w-full py-2 text-xs btn-orange rounded-lg disabled:opacity-50">
+                      {uploading ? 'Processing...' : 'Upload ZIP'}
+                    </button>
                   </div>
                 </div>
-                {imports.length > 0 && (
+                <p className="text-gray-700 text-[10px] mb-4">💡 Your raw data is analyzed and immediately deleted. Only the insights are saved.</p>
+              </div>
+
+              {/* Soul Profile Insights */}
+              {soulProfile && (
+                <div className="border-t border-white/10 pt-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-white text-sm font-semibold">✨ What I've Learned About You</h3>
+                    <button onClick={() => setShowInsights(!showInsights)} className="text-gray-500 hover:text-white text-xs">
+                      {showInsights ? 'Hide' : 'Show'} details
+                    </button>
+                  </div>
+                  
+                  {soulProfile.latestSummary && (
+                    <div className="p-3 rounded-lg bg-gradient-to-r from-orange-500/10 to-purple-500/10 border border-orange-500/20 mb-3">
+                      <p className="text-gray-300 text-xs leading-relaxed">{soulProfile.latestSummary}</p>
+                    </div>
+                  )}
+
+                  {showInsights && (
+                    <div className="space-y-3">
+                      {/* Interests */}
+                      {soulProfile.interests?.length > 0 && (
+                        <div>
+                          <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2">Topics You Discuss</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {soulProfile.interests.slice(0, 10).map((interest, i) => (
+                              <span key={i} className="px-2 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] text-gray-400">{interest}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Communication Style */}
+                      {soulProfile.communicationStyle && Object.keys(soulProfile.communicationStyle).map(source => (
+                        <div key={source}>
+                          <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2">Communication Style ({source})</p>
+                          <div className="p-2.5 rounded-lg bg-white/3 border border-white/5">
+                            <p className="text-gray-400 text-xs">{soulProfile.communicationStyle[source].description || 'Analyzed'}</p>
+                            <div className="flex gap-3 mt-2 text-[10px]">
+                              <span className="text-gray-600">Tone: <span className="text-gray-400">{soulProfile.communicationStyle[source].tone}</span></span>
+                              <span className="text-gray-600">Style: <span className="text-gray-400">{soulProfile.communicationStyle[source].formality}</span></span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Insights */}
+                      {soulProfile.insights?.length > 0 && (
+                        <div>
+                          <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2">Key Insights</p>
+                          <ul className="space-y-1.5">
+                            {soulProfile.insights.slice(0, 5).map((insight, i) => (
+                              <li key={i} className="text-gray-400 text-xs flex items-start gap-2">
+                                <span className="text-orange-500">•</span> {insight}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Import History */}
+              {dataImports.length > 0 && (
+                <div className="border-t border-white/10 pt-5">
+                  <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-3">Import History ({dataImports.length})</p>
                   <div className="space-y-2">
-                    <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase">Import History</p>
-                    {imports.map(imp => (
+                    {dataImports.map(imp => (
                       <div key={imp.id} className="flex items-center justify-between p-3 rounded-lg bg-white/3 border border-white/5">
                         <div>
-                          <p className="text-white text-xs">{imp.file_name}</p>
-                          <p className="text-gray-600 text-[10px]">{imp.type} · {new Date(imp.created_at).toLocaleDateString()}</p>
+                          <p className="text-white text-xs flex items-center gap-2">
+                            {imp.source === 'chatgpt' ? '💬' : '👤'} {imp.source} import
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${imp.status === 'complete' ? 'bg-green-500/20 text-green-400' : imp.status === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                              {imp.status}
+                            </span>
+                          </p>
+                          <p className="text-gray-600 text-[10px]">
+                            {imp.stats?.messageCount || imp.stats?.conversationCount || 0} items analyzed · {new Date(imp.created_at).toLocaleDateString()}
+                          </p>
                         </div>
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${imp.status === 'complete' ? 'bg-green-500/20 text-green-400' : imp.status === 'error' ? 'bg-red-500/20 text-red-400' : 'bg-orange-500/20 text-orange-400'}`}>
-                          {imp.status}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
                         </span>
                       </div>
                     ))}
