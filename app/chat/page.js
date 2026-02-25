@@ -484,14 +484,15 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           const chunk = file.slice(start, end);
           const chunkSizeKB = Math.round((end - start) / 1024);
           const progress = Math.round(((i + 1) / totalChunks) * 100);
+          const uploadedMB = ((i * CHUNK_SIZE) / (1024 * 1024)).toFixed(1);
           
-          setUploadProgress(`Uploading: ${progress}% (chunk ${i + 1}/${totalChunks}, ${chunkSizeKB}KB)`);
+          setUploadProgress(`Uploading: ${progress}% (${uploadedMB}/${fileSizeMB}MB)`);
           
           await uploadChunkWithRetry(uploadId, i, chunk);
         }
         
         // 3. Complete upload and process
-        setUploadProgress('Processing your data... This may take a few minutes for large files.');
+        setUploadProgress('✅ Upload complete! Analyzing your data... This may take a few minutes.');
         
         const completeRes = await fetch('/api/data-import/chunked/complete', {
           method: 'POST',
@@ -510,8 +511,8 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
         setShowInsights(true);
       }
     } catch (e) {
-      setUploadProgress(`Error: ${e.message}`);
-      setTimeout(() => setUploadProgress(''), 8000);
+      setUploadProgress(`Error: ${e.message}. Please try again.`);
+      setTimeout(() => setUploadProgress(''), 10000);
     }
     setUploading(false);
   }
