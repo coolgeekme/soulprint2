@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://soulprint-llm.preview.emergentagent.com"
+BASE_URL = "https://task-automation-32.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

@@ -691,7 +691,7 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://soulprint-llm.preview.emergentagent.com. Test with fresh user registration first."
+    message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://task-automation-32.preview.emergentagent.com. Test with fresh user registration first."
   - agent: "testing"
     message: "🎉 BACKEND TESTING COMPLETE! All critical endpoints tested successfully. Registration, login, assessment flow (36 questions), chat streaming with memory injection, admin APIs, and connector stubs all working perfectly. The SoulPrint Engine backend is fully functional and ready for production use."
   - agent: "main"
