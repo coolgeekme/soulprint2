@@ -651,6 +651,192 @@ function SettingsModal({ onClose, token }) {
             </div>
           )}
 
+          {/* SCHEDULES TAB */}
+          {activeTab === 'schedules' && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-white text-sm font-semibold">⏰ Scheduled Tasks</h3>
+                  <p className="text-gray-500 text-xs mt-0.5">Receive recurring briefings via Telegram</p>
+                </div>
+                <button
+                  onClick={() => { setShowCreateForm(true); setScheduleError(''); }}
+                  className="btn-orange px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5"
+                >
+                  <Plus className="w-3 h-3" /> New Schedule
+                </button>
+              </div>
+
+              {!telegramStatus?.linked && (
+                <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
+                  <p className="text-yellow-400 text-xs font-semibold mb-1">⚠️ Link Telegram first</p>
+                  <p className="text-gray-500 text-xs">You need to link your Telegram account to receive scheduled briefings. Go to the Telegram tab above to set it up.</p>
+                </div>
+              )}
+
+              {/* Create form */}
+              {showCreateForm && (
+                <div className="p-4 rounded-xl bg-white/3 border border-white/10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-white text-sm font-semibold">Create New Schedule</p>
+                    <button onClick={() => setShowCreateForm(false)} className="text-gray-500 hover:text-white"><X className="w-4 h-4" /></button>
+                  </div>
+
+                  {/* Templates */}
+                  <div>
+                    <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2">Quick Templates</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {SCHEDULE_TEMPLATES.filter(t => t.id !== 'custom').map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => selectTemplate(t)}
+                          className={`p-2.5 rounded-lg text-left text-xs border transition-colors ${selectedTemplate === t.id ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-white/3 border-white/5 text-gray-400 hover:text-white'}`}
+                        >
+                          {t.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Name */}
+                  <div>
+                    <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-1 block">Name</label>
+                    <input
+                      value={newSchedule.name}
+                      onChange={e => setNewSchedule(p => ({ ...p, name: e.target.value }))}
+                      placeholder="AI News Digest"
+                      className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm px-3 py-2 rounded-lg focus:border-orange-500/40 transition-colors"
+                    />
+                  </div>
+
+                  {/* Prompt */}
+                  <div>
+                    <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-1 block">Prompt</label>
+                    <textarea
+                      value={newSchedule.prompt}
+                      onChange={e => setNewSchedule(p => ({ ...p, prompt: e.target.value }))}
+                      placeholder="Summarize the top 5 AI news stories..."
+                      rows={3}
+                      className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm px-3 py-2 rounded-lg focus:border-orange-500/40 transition-colors resize-none"
+                    />
+                  </div>
+
+                  {/* Time settings */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-1 block">Hour</label>
+                      <select
+                        value={newSchedule.local_hour}
+                        onChange={e => setNewSchedule(p => ({ ...p, local_hour: parseInt(e.target.value) }))}
+                        className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm px-2 py-2 rounded-lg"
+                      >
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-1 block">Timezone</label>
+                      <select
+                        value={newSchedule.timezone_label}
+                        onChange={e => {
+                          const tz = TIMEZONES.find(t => t.label === e.target.value);
+                          setNewSchedule(p => ({ ...p, timezone_label: e.target.value, timezone_offset: tz?.offset || 0 }));
+                        }}
+                        className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm px-2 py-2 rounded-lg"
+                      >
+                        {TIMEZONES.map(tz => (
+                          <option key={tz.label} value={tz.label}>{tz.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-1 block">Frequency</label>
+                      <select
+                        value={newSchedule.schedule_type}
+                        onChange={e => setNewSchedule(p => ({ ...p, schedule_type: e.target.value }))}
+                        className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm px-2 py-2 rounded-lg"
+                      >
+                        <option value="daily">Daily</option>
+                        <option value="weekdays">Weekdays</option>
+                        <option value="weekends">Weekends</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {scheduleError && <p className="text-xs text-red-400">{scheduleError}</p>}
+
+                  <button
+                    onClick={createSchedule}
+                    disabled={creatingSchedule || !newSchedule.name || !newSchedule.prompt}
+                    className="w-full btn-orange py-2.5 rounded-lg text-sm disabled:opacity-50"
+                  >
+                    {creatingSchedule ? 'Creating...' : 'Create Schedule'}
+                  </button>
+                </div>
+              )}
+
+              {/* Schedules list */}
+              {loadingSchedules ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-orange-500 mx-auto" />
+                </div>
+              ) : schedules.length === 0 ? (
+                <div className="text-center py-8 px-4">
+                  <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center mx-auto mb-3">
+                    <RefreshCw className="w-5 h-5 text-orange-500/50" />
+                  </div>
+                  <p className="text-gray-500 text-xs">No scheduled tasks yet</p>
+                  <p className="text-gray-700 text-[10px] mt-1">Create one to get recurring briefings via Telegram!</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {schedules.map(task => (
+                    <div key={task.id} className="p-3 rounded-xl bg-white/3 border border-white/8">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-white text-sm font-medium truncate">{task.name}</p>
+                            {task.active ? (
+                              <span className="text-[9px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded font-bold">ACTIVE</span>
+                            ) : (
+                              <span className="text-[9px] bg-gray-500/20 text-gray-500 px-1.5 py-0.5 rounded font-bold">PAUSED</span>
+                            )}
+                          </div>
+                          <p className="text-gray-600 text-[10px] mt-0.5 flex items-center gap-2">
+                            <span>{task.schedule_type} at {String(task.local_hour).padStart(2, '0')}:{String(task.minute || 0).padStart(2, '0')} {task.timezone_label}</span>
+                            {task.run_count > 0 && <span>· {task.run_count} runs</span>}
+                          </p>
+                          <p className="text-gray-700 text-[10px] mt-1 truncate">{task.prompt}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => toggleSchedule(task.id, !task.active)}
+                            className={`px-2 py-1 text-[10px] rounded border transition-colors ${task.active ? 'text-yellow-400 border-yellow-500/30 hover:bg-yellow-500/10' : 'text-green-400 border-green-500/30 hover:bg-green-500/10'}`}
+                          >
+                            {task.active ? 'Pause' : 'Resume'}
+                          </button>
+                          <button
+                            onClick={() => deleteSchedule(task.id)}
+                            className="px-2 py-1 text-[10px] text-red-400 border border-red-500/30 rounded hover:bg-red-500/10 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-white/5">
+                <p className="text-[10px] text-gray-700">
+                  💡 You can also manage schedules via Telegram: <code className="bg-white/10 px-1 rounded">/schedule</code> to create, <code className="bg-white/10 px-1 rounded">/schedule list</code> to view all.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* PROFILE TAB */}
           {activeTab === 'profile' && profile && (
             <div className="space-y-4">
