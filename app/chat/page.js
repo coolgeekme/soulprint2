@@ -377,13 +377,44 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     
     setUploading(true);
     
-    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
+    // Smaller chunks (2MB) for better reliability in deployed environments
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks - more reliable for cloud deployments
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    const MAX_RETRIES = 3;
+    
+    // Helper function to upload a single chunk with retries
+    async function uploadChunkWithRetry(uploadId, chunkIndex, chunkBlob, retries = 0) {
+      const chunkFormData = new FormData();
+      chunkFormData.append('uploadId', uploadId);
+      chunkFormData.append('chunkIndex', chunkIndex.toString());
+      chunkFormData.append('chunk', chunkBlob);
+      
+      try {
+        const chunkRes = await fetch('/api/data-import/chunked/chunk', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: chunkFormData,
+        });
+        
+        if (!chunkRes.ok) {
+          const chunkErr = await chunkRes.json().catch(() => ({}));
+          throw new Error(chunkErr.error || `HTTP ${chunkRes.status}`);
+        }
+        return true;
+      } catch (err) {
+        if (retries < MAX_RETRIES) {
+          // Wait before retry (exponential backoff)
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, retries)));
+          return uploadChunkWithRetry(uploadId, chunkIndex, chunkBlob, retries + 1);
+        }
+        throw err;
+      }
+    }
     
     try {
-      // For small files (< 50MB), use direct upload
-      if (file.size < 50 * 1024 * 1024) {
+      // For small files (< 20MB), use direct upload
+      if (file.size < 20 * 1024 * 1024) {
         setUploadProgress(`Uploading ${file.name} (${fileSizeMB}MB)...`);
         
         const formData = new FormData();
@@ -426,29 +457,17 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
         
         const { uploadId } = initData;
         
-        // 2. Upload chunks
+        // 2. Upload chunks with retry logic
         for (let i = 0; i < totalChunks; i++) {
           const start = i * CHUNK_SIZE;
           const end = Math.min(start + CHUNK_SIZE, file.size);
           const chunk = file.slice(start, end);
+          const chunkSizeKB = Math.round((end - start) / 1024);
+          const progress = Math.round(((i + 1) / totalChunks) * 100);
           
-          setUploadProgress(`Uploading chunk ${i + 1}/${totalChunks} (${Math.round((i / totalChunks) * 100)}%)`);
+          setUploadProgress(`Uploading: ${progress}% (chunk ${i + 1}/${totalChunks}, ${chunkSizeKB}KB)`);
           
-          const chunkFormData = new FormData();
-          chunkFormData.append('uploadId', uploadId);
-          chunkFormData.append('chunkIndex', i.toString());
-          chunkFormData.append('chunk', chunk);
-          
-          const chunkRes = await fetch('/api/data-import/chunked/chunk', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-            body: chunkFormData,
-          });
-          
-          if (!chunkRes.ok) {
-            const chunkErr = await chunkRes.json();
-            throw new Error(chunkErr.error || `Chunk ${i + 1} upload failed`);
-          }
+          await uploadChunkWithRetry(uploadId, i, chunk);
         }
         
         // 3. Complete upload and process
