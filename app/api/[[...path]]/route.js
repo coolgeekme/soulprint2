@@ -1637,18 +1637,16 @@ async function handleTelegramWebhook(request) {
   // Map telegram_user_id -> soulprint user
   let mapping = await db.collection('telegram_mappings').findOne({ telegram_user_id: telegramUserId });
 
-  // Handle /start command
+  // ── /start command ──────────────────────────────────────────────────────────
   if (text === '/start') {
-    // Check if already linked to a SoulPrint account
     const existingLinked = await db.collection('telegram_mappings').findOne({ telegram_user_id: telegramUserId, linked: true });
     if (existingLinked) {
+      const currentModel = existingLinked.preferred_model || 'gpt-4o';
       await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
-        `✅ Your Telegram is already linked to SoulPrint!\n\nJust send me a message to chat with your personal AI.`
+        `✅ Your Telegram is already linked to SoulPrint!\n\nCurrent AI model: *${currentModel}*\n\nJust send me a message to chat. Use /model to switch AI.`
       );
       return ok({ ok: true });
     }
-
-    // Generate a fresh link code (expires in 24 hours)
     const linkCode = uuidv4().slice(0, 8).toUpperCase();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await db.collection('telegram_mappings').updateOne(
@@ -1658,6 +1656,83 @@ async function handleTelegramWebhook(request) {
     );
     await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
       `👋 Welcome to SoulPrint, ${fromName}!\n\nTo link your account:\n1️⃣ Go to: ${process.env.NEXT_PUBLIC_BASE_URL}/app\n2️⃣ Open Settings (⚙️) → Telegram tab\n3️⃣ Enter your link code:\n\n\`${linkCode}\`\n\n⏳ This code expires in 24 hours.\n\nOnce linked, I'll be your personal AI — right here in Telegram.`
+    );
+    return ok({ ok: true });
+  }
+
+  // ── /model command — list or switch AI model ────────────────────────────────
+  if (text === '/model' || text.startsWith('/model ')) {
+    if (!mapping?.linked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
+      return ok({ ok: true });
+    }
+    const parts = text.split(' ');
+    const currentModel = mapping.preferred_model || 'gpt-4o';
+
+    if (parts.length === 1) {
+      // Show current model and list options
+      const modelList = [
+        '🟢 *OpenAI*: `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`',
+        '🟣 *Claude*: `claude-sonnet-4-5-20250929`, `claude-3-5-haiku-20241022`',
+        '🔵 *Gemini*: `gemini-2.0-flash`, `gemini-2.5-pro`',
+        '🌐 *Perplexity (online)*: `sonar`, `sonar-pro`',
+        '🟡 *Kimi*: `kimi-k2-0711-preview`, `moonshot-v1-32k`',
+      ].join('\n');
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `🤖 *Current AI model:* \`${currentModel}\`\n\nAvailable models:\n${modelList}\n\nTo switch: \`/model gpt-4o\` or \`/model sonar\`\n\n💡 Perplexity sonar models have *built-in real-time search*!`
+      );
+      return ok({ ok: true });
+    }
+
+    // Switch model
+    const newModel = parts[1].trim().toLowerCase();
+    const { AVAILABLE_MODELS: models } = await import('@/lib/llm/providers');
+    const found = models.find(m => m.value === newModel || m.label.toLowerCase().includes(newModel));
+    if (!found) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `❌ Unknown model: \`${newModel}\`\n\nSend /model to see available options.`
+      );
+      return ok({ ok: true });
+    }
+
+    await db.collection('telegram_mappings').updateOne(
+      { telegram_user_id: telegramUserId },
+      { $set: { preferred_model: found.value, preferred_provider: found.provider } }
+    );
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+      `✅ AI model switched to *${found.label}* (${found.group})\n\nAll future messages will use this model.`
+    );
+    return ok({ ok: true });
+  }
+
+  // ── /search command — force a web search ────────────────────────────────────
+  if (text.startsWith('/search ')) {
+    if (!mapping?.linked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
+      return ok({ ok: true });
+    }
+    const query = text.slice(8).trim();
+    const { buildSearchContext: doSearch } = await import('@/lib/llm/providers');
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
+    });
+    const ctx = await doSearch(query);
+    if (ctx) {
+      const maxLen = 3800;
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `🔍 *Search results for: ${query}*\n\n${ctx.slice(0, maxLen)}${ctx.length > maxLen ? '...' : ''}`
+      );
+    } else {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ No results found for: ${query}`);
+    }
+    return ok({ ok: true });
+  }
+
+  // ── /help command ───────────────────────────────────────────────────────────
+  if (text === '/help') {
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+      `🤖 *SoulPrint Bot Commands*\n\n/start — Link your account\n/model — View & switch AI model\n/model [name] — Switch to a specific AI (e.g. /model gpt-4o)\n/search [query] — Force a web search\n/help — Show this message\n\n💬 Just send any message to chat with your AI!\n\n🌐 *Real-time search is automatic* — just ask about current events, prices, news, etc.`
     );
     return ok({ ok: true });
   }
@@ -1682,6 +1757,10 @@ async function handleTelegramWebhook(request) {
     body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
   });
 
+  // Determine model for this user
+  const preferredModel = mapping.preferred_model || 'gpt-4o';
+  const preferredProvider = mapping.preferred_provider || 'openai';
+
   try {
     // Get or create a Telegram conversation for this user
     let conv = await db.collection('conversations').findOne({ user_id: userId, source: 'telegram' });
@@ -1704,23 +1783,71 @@ async function handleTelegramWebhook(request) {
       .sort({ created_at: -1 }).limit(10).toArray();
     recent.reverse();
 
-    const historyMessages = [...recent.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }];
+    let historyMessages = [...recent.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }];
     const systemPrompt = await buildSystemPrompt(db, userId);
-    const provider = getProvider('hosted', 'gpt-4o');
 
-    const aiResponse = await provider.generateChatCompletion({
-      systemPrompt, messages: historyMessages, model: 'gpt-4o', temperature: 0.7,
-    });
+    // ── Real-time web search ────────────────────────────────────────────────
+    // Perplexity sonar models have built-in search — no need to inject
+    const isPerplexity = preferredProvider === 'perplexity' || preferredModel.startsWith('sonar');
+    let searchNote = '';
+    if (!isPerplexity) {
+      // Auto-detect if search is needed and inject context
+      const needsSearch = /today|current|latest|news|price|weather|stock|recent|2025|2026|who won|what happened/i.test(text);
+      if (needsSearch) {
+        const { buildSearchContext: doSearch } = await import('@/lib/llm/providers');
+        const ctx = await doSearch(text);
+        if (ctx) {
+          searchNote = ' 🌐';
+          historyMessages = [
+            ...historyMessages.slice(0, -1),
+            { role: 'user', content: `${ctx}\n\n---\n\nUser question: ${text}` },
+          ];
+        }
+      }
+    }
+
+    // ── Generate response ───────────────────────────────────────────────────
+    const { getProvider: gp } = await import('@/lib/llm/providers');
+    const provider = gp(preferredProvider, preferredModel);
+
+    let aiResponse;
+    try {
+      // Use streaming and collect the full text (works with all providers)
+      const { stream } = await provider.generateStream({
+        systemPrompt, messages: historyMessages, model: preferredModel,
+        temperature: 0.7, enableWebSearch: isPerplexity, // perplexity uses its own search
+      });
+      let collected = '';
+      for await (const chunk of stream) {
+        collected += chunk;
+        // Keep sending typing action for long responses
+        if (collected.length % 1000 === 0) {
+          fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
+          }).catch(() => {});
+        }
+      }
+      aiResponse = collected;
+    } catch (streamErr) {
+      // Fallback to non-streaming if generateStream fails
+      aiResponse = await provider.generateChatCompletion({
+        systemPrompt, messages: historyMessages, model: preferredModel, temperature: 0.7,
+      });
+    }
 
     // Save assistant message
     await db.collection('messages').insertOne({
       id: uuidv4(), conversation_id: conv.id, user_id: userId,
       role: 'assistant', content: aiResponse, created_at: new Date(), source: 'telegram',
+      model_used: preferredModel, provider_used: preferredProvider,
     });
     await db.collection('conversations').updateOne({ id: conv.id }, { $set: { updated_at: new Date() } });
 
-    // Send reply (split if > 4096 chars)
-    const chunks = aiResponse.match(/[\s\S]{1,4000}/g) || [aiResponse];
+    // Send reply (split if > 4096 chars) with model indicator
+    const modelLabel = `_[${preferredModel}${searchNote}]_\n\n`;
+    const fullReply = modelLabel + aiResponse;
+    const chunks = fullReply.match(/[\s\S]{1,4000}/g) || [fullReply];
     for (const chunk of chunks) {
       await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, chunk);
     }
