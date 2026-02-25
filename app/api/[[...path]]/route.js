@@ -1396,14 +1396,16 @@ export async function POST(request, { params }) {
     if (pathStr === 'chat/stream') return handleChatStream(request);
     if (pathStr === 'feedback') return handleSubmitFeedback(request);
     if (pathStr === 'imports/upload') return handleImportUpload(request);
+    if (pathStr === 'telegram/link') return handleTelegramLink(request);
+    if (pathStr === 'connectors/telegram/webhook') return handleTelegramWebhook(request);
 
     // Admin routes
     if (pathStr === 'admin/questions/seed') return handleAdminSeedQuestions(request);
     if (pathStr === 'admin/invite') return handleAdminInviteAdmin(request);
     if (pathStr === 'admin/settings') return handleAdminUpdateSettings(request);
+    if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
 
-    // Connector stubs
-    if (pathStr === 'connectors/telegram/webhook') return handleConnectorStub('telegram');
+    // Other connector stubs
     if (pathStr === 'connectors/discord/webhook') return handleConnectorStub('discord');
     if (pathStr === 'connectors/whatsapp/webhook') return handleConnectorStub('whatsapp');
     if (pathStr === 'connectors/sms/webhook') return handleConnectorStub('sms');
