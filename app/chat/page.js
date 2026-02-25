@@ -1583,11 +1583,11 @@ export default function ChatPage() {
   const currentModel = MODELS.find(m => m.value === selectedModel) || MODELS[0];
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] overflow-hidden">
+    <div className="flex h-screen bg-[#0a0a0a] overflow-hidden safe-area-all">
       {showSidebar && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowSidebar(false)} />}
 
       {/* Sidebar */}
-      <div className={`fixed lg:relative z-50 h-full w-64 bg-[#0f0f0f] border-r border-white/5 flex flex-col transform transition-transform duration-200 ${showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <div className={`fixed lg:relative z-50 h-full w-64 bg-[#0f0f0f] border-r border-white/5 flex flex-col transform transition-transform duration-200 safe-area-top ${showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="p-4 border-b border-white/5">
           <div className="flex items-center gap-2 mb-3">
             <SoulPrintLogo size={22} />
