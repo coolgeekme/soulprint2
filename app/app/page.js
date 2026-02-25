@@ -776,32 +776,50 @@ export default function ChatPage() {
             {fileError && <p className="text-red-400 text-xs mb-1 px-1">{fileError}</p>}
 
             {/* Input bar */}
-            <div className="flex items-center gap-2 bg-[#111] border border-white/10 rounded-2xl px-3 py-2 focus-within:border-orange-500/30 transition-colors">
+            <div className={`flex items-center gap-2 bg-[#111] border rounded-2xl px-3 py-2 transition-colors ${speech.isListening ? 'border-orange-500/60 shadow-[0_0_20px_rgba(249,115,22,0.15)]' : 'border-white/10 focus-within:border-orange-500/30'}`}>
               {/* File attach button */}
               <button onClick={() => fileInputRef.current?.click()}
                 className="text-gray-600 hover:text-orange-400 transition-colors flex-shrink-0" title="Attach file or image">
                 <Paperclip className="w-5 h-5" />
               </button>
               <input ref={fileInputRef} type="file" multiple accept={ACCEPTED_FILE_TYPES} className="hidden" onChange={handleFileSelect} />
-              <button className="text-gray-600 hover:text-gray-400 transition-colors flex-shrink-0"><Mic className="w-5 h-5" /></button>
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                placeholder={attachments.length > 0 ? 'Add a message or just send...' : 'Enter command…'}
-                className="flex-1 bg-transparent text-white text-sm placeholder-gray-600 focus:outline-none py-1.5"
-                disabled={loading}
-              />
+
+              {/* Mic button */}
+              <button
+                onClick={speech.toggle}
+                title={speech.isListening ? 'Stop recording' : 'Start voice input'}
+                className={`flex-shrink-0 transition-all relative ${speech.isListening ? 'text-orange-500' : 'text-gray-600 hover:text-orange-400'}`}
+              >
+                <Mic className="w-5 h-5" />
+                {speech.isListening && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-500 animate-ping" />
+                )}
+              </button>
+
+              <div className="flex-1 relative">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={speech.isListening && interimText ? input + (input ? ' ' : '') + interimText : input}
+                  onChange={e => { if (!speech.isListening) setInput(e.target.value); }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                  placeholder={speech.isListening ? (speech.mode === 'whisper' ? 'Recording… tap mic to stop' : 'Listening…') : attachments.length > 0 ? 'Add a message or just send...' : 'Enter command…'}
+                  className={`w-full bg-transparent text-sm placeholder-gray-600 focus:outline-none py-1.5 ${speech.isListening ? 'text-orange-300' : 'text-white'}`}
+                  disabled={loading}
+                  readOnly={speech.isListening}
+                />
+              </div>
+
               <button onClick={sendMessage}
-                disabled={(!input.trim() && attachments.length === 0) || loading}
+                disabled={(!input.trim() && attachments.length === 0 && !speech.isListening) || loading}
                 className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center hover:bg-orange-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0">
                 {loading ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Send className="w-4 h-4 text-white" />}
               </button>
             </div>
             <p className="text-center text-[10px] text-gray-700 mt-2">
-              Supports JPG, PNG, PDF, TXT, CSV, JSON · Max 10MB per file
+              {speech.isListening
+                ? <span className="text-orange-500/70 animate-pulse">🎙 {speech.mode === 'live' ? 'Listening in real-time — tap mic to stop' : 'Recording — tap mic to stop & transcribe'}</span>
+                : 'Supports JPG, PNG, PDF, TXT, CSV · Tap 🎙 for voice input · Max 10MB'}
             </p>
           </div>
         </div>
