@@ -710,22 +710,6 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
               )}
             </div>
           )}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {profile?.soul_profile_summary && (
-                  <div className="mt-4">
-                    <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2">Soul Profile Summary</p>
-                    <div className="p-4 rounded-xl bg-orange-500/5 border border-orange-500/20">
-                      <p className="text-gray-300 text-xs leading-relaxed">{profile.soul_profile_summary}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* TELEGRAM TAB */}
           {activeTab === 'telegram' && (
