@@ -1880,6 +1880,9 @@ export default function ChatPage() {
       </div>
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} token={token} />}
+      
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
     </div>
   );
 }
