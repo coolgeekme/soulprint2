@@ -381,6 +381,66 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Connector stubs working correctly. Returns proper 'not_configured' status for telegram webhook."
 
+  - task: "Image Generation via Chat Stream Auto-detection"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Chat stream auto-detects image generation requests and uses DALL-E 3. Expected to return NDJSON stream with type='meta', type='image', type='delta', type='done'."
+
+  - task: "Video Generation via Chat Stream Auto-detection"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Chat stream auto-detects video generation requests and uses Kie.ai Runway. Expected to return NDJSON stream with type='meta', type='video_task', type='delta', type='done'."
+
+  - task: "Direct Image Generation API (POST /api/generate/image)"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Direct DALL-E 3 image generation endpoint. Expected to return {url, revised_prompt}."
+
+  - task: "Direct Video Generation API (POST /api/generate/video)"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Direct Kie.ai Runway video generation endpoint. Expected to return {jobId, taskId, status}."
+
+  - task: "Video Status Poll API (GET /api/generate/video/{taskId})"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Poll video generation status from Kie.ai. Expected to return status info."
+
 frontend:
   - task: "Landing Page (/)"
     implemented: true
