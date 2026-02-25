@@ -1302,6 +1302,110 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
               </div>
             </div>
           )}
+
+          {/* FEEDBACK TAB */}
+          {activeTab === 'feedback' && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-white text-sm font-semibold mb-1">💬 Share Your Feedback</h3>
+                <p className="text-gray-500 text-xs mb-4">Help us improve SoulPrint! Your feedback is invaluable.</p>
+              </div>
+
+              {/* Quick feedback buttons */}
+              <div className="space-y-3">
+                <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase">How's your experience?</p>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setFeedbackType('love')}
+                    className={`flex-1 py-3 rounded-xl border text-center transition-all ${feedbackType === 'love' ? 'bg-green-500/20 border-green-500/40 text-green-400' : 'bg-white/3 border-white/10 text-gray-400 hover:bg-white/5'}`}
+                  >
+                    <span className="text-lg">😍</span>
+                    <p className="text-[10px] mt-1">Love it!</p>
+                  </button>
+                  <button 
+                    onClick={() => setFeedbackType('good')}
+                    className={`flex-1 py-3 rounded-xl border text-center transition-all ${feedbackType === 'good' ? 'bg-blue-500/20 border-blue-500/40 text-blue-400' : 'bg-white/3 border-white/10 text-gray-400 hover:bg-white/5'}`}
+                  >
+                    <span className="text-lg">👍</span>
+                    <p className="text-[10px] mt-1">It's good</p>
+                  </button>
+                  <button 
+                    onClick={() => setFeedbackType('issue')}
+                    className={`flex-1 py-3 rounded-xl border text-center transition-all ${feedbackType === 'issue' ? 'bg-orange-500/20 border-orange-500/40 text-orange-400' : 'bg-white/3 border-white/10 text-gray-400 hover:bg-white/5'}`}
+                  >
+                    <span className="text-lg">🐛</span>
+                    <p className="text-[10px] mt-1">Found issue</p>
+                  </button>
+                  <button 
+                    onClick={() => setFeedbackType('idea')}
+                    className={`flex-1 py-3 rounded-xl border text-center transition-all ${feedbackType === 'idea' ? 'bg-purple-500/20 border-purple-500/40 text-purple-400' : 'bg-white/3 border-white/10 text-gray-400 hover:bg-white/5'}`}
+                  >
+                    <span className="text-lg">💡</span>
+                    <p className="text-[10px] mt-1">Have idea</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Feedback text area */}
+              <div>
+                <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2 block">Your feedback</label>
+                <textarea
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder={feedbackType === 'issue' ? "Describe the issue you encountered..." : feedbackType === 'idea' ? "Tell us your idea..." : "Share your thoughts..."}
+                  className="w-full h-28 bg-[#0a0a0a] border border-white/10 rounded-xl p-3 text-sm text-white placeholder-gray-600 resize-none focus:border-orange-500/40 focus:outline-none"
+                />
+              </div>
+
+              {/* Submit button */}
+              <button
+                onClick={async () => {
+                  if (!feedbackText.trim()) return;
+                  setFeedbackSubmitting(true);
+                  try {
+                    await fetch('/api/feedback', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ type: feedbackType, message: feedbackText }),
+                    });
+                    setFeedbackText('');
+                    setFeedbackType('');
+                    setFeedbackSubmitted(true);
+                    setTimeout(() => setFeedbackSubmitted(false), 3000);
+                  } catch (e) {
+                    console.error('Feedback error:', e);
+                  }
+                  setFeedbackSubmitting(false);
+                }}
+                disabled={!feedbackText.trim() || feedbackSubmitting}
+                className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {feedbackSubmitting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
+                ) : feedbackSubmitted ? (
+                  <><ThumbsUp className="w-4 h-4" /> Thank you!</>
+                ) : (
+                  <><Send className="w-4 h-4" /> Send Feedback</>
+                )}
+              </button>
+
+              {/* Contact options */}
+              <div className="pt-4 border-t border-white/10">
+                <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-3">Other ways to reach us</p>
+                <div className="space-y-2">
+                  <a href="mailto:feedback@soulprint.ai" className="flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/8 hover:bg-white/5 transition-colors">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <span className="text-sm">📧</span>
+                    </div>
+                    <div>
+                      <p className="text-white text-xs font-medium">Email</p>
+                      <p className="text-gray-600 text-[10px]">feedback@soulprint.ai</p>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
