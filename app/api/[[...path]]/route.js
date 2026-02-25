@@ -3310,20 +3310,20 @@ async function handleTelegramWebhook(request) {
       if (vidData.code !== 200) throw new Error(vidData.msg || 'Video generation failed');
       const taskId = vidData.data?.taskId;
 
-      // Poll for completion (up to 5 minutes)
+      // Poll for completion (up to 5 minutes) using correct endpoint
       let attempts = 0;
       const maxAttempts = 30;
       while (attempts < maxAttempts) {
         await new Promise(r => setTimeout(r, 10000)); // wait 10s
         attempts++;
-        const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+        const pollRes = await fetch(`https://api.kie.ai/api/v1/runway/record-detail?taskId=${taskId}`, {
           headers: { Authorization: `Bearer ${kieKey}` },
         });
         const pollData = await pollRes.json();
         const state = pollData.data?.state;
-        const resultUrls = pollData.data?.response?.resultUrls || [];
-        const thumbnailUrl = pollData.data?.response?.imageUrl || null;
-        const videoUrl = resultUrls[0];
+        const videoInfo = pollData.data?.videoInfo || {};
+        const videoUrl = videoInfo.videoUrl;
+        const thumbnailUrl = videoInfo.imageUrl;
 
         if (state === 'success' && videoUrl) {
           // Send thumbnail first (if available), then video link
@@ -3337,7 +3337,8 @@ async function handleTelegramWebhook(request) {
           );
           break;
         } else if (state === 'fail') {
-          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '❌ Video generation failed. Please try again.');
+          const errMsg = pollData.data?.failMsg || 'Unknown error';
+          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Video generation failed: ${errMsg}`);
           break;
         }
         // Still generating — send progress update every ~60 seconds
