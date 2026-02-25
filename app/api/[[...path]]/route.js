@@ -3806,6 +3806,74 @@ async function handleTranscribe(request) {
   }
 }
 
+// USER LOCATION - Save browser geolocation for web app
+async function handleSaveUserLocation(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { lat, lng } = body;
+
+  if (!lat || !lng) return err('lat and lng required');
+
+  try {
+    const db = await getDb();
+    
+    // Reverse geocode to get address
+    const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+    let address = 'Your location';
+    
+    if (apiKey) {
+      const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`);
+      const geoData = await geoRes.json();
+      address = geoData.results?.[0]?.formatted_address || 'Your location';
+    }
+
+    await db.collection('user_locations').updateOne(
+      { user_id: user.id },
+      { 
+        $set: { 
+          lat, 
+          lng, 
+          address,
+          updated_at: new Date(),
+          source: 'web'
+        } 
+      },
+      { upsert: true }
+    );
+
+    return ok({ success: true, address, lat, lng });
+  } catch (error) {
+    return err(`Failed to save location: ${error.message}`, 500);
+  }
+}
+
+// USER LOCATION - Get current saved location
+async function handleGetUserLocation(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const db = await getDb();
+    const location = await db.collection('user_locations').findOne({ user_id: user.id });
+    
+    if (!location || !location.lat || !location.lng) {
+      return ok({ hasLocation: false });
+    }
+
+    return ok({ 
+      hasLocation: true, 
+      lat: location.lat, 
+      lng: location.lng, 
+      address: location.address,
+      updated_at: location.updated_at
+    });
+  } catch (error) {
+    return err(`Failed to get location: ${error.message}`, 500);
+  }
+}
+
 // MODELS - Get available
 async function handleGetModels(request) {
   return ok(AVAILABLE_MODELS);
