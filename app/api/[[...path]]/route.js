@@ -2289,19 +2289,19 @@ async function handleVideoStatus(request, taskId) {
     return ok({ status: 'failed', error: job.error });
   }
 
-  // Poll Kie.ai
+  // Poll Kie.ai using the correct runway/record-detail endpoint
   const kieKey = process.env.KIE_API_KEY;
   try {
-    const res = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+    const res = await fetch(`https://api.kie.ai/api/v1/runway/record-detail?taskId=${taskId}`, {
       headers: { Authorization: `Bearer ${kieKey}` },
     });
     const data = await res.json();
     if (data.code !== 200) return err(data.msg || 'Status check failed', 400);
 
     const state = data.data?.state;
-    const resultUrls = data.data?.response?.resultUrls || [];
-    const thumbnailUrl = data.data?.response?.imageUrl || data.data?.response?.result_image_url || null;
-    const videoUrl = resultUrls[0] || null;
+    const videoInfo = data.data?.videoInfo || {};
+    const videoUrl = videoInfo.videoUrl || null;
+    const thumbnailUrl = videoInfo.imageUrl || null;
 
     if (state === 'success' && videoUrl) {
       await db.collection('video_jobs').updateOne({ task_id: taskId }, {
@@ -2322,14 +2322,14 @@ async function handleVideoStatus(request, taskId) {
       }
       return ok({ status: 'success', videoUrl, thumbnailUrl, prompt: job.prompt });
     } else if (state === 'fail') {
-      const errMsg = data.data?.errorMessage || 'Generation failed';
+      const errMsg = data.data?.failMsg || 'Generation failed';
       await db.collection('video_jobs').updateOne({ task_id: taskId }, {
         $set: { status: 'failed', error: errMsg },
       });
       return ok({ status: 'failed', error: errMsg });
     }
 
-    return ok({ status: 'generating', progress: data.data?.progress || null });
+    return ok({ status: 'generating', progress: null, state });
   } catch (e) {
     console.error('Video status error:', e);
     return err('Status check failed: ' + e.message, 500);
