@@ -28,8 +28,6 @@ const FAQS = [
   { q: 'How do I get started?', a: 'Click "Get your SoulPrint" above, complete a short onboarding and our 36-question assessment, and your personal AI will be ready. The whole process takes about 10 minutes.' },
 ];
 
-import SoulPrintLogo from '@/components/SoulPrintLogo';
-
 function FAQItem({ q, a }) {
   const [open, setOpen] = useState(false);
   return (
