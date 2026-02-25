@@ -964,6 +964,9 @@ class BackendTester:
             print("❌ Cannot proceed without authentication")
             return
         
+        # High priority test: Chunked upload system
+        self.test_chunked_upload_system()
+        
         self.test_google_places_api()
         self.test_task_scheduling_api()
         self.test_kimi_ai_integration()
