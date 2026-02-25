@@ -363,42 +363,107 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     fetchSchedules();
   }, [token]);
 
-  // Handle data import ZIP upload
+  // Handle data import ZIP upload (chunked for large files)
   async function handleDataImportUpload(file, source) {
     if (!file) return;
     setUploading(true);
-    setUploadProgress(`Uploading ${file.name}...`);
+    
+    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
     
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('source', source);
-      
-      setUploadProgress('Analyzing your data... This may take a minute.');
-      
-      const res = await fetch('/api/data-import/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      
-      const data = await res.json();
-      
-      if (res.ok) {
+      // For small files (< 50MB), use direct upload
+      if (file.size < 50 * 1024 * 1024) {
+        setUploadProgress(`Uploading ${file.name} (${fileSizeMB}MB)...`);
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('source', source);
+        
+        setUploadProgress('Analyzing your data... This may take a minute.');
+        
+        const res = await fetch('/api/data-import/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+          setUploadProgress('');
+          const refreshRes = await fetch('/api/data-imports', { headers: { Authorization: `Bearer ${token}` } });
+          const refreshData = await refreshRes.json();
+          setDataImports(refreshData.imports || []);
+          setSoulProfile(refreshData.soulProfile || null);
+          setShowInsights(true);
+        } else {
+          throw new Error(data.error || 'Upload failed');
+        }
+      } else {
+        // Large file: use chunked upload
+        setUploadProgress(`Preparing upload: ${file.name} (${fileSizeMB}MB, ${totalChunks} chunks)`);
+        
+        // 1. Initialize upload session
+        const initRes = await fetch('/api/data-import/chunked/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ filename: file.name, fileSize: file.size, source, totalChunks }),
+        });
+        
+        const initData = await initRes.json();
+        if (!initRes.ok) throw new Error(initData.error || 'Failed to initialize upload');
+        
+        const { uploadId } = initData;
+        
+        // 2. Upload chunks
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+          
+          setUploadProgress(`Uploading chunk ${i + 1}/${totalChunks} (${Math.round((i / totalChunks) * 100)}%)`);
+          
+          const chunkFormData = new FormData();
+          chunkFormData.append('uploadId', uploadId);
+          chunkFormData.append('chunkIndex', i.toString());
+          chunkFormData.append('chunk', chunk);
+          
+          const chunkRes = await fetch('/api/data-import/chunked/chunk', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: chunkFormData,
+          });
+          
+          if (!chunkRes.ok) {
+            const chunkErr = await chunkRes.json();
+            throw new Error(chunkErr.error || `Chunk ${i + 1} upload failed`);
+          }
+        }
+        
+        // 3. Complete upload and process
+        setUploadProgress('Processing your data... This may take a few minutes for large files.');
+        
+        const completeRes = await fetch('/api/data-import/chunked/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ uploadId }),
+        });
+        
+        const completeData = await completeRes.json();
+        if (!completeRes.ok) throw new Error(completeData.error || 'Processing failed');
+        
         setUploadProgress('');
-        // Refresh data imports
         const refreshRes = await fetch('/api/data-imports', { headers: { Authorization: `Bearer ${token}` } });
         const refreshData = await refreshRes.json();
         setDataImports(refreshData.imports || []);
         setSoulProfile(refreshData.soulProfile || null);
-        setShowInsights(true); // Show the new insights
-      } else {
-        setUploadProgress(`Error: ${data.error || 'Upload failed'}`);
-        setTimeout(() => setUploadProgress(''), 5000);
+        setShowInsights(true);
       }
     } catch (e) {
       setUploadProgress(`Error: ${e.message}`);
-      setTimeout(() => setUploadProgress(''), 5000);
+      setTimeout(() => setUploadProgress(''), 8000);
     }
     setUploading(false);
   }
