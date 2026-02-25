@@ -48,10 +48,18 @@ export default function AuthPage() {
         return;
       }
 
-      // If login fails with 401, try register
       const loginData = await loginRes.json();
+
+      // Wrong password — show error, don't try to register
       if (loginRes.status === 401) {
-        setError(loginData.error || 'Invalid credentials');
+        setError('Incorrect passcode. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      // User not found (404) → auto-register
+      if (loginRes.status !== 404) {
+        setError(loginData.error || 'Something went wrong');
         setLoading(false);
         return;
       }
