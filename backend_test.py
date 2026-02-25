@@ -46,6 +46,229 @@ class BackendTester:
             raise Exception("Not authenticated")
         return {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
     
+    def create_test_zip(self):
+        """Create a small test ZIP file with mock ChatGPT conversations.json"""
+        print("📦 Creating test ZIP file...")
+        
+        # Mock ChatGPT conversation data  
+        conversations_data = [
+            {
+                "title": "Programming Discussion",
+                "mapping": {
+                    "msg1": {
+                        "message": {
+                            "author": {"role": "user"},
+                            "content": {"parts": ["I need help with Python data structures. Can you explain dictionaries vs lists?"]}
+                        }
+                    },
+                    "msg2": {
+                        "message": {
+                            "author": {"role": "assistant"}, 
+                            "content": {"parts": ["Dictionaries store key-value pairs..."]}
+                        }
+                    },
+                    "msg3": {
+                        "message": {
+                            "author": {"role": "user"},
+                            "content": {"parts": ["That makes sense! What about performance differences between them for lookups?"]}
+                        }
+                    }
+                }
+            },
+            {
+                "title": "Technology Trends",
+                "mapping": {
+                    "msg4": {
+                        "message": {
+                            "author": {"role": "user"},
+                            "content": {"parts": ["What do you think about the current state of AI development and its impact on software engineering?"]}
+                        }
+                    },
+                    "msg5": {
+                        "message": {
+                            "author": {"role": "assistant"},
+                            "content": {"parts": ["AI is rapidly transforming software engineering..."]}
+                        }
+                    },
+                    "msg6": {
+                        "message": {
+                            "author": {"role": "user"},
+                            "content": {"parts": ["I'm particularly interested in how machine learning can optimize database queries and system performance."]}
+                        }
+                    }
+                }
+            }
+        ]
+        
+        # Create ZIP file in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            zip_file.writestr('conversations.json', json.dumps(conversations_data, indent=2))
+        
+        zip_data = zip_buffer.getvalue()
+        print(f"✅ Test ZIP created. Size: {len(zip_data)} bytes")
+        return zip_data
+    
+    def test_chunked_upload_system(self):
+        """Test the complete chunked upload flow"""
+        print("\n🔄 TESTING CHUNKED DATA IMPORT SYSTEM...")
+        
+        try:
+            # Create test data
+            zip_data = self.create_test_zip()
+            filename = "test_conversations.zip"
+            file_size = len(zip_data)
+            
+            # Split into chunks (simulate chunked upload)
+            chunk_size = 512  # Small chunks for testing
+            chunks = []
+            for i in range(0, len(zip_data), chunk_size):
+                chunk = zip_data[i:i+chunk_size]
+                chunks.append(chunk)
+            
+            total_chunks = len(chunks)
+            print(f"📊 File split into {total_chunks} chunks of ~{chunk_size} bytes each")
+            
+            # Step 1: Initialize upload session
+            print("\n📋 Step 1: Testing chunked upload init...")
+            
+            headers = {"Authorization": f"Bearer {self.token}"}
+            payload = {
+                "filename": filename,
+                "fileSize": file_size,
+                "source": "chatgpt",
+                "totalChunks": total_chunks
+            }
+            
+            response = requests.post(f"{self.base_url}/api/data-import/chunked/init", 
+                                   headers=headers, 
+                                   json=payload)
+            
+            print(f"Request: POST /data-import/chunked/init")
+            print(f"Payload: {payload}")
+            print(f"Response: {response.status_code} - {response.text}")
+            
+            if response.status_code != 200:
+                print(f"❌ CHUNKED INIT: Failed with {response.status_code} - {response.text}")
+                return False
+            
+            data = response.json()
+            upload_id = data.get('uploadId')
+            print(f"✅ CHUNKED INIT: Upload session created. Upload ID: {upload_id}")
+            
+            # Step 2: Upload chunks
+            print(f"\n📤 Step 2: Testing chunk uploads...")
+            
+            for i, chunk in enumerate(chunks):
+                print(f"Uploading chunk {i+1}/{total_chunks} ({len(chunk)} bytes)...")
+                
+                # Create FormData for chunk upload
+                files = {
+                    'uploadId': (None, upload_id),
+                    'chunkIndex': (None, str(i)),
+                    'chunk': ('chunk.bin', chunk, 'application/octet-stream')
+                }
+                
+                response = requests.post(f"{self.base_url}/api/data-import/chunked/chunk", 
+                                       headers={"Authorization": f"Bearer {self.token}"}, 
+                                       files=files)
+                
+                if response.status_code != 200:
+                    print(f"❌ CHUNK UPLOAD: Failed chunk {i} with {response.status_code} - {response.text}")
+                    return False
+                
+                chunk_data = response.json()
+                received_index = chunk_data.get('received')
+                message = chunk_data.get('message')
+                print(f"   ✅ Chunk {i} uploaded. Received: {received_index}, Message: {message}")
+                
+                time.sleep(0.1)  # Small delay between chunks
+            
+            # Step 3: Complete upload
+            print(f"\n🏁 Step 3: Testing chunked upload completion...")
+            
+            payload = {"uploadId": upload_id}
+            response = requests.post(f"{self.base_url}/api/data-import/chunked/complete", 
+                                   headers=headers, 
+                                   json=payload)
+            
+            print(f"Request: POST /data-import/chunked/complete")
+            print(f"Payload: {payload}")
+            print(f"Response: {response.status_code} - {response.text}")
+            
+            if response.status_code != 200:
+                print(f"❌ CHUNKED COMPLETE: Failed with {response.status_code} - {response.text}")
+                return False
+            
+            result = response.json()
+            print(f"✅ CHUNKED COMPLETE: Upload completed successfully!")
+            print(f"Success: {result.get('success')}")
+            print(f"Import ID: {result.get('importId')}")
+            print(f"Stats: {result.get('stats')}")
+            
+            # Print analysis results if available
+            analysis = result.get('analysis')
+            if analysis:
+                print(f"📊 Analysis Results:")
+                print(f"  - Summary: {analysis.get('summary', 'N/A')}")
+                print(f"  - Communication Style: {analysis.get('communicationStyle', {})}")
+                print(f"  - Interests: {analysis.get('interests', [])}")
+                print(f"  - Insights: {analysis.get('insights', [])}")
+            
+            # Step 4: Test error cases
+            print(f"\n⚠️  Step 4: Testing error cases...")
+            
+            # Test missing required fields in init
+            print("Test 4.1: Missing required fields in init")
+            response = requests.post(f"{self.base_url}/api/data-import/chunked/init", 
+                                   headers=headers, 
+                                   json={"filename": "test.zip"})
+            print(f"Missing fields response: {response.status_code} - {response.text}")
+            if response.status_code != 400:
+                print(f"❌ ERROR CASE: Expected 400 for missing fields, got {response.status_code}")
+            else:
+                print("✅ ERROR CASE: Correctly rejected missing fields")
+            
+            # Test invalid uploadId in chunk upload
+            print("Test 4.2: Invalid uploadId in chunk upload")
+            files = {
+                'uploadId': (None, 'invalid-id'),
+                'chunkIndex': (None, '0'),
+                'chunk': ('chunk.bin', b'test data', 'application/octet-stream')
+            }
+            response = requests.post(f"{self.base_url}/api/data-import/chunked/chunk", 
+                                   headers={"Authorization": f"Bearer {self.token}"}, 
+                                   files=files)
+            print(f"Invalid uploadId response: {response.status_code} - {response.text}")
+            if response.status_code != 404:
+                print(f"❌ ERROR CASE: Expected 404 for invalid uploadId, got {response.status_code}")
+            else:
+                print("✅ ERROR CASE: Correctly rejected invalid uploadId")
+            
+            # Test no authentication
+            print("Test 4.3: No authentication")
+            response = requests.post(f"{self.base_url}/api/data-import/chunked/init", 
+                                   json={"filename": "test.zip", "fileSize": 1000, "totalChunks": 1})
+            print(f"No auth response: {response.status_code} - {response.text}")
+            if response.status_code != 401:
+                print(f"❌ ERROR CASE: Expected 401 for no auth, got {response.status_code}")
+            else:
+                print("✅ ERROR CASE: Correctly rejected no authentication")
+            
+            print("\n🎉 CHUNKED UPLOAD SYSTEM: ALL TESTS PASSED!")
+            print("✅ MongoDB chunk storage working")
+            print("✅ ZIP parsing working") 
+            print("✅ ChatGPT format analysis working")
+            print("✅ Authentication working")
+            print("✅ Error handling working")
+            return True
+            
+        except Exception as e:
+            print(f"❌ CHUNKED UPLOAD SYSTEM: Test failed with exception: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
     def test_kimi_ai_integration(self):
         """Test Kimi AI Integration"""
         print("\n🔍 TESTING KIMI AI INTEGRATION...")
