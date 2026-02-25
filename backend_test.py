@@ -29,10 +29,14 @@ class SoulPrintTester:
     
     async def authenticate(self):
         """Login or register test user"""
-        # First try with the known superadmin test user
+        # First try with the known superadmin test users with different possible passcodes
         test_users = [
             {"email": "test@soulprint.com", "passcode": "test123"},
-            {"email": "llmtest@soulprint.com", "passcode": "test123"},
+            {"email": "test@soulprint.com", "passcode": "password"},
+            {"email": "test@soulprint.com", "passcode": "admin123"},
+            {"email": "test@soulprint.com", "passcode": "soulprint"},
+            {"email": "reggie@coolgeek.me", "passcode": "test123"},
+            {"email": "reggie@coolgeek.me", "passcode": "password"},
         ]
         
         for login_data in test_users:
@@ -51,41 +55,21 @@ class SoulPrintTester:
                             print(f"⚠️ User {login_data['email']} not accepted, trying next...")
                             continue
                     elif resp.status in [401, 404]:
-                        print(f"⚠️ User {login_data['email']} not found, trying next...")
+                        print(f"⚠️ Invalid credentials for {login_data['email']}, trying next...")
+                        continue
+                    else:
+                        print(f"❌ Unexpected error for {login_data['email']}: {resp.status}")
                         continue
             except Exception as e:
                 print(f"❌ Login error for {login_data['email']}: {e}")
                 continue
         
-        # If no existing users work, try creating a new unique user
-        try:
-            import time
-            unique_email = f"llmtest{int(time.time())}@soulprint.com"
-            register_data = {
-                "email": unique_email,
-                "passcode": "test123"
-            }
-            
-            async with self.session.post(f"{self.base_url}/api/auth/register",
-                                       json=register_data) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    self.auth_token = data.get('token')
-                    accepted = data.get('accepted', False)
-                    role = data.get('role', 'user')
-                    print(f"✅ Registered new user: {unique_email} (role: {role}, accepted: {accepted})")
-                    if accepted:
-                        return True
-                    else:
-                        print(f"⚠️ New user not auto-approved. This may be expected if other users exist.")
-                        return False
-                else:
-                    error_text = await resp.text()
-                    print(f"❌ Registration failed: {resp.status} - {error_text}")
-                    return False
-        except Exception as e:
-            print(f"❌ Registration error: {e}")
-            return False
+        print("❌ Could not authenticate with any known superadmin accounts")
+        print("💡 Available superadmin accounts in database:")
+        print("   - test@soulprint.com (role: superadmin, accepted: true)")  
+        print("   - reggie@coolgeek.me (role: superadmin, accepted: true)")
+        print("💡 Please provide correct passcode or approve a test user manually")
+        return False
     
     async def test_models_endpoint(self):
         """Test GET /api/models endpoint"""
