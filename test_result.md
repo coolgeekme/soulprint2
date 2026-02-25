@@ -261,7 +261,7 @@ backend:
     file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
@@ -269,6 +269,21 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Chat streaming working perfectly! Returns proper NDJSON stream with meta, delta, and done chunks. Memory injection from profile and assessment working. 67 chunks received with personalized response."
+      - working: "NA"
+        agent: "main"
+        comment: "Multi-LLM integration complete. Fixed: (1) changed generateChatCompletionStream to generateStream, (2) fixed streaming loop to consume plain string chunks, (3) provider auto-detected from model name, (4) Anthropic image format conversion added, (5) Gemini image format conversion added."
+
+  - task: "Multi-LLM Provider Integration (OpenAI / Claude / Gemini / Perplexity)"
+    implemented: true
+    working: "NA"
+    file: "app/lib/llm/providers.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "New providers.js supports OpenAI, Anthropic Claude, Google Gemini, Perplexity. Each has generateStream() that yields plain strings. Provider auto-detected from model value. Frontend model picker now shows all 4 providers grouped. API keys: ANTHROPIC_API_KEY, PERPLEXITY_API_KEY, GEMINI_API_KEY all in .env."
 
   - task: "Feedback (POST /api/feedback)"
     implemented: true
