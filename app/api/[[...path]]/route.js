@@ -3975,7 +3975,7 @@ async function handleChunkedUploadInit(request) {
   const db = await getDb();
   const uploadId = uuidv4();
   
-  // Create upload session (chunks will be stored in MongoDB)
+  // Create upload session (chunks stored as separate documents)
   await db.collection('chunked_uploads').insertOne({
     id: uploadId,
     user_id: user.id,
@@ -3984,7 +3984,6 @@ async function handleChunkedUploadInit(request) {
     source: source || 'unknown',
     total_chunks: totalChunks,
     received_chunks: [],
-    chunks: {}, // Will store chunk data as base64 keyed by index
     status: 'uploading',
     created_at: new Date(),
   });
@@ -3992,7 +3991,7 @@ async function handleChunkedUploadInit(request) {
   return ok({ uploadId, message: 'Upload session created' });
 }
 
-// Chunked upload: Receive a chunk (store in MongoDB)
+// Chunked upload: Receive a chunk (store as separate document in MongoDB)
 async function handleChunkedUploadChunk(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -4013,17 +4012,29 @@ async function handleChunkedUploadChunk(request) {
     if (!upload) return err('Upload session not found', 404);
     if (upload.status !== 'uploading') return err('Upload already completed or failed');
 
-    // Store chunk as base64 in MongoDB
+    // Store chunk as base64 in a separate document (avoids 16MB limit)
     const chunkBuffer = Buffer.from(await chunk.arrayBuffer());
     const chunkBase64 = chunkBuffer.toString('base64');
     
-    // Update with chunk data
+    // Store chunk as separate document
+    await db.collection('upload_chunks').updateOne(
+      { upload_id: uploadId, chunk_index: chunkIndex },
+      { 
+        $set: { 
+          upload_id: uploadId,
+          chunk_index: chunkIndex,
+          data: chunkBase64,
+          size: chunkBuffer.length,
+          created_at: new Date()
+        }
+      },
+      { upsert: true }
+    );
+    
+    // Update received chunks list
     await db.collection('chunked_uploads').updateOne(
       { id: uploadId },
-      { 
-        $addToSet: { received_chunks: chunkIndex },
-        $set: { [`chunks.${chunkIndex}`]: chunkBase64 }
-      }
+      { $addToSet: { received_chunks: chunkIndex } }
     );
     
     return ok({ 
@@ -4064,17 +4075,21 @@ async function handleChunkedUploadComplete(request) {
       { $set: { status: 'assembling' } }
     );
 
-    // Reassemble chunks from MongoDB
-    const chunks = [];
-    for (let i = 0; i < upload.total_chunks; i++) {
-      const chunkBase64 = upload.chunks[i.toString()];
-      if (!chunkBase64) {
-        throw new Error(`Missing chunk ${i}`);
-      }
-      chunks.push(Buffer.from(chunkBase64, 'base64'));
+    // Retrieve and reassemble chunks from MongoDB
+    const chunkDocs = await db.collection('upload_chunks')
+      .find({ upload_id: uploadId })
+      .sort({ chunk_index: 1 })
+      .toArray();
+    
+    if (chunkDocs.length !== upload.total_chunks) {
+      throw new Error(`Missing chunks in database: found ${chunkDocs.length} of ${upload.total_chunks}`);
     }
     
+    const chunks = chunkDocs.map(doc => Buffer.from(doc.data, 'base64'));
     const completeBuffer = Buffer.concat(chunks);
+    
+    // Delete chunk documents immediately to free memory
+    await db.collection('upload_chunks').deleteMany({ upload_id: uploadId });
     
     // Update status
     await db.collection('chunked_uploads').updateOne(
@@ -4151,7 +4166,7 @@ async function handleChunkedUploadComplete(request) {
       { upsert: true }
     );
 
-    // Delete chunked upload record (raw data cleaned up)
+    // Delete chunked upload record
     await db.collection('chunked_uploads').deleteOne({ id: uploadId });
 
     return ok({
@@ -4170,6 +4185,7 @@ async function handleChunkedUploadComplete(request) {
     console.error('Upload complete error:', e);
     
     // Clean up on error
+    await db.collection('upload_chunks').deleteMany({ upload_id: uploadId }).catch(() => {});
     await db.collection('chunked_uploads').updateOne(
       { id: uploadId },
       { $set: { status: 'error', error: e.message } }
