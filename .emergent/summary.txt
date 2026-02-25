@@ -22,169 +22,180 @@ Build a production-grade, multi-tenant web app called SoulPrint Engine. The goal
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack Next.js application with a MongoDB backend. The application includes user authentication, onboarding, a 36-question assessment, a waitlist system, a feature-rich chat interface, and a multi-tab admin dashboard.
-
-Key implemented features include:
--   **Multi-LLM Chat**: Supports OpenAI, Anthropic, Perplexity, Gemini, and Kimi (Moonshot) models with a dynamic UI selector.
--   **Advanced Chat Features**: Real-time web search (Tavily), file uploads (docs/images), image vision, and voice input.
--   **Image & Video Generation**: Integrated DALL-E 3 for images and Kie.ai for video generation, with auto-detection of user intent in chat.
--   **Admin Dashboard**: Features user management, a dedicated waitlist approval tab, and cost-tracking metrics (estimated cost per user/model).
--   **Telegram Bot**: A sophisticated, secure, multi-user bot that syncs with the web app. It supports model switching, web search, and commands for generating images, videos, and social media posts (, , ).
--   **AI Best Practices**: Implemented rate limiting, content sanitization, and token-aware history trimming for both web and Telegram chat.
--   **Branding**: A custom logo has been integrated across all application pages via a shared component.
+A full-stack Next.js application with a MongoDB backend. The application is rich in features, including:
+-   **Core Platform**: User authentication (email/password), onboarding, a 36-question assessment, and a waitlist system.
+-   **Multi-LLM Chat**: A sophisticated chat interface supporting OpenAI, Anthropic, Perplexity, Gemini, and Kimi models. Features include real-time web search (Tavily), file uploads, image vision, and voice input.
+-   **Generative AI**: Integrated DALL-E 3 and Kie.ai for image generation, and Kie.ai for video, with auto-detection of user intent.
+-   **Telegram Bot**: A full-featured bot synced with the web app, supporting model switching, web search, location search, URL reading, and generation commands (, , ). It can also request the user's device location for near me queries.
+-   **Location Services**: Integration with Google Places API allows users to find locations via the web app and Telegram, including automatic detection of near me queries which prompts for device location.
+-   **Data Import & Profile**: A UI for uploading ChatGPT/Facebook data archives and a button for users to retake their initial assessment. The upload mechanism is currently being reworked.
+-   **Admin Dashboard**: Features user management, waitlist approval, cost-tracking metrics (including for Kimi), and a privacy-centric conversation view that shows topic summaries instead of actual user messages.
+-   **Task Scheduling**: A complete scheduling system allowing users to create recurring tasks (e.g., daily news briefings) via the web UI or Telegram.
 
 **Last working item**:
--   Last item agent was working: Implementing a task scheduling feature, allowing users to schedule recurring tasks (e.g., a daily AI news summary sent to Telegram). The agent planned the architecture, added a  to the  file, and was in the process of adding the necessary backend API endpoints and logic for scheduling into the monolithic  file.
+-   Last item agent was working: Fixing a critical bug in the newly implemented large file upload feature. The previous implementation attempted to save file chunks to the local filesystem (), which failed in the multi-pod deployed environment because the filesystem is not shared. The agent was in the middle of re-implementing the feature to store file chunks in MongoDB instead.
 -   Status: IN PROGRESS
 -   Agent Testing Done: N
 -   Which testing method agent to use? backend testing agent
 -   User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   Issue 1: Complete Task Scheduling Feature (P0)
+-   Issue 1: Large File Uploads Fail in Deployed Environment (P0)
 
 Issues Detail:
 -   Issue 1:
-    -   **Description**: The task scheduling feature is partially implemented. The backend logic is currently being added to , but the work is incomplete. The new API endpoints, cron job daemon, and frontend UI are not yet finished.
-    -   **Next debug checklist**:
-        1.  Complete the implementation of scheduling-related API endpoints in . This includes creating, reading, updating, deleting, and running scheduled tasks.
-        2.  Create the  endpoint that will be triggered by a system cron job.
-        3.  Set up a system cron job to call the  endpoint every minute.
-        4.  Implement Telegram commands (, , etc.) within the  function.
-        5.  Build the Schedules tab in the web app's Settings modal, including UI for creating and managing schedules.
-        6.  Thoroughly test the entire scheduling flow, from creation (via web and Telegram) to execution via the cron job.
-    -   **Why fix this issue and what will be achieved with the fix?**: This will fulfill the user's request for scheduling recurring tasks, such as receiving daily news summaries via Telegram.
-    -   **Status**: IN PROGRESS
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Both
-    -   **Blocked on other issue**: None
+     - **Description**: The chunked file upload mechanism fails at the final processing step because it relies on the local  directory, which is ephemeral and not shared across server instances in a scaled environment. Chunks are uploaded to different pods and cannot be reassembled.
+     - **Attempted fixes**:
+        1. Initial implementation saved chunks to , which failed.
+        2. A fix was added to create the temporary directory (), which also failed for the same root cause.
+        3. The current approach is to store chunks in MongoDB. The agent created the backend logic but identified that MongoDB's 16MB document size limit is a risk for the 10MB chunk size (due to Base64 encoding overhead).
+     - **Next debug checklist**:
+        1.  Finalize the MongoDB-based chunk storage solution. The last thought was to use a more robust method like **MongoDB GridFS** or storing **each chunk as a separate document** in a  collection, linked by a . The latter is likely simpler to implement within the current monolithic API file.
+        2.  Ensure the  function correctly reads all chunks from the database, reassembles them in order, and then proceeds with the ZIP extraction and analysis.
+        3.  Thoroughly test the flow with a large file (e.g., >100MB) to ensure it works across multiple API calls without data loss and respects database limits.
+        4.  Verify that temporary chunks are deleted from the database after the file is successfully processed or if the upload fails.
+     - **Why fix this issue and what will be achieved with the fix?**: This will enable the core user-requested feature of uploading large data archives (ChatGPT/Facebook) for analysis, which is a key part of the SoulPrint experience.
+     - **Status**: IN PROGRESS
+     - **Is recurring issue?** Y
+     - **Should Test frontend/backend/both after fix?** Both
+     - **Blocked on other issue**: None
 
 **In progress Task List**:
--   Task 1: Complete Task Scheduling Feature (P0)
+-   Task 1: Complete Data Import Feature (P0)
 
 Task Detail:
 -   Task 1:
-    -   **Where to resume**: Continue adding the backend logic for scheduling to . The last action was preparing to add the CRUD and execution logic for the  collection.
-    -   **What will be achieved with this?**: A fully functional task scheduling system accessible from both the web UI and Telegram.
-    -   **Status**: IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?**: Both
-    -   **Blocked on something**: No
+     - **Where to resume**: The immediate priority is fixing the upload mechanism as detailed in Issue 1 above. Resume work in  to implement a robust MongoDB chunking strategy (e.g., one document per chunk).
+     - **What will be achieved with this?**: A fully functional and scalable data import system that allows users to upload multi-gigabyte files for personalization.
+     - **Status**: IN PROGRESS
+     - **Should Test frontend/backend/both after fix?**: Both
+     - **Blocked on something**: No
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
--   **Data Imports (ChatGPT/Facebook) (P1)**: The API endpoint () exists for files, but the specific logic for parsing and summarizing user data exports into a  is not implemented. This needs to be built in .
--   **Admin Dashboard Enhancements (P1)**: The , , and  tabs in the admin dashboard are placeholders and need to be populated with real data and visualizations.
--   **Advanced Memory/RAG (P2)**: The current chat memory is based on recent conversation history. A full Retrieval-Augmented Generation (RAG) system, which involves creating and querying embeddings from user data, has not been implemented.
+-   **Implement Data Analysis Logic (P1)**: The file upload mechanism is being built, but the actual analysis logic is still a stub. The functions  and  in  need to be implemented to parse the extracted files, summarize the content, and update the user's .
+-   **Admin Dashboard Enhancements (P1)**: The  and  tabs in the admin dashboard are placeholders and need to be populated with real data and visualizations.
+-   **Advanced Memory/RAG (P2)**: Implement a true Retrieval-Augmented Generation (RAG) system by creating and querying vector embeddings from user data imports and conversations.
 
 Future Tasks:
 -   **Implement Connector Stubs (P2)**: The API routes for Discord (), WhatsApp, and SMS are currently stubs and need full implementation.
--   **Refine DB Security Model (P2)**: The project uses MongoDB, not Postgres with RLS as originally specified. A thorough security audit is needed to ensure  filtering is correctly and consistently applied across all database queries to prevent data leaks between tenants.
--   **Google OAuth (P3)**: The auth page has a UI button for Google OAuth, but the functionality is not implemented.
+-   **Google OAuth (P3)**: The UI button on the auth page exists, but the backend functionality is not implemented.
+-   **Refactor Monolithic API (P3)**: The  file is now exceedingly large and complex. It should be broken down into separate, domain-focused API routes (e.g., , , , ) to improve maintainability.
 
 **Completed work in this session**
--   **Multi-LLM Integration**: Successfully integrated OpenAI, Anthropic, Perplexity, Gemini, and Kimi (Moonshot) with a unified provider and frontend selector.
--   **Admin Dashboard Features**: Implemented a waitlist approval tab and detailed cost-tracking metrics.
--   **Image/Video Generation**: Added DALL-E 3 image and Kie.ai video generation, with auto-detection in chat.
--   **Telegram Bot Major Upgrade**: Enabled web search, model switching ( command), and commands for social media post generation (), image (), and video ().
--   **AI Best Practices**: Integrated rate limiting, content sanitization, and intelligent history trimming.
--   **Logo & Branding**: Replaced placeholder logos with the official user-provided logo across the entire application using a shared component.
--   **Bug Fix: Telegram Unresponsive**: Diagnosed and fixed a stale webhook URL, restoring all Telegram bot functionality.
+-   **Task Scheduling Feature**: Fully implemented backend logic, Telegram commands, and a comprehensive frontend UI in the Settings modal.
+-   **Homepage Routing Bug Fix**: Diagnosed and fixed a critical Next.js routing issue where the chat page was incorrectly rendering on the root route. Resolved by renaming the  directory to  and updating all relevant links.
+-   **Telegram Bot Unresponsive Fix**: Diagnosed and fixed a stale webhook URL, restoring all bot functionality.
+-   **Kie.ai Image Generation**: Replaced DALL-E 3 with Kie.ai for image generation in both the web chat and Telegram bot.
+-   **URL Reading/Web Browsing**: Added the ability for the bot to automatically read and summarize content from URLs pasted in chat, and a  command for Telegram.
+-   **Location Search (Google Places)**: Integrated Google Places API for location search in both the web app and Telegram, including intent detection and a  command.
+-   **Device Location Integration**: Enhanced location search to request the user's device location via a browser prompt (web app) or a location-sharing button (Telegram) for near me queries.
+-   **Data Import UI & Assessment Reset**: Implemented the frontend UI for uploading data archives and a button for users to retake the 36-question assessment.
+-   **Admin Privacy Enhancement**: Modified the admin dashboard to show privacy-safe topic categories for user conversations instead of the raw first message.
+-   **Kimi API Fix & Cost Tracking**: Corrected the Kimi API base URL to fix authentication errors and added Kimi/Moonshot models to the cost-tracking feature in the admin dashboard.
 
 **Earlier issues found/mentioned but not fixed**
--   None. All user-reported bugs during the session were addressed.
+-   None. The agent addressed all user-reported issues during the session.
 
 **Known issue recurrence from previous fork**
 -   None.
 
 **Code Architecture**
 -   **Framework**: Next.js 14 (App Router)
--   **Frontend**: React components located in  and . A new shared component for the logo exists at .
--   **Backend**: A single, large, monolithic API file at  handles all business logic.
+-   **Frontend**: React components in .
+    -   Landing Page:  (renders at )
+    -   Chat App:  (renders at )
+-   **Backend**: A single monolithic API file at  handling all business logic.
 -   **Database**: MongoDB. Connection logic is in .
--   **LLM Abstraction**: A provider factory pattern in  supports multiple LLM services.
+-   **LLM Abstraction**: A provider factory in .
 
 **Key Technical Concepts**
--   **Monolithic API Route**: A single  file dynamically handles all API requests, making it very large and complex.
--   **LLM Provider Abstraction**: A factory in  creates instances for different LLM APIs (OpenAI, Claude, Perplexity, Gemini, Kimi) with a unified streaming interface.
--   **Server-Sent Events (SSE)**: Used for streaming LLM responses and media generation status to the client.
--   **Telegram Webhooks**: The backend listens for messages from Telegram via a secure webhook.
--   **Intent Detection**: The chat handler uses an LLM call to determine if a user's prompt is a request for an image, video, or social media post, routing it to the appropriate generation function.
+-   **Monolithic API Route**: All backend logic is in one massive file, making it hard to maintain.
+-   **LLM Provider Abstraction**: Supports multiple LLM services with a unified interface.
+-   **Intent Detection**: LLM calls are used to determine user intent (e.g., image, video, location search) and route requests accordingly.
+-   **Chunked File Uploads**: A system for handling large file uploads, currently being refactored to use MongoDB for storage.
+-   **Web Scraping**: Using  and  to fetch and parse content from URLs.
 
 **key DB schema**
-The application uses MongoDB. Collections are implicitly defined in :
--   : { , , , , , , , , , ,  }
--   : { , , , , , ,  }
--   , , 
--   : (About to be implemented) { , , , , , , ,  }
+-   : { , , , , , , , , ,  }
+-   : { , , , ,  }
+-   : { , ,  }
+-   : { , , ,  }
+-   : { , , , ,  }
+-   : (Being implemented) { , ,  (base64 string) }
 
 **changes in tech stack**
--   **CRITICAL DEVIATION**: The project was specified to use **Supabase/Postgres** but was implemented with **MongoDB**. This fundamentally changes the security model (no RLS) and data architecture.
+-   : Added for server-side ZIP file extraction.
 
 **All files of reference**
--   : The most critical file containing the entire backend logic. It has been modified extensively and is the current focus of work for the scheduling feature.
--   : Contains the abstraction layer for all supported LLM providers.
--   : The main Chat UI component. It has been heavily modified to support multiple models, image/video rendering, and Telegram settings.
--   : The Admin Dashboard component, updated with waitlist and cost metric features.
--   : New shared component for displaying the brand logo.
+-   : The monolithic backend file. Heavily modified to add scheduling, location search, URL reading, data imports, and numerous bug fixes. It is the current focus of work.
+-   : The main Chat UI component. Updated to add the location button. (Previously ).
+-   : Updated to fix the Kimi/Moonshot API base URL.
+-   : The root landing page. Its routing was fixed by reorganizing the directory structure.
 
 **Areas that need refactoring**:
--   The monolithic API in  is over 2,300 lines long and is extremely difficult to maintain, debug, and extend. It is a major source of technical debt and should be broken down into separate, domain-focused API routes (e.g., , , ).
+-   The monolithic API in  is the single greatest source of technical debt. It is now over 4000 lines and urgently needs to be broken down into smaller, more manageable route files.
+-   The chunked upload logic being added to  should ideally be in its own dedicated module.
 
 **key api endpoints**
-Handled dynamically within :
+Dynamically handled within :
 -   
 -   
--    & 
+-   , 
 -   
+-   , 
+-   , 
 -   
--   
--   
--   
--   *Upcoming*: Endpoints for task scheduling (, ).
+-    (and /)
+-   ,  (being refactored)
 
 **Critical Info for New Agent**
--   The backend database is **MongoDB**, not Postgres. All database logic must be compatible with MongoDB.
--   The backend is a **massive monolithic API file**: . Be extremely careful when editing this file, as it is prone to syntax errors and hard to debug.
--   You are resuming work mid-task. The immediate goal is to **complete the task scheduling feature**. The plan is defined, and you should continue by implementing the backend logic in .
+-   You are resuming work in the middle of a critical bug fix. The **large file upload feature is broken**.
+-   The fix involves changing the chunk storage from the local filesystem to **MongoDB**.
+-   You must implement a robust solution that avoids MongoDB's 16MB document size limit. The recommended approach is to store each chunk as a **separate document** in a  collection.
+-   The monolithic API file () is extremely fragile. Be very careful when editing it.
+-   The chat application's route has been moved from  to  to fix a major routing bug.
 
 **documents created in this job**
 -   None.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **user**:  - **In Progress**. This is the current task.
-2.  **user**:  - **Resolved**. The agent diagnosed and fixed an incorrect webhook URL.
-3.  **user**:  - **Completed**. The agent created a shared component for the logo and updated all pages.
-4.  **user**:  - **Completed**. The agent implemented Telegram commands and AI best practices like rate limiting and history trimming.
-5.  **user**:  - **Completed**. The agent integrated Kimi, added model switching to Telegram, and enabled web search for the bot.
-6.  **user**:  - **Completed**. The agent integrated DALL-E and Kie.ai for image/video generation.
-7.  **user**:  - **Completed**. The agent added a waitlist tab and cost tracking to the admin dashboard.
-8.  **user**: (Confirms that he provided API keys) - **Acknowledged**.
+1.  **user**:  - **In Progress**. This is the current P0 bug being fixed. The agent diagnosed it as an issue with ephemeral filesystems in a multi-pod environment.
+2.  **user**:  - **In Progress**. This was the first report of the chunk upload failure. The agent's first fix was incorrect.
+3.  **system**:  - **Resolved**. The agent recovered and continued its work.
+4.  **user**:  - **Completed**. Agent added Kimi/Moonshot pricing data to the backend.
+5.  **user**:  - **In Progress**. This was the initial report that led to the implementation of (the currently broken) chunked uploads.
+6.  **user**:  - **Completed**. Agent implemented a privacy-safe view showing topic summaries instead of conversation content.
+7.  **user**:  - **Completed**. User provided a new Kimi key, which also failed, leading the agent to discover the real issue was the API base URL.
+8.  **user**:  - **Completed**. This initiated the Kimi API debugging.
+9.  **user**:  - **Completed**. Agent ran the check.
+10. **user**: Provides requirements for data import (redo assessment, upload history, auto-delete files, support for large ZIPs). - **In Progress**. This is the large feature that is currently being implemented.
 
 **Project Health Check:**
--   **Broken**: The task scheduling feature is mid-implementation. The backend is likely in a non-compilable state as the agent was in the middle of editing the monolithic  file.
+-   **Broken**: The data import feature is non-functional due to the failing chunked upload mechanism. The application is in a partially implemented state and file uploads will fail.
 
 **3rd Party Integrations**
--   **OpenAI GPT-4o / DALL-E 3**: Chat, vision, transcription, image generation. Requires .
--   **Anthropic Claude**: Chat. Requires .
--   **Perplexity**: Chat. Requires .
--   **Google Gemini**: Chat. Requires .
--   **Kimi (Moonshot)**: Chat. Requires .
--   **Kie.ai**: Video generation. Requires .
--   **Tavily**: Real-time web search. Requires .
--   **Telegram**: Bot integration. Requires  and a .
+-   **OpenAI GPT-4o / DALL-E 3**: Requires .
+-   **Anthropic Claude**: Requires .
+-   **Perplexity**: Requires .
+-   **Google Gemini**: Requires .
+-   **Kimi (Moonshot)**: Requires .
+-   **Kie.ai**: Video & Image generation. Requires .
+-   **Tavily**: Web search. Requires .
+-   **Telegram**: Bot integration. Requires  & .
+-   **Google Places**: Location search. Requires .
 
 **Testing status**
--   **Testing agent used after significant changes**: YES, the agent used  and the backend testing agent to verify endpoints after major feature implementations.
+-   **Testing agent used after significant changes**: YES, the agent used the backend testing agent to verify the scheduling API.
 -   **Troubleshoot agent used after agent stuck in loop**: NO
 -   **Test files created**: None.
--   **Known regressions**: None known, but the current work-in-progress state means the application is likely broken.
+-   **Known regressions**: The data import feature is currently broken.
 
 **Credentials to test flow:**
 -   User  and  are  accounts. Login can be done with these emails and any password.
 
 **What agent forgot to execute**
--   The agent has consistently avoided refactoring the monolithic  file, which is a significant source of technical debt and development friction.
--   The project has significantly deviated from the original requirement of using Supabase/Postgres and RLS, without a full explanation of the long-term consequences (e.g., for security and scalability).
--   Core features from the original problem statement, such as **Data Imports** and a full **RAG system**, remain unimplemented.
+-   The core analysis logic for data imports (, ) remains as empty stubs in . Even after the upload mechanism is fixed, this functionality will not work until those functions are implemented.
+-   The agent has consistently avoided refactoring the monolithic API file, which has grown to an unmanageable size and is the root cause of much development friction.
 
 </analysis>
