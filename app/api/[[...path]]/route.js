@@ -1798,6 +1798,10 @@ export async function GET(request, { params }) {
     if (pathStr === 'messages') return handleGetMessages(request);
     if (pathStr === 'imports') return handleGetImports(request);
     if (pathStr === 'models') return handleGetModels(request);
+    if (pathStr.startsWith('generate/video/')) {
+      const taskId = pathArr[2];
+      return handleVideoStatus(request, taskId);
+    }
     if (pathStr === 'telegram/status') return handleTelegramStatus(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
 
