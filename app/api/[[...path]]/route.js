@@ -2090,7 +2090,7 @@ async function handleGenerateImage(request) {
   }
 }
 
-// IMAGE GENERATION - Kie.ai (GPT-4o Image / 4o-image)
+// IMAGE GENERATION - Kie.ai (GPT-4o Image / gpt4o-image)
 async function handleGenerateImageKie(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -2103,25 +2103,23 @@ async function handleGenerateImageKie(request) {
   if (!kieKey) return err('Kie.ai key not configured', 500);
 
   try {
-    // Submit generation task
-    const res = await fetch('https://api.kie.ai/api/v1/4o-image/generate', {
+    // Submit generation task (updated endpoint)
+    const res = await fetch('https://api.kie.ai/api/v1/gpt4o-image/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
       body: JSON.stringify({
         prompt,
-        aspectRatio,
+        size: aspectRatio, // API uses 'size' not 'aspectRatio'
         nVariants: Math.min(nVariants, 4), // max 4 variants
-        outputFormat: 'png',
-        outputQuality: 90,
       }),
     });
     const data = await res.json();
     if (data.code !== 200) return err(data.msg || 'Image generation failed', 400);
 
-    const taskId = data.data?.task_id;
+    const taskId = data.data?.taskId;
     if (!taskId) return err('No task ID returned', 500);
 
-    // Poll for completion (max 90 seconds)
+    // Poll for completion (max 90 seconds) - updated endpoint
     let imageUrl = null;
     let attempts = 0;
     const maxAttempts = 30;
@@ -2130,18 +2128,19 @@ async function handleGenerateImageKie(request) {
       await new Promise(r => setTimeout(r, 3000)); // wait 3s between polls
       attempts++;
       
-      const statusRes = await fetch(`https://api.kie.ai/api/v1/record-info?taskId=${taskId}`, {
+      const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
         headers: { Authorization: `Bearer ${kieKey}` },
       });
       const statusData = await statusRes.json();
       
-      if (statusData.code === 200 && statusData.data?.status === 'success') {
+      // Status: 0=generating, 1=success, 2=failed
+      if (statusData.code === 200 && statusData.data?.status === 1) {
         imageUrl = statusData.data?.output?.[0] || statusData.data?.outputUrl;
         break;
-      } else if (statusData.data?.status === 'failed') {
+      } else if (statusData.data?.status === 2) {
         return err('Image generation failed', 500);
       }
-      // else still processing, continue polling
+      // else still processing (status 0), continue polling
     }
 
     if (!imageUrl) return err('Image generation timed out', 504);
