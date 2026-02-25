@@ -366,6 +366,15 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   // Handle data import ZIP upload (chunked for large files)
   async function handleDataImportUpload(file, source) {
     if (!file) return;
+    
+    // 3GB max file size
+    const MAX_IMPORT_SIZE = 3 * 1024 * 1024 * 1024;
+    if (file.size > MAX_IMPORT_SIZE) {
+      setUploadProgress(`Error: File too large (${(file.size / (1024 * 1024 * 1024)).toFixed(1)}GB). Maximum size is 3GB.`);
+      setTimeout(() => setUploadProgress(''), 8000);
+      return;
+    }
+    
     setUploading(true);
     
     const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB chunks
