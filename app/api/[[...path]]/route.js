@@ -4569,6 +4569,9 @@ async function handleDataImportUpload(request) {
       { upsert: true }
     );
 
+    // Invalidate system prompt cache so both web and Telegram get updated profile
+    invalidateSystemPromptCache(user.id);
+
     // Raw data is NOT stored - only the analysis results
     // The ZIP buffer is already garbage collected after this function
 
