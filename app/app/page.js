@@ -840,21 +840,40 @@ export default function ChatPage() {
                   )}
                   <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-orange-500/15 border border-orange-500/20 text-white' : 'bg-white/4 border border-white/8 text-gray-200'}`}>
                     {msg.role === 'assistant' ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}
-                        components={{
-                          p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
-                          code: ({inline, children}) => inline ? <code className="bg-white/10 px-1 rounded text-orange-300 text-xs">{children}</code> : <pre className="bg-[#0a0a0a] p-3 rounded-lg mt-2 overflow-x-auto text-xs"><code>{children}</code></pre>,
-                          ul: ({children}) => <ul className="list-disc pl-4 space-y-1 mb-2">{children}</ul>,
-                          ol: ({children}) => <ol className="list-decimal pl-4 space-y-1 mb-2">{children}</ol>,
-                          strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
-                          a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline hover:text-orange-300">{children}</a>,
-                          h1: ({children}) => <h1 className="text-lg font-bold text-white mb-2">{children}</h1>,
-                          h2: ({children}) => <h2 className="text-base font-bold text-white mb-1.5">{children}</h2>,
-                          h3: ({children}) => <h3 className="text-sm font-semibold text-white mb-1">{children}</h3>,
-                          blockquote: ({children}) => <blockquote className="border-l-2 border-orange-500/40 pl-3 italic text-gray-400">{children}</blockquote>,
-                        }}>
-                        {msg.content}
-                      </ReactMarkdown>
+                      <>
+                        {/* Image card */}
+                        {msg.image_url && (
+                          <ImageCard url={msg.image_url} revisedPrompt={msg.content?.match(/\*Prompt used: (.+)\*/)?.[1] || ''} />
+                        )}
+                        {/* Video card */}
+                        {msg.video_task && (
+                          <VideoCard
+                            taskId={msg.video_task.taskId}
+                            prompt={msg.video_task.prompt}
+                            token={token}
+                            initialStatus={msg.video_task.status}
+                          />
+                        )}
+                        {/* Regular text (skip for pure image messages) */}
+                        {!msg.image_url && (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}
+                            components={{
+                              p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                              code: ({inline, children}) => inline ? <code className="bg-white/10 px-1 rounded text-orange-300 text-xs">{children}</code> : <pre className="bg-[#0a0a0a] p-3 rounded-lg mt-2 overflow-x-auto text-xs"><code>{children}</code></pre>,
+                              ul: ({children}) => <ul className="list-disc pl-4 space-y-1 mb-2">{children}</ul>,
+                              ol: ({children}) => <ol className="list-decimal pl-4 space-y-1 mb-2">{children}</ol>,
+                              strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
+                              a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline hover:text-orange-300">{children}</a>,
+                              h1: ({children}) => <h1 className="text-lg font-bold text-white mb-2">{children}</h1>,
+                              h2: ({children}) => <h2 className="text-base font-bold text-white mb-1.5">{children}</h2>,
+                              h3: ({children}) => <h3 className="text-sm font-semibold text-white mb-1">{children}</h3>,
+                              blockquote: ({children}) => <blockquote className="border-l-2 border-orange-500/40 pl-3 italic text-gray-400">{children}</blockquote>,
+                              img: ({src, alt}) => <img src={src} alt={alt} className="max-w-full rounded-lg mt-2" />,
+                            }}>
+                            {msg.content}
+                          </ReactMarkdown>
+                        )}
+                      </>
                     ) : (
                       <p className="whitespace-pre-wrap">{msg.content}</p>
                     )}
