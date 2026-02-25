@@ -1188,14 +1188,25 @@ async function handleTelegramWebhook(request) {
 
   // Handle /start command
   if (text === '/start') {
+    // Check if already linked to a SoulPrint account
+    const existingLinked = await db.collection('telegram_mappings').findOne({ telegram_user_id: telegramUserId, linked: true });
+    if (existingLinked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `✅ Your Telegram is already linked to SoulPrint!\n\nJust send me a message to chat with your personal AI.`
+      );
+      return ok({ ok: true });
+    }
+
+    // Generate a fresh link code (expires in 24 hours)
     const linkCode = uuidv4().slice(0, 8).toUpperCase();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await db.collection('telegram_mappings').updateOne(
       { telegram_user_id: telegramUserId },
-      { $set: { telegram_user_id: telegramUserId, telegram_chat_id: chatId.toString(), link_code: linkCode, linked: false, created_at: new Date() } },
+      { $set: { telegram_user_id: telegramUserId, telegram_chat_id: chatId.toString(), link_code: linkCode, linked: false, expires_at: expiresAt, created_at: new Date() } },
       { upsert: true }
     );
     await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
-      `👋 Welcome to SoulPrint, ${fromName}!\n\nTo link your account, go to:\n🔗 ${process.env.NEXT_PUBLIC_BASE_URL}/app\n\nThen open Settings → Telegram and enter your link code:\n\`${linkCode}\`\n\nOnce linked, you can chat with your personal AI right here!`
+      `👋 Welcome to SoulPrint, ${fromName}!\n\nTo link your account:\n1️⃣ Go to: ${process.env.NEXT_PUBLIC_BASE_URL}/app\n2️⃣ Open Settings (⚙️) → Telegram tab\n3️⃣ Enter your link code:\n\n\`${linkCode}\`\n\n⏳ This code expires in 24 hours.\n\nOnce linked, I'll be your personal AI — right here in Telegram.`
     );
     return ok({ ok: true });
   }
