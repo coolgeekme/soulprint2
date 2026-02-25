@@ -1652,6 +1652,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/conversations') return handleAdminGetConversations(request);
     if (pathStr === 'admin/imports') return handleAdminGetImports(request);
     if (pathStr === 'admin/settings') return handleAdminGetSettings(request);
+    if (pathStr === 'admin/waitlist') return handleAdminGetWaitlist(request);
 
     return err('Not found', 404);
   } catch (error) {
