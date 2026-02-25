@@ -4960,6 +4960,8 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/waitlist') return handleAdminGetWaitlist(request);
     if (pathStr === 'user/location') return handleGetUserLocation(request);
     if (pathStr === 'data-imports') return handleGetDataImports(request);
+    if (pathStr === 'profile/export') return handleProfileExport(request);
+    if (pathStr === 'profile/soul') return handleGetSoulProfile(request);
 
     return err('Not found', 404);
   } catch (error) {
