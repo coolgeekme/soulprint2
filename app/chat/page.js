@@ -1804,8 +1804,8 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Composer */}
-        <div className="flex-shrink-0 px-4 pb-6">
+        {/* Composer - with safe area padding at bottom for PWA */}
+        <div className="flex-shrink-0 px-4 pb-6 safe-area-bottom">
           <div className="max-w-2xl mx-auto">
             {/* Model selector */}
             <div className="flex justify-center mb-2 relative">
