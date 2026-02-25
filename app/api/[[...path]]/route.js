@@ -2124,6 +2124,7 @@ export async function PUT(request, { params }) {
 
   try {
     if (pathStr === 'profile') return handleProfileUpdate(request);
+    if (pathStr === 'telegram/model') return handleTelegramSetModel(request);
 
     // Admin user update: admin/users/:id
     if (pathStr.startsWith('admin/users/') && pathStr.endsWith('/accept')) {
