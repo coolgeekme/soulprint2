@@ -1361,6 +1361,113 @@ async function handleChatStream(request) {
           return;
         }
 
+        // ── Handle location/places search ─────────────────────────────────────
+        const detectPlacesIntent = (text) => {
+          if (!text) return false;
+          const lower = text.toLowerCase();
+          return /\b(find|where|what|show me|looking for|recommend|suggest)\s+(me\s+)?(a\s+|some\s+)?(good\s+|best\s+|closest\s+|nearest\s+)?(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|hospitals?|gyms?|banks?|atms?|groceries?|stores?|malls?|parks?|museums?|movies?|theaters?|parking|airports?)\b/i.test(text)
+            || /\b(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|gyms?|banks?|parks?|stores?)\s+(near|in|around|close to)\b/i.test(text)
+            || /\b(what('s| is)|where('s| is|are)).*(near me|nearby|around here|close by)\b/i.test(lower)
+            || /\bnearby\s+(restaurants?|cafes?|bars?|hotels?|stores?|places?)/i.test(lower);
+        };
+
+        if (detectPlacesIntent(sanitizedContent) && attachments.length === 0) {
+          send({ type: 'delta', content: '📍 Searching for places...\n\n' });
+          try {
+            // Parse location from query
+            let locationName = parseLocationQuery(sanitizedContent);
+            let coords = null;
+            
+            // Check if user has shared location (stored in DB)
+            const userLocation = await db.collection('user_locations').findOne({ user_id: user.id });
+            
+            if (!locationName || /near me|nearby|around here|close by/i.test(sanitizedContent.toLowerCase())) {
+              if (userLocation && userLocation.lat && userLocation.lng) {
+                coords = { lat: userLocation.lat, lng: userLocation.lng };
+                locationName = userLocation.address || 'your location';
+              } else {
+                fullContent = `📍 I don't have your location yet.\n\nTo search for places near you, please either:\n1. **Specify a location**: "Find restaurants near Times Square"\n2. **Share your location** through the Telegram bot first\n\nOr try: "Find Italian restaurants in [your city]"`;
+                send({ type: 'delta', content: fullContent });
+                await db.collection('messages').insertOne({
+                  id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                  role: 'assistant', content: fullContent, created_at: new Date(),
+                  model_used: model, provider_used: providerName,
+                });
+                await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+                send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+                controller.close();
+                return;
+              }
+            } else {
+              // Geocode the location
+              const geocoded = await geocodeAddress(locationName);
+              if (!geocoded) {
+                fullContent = `❌ Sorry, I couldn't find the location "${locationName}". Please try a more specific address or city name.`;
+                send({ type: 'delta', content: fullContent });
+                await db.collection('messages').insertOne({
+                  id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                  role: 'assistant', content: fullContent, created_at: new Date(),
+                  model_used: model, provider_used: providerName,
+                });
+                await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+                send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+                controller.close();
+                return;
+              }
+              coords = { lat: geocoded.lat, lng: geocoded.lng };
+              locationName = geocoded.formattedAddress || locationName;
+            }
+            
+            // Extract what they're looking for
+            const searchTerm = sanitizedContent.replace(/\s+(near|in|around|at|close to)\s+.+$/i, '')
+              .replace(/^(find|where|what|show me|looking for|recommend|suggest)\s+(me\s+)?(a\s+|some\s+)?(good\s+|best\s+|closest\s+|nearest\s+)?/i, '')
+              .replace(/\?+$/, '')
+              .trim();
+            const placeType = extractPlaceType(searchTerm);
+            
+            const places = await searchNearbyPlaces({
+              lat: coords.lat,
+              lng: coords.lng,
+              query: placeType ? null : searchTerm,
+              type: placeType,
+              radius: 2000,
+              maxResults: 6,
+            });
+            
+            if (places.length === 0) {
+              fullContent = `😕 No ${searchTerm || 'places'} found near ${locationName}. Try a different search or location.`;
+            } else {
+              const placesList = places.map((p, i) => {
+                const rating = p.rating ? `⭐ ${p.rating}` : '';
+                const reviews = p.userRatingsTotal ? `(${p.userRatingsTotal} reviews)` : '';
+                const price = p.priceLevel ? '💰'.repeat(p.priceLevel) : '';
+                const status = p.isOpen === true ? '🟢 Open now' : p.isOpen === false ? '🔴 Closed' : '';
+                const mapsLink = `https://www.google.com/maps/place/?q=place_id:${p.placeId}`;
+                
+                return `### ${i + 1}. ${p.name}\n📍 ${p.address}\n${[rating, reviews, price, status].filter(Boolean).join(' • ')}\n[Open in Google Maps](${mapsLink})`;
+              }).join('\n\n');
+              
+              fullContent = `📍 **Found ${places.length} places near ${locationName}:**\n\n${placesList}`;
+            }
+            
+            send({ type: 'delta', content: fullContent });
+            send({ type: 'places', places, location: locationName, coordinates: coords });
+          } catch (placesErr) {
+            fullContent = `❌ Sorry, place search failed: ${placesErr.message}`;
+            send({ type: 'delta', content: fullContent });
+          }
+          
+          await db.collection('messages').insertOne({
+            id: assistantMsgId, conversation_id: convId, user_id: user.id,
+            role: 'assistant', content: fullContent, created_at: new Date(),
+            model_used: 'google-places', provider_used: 'google', content_type: 'places',
+          });
+          await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+          send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+          controller.close();
+          return;
+        }
+
         const { stream: aiStream, searchMeta, didSearch } = await provider.generateStream({
           systemPrompt,
           messages: historyMessages,
