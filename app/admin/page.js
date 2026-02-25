@@ -776,9 +776,26 @@ export default function AdminPage() {
     : [];
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex">
-      {/* Sidebar */}
-      <div className="w-56 flex-shrink-0 bg-[#0f0f0f] border-r border-white/5 flex flex-col">
+    <div className="min-h-screen bg-[#0a0a0a] flex flex-col lg:flex-row">
+      {/* Mobile Header */}
+      <div className="lg:hidden flex items-center justify-between p-4 border-b border-white/5 bg-[#0f0f0f] sticky top-0 z-20 safe-area-top">
+        <div className="flex items-center gap-2">
+          <SoulPrintLogo size={20} />
+          <span className="font-condensed font-bold text-white text-sm tracking-widest uppercase">Admin</span>
+        </div>
+        <select 
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value)}
+          className="bg-[#111] border border-white/10 rounded-lg px-3 py-2 text-xs text-white"
+        >
+          {TABS.map(tab => (
+            <option key={tab.id} value={tab.id}>{tab.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:flex w-56 flex-shrink-0 bg-[#0f0f0f] border-r border-white/5 flex-col">
         <div className="p-4 border-b border-white/5">
           <div className="flex items-center gap-2 mb-1">
             <SoulPrintLogo size={22} />
@@ -819,10 +836,10 @@ export default function AdminPage() {
 
       {/* Main content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
+        <div className="p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
-              <h1 className="text-xl font-bold text-white flex items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
                 {TABS.find(t => t.id === activeTab)?.label}
                 {activeTab === 'waitlist' && waitlistCount > 0 && (
                   <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold">
@@ -834,34 +851,34 @@ export default function AdminPage() {
             </div>
             {activeTab === 'metrics' && (
               <button onClick={() => loadMetrics(token)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors px-3 py-1.5 bg-white/3 border border-white/8 rounded-lg">
-                <RefreshCw className="w-3.5 h-3.5" /> Refresh
+                <RefreshCw className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Refresh</span>
               </button>
             )}
           </div>
 
           {activeTab === 'metrics' && metrics && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Row 1: Users & Activity */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <MetricCard label="Total Users" value={metrics.total_users} sub={`${metrics.accepted_users || 0} approved · ${metrics.waitlist_count || 0} waiting`} icon={Users} color="orange" />
-                <MetricCard label="WAU" value={metrics.wau} sub="Weekly Active Users" icon={TrendingUp} color="green" />
-                <MetricCard label="Day 7 Retention" value={metrics.day7_retention != null ? `${metrics.day7_retention}%` : '—'} icon={UserCheck} color="blue" />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <MetricCard label="Total Users" value={metrics.total_users} sub={`${metrics.accepted_users || 0} approved`} icon={Users} color="orange" />
+                <MetricCard label="WAU" value={metrics.wau} sub="Weekly Active" icon={TrendingUp} color="green" />
+                <MetricCard label="Day 7 Ret." value={metrics.day7_retention != null ? `${metrics.day7_retention}%` : '—'} icon={UserCheck} color="blue" />
                 <MetricCard label="CSAT" value={metrics.csat != null ? `${metrics.csat}%` : '—'} sub={`${metrics.thumbs_up || 0}↑ ${metrics.thumbs_down || 0}↓`} icon={ThumbsUp} color="purple" />
               </div>
 
               {/* Row 2: Engagement */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <MetricCard label="Avg Sessions/User (7d)" value={metrics.avg_sessions_per_user_7d} icon={Clock} color="orange" />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <MetricCard label="Sess/User (7d)" value={metrics.avg_sessions_per_user_7d} icon={Clock} color="orange" />
                 <MetricCard label="Msgs/Session" value={metrics.avg_messages_per_session} icon={MessageSquare} color="green" />
-                <MetricCard label="Assessment Rate" value={`${metrics.assessment_completion_rate}%`} icon={FileText} color="blue" />
+                <MetricCard label="Assessment" value={`${metrics.assessment_completion_rate}%`} icon={FileText} color="blue" />
                 <MetricCard label="Import Rate" value={`${metrics.import_adoption_rate}%`} icon={Upload} color="purple" />
               </div>
 
               {/* Row 3: More stats */}
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <MetricCard label="Multi-Session Rate" value={`${metrics.multi_session_rate}%`} sub="Users with 2+ conversations" icon={Database} color="orange" />
-                <MetricCard label="Total Messages" value={metrics.total_messages} icon={MessageSquare} color="green" />
-                <MetricCard label="New Users (30d)" value={metrics.recent_signups_30d} icon={Users} color="blue" />
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                <MetricCard label="Multi-Session" value={`${metrics.multi_session_rate}%`} sub="2+ convos" icon={Database} color="orange" />
+                <MetricCard label="Total Msgs" value={metrics.total_messages} icon={MessageSquare} color="green" />
+                <MetricCard label="New (30d)" value={metrics.recent_signups_30d} icon={Users} color="blue" />
               </div>
 
               {/* Cost Section */}
