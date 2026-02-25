@@ -538,6 +538,7 @@ class BackendTester:
             print("❌ Cannot proceed without authentication")
             return
         
+        self.test_task_scheduling_api()
         self.test_kimi_ai_integration()
         self.test_telegram_api() 
         self.test_web_search_integration()
