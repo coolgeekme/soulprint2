@@ -55,8 +55,7 @@ class SoulPrintTester:
         try:
             register_data = {
                 "email": "llmtest@soulprint.com",
-                "password": "test123",
-                "name": "LLM Test"
+                "passcode": "test123"
             }
             
             async with self.session.post(f"{self.base_url}/api/auth/register",
