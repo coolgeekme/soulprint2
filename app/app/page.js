@@ -163,6 +163,136 @@ async function processFile(file) {
   }
 }
 
+// ── VideoCard: polls for video status and renders player when ready ──────────
+function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
+  const [status, setStatus] = useState(initialStatus);
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState(null);
+  const [error, setError] = useState(null);
+  const pollRef = useRef(null);
+
+  useEffect(() => {
+    if (status === 'success' || status === 'failed') return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/generate/video/${taskId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const d = await res.json();
+        if (d.status === 'success') {
+          setStatus('success');
+          setVideoUrl(d.videoUrl);
+          setThumbnailUrl(d.thumbnailUrl);
+          clearInterval(pollRef.current);
+        } else if (d.status === 'failed') {
+          setStatus('failed');
+          setError(d.error || 'Generation failed');
+          clearInterval(pollRef.current);
+        }
+      } catch (e) {}
+    };
+    poll();
+    pollRef.current = setInterval(poll, 6000);
+    return () => clearInterval(pollRef.current);
+  }, [taskId, status, token]);
+
+  if (status === 'success' && videoUrl) {
+    return (
+      <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#111]">
+        {thumbnailUrl && (
+          <div className="relative">
+            <img src={thumbnailUrl} alt="Video thumbnail" className="w-full max-h-64 object-cover" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <a href={videoUrl} target="_blank" rel="noopener noreferrer"
+                className="w-14 h-14 rounded-full bg-black/70 border-2 border-white/30 flex items-center justify-center hover:bg-black/90 transition-colors">
+                <Play className="w-6 h-6 text-white ml-1" />
+              </a>
+            </div>
+          </div>
+        )}
+        <div className="p-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-green-400 flex items-center gap-1.5">
+              <Video className="w-3.5 h-3.5" /> Video ready!
+            </p>
+            <p className="text-[10px] text-gray-600 mt-0.5 truncate max-w-xs">{prompt}</p>
+          </div>
+          <a href={videoUrl} target="_blank" rel="noopener noreferrer" download
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-lg hover:bg-orange-500/25 transition-colors whitespace-nowrap">
+            <Download className="w-3.5 h-3.5" /> Download
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'failed') {
+    return (
+      <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
+        <p className="text-xs text-red-400 flex items-center gap-1.5">
+          <X className="w-3.5 h-3.5" /> Video generation failed: {error}
+        </p>
+      </div>
+    );
+  }
+
+  // Generating state
+  return (
+    <div className="mt-3 rounded-xl border border-orange-500/20 bg-orange-500/5 p-4">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-full bg-orange-500/15 flex items-center justify-center flex-shrink-0">
+          <Video className="w-4 h-4 text-orange-400 animate-pulse" />
+        </div>
+        <div className="flex-1">
+          <p className="text-xs font-semibold text-orange-400 flex items-center gap-2">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Generating your video...
+          </p>
+          <p className="text-[10px] text-gray-600 mt-0.5">This usually takes 1-3 minutes. I'll update automatically.</p>
+          <div className="mt-2 w-full bg-white/5 rounded-full h-1 overflow-hidden">
+            <div className="h-full bg-orange-500/50 rounded-full animate-pulse w-2/3" />
+          </div>
+        </div>
+      </div>
+      <p className="text-[10px] text-gray-700 mt-2 truncate italic">"{prompt}"</p>
+    </div>
+  );
+}
+
+// ── ImageCard: renders a generated image with download option ─────────────────
+function ImageCard({ url, revisedPrompt }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#111]">
+      <div className="relative">
+        {!loaded && (
+          <div className="w-full h-48 flex items-center justify-center bg-white/3">
+            <Loader2 className="w-6 h-6 animate-spin text-orange-500/50" />
+          </div>
+        )}
+        <img
+          src={url}
+          alt={revisedPrompt || 'Generated image'}
+          className={`w-full max-h-96 object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0 absolute inset-0'}`}
+          onLoad={() => setLoaded(true)}
+        />
+      </div>
+      <div className="p-3 flex items-center justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-orange-400 flex items-center gap-1.5">
+            <ImageIcon className="w-3.5 h-3.5" /> Generated with DALL-E 3
+          </p>
+          {revisedPrompt && <p className="text-[10px] text-gray-600 mt-0.5 truncate">{revisedPrompt}</p>}
+        </div>
+        <a href={url} target="_blank" rel="noopener noreferrer" download
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-lg hover:bg-orange-500/25 transition-colors whitespace-nowrap flex-shrink-0">
+          <Download className="w-3.5 h-3.5" /> Save
+        </a>
+      </div>
+    </div>
+  );
+}
+
 // Settings / Telegram / Imports Modal
 function SettingsModal({ onClose, token }) {
   const [activeTab, setActiveTab] = useState('imports');
