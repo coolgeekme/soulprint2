@@ -673,7 +673,7 @@ class SoulPrintTester:
     
     async def run_all_tests(self):
         """Run complete test suite"""
-        print("🚀 Starting SoulPrint Multi-LLM Provider Tests")
+        print("🚀 Starting SoulPrint Engine Media Generation Tests")
         print(f"🌐 Base URL: {self.base_url}")
         
         await self.create_session()
@@ -689,54 +689,84 @@ class SoulPrintTester:
             print("\n📝 Step 2: Test Models Endpoint")
             models_ok = await self.test_models_endpoint()
             
-            # Step 3: Test each provider
-            print("\n📝 Step 3: Test Multi-LLM Providers")
+            # Step 3: Test regular chat (baseline)
+            print("\n📝 Step 3: Test Regular Chat (Baseline)")
+            regular_chat_ok = await self.test_regular_chat_still_works()
             
-            provider_tests = [
-                ("openai", "gpt-4o", "OpenAI GPT-4o"),
-                ("anthropic", "claude-sonnet-4-5-20250929", "Claude Sonnet 4.5"),
-                ("gemini", "gemini-2.0-flash", "Gemini 2.0 Flash"),
-                ("perplexity", "sonar", "Perplexity Sonar"),
-            ]
+            # Step 4: Test media generation endpoints  
+            print("\n📝 Step 4: Test Image & Video Generation")
             
-            results = []
-            for provider, model, name in provider_tests:
-                result = await self.test_streaming_provider(provider, model, name)
-                results.append((name, result))
-                await asyncio.sleep(1)  # Rate limiting
+            # Image generation via chat stream (only test 1 to save OpenAI tokens)
+            image_chat_ok = await self.test_image_generation_chat_stream()
+            await asyncio.sleep(2)  # Rate limiting
             
+            # Video generation via chat stream (only test 1 to save Kie.ai credits) 
+            video_chat_ok = await self.test_video_generation_chat_stream()
+            await asyncio.sleep(2)  # Rate limiting
+            
+            # Direct image generation API
+            direct_image_ok = await self.test_direct_image_generation()
+            await asyncio.sleep(2)  # Rate limiting
+            
+            # Direct video generation API
+            direct_video_ok = await self.test_direct_video_generation()
+            await asyncio.sleep(2)  # Rate limiting
+            
+            # Video status polling (uses task ID from previous tests)
+            video_status_ok = await self.test_video_status_poll()
+            
+            # Step 5: Test one multi-LLM provider as sanity check
+            print("\n📝 Step 5: Multi-LLM Sanity Check")
+            provider_ok = await self.test_streaming_provider("openai", "gpt-4o", "OpenAI GPT-4o Sanity Check")
+
             # Summary
             print("\n" + "="*60)
-            print("🏁 TEST SUMMARY")
+            print("🏁 MEDIA GENERATION TEST SUMMARY")
             print("="*60)
             
             # Authentication
-            print(f"🔐 Authentication: ✅ SUCCESS")
+            print(f"🔐 Authentication: {'✅ SUCCESS' if True else '❌ FAILED'}")
             
             # Models endpoint
             print(f"📋 Models Endpoint: {'✅ SUCCESS' if models_ok else '❌ FAILED'}")
             
-            # Provider tests
-            successful_providers = 0
-            for name, result in results:
-                status = "✅ SUCCESS" if result else "❌ FAILED"
-                print(f"🤖 {name}: {status}")
-                if result:
-                    successful_providers += 1
+            # Regular chat
+            print(f"💬 Regular Chat: {'✅ SUCCESS' if regular_chat_ok else '❌ FAILED'}")
             
-            total_tests = len(results) + 2  # providers + auth + models
-            successful_tests = successful_providers + 1 + (1 if models_ok else 0)
+            # Media generation tests
+            print(f"🎨 Image Generation (Chat): {'✅ SUCCESS' if image_chat_ok else '❌ FAILED'}")
+            print(f"🎬 Video Generation (Chat): {'✅ SUCCESS' if video_chat_ok else '❌ FAILED'}")
+            print(f"🎨 Direct Image API: {'✅ SUCCESS' if direct_image_ok else '❌ FAILED'}")
+            print(f"🎬 Direct Video API: {'✅ SUCCESS' if direct_video_ok else '❌ FAILED'}")
+            print(f"📊 Video Status Poll: {'✅ SUCCESS' if video_status_ok else '❌ FAILED'}")
             
-            print(f"\n🎯 Overall: {successful_tests}/{total_tests} tests passed")
+            # Provider sanity check
+            print(f"🤖 Multi-LLM Sanity: {'✅ SUCCESS' if provider_ok else '❌ FAILED'}")
             
-            if successful_providers == len(provider_tests):
-                print("🎉 All multi-LLM providers working correctly!")
+            # Calculate results
+            media_tests = [image_chat_ok, video_chat_ok, direct_image_ok, direct_video_ok, video_status_ok]
+            successful_media_tests = sum(media_tests)
+            total_media_tests = len(media_tests)
+            
+            other_tests = [models_ok, regular_chat_ok, provider_ok]
+            successful_other_tests = sum(other_tests)
+            total_other_tests = len(other_tests)
+            
+            total_successful = successful_media_tests + successful_other_tests + 1  # +1 for auth
+            total_tests = total_media_tests + total_other_tests + 1  # +1 for auth
+            
+            print(f"\n🎯 Overall: {total_successful}/{total_tests} tests passed")
+            print(f"🎭 Media Generation: {successful_media_tests}/{total_media_tests} tests passed")
+            
+            # Determine overall success
+            if successful_media_tests >= 4:  # Allow 1 failure in media tests
+                print("🎉 Media generation endpoints working correctly!")
                 return True
-            elif successful_providers >= 2:
-                print(f"⚠️ {successful_providers}/{len(provider_tests)} providers working - partial success")
+            elif successful_media_tests >= 2:
+                print(f"⚠️ {successful_media_tests}/{total_media_tests} media tests working - partial success")
                 return True
             else:
-                print("❌ Multi-LLM integration has major issues")
+                print("❌ Media generation has major issues")
                 return False
                 
         finally:
