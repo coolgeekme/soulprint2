@@ -3326,14 +3326,9 @@ async function handleTelegramWebhook(request) {
         const thumbnailUrl = videoInfo.imageUrl;
 
         if (state === 'success' && videoUrl) {
-          // Send thumbnail first (if available), then video link
-          if (thumbnailUrl) {
-            await sendTelegramPhoto(chatId, TELEGRAM_BOT_TOKEN, thumbnailUrl,
-              `🎬 *Video ready!*\n\n_"${prompt.substring(0, 150)}"_`
-            );
-          }
-          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
-            `🎬 *Your video is ready!*\n\n[▶️ Download / Watch](${videoUrl})\n\n_Prompt: ${prompt.substring(0, 200)}_`
+          // Send the actual video file to Telegram (not just a link)
+          await sendTelegramVideo(chatId, TELEGRAM_BOT_TOKEN, videoUrl,
+            `🎬 *Your video is ready!*\n\n_"${prompt.substring(0, 200)}"_`
           );
           break;
         } else if (state === 'fail') {
