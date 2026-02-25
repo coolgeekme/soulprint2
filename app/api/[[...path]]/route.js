@@ -1178,6 +1178,135 @@ async function handleGenerateImage(request) {
   }
 }
 
+// IMAGE GENERATION - Kie.ai (GPT-4o Image / 4o-image)
+async function handleGenerateImageKie(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { prompt, aspectRatio = '1:1', nVariants = 1, conversationId } = body;
+  if (!prompt) return err('prompt required');
+
+  const kieKey = process.env.KIE_API_KEY;
+  if (!kieKey) return err('Kie.ai key not configured', 500);
+
+  try {
+    // Submit generation task
+    const res = await fetch('https://api.kie.ai/api/v1/4o-image/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+      body: JSON.stringify({
+        prompt,
+        aspectRatio,
+        nVariants: Math.min(nVariants, 4), // max 4 variants
+        outputFormat: 'png',
+        outputQuality: 90,
+      }),
+    });
+    const data = await res.json();
+    if (data.code !== 200) return err(data.msg || 'Image generation failed', 400);
+
+    const taskId = data.data?.task_id;
+    if (!taskId) return err('No task ID returned', 500);
+
+    // Poll for completion (max 90 seconds)
+    let imageUrl = null;
+    let attempts = 0;
+    const maxAttempts = 30;
+    
+    while (!imageUrl && attempts < maxAttempts) {
+      await new Promise(r => setTimeout(r, 3000)); // wait 3s between polls
+      attempts++;
+      
+      const statusRes = await fetch(`https://api.kie.ai/api/v1/record-info?taskId=${taskId}`, {
+        headers: { Authorization: `Bearer ${kieKey}` },
+      });
+      const statusData = await statusRes.json();
+      
+      if (statusData.code === 200 && statusData.data?.status === 'success') {
+        imageUrl = statusData.data?.output?.[0] || statusData.data?.outputUrl;
+        break;
+      } else if (statusData.data?.status === 'failed') {
+        return err('Image generation failed', 500);
+      }
+      // else still processing, continue polling
+    }
+
+    if (!imageUrl) return err('Image generation timed out', 504);
+
+    // Save as a message in DB if conversationId provided
+    if (conversationId) {
+      const db = await getDb();
+      await db.collection('messages').insertOne({
+        id: uuidv4(), conversation_id: conversationId, user_id: user.id,
+        role: 'assistant',
+        content: `![Generated Image](${imageUrl})\n\n*Prompt: ${prompt}*`,
+        content_type: 'image',
+        image_url: imageUrl,
+        created_at: new Date(),
+        model_used: 'gpt-4o-image',
+        provider_used: 'kie',
+        est_input_tokens: Math.round(prompt.length / 4),
+        est_output_tokens: 0,
+      });
+    }
+
+    return ok({ url: imageUrl, prompt, provider: 'kie' });
+  } catch (e) {
+    console.error('Kie image generation error:', e);
+    return err('Image generation failed: ' + e.message, 500);
+  }
+}
+
+// Helper: Generate image with Kie.ai (for internal use, e.g., Telegram)
+async function generateImageWithKie(prompt, aspectRatio = '1:1') {
+  const kieKey = process.env.KIE_API_KEY;
+  if (!kieKey) throw new Error('Kie.ai key not configured');
+
+  // Submit task
+  const res = await fetch('https://api.kie.ai/api/v1/4o-image/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+    body: JSON.stringify({
+      prompt,
+      aspectRatio,
+      nVariants: 1,
+      outputFormat: 'png',
+      outputQuality: 90,
+    }),
+  });
+  const data = await res.json();
+  if (data.code !== 200) throw new Error(data.msg || 'Image generation failed');
+
+  const taskId = data.data?.task_id;
+  if (!taskId) throw new Error('No task ID returned');
+
+  // Poll for completion
+  let imageUrl = null;
+  let attempts = 0;
+  const maxAttempts = 30;
+
+  while (!imageUrl && attempts < maxAttempts) {
+    await new Promise(r => setTimeout(r, 3000));
+    attempts++;
+    
+    const statusRes = await fetch(`https://api.kie.ai/api/v1/record-info?taskId=${taskId}`, {
+      headers: { Authorization: `Bearer ${kieKey}` },
+    });
+    const statusData = await statusRes.json();
+    
+    if (statusData.code === 200 && statusData.data?.status === 'success') {
+      imageUrl = statusData.data?.output?.[0] || statusData.data?.outputUrl;
+      break;
+    } else if (statusData.data?.status === 'failed') {
+      throw new Error('Image generation failed');
+    }
+  }
+
+  if (!imageUrl) throw new Error('Image generation timed out');
+  return imageUrl;
+}
+
 // VIDEO GENERATION - Kie.ai Runway
 async function handleGenerateVideo(request) {
   const user = await authenticate(request);
