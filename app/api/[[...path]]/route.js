@@ -1149,16 +1149,199 @@ async function handleAdminInviteAdmin(request) {
   return ok({ success: true });
 }
 
-// CONNECTORS (stubs)
-async function handleConnectorStub(platform) {
-  const enabled = process.env[`${platform.toUpperCase()}_ENABLED`] === 'true';
-  if (!enabled) {
-    return NextResponse.json({
-      status: 'not_configured',
-      message: `${platform} connector is not configured. Set ${platform.toUpperCase()}_ENABLED=true and configure the webhook to enable.`,
-    });
+// ============================================================
+// TELEGRAM CONNECTOR
+// ============================================================
+
+async function handleTelegramWebhook(request) {
+  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  if (!TELEGRAM_BOT_TOKEN) {
+    return NextResponse.json({ status: 'not_configured', message: 'TELEGRAM_BOT_TOKEN not set' });
   }
-  return NextResponse.json({ status: 'ok' });
+
+  let update;
+  try { update = await request.json(); } catch { return ok({ ok: true }); }
+
+  const message = update?.message || update?.edited_message;
+  if (!message?.text) return ok({ ok: true });
+
+  const chatId = message.chat.id;
+  const text = message.text.trim();
+  const telegramUserId = message.from?.id?.toString();
+  const fromName = message.from?.first_name || 'User';
+
+  const db = await getDb();
+
+  // Map telegram_user_id -> soulprint user
+  let mapping = await db.collection('telegram_mappings').findOne({ telegram_user_id: telegramUserId });
+
+  // Handle /start command
+  if (text === '/start') {
+    const linkCode = uuidv4().slice(0, 8).toUpperCase();
+    await db.collection('telegram_mappings').updateOne(
+      { telegram_user_id: telegramUserId },
+      { $set: { telegram_user_id: telegramUserId, telegram_chat_id: chatId.toString(), link_code: linkCode, linked: false, created_at: new Date() } },
+      { upsert: true }
+    );
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+      `👋 Welcome to SoulPrint, ${fromName}!\n\nTo link your account, go to:\n🔗 ${process.env.NEXT_PUBLIC_BASE_URL}/app\n\nThen open Settings → Telegram and enter your link code:\n\`${linkCode}\`\n\nOnce linked, you can chat with your personal AI right here!`
+    );
+    return ok({ ok: true });
+  }
+
+  if (!mapping?.linked || !mapping?.user_id) {
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+      `⚠️ Your Telegram is not linked yet.\n\nSend /start to get your link code, then enter it in SoulPrint Settings → Telegram.`
+    );
+    return ok({ ok: true });
+  }
+
+  const userId = mapping.user_id;
+  const user = await db.collection('users').findOne({ id: userId });
+  if (!user || !user.accepted) {
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Your SoulPrint account is not yet approved.');
+    return ok({ ok: true });
+  }
+
+  // Send typing indicator
+  await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
+  });
+
+  try {
+    // Get or create a Telegram conversation for this user
+    let conv = await db.collection('conversations').findOne({ user_id: userId, source: 'telegram' });
+    if (!conv) {
+      const convId = uuidv4();
+      conv = { id: convId, user_id: userId, title: 'Telegram Chat', source: 'telegram', created_at: new Date(), updated_at: new Date() };
+      await db.collection('conversations').insertOne(conv);
+    }
+
+    // Save user message
+    const userMsgId = uuidv4();
+    await db.collection('messages').insertOne({
+      id: userMsgId, conversation_id: conv.id, user_id: userId,
+      role: 'user', content: text, created_at: new Date(), source: 'telegram',
+    });
+
+    // Get history
+    const recent = await db.collection('messages')
+      .find({ conversation_id: conv.id, id: { $ne: userMsgId } })
+      .sort({ created_at: -1 }).limit(10).toArray();
+    recent.reverse();
+
+    const historyMessages = [...recent.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }];
+    const systemPrompt = await buildSystemPrompt(db, userId);
+    const provider = getProvider('hosted', 'gpt-4o');
+
+    const aiResponse = await provider.generateChatCompletion({
+      systemPrompt, messages: historyMessages, model: 'gpt-4o', temperature: 0.7,
+    });
+
+    // Save assistant message
+    await db.collection('messages').insertOne({
+      id: uuidv4(), conversation_id: conv.id, user_id: userId,
+      role: 'assistant', content: aiResponse, created_at: new Date(), source: 'telegram',
+    });
+    await db.collection('conversations').updateOne({ id: conv.id }, { $set: { updated_at: new Date() } });
+
+    // Send reply (split if > 4096 chars)
+    const chunks = aiResponse.match(/[\s\S]{1,4000}/g) || [aiResponse];
+    for (const chunk of chunks) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, chunk);
+    }
+  } catch (e) {
+    console.error('Telegram handler error:', e);
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Something went wrong. Please try again.');
+  }
+
+  return ok({ ok: true });
+}
+
+async function sendTelegramMessage(chatId, token, text) {
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' }),
+  });
+}
+
+// Telegram setup — link a SoulPrint account to a Telegram chat
+async function handleTelegramLink(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { link_code } = body;
+  if (!link_code) return err('link_code required');
+
+  const db = await getDb();
+  const mapping = await db.collection('telegram_mappings').findOne({ link_code: link_code.toUpperCase() });
+  if (!mapping) return err('Invalid link code. Please send /start to your bot first.', 404);
+
+  await db.collection('telegram_mappings').updateOne(
+    { link_code: link_code.toUpperCase() },
+    { $set: { user_id: user.id, linked: true, linked_at: new Date() } }
+  );
+
+  // Notify via Telegram
+  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  if (TELEGRAM_BOT_TOKEN && mapping.telegram_chat_id) {
+    const profile = await db.collection('profiles').findOne({ user_id: user.id });
+    const botName = profile?.assistant_name || 'SoulPrint';
+    await sendTelegramMessage(mapping.telegram_chat_id, TELEGRAM_BOT_TOKEN,
+      `✅ Account linked! ${botName} is ready. Just send me a message anytime.`
+    );
+  }
+
+  return ok({ success: true, message: 'Telegram linked successfully!' });
+}
+
+// Telegram status + setup webhook
+async function handleTelegramSetup(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  if (!TELEGRAM_BOT_TOKEN) return ok({ configured: false, message: 'Add TELEGRAM_BOT_TOKEN to .env' });
+
+  const webhookUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/connectors/telegram/webhook`;
+
+  // Set the webhook
+  const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: webhookUrl, drop_pending_updates: true }),
+  });
+  const data = await res.json();
+
+  // Get bot info
+  const infoRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe`);
+  const info = await infoRes.json();
+
+  return ok({ configured: true, webhook: data, bot: info.result, webhookUrl });
+}
+
+async function handleTelegramStatus(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  const db = await getDb();
+  const mapping = await db.collection('telegram_mappings').findOne({ user_id: user.id, linked: true });
+
+  return ok({
+    configured: !!TELEGRAM_BOT_TOKEN,
+    linked: !!mapping,
+    telegram_user_id: mapping?.telegram_user_id || null,
+  });
+}
+
+// CONNECTORS (stubs for others)
+async function handleConnectorStub(platform) {
+  return NextResponse.json({
+    status: 'not_configured',
+    message: `${platform} connector is not yet implemented. Telegram is available — configure TELEGRAM_BOT_TOKEN in .env.`,
+  });
 }
 
 // MODELS - Get available
