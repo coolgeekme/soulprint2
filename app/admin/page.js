@@ -7,6 +7,7 @@ import {
   UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
   DollarSign, Zap, ListChecks
 } from 'lucide-react';
+import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 function SoulPrintLogo({ size = 24 }) {
   return (
