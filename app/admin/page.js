@@ -19,7 +19,8 @@ function SoulPrintLogo({ size = 24 }) {
 
 const TABS = [
   { id: 'metrics', label: 'Metrics', icon: BarChart2 },
-  { id: 'users', label: 'Users', icon: Users },
+  { id: 'waitlist', label: 'Waitlist', icon: ListChecks },
+  { id: 'users', label: 'All Users', icon: Users },
   { id: 'conversations', label: 'Conversations', icon: MessageSquare },
   { id: 'assessments', label: 'Assessments', icon: FileText },
   { id: 'imports', label: 'Imports', icon: Upload },
