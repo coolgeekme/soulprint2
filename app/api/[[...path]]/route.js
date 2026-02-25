@@ -3033,6 +3033,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'chat/stream') return handleChatStream(request);
     if (pathStr === 'feedback') return handleSubmitFeedback(request);
     if (pathStr === 'generate/image') return handleGenerateImage(request);
+    if (pathStr === 'generate/image-kie') return handleGenerateImageKie(request);
     if (pathStr === 'generate/video') return handleGenerateVideo(request);
     if (pathStr === 'imports/upload') return handleImportUpload(request);
     if (pathStr === 'transcribe') return handleTranscribe(request);
