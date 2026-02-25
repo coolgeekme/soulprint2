@@ -3080,8 +3080,65 @@ async function handleTelegramWebhook(request) {
   const socialMatch = sanitizedText.match(/\b(write|create|generate|make|draft)\s+(me\s+)?(a\s+)?(tweet|twitter|instagram|linkedin|tiktok|facebook|threads|youtube)\s+(post|caption|content|about)\b/i)
     || sanitizedText.match(/\b(twitter|instagram|linkedin|tiktok|facebook|threads)\s+(post|caption|content)\s+(about|for|on)\b/i);
 
-  if (isImageRequest || isVideoRequest || socialMatch) {
+  // Auto-detect location/places search intent
+  const isPlacesRequest = /\b(find|where|what|show me|looking for|recommend|suggest)\s+(me\s+)?(a\s+|some\s+)?(good\s+|best\s+|closest\s+|nearest\s+)?(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|hospitals?|gyms?|banks?|atms?|groceries?|stores?|malls?|parks?|museums?|movies?|theaters?|parking|airports?)\b/i.test(sanitizedText)
+    || /\b(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|gyms?|banks?|parks?|stores?)\s+(near|in|around|close to)\b/i.test(sanitizedText)
+    || /\b(what('s| is)|where('s| is|are)).*(near me|nearby|around here|close by)\b/i.test(lowerText);
+
+  if (isImageRequest || isVideoRequest || socialMatch || isPlacesRequest) {
     try {
+      // Handle places/location request
+      if (isPlacesRequest) {
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '🔍 Searching for places...');
+        
+        // Parse location from query
+        let locationName = parseLocationQuery(sanitizedText);
+        let coords = null;
+        
+        // Check if user has shared location
+        if (!locationName || /near me|nearby|around here|close by/i.test(lowerText)) {
+          const userLocation = await db.collection('user_locations').findOne({ user_id: userId });
+          if (userLocation && userLocation.lat && userLocation.lng) {
+            coords = { lat: userLocation.lat, lng: userLocation.lng };
+            locationName = userLocation.address || 'your location';
+          } else {
+            await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+              `📍 I don't have your location yet.\n\n` +
+              `Please share your location, or specify one:\n` +
+              `Example: "Find restaurants near Times Square"`
+            );
+            return ok({ ok: true });
+          }
+        } else {
+          coords = await geocodeAddress(locationName);
+          if (!coords) {
+            await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Could not find location: "${locationName}"`);
+            return ok({ ok: true });
+          }
+          locationName = coords.formattedAddress || locationName;
+        }
+        
+        // Extract what they're looking for
+        const searchTerm = sanitizedText.replace(/\s+(near|in|around|at|close to)\s+.+$/i, '')
+          .replace(/^(find|where|what|show me|looking for|recommend|suggest)\s+(me\s+)?(a\s+|some\s+)?(good\s+|best\s+|closest\s+|nearest\s+)?/i, '')
+          .replace(/\?+$/, '')
+          .trim();
+        const placeType = extractPlaceType(searchTerm);
+        
+        const places = await searchNearbyPlaces({
+          lat: coords.lat,
+          lng: coords.lng,
+          query: placeType ? null : searchTerm,
+          type: placeType,
+          radius: 2000,
+          maxResults: 5,
+        });
+        
+        const response = formatPlacesForTelegram(places, locationName);
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, response);
+        return ok({ ok: true });
+      }
+
       if (isImageRequest) {
         const prompt = sanitizedText.replace(/\b(generate|create|make|draw|show me|give me)\s+(an?\s+)?(image|picture|photo|illustration|painting|artwork)\s+(of\s+)?/i, '').trim() || sanitizedText;
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
