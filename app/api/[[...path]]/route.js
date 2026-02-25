@@ -2865,9 +2865,15 @@ async function handleTelegramWebhook(request) {
           coords = { lat: userLocation.lat, lng: userLocation.lng };
           locationName = userLocation.address || 'your location';
         } else {
-          await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
-            `📍 Please share your location first, or specify a location:\n\n` +
-            `Example: /nearby restaurants in San Francisco`
+          // Store the pending search query so we can use it after location is shared
+          await db.collection('user_locations').updateOne(
+            { user_id: userId },
+            { $set: { pending_search: query, pending_search_at: new Date() } },
+            { upsert: true }
+          );
+          // Request location via Telegram keyboard button
+          await requestTelegramLocation(chatId, TELEGRAM_BOT_TOKEN,
+            `📍 *Share your location to find places near you!*\n\nTap the button below to share your current location, then I'll find ${query} nearby.`
           );
           return ok({ ok: true });
         }
