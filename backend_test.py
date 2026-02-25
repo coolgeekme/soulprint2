@@ -429,6 +429,206 @@ class BackendTester:
         
         print("✅ TASK SCHEDULING API: All tests completed")
 
+    def test_google_places_api(self):
+        """Test Google Places API endpoints"""
+        print("\n📍 TESTING GOOGLE PLACES API...")
+        
+        # Test 1: POST /api/places/search - Search for restaurants near Times Square
+        try:
+            headers = self.get_auth_headers()
+            payload = {
+                "query": "restaurants",
+                "location": "Times Square, New York"
+            }
+            
+            response = requests.post(f"{self.base_url}/api/places/search", 
+                json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                print("✅ PLACES SEARCH (query+location): Successfully retrieved places")
+                print(f"  📊 Found {data.get('count', 0)} places near {data.get('location', 'N/A')}")
+                
+                places = data.get('places', [])
+                coordinates = data.get('coordinates', {})
+                
+                # Check response structure
+                expected_fields = ['places', 'location', 'coordinates', 'count']
+                has_all_fields = all(field in data for field in expected_fields)
+                
+                if has_all_fields:
+                    print("✅ SEARCH RESPONSE: All required fields present")
+                    print(f"  📍 Coordinates: lat={coordinates.get('lat')}, lng={coordinates.get('lng')}")
+                    
+                    if places and len(places) > 0:
+                        sample_place = places[0]
+                        place_fields = ['name', 'address', 'placeId']
+                        has_place_fields = all(field in sample_place for field in place_fields)
+                        
+                        if has_place_fields:
+                            print("✅ PLACE STRUCTURE: Sample place has required fields")
+                            print(f"  🍽️ Sample: {sample_place.get('name')} - {sample_place.get('address')}")
+                            
+                            # Check if Google Maps link can be constructed
+                            place_id = sample_place.get('placeId')
+                            if place_id:
+                                maps_link = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
+                                print(f"  🗺️ Google Maps link: {maps_link}")
+                                print("✅ PLACE ID: Valid placeId for Google Maps integration")
+                            else:
+                                print("⚠️ PLACE ID: Missing placeId field")
+                        else:
+                            print("⚠️ PLACE STRUCTURE: Missing required place fields")
+                    else:
+                        print("⚠️ SEARCH: No places returned in results")
+                else:
+                    missing_fields = [field for field in expected_fields if field not in data]
+                    print(f"⚠️ SEARCH RESPONSE: Missing fields: {missing_fields}")
+                    
+            elif response.status_code == 401:
+                print("❌ PLACES SEARCH: Unauthorized - authentication required")
+            else:
+                print(f"❌ PLACES SEARCH: Failed with status {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            print(f"❌ PLACES SEARCH: Error - {e}")
+        
+        # Test 2: POST /api/places/geocode - Convert address to coordinates
+        try:
+            headers = self.get_auth_headers()
+            payload = {
+                "address": "1600 Amphitheatre Parkway, Mountain View, CA"
+            }
+            
+            response = requests.post(f"{self.base_url}/api/places/geocode", 
+                json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                print("✅ PLACES GEOCODE: Successfully geocoded address")
+                
+                # Check for required geocode fields
+                expected_fields = ['lat', 'lng', 'formattedAddress']
+                has_all_fields = all(field in data for field in expected_fields)
+                
+                if has_all_fields:
+                    lat = data.get('lat')
+                    lng = data.get('lng') 
+                    formatted = data.get('formattedAddress')
+                    
+                    print(f"  📍 Latitude: {lat}")
+                    print(f"  📍 Longitude: {lng}")
+                    print(f"  📍 Formatted: {formatted}")
+                    
+                    # Validate coordinate ranges
+                    if isinstance(lat, (int, float)) and isinstance(lng, (int, float)):
+                        if -90 <= lat <= 90 and -180 <= lng <= 180:
+                            print("✅ GEOCODE COORDS: Valid latitude/longitude ranges")
+                        else:
+                            print("⚠️ GEOCODE COORDS: Coordinates outside valid ranges")
+                    else:
+                        print("⚠️ GEOCODE COORDS: Coordinates are not numeric")
+                        
+                    if formatted and "Mountain View" in formatted and "CA" in formatted:
+                        print("✅ GEOCODE ADDRESS: Formatted address contains expected location")
+                    else:
+                        print("⚠️ GEOCODE ADDRESS: Formatted address may not match input")
+                else:
+                    missing_fields = [field for field in expected_fields if field not in data]
+                    print(f"⚠️ GEOCODE RESPONSE: Missing fields: {missing_fields}")
+                    
+            elif response.status_code == 401:
+                print("❌ PLACES GEOCODE: Unauthorized - authentication required")
+            else:
+                print(f"❌ PLACES GEOCODE: Failed with status {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            print(f"❌ PLACES GEOCODE: Error - {e}")
+        
+        # Test 3: POST /api/places/search with coordinates - Search for coffee shops
+        try:
+            headers = self.get_auth_headers()
+            payload = {
+                "query": "coffee shops",
+                "lat": 37.4220,
+                "lng": -122.0841
+            }
+            
+            response = requests.post(f"{self.base_url}/api/places/search", 
+                json=payload, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                print("✅ PLACES SEARCH (coordinates): Successfully searched with lat/lng")
+                print(f"  📊 Found {data.get('count', 0)} coffee shops near coordinates")
+                
+                places = data.get('places', [])
+                coordinates = data.get('coordinates', {})
+                
+                # Verify coordinates match input
+                if coordinates.get('lat') == 37.4220 and coordinates.get('lng') == -122.0841:
+                    print("✅ COORDINATES: Input coordinates preserved in response")
+                else:
+                    print("⚠️ COORDINATES: Response coordinates don't match input")
+                
+                # Check for coffee-related results
+                if places and len(places) > 0:
+                    coffee_related = False
+                    for place in places:
+                        name = place.get('name', '').lower()
+                        if 'coffee' in name or 'cafe' in name or 'starbucks' in name:
+                            coffee_related = True
+                            break
+                    
+                    if coffee_related:
+                        print("✅ SEARCH RELEVANCE: Found coffee-related businesses as expected")
+                        print(f"  ☕ Sample: {places[0].get('name')} - {places[0].get('address')}")
+                    else:
+                        print("⚠️ SEARCH RELEVANCE: No obvious coffee shops in results")
+                else:
+                    print("⚠️ COORDINATES SEARCH: No places returned")
+                    
+            elif response.status_code == 401:
+                print("❌ PLACES SEARCH (coords): Unauthorized - authentication required")
+            else:
+                print(f"❌ PLACES SEARCH (coords): Failed with status {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            print(f"❌ PLACES SEARCH (coords): Error - {e}")
+        
+        # Test 4: Test authentication required - try without token
+        try:
+            payload = {"query": "test", "location": "test"}
+            response = requests.post(f"{self.base_url}/api/places/search", json=payload)
+            
+            if response.status_code == 401:
+                print("✅ PLACES AUTH: Correctly returns 401 Unauthorized without token")
+            else:
+                print(f"⚠️ PLACES AUTH: Expected 401, got {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ PLACES AUTH: Error - {e}")
+        
+        # Test 5: Test error handling - missing required parameters
+        try:
+            headers = self.get_auth_headers()
+            payload = {}  # Empty payload - should trigger validation error
+            
+            response = requests.post(f"{self.base_url}/api/places/search", 
+                json=payload, headers=headers)
+            
+            if response.status_code == 400:
+                error_data = response.json()
+                print("✅ PLACES VALIDATION: Correctly rejects empty search parameters")
+                print(f"  📊 Error message: {error_data.get('error', 'N/A')}")
+            else:
+                print(f"⚠️ PLACES VALIDATION: Expected 400 error, got {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ PLACES VALIDATION: Error - {e}")
+        
+        print("✅ GOOGLE PLACES API: All tests completed")
+
     def test_web_search_integration(self):
         """Test Web search integration"""
         print("\n🌐 TESTING WEB SEARCH INTEGRATION...")
