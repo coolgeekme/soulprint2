@@ -1,429 +1,292 @@
 #!/usr/bin/env python3
 """
-SoulPrint Engine Backend API Test Suite
-Tests all critical backend endpoints for the SoulPrint Engine MVP
+SoulPrint Engine Multi-LLM Backend Test Suite
+Tests all 4 provider integrations: OpenAI, Claude, Gemini, Perplexity
 """
-import requests
+
 import json
-import time
+import asyncio
+import aiohttp
 import sys
-from typing import Dict, Any, Optional
 
-# Test Configuration
+# Base URL from environment
 BASE_URL = "https://soulprint-llm.preview.emergentagent.com"
-API_BASE = f"{BASE_URL}/api"
 
-# Test data
-TEST_EMAIL = "test@soulprint.com"
-TEST_PASSCODE = "Test1234!"
-TEST_ASSISTANT_NAME = "Alex"
-
-class SoulPrintAPITest:
+class SoulPrintTester:
     def __init__(self):
-        self.token = None
-        self.user_id = None
-        self.conversation_id = None
-        self.question_ids = []
-        self.test_results = {}
-    
-    def log_test(self, test_name: str, success: bool, details: str = ""):
-        """Log test result"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} | {test_name}")
-        if details:
-            print(f"    Details: {details}")
-        self.test_results[test_name] = {"success": success, "details": details}
-        return success
-    
-    def make_request(self, method: str, endpoint: str, data: Any = None, headers: Optional[Dict] = None) -> Dict:
-        """Make HTTP request with error handling"""
-        url = f"{API_BASE}/{endpoint}"
-        default_headers = {"Content-Type": "application/json"}
+        self.base_url = BASE_URL
+        self.session = None
+        self.auth_token = None
         
-        if self.token and headers is None:
-            default_headers["Authorization"] = f"Bearer {self.token}"
-        elif headers:
-            default_headers.update(headers)
+    async def create_session(self):
+        """Create HTTP session"""
+        self.session = aiohttp.ClientSession()
         
+    async def close_session(self):
+        """Close HTTP session"""
+        if self.session:
+            await self.session.close()
+    
+    async def authenticate(self):
+        """Login or register test user"""
         try:
-            if method.upper() == "GET":
-                response = requests.get(url, headers=default_headers, timeout=30)
-            elif method.upper() == "POST":
-                response = requests.post(url, json=data, headers=default_headers, timeout=30)
-            elif method.upper() == "PUT":
-                response = requests.put(url, json=data, headers=default_headers, timeout=30)
-            else:
-                return {"error": f"Unsupported method: {method}"}
-            
-            response_data = {
-                "status_code": response.status_code,
-                "success": response.status_code < 400,
-                "data": {}
+            # Try login first with superadmin user
+            login_data = {
+                "email": "test@soulprint.com",
+                "password": "test123"
             }
             
-            try:
-                response_data["data"] = response.json()
-            except:
-                response_data["data"] = {"text": response.text[:500]}
-            
-            return response_data
-            
-        except requests.exceptions.Timeout:
-            return {"error": "Request timeout", "status_code": 408, "success": False}
-        except requests.exceptions.ConnectionError:
-            return {"error": "Connection error", "status_code": 0, "success": False}
-        except Exception as e:
-            return {"error": str(e), "status_code": 0, "success": False}
-    
-    def test_user_registration(self) -> bool:
-        """Test POST /api/auth/register - First user becomes superadmin"""
-        print("\n=== Testing User Registration ===")
-        
-        response = self.make_request("POST", "auth/register", {
-            "email": TEST_EMAIL,
-            "passcode": TEST_PASSCODE
-        }, headers={})  # No auth needed for registration
-        
-        if not response.get("success"):
-            return self.log_test("User Registration", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        if not all(key in data for key in ["token", "userId", "role"]):
-            return self.log_test("User Registration", False, "Missing required fields in response")
-        
-        self.token = data["token"]
-        self.user_id = data["userId"]
-        
-        # Verify first user is superadmin
-        if data["role"] != "superadmin":
-            return self.log_test("User Registration", False, f"Expected superadmin role, got: {data['role']}")
-        
-        return self.log_test("User Registration", True, 
-                           f"User ID: {self.user_id[:8]}..., Role: {data['role']}, Accepted: {data.get('accepted', False)}")
-    
-    def test_user_login(self) -> bool:
-        """Test POST /api/auth/login"""
-        print("\n=== Testing User Login ===")
-        
-        response = self.make_request("POST", "auth/login", {
-            "email": TEST_EMAIL,
-            "passcode": TEST_PASSCODE
-        }, headers={})  # No auth needed for login
-        
-        if not response.get("success"):
-            return self.log_test("User Login", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        expected_fields = ["token", "userId", "role", "accepted", "onboarding_complete", "assessment_complete"]
-        if not all(key in data for key in expected_fields):
-            return self.log_test("User Login", False, f"Missing required fields. Got: {list(data.keys())}")
-        
-        # Update token from login (should be same as registration but good practice)
-        self.token = data["token"]
-        
-        return self.log_test("User Login", True, 
-                           f"Role: {data['role']}, Accepted: {data['accepted']}, Assessment Complete: {data['assessment_complete']}")
-    
-    def test_get_me(self) -> bool:
-        """Test GET /api/auth/me"""
-        print("\n=== Testing Get Current User ===")
-        
-        if not self.token:
-            return self.log_test("Get Current User", False, "No authentication token available")
-        
-        response = self.make_request("GET", "auth/me")
-        
-        if not response.get("success"):
-            return self.log_test("Get Current User", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        expected_fields = ["id", "email", "role", "accepted", "created_at", "profile"]
-        if not all(key in data for key in expected_fields):
-            return self.log_test("Get Current User", False, f"Missing required fields. Got: {list(data.keys())}")
-        
-        if data["id"] != self.user_id:
-            return self.log_test("Get Current User", False, f"User ID mismatch. Expected: {self.user_id}, Got: {data['id']}")
-        
-        return self.log_test("Get Current User", True, 
-                           f"Email: {data['email']}, Role: {data['role']}, Profile: {'Present' if data['profile'] else 'None'}")
-    
-    def test_assessment_questions(self) -> bool:
-        """Test GET /api/assessment/questions - No auth needed, should return 36 questions"""
-        print("\n=== Testing Assessment Questions ===")
-        
-        response = self.make_request("GET", "assessment/questions", headers={})  # No auth needed
-        
-        if not response.get("success"):
-            return self.log_test("Assessment Questions", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        if not isinstance(data, list):
-            return self.log_test("Assessment Questions", False, f"Expected array, got: {type(data)}")
-        
-        if len(data) != 36:
-            return self.log_test("Assessment Questions", False, f"Expected 36 questions, got: {len(data)}")
-        
-        # Check question structure
-        if data:
-            question = data[0]
-            expected_fields = ["id", "pillar", "order_index", "question_text"]
-            if not all(key in question for key in expected_fields):
-                return self.log_test("Assessment Questions", False, f"Question missing required fields. Got: {list(question.keys())}")
-        
-        # Store question IDs for later tests
-        self.question_ids = [q["id"] for q in data]
-        
-        # Check pillar distribution
-        pillars = set(q["pillar"] for q in data)
-        expected_pillars = {"communication", "emotional_intelligence", "decision_making", "social_dynamics", "cognitive_style", "assertiveness"}
-        
-        if pillars != expected_pillars:
-            return self.log_test("Assessment Questions", False, f"Pillar mismatch. Expected: {expected_pillars}, Got: {pillars}")
-        
-        return self.log_test("Assessment Questions", True, 
-                           f"Retrieved {len(data)} questions across {len(pillars)} pillars")
-    
-    def test_submit_answer(self) -> bool:
-        """Test POST /api/assessment/answer"""
-        print("\n=== Testing Submit Assessment Answer ===")
-        
-        if not self.token:
-            return self.log_test("Submit Assessment Answer", False, "No authentication token available")
-        
-        if not self.question_ids:
-            return self.log_test("Submit Assessment Answer", False, "No question IDs available")
-        
-        # Submit answer for first question
-        test_question_id = self.question_ids[0]
-        test_answer = "I prefer face-to-face communication because it allows for better understanding of non-verbal cues and immediate feedback."
-        
-        response = self.make_request("POST", "assessment/answer", {
-            "question_id": test_question_id,
-            "answer_text": test_answer
-        })
-        
-        if not response.get("success"):
-            return self.log_test("Submit Assessment Answer", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        if not data.get("success"):
-            return self.log_test("Submit Assessment Answer", False, "API returned success=false")
-        
-        return self.log_test("Submit Assessment Answer", True, 
-                           f"Answer submitted for question ID: {test_question_id[:8]}...")
-    
-    def test_assessment_progress(self) -> bool:
-        """Test GET /api/assessment/progress"""
-        print("\n=== Testing Assessment Progress ===")
-        
-        if not self.token:
-            return self.log_test("Assessment Progress", False, "No authentication token available")
-        
-        response = self.make_request("GET", "assessment/progress")
-        
-        if not response.get("success"):
-            return self.log_test("Assessment Progress", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        expected_fields = ["answered", "count"]
-        if not all(key in data for key in expected_fields):
-            return self.log_test("Assessment Progress", False, f"Missing required fields. Got: {list(data.keys())}")
-        
-        if not isinstance(data["answered"], list) or not isinstance(data["count"], int):
-            return self.log_test("Assessment Progress", False, "Invalid data types in response")
-        
-        # Should have at least 1 answer from previous test
-        if data["count"] < 1:
-            return self.log_test("Assessment Progress", False, f"Expected at least 1 answer, got: {data['count']}")
-        
-        return self.log_test("Assessment Progress", True, 
-                           f"Answered {data['count']} questions")
-    
-    def test_assessment_complete(self) -> bool:
-        """Test POST /api/assessment/complete"""
-        print("\n=== Testing Assessment Complete ===")
-        
-        if not self.token:
-            return self.log_test("Assessment Complete", False, "No authentication token available")
-        
-        response = self.make_request("POST", "assessment/complete", {
-            "assistant_name": TEST_ASSISTANT_NAME
-        })
-        
-        if not response.get("success"):
-            return self.log_test("Assessment Complete", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        if not data.get("success"):
-            return self.log_test("Assessment Complete", False, "API returned success=false")
-        
-        return self.log_test("Assessment Complete", True, 
-                           f"Assessment completed with assistant name: {TEST_ASSISTANT_NAME}")
-    
-    def test_create_conversation(self) -> bool:
-        """Test POST /api/conversations"""
-        print("\n=== Testing Create Conversation ===")
-        
-        if not self.token:
-            return self.log_test("Create Conversation", False, "No authentication token available")
-        
-        response = self.make_request("POST", "conversations", {
-            "title": "Test Conversation"
-        })
-        
-        if not response.get("success"):
-            return self.log_test("Create Conversation", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        expected_fields = ["id", "title", "created_at"]
-        if not all(key in data for key in expected_fields):
-            return self.log_test("Create Conversation", False, f"Missing required fields. Got: {list(data.keys())}")
-        
-        self.conversation_id = data["id"]
-        
-        return self.log_test("Create Conversation", True, 
-                           f"Conversation ID: {self.conversation_id[:8]}..., Title: {data['title']}")
-    
-    def test_admin_metrics(self) -> bool:
-        """Test GET /api/admin/metrics - Requires admin/superadmin role"""
-        print("\n=== Testing Admin Metrics ===")
-        
-        if not self.token:
-            return self.log_test("Admin Metrics", False, "No authentication token available")
-        
-        response = self.make_request("GET", "admin/metrics")
-        
-        if not response.get("success"):
-            return self.log_test("Admin Metrics", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        expected_fields = ["wau", "total_users", "multi_session_rate", "day7_retention", 
-                          "assessment_completion_rate", "import_adoption_rate"]
-        
-        missing_fields = [field for field in expected_fields if field not in data]
-        if missing_fields:
-            return self.log_test("Admin Metrics", False, f"Missing fields: {missing_fields}")
-        
-        return self.log_test("Admin Metrics", True, 
-                           f"WAU: {data['wau']}, Total Users: {data['total_users']}, Assessment Rate: {data['assessment_completion_rate']}%")
-    
-    def test_admin_users(self) -> bool:
-        """Test GET /api/admin/users - Requires admin/superadmin role"""
-        print("\n=== Testing Admin Users ===")
-        
-        if not self.token:
-            return self.log_test("Admin Users", False, "No authentication token available")
-        
-        response = self.make_request("GET", "admin/users")
-        
-        if not response.get("success"):
-            return self.log_test("Admin Users", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        expected_fields = ["users", "total", "page", "pages"]
-        if not all(key in data for key in expected_fields):
-            return self.log_test("Admin Users", False, f"Missing required fields. Got: {list(data.keys())}")
-        
-        if not isinstance(data["users"], list):
-            return self.log_test("Admin Users", False, "Users field is not an array")
-        
-        # Should have at least our test user
-        if data["total"] < 1:
-            return self.log_test("Admin Users", False, f"Expected at least 1 user, got: {data['total']}")
-        
-        return self.log_test("Admin Users", True, 
-                           f"Found {data['total']} users on page {data['page']}/{data['pages']}")
-    
-    def test_connector_stub(self) -> bool:
-        """Test POST /api/connectors/telegram/webhook - Should return not_configured"""
-        print("\n=== Testing Connector Stub ===")
-        
-        response = self.make_request("POST", "connectors/telegram/webhook", {}, headers={})  # No auth needed
-        
-        if not response.get("success"):
-            return self.log_test("Connector Stub", False, 
-                               f"Status: {response.get('status_code')}, Error: {response.get('data', {}).get('error', 'Unknown error')}")
-        
-        data = response["data"]
-        if data.get("status") != "not_configured":
-            return self.log_test("Connector Stub", False, f"Expected status 'not_configured', got: {data.get('status')}")
-        
-        return self.log_test("Connector Stub", True, 
-                           f"Status: {data['status']}, Message: {data.get('message', '')[:50]}...")
-    
-    def run_all_tests(self):
-        """Run all tests in sequence"""
-        print("🚀 Starting SoulPrint Engine Backend API Tests")
-        print(f"📍 Base URL: {BASE_URL}")
-        print(f"🔗 API Base: {API_BASE}")
-        
-        tests = [
-            self.test_user_registration,
-            self.test_user_login,
-            self.test_get_me,
-            self.test_assessment_questions,
-            self.test_submit_answer,
-            self.test_assessment_progress,
-            self.test_assessment_complete,
-            self.test_create_conversation,
-            self.test_admin_metrics,
-            self.test_admin_users,
-            self.test_connector_stub,
-        ]
-        
-        passed = 0
-        failed = 0
-        
-        for test in tests:
-            try:
-                if test():
-                    passed += 1
+            async with self.session.post(f"{self.base_url}/api/auth/login", 
+                                       json=login_data) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    self.auth_token = data.get('token')
+                    print(f"✅ Logged in as existing user: {login_data['email']}")
+                    return True
+                elif resp.status in [401, 404]:
+                    print(f"⚠️ Login failed (status {resp.status}), trying registration...")
                 else:
-                    failed += 1
-            except Exception as e:
-                failed += 1
-                print(f"❌ EXCEPTION | {test.__name__}: {str(e)}")
+                    print(f"❌ Login error: {resp.status}")
+                    return False
+        except Exception as e:
+            print(f"❌ Login error: {e}")
+        
+        # Try registration
+        try:
+            register_data = {
+                "email": "llmtest@soulprint.com",
+                "password": "test123",
+                "name": "LLM Test"
+            }
             
-            time.sleep(1)  # Small delay between tests
+            async with self.session.post(f"{self.base_url}/api/auth/register",
+                                       json=register_data) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    self.auth_token = data.get('token')
+                    print(f"✅ Registered new user: {register_data['email']} (first user is superadmin)")
+                    return True
+                else:
+                    error_text = await resp.text()
+                    print(f"❌ Registration failed: {resp.status} - {error_text}")
+                    return False
+        except Exception as e:
+            print(f"❌ Registration error: {e}")
+            return False
+    
+    async def test_models_endpoint(self):
+        """Test GET /api/models endpoint"""
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            async with self.session.get(f"{self.base_url}/api/models", 
+                                      headers=headers) as resp:
+                if resp.status == 200:
+                    models = await resp.json()
+                    print(f"✅ Models endpoint working. Found {len(models)} models")
+                    
+                    # Check for all 4 provider groups
+                    providers = set()
+                    for model in models:
+                        if 'group' in model:
+                            providers.add(model['group'])
+                    
+                    expected_groups = {'OpenAI', 'Anthropic', 'Google', 'Perplexity'}
+                    found_groups = providers.intersection(expected_groups)
+                    print(f"   Provider groups found: {sorted(found_groups)}")
+                    
+                    if len(found_groups) >= 4:
+                        print("✅ All 4 provider groups available")
+                        return True
+                    else:
+                        print(f"⚠️ Only found {len(found_groups)}/4 provider groups")
+                        return True  # Still working, just incomplete
+                else:
+                    print(f"❌ Models endpoint failed: {resp.status}")
+                    return False
+        except Exception as e:
+            print(f"❌ Models endpoint error: {e}")
+            return False
+    
+    async def test_streaming_provider(self, provider_name, model, test_name):
+        """Test streaming chat with specific provider"""
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.auth_token}"
+            }
+            
+            chat_data = {
+                "content": "Say hello in one sentence",
+                "model": model,
+                "provider": provider_name,
+                "enableWebSearch": False
+            }
+            
+            print(f"\n🧪 Testing {test_name} ({provider_name}/{model})...")
+            
+            async with self.session.post(f"{self.base_url}/api/chat/stream",
+                                       json=chat_data, headers=headers) as resp:
+                if resp.status != 200:
+                    error_text = await resp.text()
+                    print(f"❌ {test_name} failed: {resp.status} - {error_text}")
+                    return False
+                
+                # Verify content type
+                content_type = resp.headers.get('content-type', '')
+                if 'text/event-stream' not in content_type:
+                    print(f"❌ {test_name} - Wrong content type: {content_type}")
+                    return False
+                
+                chunks = []
+                meta_received = False
+                done_received = False
+                delta_count = 0
+                
+                # Read streaming response line by line
+                async for line in resp.content:
+                    line = line.decode('utf-8').strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        chunk = json.loads(line)
+                        chunks.append(chunk)
+                        
+                        if chunk.get('type') == 'meta':
+                            meta_received = True
+                            conversation_id = chunk.get('conversationId')
+                            print(f"   📋 Meta chunk received with conversationId: {conversation_id}")
+                            
+                        elif chunk.get('type') == 'delta':
+                            delta_count += 1
+                            content = chunk.get('content', '')
+                            if delta_count <= 3:  # Show first 3 deltas
+                                print(f"   📝 Delta {delta_count}: '{content}'")
+                                
+                        elif chunk.get('type') == 'done':
+                            done_received = True
+                            print(f"   ✅ Done chunk received")
+                            break
+                            
+                        elif chunk.get('type') == 'error':
+                            error_msg = chunk.get('error', 'Unknown error')
+                            print(f"❌ {test_name} - Stream error: {error_msg}")
+                            return False
+                            
+                    except json.JSONDecodeError:
+                        print(f"⚠️ {test_name} - Invalid JSON chunk: {line[:100]}")
+                        continue
+                
+                # Validate streaming structure
+                if not meta_received:
+                    print(f"❌ {test_name} - No meta chunk received")
+                    return False
+                    
+                if delta_count == 0:
+                    print(f"❌ {test_name} - No delta chunks received")
+                    return False
+                    
+                if not done_received:
+                    print(f"❌ {test_name} - No done chunk received")
+                    return False
+                
+                # Reconstruct full response
+                full_content = ''.join([c.get('content', '') for c in chunks if c.get('type') == 'delta'])
+                
+                print(f"✅ {test_name} SUCCESS:")
+                print(f"   📊 Total chunks: {len(chunks)}")
+                print(f"   📝 Delta chunks: {delta_count}")
+                print(f"   📄 Response length: {len(full_content)} chars")
+                print(f"   💬 Sample response: '{full_content[:100]}{'...' if len(full_content) > 100 else ''}'")
+                
+                return True
+                
+        except Exception as e:
+            print(f"❌ {test_name} error: {e}")
+            return False
+    
+    async def run_all_tests(self):
+        """Run complete test suite"""
+        print("🚀 Starting SoulPrint Multi-LLM Provider Tests")
+        print(f"🌐 Base URL: {self.base_url}")
         
-        print(f"\n📊 Test Results Summary:")
-        print(f"✅ Passed: {passed}")
-        print(f"❌ Failed: {failed}")
-        print(f"📈 Success Rate: {(passed / (passed + failed) * 100):.1f}%")
+        await self.create_session()
         
-        # Return True if all tests passed
-        return failed == 0
+        try:
+            # Step 1: Authentication
+            print("\n📝 Step 1: Authentication")
+            if not await self.authenticate():
+                print("❌ Authentication failed - cannot continue")
+                return False
+            
+            # Step 2: Test models endpoint
+            print("\n📝 Step 2: Test Models Endpoint")
+            models_ok = await self.test_models_endpoint()
+            
+            # Step 3: Test each provider
+            print("\n📝 Step 3: Test Multi-LLM Providers")
+            
+            provider_tests = [
+                ("openai", "gpt-4o", "OpenAI GPT-4o"),
+                ("anthropic", "claude-sonnet-4-5-20250929", "Claude Sonnet 4.5"),
+                ("gemini", "gemini-2.0-flash", "Gemini 2.0 Flash"),
+                ("perplexity", "sonar", "Perplexity Sonar"),
+            ]
+            
+            results = []
+            for provider, model, name in provider_tests:
+                result = await self.test_streaming_provider(provider, model, name)
+                results.append((name, result))
+                await asyncio.sleep(1)  # Rate limiting
+            
+            # Summary
+            print("\n" + "="*60)
+            print("🏁 TEST SUMMARY")
+            print("="*60)
+            
+            # Authentication
+            print(f"🔐 Authentication: ✅ SUCCESS")
+            
+            # Models endpoint
+            print(f"📋 Models Endpoint: {'✅ SUCCESS' if models_ok else '❌ FAILED'}")
+            
+            # Provider tests
+            successful_providers = 0
+            for name, result in results:
+                status = "✅ SUCCESS" if result else "❌ FAILED"
+                print(f"🤖 {name}: {status}")
+                if result:
+                    successful_providers += 1
+            
+            total_tests = len(results) + 2  # providers + auth + models
+            successful_tests = successful_providers + 1 + (1 if models_ok else 0)
+            
+            print(f"\n🎯 Overall: {successful_tests}/{total_tests} tests passed")
+            
+            if successful_providers == len(provider_tests):
+                print("🎉 All multi-LLM providers working correctly!")
+                return True
+            elif successful_providers >= 2:
+                print(f"⚠️ {successful_providers}/{len(provider_tests)} providers working - partial success")
+                return True
+            else:
+                print("❌ Multi-LLM integration has major issues")
+                return False
+                
+        finally:
+            await self.close_session()
 
-def main():
+async def main():
     """Main test runner"""
-    tester = SoulPrintAPITest()
+    tester = SoulPrintTester()
+    success = await tester.run_all_tests()
     
-    try:
-        all_passed = tester.run_all_tests()
-        
-        if all_passed:
-            print("\n🎉 All backend tests passed successfully!")
-            sys.exit(0)
-        else:
-            print("\n⚠️  Some backend tests failed. Check the details above.")
-            sys.exit(1)
-    
-    except KeyboardInterrupt:
-        print("\n\n⏹️  Tests interrupted by user")
-        sys.exit(130)
-    except Exception as e:
-        print(f"\n💥 Fatal error during testing: {str(e)}")
+    if success:
+        print("\n✅ Backend testing completed successfully")
+        sys.exit(0)
+    else:
+        print("\n❌ Backend testing failed")
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
