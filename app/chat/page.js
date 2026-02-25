@@ -1247,6 +1247,34 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                 </button>
                 <p className="text-gray-700 text-[10px] mt-2 text-center">Your previous answers will be archived</p>
               </div>
+
+              {/* Install App Section */}
+              <div className="pt-5 border-t border-white/10">
+                <h3 className="text-white text-sm font-semibold mb-2">📱 Install App</h3>
+                <p className="text-gray-500 text-xs mb-4">
+                  Install SoulPrint on your device for quick access and a full-screen experience without browser UI.
+                </p>
+                <div className="space-y-3">
+                  <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                    <p className="text-xs text-orange-300 font-medium mb-2">🖥️ Desktop (Chrome/Edge)</p>
+                    <p className="text-[10px] text-orange-200/70">
+                      Look for the install icon (⊕) in your browser's address bar, or use the browser menu → "Install SoulPrint"
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                    <p className="text-xs text-blue-300 font-medium mb-2">📱 iOS (Safari)</p>
+                    <p className="text-[10px] text-blue-200/70">
+                      Tap Share → "Add to Home Screen" → "Add"
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                    <p className="text-xs text-green-300 font-medium mb-2">📱 Android (Chrome)</p>
+                    <p className="text-[10px] text-green-200/70">
+                      Tap the menu (⋮) → "Install app" or "Add to Home screen"
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
