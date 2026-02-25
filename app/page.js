@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Twitter, Github, Linkedin, Youtube, Instagram } from 'lucide-react';
+import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 const HERO_IMAGE = "https://images.unsplash.com/photo-1453396450673-3fe83d2db2c4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwzfHxkYXJrJTIwcG9ydHJhaXR8ZW58MHx8fGJsYWNrX2FuZF93aGl0ZXwxNzcxOTcxNzQ3fDA&ixlib=rb-4.1.0&q=85";
 const FEATURE_IMAGES = [
