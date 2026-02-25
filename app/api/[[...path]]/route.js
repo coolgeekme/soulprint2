@@ -4380,6 +4380,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'places/search') return handlePlacesSearch(request);
     if (pathStr === 'places/geocode') return handleGeocode(request);
     if (pathStr === 'user/location') return handleSaveUserLocation(request);
+    if (pathStr === 'data-import/upload') return handleDataImportUpload(request);
+    if (pathStr === 'assessment/reset') return handleResetAssessment(request);
 
     // Admin routes
     if (pathStr === 'admin/questions/seed') return handleAdminSeedQuestions(request);
