@@ -33,7 +33,7 @@ class SoulPrintTester:
             # Try login first with superadmin user
             login_data = {
                 "email": "test@soulprint.com",
-                "password": "test123"
+                "passcode": "test123"
             }
             
             async with self.session.post(f"{self.base_url}/api/auth/login", 
