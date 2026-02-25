@@ -174,7 +174,7 @@ export default function AuthPage() {
           </div>
 
           {error && (
-            <p className="text-red-400 text-xs text-center">{error}</p>
+            <p className="text-red-400 text-xs text-center bg-red-500/10 border border-red-500/20 rounded-lg py-2.5 px-3">{error}</p>
           )}
 
           {/* Divider */}
