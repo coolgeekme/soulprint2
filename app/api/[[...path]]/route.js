@@ -2679,6 +2679,27 @@ async function handleTelegramWebhook(request) {
     return ok({ ok: true });
   }
 
+  // ── /location command — share or update location ──────────────────────────────
+  if (text === '/location' || text === '/loc') {
+    if (!mapping?.linked) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
+      return ok({ ok: true });
+    }
+    
+    // Check if user already has a location
+    const existingLoc = await db.collection('user_locations').findOne({ user_id: userId });
+    if (existingLoc && existingLoc.lat && existingLoc.lng) {
+      await requestTelegramLocation(chatId, TELEGRAM_BOT_TOKEN,
+        `📍 *Your current location:*\n${existingLoc.address || 'Saved location'}\n\n_Tap the button below to update your location._`
+      );
+    } else {
+      await requestTelegramLocation(chatId, TELEGRAM_BOT_TOKEN,
+        `📍 *Share your location*\n\nTap the button below to share your current location. This enables "near me" searches for restaurants, stores, and more!`
+      );
+    }
+    return ok({ ok: true });
+  }
+
   // ── /image command — generate image with Kie.ai GPT-4o Image ─────────────────
   if (text.startsWith('/image ') || text.startsWith('/img ')) {
     if (!mapping?.linked) {
