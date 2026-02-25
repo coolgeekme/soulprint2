@@ -3886,6 +3886,264 @@ async function handleConnectorStub(platform) {
   });
 }
 
+// ============================================================
+// DATA IMPORT & ANALYSIS ENDPOINTS
+// ============================================================
+
+// Handle data import (ChatGPT or Facebook ZIP upload)
+async function handleDataImportUpload(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const formData = await request.formData();
+    const file = formData.get('file');
+    const source = formData.get('source') || 'unknown'; // 'chatgpt' or 'facebook'
+    
+    if (!file) return err('No file provided');
+    
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const filename = file.name || 'upload.zip';
+    
+    // Validate it's a ZIP
+    if (!filename.toLowerCase().endsWith('.zip')) {
+      return err('Please upload a ZIP file');
+    }
+    
+    const db = await getDb();
+    const uploadId = uuidv4();
+    
+    // Create upload record
+    await db.collection('data_imports').insertOne({
+      id: uploadId,
+      user_id: user.id,
+      filename,
+      source,
+      status: 'processing',
+      file_size: buffer.length,
+      created_at: new Date(),
+    });
+
+    // Parse based on source
+    let parsedData;
+    if (source === 'chatgpt') {
+      parsedData = await parseChatGPTExport(buffer);
+    } else if (source === 'facebook') {
+      parsedData = await parseFacebookExport(buffer);
+    } else {
+      // Try to auto-detect
+      const AdmZip = (await import('adm-zip')).default;
+      const zip = new AdmZip(buffer);
+      const entries = zip.getEntries().map(e => e.entryName.toLowerCase());
+      
+      if (entries.some(e => e.includes('conversations.json'))) {
+        parsedData = await parseChatGPTExport(buffer);
+      } else if (entries.some(e => e.includes('messages/') || e.includes('posts/'))) {
+        parsedData = await parseFacebookExport(buffer);
+      } else {
+        await db.collection('data_imports').updateOne(
+          { id: uploadId },
+          { $set: { status: 'error', error: 'Could not detect data format' } }
+        );
+        return err('Could not detect data format. Please specify if this is ChatGPT or Facebook data.');
+      }
+    }
+
+    // Update with parsed stats
+    await db.collection('data_imports').updateOne(
+      { id: uploadId },
+      { $set: { 
+        status: 'analyzing',
+        parsed_stats: {
+          source: parsedData.source,
+          conversationCount: parsedData.conversationCount || 0,
+          messageCount: parsedData.userMessageCount || parsedData.messageCount || 0,
+          postCount: parsedData.postCount || 0,
+        }
+      } }
+    );
+
+    // Analyze communication style
+    const analysis = await analyzeCommmunicationStyle(parsedData);
+    
+    if (analysis.error) {
+      await db.collection('data_imports').updateOne(
+        { id: uploadId },
+        { $set: { status: 'error', error: analysis.error } }
+      );
+      return err(`Analysis failed: ${analysis.error}`);
+    }
+
+    // Save analysis results
+    await db.collection('data_imports').updateOne(
+      { id: uploadId },
+      { $set: { 
+        status: 'complete',
+        analysis,
+        completed_at: new Date(),
+      } }
+    );
+
+    // Update user's soul profile with aggregated insights
+    const existingProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
+    const updatedInsights = mergeInsights(existingProfile?.insights || {}, analysis, parsedData.source);
+    
+    await db.collection('soul_profiles').updateOne(
+      { user_id: user.id },
+      { 
+        $set: { 
+          insights: updatedInsights,
+          updated_at: new Date(),
+        },
+        $push: {
+          import_history: {
+            import_id: uploadId,
+            source: parsedData.source,
+            analyzed_at: new Date(),
+          }
+        }
+      },
+      { upsert: true }
+    );
+
+    // Raw data is NOT stored - only the analysis results
+    // The ZIP buffer is already garbage collected after this function
+
+    return ok({
+      success: true,
+      uploadId,
+      analysis,
+      stats: {
+        source: parsedData.source,
+        conversationsAnalyzed: parsedData.conversationCount || 0,
+        messagesAnalyzed: parsedData.userMessageCount || parsedData.messageCount || 0,
+        postsAnalyzed: parsedData.postCount || 0,
+      }
+    });
+
+  } catch (e) {
+    console.error('Data import error:', e);
+    return err(`Import failed: ${e.message}`, 500);
+  }
+}
+
+// Merge new insights with existing profile
+function mergeInsights(existing, newAnalysis, source) {
+  const updated = { ...existing };
+  
+  // Add or update communication style
+  updated.communicationStyle = updated.communicationStyle || {};
+  updated.communicationStyle[source] = newAnalysis.communicationStyle;
+  
+  // Merge interests (dedupe)
+  const existingInterests = updated.interests || [];
+  const newInterests = newAnalysis.interests || [];
+  updated.interests = [...new Set([...existingInterests, ...newInterests])].slice(0, 20);
+  
+  // Add insights
+  updated.insights = updated.insights || [];
+  updated.insights = [...(newAnalysis.insights || []), ...updated.insights].slice(0, 15);
+  
+  // Vocabulary
+  updated.vocabulary = updated.vocabulary || {};
+  updated.vocabulary[source] = newAnalysis.vocabulary;
+  
+  // Question style
+  updated.questionStyle = updated.questionStyle || {};
+  updated.questionStyle[source] = newAnalysis.questionStyle;
+  
+  // Latest summary
+  updated.latestSummary = newAnalysis.summary;
+  updated.sources = [...new Set([...(updated.sources || []), source])];
+  
+  return updated;
+}
+
+// Get user's data imports and soul profile
+async function handleGetDataImports(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  
+  // Get all imports for this user
+  const imports = await db.collection('data_imports')
+    .find({ user_id: user.id })
+    .sort({ created_at: -1 })
+    .toArray();
+  
+  // Get soul profile
+  const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
+  
+  return ok({
+    imports: imports.map(i => ({
+      id: i.id,
+      source: i.parsed_stats?.source || i.source,
+      status: i.status,
+      stats: i.parsed_stats,
+      analysis: i.analysis,
+      created_at: i.created_at,
+      completed_at: i.completed_at,
+    })),
+    soulProfile: soulProfile?.insights || null,
+  });
+}
+
+// Delete a specific import (keeps the analysis in soul profile)
+async function handleDeleteDataImport(request, importId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  const result = await db.collection('data_imports').deleteOne({ 
+    id: importId, 
+    user_id: user.id 
+  });
+  
+  if (result.deletedCount === 0) return err('Import not found', 404);
+  return ok({ success: true });
+}
+
+// ============================================================
+// ASSESSMENT RESET ENDPOINT
+// ============================================================
+
+async function handleResetAssessment(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  
+  // Get current assessment answers for backup/history
+  const currentAnswers = await db.collection('assessment_answers')
+    .find({ user_id: user.id })
+    .toArray();
+  
+  if (currentAnswers.length > 0) {
+    // Archive old answers
+    await db.collection('assessment_history').insertOne({
+      user_id: user.id,
+      answers: currentAnswers,
+      archived_at: new Date(),
+    });
+    
+    // Delete current answers
+    await db.collection('assessment_answers').deleteMany({ user_id: user.id });
+  }
+  
+  // Reset assessment_complete flag
+  await db.collection('users').updateOne(
+    { id: user.id },
+    { $set: { assessment_complete: false } }
+  );
+  
+  return ok({ 
+    success: true, 
+    message: 'Assessment reset. You can now retake the 36-question guide.',
+    previousAnswers: currentAnswers.length
+  });
+}
+
 // PLACES SEARCH API - for web app
 async function handlePlacesSearch(request) {
   const user = await authenticate(request);
