@@ -482,9 +482,46 @@ function SettingsModal({ onClose, token }) {
                   <p className="text-gray-500 text-xs">An admin needs to add <code className="bg-white/10 px-1 rounded">TELEGRAM_BOT_TOKEN</code> to the server environment and run setup from the Admin panel.</p>
                 </div>
               ) : telegramStatus?.linked ? (
-                <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
-                  <p className="text-green-400 text-xs font-semibold mb-1">✅ Telegram is linked!</p>
-                  <p className="text-gray-400 text-xs">You can now chat with your SoulPrint directly in Telegram. Just send a message to the bot.</p>
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20">
+                    <p className="text-green-400 text-xs font-semibold mb-1">✅ Telegram is linked!</p>
+                    <p className="text-gray-400 text-xs">You can chat with your SoulPrint directly in Telegram. Type <code className="bg-white/10 px-1 rounded">/help</code> in the bot for commands.</p>
+                  </div>
+
+                  {/* AI Model selector for Telegram */}
+                  <div className="p-4 rounded-xl bg-white/3 border border-white/8 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-white text-xs font-semibold">AI Model for Telegram</p>
+                        <p className="text-gray-500 text-[11px] mt-0.5">Choose which AI responds to your Telegram messages</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 max-h-52 overflow-y-auto">
+                      {['OpenAI', 'Claude', 'Gemini', 'Perplexity', 'Kimi'].map(group => {
+                        const groupModels = TELEGRAM_MODELS.filter(m => m.group === group);
+                        if (!groupModels.length) return null;
+                        return (
+                          <div key={group}>
+                            <p className="text-[9px] font-bold text-gray-600 tracking-widest uppercase px-1 mt-2 mb-1">{group}</p>
+                            {groupModels.map(m => (
+                              <button key={m.value}
+                                onClick={() => saveTelegramModel(m.value)}
+                                disabled={savingModel}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition-colors ${telegramModel === m.value ? 'bg-orange-500/15 text-orange-400 border border-orange-500/20' : 'text-gray-400 hover:bg-white/5 hover:text-white border border-transparent'}`}>
+                                <span>{m.label}</span>
+                                {telegramModel === m.value && <span className="text-[9px] font-bold text-orange-500/70">ACTIVE</span>}
+                                {m.group === 'Perplexity' && <span className="text-[9px] text-blue-400/70 ml-1">🌐 online</span>}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {modelSaveMsg && <p className={`text-xs ${modelSaveMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{modelSaveMsg}</p>}
+                    <p className="text-[10px] text-gray-700 border-t border-white/5 pt-2">
+                      You can also switch models directly in Telegram with <code className="bg-white/10 px-1 rounded">/model [name]</code>
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -503,7 +540,7 @@ function SettingsModal({ onClose, token }) {
                       <input value={linkCode} onChange={e => setLinkCode(e.target.value.toUpperCase())}
                         placeholder="e.g. A1B2C3D4" maxLength={8}
                         className="flex-1 bg-[#0a0a0a] border border-white/10 text-white text-sm px-4 py-2.5 rounded-xl font-mono tracking-widest focus:border-orange-500/40 transition-colors" />
-                      <button onClick={linkTelegram} disabled={linking || !linkCode.trim()}
+                      <button onClick={linkTelegramFn} disabled={linking || !linkCode.trim()}
                         className="btn-orange px-4 rounded-xl text-sm disabled:opacity-50">
                         {linking ? '...' : 'Link'}
                       </button>
