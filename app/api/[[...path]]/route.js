@@ -1408,6 +1408,31 @@ async function handleConnectorStub(platform) {
   });
 }
 
+// TRANSCRIBE - Whisper audio transcription (fallback for non-Chrome browsers)
+async function handleTranscribe(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const formData = await request.formData();
+    const audioFile = formData.get('audio');
+    if (!audioFile) return err('No audio file provided');
+
+    const OpenAI = (await import('openai')).default;
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const transcription = await client.audio.transcriptions.create({
+      file: audioFile,
+      model: 'whisper-1',
+      language: 'en',
+    });
+
+    return ok({ text: transcription.text });
+  } catch (error) {
+    return err(`Transcription failed: ${error.message}`, 500);
+  }
+}
+
 // MODELS - Get available
 async function handleGetModels(request) {
   return ok(AVAILABLE_MODELS);
