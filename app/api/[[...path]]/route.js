@@ -2030,6 +2030,9 @@ async function handleTelegramWebhook(request) {
     }
     return ok({ ok: true });
   }
+
+  // ── /search command — force a web search ────────────────────────────────────
+  if (text.startsWith('/search ')) {
     if (!mapping?.linked) {
       await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ Link your account first with /start');
       return ok({ ok: true });
