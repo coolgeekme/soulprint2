@@ -4449,6 +4449,10 @@ export async function DELETE(request, { params }) {
       const taskId = pathArr[1];
       return handleDeleteSchedule(request, taskId);
     }
+    if (pathStr.startsWith('data-imports/') && pathArr.length === 2) {
+      const importId = pathArr[1];
+      return handleDeleteDataImport(request, importId);
+    }
     return err('Not found', 404);
   } catch (error) {
     console.error('DELETE error:', error);
