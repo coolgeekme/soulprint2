@@ -2082,6 +2082,15 @@ async function handleTelegramWebhook(request) {
     return ok({ ok: true });
   }
 
+  // ── Best Practice: Rate Limiting for Telegram ─────────────────────────────
+  if (checkRateLimit(userId, 60)) {
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ You\'ve sent too many messages. Please wait a bit before sending more.');
+    return ok({ ok: true });
+  }
+
+  // ── Best Practice: Input Sanitization ────────────────────────────────────
+  const sanitizedText = sanitizeInput(text);
+
   // Send typing indicator
   await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2092,6 +2101,112 @@ async function handleTelegramWebhook(request) {
   const preferredModel = mapping.preferred_model || 'gpt-4o';
   const preferredProvider = mapping.preferred_provider || 'openai';
 
+  // ── Auto-detect media & social post intents in plain messages ────────────
+  const lowerText = sanitizedText.toLowerCase();
+
+  // Auto-detect image generation intent
+  const isImageRequest = /\b(generate|create|make|draw|show me|give me)\s+(an?\s+)?(image|picture|photo|illustration|painting|artwork)\b/i.test(sanitizedText)
+    || /\b(dall-?e|stable diffusion)\b/i.test(sanitizedText);
+
+  // Auto-detect video generation intent
+  const isVideoRequest = /\b(generate|create|make|animate)\s+(a\s+)?(video|clip|animation|short film)\b/i.test(sanitizedText);
+
+  // Auto-detect social media post intent
+  const socialMatch = sanitizedText.match(/\b(write|create|generate|make|draft)\s+(me\s+)?(a\s+)?(tweet|twitter|instagram|linkedin|tiktok|facebook|threads|youtube)\s+(post|caption|content|about)\b/i)
+    || sanitizedText.match(/\b(twitter|instagram|linkedin|tiktok|facebook|threads)\s+(post|caption|content)\s+(about|for|on)\b/i);
+
+  if (isImageRequest || isVideoRequest || socialMatch) {
+    try {
+      if (isImageRequest) {
+        const prompt = sanitizedText.replace(/\b(generate|create|make|draw|show me|give me)\s+(an?\s+)?(image|picture|photo|illustration|painting|artwork)\s+(of\s+)?/i, '').trim() || sanitizedText;
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, action: 'upload_photo' }),
+        });
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '🎨 Generating your image with DALL-E 3...');
+        const apiKey = process.env.OPENAI_API_KEY;
+        const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1024x1024', quality: 'standard', style: 'vivid' }),
+        });
+        const imgData = await imgRes.json();
+        if (imgData.error) throw new Error(imgData.error.message);
+        const imageUrl = imgData.data?.[0]?.url;
+        const revisedPrompt = imgData.data?.[0]?.revised_prompt || prompt;
+        await sendTelegramPhoto(chatId, TELEGRAM_BOT_TOKEN, imageUrl,
+          `🎨 *Generated Image*\n_${revisedPrompt.substring(0, 200)}_`
+        );
+        return ok({ ok: true });
+
+      } else if (isVideoRequest) {
+        const prompt = sanitizedText.replace(/\b(generate|create|make|animate)\s+(a\s+)?(video|clip|animation)\s+(of\s+)?/i, '').trim() || sanitizedText;
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+          `🎬 *Starting video generation...*\n\nThis takes 1-3 minutes. I'll send it when ready!\n_"${prompt.substring(0, 150)}"_`
+        );
+        const kieKey = process.env.KIE_API_KEY;
+        const vidRes = await fetch('https://api.kie.ai/api/v1/runway/generate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+          body: JSON.stringify({ prompt, duration: 5, quality: '720p', aspectRatio: '16:9', waterMark: '' }),
+        });
+        const vidData = await vidRes.json();
+        if (vidData.code !== 200) throw new Error(vidData.msg || 'Video generation failed');
+        const taskId = vidData.data?.taskId;
+        // Poll for completion
+        let attempts = 0;
+        while (attempts < 30) {
+          await new Promise(r => setTimeout(r, 10000));
+          attempts++;
+          const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+            headers: { Authorization: `Bearer ${kieKey}` },
+          });
+          const pollData = await pollRes.json();
+          const state = pollData.data?.state;
+          const videoUrl = (pollData.data?.response?.resultUrls || [])[0];
+          const thumbnailUrl = pollData.data?.response?.imageUrl || null;
+          if (state === 'success' && videoUrl) {
+            if (thumbnailUrl) await sendTelegramPhoto(chatId, TELEGRAM_BOT_TOKEN, thumbnailUrl, '🎬 *Video ready!*');
+            await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+              `🎬 *Your video is ready!*\n[▶️ Watch / Download](${videoUrl})\n_"${prompt.substring(0, 150)}"_`
+            );
+            break;
+          } else if (state === 'fail') {
+            await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '❌ Video generation failed.');
+            break;
+          }
+          if (attempts % 6 === 0) await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `⏳ Still generating... (~${Math.round(attempts * 10 / 60)} min)`);
+        }
+        return ok({ ok: true });
+
+      } else if (socialMatch) {
+        // Detect platform from the message
+        const platformMap = { tweet: 'twitter', twitter: 'twitter', instagram: 'instagram', linkedin: 'linkedin', tiktok: 'tiktok', facebook: 'facebook', threads: 'threads', youtube: 'youtube' };
+        let detectedPlatform = 'twitter';
+        for (const [key, val] of Object.entries(platformMap)) {
+          if (lowerText.includes(key)) { detectedPlatform = val; break; }
+        }
+        // Extract topic
+        const topic = sanitizedText.replace(/\b(write|create|generate|make|draft)\s+(me\s+)?a?\s*(tweet|twitter|instagram|linkedin|tiktok|facebook|threads|youtube)?\s*(post|caption|content)?\s*(about|for|on)?\s*/i, '').trim() || sanitizedText;
+        const profile = await db.collection('profiles').findOne({ user_id: userId });
+        const userContext = profile ? `${profile.display_name || ''}, ${profile.descriptors?.join(', ') || ''}` : '';
+
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+          `✍️ Creating ${SOCIAL_PLATFORMS[detectedPlatform].name} post about *"${topic.substring(0, 100)}"*...\n🌐 Fetching real-time data...`
+        );
+
+        const { post, platform: platformName, maxChars } = await generateSocialPost({
+          platform: detectedPlatform, topic, userContext, model: preferredModel, includeSearch: true,
+        });
+        await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+          `📱 *${platformName} Post* (${post.length}/${maxChars} chars)\n\n${post}`
+        );
+        return ok({ ok: true });
+      }
+    } catch (autoErr) {
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, `❌ Generation failed: ${autoErr.message}`);
+      return ok({ ok: true });
+    }
+  }
+
   try {
     // Get or create a Telegram conversation for this user
     let conv = await db.collection('conversations').findOne({ user_id: userId, source: 'telegram' });
@@ -2101,21 +2216,24 @@ async function handleTelegramWebhook(request) {
       await db.collection('conversations').insertOne(conv);
     }
 
-    // Save user message
+    // Save user message (store sanitized version for LLM, original for display)
     const userMsgId = uuidv4();
     await db.collection('messages').insertOne({
       id: userMsgId, conversation_id: conv.id, user_id: userId,
       role: 'user', content: text, created_at: new Date(), source: 'telegram',
     });
 
-    // Get history
+    // Get history (token-aware trimming — best practice)
     const recent = await db.collection('messages')
       .find({ conversation_id: conv.id, id: { $ne: userMsgId } })
-      .sort({ created_at: -1 }).limit(10).toArray();
+      .sort({ created_at: -1 }).limit(30).toArray();
     recent.reverse();
+    const rawHistory = recent.map(m => ({ role: m.role, content: m.content }));
+    const trimmedHistory = trimHistory(rawHistory, 4000);
+    let historyMessages = [...trimmedHistory, { role: 'user', content: sanitizedText }];
 
-    let historyMessages = [...recent.map(m => ({ role: m.role, content: m.content })), { role: 'user', content: text }];
-    const systemPrompt = await buildSystemPrompt(db, userId);
+    // Use cached system prompt (best practice)
+    const systemPrompt = await getSystemPrompt(db, userId);
 
     // ── Real-time web search ────────────────────────────────────────────────
     // Perplexity sonar models have built-in search — no need to inject
