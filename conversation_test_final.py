@@ -57,6 +57,9 @@ def main():
         print(f"[{datetime.now().strftime('%H:%M:%S')}] ❌ Could not find working passcode")
         print(f"[{datetime.now().strftime('%H:%M:%S')}] 📝 Trying to register new user...")
         
+        # Create new session for registration
+        session = requests.Session()
+        
         # Try to register with a new passcode
         new_passcode = "testconv123"
         register_response = session.post(f"{BASE_URL}/auth/register", json={
