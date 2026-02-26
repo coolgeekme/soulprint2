@@ -219,6 +219,12 @@ function UsersTab({ token, adminRole }) {
   const [inviteEmail, setInviteEmail] = useState('');
   const [resetUserId, setResetUserId] = useState(null);
   const [newPasscode, setNewPasscode] = useState('');
+  
+  // Add/Edit user state
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [userFormData, setUserFormData] = useState({ email: '', passcode: '', display_name: '', role: 'user', accepted: true });
+  const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -278,9 +284,93 @@ function UsersTab({ token, adminRole }) {
     alert(`${inviteEmail} promoted to admin`);
   }
 
+  // Create or Update user
+  async function handleSaveUser() {
+    if (!userFormData.email) {
+      alert('Email is required');
+      return;
+    }
+    if (!editingUser && !userFormData.passcode) {
+      alert('Passcode is required for new users');
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      if (editingUser) {
+        // Update existing user
+        const res = await fetch(`/api/admin/users/${editingUser.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            email: userFormData.email,
+            display_name: userFormData.display_name,
+            role: userFormData.role,
+            accepted: userFormData.accepted,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update user');
+      } else {
+        // Create new user
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(userFormData),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create user');
+      }
+      setShowUserForm(false);
+      setEditingUser(null);
+      setUserFormData({ email: '', passcode: '', display_name: '', role: 'user', accepted: true });
+      load();
+    } catch (e) {
+      alert(e.message);
+    }
+    setSaving(false);
+  }
+
+  // Delete user
+  async function handleDeleteUser(user) {
+    if (!confirm(`Are you sure you want to delete ${user.email}? This will also delete all their conversations, messages, and data. This cannot be undone.`)) return;
+    
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete user');
+      load();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  // Open edit form
+  function openEditForm(user) {
+    setEditingUser(user);
+    setUserFormData({
+      email: user.email,
+      passcode: '',
+      display_name: user.display_name || '',
+      role: user.role || 'user',
+      accepted: user.accepted ?? true,
+    });
+    setShowUserForm(true);
+  }
+
+  // Open create form
+  function openCreateForm() {
+    setEditingUser(null);
+    setUserFormData({ email: '', passcode: '', display_name: '', role: 'user', accepted: true });
+    setShowUserForm(true);
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600" />
           <input
@@ -290,12 +380,100 @@ function UsersTab({ token, adminRole }) {
             className="w-full bg-[#111] border border-white/10 text-white text-sm pl-9 pr-4 py-2.5 rounded-xl focus:border-orange-500/40 transition-colors"
           />
         </div>
-        <button onClick={load} className="p-2.5 bg-[#111] border border-white/10 rounded-xl text-gray-500 hover:text-white transition-colors">
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex gap-2">
+          <button onClick={load} className="p-2.5 bg-[#111] border border-white/10 rounded-xl text-gray-500 hover:text-white transition-colors">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          {adminRole === 'superadmin' && (
+            <button onClick={openCreateForm} className="flex items-center gap-1.5 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors">
+              <Plus className="w-4 h-4" /> Add User
+            </button>
+          )}
+        </div>
       </div>
 
-      {adminRole === 'superadmin' && (
+      {/* User Form Modal */}
+      {showUserForm && (
+        <div className="bg-[#111] border border-white/10 rounded-xl p-5 space-y-4">
+          <h3 className="text-white font-semibold">{editingUser ? 'Edit User' : 'Create New User'}</h3>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-500 text-xs mb-1">Email *</label>
+              <input
+                type="email"
+                value={userFormData.email}
+                onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                placeholder="user@example.com"
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+              />
+            </div>
+            {!editingUser && (
+              <div>
+                <label className="block text-gray-500 text-xs mb-1">Passcode *</label>
+                <input
+                  type="text"
+                  value={userFormData.passcode}
+                  onChange={(e) => setUserFormData({ ...userFormData, passcode: e.target.value })}
+                  placeholder="Initial passcode"
+                  className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+                />
+              </div>
+            )}
+            <div>
+              <label className="block text-gray-500 text-xs mb-1">Display Name</label>
+              <input
+                type="text"
+                value={userFormData.display_name}
+                onChange={(e) => setUserFormData({ ...userFormData, display_name: e.target.value })}
+                placeholder="John Doe"
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-gray-500 text-xs mb-1">Role</label>
+              <select
+                value={userFormData.role}
+                onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+              >
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+                <option value="superadmin">Superadmin</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="userAccepted"
+              checked={userFormData.accepted}
+              onChange={(e) => setUserFormData({ ...userFormData, accepted: e.target.checked })}
+              className="w-4 h-4 rounded border-white/20 bg-[#0a0a0a]"
+            />
+            <label htmlFor="userAccepted" className="text-gray-400 text-sm">Account accepted (can log in)</label>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={handleSaveUser}
+              disabled={saving}
+              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : editingUser ? 'Update User' : 'Create User'}
+            </button>
+            <button
+              onClick={() => { setShowUserForm(false); setEditingUser(null); }}
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg text-sm transition-all"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {adminRole === 'superadmin' && !showUserForm && (
         <div className="flex gap-2 p-4 bg-[#111] border border-white/8 rounded-xl">
           <input
             value={inviteEmail}
@@ -362,17 +540,35 @@ function UsersTab({ token, adminRole }) {
                   </span>
                 </td>
                 <td className="py-3 pr-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {adminRole === 'superadmin' && (
-                      <select
-                        value={u.role}
-                        onChange={e => changeRole(u.id, e.target.value)}
-                        className="bg-[#1a1a1a] border border-white/10 text-xs text-gray-400 rounded px-2 py-1"
-                      >
-                        <option value="user">user</option>
-                        <option value="admin">admin</option>
-                        <option value="superadmin">superadmin</option>
-                      </select>
+                      <>
+                        <select
+                          value={u.role}
+                          onChange={e => changeRole(u.id, e.target.value)}
+                          className="bg-[#1a1a1a] border border-white/10 text-xs text-gray-400 rounded px-2 py-1"
+                        >
+                          <option value="user">user</option>
+                          <option value="admin">admin</option>
+                          <option value="superadmin">superadmin</option>
+                        </select>
+                        <button 
+                          onClick={() => openEditForm(u)} 
+                          className="text-[10px] text-gray-600 hover:text-blue-400 transition-colors"
+                          title="Edit user"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        {u.role !== 'superadmin' && (
+                          <button 
+                            onClick={() => handleDeleteUser(u)} 
+                            className="text-[10px] text-gray-600 hover:text-red-400 transition-colors"
+                            title="Delete user"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </>
                     )}
                     {resetUserId === u.id ? (
                       <div className="flex items-center gap-1">
