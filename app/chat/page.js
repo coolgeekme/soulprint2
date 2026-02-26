@@ -4105,9 +4105,11 @@ export default function ChatPage() {
         <CloudImportModal 
           onClose={() => setShowCloudImport(false)} 
           token={token}
-          onImportComplete={() => {
-            setShowCloudImport(false);
-            // Optionally refresh user data
+          onImportComplete={(data) => {
+            // Don't close immediately - let the user see the success message
+            // The modal will show "Successfully imported X messages" with a green checkmark
+            // User can close it manually or it stays open showing the result
+            console.log('Import completed:', data);
           }}
         />
       )}
