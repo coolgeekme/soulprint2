@@ -5782,6 +5782,7 @@ export async function POST(request, { params }) {
     // Admin routes
     if (pathStr === 'admin/questions/seed') return handleAdminSeedQuestions(request);
     if (pathStr === 'admin/invite') return handleAdminInviteAdmin(request);
+    if (pathStr === 'admin/users') return handleAdminCreateUser(request);
     if (pathStr === 'admin/settings') return handleAdminUpdateSettings(request);
     if (pathStr === 'admin/waitlist/approve') return handleAdminApproveWaitlist(request);
     if (pathStr === 'admin/feedback/summarize') return handleAdminSummarizeFeedback(request);
