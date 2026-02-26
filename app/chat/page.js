@@ -1966,6 +1966,12 @@ export default function ChatPage() {
   const [streamingImageUrl, setStreamingImageUrl] = useState(null);
   const [streamingRevPrompt, setStreamingRevPrompt] = useState('');
   const [streamingVideoTask, setStreamingVideoTask] = useState(null); // { taskId, status, prompt }
+  // Compare mode state
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareModels, setCompareModels] = useState([]); // [{ model, provider }]
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareResponses, setCompareResponses] = useState(null); // { responses: [], comparisonId, userMessageId }
+  const [selectedCompareResponse, setSelectedCompareResponse] = useState(null);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const messagesEndRef = useRef(null);
