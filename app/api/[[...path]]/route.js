@@ -845,6 +845,54 @@ async function buildSystemPrompt(db, userId) {
     }
   }
 
+  // Build long-term memory context
+  let memoryContext = '';
+  const memories = await getUserMemoriesForPrompt(db, userId);
+  if (memories.length > 0) {
+    const memoryGroups = {
+      health: [],
+      preferences: [],
+      personal: [],
+      work: [],
+      relationships: [],
+      goals: [],
+      other: [],
+    };
+    
+    for (const mem of memories) {
+      if (memoryGroups[mem.category]) {
+        memoryGroups[mem.category].push(`- ${mem.content}${mem.importance === 'high' ? ' ⚠️' : ''}`);
+      }
+    }
+    
+    const memorySections = [];
+    if (memoryGroups.health.length > 0) {
+      memorySections.push(`### Health & Safety (IMPORTANT)\n${memoryGroups.health.join('\n')}`);
+    }
+    if (memoryGroups.preferences.length > 0) {
+      memorySections.push(`### Preferences\n${memoryGroups.preferences.join('\n')}`);
+    }
+    if (memoryGroups.personal.length > 0) {
+      memorySections.push(`### Personal Details\n${memoryGroups.personal.join('\n')}`);
+    }
+    if (memoryGroups.relationships.length > 0) {
+      memorySections.push(`### Relationships & Family\n${memoryGroups.relationships.join('\n')}`);
+    }
+    if (memoryGroups.work.length > 0) {
+      memorySections.push(`### Work & Career\n${memoryGroups.work.join('\n')}`);
+    }
+    if (memoryGroups.goals.length > 0) {
+      memorySections.push(`### Goals & Aspirations\n${memoryGroups.goals.join('\n')}`);
+    }
+    if (memoryGroups.other.length > 0) {
+      memorySections.push(`### Other Facts\n${memoryGroups.other.join('\n')}`);
+    }
+    
+    if (memorySections.length > 0) {
+      memoryContext = `\n## Long-Term Memory\nThese are important facts about ${displayName} that you MUST remember and reference when relevant:\n\n${memorySections.join('\n\n')}`;
+    }
+  }
+
   return `You are **${assistantName}**, a personal AI companion for **${displayName}**.
 
 # User Profile
@@ -856,6 +904,7 @@ async function buildSystemPrompt(db, userId) {
 - **Needs help with**: ${helpWith.join(', ') || 'General assistance'}
 ${assessmentContext}
 ${soulProfileContext}
+${memoryContext}
 
 # Communication Guidelines
 
@@ -864,8 +913,8 @@ Based on ${displayName}'s profile, follow these guidelines:
 1. **Tone & Style**: Match their communication style - ${soulProfile?.insights?.communicationStyle ? 'adapt to their preferred formality and verbosity as noted above' : 'be conversational but professional'}
 2. **Vocabulary**: ${soulProfile?.insights?.vocabulary ? 'Use vocabulary complexity that matches their style' : 'Use clear, accessible language'}
 3. **Personalization**: Address them by name naturally, reference their interests when relevant
-4. **Directness**: Be direct and insightful - they value substance over fluff
-5. **Context**: Remember conversation history and build on previous discussions
+4. **Long-Term Memory**: ${memories.length > 0 ? `You have ${memories.length} stored memories about ${displayName}. ALWAYS consider these when responding, especially health/safety information.` : 'Build rapport by remembering details they share'}
+5. **Directness**: Be direct and insightful - they value substance over fluff
 6. **Brevity**: Keep responses concise unless depth is specifically needed or requested
 
 You are ${displayName}'s intelligent companion - be genuinely helpful, remember what matters to them, and adapt your communication to feel natural and personalized.`;
