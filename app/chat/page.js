@@ -1289,30 +1289,40 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
             </div>
           )}
 
-          {/* Import Button */}
-          <button
-            onClick={importMode === 'direct' ? handleDirectUpload : handleUrlImport}
-            disabled={(importMode === 'direct' ? selectedFiles.length === 0 : !cloudUrl.trim()) || isImporting}
-            className={`w-full py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-              ((importMode === 'direct' ? selectedFiles.length > 0 : cloudUrl.trim()) && !isImporting)
-                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
-                : 'bg-white/5 text-gray-600 cursor-not-allowed'
-            }`}
-          >
-            {isImporting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {importStatus?.status === 'uploading' ? 'Uploading...' : 'Processing...'}
-              </>
-            ) : (
-              <>
-                <Upload className="w-4 h-4" />
-                {importMode === 'direct' 
-                  ? `Upload & Import${selectedFiles.length > 1 ? ` (${selectedFiles.length} files)` : ''}`
-                  : 'Import from URL'}
-              </>
-            )}
-          </button>
+          {/* Import Button or Done Button */}
+          {importStatus?.status === 'completed' ? (
+            <button
+              onClick={onClose}
+              className="w-full py-3 rounded-xl text-sm font-medium bg-green-500 text-white hover:bg-green-600 transition-all flex items-center justify-center gap-2"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Done
+            </button>
+          ) : (
+            <button
+              onClick={importMode === 'direct' ? handleDirectUpload : handleUrlImport}
+              disabled={(importMode === 'direct' ? selectedFiles.length === 0 : !cloudUrl.trim()) || isImporting}
+              className={`w-full py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                ((importMode === 'direct' ? selectedFiles.length > 0 : cloudUrl.trim()) && !isImporting)
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
+                  : 'bg-white/5 text-gray-600 cursor-not-allowed'
+              }`}
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {importStatus?.status === 'uploading' ? 'Uploading...' : 'Processing...'}
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  {importMode === 'direct' 
+                    ? `Upload & Import${selectedFiles.length > 1 ? ` (${selectedFiles.length} files)` : ''}`
+                    : 'Import from URL'}
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
