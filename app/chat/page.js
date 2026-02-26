@@ -2999,15 +2999,19 @@ export default function ChatPage() {
               </div>
 
               <button onClick={sendMessage}
-                disabled={(!input.trim() && attachments.length === 0 && !speech.isListening) || loading}
-                className="w-9 h-9 rounded-full bg-orange-500 flex items-center justify-center hover:bg-orange-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0">
-                {loading ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Send className="w-4 h-4 text-white" />}
+                disabled={(!input.trim() && attachments.length === 0 && !speech.isListening) || loading || compareLoading || (compareMode && compareModels.length === 0)}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
+                  compareMode ? 'bg-gradient-to-r from-orange-500 to-purple-500 hover:from-orange-600 hover:to-purple-600' : 'bg-orange-500 hover:bg-orange-600'
+                }`}>
+                {loading || compareLoading ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : compareMode ? <GitCompare className="w-4 h-4 text-white" /> : <Send className="w-4 h-4 text-white" />}
               </button>
             </div>
             <p className="text-center text-[10px] text-gray-700 mt-2">
               {speech.isListening
                 ? <span className="text-orange-500/70 animate-pulse">🎙 {speech.mode === 'live' ? 'Listening in real-time — tap mic to stop' : 'Recording — tap mic to stop & transcribe'}</span>
-                : 'Supports JPG, PNG, PDF, TXT, CSV · Tap 🎙 for voice input · Max 10MB'}
+                : compareMode
+                  ? <span className="text-purple-400/70">Compare Mode: Your message will be sent to {compareModels.length} model{compareModels.length !== 1 ? 's' : ''} simultaneously</span>
+                  : 'Supports JPG, PNG, PDF, TXT, CSV · Tap 🎙 for voice input · Max 10MB'}
             </p>
           </div>
         </div>
