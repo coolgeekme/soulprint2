@@ -1121,7 +1121,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
               }`}
             >
               <Upload className="w-4 h-4" />
-              Direct Upload
+              GoFile.io
             </button>
             <button
               onClick={() => { setImportMode('url'); setError(''); }}
@@ -1133,7 +1133,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
               }`}
             >
               <Link2 className="w-4 h-4" />
-              Cloud URL
+              Other Services
             </button>
           </div>
 
