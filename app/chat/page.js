@@ -1449,6 +1449,10 @@ export default function ChatPage() {
   // Location state
   const [userLocation, setUserLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
+  // Conversation management state
+  const [editingConvId, setEditingConvId] = useState(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [convMenuId, setConvMenuId] = useState(null); // which conversation's menu is open
   // Media generation state
   const [streamingImageUrl, setStreamingImageUrl] = useState(null);
   const [streamingRevPrompt, setStreamingRevPrompt] = useState('');
