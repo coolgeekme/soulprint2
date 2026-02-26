@@ -5260,50 +5260,22 @@ async function processCloudImport(importId, userId, cloudUrl, importType, provid
     let downloadUrl = cloudUrl;
     let fileId = null;
     
-    // Handle GoFile URLs - need to extract direct download link via API
-    if (provider === 'gofile' || cloudUrl.includes('gofile.io')) {
-      console.log(`[CloudImport] Processing GoFile URL: ${cloudUrl}`);
+    // Handle Pixeldrain URLs - simple direct download
+    if (provider === 'pixeldrain' || cloudUrl.includes('pixeldrain.com')) {
+      console.log(`[CloudImport] Processing Pixeldrain URL: ${cloudUrl}`);
       
-      // Extract content code from URL (e.g., https://gofile.io/d/AbCdEf)
-      const contentMatch = cloudUrl.match(/\/d\/([a-zA-Z0-9]+)/);
-      if (contentMatch) {
-        const contentCode = contentMatch[1];
-        console.log(`[CloudImport] GoFile content code: ${contentCode}`);
-        
-        try {
-          // Fetch content info from GoFile API
-          const contentRes = await fetch(`https://api.gofile.io/contents/${contentCode}?wt=4fd6sg89d7s6`, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Accept': 'application/json',
-            }
-          });
-          
-          if (contentRes.ok) {
-            const contentData = await contentRes.json();
-            console.log(`[CloudImport] GoFile API response status: ${contentData.status}`);
-            
-            if (contentData.status === 'ok' && contentData.data) {
-              const children = contentData.data.children || contentData.data.contents?.children;
-              if (children && Object.keys(children).length > 0) {
-                // Get the first file (or iterate for multiple)
-                const fileData = Object.values(children)[0];
-                if (fileData && fileData.link) {
-                  downloadUrl = fileData.link;
-                  console.log(`[CloudImport] Got direct download link from GoFile API: ${downloadUrl}`);
-                }
-              }
-            }
-          }
-        } catch (apiError) {
-          console.error(`[CloudImport] GoFile API error:`, apiError);
-        }
+      // Extract file ID from URL (e.g., https://pixeldrain.com/u/AbCdEfGh)
+      const pixelMatch = cloudUrl.match(/\/u\/([a-zA-Z0-9]+)/);
+      if (pixelMatch) {
+        const pixelFileId = pixelMatch[1];
+        // Pixeldrain direct download URL format
+        downloadUrl = `https://pixeldrain.com/api/file/${pixelFileId}?download`;
+        console.log(`[CloudImport] Pixeldrain direct URL: ${downloadUrl}`);
       }
-      
-      // If we still don't have a proper download URL, the original URL won't work
-      if (downloadUrl === cloudUrl && cloudUrl.includes('gofile.io/d/')) {
-        throw new Error('Could not get download link from GoFile. The file may have expired or the link may be invalid. Please try uploading again.');
-      }
+    } else if (provider === 'gofile' || cloudUrl.includes('gofile.io')) {
+      // GoFile requires premium account for API access - show helpful error
+      console.log(`[CloudImport] GoFile URL detected - requires premium API`);
+      throw new Error('GoFile requires a premium account for direct downloads. Please use Pixeldrain instead (free, no account needed).');
     } else if (provider === 'google' || cloudUrl.includes('drive.google.com')) {
       // Extract file ID from Google Drive URL
       const match = cloudUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
