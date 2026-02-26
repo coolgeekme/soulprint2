@@ -3435,22 +3435,22 @@ export default function ChatPage() {
             {fileError && <p className="text-red-400 text-xs mb-1 px-1">{fileError}</p>}
 
             {/* Input bar */}
-            <div className={`flex items-center gap-2 bg-[#111] border rounded-2xl px-3 py-2 transition-colors ${speech.isListening ? 'border-orange-500/60 shadow-[0_0_20px_rgba(249,115,22,0.15)]' : 'border-white/10 focus-within:border-orange-500/30'}`}>
+            <div className={`flex items-center gap-1.5 sm:gap-2 bg-[#111] border rounded-2xl px-2 sm:px-3 py-2 transition-colors ${speech.isListening ? 'border-orange-500/60 shadow-[0_0_20px_rgba(249,115,22,0.15)]' : 'border-white/10 focus-within:border-orange-500/30'}`}>
               {/* File attach button */}
               <button onClick={() => fileInputRef.current?.click()}
                 className="text-gray-600 hover:text-orange-400 transition-colors flex-shrink-0" title="Attach file or image">
-                <Paperclip className="w-5 h-5" />
+                <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <input ref={fileInputRef} type="file" multiple accept={ACCEPTED_FILE_TYPES} className="hidden" onChange={handleFileSelect} />
 
-              {/* Location button */}
+              {/* Location button - hide on very small screens */}
               <button
                 onClick={requestLocation}
                 disabled={locationLoading}
                 title={userLocation ? `Location: ${userLocation.address}` : 'Share your location for "near me" searches'}
-                className={`flex-shrink-0 transition-colors ${userLocation ? 'text-green-500 hover:text-green-400' : 'text-gray-600 hover:text-orange-400'} ${locationLoading ? 'animate-pulse' : ''}`}
+                className={`flex-shrink-0 transition-colors hidden xs:block ${userLocation ? 'text-green-500 hover:text-green-400' : 'text-gray-600 hover:text-orange-400'} ${locationLoading ? 'animate-pulse' : ''}`}
               >
-                <MapPin className="w-5 h-5" />
+                <MapPin className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
 
               {/* Mic button */}
@@ -3459,7 +3459,7 @@ export default function ChatPage() {
                 title={speech.isListening ? 'Stop recording' : 'Start voice input'}
                 className={`flex-shrink-0 transition-all relative ${speech.isListening ? 'text-orange-500' : 'text-gray-600 hover:text-orange-400'}`}
               >
-                <Mic className="w-5 h-5" />
+                <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
                 {speech.isListening && (
                   <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-500 animate-ping" />
                 )}
@@ -3468,15 +3468,15 @@ export default function ChatPage() {
               {/* Create (Image/Video) button */}
               <CreateMenu onGenerate={handleMediaGenerate} isGenerating={isGeneratingMedia} />
 
-              <div className="flex-1 relative">
+              <div className="flex-1 relative min-w-0">
                 <input
                   ref={inputRef}
                   type="text"
                   value={speech.isListening && interimText ? input + (input ? ' ' : '') + interimText : input}
                   onChange={e => { if (!speech.isListening) setInput(e.target.value); }}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                  placeholder={speech.isListening ? (speech.mode === 'whisper' ? 'Recording… tap mic to stop' : 'Listening…') : attachments.length > 0 ? 'Add a message or just send...' : 'Enter command…'}
-                  className={`w-full bg-transparent text-sm placeholder-gray-600 focus:outline-none py-1.5 ${speech.isListening ? 'text-orange-300' : 'text-white'}`}
+                  placeholder={speech.isListening ? (speech.mode === 'whisper' ? 'Recording…' : 'Listening…') : attachments.length > 0 ? 'Add message…' : 'Message…'}
+                  className={`w-full bg-transparent text-[13px] sm:text-sm placeholder-gray-600 focus:outline-none py-1 sm:py-1.5 ${speech.isListening ? 'text-orange-300' : 'text-white'}`}
                   disabled={loading}
                   readOnly={speech.isListening}
                 />
@@ -3484,18 +3484,19 @@ export default function ChatPage() {
 
               <button onClick={sendMessage}
                 disabled={(!input.trim() && attachments.length === 0 && !speech.isListening) || loading || compareLoading || (compareMode && compareModels.length === 0)}
-                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
                   compareMode ? 'bg-gradient-to-r from-orange-500 to-purple-500 hover:from-orange-600 hover:to-purple-600' : 'bg-orange-500 hover:bg-orange-600'
                 }`}>
-                {loading || compareLoading ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : compareMode ? <GitCompare className="w-4 h-4 text-white" /> : <Send className="w-4 h-4 text-white" />}
+                {loading || compareLoading ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-spin" /> : compareMode ? <GitCompare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" /> : <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />}
               </button>
             </div>
-            <p className="text-center text-[10px] text-gray-700 mt-2">
+            <p className="text-center text-[9px] sm:text-[10px] text-gray-700 mt-1.5 sm:mt-2 px-2">
               {speech.isListening
-                ? <span className="text-orange-500/70 animate-pulse">🎙 {speech.mode === 'live' ? 'Listening in real-time — tap mic to stop' : 'Recording — tap mic to stop & transcribe'}</span>
+                ? <span className="text-orange-500/70 animate-pulse">🎙 {speech.mode === 'live' ? 'Listening — tap mic to stop' : 'Recording — tap to stop'}</span>
                 : compareMode
-                  ? <span className="text-purple-400/70">Compare Mode: Your message will be sent to {compareModels.length} model{compareModels.length !== 1 ? 's' : ''} simultaneously</span>
-                  : 'Supports JPG, PNG, PDF, TXT, CSV · Tap 🎙 for voice input · Max 10MB'}
+                  ? <span className="text-purple-400/70">Compare: {compareModels.length} model{compareModels.length !== 1 ? 's' : ''}</span>
+                  : <span className="hidden sm:inline">Supports JPG, PNG, PDF, TXT, CSV · Tap 🎙 for voice · Max 10MB</span>}
+              {!speech.isListening && !compareMode && <span className="sm:hidden">Tap 🎙 for voice · Attach files</span>}
             </p>
           </div>
         </div>
