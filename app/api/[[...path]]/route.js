@@ -6,7 +6,7 @@ import { getProvider, AVAILABLE_MODELS } from '@/lib/llm/providers';
 import path from 'path';
 import fs from 'fs';
 import { writeFile, mkdir, rm, readFile } from 'fs/promises';
-import unzipper from 'unzipper';
+import yauzl from 'yauzl';
 
 // Configure route for large file uploads (App Router style)
 export const maxDuration = 300; // 5 minutes max for this route (large file processing)
