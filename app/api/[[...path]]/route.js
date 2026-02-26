@@ -5194,6 +5194,11 @@ export async function DELETE(request, { params }) {
   const pathStr = pathArr.join('/');
 
   try {
+    // Conversation delete: conversations/:id
+    if (pathStr.startsWith('conversations/') && pathArr.length === 2) {
+      const conversationId = pathArr[1];
+      return handleDeleteConversation(request, conversationId);
+    }
     if (pathStr.startsWith('schedules/') && pathArr.length === 2) {
       const taskId = pathArr[1];
       return handleDeleteSchedule(request, taskId);
