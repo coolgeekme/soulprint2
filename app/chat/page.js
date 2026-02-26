@@ -1705,6 +1705,53 @@ export default function ChatPage() {
     setShowSidebar(false);
   }
 
+  // Rename a conversation
+  async function renameConversation(convId, newTitle) {
+    if (!newTitle.trim()) return;
+    try {
+      const res = await fetch(`/api/conversations/${convId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: newTitle.trim() }),
+      });
+      if (res.ok) {
+        setConversations(prev => prev.map(c => c.id === convId ? { ...c, title: newTitle.trim() } : c));
+      }
+    } catch (e) {
+      console.error('Error renaming conversation:', e);
+    }
+    setEditingConvId(null);
+    setEditingTitle('');
+  }
+
+  // Delete a conversation
+  async function deleteConversation(convId) {
+    if (!confirm('Are you sure you want to delete this conversation? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/conversations/${convId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setConversations(prev => prev.filter(c => c.id !== convId));
+        // If we deleted the current conversation, start fresh
+        if (convId === conversationId) {
+          newConversation();
+        }
+      }
+    } catch (e) {
+      console.error('Error deleting conversation:', e);
+    }
+    setConvMenuId(null);
+  }
+
+  // Start editing a conversation title
+  function startEditing(conv) {
+    setEditingConvId(conv.id);
+    setEditingTitle(conv.title || 'Conversation');
+    setConvMenuId(null);
+  }
+
   async function submitFeedback(messageId, rating) {
     await fetch('/api/feedback', {
       method: 'POST',
