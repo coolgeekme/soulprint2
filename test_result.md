@@ -973,9 +973,21 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+  - task: "Cloud Import API (POST /api/imports/cloud + GET /api/imports/status)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Cloud import feature implemented. Allows importing large files from cloud storage URLs (Dropbox, Google Drive, OneDrive). Includes background job processing with status polling. Google Drive has limitations for files over 100MB. Uses adm-zip for ZIP extraction."
+
 agent_communication:
   - agent: "main"
-    message: "PRIORITY: Test chunked data import system. MongoDB-based chunk storage now implemented. Test flow: (1) POST /api/data-import/chunked/init with {filename, fileSize, source, totalChunks} - should create upload session. (2) POST /api/data-import/chunked/chunk with FormData containing uploadId, chunkIndex, chunk blob - should store chunk in upload_chunks collection. (3) POST /api/data-import/chunked/complete with {uploadId} - should reassemble chunks, parse ZIP, analyze data, return analysis results. Create a small test ZIP file with mock conversations.json for ChatGPT format testing. Auth required for all endpoints."
+    message: "PRIORITY: Test Cloud Import API. Two new endpoints: (1) POST /api/imports/cloud - accepts {url, type, provider} and returns {importId, status: 'pending'}. (2) GET /api/imports/status?importId=xxx - returns job status with progress, message, error. Test with a small publicly accessible ZIP file. Note: Google Drive is blocked for large files. Test expected flow: POST to start import -> returns importId -> poll GET status -> should eventually show completed/failed. Auth required for all endpoints. Test user: test@soulprint.com/test123."
   - agent: "main"
     message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://multi-model-chat-15.preview.emergentagent.com. Test with fresh user registration first."
   - agent: "testing"
