@@ -12,7 +12,7 @@ import os
 from urllib.parse import urljoin
 
 # Configuration
-BASE_URL = "https://multi-model-chat-15.preview.emergentagent.com"
+BASE_URL = "https://chunk-upload.preview.emergentagent.com"
 TEST_CREDENTIALS = {
     "email": "test@soulprint.com",
     "passcode": "test123"

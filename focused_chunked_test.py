@@ -9,7 +9,7 @@ import io
 import base64
 import time
 
-BASE_URL = "https://multi-model-chat-15.preview.emergentagent.com/api"
+BASE_URL = "https://chunk-upload.preview.emergentagent.com/api"
 EMAIL = "test@soulprint.com"
 PASSWORD = "test123"
 

@@ -6,7 +6,7 @@ import sys
 import time
 
 # Test configuration
-BASE_URL = "https://multi-model-chat-15.preview.emergentagent.com"
+BASE_URL = "https://chunk-upload.preview.emergentagent.com"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSCODE = "test123"
 
