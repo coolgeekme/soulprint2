@@ -687,6 +687,36 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Data analysis working perfectly for both formats! ChatGPT analysis: Extracted 4 user messages from 2 conversations, generated insights about technical interests (Python, AI, machine learning), analytical communication style (mixed formality, balanced verbosity, analytical tone), and forward-thinking personality traits. Facebook analysis: Extracted 3 messages + 2 posts, identified technology enthusiasm (ML, quantum computing, sustainable AI), supportive communication style (casual/mixed formality, detailed/balanced verbosity), and engaging personality. Auto-detection correctly identifies ChatGPT format from conversations.json presence. Analysis includes summary, communication style, interests array, vocabulary complexity, question style, and personality insights. Results integrated into soul_profile with import history tracking."
 
+  - task: "Conversation Rename API (PUT /api/conversations/:id)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented conversation rename endpoint. Accepts {title} in request body, validates user owns conversation, updates title and updated_at timestamp in MongoDB. Returns {success: true, title: newTitle}."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: PUT /api/conversations/:id working perfectly! Successfully tested: (1) Conversation creation and rename with title 'Renamed Test Conversation - Updated!', (2) Title persistence verified in database, (3) Error handling: 404 for non-existent conversations, 400 for empty/missing titles, (4) Authentication required, (5) User ownership validation working. All validation and security checks working correctly."
+
+  - task: "Conversation Delete API (DELETE /api/conversations/:id)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented conversation delete endpoint. Validates user owns conversation, deletes conversation and all associated messages from MongoDB. Returns {success: true}."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: DELETE /api/conversations/:id working perfectly! Successfully tested: (1) Conversation creation and deletion, (2) Conversation completely removed from user's list, (3) Associated messages also deleted, (4) Error handling: 404 for non-existent conversations, (5) Authentication required, (6) User ownership validation working. Verified deletion persistence and that other conversations remain unaffected."
+
 frontend:
   - task: "Landing Page (/)"
     implemented: true
