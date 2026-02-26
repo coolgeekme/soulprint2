@@ -3352,7 +3352,7 @@ export default function ChatPage() {
 
         {/* Composer - with safe area padding at bottom for PWA */}
         <div className="flex-shrink-0 px-4 pb-6 safe-area-bottom">
-          <div className="max-w-2xl mx-auto">
+          <div className="max-w-4xl mx-auto">
             {/* Mode Toggle & Model selector */}
             <div className="flex flex-col items-center gap-2 mb-3">
               {/* Compare Mode Toggle */}
