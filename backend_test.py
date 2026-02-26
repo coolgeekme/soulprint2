@@ -15,7 +15,7 @@ from urllib.parse import urljoin
 BASE_URL = "https://multi-model-chat-15.preview.emergentagent.com"
 TEST_CREDENTIALS = {
     "email": "test@soulprint.com",
-    "password": "test123"
+    "passcode": "test123"
 }
 
 class CloudImportTester:
