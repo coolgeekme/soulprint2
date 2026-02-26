@@ -982,6 +982,36 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
             </div>
           )}
 
+          {/* Large file warning */}
+          {selectedFiles.length > 0 && isLargeUpload && !isImporting && (
+            <div className="flex items-start gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="text-yellow-400 font-medium">Large file detected ({formatFileSize(getTotalSize())})</p>
+                <p className="text-yellow-500/80 text-xs mt-1">
+                  Estimated upload time: ~{estimatedMinutes} minute{estimatedMinutes > 1 ? 's' : ''}. 
+                  Please ensure you have a stable internet connection.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Active upload warning */}
+          {isImporting && (
+            <div className="flex items-start gap-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+              <div className="w-5 h-5 flex-shrink-0 mt-0.5">
+                <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />
+              </div>
+              <div className="text-sm">
+                <p className="text-orange-400 font-medium">Upload in progress</p>
+                <p className="text-orange-500/80 text-xs mt-1">
+                  ⚠️ <span className="font-medium">Do not close this tab</span> or navigate away until the upload completes. 
+                  Your browser must stay open.
+                </p>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
               <AlertCircle className="w-4 h-4" /><span>{error}</span>
