@@ -800,6 +800,264 @@ function GalleryModal({ item, onClose }) {
   );
 }
 
+// ── CloudImportModal: Import large files from cloud storage ──────────────────
+function CloudImportModal({ onClose, token, onImportComplete }) {
+  const [cloudUrl, setCloudUrl] = useState('');
+  const [importType, setImportType] = useState('chatgpt'); // 'chatgpt' or 'facebook'
+  const [isImporting, setIsImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState(null); // { status: 'pending'|'processing'|'completed'|'failed', message, progress }
+  const [error, setError] = useState('');
+
+  const detectCloudProvider = (url) => {
+    if (url.includes('drive.google.com')) return 'google';
+    if (url.includes('dropbox.com')) return 'dropbox';
+    if (url.includes('onedrive.live.com') || url.includes('1drv.ms')) return 'onedrive';
+    if (url.includes('icloud.com')) return 'icloud';
+    return 'direct';
+  };
+
+  const handleImport = async () => {
+    if (!cloudUrl.trim()) {
+      setError('Please enter a cloud storage link');
+      return;
+    }
+
+    setError('');
+    setIsImporting(true);
+    setImportStatus({ status: 'pending', message: 'Starting import...', progress: 0 });
+
+    try {
+      const res = await fetch('/api/imports/cloud', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          url: cloudUrl.trim(),
+          type: importType,
+          provider: detectCloudProvider(cloudUrl),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Import failed');
+        setImportStatus(null);
+        setIsImporting(false);
+        return;
+      }
+
+      // Start polling for status
+      if (data.importId) {
+        pollImportStatus(data.importId);
+      } else {
+        setImportStatus({ status: 'completed', message: `Successfully imported ${data.messagesCount || 0} messages!`, progress: 100 });
+        setIsImporting(false);
+        if (onImportComplete) onImportComplete(data);
+      }
+    } catch (err) {
+      setError('Connection error: ' + err.message);
+      setImportStatus(null);
+      setIsImporting(false);
+    }
+  };
+
+  const pollImportStatus = async (importId) => {
+    const maxPolls = 120; // 10 minutes max
+    let polls = 0;
+
+    const poll = async () => {
+      if (polls >= maxPolls) {
+        setError('Import timed out. Please try again.');
+        setIsImporting(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/imports/status?importId=${importId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+
+        if (data.status === 'completed') {
+          setImportStatus({ status: 'completed', message: `Successfully imported ${data.messagesCount || 0} messages!`, progress: 100 });
+          setIsImporting(false);
+          if (onImportComplete) onImportComplete(data);
+          return;
+        } else if (data.status === 'failed') {
+          setError(data.error || 'Import failed');
+          setImportStatus(null);
+          setIsImporting(false);
+          return;
+        }
+
+        // Still processing
+        setImportStatus({
+          status: 'processing',
+          message: data.message || 'Processing...',
+          progress: data.progress || 0,
+        });
+
+        polls++;
+        setTimeout(poll, 5000); // Poll every 5 seconds
+      } catch (err) {
+        polls++;
+        setTimeout(poll, 5000);
+      }
+    };
+
+    poll();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+              <Cloud className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Import from Cloud</h2>
+              <p className="text-xs text-gray-500">For large files (1GB+)</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white p-1">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Import Type Selection */}
+          <div>
+            <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">Data Source</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setImportType('chatgpt')}
+                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors ${
+                  importType === 'chatgpt'
+                    ? 'bg-green-500/20 border border-green-500/40 text-green-400'
+                    : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white'
+                }`}
+              >
+                ChatGPT Export
+              </button>
+              <button
+                onClick={() => setImportType('facebook')}
+                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors ${
+                  importType === 'facebook'
+                    ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400'
+                    : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white'
+                }`}
+              >
+                Facebook Export
+              </button>
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div className="bg-white/5 rounded-xl p-4 text-xs text-gray-400 space-y-2">
+            <p className="font-medium text-gray-300 flex items-center gap-2">
+              <HardDrive className="w-4 h-4" /> How to import large files:
+            </p>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>Upload your export ZIP to <span className="text-cyan-400">Google Drive</span>, <span className="text-blue-400">Dropbox</span>, or <span className="text-purple-400">OneDrive</span></li>
+              <li>Make the file <span className="text-orange-400">publicly accessible</span> (or get a shareable link)</li>
+              <li>Paste the sharing link below</li>
+            </ol>
+          </div>
+
+          {/* URL Input */}
+          <div>
+            <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">Cloud Storage Link</label>
+            <div className="relative">
+              <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="url"
+                value={cloudUrl}
+                onChange={(e) => setCloudUrl(e.target.value)}
+                placeholder="https://drive.google.com/file/d/... or Dropbox link"
+                className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50"
+                disabled={isImporting}
+              />
+            </div>
+            {cloudUrl && (
+              <p className="mt-1.5 text-xs text-gray-500">
+                Detected: <span className="text-cyan-400 capitalize">{detectCloudProvider(cloudUrl)}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* Import Status */}
+          {importStatus && (
+            <div className={`p-4 rounded-lg ${
+              importStatus.status === 'completed' ? 'bg-green-500/10 border border-green-500/30' :
+              importStatus.status === 'failed' ? 'bg-red-500/10 border border-red-500/30' :
+              'bg-blue-500/10 border border-blue-500/30'
+            }`}>
+              <div className="flex items-center gap-2 mb-2">
+                {importStatus.status === 'completed' ? (
+                  <CheckCircle2 className="w-4 h-4 text-green-400" />
+                ) : importStatus.status === 'failed' ? (
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                ) : (
+                  <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+                )}
+                <span className={`text-sm font-medium ${
+                  importStatus.status === 'completed' ? 'text-green-400' :
+                  importStatus.status === 'failed' ? 'text-red-400' :
+                  'text-blue-400'
+                }`}>
+                  {importStatus.message}
+                </span>
+              </div>
+              {importStatus.status === 'processing' && importStatus.progress > 0 && (
+                <div className="w-full bg-white/10 rounded-full h-1.5">
+                  <div
+                    className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${importStatus.progress}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Import Button */}
+          <button
+            onClick={handleImport}
+            disabled={!cloudUrl.trim() || isImporting}
+            className={`w-full py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+              cloudUrl.trim() && !isImporting
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600'
+                : 'bg-white/5 text-gray-600 cursor-not-allowed'
+            }`}
+          >
+            {isImporting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Importing...
+              </>
+            ) : (
+              <>
+                <Cloud className="w-4 h-4" />
+                Start Import
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Schedule templates for UI
 const SCHEDULE_TEMPLATES = [
   { id: 'ai_news',    name: '🤖 AI News Digest',     prompt: 'Summarize the top 5 most important AI and machine learning stories from the last 24 hours. For each story include: what happened, why it matters, and a source if available. Format it clearly.' },
