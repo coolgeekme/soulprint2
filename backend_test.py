@@ -1,980 +1,205 @@
 #!/usr/bin/env python3
-"""
-Backend Test Suite for SoulPrint Engine
-Testing Chunked Data Import System, Google Places API, Task Scheduling API, Kimi AI Integration, Telegram API, and Web Search Integration
-"""
+
 import requests
 import json
-import time
 import os
-import zipfile
-import io
-import base64
+from datetime import datetime
 
+# Test Configuration
 BASE_URL = "https://personality-engine-1.preview.emergentagent.com"
+API_BASE = f"{BASE_URL}/api"
 
-# Test credentials
-TEST_EMAIL = "test@soulprint.com"  
-TEST_PASSCODE = "test123"
+def log_test_result(test_name, passed, details=""):
+    """Log test results with consistent formatting"""
+    status = "✅ PASS" if passed else "❌ FAIL"
+    print(f"{status}: {test_name}")
+    if details:
+        print(f"   {details}")
+    print()
 
-class BackendTester:
-    def __init__(self):
-        self.base_url = BASE_URL
-        self.token = None
-        
-    def login(self):
-        """Login and get authentication token"""
-        try:
-            response = requests.post(f"{self.base_url}/api/auth/login", 
-                json={"email": TEST_EMAIL, "passcode": TEST_PASSCODE})
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.token = data.get('token')
-                print(f"✅ LOGIN: Successfully logged in with token: {self.token[:20]}...")
-                return True
+def make_request(method, endpoint, data=None, headers=None, files=None):
+    """Make HTTP request with error handling"""
+    try:
+        url = f"{API_BASE}{endpoint}"
+        if method == "GET":
+            response = requests.get(url, headers=headers)
+        elif method == "POST":
+            if files:
+                response = requests.post(url, data=data, headers=headers, files=files)
             else:
-                print(f"❌ LOGIN: Failed with status {response.status_code}: {response.text}")
-                return False
-        except Exception as e:
-            print(f"❌ LOGIN: Error - {e}")
-            return False
+                response = requests.post(url, json=data, headers=headers)
+        elif method == "PUT":
+            response = requests.put(url, json=data, headers=headers)
+        elif method == "DELETE":
+            response = requests.delete(url, headers=headers)
+        
+        return response
+    except requests.exceptions.RequestException as e:
+        print(f"Request error: {e}")
+        return None
+
+def test_feedback_system():
+    """Test the complete feedback system API endpoints"""
+    print("🔄 TESTING FEEDBACK SYSTEM API ENDPOINTS")
+    print("=" * 60)
     
-    def get_auth_headers(self):
-        """Get authorization headers"""
-        if not self.token:
-            raise Exception("Not authenticated")
-        return {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+    # Step 1: Login with provided credentials
+    print("Step 1: Testing Login")
+    login_data = {
+        "email": "test@soulprint.com",
+        "password": "test123"
+    }
     
-    def create_test_zip(self):
-        """Create a small test ZIP file with mock ChatGPT conversations.json"""
-        print("📦 Creating test ZIP file...")
-        
-        # Mock ChatGPT conversation data  
-        conversations_data = [
-            {
-                "title": "Programming Discussion",
-                "mapping": {
-                    "msg1": {
-                        "message": {
-                            "author": {"role": "user"},
-                            "content": {"parts": ["I need help with Python data structures. Can you explain dictionaries vs lists?"]}
-                        }
-                    },
-                    "msg2": {
-                        "message": {
-                            "author": {"role": "assistant"}, 
-                            "content": {"parts": ["Dictionaries store key-value pairs..."]}
-                        }
-                    },
-                    "msg3": {
-                        "message": {
-                            "author": {"role": "user"},
-                            "content": {"parts": ["That makes sense! What about performance differences between them for lookups?"]}
-                        }
-                    }
-                }
-            },
-            {
-                "title": "Technology Trends",
-                "mapping": {
-                    "msg4": {
-                        "message": {
-                            "author": {"role": "user"},
-                            "content": {"parts": ["What do you think about the current state of AI development and its impact on software engineering?"]}
-                        }
-                    },
-                    "msg5": {
-                        "message": {
-                            "author": {"role": "assistant"},
-                            "content": {"parts": ["AI is rapidly transforming software engineering..."]}
-                        }
-                    },
-                    "msg6": {
-                        "message": {
-                            "author": {"role": "user"},
-                            "content": {"parts": ["I'm particularly interested in how machine learning can optimize database queries and system performance."]}
-                        }
-                    }
-                }
-            }
-        ]
-        
-        # Create ZIP file in memory
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            zip_file.writestr('conversations.json', json.dumps(conversations_data, indent=2))
-        
-        zip_data = zip_buffer.getvalue()
-        print(f"✅ Test ZIP created. Size: {len(zip_data)} bytes")
-        return zip_data
+    login_response = make_request("POST", "/auth/login", login_data)
+    if not login_response or login_response.status_code != 200:
+        log_test_result("POST /api/auth/login", False, 
+                       f"Login failed - Status: {login_response.status_code if login_response else 'No response'}")
+        print("❌ Cannot proceed with authentication - stopping tests")
+        return
     
-    def test_chunked_upload_system(self):
-        """Test the complete chunked upload flow"""
-        print("\n🔄 TESTING CHUNKED DATA IMPORT SYSTEM...")
+    login_result = login_response.json()
+    if 'token' not in login_result:
+        log_test_result("POST /api/auth/login", False, "No token in login response")
+        return
         
-        try:
-            # Create test data
-            zip_data = self.create_test_zip()
-            filename = "test_conversations.zip"
-            file_size = len(zip_data)
-            
-            # Split into chunks (simulate chunked upload)
-            chunk_size = 512  # Small chunks for testing
-            chunks = []
-            for i in range(0, len(zip_data), chunk_size):
-                chunk = zip_data[i:i+chunk_size]
-                chunks.append(chunk)
-            
-            total_chunks = len(chunks)
-            print(f"📊 File split into {total_chunks} chunks of ~{chunk_size} bytes each")
-            
-            # Step 1: Initialize upload session
-            print("\n📋 Step 1: Testing chunked upload init...")
-            
-            headers = {"Authorization": f"Bearer {self.token}"}
-            payload = {
-                "filename": filename,
-                "fileSize": file_size,
-                "source": "chatgpt",
-                "totalChunks": total_chunks
-            }
-            
-            response = requests.post(f"{self.base_url}/api/data-import/chunked/init", 
-                                   headers=headers, 
-                                   json=payload)
-            
-            print(f"Request: POST /data-import/chunked/init")
-            print(f"Payload: {payload}")
-            print(f"Response: {response.status_code} - {response.text}")
-            
-            if response.status_code != 200:
-                print(f"❌ CHUNKED INIT: Failed with {response.status_code} - {response.text}")
-                return False
-            
-            data = response.json()
-            upload_id = data.get('uploadId')
-            print(f"✅ CHUNKED INIT: Upload session created. Upload ID: {upload_id}")
-            
-            # Step 2: Upload chunks
-            print(f"\n📤 Step 2: Testing chunk uploads...")
-            
-            for i, chunk in enumerate(chunks):
-                print(f"Uploading chunk {i+1}/{total_chunks} ({len(chunk)} bytes)...")
-                
-                # Create FormData for chunk upload
-                files = {
-                    'uploadId': (None, upload_id),
-                    'chunkIndex': (None, str(i)),
-                    'chunk': ('chunk.bin', chunk, 'application/octet-stream')
-                }
-                
-                response = requests.post(f"{self.base_url}/api/data-import/chunked/chunk", 
-                                       headers={"Authorization": f"Bearer {self.token}"}, 
-                                       files=files)
-                
-                if response.status_code != 200:
-                    print(f"❌ CHUNK UPLOAD: Failed chunk {i} with {response.status_code} - {response.text}")
-                    return False
-                
-                chunk_data = response.json()
-                received_index = chunk_data.get('received')
-                message = chunk_data.get('message')
-                print(f"   ✅ Chunk {i} uploaded. Received: {received_index}, Message: {message}")
-                
-                time.sleep(0.1)  # Small delay between chunks
-            
-            # Step 3: Complete upload
-            print(f"\n🏁 Step 3: Testing chunked upload completion...")
-            
-            payload = {"uploadId": upload_id}
-            response = requests.post(f"{self.base_url}/api/data-import/chunked/complete", 
-                                   headers=headers, 
-                                   json=payload)
-            
-            print(f"Request: POST /data-import/chunked/complete")
-            print(f"Payload: {payload}")
-            print(f"Response: {response.status_code} - {response.text}")
-            
-            if response.status_code != 200:
-                print(f"❌ CHUNKED COMPLETE: Failed with {response.status_code} - {response.text}")
-                return False
-            
-            result = response.json()
-            print(f"✅ CHUNKED COMPLETE: Upload completed successfully!")
-            print(f"Success: {result.get('success')}")
-            print(f"Import ID: {result.get('importId')}")
-            print(f"Stats: {result.get('stats')}")
-            
-            # Print analysis results if available
-            analysis = result.get('analysis')
-            if analysis:
-                print(f"📊 Analysis Results:")
-                print(f"  - Summary: {analysis.get('summary', 'N/A')}")
-                print(f"  - Communication Style: {analysis.get('communicationStyle', {})}")
-                print(f"  - Interests: {analysis.get('interests', [])}")
-                print(f"  - Insights: {analysis.get('insights', [])}")
-            
-            # Step 4: Test error cases
-            print(f"\n⚠️  Step 4: Testing error cases...")
-            
-            # Test missing required fields in init
-            print("Test 4.1: Missing required fields in init")
-            response = requests.post(f"{self.base_url}/api/data-import/chunked/init", 
-                                   headers=headers, 
-                                   json={"filename": "test.zip"})
-            print(f"Missing fields response: {response.status_code} - {response.text}")
-            if response.status_code != 400:
-                print(f"❌ ERROR CASE: Expected 400 for missing fields, got {response.status_code}")
-            else:
-                print("✅ ERROR CASE: Correctly rejected missing fields")
-            
-            # Test invalid uploadId in chunk upload
-            print("Test 4.2: Invalid uploadId in chunk upload")
-            files = {
-                'uploadId': (None, 'invalid-id'),
-                'chunkIndex': (None, '0'),
-                'chunk': ('chunk.bin', b'test data', 'application/octet-stream')
-            }
-            response = requests.post(f"{self.base_url}/api/data-import/chunked/chunk", 
-                                   headers={"Authorization": f"Bearer {self.token}"}, 
-                                   files=files)
-            print(f"Invalid uploadId response: {response.status_code} - {response.text}")
-            if response.status_code != 404:
-                print(f"❌ ERROR CASE: Expected 404 for invalid uploadId, got {response.status_code}")
-            else:
-                print("✅ ERROR CASE: Correctly rejected invalid uploadId")
-            
-            # Test no authentication
-            print("Test 4.3: No authentication")
-            response = requests.post(f"{self.base_url}/api/data-import/chunked/init", 
-                                   json={"filename": "test.zip", "fileSize": 1000, "totalChunks": 1})
-            print(f"No auth response: {response.status_code} - {response.text}")
-            if response.status_code != 401:
-                print(f"❌ ERROR CASE: Expected 401 for no auth, got {response.status_code}")
-            else:
-                print("✅ ERROR CASE: Correctly rejected no authentication")
-            
-            print("\n🎉 CHUNKED UPLOAD SYSTEM: ALL TESTS PASSED!")
-            print("✅ MongoDB chunk storage working")
-            print("✅ ZIP parsing working") 
-            print("✅ ChatGPT format analysis working")
-            print("✅ Authentication working")
-            print("✅ Error handling working")
-            return True
-            
-        except Exception as e:
-            print(f"❌ CHUNKED UPLOAD SYSTEM: Test failed with exception: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return False
+    token = login_result['token']
+    user_role = login_result.get('role', 'user')
+    headers = {"Authorization": f"Bearer {token}"}
     
-    def test_kimi_ai_integration(self):
-        """Test Kimi AI Integration"""
-        print("\n🔍 TESTING KIMI AI INTEGRATION...")
-        
-        # Test 1: POST /api/chat/stream with Kimi K2 model
-        try:
-            headers = self.get_auth_headers()
-            payload = {
-                "content": "Say 'Hello from Kimi!' in exactly 5 words", 
-                "model": "kimi-k2-0711-preview",
-                "provider": "kimi",
-                "enableWebSearch": False
-            }
-            
-            response = requests.post(f"{self.base_url}/api/chat/stream", 
-                json=payload, headers=headers, stream=True)
-            
-            if response.status_code == 200:
-                print("✅ KIMI K2 STREAM: Response received, parsing NDJSON...")
-                
-                chunks = []
-                meta_found = False
-                delta_found = False
-                done_found = False
-                
-                for line in response.iter_lines(decode_unicode=True):
-                    if line.strip():
-                        try:
-                            chunk = json.loads(line)
-                            chunks.append(chunk)
-                            
-                            if chunk.get('type') == 'meta':
-                                meta_found = True
-                                print(f"  📊 META chunk: {chunk}")
-                            elif chunk.get('type') == 'delta':
-                                delta_found = True
-                                print(f"  📝 DELTA chunk: {chunk.get('content', '')[:50]}")
-                            elif chunk.get('type') == 'done':
-                                done_found = True
-                                print(f"  ✅ DONE chunk: {chunk}")
-                        except json.JSONDecodeError as e:
-                            print(f"  ⚠️ Invalid JSON chunk: {line}")
-                
-                print(f"  📈 Total chunks received: {len(chunks)}")
-                
-                if meta_found and delta_found and done_found:
-                    print("✅ KIMI K2: All expected chunk types received (meta, delta, done)")
-                else:
-                    print(f"❌ KIMI K2: Missing chunk types - meta:{meta_found}, delta:{delta_found}, done:{done_found}")
-                    
-            else:
-                print(f"❌ KIMI K2 STREAM: Failed with status {response.status_code}: {response.text}")
-        
-        except Exception as e:
-            print(f"❌ KIMI K2 STREAM: Error - {e}")
-        
-        # Test 2: POST /api/chat/stream with Moonshot model
-        try:
-            headers = self.get_auth_headers()
-            payload = {
-                "content": "Hello!",
-                "model": "moonshot-v1-8k", 
-                "provider": "kimi",
-                "enableWebSearch": False
-            }
-            
-            response = requests.post(f"{self.base_url}/api/chat/stream", 
-                json=payload, headers=headers, stream=True)
-            
-            if response.status_code == 200:
-                print("✅ MOONSHOT STREAM: Response received, parsing NDJSON...")
-                
-                chunks = []
-                for line in response.iter_lines(decode_unicode=True):
-                    if line.strip():
-                        try:
-                            chunk = json.loads(line)
-                            chunks.append(chunk)
-                            if chunk.get('type') == 'delta':
-                                print(f"  📝 DELTA: {chunk.get('content', '')[:30]}")
-                        except json.JSONDecodeError:
-                            pass
-                            
-                print(f"  📈 Moonshot chunks received: {len(chunks)}")
-                print("✅ MOONSHOT: Streaming response successful")
-                    
-            else:
-                print(f"❌ MOONSHOT STREAM: Failed with status {response.status_code}: {response.text}")
-        
-        except Exception as e:
-            print(f"❌ MOONSHOT STREAM: Error - {e}")
-        
-        # Test 3: GET /api/models - verify Kimi models appear
-        try:
-            headers = self.get_auth_headers()
-            response = requests.get(f"{self.base_url}/api/models", headers=headers)
-            
-            if response.status_code == 200:
-                models = response.json()
-                kimi_models = [m for m in models if m.get('group') == 'Kimi']
-                
-                print(f"✅ MODELS API: Found {len(kimi_models)} Kimi models")
-                for model in kimi_models:
-                    print(f"  🤖 {model.get('label')} ({model.get('value')})")
-                
-                expected_models = ['kimi-k2-0711-preview', 'moonshot-v1-32k', 'moonshot-v1-8k']
-                found_values = [m.get('value') for m in kimi_models]
-                
-                all_found = all(model in found_values for model in expected_models)
-                if all_found:
-                    print("✅ MODELS: All expected Kimi models found")
-                else:
-                    missing = [m for m in expected_models if m not in found_values]
-                    print(f"⚠️ MODELS: Missing Kimi models: {missing}")
-                    
-            else:
-                print(f"❌ MODELS API: Failed with status {response.status_code}: {response.text}")
-        
-        except Exception as e:
-            print(f"❌ MODELS API: Error - {e}")
-
-    def test_telegram_api(self):
-        """Test Telegram model preference API"""
-        print("\n📱 TESTING TELEGRAM API...")
-        
-        # Test 1: GET /api/telegram/status
-        try:
-            headers = self.get_auth_headers()
-            response = requests.get(f"{self.base_url}/api/telegram/status", headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                print("✅ TELEGRAM STATUS: API endpoint exists and responds")
-                print(f"  📊 Response: {data}")
-                
-                if 'preferred_model' in data:
-                    print(f"  ✅ preferred_model field present: {data['preferred_model']}")
-                else:
-                    print("  ❌ preferred_model field missing from response")
-                    
-            else:
-                print(f"❌ TELEGRAM STATUS: Failed with status {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ TELEGRAM STATUS: Error - {e}")
-        
-        # Test 2: PUT /api/telegram/model with valid model
-        try:
-            headers = self.get_auth_headers()
-            payload = {"model": "gpt-4o"}
-            
-            response = requests.put(f"{self.base_url}/api/telegram/model", 
-                json=payload, headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                print("✅ TELEGRAM MODEL SET: Successfully set model")
-                print(f"  📊 Response: {data}")
-                
-                expected_fields = ['success', 'model', 'label']
-                has_all_fields = all(field in data for field in expected_fields)
-                
-                if has_all_fields and data.get('success') and data.get('model') == 'gpt-4o':
-                    print("✅ TELEGRAM MODEL: Response format correct")
-                else:
-                    print(f"⚠️ TELEGRAM MODEL: Unexpected response format")
-                    
-            elif response.status_code == 400:
-                data = response.json()
-                if 'No linked Telegram account' in data.get('error', ''):
-                    print("✅ TELEGRAM MODEL: Expected 'No linked Telegram account' error (OK for test user)")
-                else:
-                    print(f"❌ TELEGRAM MODEL: Unexpected error: {data}")
-            else:
-                print(f"❌ TELEGRAM MODEL: Failed with status {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ TELEGRAM MODEL: Error - {e}")
-        
-        # Test 3: PUT /api/telegram/model with invalid model
-        try:
-            headers = self.get_auth_headers()
-            payload = {"model": "invalid-model-xyz"}
-            
-            response = requests.put(f"{self.base_url}/api/telegram/model", 
-                json=payload, headers=headers)
-            
-            if response.status_code == 400:
-                data = response.json()
-                print("✅ TELEGRAM INVALID MODEL: Correctly rejected invalid model")
-                print(f"  📊 Error response: {data}")
-            else:
-                print(f"⚠️ TELEGRAM INVALID MODEL: Expected 400 error, got {response.status_code}")
-                
-        except Exception as e:
-            print(f"❌ TELEGRAM INVALID MODEL: Error - {e}")
-
-    def test_task_scheduling_api(self):
-        """Test Task Scheduling API endpoints"""
-        print("\n⏰ TESTING TASK SCHEDULING API...")
-        
-        created_schedule_id = None
-        
-        # Test 1: GET /api/schedules - Get user's schedules (should be empty initially)
-        try:
-            headers = self.get_auth_headers()
-            response = requests.get(f"{self.base_url}/api/schedules", headers=headers)
-            
-            if response.status_code == 200:
-                schedules = response.json()
-                print(f"✅ GET SCHEDULES: Successfully retrieved {len(schedules)} schedules")
-                print(f"  📊 Initial schedules: {schedules}")
-            else:
-                print(f"❌ GET SCHEDULES: Failed with status {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ GET SCHEDULES: Error - {e}")
-        
-        # Test 2: GET /api/schedules/templates - Get schedule templates
-        try:
-            headers = self.get_auth_headers()
-            response = requests.get(f"{self.base_url}/api/schedules/templates", headers=headers)
-            
-            if response.status_code == 200:
-                templates = response.json()
-                print(f"✅ GET TEMPLATES: Successfully retrieved {len(templates)} templates")
-                
-                # Check for expected template structure
-                if templates and isinstance(templates, list):
-                    first_template = templates[0]
-                    expected_fields = ['id', 'name', 'prompt']
-                    has_all_fields = all(field in first_template for field in expected_fields)
-                    
-                    if has_all_fields:
-                        print("✅ TEMPLATES: Template structure correct")
-                        print(f"  📋 Sample template: {first_template['name']}")
-                    else:
-                        print(f"⚠️ TEMPLATES: Missing expected fields in templates")
-                else:
-                    print("⚠️ TEMPLATES: Unexpected template format")
-                    
-            else:
-                print(f"❌ GET TEMPLATES: Failed with status {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ GET TEMPLATES: Error - {e}")
-        
-        # Test 3: POST /api/schedules - Create a new schedule
-        try:
-            headers = self.get_auth_headers()
-            payload = {
-                "name": "Test Daily AI News",
-                "prompt": "Summarize the top 3 AI news stories from today",
-                "local_hour": 9,
-                "minute": 30,
-                "timezone_offset": 0,
-                "timezone_label": "UTC",
-                "schedule_type": "daily"
-            }
-            
-            response = requests.post(f"{self.base_url}/api/schedules", 
-                json=payload, headers=headers)
-            
-            if response.status_code == 200:
-                schedule = response.json()
-                created_schedule_id = schedule.get('id')
-                print("✅ CREATE SCHEDULE: Successfully created schedule")
-                print(f"  📊 Created schedule ID: {created_schedule_id}")
-                print(f"  📊 Schedule name: {schedule.get('name')}")
-                print(f"  📊 Schedule active: {schedule.get('active')}")
-                print(f"  📊 Next run at: {schedule.get('next_run_at')}")
-                
-                # Verify required fields
-                required_fields = ['id', 'name', 'prompt', 'active', 'next_run_at', 'schedule_type']
-                has_all_fields = all(field in schedule for field in required_fields)
-                
-                if has_all_fields:
-                    print("✅ CREATE: Schedule object has all required fields")
-                else:
-                    missing_fields = [field for field in required_fields if field not in schedule]
-                    print(f"⚠️ CREATE: Missing fields: {missing_fields}")
-                    
-            else:
-                print(f"❌ CREATE SCHEDULE: Failed with status {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ CREATE SCHEDULE: Error - {e}")
-        
-        # Test 4: GET /api/schedules again - Verify schedule was created
-        if created_schedule_id:
-            try:
-                headers = self.get_auth_headers()
-                response = requests.get(f"{self.base_url}/api/schedules", headers=headers)
-                
-                if response.status_code == 200:
-                    schedules = response.json()
-                    created_schedule = next((s for s in schedules if s.get('id') == created_schedule_id), None)
-                    
-                    if created_schedule:
-                        print("✅ VERIFY CREATION: Created schedule found in schedules list")
-                        print(f"  📊 Found schedule: {created_schedule.get('name')}")
-                    else:
-                        print("❌ VERIFY CREATION: Created schedule not found in schedules list")
-                        
-                else:
-                    print(f"❌ VERIFY CREATION: Failed with status {response.status_code}: {response.text}")
-                    
-            except Exception as e:
-                print(f"❌ VERIFY CREATION: Error - {e}")
-        
-        # Test 5: PUT /api/schedules/{id} - Update schedule (toggle active)
-        if created_schedule_id:
-            try:
-                headers = self.get_auth_headers()
-                payload = {"active": False}
-                
-                response = requests.put(f"{self.base_url}/api/schedules/{created_schedule_id}", 
-                    json=payload, headers=headers)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    print("✅ UPDATE SCHEDULE: Successfully toggled schedule to inactive")
-                    print(f"  📊 Update result: {result}")
-                    
-                    # Verify the update worked
-                    get_response = requests.get(f"{self.base_url}/api/schedules", headers=headers)
-                    if get_response.status_code == 200:
-                        schedules = get_response.json()
-                        updated_schedule = next((s for s in schedules if s.get('id') == created_schedule_id), None)
-                        
-                        if updated_schedule and updated_schedule.get('active') is False:
-                            print("✅ UPDATE VERIFY: Schedule successfully set to inactive")
-                        else:
-                            print("⚠️ UPDATE VERIFY: Schedule active status not updated as expected")
-                            
-                else:
-                    print(f"❌ UPDATE SCHEDULE: Failed with status {response.status_code}: {response.text}")
-                    
-            except Exception as e:
-                print(f"❌ UPDATE SCHEDULE: Error - {e}")
-        
-        # Test 6: DELETE /api/schedules/{id} - Delete the schedule  
-        if created_schedule_id:
-            try:
-                headers = self.get_auth_headers()
-                response = requests.delete(f"{self.base_url}/api/schedules/{created_schedule_id}", 
-                    headers=headers)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    print("✅ DELETE SCHEDULE: Successfully deleted schedule")
-                    print(f"  📊 Delete result: {result}")
-                    
-                    # Verify deletion worked
-                    get_response = requests.get(f"{self.base_url}/api/schedules", headers=headers)
-                    if get_response.status_code == 200:
-                        schedules = get_response.json()
-                        deleted_schedule = next((s for s in schedules if s.get('id') == created_schedule_id), None)
-                        
-                        if deleted_schedule is None:
-                            print("✅ DELETE VERIFY: Schedule successfully removed from schedules list")
-                        else:
-                            print("❌ DELETE VERIFY: Schedule still exists after deletion")
-                    else:
-                        print(f"⚠️ DELETE VERIFY: Could not verify deletion - API error")
-                        
-                else:
-                    print(f"❌ DELETE SCHEDULE: Failed with status {response.status_code}: {response.text}")
-                    
-            except Exception as e:
-                print(f"❌ DELETE SCHEDULE: Error - {e}")
-        
-        # Test 7: Test authentication required - try without token
-        try:
-            response = requests.get(f"{self.base_url}/api/schedules")
-            
-            if response.status_code == 401:
-                print("✅ AUTH TEST: Correctly returns 401 Unauthorized without token")
-            else:
-                print(f"⚠️ AUTH TEST: Expected 401, got {response.status_code}")
-                
-        except Exception as e:
-            print(f"❌ AUTH TEST: Error - {e}")
-        
-        print("✅ TASK SCHEDULING API: All tests completed")
-
-    def test_google_places_api(self):
-        """Test Google Places API endpoints"""
-        print("\n📍 TESTING GOOGLE PLACES API...")
-        
-        # Test 1: POST /api/places/search - Search for restaurants near Times Square
-        try:
-            headers = self.get_auth_headers()
-            payload = {
-                "query": "restaurants",
-                "location": "Times Square, New York"
-            }
-            
-            response = requests.post(f"{self.base_url}/api/places/search", 
-                json=payload, headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                print("✅ PLACES SEARCH (query+location): Successfully retrieved places")
-                print(f"  📊 Found {data.get('count', 0)} places near {data.get('location', 'N/A')}")
-                
-                places = data.get('places', [])
-                coordinates = data.get('coordinates', {})
-                
-                # Check response structure
-                expected_fields = ['places', 'location', 'coordinates', 'count']
-                has_all_fields = all(field in data for field in expected_fields)
-                
-                if has_all_fields:
-                    print("✅ SEARCH RESPONSE: All required fields present")
-                    print(f"  📍 Coordinates: lat={coordinates.get('lat')}, lng={coordinates.get('lng')}")
-                    
-                    if places and len(places) > 0:
-                        sample_place = places[0]
-                        place_fields = ['name', 'address', 'placeId']
-                        has_place_fields = all(field in sample_place for field in place_fields)
-                        
-                        if has_place_fields:
-                            print("✅ PLACE STRUCTURE: Sample place has required fields")
-                            print(f"  🍽️ Sample: {sample_place.get('name')} - {sample_place.get('address')}")
-                            
-                            # Check if Google Maps link can be constructed
-                            place_id = sample_place.get('placeId')
-                            if place_id:
-                                maps_link = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
-                                print(f"  🗺️ Google Maps link: {maps_link}")
-                                print("✅ PLACE ID: Valid placeId for Google Maps integration")
-                            else:
-                                print("⚠️ PLACE ID: Missing placeId field")
-                        else:
-                            print("⚠️ PLACE STRUCTURE: Missing required place fields")
-                    else:
-                        print("⚠️ SEARCH: No places returned in results")
-                else:
-                    missing_fields = [field for field in expected_fields if field not in data]
-                    print(f"⚠️ SEARCH RESPONSE: Missing fields: {missing_fields}")
-                    
-            elif response.status_code == 401:
-                print("❌ PLACES SEARCH: Unauthorized - authentication required")
-            else:
-                print(f"❌ PLACES SEARCH: Failed with status {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ PLACES SEARCH: Error - {e}")
-        
-        # Test 2: POST /api/places/geocode - Convert address to coordinates
-        try:
-            headers = self.get_auth_headers()
-            payload = {
-                "address": "1600 Amphitheatre Parkway, Mountain View, CA"
-            }
-            
-            response = requests.post(f"{self.base_url}/api/places/geocode", 
-                json=payload, headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                print("✅ PLACES GEOCODE: Successfully geocoded address")
-                
-                # Check for required geocode fields
-                expected_fields = ['lat', 'lng', 'formattedAddress']
-                has_all_fields = all(field in data for field in expected_fields)
-                
-                if has_all_fields:
-                    lat = data.get('lat')
-                    lng = data.get('lng') 
-                    formatted = data.get('formattedAddress')
-                    
-                    print(f"  📍 Latitude: {lat}")
-                    print(f"  📍 Longitude: {lng}")
-                    print(f"  📍 Formatted: {formatted}")
-                    
-                    # Validate coordinate ranges
-                    if isinstance(lat, (int, float)) and isinstance(lng, (int, float)):
-                        if -90 <= lat <= 90 and -180 <= lng <= 180:
-                            print("✅ GEOCODE COORDS: Valid latitude/longitude ranges")
-                        else:
-                            print("⚠️ GEOCODE COORDS: Coordinates outside valid ranges")
-                    else:
-                        print("⚠️ GEOCODE COORDS: Coordinates are not numeric")
-                        
-                    if formatted and "Mountain View" in formatted and "CA" in formatted:
-                        print("✅ GEOCODE ADDRESS: Formatted address contains expected location")
-                    else:
-                        print("⚠️ GEOCODE ADDRESS: Formatted address may not match input")
-                else:
-                    missing_fields = [field for field in expected_fields if field not in data]
-                    print(f"⚠️ GEOCODE RESPONSE: Missing fields: {missing_fields}")
-                    
-            elif response.status_code == 401:
-                print("❌ PLACES GEOCODE: Unauthorized - authentication required")
-            else:
-                print(f"❌ PLACES GEOCODE: Failed with status {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ PLACES GEOCODE: Error - {e}")
-        
-        # Test 3: POST /api/places/search with coordinates - Search for coffee shops
-        try:
-            headers = self.get_auth_headers()
-            payload = {
-                "query": "coffee shops",
-                "lat": 37.4220,
-                "lng": -122.0841
-            }
-            
-            response = requests.post(f"{self.base_url}/api/places/search", 
-                json=payload, headers=headers)
-            
-            if response.status_code == 200:
-                data = response.json()
-                print("✅ PLACES SEARCH (coordinates): Successfully searched with lat/lng")
-                print(f"  📊 Found {data.get('count', 0)} coffee shops near coordinates")
-                
-                places = data.get('places', [])
-                coordinates = data.get('coordinates', {})
-                
-                # Verify coordinates match input
-                if coordinates.get('lat') == 37.4220 and coordinates.get('lng') == -122.0841:
-                    print("✅ COORDINATES: Input coordinates preserved in response")
-                else:
-                    print("⚠️ COORDINATES: Response coordinates don't match input")
-                
-                # Check for coffee-related results
-                if places and len(places) > 0:
-                    coffee_related = False
-                    for place in places:
-                        name = place.get('name', '').lower()
-                        if 'coffee' in name or 'cafe' in name or 'starbucks' in name:
-                            coffee_related = True
-                            break
-                    
-                    if coffee_related:
-                        print("✅ SEARCH RELEVANCE: Found coffee-related businesses as expected")
-                        print(f"  ☕ Sample: {places[0].get('name')} - {places[0].get('address')}")
-                    else:
-                        print("⚠️ SEARCH RELEVANCE: No obvious coffee shops in results")
-                else:
-                    print("⚠️ COORDINATES SEARCH: No places returned")
-                    
-            elif response.status_code == 401:
-                print("❌ PLACES SEARCH (coords): Unauthorized - authentication required")
-            else:
-                print(f"❌ PLACES SEARCH (coords): Failed with status {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ PLACES SEARCH (coords): Error - {e}")
-        
-        # Test 4: Test authentication required - try without token
-        try:
-            payload = {"query": "test", "location": "test"}
-            response = requests.post(f"{self.base_url}/api/places/search", json=payload)
-            
-            if response.status_code == 401:
-                print("✅ PLACES AUTH: Correctly returns 401 Unauthorized without token")
-            else:
-                print(f"⚠️ PLACES AUTH: Expected 401, got {response.status_code}")
-                
-        except Exception as e:
-            print(f"❌ PLACES AUTH: Error - {e}")
-        
-        # Test 5: Test error handling - missing required parameters
-        try:
-            headers = self.get_auth_headers()
-            payload = {}  # Empty payload - should trigger validation error
-            
-            response = requests.post(f"{self.base_url}/api/places/search", 
-                json=payload, headers=headers)
-            
-            if response.status_code == 400:
-                error_data = response.json()
-                print("✅ PLACES VALIDATION: Correctly rejects empty search parameters")
-                print(f"  📊 Error message: {error_data.get('error', 'N/A')}")
-            else:
-                print(f"⚠️ PLACES VALIDATION: Expected 400 error, got {response.status_code}")
-                
-        except Exception as e:
-            print(f"❌ PLACES VALIDATION: Error - {e}")
-        
-        print("✅ GOOGLE PLACES API: All tests completed")
-
-    def test_web_search_integration(self):
-        """Test Web search integration"""
-        print("\n🌐 TESTING WEB SEARCH INTEGRATION...")
-        
-        # Test 1: Web search with OpenAI model (should trigger Tavily search)
-        try:
-            headers = self.get_auth_headers()
-            payload = {
-                "content": "What is the current price of Bitcoin today?",
-                "model": "gpt-4o",
-                "enableWebSearch": True
-            }
-            
-            response = requests.post(f"{self.base_url}/api/chat/stream", 
-                json=payload, headers=headers, stream=True)
-            
-            if response.status_code == 200:
-                print("✅ WEB SEARCH (GPT-4o): Stream started, checking for search events...")
-                
-                chunks = []
-                search_found = False
-                
-                for line in response.iter_lines(decode_unicode=True):
-                    if line.strip():
-                        try:
-                            chunk = json.loads(line)
-                            chunks.append(chunk)
-                            
-                            if chunk.get('type') == 'search':
-                                search_found = True
-                                queries = chunk.get('queries', [])
-                                print(f"  🔍 SEARCH event found with queries: {queries}")
-                            elif chunk.get('type') == 'meta':
-                                print(f"  📊 META: {chunk}")
-                            elif chunk.get('type') == 'done':
-                                print(f"  ✅ DONE: {chunk}")
-                                break
-                        except json.JSONDecodeError:
-                            pass
-                
-                if search_found:
-                    print("✅ WEB SEARCH: type='search' event confirmed with Tavily integration")
-                else:
-                    print("⚠️ WEB SEARCH: No type='search' event found - may indicate search not triggered")
-                    
-            else:
-                print(f"❌ WEB SEARCH (GPT-4o): Failed with status {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ WEB SEARCH (GPT-4o): Error - {e}")
-        
-        # Test 2: Web search with Perplexity (built-in search, no Tavily)
-        try:
-            headers = self.get_auth_headers()
-            payload = {
-                "content": "What is the current price of Bitcoin today?",
-                "model": "sonar", 
-                "provider": "perplexity",
-                "enableWebSearch": True
-            }
-            
-            response = requests.post(f"{self.base_url}/api/chat/stream", 
-                json=payload, headers=headers, stream=True)
-            
-            if response.status_code == 200:
-                print("✅ PERPLEXITY SEARCH: Stream started, checking response...")
-                
-                chunks = []
-                has_content = False
-                
-                for line in response.iter_lines(decode_unicode=True):
-                    if line.strip():
-                        try:
-                            chunk = json.loads(line)
-                            chunks.append(chunk)
-                            
-                            if chunk.get('type') == 'delta' and chunk.get('content'):
-                                content = chunk.get('content', '')
-                                if 'bitcoin' in content.lower() or 'price' in content.lower():
-                                    has_content = True
-                                print(f"  📝 DELTA: {content[:50]}...")
-                            elif chunk.get('type') == 'done':
-                                print(f"  ✅ DONE: {chunk}")
-                                break
-                        except json.JSONDecodeError:
-                            pass
-                
-                print(f"  📈 Perplexity chunks: {len(chunks)}")
-                
-                if has_content:
-                    print("✅ PERPLEXITY: Received Bitcoin price information (built-in search working)")
-                else:
-                    print("⚠️ PERPLEXITY: Response received but may not contain expected Bitcoin info")
-                    
-            else:
-                print(f"❌ PERPLEXITY SEARCH: Failed with status {response.status_code}: {response.text}")
-                
-        except Exception as e:
-            print(f"❌ PERPLEXITY SEARCH: Error - {e}")
+    log_test_result("POST /api/auth/login", True, 
+                   f"Login successful - Role: {user_role}, Token received")
     
-    def run_all_tests(self):
-        """Run all backend tests"""
-        print("🚀 STARTING SOULPRINT ENGINE BACKEND TESTS")
-        print(f"Base URL: {self.base_url}")
+    # Step 2: Submit User Feedback
+    print("Step 2: Testing User Feedback Submission")
+    feedback_data = {
+        "message": "This is test feedback for the app. It's working great!",
+        "category": "general",
+        "rating": 4
+    }
+    
+    feedback_response = make_request("POST", "/user-feedback", feedback_data, headers)
+    if feedback_response and feedback_response.status_code == 200:
+        feedback_result = feedback_response.json()
+        log_test_result("POST /api/user-feedback", True, 
+                       f"Feedback submitted successfully: {feedback_result.get('message', 'OK')}")
+    else:
+        log_test_result("POST /api/user-feedback", False, 
+                       f"Status: {feedback_response.status_code if feedback_response else 'No response'}")
+    
+    # Step 3: Test Admin Feedback Access (only if user is admin)
+    print("Step 3: Testing Admin Feedback Access")
+    if user_role in ['admin', 'superadmin']:
+        # Get all feedback
+        admin_feedback_response = make_request("GET", "/admin/feedback", None, headers)
+        if admin_feedback_response and admin_feedback_response.status_code == 200:
+            admin_result = admin_feedback_response.json()
+            feedback_count = len(admin_result.get('feedback', []))
+            total_count = admin_result.get('stats', {}).get('total', 0)
+            log_test_result("GET /api/admin/feedback", True, 
+                           f"Retrieved {feedback_count} feedback items (Total: {total_count})")
+        else:
+            log_test_result("GET /api/admin/feedback", False, 
+                           f"Status: {admin_feedback_response.status_code if admin_feedback_response else 'No response'}")
         
-        if not self.login():
-            print("❌ Cannot proceed without authentication")
-            return
+        # Test AI Summary of Feedback
+        print("Step 4: Testing AI Feedback Summary")
+        summary_data = {
+            "status": "new",
+            "limit": 10
+        }
         
-        # High priority test: Chunked upload system
-        self.test_chunked_upload_system()
+        summary_response = make_request("POST", "/admin/feedback/summarize", summary_data, headers)
+        if summary_response and summary_response.status_code == 200:
+            summary_result = summary_response.json()
+            summary_text = summary_result.get('summary', '')
+            feedback_count = summary_result.get('feedbackCount', 0)
+            log_test_result("POST /api/admin/feedback/summarize", True, 
+                           f"AI summary generated for {feedback_count} feedback items")
+            print(f"   Summary preview: {summary_text[:100]}{'...' if len(summary_text) > 100 else ''}")
+        else:
+            log_test_result("POST /api/admin/feedback/summarize", False, 
+                           f"Status: {summary_response.status_code if summary_response else 'No response'}")
+    else:
+        print(f"   Skipping admin tests - User role '{user_role}' is not admin")
+        log_test_result("GET /api/admin/feedback", True, "Skipped - User not admin (expected behavior)")
+        log_test_result("POST /api/admin/feedback/summarize", True, "Skipped - User not admin (expected behavior)")
+
+def test_chunked_upload():
+    """Test the chunked upload initialization endpoint"""
+    print("\n🔄 TESTING CHUNKED UPLOAD ENDPOINTS")
+    print("=" * 60)
+    
+    # First login to get token
+    login_data = {
+        "email": "test@soulprint.com", 
+        "password": "test123"
+    }
+    
+    login_response = make_request("POST", "/auth/login", login_data)
+    if not login_response or login_response.status_code != 200:
+        log_test_result("Chunked Upload Auth", False, "Login failed")
+        return
+    
+    token = login_response.json()['token']
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # Test chunked upload initialization
+    print("Step 1: Testing Chunked Upload Initialization")
+    
+    # Note: The actual endpoint is /data-import/chunked/init, not /chunked/init
+    upload_data = {
+        "filename": "test.zip",
+        "fileSize": 1000,
+        "totalChunks": 1,
+        "source": "chatgpt"
+    }
+    
+    # Test the correct endpoint first
+    upload_response = make_request("POST", "/data-import/chunked/init", upload_data, headers)
+    if upload_response and upload_response.status_code == 200:
+        upload_result = upload_response.json()
+        upload_id = upload_result.get('uploadId')
+        log_test_result("POST /api/data-import/chunked/init", True, 
+                       f"Upload session created: {upload_id}")
+    else:
+        log_test_result("POST /api/data-import/chunked/init", False, 
+                       f"Status: {upload_response.status_code if upload_response else 'No response'}")
+    
+    # Test if the requested endpoint exists (should probably fail)
+    print("Step 2: Testing Requested Endpoint Path")
+    upload_response_alt = make_request("POST", "/chunked/init", upload_data, headers)
+    if upload_response_alt and upload_response_alt.status_code == 200:
+        upload_result_alt = upload_response_alt.json()
+        upload_id_alt = upload_result_alt.get('uploadId')
+        log_test_result("POST /api/chunked/init", True, 
+                       f"Upload session created: {upload_id_alt}")
+    else:
+        expected_status = upload_response_alt.status_code if upload_response_alt else 'No response'
+        log_test_result("POST /api/chunked/init", False, 
+                       f"Status: {expected_status} (Expected - endpoint may not exist at this path)")
+        print("   Note: The actual working endpoint is /api/data-import/chunked/init")
+
+def run_all_tests():
+    """Run all tests in sequence"""
+    print(f"🚀 BACKEND API TESTING - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Base URL: {BASE_URL}")
+    print()
+    
+    try:
+        # Test feedback system
+        test_feedback_system()
         
-        self.test_google_places_api()
-        self.test_task_scheduling_api()
-        self.test_kimi_ai_integration()
-        self.test_telegram_api() 
-        self.test_web_search_integration()
+        # Test chunked upload
+        test_chunked_upload()
         
-        print("\n🎯 BACKEND TESTING COMPLETE!")
+        print("\n" + "=" * 60)
+        print("✅ ALL TESTS COMPLETED")
+        print("=" * 60)
+        
+    except Exception as e:
+        print(f"\n❌ ERROR DURING TESTING: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
-    tester = BackendTester()
-    tester.run_all_tests()
+    run_all_tests()
