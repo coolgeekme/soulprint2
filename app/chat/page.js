@@ -1197,7 +1197,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                     disabled={isImporting}
                   />
                 </div>
-                {cloudUrl && cloudUrl.includes('we.tl') || cloudUrl.includes('wetransfer.com') && (
+                {cloudUrl && (cloudUrl.includes('we.tl') || cloudUrl.includes('wetransfer.com')) && (
                   <p className="mt-1.5 text-xs text-green-400 flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3" /> WeTransfer link detected
                   </p>
