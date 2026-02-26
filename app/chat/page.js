@@ -2626,6 +2626,159 @@ export default function ChatPage() {
     }
   }, [compareResponses, selectedCompareResponse, token]);
 
+  // ── Media Generation Handler ──────────────────────────────────────────────
+  const handleMediaGenerate = useCallback(async ({ type, model, prompt, aspectRatio }) => {
+    setIsGeneratingMedia(true);
+    
+    // Add a placeholder message showing what's being generated
+    const placeholderMsg = {
+      id: `gen-${Date.now()}`,
+      role: 'assistant',
+      content: `🎨 Generating ${type}...\n\n**Prompt:** ${prompt}\n**Model:** ${model}${type === 'image' ? `\n**Aspect:** ${aspectRatio}` : ''}`,
+      created_at: new Date().toISOString(),
+      is_generating: true,
+    };
+    setMessages(prev => [...prev, placeholderMsg]);
+
+    try {
+      const res = await fetch('/api/media/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type, model, prompt, aspectRatio, conversationId }),
+      });
+
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setMessages(prev => prev.map(m => 
+          m.id === placeholderMsg.id 
+            ? { ...m, content: `❌ Generation failed: ${data.error || 'Unknown error'}`, is_generating: false }
+            : m
+        ));
+        setIsGeneratingMedia(false);
+        return;
+      }
+
+      // For async tasks (video), we need to poll
+      if (data.taskId && !data.url) {
+        // Start polling for video completion
+        pollMediaTask(data.taskId, placeholderMsg.id, type, prompt, model);
+      } else if (data.url) {
+        // Immediate result (image)
+        const modelInfo = IMAGE_MODELS.find(m => m.value === model) || { label: model };
+        setMessages(prev => prev.map(m => 
+          m.id === placeholderMsg.id 
+            ? {
+                ...m,
+                content: `✨ ${type === 'image' ? 'Image' : 'Video'} generated!\n\n**Prompt:** ${prompt}`,
+                is_generating: false,
+                image_url: type === 'image' ? data.url : undefined,
+                video_url: type === 'video' ? data.url : undefined,
+                model_used: model,
+              }
+            : m
+        ));
+        // Refresh gallery
+        loadGallery();
+      }
+    } catch (err) {
+      setMessages(prev => prev.map(m => 
+        m.id === placeholderMsg.id 
+          ? { ...m, content: `❌ Connection error: ${err.message}`, is_generating: false }
+          : m
+      ));
+    } finally {
+      setIsGeneratingMedia(false);
+    }
+  }, [token, conversationId]);
+
+  // Poll for async media tasks (videos)
+  const pollMediaTask = useCallback(async (taskId, messageId, type, prompt, model) => {
+    const maxPolls = 60; // 5 minutes max
+    let polls = 0;
+    
+    const poll = async () => {
+      if (polls >= maxPolls) {
+        setMessages(prev => prev.map(m => 
+          m.id === messageId 
+            ? { ...m, content: `⏱️ Generation timed out. Please try again.`, is_generating: false }
+            : m
+        ));
+        return;
+      }
+      
+      try {
+        const res = await fetch(`/api/media/status?taskId=${taskId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        
+        if (data.status === 'completed' && data.url) {
+          setMessages(prev => prev.map(m => 
+            m.id === messageId 
+              ? {
+                  ...m,
+                  content: `✨ Video generated!\n\n**Prompt:** ${prompt}`,
+                  is_generating: false,
+                  video_url: data.url,
+                  thumbnail_url: data.thumbnail_url,
+                  model_used: model,
+                }
+              : m
+          ));
+          loadGallery();
+          return;
+        } else if (data.status === 'failed') {
+          setMessages(prev => prev.map(m => 
+            m.id === messageId 
+              ? { ...m, content: `❌ Generation failed: ${data.error || 'Unknown error'}`, is_generating: false }
+              : m
+          ));
+          return;
+        }
+        
+        // Still processing, update status and continue polling
+        setMessages(prev => prev.map(m => 
+          m.id === messageId && m.is_generating
+            ? { ...m, content: `🎬 Generating video... (${data.progress || 'processing'})\n\n**Prompt:** ${prompt}` }
+            : m
+        ));
+        
+        polls++;
+        setTimeout(poll, 5000); // Poll every 5 seconds
+      } catch (err) {
+        polls++;
+        setTimeout(poll, 5000);
+      }
+    };
+    
+    poll();
+  }, [token]);
+
+  // ── Gallery Loader ────────────────────────────────────────────────────────
+  const loadGallery = useCallback(async () => {
+    if (!token) return;
+    setGalleryLoading(true);
+    try {
+      const res = await fetch('/api/media/gallery', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setGalleryItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error loading gallery:', err);
+    } finally {
+      setGalleryLoading(false);
+    }
+  }, [token]);
+
+  // Load gallery when showing it
+  useEffect(() => {
+    if (showGallery && token) {
+      loadGallery();
+    }
+  }, [showGallery, token, loadGallery]);
+
   async function loadConversation(convId) {
     setConversationId(convId);
     setMessages([]);
