@@ -3839,6 +3839,18 @@ export default function ChatPage() {
         <GalleryModal item={selectedGalleryItem} onClose={() => setSelectedGalleryItem(null)} />
       )}
       
+      {/* Cloud Import Modal */}
+      {showCloudImport && (
+        <CloudImportModal 
+          onClose={() => setShowCloudImport(false)} 
+          token={token}
+          onImportComplete={() => {
+            setShowCloudImport(false);
+            // Optionally refresh user data
+          }}
+        />
+      )}
+      
       {/* PWA Install Prompt */}
       <InstallPrompt />
     </div>
