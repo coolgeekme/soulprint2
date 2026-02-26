@@ -1505,6 +1505,14 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
 
+  // Close conversation menu when clicking outside
+  useEffect(() => {
+    if (!convMenuId) return;
+    const handleClickOutside = () => setConvMenuId(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [convMenuId]);
+
   async function handleFileSelect(e) {
     const files = Array.from(e.target.files || []);
     setFileError('');
