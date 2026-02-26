@@ -5282,6 +5282,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'admin/invite') return handleAdminInviteAdmin(request);
     if (pathStr === 'admin/settings') return handleAdminUpdateSettings(request);
     if (pathStr === 'admin/waitlist/approve') return handleAdminApproveWaitlist(request);
+    if (pathStr === 'admin/feedback/summarize') return handleAdminSummarizeFeedback(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
 
     // Other connector stubs
