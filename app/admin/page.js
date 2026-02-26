@@ -460,6 +460,185 @@ function ConversationsTab({ token }) {
   );
 }
 
+// Feedback Tab
+function FeedbackTab({ token }) {
+  const [feedback, setFeedback] = useState([]);
+  const [stats, setStats] = useState({ total: 0, new: 0, reviewed: 0, resolved: 0 });
+  const [loading, setLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [summarizing, setSummarizing] = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [actionLoading, setActionLoading] = useState({});
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const url = statusFilter ? `/api/admin/feedback?status=${statusFilter}` : '/api/admin/feedback';
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const d = await res.json();
+      setFeedback(d.feedback || []);
+      setStats(d.stats || { total: 0, new: 0, reviewed: 0, resolved: 0 });
+    } catch (e) {
+      console.error('Failed to load feedback:', e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [statusFilter]);
+
+  const summarizeFeedback = async () => {
+    setSummarizing(true);
+    setSummary(null);
+    try {
+      const res = await fetch('/api/admin/feedback/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: statusFilter || undefined }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Failed to summarize');
+      setSummary(d);
+    } catch (e) {
+      alert('Failed to generate summary: ' + e.message);
+    }
+    setSummarizing(false);
+  };
+
+  const updateStatus = async (feedbackId, newStatus) => {
+    setActionLoading(l => ({ ...l, [feedbackId]: true }));
+    try {
+      await fetch(`/api/admin/feedback/${feedbackId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      load();
+    } catch (e) {}
+    setActionLoading(l => ({ ...l, [feedbackId]: false }));
+  };
+
+  const getCategoryIcon = (cat) => {
+    switch (cat) {
+      case 'bug': return '🐛';
+      case 'feature': return '💡';
+      case 'other': return '📝';
+      default: return '💬';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-[#111] border border-white/8 rounded-xl p-4 text-center cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setStatusFilter('')}>
+          <p className="text-2xl font-bold text-white">{stats.total}</p>
+          <p className="text-[10px] text-gray-600 uppercase tracking-wider">Total</p>
+        </div>
+        <div className="bg-[#111] border border-orange-500/30 rounded-xl p-4 text-center cursor-pointer hover:bg-orange-500/10 transition-colors" onClick={() => setStatusFilter('new')}>
+          <p className="text-2xl font-bold text-orange-400">{stats.new}</p>
+          <p className="text-[10px] text-gray-600 uppercase tracking-wider">New</p>
+        </div>
+        <div className="bg-[#111] border border-blue-500/30 rounded-xl p-4 text-center cursor-pointer hover:bg-blue-500/10 transition-colors" onClick={() => setStatusFilter('reviewed')}>
+          <p className="text-2xl font-bold text-blue-400">{stats.reviewed}</p>
+          <p className="text-[10px] text-gray-600 uppercase tracking-wider">Reviewed</p>
+        </div>
+        <div className="bg-[#111] border border-green-500/30 rounded-xl p-4 text-center cursor-pointer hover:bg-green-500/10 transition-colors" onClick={() => setStatusFilter('resolved')}>
+          <p className="text-2xl font-bold text-green-400">{stats.resolved}</p>
+          <p className="text-[10px] text-gray-600 uppercase tracking-wider">Resolved</p>
+        </div>
+      </div>
+
+      {/* Summarize button */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          onClick={summarizeFeedback}
+          disabled={summarizing || feedback.length === 0}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-orange-500 hover:from-purple-500 hover:to-orange-400 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {summarizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {summarizing ? 'Generating Summary...' : 'AI Summarize Feedback'}
+        </button>
+        {statusFilter && (
+          <button onClick={() => setStatusFilter('')} className="text-gray-500 hover:text-white text-xs flex items-center gap-1">
+            <X className="w-3 h-3" /> Clear filter
+          </button>
+        )}
+        <button onClick={load} className="text-gray-500 hover:text-white text-xs flex items-center gap-1 ml-auto">
+          <RefreshCw className="w-3 h-3" /> Refresh
+        </button>
+      </div>
+
+      {/* Summary display */}
+      {summary && (
+        <div className="bg-gradient-to-br from-purple-500/10 to-orange-500/10 border border-purple-500/20 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-white font-semibold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              AI Summary ({summary.feedbackCount} feedback items)
+            </h4>
+            <button onClick={() => setSummary(null)} className="text-gray-600 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">{summary.summary}</div>
+        </div>
+      )}
+
+      {/* Feedback list */}
+      {loading ? (
+        <div className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-600" /></div>
+      ) : feedback.length === 0 ? (
+        <div className="text-center py-12 text-gray-600">
+          <MessageCircle className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p>No feedback {statusFilter ? `with status "${statusFilter}"` : 'yet'}</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {feedback.map(f => (
+            <div key={f.id} className="bg-[#111] border border-white/8 rounded-xl p-4">
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-lg">{getCategoryIcon(f.category)}</span>
+                  <span className="text-white text-sm font-medium">{f.user_email}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${
+                    f.category === 'bug' ? 'bg-red-500/20 text-red-400' :
+                    f.category === 'feature' ? 'bg-blue-500/20 text-blue-400' :
+                    'bg-gray-500/20 text-gray-400'
+                  }`}>{f.category}</span>
+                  {f.rating && (
+                    <span className="text-orange-400 text-xs">{'★'.repeat(f.rating)}{'☆'.repeat(5 - f.rating)}</span>
+                  )}
+                </div>
+                <span className="text-gray-600 text-[10px] whitespace-nowrap">{new Date(f.created_at).toLocaleString()}</span>
+              </div>
+              <p className="text-gray-300 text-sm mb-4 whitespace-pre-wrap">{f.message}</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] text-gray-600 mr-2">Status:</span>
+                {['new', 'reviewed', 'resolved'].map(status => (
+                  <button
+                    key={status}
+                    onClick={() => updateStatus(f.id, status)}
+                    disabled={actionLoading[f.id]}
+                    className={`text-[10px] px-2 py-1 rounded-full capitalize transition-all ${
+                      f.status === status
+                        ? status === 'new' ? 'bg-orange-500/30 text-orange-400 border border-orange-500/50'
+                        : status === 'reviewed' ? 'bg-blue-500/30 text-blue-400 border border-blue-500/50'
+                        : 'bg-green-500/30 text-green-400 border border-green-500/50'
+                        : 'bg-white/5 text-gray-500 border border-white/10 hover:bg-white/10'
+                    }`}
+                  >
+                    {actionLoading[f.id] ? '...' : status}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Imports Tab
 function ImportsTab({ token }) {
   const [imports, setImports] = useState([]);
