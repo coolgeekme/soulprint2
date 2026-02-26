@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-SoulPrint Engine Cloud Import API Testing Suite
-Tests POST /api/imports/cloud and GET /api/imports/status endpoints
+Backend testing for SoulPrint Engine Video Generation Fix
+Tests the handleMediaStatus fix for video models using useJobsApi=true
 """
 
 import requests
@@ -9,350 +9,294 @@ import json
 import time
 import sys
 import os
-from urllib.parse import urljoin
 
 # Configuration
-BASE_URL = "https://chunk-upload.preview.emergentagent.com"
-TEST_CREDENTIALS = {
-    "email": "test@soulprint.com",
-    "passcode": "test123"
-}
+BASE_URL = "https://chunk-upload.preview.emergentagent.com/api"
+TEST_EMAIL = "test@soulprint.com"  
+TEST_PASSCODE = "test123"
 
-class CloudImportTester:
+class VideoGenerationTester:
     def __init__(self):
-        self.base_url = BASE_URL
-        self.token = None
         self.session = requests.Session()
-        self.session.headers.update({
-            'Content-Type': 'application/json',
-            'User-Agent': 'SoulPrint-CloudImport-Tester/1.0'
+        self.auth_token = None
+        self.base_url = BASE_URL
+        self.test_results = []
+        
+    def log(self, message, level="INFO"):
+        print(f"[{level}] {message}")
+        
+    def test_step(self, description, success, details=""):
+        result = "✅ PASS" if success else "❌ FAIL"
+        self.log(f"{result}: {description}")
+        if details:
+            self.log(f"    Details: {details}")
+        self.test_results.append({
+            'description': description,
+            'success': success,
+            'details': details
         })
+        return success
 
     def authenticate(self):
-        """Authenticate and get JWT token"""
+        """Authenticate and get bearer token"""
+        self.log("=== AUTHENTICATION TEST ===")
+        
         try:
-            url = urljoin(self.base_url, '/api/auth/login')
-            response = self.session.post(url, json=TEST_CREDENTIALS)
+            response = self.session.post(
+                f"{self.base_url}/auth/login",
+                headers={"Content-Type": "application/json"},
+                json={"email": TEST_EMAIL, "passcode": TEST_PASSCODE},
+                timeout=10
+            )
             
             if response.status_code == 200:
                 data = response.json()
-                self.token = data.get('token')
-                self.session.headers.update({
-                    'Authorization': f'Bearer {self.token}'
-                })
-                print(f"✅ Authentication successful - Role: {data.get('role', 'unknown')}")
-                return True
+                if data.get('token'):
+                    self.auth_token = data['token']
+                    self.session.headers.update({"Authorization": f"Bearer {self.auth_token}"})
+                    return self.test_step("Authentication successful", True, 
+                                        f"Role: {data.get('role', 'N/A')}, User ID: {data.get('userId', 'N/A')}")
+                else:
+                    return self.test_step("Authentication failed", False, "No token in response")
             else:
-                print(f"❌ Authentication failed: {response.status_code} - {response.text}")
-                return False
+                return self.test_step("Authentication failed", False, 
+                                    f"Status: {response.status_code}, Response: {response.text[:200]}")
                 
         except Exception as e:
-            print(f"❌ Authentication error: {str(e)}")
-            return False
+            return self.test_step("Authentication failed", False, f"Exception: {str(e)}")
 
-    def test_cloud_import_no_auth(self):
-        """Test POST /api/imports/cloud without authentication"""
-        print("\n🔒 Testing Cloud Import without authentication...")
+    def test_video_generation(self, model_name, prompt="A cat playing piano", aspect_ratio="16:9"):
+        """Test video generation initiation"""
+        self.log(f"=== VIDEO GENERATION TEST: {model_name} ===")
+        
         try:
-            # Remove auth header temporarily
-            auth_header = self.session.headers.pop('Authorization', None)
-            
-            url = urljoin(self.base_url, '/api/imports/cloud')
-            response = self.session.post(url, json={
-                "url": "https://example.com/test.zip",
-                "type": "chatgpt",
-                "provider": "direct"
-            })
-            
-            # Restore auth header
-            if auth_header:
-                self.session.headers['Authorization'] = auth_header
-            
-            if response.status_code == 401:
-                print("✅ PASSED: Returns 401 Unauthorized without auth")
-                return True
-            else:
-                print(f"❌ FAILED: Expected 401, got {response.status_code}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return False
-
-    def test_import_status_no_auth(self):
-        """Test GET /api/imports/status without authentication"""
-        print("\n🔒 Testing Import Status without authentication...")
-        try:
-            # Remove auth header temporarily
-            auth_header = self.session.headers.pop('Authorization', None)
-            
-            url = urljoin(self.base_url, '/api/imports/status?importId=test123')
-            response = self.session.get(url)
-            
-            # Restore auth header
-            if auth_header:
-                self.session.headers['Authorization'] = auth_header
-            
-            if response.status_code == 401:
-                print("✅ PASSED: Returns 401 Unauthorized without auth")
-                return True
-            else:
-                print(f"❌ FAILED: Expected 401, got {response.status_code}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return False
-
-    def test_cloud_import_validation(self):
-        """Test POST /api/imports/cloud validation"""
-        print("\n✏️ Testing Cloud Import validation...")
-        try:
-            url = urljoin(self.base_url, '/api/imports/cloud')
-            
-            # Test missing URL
-            response = self.session.post(url, json={
-                "type": "chatgpt",
-                "provider": "direct"
-            })
-            
-            if response.status_code == 400 and 'URL required' in response.text:
-                print("✅ PASSED: Validates missing URL (400 error)")
-                return True
-            else:
-                print(f"❌ FAILED: Expected URL validation error, got {response.status_code} - {response.text}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return False
-
-    def test_cloud_import_creation(self):
-        """Test POST /api/imports/cloud job creation"""
-        print("\n📤 Testing Cloud Import job creation...")
-        try:
-            url = urljoin(self.base_url, '/api/imports/cloud')
-            
-            # Test with a public test URL (will likely fail download, but should create job)
-            test_data = {
-                "url": "https://httpbin.org/json",  # This will fail as it's not a ZIP, but tests job creation
-                "type": "chatgpt",
-                "provider": "direct"
+            payload = {
+                "type": "video",
+                "model": model_name,
+                "prompt": prompt,
+                "aspectRatio": aspect_ratio
             }
             
-            response = self.session.post(url, json=test_data)
+            response = self.session.post(
+                f"{self.base_url}/media/generate",
+                headers={"Content-Type": "application/json"},
+                json=payload,
+                timeout=30
+            )
             
             if response.status_code == 200:
                 data = response.json()
-                if 'importId' in data and 'status' in data and data['status'] == 'pending':
-                    print(f"✅ PASSED: Created import job with ID: {data['importId']}")
-                    return data['importId']
+                if data.get('success') and data.get('taskId'):
+                    return self.test_step(
+                        f"Video generation initiated for {model_name}", True,
+                        f"TaskId: {data.get('taskId')}, MediaId: {data.get('mediaId')}, Status: {data.get('status')}"
+                    ), data.get('taskId')
                 else:
-                    print(f"❌ FAILED: Missing expected response fields: {data}")
-                    return None
+                    return self.test_step(
+                        f"Video generation failed for {model_name}", False,
+                        f"Response: {json.dumps(data)[:300]}"
+                    ), None
             else:
-                print(f"❌ FAILED: Expected 200, got {response.status_code} - {response.text}")
-                return None
+                return self.test_step(
+                    f"Video generation failed for {model_name}", False,
+                    f"Status: {response.status_code}, Response: {response.text[:300]}"
+                ), None
                 
         except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return None
+            return self.test_step(
+                f"Video generation failed for {model_name}", False,
+                f"Exception: {str(e)}"
+            ), None
 
-    def test_cloud_import_dropbox_detection(self):
-        """Test POST /api/imports/cloud with Dropbox URL format"""
-        print("\n📦 Testing Cloud Import with Dropbox URL...")
-        try:
-            url = urljoin(self.base_url, '/api/imports/cloud')
+    def test_video_status(self, task_id, model_name, max_polls=5):
+        """Test video status polling - this is the main fix being tested"""
+        self.log(f"=== VIDEO STATUS POLLING TEST: {model_name} ===")
+        
+        poll_count = 0
+        while poll_count < max_polls:
+            poll_count += 1
             
-            # Test with Dropbox URL format (will likely fail download, but tests provider detection)
-            test_data = {
-                "url": "https://www.dropbox.com/s/abc123/test.zip?dl=0",
-                "type": "chatgpt",
-                "provider": "dropbox"  # or should be auto-detected
-            }
-            
-            response = self.session.post(url, json=test_data)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if 'importId' in data and 'status' in data and data['status'] == 'pending':
-                    print(f"✅ PASSED: Created Dropbox import job with ID: {data['importId']}")
-                    return data['importId']
-                else:
-                    print(f"❌ FAILED: Missing expected response fields: {data}")
-                    return None
-            else:
-                print(f"❌ FAILED: Expected 200, got {response.status_code} - {response.text}")
-                return None
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return None
-
-    def test_import_status_polling(self, import_id):
-        """Test GET /api/imports/status for valid importId"""
-        print(f"\n📊 Testing Import Status polling for ID: {import_id}")
-        try:
-            if not import_id:
-                print("❌ SKIPPED: No importId provided")
-                return False
-                
-            url = urljoin(self.base_url, f'/api/imports/status?importId={import_id}')
-            
-            # Poll a few times to see status changes
-            for i in range(3):
-                response = self.session.get(url)
+            try:
+                response = self.session.get(
+                    f"{self.base_url}/media/status?taskId={task_id}",
+                    timeout=15
+                )
                 
                 if response.status_code == 200:
                     data = response.json()
-                    required_fields = ['status', 'message', 'progress', 'messagesCount', 'error']
+                    status = data.get('status', 'unknown')
                     
-                    # Check if all required fields are present
-                    if all(field in data for field in required_fields):
-                        print(f"✅ Poll {i+1}: Status={data['status']}, Progress={data['progress']}%, Message='{data['message']}'")
-                        
-                        # If status is failed or completed, stop polling
-                        if data['status'] in ['completed', 'failed']:
-                            if data['status'] == 'failed' and data['error']:
-                                print(f"   ℹ️  Expected failure reason: {data['error']}")
-                            break
+                    # Check for the specific error we're testing the fix for
+                    if 'recordInfo is null' in response.text:
+                        return self.test_step(
+                            f"Video status polling FAILED - recordInfo is null error still present for {model_name}",
+                            False,
+                            f"Poll {poll_count}: Still getting 'recordInfo is null' error"
+                        )
+                    
+                    # Check for other error indicators
+                    if data.get('error') and 'undefined' in str(data.get('error')).lower():
+                        return self.test_step(
+                            f"Video status polling FAILED - undefined endpoint error for {model_name}",
+                            False,
+                            f"Poll {poll_count}: Error contains 'undefined': {data.get('error')}"
+                        )
+                    
+                    self.log(f"Poll {poll_count} for {model_name}: Status = {status}, Progress = {data.get('progress', 'N/A')}")
+                    
+                    if status in ['completed', 'failed']:
+                        return self.test_step(
+                            f"Video status polling working for {model_name}",
+                            True,
+                            f"Final status: {status} after {poll_count} polls. No 'recordInfo is null' errors."
+                        )
+                    elif status == 'generating':
+                        # Status is properly being tracked, continue polling
+                        if poll_count < max_polls:
+                            self.log(f"    Video still generating, waiting 3 seconds before next poll...")
+                            time.sleep(3)
+                            continue
+                        else:
+                            return self.test_step(
+                                f"Video status polling working for {model_name}",
+                                True,
+                                f"Status properly returned 'generating' for {poll_count} polls. No errors detected."
+                            )
                     else:
-                        print(f"❌ FAILED: Missing required fields in response: {data}")
-                        return False
+                        # Any other status is acceptable as long as no errors
+                        self.log(f"    Received status: {status}, continuing...")
+                        if poll_count < max_polls:
+                            time.sleep(3)
+                            continue
+                        else:
+                            return self.test_step(
+                                f"Video status polling working for {model_name}",
+                                True,
+                                f"No 'recordInfo is null' or undefined errors after {poll_count} polls"
+                            )
                 else:
-                    print(f"❌ FAILED: Expected 200, got {response.status_code} - {response.text}")
-                    return False
-                
-                # Wait a bit before next poll
-                if i < 2:
-                    time.sleep(2)
-            
-            print("✅ PASSED: Import status polling working correctly")
-            return True
-            
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return False
-
-    def test_import_status_invalid_id(self):
-        """Test GET /api/imports/status for non-existent importId"""
-        print("\n🔍 Testing Import Status with invalid importId...")
-        try:
-            url = urljoin(self.base_url, '/api/imports/status?importId=non-existent-id-12345')
-            response = self.session.get(url)
-            
-            if response.status_code == 404:
-                print("✅ PASSED: Returns 404 for non-existent importId")
-                return True
-            else:
-                print(f"❌ FAILED: Expected 404, got {response.status_code} - {response.text}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return False
-
-    def test_import_status_missing_param(self):
-        """Test GET /api/imports/status without importId parameter"""
-        print("\n❓ Testing Import Status without importId parameter...")
-        try:
-            url = urljoin(self.base_url, '/api/imports/status')
-            response = self.session.get(url)
-            
-            if response.status_code == 400 and 'importId required' in response.text:
-                print("✅ PASSED: Validates missing importId parameter")
-                return True
-            else:
-                print(f"❌ FAILED: Expected importId validation error, got {response.status_code} - {response.text}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return False
-
-    def run_all_tests(self):
-        """Run all Cloud Import API tests"""
-        print("🚀 Starting SoulPrint Cloud Import API Tests")
-        print("=" * 60)
+                    return self.test_step(
+                        f"Video status polling failed for {model_name}",
+                        False,
+                        f"HTTP {response.status_code}: {response.text[:300]}"
+                    )
+                    
+            except Exception as e:
+                return self.test_step(
+                    f"Video status polling failed for {model_name}",
+                    False,
+                    f"Poll {poll_count} exception: {str(e)}"
+                )
         
-        # Authentication
-        if not self.authenticate():
-            print("❌ Cannot continue without authentication")
-            return False
-        
-        # Track test results
-        results = []
-        
-        # Test scenarios
-        test_methods = [
-            ("Authentication Required - Cloud Import", self.test_cloud_import_no_auth),
-            ("Authentication Required - Import Status", self.test_import_status_no_auth),
-            ("Validation - Missing URL", self.test_cloud_import_validation),
-            ("Import Status - Missing Parameter", self.test_import_status_missing_param),
-            ("Import Status - Invalid ID", self.test_import_status_invalid_id),
+        # If we get here, we completed all polls without errors
+        return self.test_step(
+            f"Video status polling working for {model_name}",
+            True,
+            f"Completed {max_polls} polls with no 'recordInfo is null' or undefined errors"
+        )
+
+    def test_video_models(self):
+        """Test the specific video models mentioned in the review request"""
+        # Models that use useJobsApi=true and were affected by the bug
+        video_models = [
+            "kling-3-720p",
+            "sora-2-stable", 
+            "kling-2-6",
+            "wan-2-6"
         ]
         
-        # Run basic tests first
-        for test_name, test_method in test_methods:
-            try:
-                result = test_method()
-                results.append((test_name, result))
-            except Exception as e:
-                print(f"❌ {test_name} ERROR: {str(e)}")
-                results.append((test_name, False))
+        successful_tests = 0
+        total_tests = 0
         
-        # Test import job creation and status polling
-        print("\n" + "=" * 60)
-        print("📋 Testing Import Job Flow...")
+        for model in video_models:
+            self.log(f"\n{'='*60}")
+            self.log(f"TESTING VIDEO MODEL: {model}")
+            self.log(f"{'='*60}")
+            
+            # Test video generation initiation
+            generation_success, task_id = self.test_video_generation(model)
+            total_tests += 1
+            
+            if generation_success and task_id:
+                # Test video status polling (the main fix)
+                status_success = self.test_video_status(task_id, model)
+                total_tests += 1
+                if status_success:
+                    successful_tests += 2
+                else:
+                    successful_tests += 1  # Generation worked
+            elif generation_success:
+                successful_tests += 1
+                self.test_step(f"Skipping status test for {model}", False, "No taskId returned")
+                total_tests += 1
         
-        # Test job creation
-        import_id = self.test_cloud_import_creation()
-        results.append(("Import Job Creation", import_id is not None))
+        return successful_tests, total_tests
+
+    def run_all_tests(self):
+        """Run comprehensive video generation fix tests"""
+        self.log("🎬 STARTING SOULPRINT ENGINE VIDEO GENERATION FIX TESTING")
+        self.log(f"Base URL: {self.base_url}")
+        self.log(f"Test credentials: {TEST_EMAIL}")
         
-        # Test status polling with the created job
-        if import_id:
-            status_result = self.test_import_status_polling(import_id)
-            results.append(("Import Status Polling", status_result))
-        else:
-            results.append(("Import Status Polling", False))
+        # Step 1: Authenticate
+        if not self.authenticate():
+            self.log("❌ Cannot proceed without authentication")
+            return False
         
-        # Test Dropbox provider detection
-        dropbox_id = self.test_cloud_import_dropbox_detection()
-        results.append(("Dropbox Provider Detection", dropbox_id is not None))
+        # Step 2: Test video models with the fix
+        successful_tests, total_tests = self.test_video_models()
         
         # Summary
-        print("\n" + "=" * 60)
-        print("📊 TEST SUMMARY")
-        print("=" * 60)
+        self.log(f"\n{'='*60}")
+        self.log("🎬 VIDEO GENERATION FIX TEST SUMMARY")
+        self.log(f"{'='*60}")
         
-        passed = 0
-        total = len(results)
+        success_rate = (successful_tests / total_tests * 100) if total_tests > 0 else 0
+        self.log(f"Overall Success Rate: {successful_tests}/{total_tests} ({success_rate:.1f}%)")
         
-        for test_name, result in results:
-            status = "✅ PASSED" if result else "❌ FAILED"
-            print(f"{status}: {test_name}")
-            if result:
-                passed += 1
+        # Detailed results
+        passed = sum(1 for r in self.test_results if r['success'])
+        failed = len(self.test_results) - passed
         
-        print(f"\n📈 Results: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+        self.log(f"\nDetailed Results:")
+        self.log(f"✅ PASSED: {passed}")
+        self.log(f"❌ FAILED: {failed}")
         
-        if passed == total:
-            print("🎉 All Cloud Import API tests PASSED!")
-            return True
-        else:
-            print(f"⚠️ {total-passed} test(s) failed")
-            return False
+        if failed > 0:
+            self.log(f"\nFailed Tests:")
+            for result in self.test_results:
+                if not result['success']:
+                    self.log(f"  • {result['description']}")
+                    if result['details']:
+                        self.log(f"    Details: {result['details']}")
+        
+        self.log(f"\n🔍 KEY FINDINGS:")
+        self.log(f"   • Testing the fix for handleMediaStatus function")
+        self.log(f"   • Focus: Models with useJobsApi=true should use 'jobs/recordInfo' endpoint")
+        self.log(f"   • Success criteria: No 'recordInfo is null' errors")
+        self.log(f"   • Success criteria: No 'undefined' endpoint errors")
+        self.log(f"   • Models tested: kling-3-720p, sora-2-stable, kling-2-6, wan-2-6")
+        
+        return failed == 0
 
 def main():
-    """Main test execution"""
-    print("SoulPrint Engine - Cloud Import API Test Suite")
-    print(f"Testing against: {BASE_URL}")
-    print(f"Test credentials: {TEST_CREDENTIALS['email']}")
+    tester = VideoGenerationTester()
     
-    tester = CloudImportTester()
-    success = tester.run_all_tests()
-    
-    return 0 if success else 1
+    try:
+        success = tester.run_all_tests()
+        if success:
+            print(f"\n🎉 ALL TESTS PASSED! Video generation fix is working correctly.")
+            sys.exit(0)
+        else:
+            print(f"\n⚠️  SOME TESTS FAILED. Check the detailed results above.")
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print(f"\n⚠️  Tests interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ CRITICAL ERROR: {str(e)}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
