@@ -1740,6 +1740,31 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                       </div>
                     </div>
                   </div>
+
+                  {/* Cloud Import for Large Files */}
+                  <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-r from-cyan-500/5 to-blue-500/5 border border-cyan-500/20">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center flex-shrink-0">
+                        <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-medium">Large Files (1GB+)</p>
+                        <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Upload to Google Drive, Dropbox, or OneDrive and paste the link</p>
+                        <button
+                          onClick={() => {
+                            onClose();
+                            // Dispatch custom event to open cloud import modal
+                            window.dispatchEvent(new CustomEvent('openCloudImport'));
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 rounded-lg text-cyan-400 text-xs hover:from-cyan-500/30 hover:to-blue-500/30 transition-colors"
+                        >
+                          <Cloud className="w-3.5 h-3.5" /> 
+                          <span className="hidden sm:inline">Import from Cloud</span>
+                          <span className="sm:hidden">Cloud Import</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <p className="text-gray-700 text-[10px] mt-3 text-center">
