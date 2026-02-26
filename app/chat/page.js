@@ -590,7 +590,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-full mb-2 right-0 bg-[#111] border border-white/10 rounded-2xl shadow-2xl w-80 overflow-hidden z-30">
+        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-0 bg-[#111] border border-white/10 rounded-2xl shadow-2xl w-72 sm:w-80 overflow-hidden z-30">
           {/* Tabs */}
           <div className="flex border-b border-white/10">
             <button
@@ -624,7 +624,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
                   <button
                     key={model.value}
                     onClick={() => activeTab === 'image' ? setSelectedImageModel(model.value) : setSelectedVideoModel(model.value)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${
+                    className={`w-full flex items-center px-3 py-2 rounded-lg text-xs transition-colors ${
                       (activeTab === 'image' ? selectedImageModel : selectedVideoModel) === model.value
                         ? 'bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 text-white'
                         : 'bg-white/3 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white'
@@ -634,13 +634,6 @@ function CreateMenu({ onGenerate, isGenerating }) {
                       <span className="font-medium">{model.label}</span>
                       <span className="text-[9px] text-gray-600">{model.description}</span>
                     </div>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                      model === (activeTab === 'image' ? IMAGE_MODELS[0] : VIDEO_MODELS[0])
-                        ? 'bg-green-500/20 text-green-400'
-                        : 'bg-white/5 text-gray-500'
-                    }`}>
-                      {model.costLabel}
-                    </span>
                   </button>
                 ))}
               </div>
