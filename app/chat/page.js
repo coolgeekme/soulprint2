@@ -809,6 +809,20 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const fileInputRef = useRef(null);
 
+  // Prevent accidental navigation during upload
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isImporting) {
+        e.preventDefault();
+        e.returnValue = 'Upload in progress. Are you sure you want to leave?';
+        return e.returnValue;
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isImporting]);
+
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
