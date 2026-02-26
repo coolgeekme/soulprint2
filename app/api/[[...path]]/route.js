@@ -6173,6 +6173,10 @@ export async function DELETE(request, { params }) {
       const taskId = pathArr[1];
       return handleDeleteSchedule(request, taskId);
     }
+    if (pathStr.startsWith('memories/') && pathArr.length === 2) {
+      const memoryId = pathArr[1];
+      return handleDeleteMemory(request, memoryId);
+    }
     if (pathStr.startsWith('data-imports/') && pathArr.length === 2) {
       const importId = pathArr[1];
       return handleDeleteDataImport(request, importId);
