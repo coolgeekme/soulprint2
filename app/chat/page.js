@@ -316,7 +316,7 @@ function ImageCard({ url, revisedPrompt }) {
 }
 
 // ── CompareResponseCard: Displays a single model's response in comparison mode ──
-function CompareResponseCard({ response, onSelect, isLoading, selected }) {
+function CompareResponseCard({ response, onSelect, isLoading, selected, totalModels = 2 }) {
   const { model, provider, label, group, content, duration, success, error, usedSearch } = response || {};
   
   // Color coding by provider
@@ -333,21 +333,26 @@ function CompareResponseCard({ response, onSelect, isLoading, selected }) {
   
   const providerColorClass = getProviderColor(provider);
   
+  // Dynamic height based on number of models - more height when fewer models
+  const contentMaxHeight = totalModels <= 2 ? 'max-h-[400px]' : 'max-h-[300px]';
+  
   if (isLoading) {
     return (
-      <div className={`rounded-xl border ${providerColorClass.split(' ')[1]} ${providerColorClass.split(' ')[2]} p-4 flex-1 min-w-0`}>
-        <div className="flex items-center justify-between mb-3">
+      <div className={`rounded-xl border ${providerColorClass.split(' ')[1]} ${providerColorClass.split(' ')[2]} p-5 flex-1 min-w-0`}>
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <span className={`text-xs font-semibold ${providerColorClass.split(' ')[0]}`}>{group}</span>
+            <span className={`text-sm font-semibold ${providerColorClass.split(' ')[0]}`}>{group}</span>
             <span className="text-gray-600">/</span>
-            <span className="text-xs text-gray-400">{label}</span>
+            <span className="text-sm text-gray-400">{label}</span>
           </div>
-          <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
+          <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
         </div>
-        <div className="space-y-2">
-          <div className="h-3 bg-white/5 rounded animate-pulse w-full" />
-          <div className="h-3 bg-white/5 rounded animate-pulse w-4/5" />
-          <div className="h-3 bg-white/5 rounded animate-pulse w-3/5" />
+        <div className="space-y-3">
+          <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
+          <div className="h-4 bg-white/5 rounded animate-pulse w-4/5" />
+          <div className="h-4 bg-white/5 rounded animate-pulse w-3/5" />
+          <div className="h-4 bg-white/5 rounded animate-pulse w-full" />
+          <div className="h-4 bg-white/5 rounded animate-pulse w-2/3" />
         </div>
       </div>
     );
@@ -355,46 +360,46 @@ function CompareResponseCard({ response, onSelect, isLoading, selected }) {
   
   if (!success) {
     return (
-      <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-3">
+      <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5 flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-red-400">{group}</span>
+            <span className="text-sm font-semibold text-red-400">{group}</span>
             <span className="text-gray-600">/</span>
-            <span className="text-xs text-gray-400">{label}</span>
+            <span className="text-sm text-gray-400">{label}</span>
           </div>
-          <X className="w-4 h-4 text-red-400" />
+          <X className="w-5 h-5 text-red-400" />
         </div>
-        <p className="text-xs text-red-400">Failed: {error || 'Unknown error'}</p>
+        <p className="text-sm text-red-400">Failed: {error || 'Unknown error'}</p>
       </div>
     );
   }
   
   return (
-    <div className={`rounded-xl border ${selected ? 'border-orange-500 ring-2 ring-orange-500/30' : providerColorClass.split(' ')[1]} ${providerColorClass.split(' ')[2]} p-4 flex-1 min-w-0 flex flex-col`}>
+    <div className={`rounded-xl border ${selected ? 'border-orange-500 ring-2 ring-orange-500/30' : providerColorClass.split(' ')[1]} ${providerColorClass.split(' ')[2]} p-5 flex-1 min-w-0 flex flex-col`}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-3 flex-shrink-0">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <span className={`text-xs font-semibold ${providerColorClass.split(' ')[0]}`}>{group}</span>
+          <span className={`text-sm font-semibold ${providerColorClass.split(' ')[0]}`}>{group}</span>
           <span className="text-gray-600">/</span>
-          <span className="text-xs text-gray-400">{label}</span>
+          <span className="text-sm text-gray-400">{label}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {usedSearch && (
-            <span className="flex items-center gap-1 text-[10px] text-cyan-400" title="Web search was used">
-              <Globe className="w-3 h-3" />
+            <span className="flex items-center gap-1 text-xs text-cyan-400" title="Web search was used">
+              <Globe className="w-3.5 h-3.5" /> Search
             </span>
           )}
           {duration && (
-            <span className="flex items-center gap-1 text-[10px] text-gray-600" title={`Response time: ${(duration / 1000).toFixed(1)}s`}>
-              <Clock className="w-3 h-3" />
+            <span className="flex items-center gap-1 text-xs text-gray-500" title={`Response time: ${(duration / 1000).toFixed(1)}s`}>
+              <Clock className="w-3.5 h-3.5" />
               {(duration / 1000).toFixed(1)}s
             </span>
           )}
         </div>
       </div>
       
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto max-h-72 mb-3 text-sm text-gray-300 prose prose-invert prose-sm prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5">
+      {/* Content - larger text and more height */}
+      <div className={`flex-1 overflow-y-auto ${contentMaxHeight} mb-4 text-base text-gray-200 prose prose-invert prose-base prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-li:my-1 prose-code:text-orange-300`}>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
       </div>
       
@@ -402,7 +407,7 @@ function CompareResponseCard({ response, onSelect, isLoading, selected }) {
       <button
         onClick={() => onSelect(response)}
         disabled={selected}
-        className={`w-full py-2.5 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 flex-shrink-0 ${
+        className={`w-full py-3 px-4 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 flex-shrink-0 ${
           selected 
             ? 'bg-orange-500 text-white cursor-default' 
             : 'bg-white/5 border border-white/10 text-white hover:bg-orange-500/20 hover:border-orange-500/50'
