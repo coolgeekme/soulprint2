@@ -4897,6 +4897,18 @@ async function handleTelegramWebhook(request) {
       ];
     }
 
+    // ── Sanitize message history for LLM providers ───────────────────────────
+    // CRITICAL: Gemini requires first message to be 'user' and alternating roles
+    // This prevents "First content should be with role 'user', got model" errors
+    historyMessages = ensureAlternatingMessages(historyMessages);
+    
+    // Safety: ensure we always have at least one user message
+    if (historyMessages.length === 0 || historyMessages[historyMessages.length - 1].role !== 'user') {
+      historyMessages.push({ role: 'user', content: sanitizedText });
+    }
+    
+    console.log(`[Telegram] Sending ${historyMessages.length} messages to ${preferredProvider}/${preferredModel}. First role: ${historyMessages[0]?.role}, Last role: ${historyMessages[historyMessages.length - 1]?.role}`);
+
     // ── Generate response ───────────────────────────────────────────────────
     const { getProvider: gp } = await import('@/lib/llm/providers');
     const provider = gp(preferredProvider, preferredModel);
