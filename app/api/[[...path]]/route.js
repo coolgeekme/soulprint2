@@ -3347,14 +3347,38 @@ async function processVideoStatus(db, media, data) {
   const state = data.data?.state || data.data?.status;
   
   if (state === 'success' || state === 'SUCCESS') {
-    // Video ready
-    const videoUrl = data.data?.works?.[0]?.resource || 
-                     data.data?.resultUrls?.[0] || 
-                     data.data?.videoUrl ||
-                     data.data?.url;
-    const thumbnailUrl = data.data?.works?.[0]?.coverImage || 
-                         data.data?.thumbnail ||
-                         data.data?.coverUrl;
+    // Video ready - check multiple possible response formats
+    let videoUrl = null;
+    let thumbnailUrl = null;
+    
+    // Try parsing resultJson first (Jobs API format)
+    if (data.data?.resultJson) {
+      try {
+        const resultJson = JSON.parse(data.data.resultJson);
+        videoUrl = resultJson?.resultUrls?.[0] || 
+                   resultJson?.videoUrl || 
+                   resultJson?.url ||
+                   resultJson?.video_url;
+        thumbnailUrl = resultJson?.thumbnail || 
+                       resultJson?.coverUrl ||
+                       resultJson?.cover_url;
+        console.log('Parsed resultJson for video:', { videoUrl, thumbnailUrl });
+      } catch (e) {
+        console.error('Failed to parse video resultJson:', e);
+      }
+    }
+    
+    // Fall back to direct fields (legacy API format)
+    if (!videoUrl) {
+      videoUrl = data.data?.works?.[0]?.resource || 
+                 data.data?.resultUrls?.[0] || 
+                 data.data?.videoUrl ||
+                 data.data?.url;
+      thumbnailUrl = thumbnailUrl || 
+                     data.data?.works?.[0]?.coverImage || 
+                     data.data?.thumbnail ||
+                     data.data?.coverUrl;
+    }
 
     if (videoUrl) {
       await db.collection('media_gallery').updateOne(
@@ -3362,6 +3386,8 @@ async function processVideoStatus(db, media, data) {
         { $set: { status: 'completed', url: videoUrl, thumbnail_url: thumbnailUrl } }
       );
       return ok({ status: 'completed', url: videoUrl, thumbnail_url: thumbnailUrl });
+    } else {
+      console.log('Video status success but no URL found in:', JSON.stringify(data.data).substring(0, 500));
     }
   } else if (state === 'fail' || state === 'FAILED') {
     const error = data.data?.failMsg || data.data?.errorMessage || 'Generation failed';
