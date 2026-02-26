@@ -3060,6 +3060,13 @@ export default function ChatPage() {
     }
   }, [showGallery, token, loadGallery]);
 
+  // Listen for cloud import modal open event
+  useEffect(() => {
+    const handleOpenCloudImport = () => setShowCloudImport(true);
+    window.addEventListener('openCloudImport', handleOpenCloudImport);
+    return () => window.removeEventListener('openCloudImport', handleOpenCloudImport);
+  }, []);
+
   async function loadConversation(convId) {
     setConversationId(convId);
     setMessages([]);
