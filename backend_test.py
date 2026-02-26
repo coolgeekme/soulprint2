@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-SoulPrint Engine - Long-Term Memory System API Testing
-Testing the memory management APIs for the SoulPrint Engine.
+SoulPrint Engine - Multi-Model Comparison & Memory System API Testing
+Testing the Multi-Model Comparison and memory management APIs for the SoulPrint Engine.
 """
 
 import requests
