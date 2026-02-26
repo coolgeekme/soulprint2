@@ -5153,6 +5153,12 @@ export async function PUT(request, { params }) {
   try {
     if (pathStr === 'profile') return handleProfileUpdate(request);
     if (pathStr === 'telegram/model') return handleTelegramSetModel(request);
+    
+    // Conversation rename: conversations/:id
+    if (pathStr.startsWith('conversations/') && pathArr.length === 2) {
+      const conversationId = pathArr[1];
+      return handleRenameConversation(request, conversationId);
+    }
     if (pathStr.startsWith('schedules/') && pathArr.length === 2) {
       const taskId = pathArr[1];
       return handleUpdateSchedule(request, taskId);
