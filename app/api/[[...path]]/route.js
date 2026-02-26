@@ -4342,15 +4342,16 @@ async function handleChunkedUploadInit(request) {
   const db = await getDb();
   const uploadId = uuidv4();
   
-  // Create upload session (chunks stored as separate documents)
+  // Create upload session - NEW: we'll extract messages progressively
   await db.collection('chunked_uploads').insertOne({
     id: uploadId,
     user_id: user.id,
     filename,
     file_size: fileSize,
-    source: source || 'unknown',
+    source: source || 'chatgpt',
     total_chunks: totalChunks,
     received_chunks: [],
+    extracted_messages: [], // NEW: Store extracted messages as we process
     status: 'uploading',
     created_at: new Date(),
   });
