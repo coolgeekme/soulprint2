@@ -1621,6 +1621,9 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState(''); // conversation search
   // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  // Announcements state
+  const [announcements, setAnnouncements] = useState([]);
+  const [dismissedAnnouncements, setDismissedAnnouncements] = useState([]);
   // Media generation state
   const [streamingImageUrl, setStreamingImageUrl] = useState(null);
   const [streamingRevPrompt, setStreamingRevPrompt] = useState('');
