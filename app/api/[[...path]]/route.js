@@ -1430,6 +1430,7 @@ async function handleGetConversations(request) {
     title: c.title,
     created_at: c.created_at,
     updated_at: c.updated_at,
+    source: c.source || 'web', // Include source to show Telegram badge
   })));
 }
 
