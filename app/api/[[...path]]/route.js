@@ -5579,6 +5579,8 @@ export async function GET(request, { params }) {
     if (pathStr === 'data-imports') return handleGetDataImports(request);
     if (pathStr === 'profile/export') return handleProfileExport(request);
     if (pathStr === 'profile/soul') return handleGetSoulProfile(request);
+    if (pathStr === 'announcements') return handleGetAnnouncements(request);
+    if (pathStr === 'admin/announcements') return handleAdminGetAnnouncements(request);
 
     return err('Not found', 404);
   } catch (error) {
