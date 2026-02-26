@@ -5256,6 +5256,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'conversations') return handleCreateConversation(request);
     if (pathStr === 'chat/stream') return handleChatStream(request);
     if (pathStr === 'feedback') return handleSubmitFeedback(request);
+    if (pathStr === 'user-feedback') return handleSubmitUserFeedback(request);
     if (pathStr === 'generate/image') return handleGenerateImage(request);
     if (pathStr === 'generate/image-kie') return handleGenerateImageKie(request);
     if (pathStr === 'generate/video') return handleGenerateVideo(request);
