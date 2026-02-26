@@ -1791,10 +1791,37 @@ export default function ChatPage() {
             <Plus className="w-3.5 h-3.5" /> New Chat
           </button>
         </div>
+        
+        {/* Search conversations */}
+        {conversations.length > 0 && (
+          <div className="px-3 py-2 border-b border-white/5">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600" />
+              <input
+                type="text"
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-xs text-white placeholder-gray-600 focus:border-orange-500/40 outline-none transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-white"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        
         <div className="flex-1 overflow-y-auto p-2">
           {conversations.length === 0 ? (
             <p className="text-gray-700 text-xs text-center mt-6">No conversations yet</p>
-          ) : conversations.map(conv => (
+          ) : filteredConversations.length === 0 ? (
+            <p className="text-gray-600 text-xs text-center mt-6">No matching conversations</p>
+          ) : filteredConversations.map(conv => (
             <div key={conv.id} className="relative group mb-1">
               {editingConvId === conv.id ? (
                 // Editing mode - inline rename
