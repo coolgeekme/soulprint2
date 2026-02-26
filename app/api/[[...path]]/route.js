@@ -4794,7 +4794,13 @@ async function processCloudImport(importId, userId, cloudUrl, importType, provid
     let downloadUrl = cloudUrl;
     let fileId = null;
     
-    if (provider === 'google' || cloudUrl.includes('drive.google.com')) {
+    // Handle GoFile URLs
+    if (provider === 'gofile' || cloudUrl.includes('gofile.io')) {
+      // GoFile direct download - the URL should already be the direct link
+      // Format: https://store1.gofile.io/download/direct/{fileId}/{fileName}
+      console.log(`[CloudImport] Processing GoFile URL: ${cloudUrl}`);
+      downloadUrl = cloudUrl;
+    } else if (provider === 'google' || cloudUrl.includes('drive.google.com')) {
       // Extract file ID from Google Drive URL
       const match = cloudUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
       if (match) {
