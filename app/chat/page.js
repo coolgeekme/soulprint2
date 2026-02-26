@@ -3485,6 +3485,55 @@ export default function ChatPage() {
       {/* Feedback Modal */}
       {showFeedbackModal && <FeedbackModal onClose={() => setShowFeedbackModal(false)} token={token} />}
       
+      {/* Gallery Modal */}
+      {showGallery && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col" onClick={() => setShowGallery(false)}>
+          <div className="flex-1 max-w-6xl w-full mx-auto p-6 overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 flex items-center justify-center">
+                  <GalleryHorizontal className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Media Gallery</h2>
+                  <p className="text-xs text-gray-500">{galleryItems.length} items generated</p>
+                </div>
+              </div>
+              <button onClick={() => setShowGallery(false)} className="text-gray-400 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            {/* Gallery Grid */}
+            <div className="flex-1 overflow-y-auto">
+              {galleryLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <Loader2 className="w-8 h-8 animate-spin text-pink-400" />
+                </div>
+              ) : galleryItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 text-center">
+                  <Sparkles className="w-12 h-12 text-gray-700 mb-4" />
+                  <p className="text-gray-500 text-sm mb-2">No media generated yet</p>
+                  <p className="text-gray-700 text-xs">Use the ✨ button in the chat to create images and videos</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {galleryItems.map(item => (
+                    <GalleryItem key={item.id} item={item} onClick={setSelectedGalleryItem} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Gallery Item Detail Modal */}
+      {selectedGalleryItem && (
+        <GalleryModal item={selectedGalleryItem} onClose={() => setSelectedGalleryItem(null)} />
+      )}
+      
       {/* PWA Install Prompt */}
       <InstallPrompt />
     </div>
