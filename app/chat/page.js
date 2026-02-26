@@ -3233,7 +3233,7 @@ export default function ChatPage() {
                   <SoulPrintLogo size={12} className="sm:hidden" />
                   <SoulPrintLogo size={14} className="hidden sm:block" />
                 </div>
-                <div className="min-w-0 max-w-[90%] sm:max-w-[85%] rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 bg-white/4 border border-white/8 text-[13px] sm:text-sm text-gray-200 leading-relaxed break-words">
+                <div className="min-w-0 max-w-[95%] sm:max-w-[90%] lg:max-w-[85%] rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 bg-white/4 border border-white/8 text-[13px] sm:text-sm text-gray-200 leading-relaxed break-words">
                   {/* Live image preview */}
                   {streamingImageUrl && (
                     <ImageCard url={streamingImageUrl} revisedPrompt={streamingRevPrompt} />
