@@ -6978,6 +6978,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/announcements') return handleAdminGetAnnouncements(request);
     if (pathStr === 'media/gallery') return handleMediaGallery(request);
     if (pathStr === 'media/status') return handleMediaStatus(request);
+    if (pathStr === 'imports/status') return handleImportStatus(request);
 
     return err('Not found', 404);
   } catch (error) {
