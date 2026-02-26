@@ -3266,18 +3266,18 @@ export default function ChatPage() {
 
             {/* Compare Mode Loading */}
             {compareLoading && (
-              <div className="msg-appear">
-                <div className="bg-gradient-to-br from-orange-500/5 to-purple-500/5 border border-white/10 rounded-2xl p-4 mb-4">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
-                      <GitCompare className="w-4 h-4 text-orange-400 animate-pulse" />
+              <div className="msg-appear -mx-4 md:-mx-8 lg:-mx-16 px-4 md:px-8 lg:px-16">
+                <div className="bg-gradient-to-br from-orange-500/5 to-purple-500/5 border border-white/10 rounded-2xl p-5 mb-4">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                      <GitCompare className="w-5 h-5 text-orange-400 animate-pulse" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-white">Comparing {compareModels.length} models...</p>
-                      <p className="text-xs text-gray-500">This may take a moment</p>
+                      <p className="text-base font-medium text-white">Comparing {compareModels.length} models...</p>
+                      <p className="text-sm text-gray-500">This may take a moment</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className={`grid gap-4 ${compareModels.length === 2 ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
                     {compareModels.map(m => {
                       const modelInfo = MODELS.find(mod => mod.value === m.model);
                       return (
@@ -3285,6 +3285,7 @@ export default function ChatPage() {
                           key={m.model} 
                           response={{ model: m.model, provider: m.provider, label: modelInfo?.label, group: modelInfo?.group }}
                           isLoading={true}
+                          totalModels={compareModels.length}
                         />
                       );
                     })}
@@ -3295,34 +3296,35 @@ export default function ChatPage() {
 
             {/* Compare Mode Responses */}
             {compareResponses && !compareLoading && (
-              <div className="msg-appear">
-                <div className="bg-gradient-to-br from-orange-500/5 to-purple-500/5 border border-white/10 rounded-2xl p-4 mb-4">
-                  <div className="flex items-center justify-between mb-4">
+              <div className="msg-appear -mx-4 md:-mx-8 lg:-mx-16 px-4 md:px-8 lg:px-16">
+                <div className="bg-gradient-to-br from-orange-500/5 to-purple-500/5 border border-white/10 rounded-2xl p-5 mb-4">
+                  <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
-                        <GitCompare className="w-4 h-4 text-orange-400" />
+                      <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                        <GitCompare className="w-5 h-5 text-orange-400" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-white">Compare Responses</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-base font-medium text-white">Compare Responses</p>
+                        <p className="text-sm text-gray-500">
                           {compareResponses.usedWebSearch && <span className="text-cyan-400 mr-2">🌐 Web search used</span>}
-                          Select your preferred response
+                          Select your preferred response to continue
                         </p>
                       </div>
                     </div>
                     {selectedCompareResponse && (
-                      <span className="text-xs text-green-400 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Response selected
+                      <span className="text-sm text-green-400 flex items-center gap-1.5 bg-green-500/10 px-3 py-1.5 rounded-lg">
+                        <CheckCircle2 className="w-4 h-4" /> Response selected
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className={`grid gap-4 ${compareResponses.responses.length === 2 ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
                     {compareResponses.responses.map(response => (
                       <CompareResponseCard 
                         key={response.model} 
                         response={response}
                         onSelect={handleSelectCompareResponse}
                         selected={selectedCompareResponse === response.model}
+                        totalModels={compareResponses.responses.length}
                       />
                     ))}
                   </div>
