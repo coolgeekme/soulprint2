@@ -2526,6 +2526,8 @@ export default function ChatPage() {
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [selectedGalleryItem, setSelectedGalleryItem] = useState(null);
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
+  // Cloud import state
+  const [showCloudImport, setShowCloudImport] = useState(false);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const messagesEndRef = useRef(null);
