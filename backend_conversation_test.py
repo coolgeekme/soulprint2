@@ -26,7 +26,7 @@ class ConversationAPITester:
         url = f"{BASE_URL}/auth/login"
         data = {
             "email": TEST_EMAIL,
-            "password": TEST_PASSWORD
+            "passcode": TEST_PASSWORD
         }
         
         try:
