@@ -5333,6 +5333,10 @@ export async function PUT(request, { params }) {
       const questionId = pathArr[2];
       return handleAdminUpdateQuestion(request, questionId);
     }
+    if (pathStr.startsWith('admin/feedback/') && pathArr.length === 3) {
+      const feedbackId = pathArr[2];
+      return handleAdminUpdateFeedback(request, feedbackId);
+    }
 
     return err('Not found', 404);
   } catch (error) {
