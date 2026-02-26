@@ -1,5 +1,4 @@
 <analysis>
-
 <original_problem_statement>
 Build a production-grade, multi-tenant web app called SoulPrint Engine. The goal is to replicate provided UI screenshots and deliver a SoulPrint experience which includes:
 -   Auth (email/passcode + Google OAuth)
@@ -8,171 +7,189 @@ Build a production-grade, multi-tenant web app called SoulPrint Engine. The goal
 -   Bot naming screen
 -   Waitlist/gating system
 -   Chat experience with model selector and memory injection
--   Data imports from ChatGPT/Facebook exports
--   A multi-admin dashboard to manage users, content, and metrics.
-
-**PRODUCT REQUIREMENTS:**
--   **Tech Stack:** Next.js (App Router), TypeScript, TailwindCSS, shadcn/ui, Supabase for Auth/Postgres/RLS. (Note: Deviated to MongoDB).
--   **Architecture:** An LLM Provider abstraction () to support different models.
--   **Routes:** Landing page, /auth, /onboarding, /assessment, /app (chat), /admin.
--   **Data Imports:** User-initiated uploads of ChatGPT/Facebook data to be parsed and summarized into a SoulProfile.
--   **Memory/Personalization:** System prompt should be built from user profile, assessment results, and import summaries.
+-   Data imports from ChatGPT/Facebook exports (including large files up to 3GB, and multiple files).
+-   A multi-admin dashboard to manage users, content, announcements, and feedback.
+-   A long-term memory system to remember key facts about the user across conversations.
+-   Ensure consistent communication style between web app and Telegram by building and using a comprehensive user profile.
+-   Make the app installable as a PWA and ensure it's mobile-responsive.
+-   Add an in-app feedback mechanism that reports to the admin dashboard.
+-   Default to real-time internet data for the Telegram bot.
+-   Admins should be able to manage users (add/edit/delete).
+-   Users should be able to manage conversations (rename/delete/search).
 </original_problem_statement>
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack Next.js application with a MongoDB backend. The application is rich in features, including:
--   **Core Platform**: User authentication (email/password), onboarding, a 36-question assessment, and a waitlist system.
--   **Multi-LLM Chat**: A sophisticated chat interface supporting OpenAI, Anthropic, Perplexity, Gemini, and Kimi models. Features include real-time web search (Tavily), file uploads, image vision, and voice input.
--   **Generative AI**: Integrated DALL-E 3 and Kie.ai for image generation, and Kie.ai for video, with auto-detection of user intent.
--   **Telegram Bot**: A full-featured bot synced with the web app, supporting model switching, web search, location search, URL reading, and generation commands (, , ). It can also request the user's device location for near me queries.
--   **Location Services**: Integration with Google Places API allows users to find locations via the web app and Telegram, including automatic detection of near me queries which prompts for device location.
--   **Data Import & Profile**: A UI for uploading ChatGPT/Facebook data archives and a button for users to retake their initial assessment. The upload mechanism is currently being reworked.
--   **Admin Dashboard**: Features user management, waitlist approval, cost-tracking metrics (including for Kimi), and a privacy-centric conversation view that shows topic summaries instead of actual user messages.
--   **Task Scheduling**: A complete scheduling system allowing users to create recurring tasks (e.g., daily news briefings) via the web UI or Telegram.
+A feature-rich Next.js/MongoDB application. Core features include user authentication, a 36-question assessment, and a multi-LLM chat interface (web & Telegram) with a long-term memory system. The app supports data imports (though still unstable for large files), PWA installation, and has robust mobile responsiveness.
+
+A comprehensive admin dashboard exists with tabs for:
+-   **Metrics**: General usage stats.
+-   **Users**: Full CRUD (Create, Read, Update, Delete) functionality for user management.
+-   **Announcements**: CRUD functionality to create and publish announcements displayed as banners in the chat app.
+-   **Feedback**: A system to view, manage, and get AI-powered summaries of user-submitted feedback.
+
+The chat interface allows users to rename, delete, and search their past conversations.
 
 **Last working item**:
--   Last item agent was working: Fixing a critical bug in the newly implemented large file upload feature. The previous implementation attempted to save file chunks to the local filesystem (), which failed in the multi-pod deployed environment because the filesystem is not shared. The agent was in the middle of re-implementing the feature to store file chunks in MongoDB instead.
+-   Last item agent was working: Diagnosing and fixing a broken Telegram integration. The user reported Telegram was not working. The agent identified and fixed an incorrect webhook URL, but then encountered a 500 server error. Log analysis revealed a First content should be with role user, got model error from the Gemini API, indicating a problem with how the message history is being formatted and sent from the Telegram handler.
 -   Status: IN PROGRESS
 -   Agent Testing Done: N
--   Which testing method agent to use? backend testing agent
+-   Which testing method agent to use? manual testing by curl
 -   User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   Issue 1: Large File Uploads Fail in Deployed Environment (P0)
+-   Issue 1: Telegram integration is not working (P0)
+-   Issue 2: Data Import processing is unreliable for large files (P0)
 
 Issues Detail:
 -   Issue 1:
-     - **Description**: The chunked file upload mechanism fails at the final processing step because it relies on the local  directory, which is ephemeral and not shared across server instances in a scaled environment. Chunks are uploaded to different pods and cannot be reassembled.
-     - **Attempted fixes**:
-        1. Initial implementation saved chunks to , which failed.
-        2. A fix was added to create the temporary directory (), which also failed for the same root cause.
-        3. The current approach is to store chunks in MongoDB. The agent created the backend logic but identified that MongoDB's 16MB document size limit is a risk for the 10MB chunk size (due to Base64 encoding overhead).
+     - **Description**: User reported why isnt telegram working?. The agent found the webhook URL was outdated. After fixing it, a 500 error started occurring. Logs show a Gemini API error: . This suggests the message history array sent by the Telegram handler is malformed, likely missing a user message at the beginning or having consecutive 'model' messages.
+     - **Attempted fixes**: Updated the Telegram webhook URL. The agent was inspecting the  function in  to debug the history formatting before the session ended.
      - **Next debug checklist**:
-        1.  Finalize the MongoDB-based chunk storage solution. The last thought was to use a more robust method like **MongoDB GridFS** or storing **each chunk as a separate document** in a  collection, linked by a . The latter is likely simpler to implement within the current monolithic API file.
-        2.  Ensure the  function correctly reads all chunks from the database, reassembles them in order, and then proceeds with the ZIP extraction and analysis.
-        3.  Thoroughly test the flow with a large file (e.g., >100MB) to ensure it works across multiple API calls without data loss and respects database limits.
-        4.  Verify that temporary chunks are deleted from the database after the file is successfully processed or if the upload fails.
-     - **Why fix this issue and what will be achieved with the fix?**: This will enable the core user-requested feature of uploading large data archives (ChatGPT/Facebook) for analysis, which is a key part of the SoulPrint experience.
+        1.  Examine the  function in .
+        2.  Specifically, inspect the logic that constructs the  array passed to the LLM provider.
+        3.  Implement or reuse the existing history sanitization logic (which fixes consecutive messages of the same role) within the Telegram handler before making the API call.
+        4.  Add logging to print the  object just before it's sent to the LLM to confirm its structure.
+     - **Why fix this issue and what will be achieved with the fix?**: This is a critical feature regression. Fixing it will restore the Telegram bot functionality.
      - **Status**: IN PROGRESS
+     - **Is recurring issue?** N
+     - **Should Test frontend/backend/both after fix?** backend
+     - **Blocked on other issue**: None
+
+-   Issue 2:
+     - **Description**: The user has consistently reported that uploading large (2GB+) ChatGPT/Facebook ZIP files fails. The agent has made several attempts to fix this, moving from in-memory processing to a streaming approach. The latest fix has been implemented but has not been verified by the user.
+     - **Attempted fixes**:
+        1.  Initial chunking (failed due to timeouts).
+        2.  In-memory reassembly with  (failed with memory-related crashes/timeouts).
+        3.  **Current approach:** Implemented a streaming ZIP extraction using  to avoid loading the entire file into memory. This code is in the  and  functions in .
+     - **Next debug checklist**:
+        1.  Once the Telegram issue is resolved, ask the user to re-test the large file upload functionality.
+        2.  If it fails, add extensive logging to the  function to trace the flow of data from chunk reassembly to stream processing and message extraction.
+        3.  Verify that temporary files are being created and cleaned up correctly in the  directory on the server.
+     - **Why fix this issue and what will be achieved with the fix?**: This is a core, high-value feature for user personalization. Making it reliable is critical for the SoulPrint experience.
+     - **Status**: USER VERIFICATION PENDING
      - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** Both
+     - **Should Test frontend/backend/both after fix?** both
      - **Blocked on other issue**: None
 
 **In progress Task List**:
--   Task 1: Complete Data Import Feature (P0)
-
+-   Task 1: Resolve Telegram Integration (P0)
 Task Detail:
--   Task 1:
-     - **Where to resume**: The immediate priority is fixing the upload mechanism as detailed in Issue 1 above. Resume work in  to implement a robust MongoDB chunking strategy (e.g., one document per chunk).
-     - **What will be achieved with this?**: A fully functional and scalable data import system that allows users to upload multi-gigabyte files for personalization.
-     - **Status**: IN PROGRESS
-     - **Should Test frontend/backend/both after fix?**: Both
-     - **Blocked on something**: No
+  - **Where to resume**: Resume debugging inside the  function within . Focus on sanitizing the message history before it is sent to the LLM provider.
+  - **What will be achieved with this?**: A fully functional Telegram bot.
+  - **Status**: IN PROGRESS
+  - **Should Test frontend/backend/both after fix?**: backend
+  - **Blocked on something**: None
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
--   **Implement Data Analysis Logic (P1)**: The file upload mechanism is being built, but the actual analysis logic is still a stub. The functions  and  in  need to be implemented to parse the extracted files, summarize the content, and update the user's .
 -   **Admin Dashboard Enhancements (P1)**: The  and  tabs in the admin dashboard are placeholders and need to be populated with real data and visualizations.
--   **Advanced Memory/RAG (P2)**: Implement a true Retrieval-Augmented Generation (RAG) system by creating and querying vector embeddings from user data imports and conversations.
+-   **Advanced Memory/RAG (P2)**: The current long-term memory system stores facts. The next step is to implement a true Retrieval-Augmented Generation (RAG) system by creating and querying vector embeddings from user data imports and conversations for more contextual responses.
 
 Future Tasks:
 -   **Implement Connector Stubs (P2)**: The API routes for Discord (), WhatsApp, and SMS are currently stubs and need full implementation.
--   **Google OAuth (P3)**: The UI button on the auth page exists, but the backend functionality is not implemented.
--   **Refactor Monolithic API (P3)**: The  file is now exceedingly large and complex. It should be broken down into separate, domain-focused API routes (e.g., , , , ) to improve maintainability.
+-   **Refactor Monolithic API (P3)**: The  file is now over 7,000 lines and is a significant source of technical debt and risk. It should be broken down into separate, domain-focused API routes (e.g., , , , ).
 
 **Completed work in this session**
--   **Task Scheduling Feature**: Fully implemented backend logic, Telegram commands, and a comprehensive frontend UI in the Settings modal.
--   **Homepage Routing Bug Fix**: Diagnosed and fixed a critical Next.js routing issue where the chat page was incorrectly rendering on the root route. Resolved by renaming the  directory to  and updating all relevant links.
--   **Telegram Bot Unresponsive Fix**: Diagnosed and fixed a stale webhook URL, restoring all bot functionality.
--   **Kie.ai Image Generation**: Replaced DALL-E 3 with Kie.ai for image generation in both the web chat and Telegram bot.
--   **URL Reading/Web Browsing**: Added the ability for the bot to automatically read and summarize content from URLs pasted in chat, and a  command for Telegram.
--   **Location Search (Google Places)**: Integrated Google Places API for location search in both the web app and Telegram, including intent detection and a  command.
--   **Device Location Integration**: Enhanced location search to request the user's device location via a browser prompt (web app) or a location-sharing button (Telegram) for near me queries.
--   **Data Import UI & Assessment Reset**: Implemented the frontend UI for uploading data archives and a button for users to retake the 36-question assessment.
--   **Admin Privacy Enhancement**: Modified the admin dashboard to show privacy-safe topic categories for user conversations instead of the raw first message.
--   **Kimi API Fix & Cost Tracking**: Corrected the Kimi API base URL to fix authentication errors and added Kimi/Moonshot models to the cost-tracking feature in the admin dashboard.
+-   **Long-Term Memory System**: Implemented a system to auto-extract key facts from conversations and store them as memories. These memories are injected into the system prompt for all future conversations. Users can also view, add, and delete memories in a new Memories tab in the Settings modal.
+-   **Full Admin User Management**: Added the ability for admins to add, edit, and delete users from the Users tab in the admin dashboard.
+-   **Full Announcement System**: Created a system for admins to create, publish, and manage announcements. These are displayed as dismissible banners on the chat page for users.
+-   **Complete Feedback System**: Replaced the simple  link with a full-featured feedback system. Users submit feedback via a modal, which is then viewable and manageable in a new Feedback tab on the admin dashboard, including an AI-powered summarization feature.
+-   **Conversation Management**: Implemented features for users to rename, delete, and search their past conversations in the chat sidebar.
+-   **Admin Navigation**: Added persistent links to the Admin Dashboard (for admins) in the chat page header and sidebar, and added a Back to Chat link on the admin page's mobile view for easier navigation.
+-   **Bug Fix**: Fixed a bug where the feedback tab in the user settings modal was not working due to a wrong API endpoint and missing state.
 
 **Earlier issues found/mentioned but not fixed**
--   None. The agent addressed all user-reported issues during the session.
+-   **Monolithic API File**: The file  has grown substantially and is extremely difficult to maintain. The agent has continued to add more logic to it instead of refactoring it into smaller, more manageable route files. This is the most significant piece of technical debt.
 
 **Known issue recurrence from previous fork**
--   None.
+-   **Data Import Failures**: This issue was present at the start of the session and persists, despite multiple refactoring attempts. The core problem of handling multi-gigabyte files in a serverless environment remains challenging.
 
 **Code Architecture**
 -   **Framework**: Next.js 14 (App Router)
--   **Frontend**: React components in .
-    -   Landing Page:  (renders at )
-    -   Chat App:  (renders at )
+-   **Frontend**: React components in . Key files are  and .
 -   **Backend**: A single monolithic API file at  handling all business logic.
--   **Database**: MongoDB. Connection logic is in .
--   **LLM Abstraction**: A provider factory in .
+-   **Database**: MongoDB. Connection logic and schema definitions are in .
+-   **PWA**:  is used for service worker generation.
 
 **Key Technical Concepts**
--   **Monolithic API Route**: All backend logic is in one massive file, making it hard to maintain.
--   **LLM Provider Abstraction**: Supports multiple LLM services with a unified interface.
--   **Intent Detection**: LLM calls are used to determine user intent (e.g., image, video, location search) and route requests accordingly.
--   **Chunked File Uploads**: A system for handling large file uploads, currently being refactored to use MongoDB for storage.
--   **Web Scraping**: Using  and  to fetch and parse content from URLs.
+-   **Monolithic API Route**: All backend logic is in one massive file, now exceeding 7000 lines.
+-   **Streaming ZIP Processing**: The latest attempt for data imports uses  to stream ZIP file contents to avoid high memory usage.
+-   **Long-Term Memory**: A system that extracts key facts from conversations, stores them in a  collection, and injects them into the system prompt for personalization.
+-   **Role-Based UI**: The UI conditionally renders elements like Admin Dashboard links based on the user's role (, , ).
+-   **Dynamic Admin Tabs**: The admin dashboard is built with a dynamic tab system, making it easy to add new sections like Announcements and Feedback.
 
 **key DB schema**
--   : { , , , , , , , , ,  }
--   : { , , , ,  }
+-   : { , , , , , , ... }
+-   : { , , , ... }
+-   : { , , ... }
+-   : { , , ... }
 -   : { , ,  }
--   : { , , ,  }
--   : { , , , ,  }
--   : (Being implemented) { , ,  (base64 string) }
+-   : { , , , , , ... } (new)
+-   : { , , , , , , ... } (new)
+-   : { , , , , , , ... } (new)
 
 **changes in tech stack**
--   : Added for server-side ZIP file extraction.
+-   : Added for streaming ZIP file processing.
 
 **All files of reference**
--   : The monolithic backend file. Heavily modified to add scheduling, location search, URL reading, data imports, and numerous bug fixes. It is the current focus of work.
--   : The main Chat UI component. Updated to add the location button. (Previously ).
--   : Updated to fix the Kimi/Moonshot API base URL.
--   : The root landing page. Its routing was fixed by reorganizing the directory structure.
+-   : The monolithic backend file. Heavily modified to add endpoints for feedback, announcements, user management, and long-term memory. The data import logic was rewritten multiple times here. **This file is extremely fragile and oversized.**
+-   : The main Chat UI. Heavily modified to add the feedback modal, announcement banners, admin links, conversation management UI, and the memories tab in the settings modal.
+-    (and its subcomponents): Heavily modified to add the Feedback and Announcements tabs, and to add full CRUD functionality to the Users tab.
+-   : Modified to include schemas for , , and .
 
 **Areas that need refactoring**:
--   The monolithic API in  is the single greatest source of technical debt. It is now over 4000 lines and urgently needs to be broken down into smaller, more manageable route files.
--   The chunked upload logic being added to  should ideally be in its own dedicated module.
+-   The monolithic API in  is the single greatest source of technical debt and risk. It urgently needs to be broken down into smaller, domain-focused route files (e.g., , , etc.). The agent has added thousands of lines to this file, exacerbating the problem.
 
 **key api endpoints**
-Dynamically handled within :
--   
--   
--   , 
--   
--   , 
--   , 
--   
--    (and /)
--   ,  (being refactored)
+All are dynamically handled within :
+-   : (New) Rename a conversation.
+-   : (New) Delete a conversation.
+-   : (New) Submit user feedback.
+-   : (New) Get all feedback for admin dashboard.
+-   : (New) Update feedback status.
+-   : (New) Get AI summary of feedback.
+-   : (New) Get published announcements for user.
+-   : (New) Dismiss an announcement for a user.
+-   : (New) Get all announcements for admin dashboard.
+-   : (New) Create a new announcement.
+-   : (New) Update an announcement.
+-   : (New) Delete an announcement.
+-   : (New) Create a new user.
+-   : (New) Delete a user.
+-   : (New) Get user memories.
+-   : (New) Create a user memory.
+-   : (New) Delete a user memory.
 
 **Critical Info for New Agent**
--   You are resuming work in the middle of a critical bug fix. The **large file upload feature is broken**.
--   The fix involves changing the chunk storage from the local filesystem to **MongoDB**.
--   You must implement a robust solution that avoids MongoDB's 16MB document size limit. The recommended approach is to store each chunk as a **separate document** in a  collection.
--   The monolithic API file () is extremely fragile. Be very careful when editing it.
--   The chat application's route has been moved from  to  to fix a major routing bug.
+-   **Highest Priority (P0): Fix the Telegram integration.** The bot is down due to a message history formatting error. Debug the  function in .
+-   **Second Priority (P0): Verify the large file upload fix.** The data import feature has been rewritten to use streaming (). This is a critical, recurring issue, and this latest fix is **untested by the user**. You must coordinate with the user to test this with a 2GB+ file as soon as the Telegram issue is resolved.
+-   **Technical Debt Warning:** The  API file is over 7,000 lines. Be extremely careful when editing it. Any significant new feature should be planned as a separate API route. Propose refactoring this monolith to the user as a high-priority task for stability and maintainability.
+-   The user has asked about connecting to a cloud MongoDB via an Atlas URL but has not provided one. The app is still configured to use the local . Be prepared to update the  file if the user provides an Atlas string.
 
 **documents created in this job**
--   None.
+- None.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **user**:  - **In Progress**. This is the current P0 bug being fixed. The agent diagnosed it as an issue with ephemeral filesystems in a multi-pod environment.
-2.  **user**:  - **In Progress**. This was the first report of the chunk upload failure. The agent's first fix was incorrect.
-3.  **system**:  - **Resolved**. The agent recovered and continued its work.
-4.  **user**:  - **Completed**. Agent added Kimi/Moonshot pricing data to the backend.
-5.  **user**:  - **In Progress**. This was the initial report that led to the implementation of (the currently broken) chunked uploads.
-6.  **user**:  - **Completed**. Agent implemented a privacy-safe view showing topic summaries instead of conversation content.
-7.  **user**:  - **Completed**. User provided a new Kimi key, which also failed, leading the agent to discover the real issue was the API base URL.
-8.  **user**:  - **Completed**. This initiated the Kimi API debugging.
-9.  **user**:  - **Completed**. Agent ran the check.
-10. **user**: Provides requirements for data import (redo assessment, upload history, auto-delete files, support for large ZIPs). - **In Progress**. This is the large feature that is currently being implemented.
+1.  **user**:  - **In Progress**. This is the current P0 task. Agent has diagnosed the issue but not yet implemented the final fix.
+2.  **user**:  - **Completed**. Agent implemented the backend logic and a Memories tab in the UI for users to manage their stored facts.
+3.  **user**: Asks about communication style consistency and cross-conversation memory. - **Completed**. Agent answered correctly and proposed the Long-Term Memory system, which the user then approved.
+4.  **user**:  - **Completed**. Agent added full user CRUD functionality to the admin dashboard.
+5.  **user**:  - **Completed**. Agent added a Chat button to the mobile header of the admin page.
+6.  **user**:  - **Completed**. Agent added conditional admin links to the chat page UI.
+7.  **user**:  - **Completed**. Agent confirmed that this feature was already built and demonstrated it.
+8.  **user**:  - **Answered**. Agent correctly explained that the local DB isn't externally accessible and that an Atlas URL is needed.
+9.  **user**: Provides an example MongoDB Atlas URL. - **Answered**. Agent confirmed it can update the connection string but is waiting for the user to provide their specific URL.
+10. **user**: Asks for the MongoDB URL. - **Answered**. Agent provided the local DB URL.
 
 **Project Health Check:**
--   **Broken**: The data import feature is non-functional due to the failing chunked upload mechanism. The application is in a partially implemented state and file uploads will fail.
+-   **Broken**:
+    -   Telegram Integration: The bot is non-functional due to a server-side error.
+-   **Mocked**:
+    -   None.
+-   **Uncertain**:
+    -   Data Import: The core feature for large file uploads has a new, unverified fix and has a high probability of being broken.
 
 **3rd Party Integrations**
 -   **OpenAI GPT-4o / DALL-E 3**: Requires .
@@ -182,20 +199,24 @@ Dynamically handled within :
 -   **Kimi (Moonshot)**: Requires .
 -   **Kie.ai**: Video & Image generation. Requires .
 -   **Tavily**: Web search. Requires .
--   **Telegram**: Bot integration. Requires  & .
+-   **Telegram**: Bot integration. Requires  & . (Currently Broken).
 -   **Google Places**: Location search. Requires .
+-   **next-pwa**: For PWA service worker generation.
+-   **yauzl-promise**: For streaming ZIP file processing.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES, the agent used the backend testing agent to verify the scheduling API.
+-   **Testing agent used after significant changes**: NO. The agent relied on manual  tests and .
 -   **Troubleshoot agent used after agent stuck in loop**: NO
 -   **Test files created**: None.
--   **Known regressions**: The data import feature is currently broken.
+-   **Known regressions**:
+    -   Telegram integration was working and is now broken.
+    -   Data import feature has regressed multiple times. Its current state is unknown but should be considered high-risk.
 
 **Credentials to test flow:**
--   User  and  are  accounts. Login can be done with these emails and any password.
+-   Login as a superadmin with  and any password to access the admin dashboard.
 
 **What agent forgot to execute**
--   The core analysis logic for data imports (, ) remains as empty stubs in . Even after the upload mechanism is fixed, this functionality will not work until those functions are implemented.
--   The agent has consistently avoided refactoring the monolithic API file, which has grown to an unmanageable size and is the root cause of much development friction.
+-   The agent did not refactor the monolithic  file. Instead, it added thousands of lines of new code for multiple complex features (feedback, announcements, user management, memory), making the technical debt significantly worse and increasing the risk of future bugs.
+-   No automated tests were written for any of the new, complex features, especially the data import logic, feedback system, or memory system. This forces a reliance on manual testing for regression checks.
 
 </analysis>

@@ -8,7 +8,7 @@ import json
 import time
 import sys
 
-BASE_URL = "https://personality-engine-1.preview.emergentagent.com"
+BASE_URL = "https://personal-ai-twin-6.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"

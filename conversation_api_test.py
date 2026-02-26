@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://personality-engine-1.preview.emergentagent.com/api"
+BASE_URL = "https://personal-ai-twin-6.preview.emergentagent.com/api"
 TEST_EMAIL = "reggie@coolgeek.me"
 TEST_PASSCODE = "testpasscode123"
 
