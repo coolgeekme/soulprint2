@@ -8,7 +8,8 @@ import {
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
   Image as ImageIcon, Paperclip, Search, Video, Download, RefreshCw, Play,
   MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain,
-  GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal
+  GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal,
+  Cloud, Link2, HardDrive, AlertCircle
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import InstallPrompt from '@/app/components/InstallPrompt';
