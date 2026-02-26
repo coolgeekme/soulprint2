@@ -4717,9 +4717,9 @@ async function processCloudImport(importId, userId, cloudUrl, importType, provid
     let messages = [];
     
     if (importType === 'chatgpt') {
-      messages = await extractChatGPTMessages(buffer);
+      messages = await extractChatGPTMessagesFromBuffer(buffer);
     } else if (importType === 'facebook') {
-      messages = await extractFacebookMessages(buffer);
+      messages = await extractFacebookMessagesFromBuffer(buffer);
     }
 
     await updateStatus('processing', 'Saving messages...', 80);
