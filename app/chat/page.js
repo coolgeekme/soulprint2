@@ -1116,12 +1116,12 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
               disabled={isImporting}
               className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                 importMode === 'direct'
-                  ? 'bg-orange-500/20 text-orange-400'
+                  ? 'bg-purple-500/20 text-purple-400'
                   : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               <Upload className="w-4 h-4" />
-              GoFile.io
+              Pixeldrain
             </button>
             <button
               onClick={() => { setImportMode('url'); setError(''); }}
