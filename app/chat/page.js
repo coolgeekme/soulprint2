@@ -2128,6 +2128,57 @@ export default function ChatPage() {
           </div>
         </div>
 
+        {/* Announcements Banner */}
+        {announcements.length > 0 && (
+          <div className="px-4 pt-4 space-y-2">
+            {announcements.slice(0, 3).map(ann => (
+              <div 
+                key={ann.id} 
+                className={`relative flex items-start gap-3 p-3 rounded-xl border backdrop-blur-sm ${
+                  ann.type === 'warning' ? 'bg-orange-500/10 border-orange-500/30' :
+                  ann.type === 'success' ? 'bg-green-500/10 border-green-500/30' :
+                  ann.type === 'update' ? 'bg-purple-500/10 border-purple-500/30' :
+                  'bg-blue-500/10 border-blue-500/30'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  ann.type === 'warning' ? 'bg-orange-500/20' :
+                  ann.type === 'success' ? 'bg-green-500/20' :
+                  ann.type === 'update' ? 'bg-purple-500/20' :
+                  'bg-blue-500/20'
+                }`}>
+                  <Megaphone className={`w-4 h-4 ${
+                    ann.type === 'warning' ? 'text-orange-400' :
+                    ann.type === 'success' ? 'text-green-400' :
+                    ann.type === 'update' ? 'text-purple-400' :
+                    'text-blue-400'
+                  }`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-white text-sm font-medium">{ann.title}</h4>
+                  <p className="text-gray-400 text-xs mt-0.5">{ann.content}</p>
+                  {ann.link && (
+                    <a 
+                      href={ann.link} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-1.5 transition-colors"
+                    >
+                      Learn more <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+                <button 
+                  onClick={() => dismissAnnouncement(ann.id)} 
+                  className="text-gray-600 hover:text-white transition-colors p-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-6">
           <div className="max-w-2xl mx-auto space-y-6">
