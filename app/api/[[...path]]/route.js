@@ -4924,29 +4924,35 @@ async function handleChunkedUploadComplete(request) {
   }
 }
 
-// Helper function to extract messages from ZIP file using streaming (memory efficient)
+// Helper function to extract messages from ZIP file using yauzl (memory efficient)
 async function extractMessagesFromZip(zipPath, source) {
   const messages = [];
-  let filesProcessed = 0;
-  const MAX_FILES = 100; // Limit files to process
+  const MAX_FILES = 50; // Limit files to process
   const MAX_MESSAGES = 500; // Stop once we have enough messages
   
   return new Promise((resolve, reject) => {
-    fs.createReadStream(zipPath)
-      .pipe(unzipper.Parse())
-      .on('entry', async (entry) => {
-        const fileName = entry.path.toLowerCase();
-        const type = entry.type;
+    yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
+      if (err) {
+        console.error('Failed to open ZIP:', err);
+        return reject(new Error(`Failed to open ZIP: ${err.message}`));
+      }
+      
+      let filesProcessed = 0;
+      
+      zipfile.readEntry();
+      
+      zipfile.on('entry', (entry) => {
+        const fileName = entry.fileName.toLowerCase();
         
         // Skip if we have enough data
         if (messages.length >= MAX_MESSAGES || filesProcessed >= MAX_FILES) {
-          entry.autodrain();
+          zipfile.close();
           return;
         }
         
         // Skip directories and non-JSON files
-        if (type === 'Directory' || !fileName.endsWith('.json')) {
-          entry.autodrain();
+        if (/\/$/.test(entry.fileName) || !fileName.endsWith('.json')) {
+          zipfile.readEntry();
           return;
         }
         
@@ -4955,50 +4961,62 @@ async function extractMessagesFromZip(zipPath, source) {
             fileName.includes('shared_conversations') ||
             fileName.includes('user_info') ||
             fileName.includes('settings')) {
-          entry.autodrain();
+          zipfile.readEntry();
           return;
         }
         
         filesProcessed++;
         
-        try {
-          // Read the file content
+        zipfile.openReadStream(entry, (err, readStream) => {
+          if (err) {
+            console.log(`Error reading ${fileName}:`, err.message);
+            zipfile.readEntry();
+            return;
+          }
+          
           const chunks = [];
-          for await (const chunk of entry) {
-            chunks.push(chunk);
-            // Limit file size to prevent memory issues (10MB max per file)
-            if (Buffer.concat(chunks).length > 10 * 1024 * 1024) {
-              console.log(`Skipping large file: ${fileName}`);
-              break;
-            }
-          }
+          let totalSize = 0;
+          const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB max per file
           
-          const content = Buffer.concat(chunks).toString('utf8');
+          readStream.on('data', (chunk) => {
+            totalSize += chunk.length;
+            if (totalSize <= MAX_FILE_SIZE) {
+              chunks.push(chunk);
+            }
+          });
           
-          // Try to parse JSON
-          try {
-            const data = JSON.parse(content);
-            
-            // Extract messages based on source type
-            if (source === 'chatgpt' || fileName.includes('conversation')) {
-              extractChatGPTMessages(data, messages);
-            } else if (source === 'facebook' || fileName.includes('message') || fileName.includes('inbox')) {
-              extractFacebookMessages(data, messages);
-            } else {
-              // Try both formats
-              extractChatGPTMessages(data, messages);
-              extractFacebookMessages(data, messages);
+          readStream.on('end', () => {
+            try {
+              const content = Buffer.concat(chunks).toString('utf8');
+              const data = JSON.parse(content);
+              
+              // Extract messages based on source type
+              if (source === 'chatgpt' || fileName.includes('conversation')) {
+                extractChatGPTMessages(data, messages);
+              } else if (source === 'facebook' || fileName.includes('message') || fileName.includes('inbox')) {
+                extractFacebookMessages(data, messages);
+              } else {
+                // Try both formats
+                extractChatGPTMessages(data, messages);
+                extractFacebookMessages(data, messages);
+              }
+              
+              console.log(`Processed ${fileName}: now have ${messages.length} messages`);
+            } catch (parseErr) {
+              console.log(`Skipping ${fileName}: invalid JSON`);
             }
             
-            console.log(`Processed ${fileName}: now have ${messages.length} messages`);
-          } catch (parseErr) {
-            console.log(`Skipping ${fileName}: invalid JSON`);
-          }
-        } catch (readErr) {
-          console.log(`Error reading ${fileName}: ${readErr.message}`);
-        }
-      })
-      .on('close', () => {
+            zipfile.readEntry();
+          });
+          
+          readStream.on('error', (err) => {
+            console.log(`Stream error for ${fileName}:`, err.message);
+            zipfile.readEntry();
+          });
+        });
+      });
+      
+      zipfile.on('end', () => {
         console.log(`ZIP processing complete. Processed ${filesProcessed} files, extracted ${messages.length} messages`);
         
         // Remove duplicates and clean
@@ -5007,11 +5025,13 @@ async function extractMessagesFromZip(zipPath, source) {
           .map(m => m.trim().substring(0, 500));
         
         resolve(uniqueMessages);
-      })
-      .on('error', (err) => {
-        console.error('ZIP stream error:', err);
-        reject(new Error(`Failed to process ZIP: ${err.message}`));
       });
+      
+      zipfile.on('error', (err) => {
+        console.error('ZIP error:', err);
+        reject(new Error(`ZIP processing error: ${err.message}`));
+      });
+    });
   });
 }
 
