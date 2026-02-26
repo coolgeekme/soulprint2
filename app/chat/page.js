@@ -1454,6 +1454,8 @@ export default function ChatPage() {
   const [editingTitle, setEditingTitle] = useState('');
   const [convMenuId, setConvMenuId] = useState(null); // which conversation's menu is open
   const [searchQuery, setSearchQuery] = useState(''); // conversation search
+  // Feedback modal state
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   // Media generation state
   const [streamingImageUrl, setStreamingImageUrl] = useState(null);
   const [streamingRevPrompt, setStreamingRevPrompt] = useState('');
