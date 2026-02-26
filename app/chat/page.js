@@ -808,14 +808,16 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   const [isImporting, setIsImporting] = useState(false);
   const [importStatus, setImportStatus] = useState(null);
   const [error, setError] = useState('');
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]); // Support multiple files
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentFileIndex, setCurrentFileIndex] = useState(0);
   const fileInputRef = useRef(null);
 
   const detectCloudProvider = (url) => {
     if (url.includes('drive.google.com')) return 'google';
     if (url.includes('dropbox.com')) return 'dropbox';
     if (url.includes('transfer.sh')) return 'transfer.sh';
+    if (url.includes('gofile.io')) return 'gofile';
     if (url.includes('onedrive.live.com') || url.includes('1drv.ms')) return 'onedrive';
     return 'direct';
   };
@@ -827,112 +829,134 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   };
 
+  const getTotalSize = () => {
+    return selectedFiles.reduce((sum, f) => sum + f.size, 0);
+  };
+
   const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!file.name.endsWith('.zip')) {
-        setError('Please select a ZIP file');
-        return;
-      }
-      setSelectedFile(file);
-      setError('');
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    
+    const invalidFiles = files.filter(f => !f.name.endsWith('.zip'));
+    if (invalidFiles.length > 0) {
+      setError(`Please select only ZIP files. Invalid: ${invalidFiles.map(f => f.name).join(', ')}`);
+      return;
     }
+    
+    setSelectedFiles(files);
+    setError('');
+  };
+
+  const removeFile = (index) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Upload a single file to GoFile and return the download info
+  const uploadToGoFile = async (file, fileNum, totalFiles) => {
+    // Step 1: Get an available GoFile server
+    const serverRes = await fetch('https://api.gofile.io/servers');
+    const serverData = await serverRes.json();
+    
+    if (serverData.status !== 'ok' || !serverData.data?.servers?.length) {
+      throw new Error('Could not get upload server');
+    }
+    
+    const server = serverData.data.servers[0].name;
+    console.log(`[File ${fileNum}/${totalFiles}] Using GoFile server:`, server);
+
+    // Step 2: Upload to GoFile using the uploadfile endpoint
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const fileProgress = (e.loaded / e.total) * 100;
+          const overallProgress = ((fileNum - 1) / totalFiles * 100) + (fileProgress / totalFiles);
+          setUploadProgress(Math.round(overallProgress));
+          setImportStatus({ 
+            status: 'uploading', 
+            message: `Uploading file ${fileNum}/${totalFiles}: ${file.name} (${Math.round(fileProgress)}%)`, 
+            progress: Math.round(overallProgress)
+          });
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const result = JSON.parse(xhr.responseText);
+            if (result.status === 'ok') {
+              resolve({
+                fileId: result.data?.fileId,
+                fileName: file.name,
+                downloadPage: result.data?.downloadPage,
+                server: server,
+              });
+            } else {
+              reject(new Error(result.message || 'Upload failed'));
+            }
+          } catch {
+            reject(new Error('Invalid response from upload server'));
+          }
+        } else {
+          reject(new Error(`Upload failed: ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+      xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+      // Use the correct GoFile upload endpoint
+      xhr.open('POST', `https://${server}.gofile.io/uploadFile`);
+      xhr.send(formData);
+    });
   };
 
   // Direct upload using GoFile.io (free, no limits, CORS-friendly)
   const handleDirectUpload = async () => {
-    if (!selectedFile) {
-      setError('Please select a file');
+    if (selectedFiles.length === 0) {
+      setError('Please select at least one file');
       return;
     }
 
     setError('');
     setIsImporting(true);
-    setImportStatus({ status: 'uploading', message: 'Getting upload server...', progress: 0 });
+    setCurrentFileIndex(0);
+    setImportStatus({ status: 'uploading', message: 'Starting upload...', progress: 0 });
 
     try {
-      // Step 1: Get an available GoFile server
-      const serverRes = await fetch('https://api.gofile.io/servers');
-      const serverData = await serverRes.json();
-      
-      if (serverData.status !== 'ok' || !serverData.data?.servers?.length) {
-        throw new Error('Could not get upload server');
-      }
-      
-      const server = serverData.data.servers[0].name;
-      console.log('Using GoFile server:', server);
-      
-      setImportStatus({ status: 'uploading', message: 'Uploading file...', progress: 5 });
+      const totalFiles = selectedFiles.length;
+      const uploadedFiles = [];
 
-      // Step 2: Upload to GoFile
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-
-      const xhr = new XMLHttpRequest();
-      
-      const uploadResult = await new Promise((resolve, reject) => {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 90) + 5; // 5-95%
-            setUploadProgress(percent);
-            setImportStatus({ 
-              status: 'uploading', 
-              message: `Uploading... ${Math.round((e.loaded / e.total) * 100)}%`, 
-              progress: percent 
-            });
-          }
-        });
-
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              resolve(JSON.parse(xhr.responseText));
-            } catch {
-              reject(new Error('Invalid response from upload server'));
-            }
-          } else {
-            reject(new Error(`Upload failed: ${xhr.status}`));
-          }
-        });
-
-        xhr.addEventListener('error', () => reject(new Error('Upload failed - network error')));
-        xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
-
-        xhr.open('POST', `https://${server}.gofile.io/contents/uploadfile`);
-        xhr.send(formData);
-      });
-
-      console.log('GoFile upload result:', uploadResult);
-
-      if (uploadResult.status !== 'ok') {
-        throw new Error(uploadResult.message || 'Upload failed');
+      // Upload each file to GoFile
+      for (let i = 0; i < selectedFiles.length; i++) {
+        setCurrentFileIndex(i);
+        const file = selectedFiles[i];
+        console.log(`Uploading file ${i + 1}/${totalFiles}: ${file.name}`);
+        
+        const uploadResult = await uploadToGoFile(file, i + 1, totalFiles);
+        uploadedFiles.push(uploadResult);
       }
 
-      const fileId = uploadResult.data?.fileId;
-      const downloadPage = uploadResult.data?.downloadPage;
-      
-      if (!fileId) {
-        throw new Error('No file ID returned from upload');
-      }
-
-      // Construct direct download URL
-      // GoFile direct download format: https://store1.gofile.io/download/direct/{fileId}/{fileName}
-      const directUrl = `https://${server}.gofile.io/download/direct/${fileId}/${encodeURIComponent(selectedFile.name)}`;
-      
-      console.log('File uploaded, download page:', downloadPage);
-      console.log('Direct URL:', directUrl);
-
+      console.log('All files uploaded:', uploadedFiles);
       setImportStatus({ status: 'processing', message: 'Processing your data...', progress: 95 });
 
-      // Step 3: Send to our backend for processing
-      const res = await fetch('/api/imports/cloud', {
+      // Send all file info to our backend for processing
+      const res = await fetch('/api/imports/cloud-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          url: directUrl,
+          files: uploadedFiles.map(f => ({
+            url: f.downloadPage,
+            fileId: f.fileId,
+            fileName: f.fileName,
+            server: f.server,
+          })),
           type: importType,
           provider: 'gofile',
-          fileId: fileId,
         }),
       });
 
