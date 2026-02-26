@@ -851,71 +851,68 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Upload a single file to GoFile and return the download info
-  const uploadToGoFile = async (file, fileNum, totalFiles) => {
-    // Step 1: Get an available GoFile server
-    const serverRes = await fetch('https://api.gofile.io/servers');
-    const serverData = await serverRes.json();
+  // Upload a single file directly to our backend in chunks
+  const uploadFileInChunks = async (file, fileNum, totalFiles) => {
+    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     
-    if (serverData.status !== 'ok' || !serverData.data?.servers?.length) {
-      throw new Error('Could not get upload server');
-    }
-    
-    const server = serverData.data.servers[0].name;
-    console.log(`[File ${fileNum}/${totalFiles}] Using GoFile server:`, server);
+    console.log(`[File ${fileNum}/${totalFiles}] Uploading ${file.name} in ${totalChunks} chunks`);
 
-    // Step 2: Upload to GoFile using the uploadfile endpoint
-    const formData = new FormData();
-    formData.append('file', file);
-
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const fileProgress = (e.loaded / e.total) * 100;
-          const overallProgress = ((fileNum - 1) / totalFiles * 100) + (fileProgress / totalFiles);
-          setUploadProgress(Math.round(overallProgress));
-          setImportStatus({ 
-            status: 'uploading', 
-            message: `Uploading file ${fileNum}/${totalFiles}: ${file.name} (${Math.round(fileProgress)}%)`, 
-            progress: Math.round(overallProgress)
-          });
-        }
-      });
-
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            const result = JSON.parse(xhr.responseText);
-            if (result.status === 'ok') {
-              resolve({
-                fileId: result.data?.fileId,
-                fileName: file.name,
-                downloadPage: result.data?.downloadPage,
-                server: server,
-              });
-            } else {
-              reject(new Error(result.message || 'Upload failed'));
-            }
-          } catch {
-            reject(new Error('Invalid response from upload server'));
-          }
-        } else {
-          reject(new Error(`Upload failed: ${xhr.status}`));
-        }
-      });
-
-      xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
-      xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
-
-      // Use the correct GoFile upload endpoint
-      xhr.open('POST', `https://${server}.gofile.io/uploadFile`);
-      xhr.send(formData);
+    // Initialize upload session
+    const initRes = await fetch('/api/imports/chunked/init', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        filename: file.name,
+        fileSize: file.size,
+        totalChunks,
+        type: importType,
+      }),
     });
+
+    if (!initRes.ok) {
+      const err = await initRes.json();
+      throw new Error(err.error || 'Failed to initialize upload');
+    }
+
+    const { uploadId } = await initRes.json();
+
+    // Upload chunks
+    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+      const start = chunkIndex * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+
+      const formData = new FormData();
+      formData.append('uploadId', uploadId);
+      formData.append('chunkIndex', chunkIndex.toString());
+      formData.append('chunk', chunk);
+
+      const chunkRes = await fetch('/api/imports/chunked/chunk', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!chunkRes.ok) {
+        throw new Error(`Failed to upload chunk ${chunkIndex + 1}/${totalChunks}`);
+      }
+
+      // Update progress
+      const chunkProgress = ((chunkIndex + 1) / totalChunks) * 100;
+      const fileProgress = ((fileNum - 1) / totalFiles * 100) + (chunkProgress / totalFiles);
+      setUploadProgress(Math.round(fileProgress));
+      setImportStatus({
+        status: 'uploading',
+        message: `Uploading file ${fileNum}/${totalFiles}: ${file.name} (${Math.round(chunkProgress)}%)`,
+        progress: Math.round(fileProgress),
+      });
+    }
+
+    return { uploadId, fileName: file.name };
   };
 
-  // Direct upload using GoFile.io (free, no limits, CORS-friendly)
+  // Direct upload - chunked to our backend
   const handleDirectUpload = async () => {
     if (selectedFiles.length === 0) {
       setError('Please select at least one file');
@@ -931,32 +928,26 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       const totalFiles = selectedFiles.length;
       const uploadedFiles = [];
 
-      // Upload each file to GoFile
+      // Upload each file in chunks
       for (let i = 0; i < selectedFiles.length; i++) {
         setCurrentFileIndex(i);
         const file = selectedFiles[i];
         console.log(`Uploading file ${i + 1}/${totalFiles}: ${file.name}`);
         
-        const uploadResult = await uploadToGoFile(file, i + 1, totalFiles);
+        const uploadResult = await uploadFileInChunks(file, i + 1, totalFiles);
         uploadedFiles.push(uploadResult);
       }
 
       console.log('All files uploaded:', uploadedFiles);
       setImportStatus({ status: 'processing', message: 'Processing your data...', progress: 95 });
 
-      // Send all file info to our backend for processing
-      const res = await fetch('/api/imports/cloud-batch', {
+      // Send all upload IDs to our backend for processing
+      const res = await fetch('/api/imports/chunked/process-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          files: uploadedFiles.map(f => ({
-            url: f.downloadPage,
-            fileId: f.fileId,
-            fileName: f.fileName,
-            server: f.server,
-          })),
+          uploads: uploadedFiles,
           type: importType,
-          provider: 'gofile',
         }),
       });
 
