@@ -833,7 +833,9 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   const getTotalSize = () => selectedFiles.reduce((sum, f) => sum + f.size, 0);
   
   const isLargeUpload = getTotalSize() > 500 * 1024 * 1024; // > 500MB
-  const estimatedMinutes = Math.ceil(getTotalSize() / (1024 * 1024) / 10); // Assume ~10MB/s upload
+  // More realistic estimate: assume ~3 MB/s average upload speed (typical home internet)
+  const sizeInMB = getTotalSize() / (1024 * 1024);
+  const estimatedMinutes = Math.ceil(sizeInMB / 3 / 60); // 3 MB/s = 180 MB/min
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || []);
