@@ -9,7 +9,7 @@ import { writeFile, mkdir, rm, readFile } from 'fs/promises';
 import AdmZip from 'adm-zip';
 
 // Configure route for large file uploads (App Router style)
-export const maxDuration = 60; // 60 seconds max for this route
+export const maxDuration = 300; // 5 minutes max for this route (large file processing)
 export const dynamic = 'force-dynamic';
 
 // ============================================================
