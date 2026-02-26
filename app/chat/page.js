@@ -1891,7 +1891,13 @@ export default function ChatPage() {
             </div>
           ))}
         </div>
-        <div className="p-3 border-t border-white/5">
+        <div className="p-3 border-t border-white/5 space-y-2">
+          <a 
+            href="mailto:feedback@soulprint.ai?subject=SoulPrint Feedback"
+            className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white text-xs transition-colors"
+          >
+            <MessageCircle className="w-3.5 h-3.5" /> Send Feedback
+          </a>
           <p className="text-gray-700 text-[10px] text-center truncate">{user?.email}</p>
         </div>
       </div>
