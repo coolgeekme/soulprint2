@@ -5232,6 +5232,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/imports') return handleAdminGetImports(request);
     if (pathStr === 'admin/settings') return handleAdminGetSettings(request);
     if (pathStr === 'admin/waitlist') return handleAdminGetWaitlist(request);
+    if (pathStr === 'admin/feedback') return handleAdminGetFeedback(request);
     if (pathStr === 'user/location') return handleGetUserLocation(request);
     if (pathStr === 'data-imports') return handleGetDataImports(request);
     if (pathStr === 'profile/export') return handleProfileExport(request);
