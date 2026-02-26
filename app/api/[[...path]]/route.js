@@ -2493,8 +2493,12 @@ async function handleChatCompare(request) {
   // Pre-fetch web search context once (shared across all models)
   let searchContext = null;
   if (enableWebSearch) {
-    const { buildSearchContext, needsWebSearch } = await import('@/lib/llm/providers');
-    if (needsWebSearch(sanitizedContent)) {
+    const { buildSearchContext } = await import('@/lib/llm/providers');
+    // Simple heuristic: if content has question words or is asking for current info, do web search
+    const lowerContent = sanitizedContent.toLowerCase();
+    const searchTriggers = ['what is', 'who is', 'when', 'where', 'how to', 'latest', 'recent', 'news', 'today', 'current', 'price', 'weather'];
+    const shouldSearch = searchTriggers.some(t => lowerContent.includes(t));
+    if (shouldSearch) {
       try {
         searchContext = await buildSearchContext(sanitizedContent);
       } catch (e) {
