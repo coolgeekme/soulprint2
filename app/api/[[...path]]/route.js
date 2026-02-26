@@ -6079,6 +6079,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'data-import/chunked/chunk') return handleChunkedUploadChunk(request);
     if (pathStr === 'data-import/chunked/complete') return handleChunkedUploadComplete(request);
     if (pathStr === 'assessment/reset') return handleResetAssessment(request);
+    if (pathStr === 'memories') return handleCreateMemory(request);
 
     // Admin routes
     if (pathStr === 'admin/questions/seed') return handleAdminSeedQuestions(request);
