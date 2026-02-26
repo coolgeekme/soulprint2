@@ -1410,6 +1410,10 @@ export default function AdminPage() {
             <ConversationsTab token={token} />
           )}
 
+          {activeTab === 'announcements' && token && (
+            <AnnouncementsTab token={token} />
+          )}
+
           {activeTab === 'feedback' && token && (
             <FeedbackTab token={token} />
           )}
