@@ -5,7 +5,8 @@ import { generateToken, verifyToken, hashPassword, comparePassword, getTokenFrom
 import { getProvider, AVAILABLE_MODELS } from '@/lib/llm/providers';
 import path from 'path';
 import fs from 'fs';
-import { writeFile, mkdir, rm } from 'fs/promises';
+import { writeFile, mkdir, rm, readFile } from 'fs/promises';
+import AdmZip from 'adm-zip';
 
 // Configure route for large file uploads (App Router style)
 export const maxDuration = 60; // 60 seconds max for this route
