@@ -1152,7 +1152,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
               <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-xl p-4">
                 <p className="text-xs text-gray-400 mb-3 flex items-center gap-2">
                   <Zap className="w-4 h-4 text-orange-400" />
-                  <span><span className="text-orange-400 font-medium">Recommended:</span> Select your ZIP file and we'll handle everything automatically.</span>
+                  <span><span className="text-orange-400 font-medium">Recommended:</span> Select your ZIP file(s) and we'll handle everything automatically.</span>
                 </p>
                 
                 <input
@@ -1160,6 +1160,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                   ref={fileInputRef}
                   onChange={handleFileSelect}
                   accept=".zip"
+                  multiple
                   className="hidden"
                   disabled={isImporting}
                 />
@@ -1168,26 +1169,51 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isImporting}
                   className={`w-full py-4 border-2 border-dashed rounded-xl transition-colors flex flex-col items-center justify-center gap-2 ${
-                    selectedFile 
+                    selectedFiles.length > 0
                       ? 'border-orange-500/50 bg-orange-500/10' 
                       : 'border-white/20 hover:border-orange-500/50 hover:bg-white/5'
                   }`}
                 >
-                  {selectedFile ? (
+                  {selectedFiles.length > 0 ? (
                     <>
                       <FileArchive className="w-8 h-8 text-orange-400" />
-                      <span className="text-sm text-white font-medium">{selectedFile.name}</span>
-                      <span className="text-xs text-gray-500">{formatFileSize(selectedFile.size)}</span>
+                      <span className="text-sm text-white font-medium">
+                        {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected
+                      </span>
+                      <span className="text-xs text-gray-500">Total: {formatFileSize(getTotalSize())}</span>
+                      <span className="text-[10px] text-orange-400/70 mt-1">Click to change selection</span>
                     </>
                   ) : (
                     <>
                       <Upload className="w-8 h-8 text-gray-500" />
-                      <span className="text-sm text-gray-400">Click to select ZIP file</span>
-                      <span className="text-xs text-gray-600">Up to 10GB</span>
+                      <span className="text-sm text-gray-400">Click to select ZIP file(s)</span>
+                      <span className="text-xs text-gray-600">Multiple files supported • Up to 10GB each</span>
                     </>
                   )}
                 </button>
               </div>
+
+              {/* Selected files list */}
+              {selectedFiles.length > 0 && (
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {selectedFiles.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileArchive className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                        <span className="text-sm text-gray-300 truncate">{file.name}</span>
+                        <span className="text-xs text-gray-500 flex-shrink-0">({formatFileSize(file.size)})</span>
+                      </div>
+                      <button
+                        onClick={() => removeFile(index)}
+                        disabled={isImporting}
+                        className="text-gray-500 hover:text-red-400 p-1 flex-shrink-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
