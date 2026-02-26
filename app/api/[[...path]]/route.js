@@ -516,6 +516,236 @@ function err(msg, status = 400) {
   return NextResponse.json({ error: msg }, { status });
 }
 
+// ============================================================
+// LONG-TERM MEMORY SYSTEM
+// ============================================================
+
+// Memory categories
+const MEMORY_CATEGORIES = ['health', 'preferences', 'personal', 'work', 'relationships', 'goals', 'other'];
+
+// Extract memories from a conversation message using AI
+async function extractMemoriesFromMessage(userMessage, assistantResponse, userId) {
+  try {
+    const provider = getProvider('openai', 'gpt-4o-mini');
+    
+    const extractionPrompt = `Analyze this conversation exchange and extract any important facts about the user that should be remembered for future conversations.
+
+USER MESSAGE:
+${userMessage}
+
+ASSISTANT RESPONSE:
+${assistantResponse}
+
+Extract ONLY concrete, factual information that would be valuable to remember, such as:
+- Health information (allergies, conditions, medications)
+- Personal preferences (favorite foods, colors, activities)
+- Important dates (birthdays, anniversaries)
+- Family/relationship info (spouse name, children, pets)
+- Work/career details (job title, company, projects)
+- Goals and aspirations
+- Dislikes and things to avoid
+- Location/living situation
+
+Return a JSON array of memories. Each memory should have:
+- "content": The fact to remember (be specific and concise)
+- "category": One of: health, preferences, personal, work, relationships, goals, other
+- "importance": "high" (health/safety), "medium" (useful context), or "low" (nice to know)
+
+If no important facts are found, return an empty array: []
+
+IMPORTANT: 
+- Only extract NEW facts, not general conversation
+- Be specific: "allergic to peanuts" not "has food allergies"
+- Don't extract opinions or temporary states
+- Return ONLY valid JSON array, nothing else`;
+
+    const response = await provider.generateChatCompletion({
+      systemPrompt: 'You are a memory extraction system. Return only valid JSON arrays.',
+      messages: [{ role: 'user', content: extractionPrompt }],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+    });
+
+    // Parse the response
+    const jsonMatch = response.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return [];
+    
+    const memories = JSON.parse(jsonMatch[0]);
+    return Array.isArray(memories) ? memories : [];
+  } catch (e) {
+    console.error('Memory extraction error:', e);
+    return [];
+  }
+}
+
+// Save extracted memories to database
+async function saveExtractedMemories(db, userId, memories, conversationId = null) {
+  if (!memories || memories.length === 0) return [];
+  
+  const savedMemories = [];
+  
+  for (const mem of memories) {
+    if (!mem.content || mem.content.length < 5) continue;
+    
+    // Check for duplicate or very similar memories
+    const existing = await db.collection('user_memories').findOne({
+      user_id: userId,
+      content: { $regex: mem.content.substring(0, 30), $options: 'i' }
+    });
+    
+    if (existing) {
+      console.log(`Skipping duplicate memory: ${mem.content}`);
+      continue;
+    }
+    
+    const memory = {
+      id: uuidv4(),
+      user_id: userId,
+      content: mem.content.trim(),
+      category: MEMORY_CATEGORIES.includes(mem.category) ? mem.category : 'other',
+      importance: ['high', 'medium', 'low'].includes(mem.importance) ? mem.importance : 'medium',
+      source: 'auto',
+      source_conversation_id: conversationId,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    
+    await db.collection('user_memories').insertOne(memory);
+    savedMemories.push(memory);
+    console.log(`Saved memory: ${memory.content}`);
+  }
+  
+  // Invalidate system prompt cache since memories changed
+  if (savedMemories.length > 0) {
+    invalidateSystemPromptCache(userId);
+  }
+  
+  return savedMemories;
+}
+
+// Get user memories for system prompt
+async function getUserMemoriesForPrompt(db, userId) {
+  const memories = await db.collection('user_memories')
+    .find({ user_id: userId })
+    .sort({ importance: 1, created_at: -1 }) // high importance first, then recent
+    .limit(50)
+    .toArray();
+  
+  return memories;
+}
+
+// API Handlers for Memory Management
+
+// GET /api/memories - Get all user memories
+async function handleGetMemories(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const db = await getDb();
+  const { searchParams } = new URL(request.url);
+  const category = searchParams.get('category');
+  
+  const query = { user_id: user.id };
+  if (category && MEMORY_CATEGORIES.includes(category)) {
+    query.category = category;
+  }
+  
+  const memories = await db.collection('user_memories')
+    .find(query)
+    .sort({ importance: 1, created_at: -1 })
+    .toArray();
+  
+  return ok({
+    memories: memories.map(m => ({
+      id: m.id,
+      content: m.content,
+      category: m.category,
+      importance: m.importance,
+      source: m.source,
+      created_at: m.created_at,
+    })),
+    categories: MEMORY_CATEGORIES,
+  });
+}
+
+// POST /api/memories - Create a new memory manually
+async function handleCreateMemory(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const body = await request.json();
+  const { content, category, importance } = body;
+  
+  if (!content || content.trim().length < 3) {
+    return err('Memory content is required (at least 3 characters)', 400);
+  }
+  
+  const db = await getDb();
+  
+  const memory = {
+    id: uuidv4(),
+    user_id: user.id,
+    content: content.trim(),
+    category: MEMORY_CATEGORIES.includes(category) ? category : 'other',
+    importance: ['high', 'medium', 'low'].includes(importance) ? importance : 'medium',
+    source: 'manual',
+    source_conversation_id: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+  
+  await db.collection('user_memories').insertOne(memory);
+  
+  // Invalidate cache
+  invalidateSystemPromptCache(user.id);
+  
+  return ok({ success: true, memory });
+}
+
+// PUT /api/memories/:id - Update a memory
+async function handleUpdateMemory(request, memoryId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const body = await request.json();
+  const { content, category, importance } = body;
+  
+  const db = await getDb();
+  
+  const memory = await db.collection('user_memories').findOne({ id: memoryId, user_id: user.id });
+  if (!memory) return err('Memory not found', 404);
+  
+  const updates = { updated_at: new Date() };
+  if (content !== undefined) updates.content = content.trim();
+  if (category !== undefined && MEMORY_CATEGORIES.includes(category)) updates.category = category;
+  if (importance !== undefined && ['high', 'medium', 'low'].includes(importance)) updates.importance = importance;
+  
+  await db.collection('user_memories').updateOne({ id: memoryId }, { $set: updates });
+  
+  // Invalidate cache
+  invalidateSystemPromptCache(user.id);
+  
+  return ok({ success: true });
+}
+
+// DELETE /api/memories/:id - Delete a memory
+async function handleDeleteMemory(request, memoryId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const db = await getDb();
+  
+  const memory = await db.collection('user_memories').findOne({ id: memoryId, user_id: user.id });
+  if (!memory) return err('Memory not found', 404);
+  
+  await db.collection('user_memories').deleteOne({ id: memoryId });
+  
+  // Invalidate cache
+  invalidateSystemPromptCache(user.id);
+  
+  return ok({ success: true });
+}
+
 // Build system prompt for chat
 async function buildSystemPrompt(db, userId) {
   const user = await db.collection('users').findOne({ id: userId });
