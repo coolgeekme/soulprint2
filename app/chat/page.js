@@ -1670,6 +1670,9 @@ export default function ChatPage() {
       .catch(() => router.push('/auth'));
     fetch('/api/conversations', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : [])).catch(() => {});
+    // Fetch announcements
+    fetch('/api/announcements', { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.json()).then(d => setAnnouncements(d.unread || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
