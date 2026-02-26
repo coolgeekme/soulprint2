@@ -2122,6 +2122,16 @@ export default function ChatPage() {
             >
               <MessageCircle className="w-5 h-5" />
             </button>
+            {/* Admin Dashboard button - only for admins */}
+            {(user?.role === 'admin' || user?.role === 'superadmin') && (
+              <a
+                href="/admin"
+                title="Admin Dashboard"
+                className="text-gray-500 hover:text-orange-400 transition-colors"
+              >
+                <Shield className="w-5 h-5" />
+              </a>
+            )}
             <button onClick={() => setShowSettings(true)} className="text-gray-500 hover:text-white transition-colors">
               <Settings className="w-5 h-5" />
             </button>
