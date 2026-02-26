@@ -2408,6 +2408,182 @@ async function handleSubmitFeedback(request) {
   return ok({ success: true });
 }
 
+// USER FEEDBACK - Submit general feedback (not message-specific)
+async function handleSubmitUserFeedback(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { message, category, rating } = body;
+
+  if (!message || message.trim().length < 5) {
+    return err('Please provide feedback message (at least 5 characters)', 400);
+  }
+
+  const db = await getDb();
+  await db.collection('user_feedback').insertOne({
+    id: uuidv4(),
+    user_id: user.id,
+    user_email: user.email,
+    message: message.trim(),
+    category: category || 'general', // general, bug, feature, other
+    rating: rating || null, // 1-5 optional rating
+    status: 'new', // new, reviewed, resolved
+    created_at: new Date(),
+  });
+
+  // Send notification email (fire and forget)
+  sendFeedbackNotification(user.email, message.trim(), category).catch(() => {});
+
+  return ok({ success: true, message: 'Thank you for your feedback!' });
+}
+
+// Helper to send feedback notification (non-blocking)
+async function sendFeedbackNotification(userEmail, feedbackMessage, category) {
+  // This could be expanded to use an email service like SendGrid
+  // For now, just log it
+  console.log(`[FEEDBACK] From: ${userEmail} | Category: ${category} | Message: ${feedbackMessage.substring(0, 100)}...`);
+}
+
+// ADMIN - Get all user feedback
+async function handleAdminGetFeedback(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  if (user.role !== 'superadmin' && user.role !== 'admin') return err('Forbidden', 403);
+
+  const db = await getDb();
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get('status'); // filter by status
+  const limit = parseInt(searchParams.get('limit')) || 50;
+  
+  const query = {};
+  if (status) query.status = status;
+
+  const feedback = await db.collection('user_feedback')
+    .find(query)
+    .sort({ created_at: -1 })
+    .limit(limit)
+    .toArray();
+
+  // Get stats
+  const totalCount = await db.collection('user_feedback').countDocuments();
+  const newCount = await db.collection('user_feedback').countDocuments({ status: 'new' });
+  const reviewedCount = await db.collection('user_feedback').countDocuments({ status: 'reviewed' });
+  const resolvedCount = await db.collection('user_feedback').countDocuments({ status: 'resolved' });
+
+  return ok({
+    feedback: feedback.map(f => ({
+      id: f.id,
+      user_email: f.user_email,
+      message: f.message,
+      category: f.category,
+      rating: f.rating,
+      status: f.status,
+      created_at: f.created_at,
+    })),
+    stats: {
+      total: totalCount,
+      new: newCount,
+      reviewed: reviewedCount,
+      resolved: resolvedCount,
+    }
+  });
+}
+
+// ADMIN - Update feedback status
+async function handleAdminUpdateFeedback(request, feedbackId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  if (user.role !== 'superadmin' && user.role !== 'admin') return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { status, admin_note } = body;
+
+  const db = await getDb();
+  const feedback = await db.collection('user_feedback').findOne({ id: feedbackId });
+  if (!feedback) return err('Feedback not found', 404);
+
+  await db.collection('user_feedback').updateOne(
+    { id: feedbackId },
+    { 
+      $set: { 
+        status: status || feedback.status,
+        admin_note: admin_note || feedback.admin_note,
+        updated_at: new Date(),
+        updated_by: user.id,
+      }
+    }
+  );
+
+  return ok({ success: true });
+}
+
+// ADMIN - Summarize feedback using LLM
+async function handleAdminSummarizeFeedback(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  if (user.role !== 'superadmin' && user.role !== 'admin') return err('Forbidden', 403);
+
+  const db = await getDb();
+  const body = await request.json().catch(() => ({}));
+  const { status, category, limit: limitParam } = body;
+  
+  // Get feedback to summarize
+  const query = {};
+  if (status) query.status = status;
+  if (category) query.category = category;
+  
+  const feedback = await db.collection('user_feedback')
+    .find(query)
+    .sort({ created_at: -1 })
+    .limit(parseInt(limitParam) || 50)
+    .toArray();
+
+  if (feedback.length === 0) {
+    return ok({ summary: 'No feedback to summarize.', feedbackCount: 0 });
+  }
+
+  // Prepare feedback text for LLM
+  const feedbackText = feedback.map((f, i) => 
+    `[${i + 1}] ${f.category.toUpperCase()} | ${f.rating ? `Rating: ${f.rating}/5` : 'No rating'}\n${f.message}`
+  ).join('\n\n---\n\n');
+
+  const provider = getProvider('openai', 'gpt-4o-mini');
+  
+  try {
+    const response = await provider.generateChatCompletion({
+      systemPrompt: 'You are an expert product analyst. Summarize user feedback concisely and extract actionable insights.',
+      messages: [{
+        role: 'user',
+        content: `Please analyze and summarize the following ${feedback.length} user feedback submissions for our AI assistant product "SoulPrint". 
+
+Provide:
+1. A brief overall summary (2-3 sentences)
+2. Top themes/topics mentioned (bullet points)
+3. Key action items or suggestions (bullet points)
+4. Overall sentiment (positive/negative/mixed)
+
+FEEDBACK TO ANALYZE:
+${feedbackText.substring(0, 15000)}`
+      }],
+      model: 'gpt-4o-mini',
+      temperature: 0.3,
+    });
+
+    return ok({ 
+      summary: response,
+      feedbackCount: feedback.length,
+      dateRange: {
+        oldest: feedback[feedback.length - 1]?.created_at,
+        newest: feedback[0]?.created_at,
+      }
+    });
+  } catch (e) {
+    console.error('Feedback summarization error:', e);
+    return err(`Failed to summarize: ${e.message}`, 500);
+  }
+}
+
 // IMPORTS - Upload
 async function handleImportUpload(request) {
   const user = await authenticate(request);
