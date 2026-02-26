@@ -3021,70 +3021,138 @@ async function handleMediaGenerate(request) {
 
   const db = await getDb();
 
+  // Map aspect ratios to Kie.ai formats
+  const imageSizeMap = {
+    '1:1': 'square_hd',
+    '16:9': 'landscape_16_9',
+    '9:16': 'portrait_9_16',
+    '4:3': 'landscape_4_3',
+  };
+
   try {
     if (type === 'image') {
       const modelConfig = KIE_IMAGE_MODELS[model];
       if (!modelConfig) return err(`Unknown image model: ${model}`, 400);
 
-      // Submit image generation task
-      const res = await fetch(`https://api.kie.ai/api/v1/${modelConfig.endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
-        body: JSON.stringify({
-          prompt,
-          size: aspectRatio,
-          nVariants: 1,
-          aspectRatio: aspectRatio,
-        }),
-      });
-      const data = await res.json();
-      
-      if (data.code !== 200) {
-        console.error('Kie.ai image error:', data);
-        return err(data.msg || 'Image generation failed', 400);
-      }
+      let taskId, imageUrl;
 
-      const taskId = data.data?.taskId;
-      if (!taskId) return err('No task ID returned', 500);
-
-      // Poll for completion (images are usually fast)
-      let imageUrl = null;
-      let attempts = 0;
-      const maxAttempts = 60; // 3 minutes max
-
-      while (!imageUrl && attempts < maxAttempts) {
-        await new Promise(r => setTimeout(r, 3000));
-        attempts++;
-
-        const statusRes = await fetch(`https://api.kie.ai/api/v1/${modelConfig.statusEndpoint}?taskId=${taskId}`, {
-          headers: { Authorization: `Bearer ${kieKey}` },
+      if (modelConfig.useJobsApi) {
+        // Use unified Jobs API
+        const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+          body: JSON.stringify({
+            model: modelConfig.model,
+            input: {
+              prompt,
+              image_size: imageSizeMap[aspectRatio] || 'square_hd',
+              guidance_scale: 2.5,
+              enable_safety_checker: true,
+            },
+          }),
         });
-        const statusData = await statusRes.json();
+        const data = await res.json();
+        
+        if (data.code !== 200) {
+          console.error('Kie.ai Jobs API error:', data);
+          return err(data.msg || data.error || 'Image generation failed', 400);
+        }
 
-        if (statusData.code === 200) {
-          const status = statusData.data?.status || statusData.data?.state;
-          if (status === 'SUCCESS' || status === 'success') {
-            // Try different response formats
-            const response = statusData.data?.response;
-            if (typeof response === 'string') {
-              try {
-                const parsed = JSON.parse(response);
-                imageUrl = parsed?.resultUrls?.[0] || parsed?.url || parsed?.imageUrl;
-              } catch (e) {
-                imageUrl = response; // Maybe it's just a URL string
+        taskId = data.data?.taskId;
+        if (!taskId) return err('No task ID returned', 500);
+
+        // Poll for completion using Jobs API
+        let attempts = 0;
+        const maxAttempts = 60;
+
+        while (!imageUrl && attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 3000));
+          attempts++;
+
+          const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/getTaskDetail?taskId=${taskId}`, {
+            headers: { Authorization: `Bearer ${kieKey}` },
+          });
+          const statusData = await statusRes.json();
+
+          if (statusData.code === 200) {
+            const status = statusData.data?.status;
+            if (status === 'SUCCESS' || status === 'COMPLETED') {
+              // Extract image URL from response
+              const output = statusData.data?.output;
+              if (output?.images?.[0]) {
+                imageUrl = output.images[0];
+              } else if (output?.image_url) {
+                imageUrl = output.image_url;
+              } else if (output?.url) {
+                imageUrl = output.url;
+              } else if (typeof output === 'string') {
+                imageUrl = output;
               }
-            } else if (response?.resultUrls) {
-              imageUrl = response.resultUrls[0];
-            } else if (statusData.data?.resultUrls) {
-              imageUrl = statusData.data.resultUrls[0];
-            } else if (statusData.data?.url) {
-              imageUrl = statusData.data.url;
-            } else if (statusData.data?.imageUrl) {
-              imageUrl = statusData.data.imageUrl;
+              break;
+            } else if (status === 'FAILED') {
+              return err(statusData.data?.errorMessage || 'Image generation failed', 500);
             }
-            break;
-          } else if (status === 'FAILED' || status === 'fail') {
-            return err(statusData.data?.errorMessage || statusData.data?.failMsg || 'Image generation failed', 500);
+          }
+        }
+      } else {
+        // Use legacy endpoint
+        const res = await fetch(`https://api.kie.ai/api/v1/${modelConfig.endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+          body: JSON.stringify({
+            prompt,
+            size: aspectRatio,
+            nVariants: 1,
+            aspectRatio: aspectRatio,
+          }),
+        });
+        const data = await res.json();
+        
+        if (data.code !== 200) {
+          console.error('Kie.ai image error:', data);
+          return err(data.msg || 'Image generation failed', 400);
+        }
+
+        taskId = data.data?.taskId;
+        if (!taskId) return err('No task ID returned', 500);
+
+        // Poll for completion using legacy endpoint
+        let attempts = 0;
+        const maxAttempts = 60;
+
+        while (!imageUrl && attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 3000));
+          attempts++;
+
+          const statusRes = await fetch(`https://api.kie.ai/api/v1/${modelConfig.statusEndpoint}?taskId=${taskId}`, {
+            headers: { Authorization: `Bearer ${kieKey}` },
+          });
+          const statusData = await statusRes.json();
+
+          if (statusData.code === 200) {
+            const status = statusData.data?.status || statusData.data?.state;
+            if (status === 'SUCCESS' || status === 'success') {
+              const response = statusData.data?.response;
+              if (typeof response === 'string') {
+                try {
+                  const parsed = JSON.parse(response);
+                  imageUrl = parsed?.resultUrls?.[0] || parsed?.url || parsed?.imageUrl;
+                } catch (e) {
+                  imageUrl = response;
+                }
+              } else if (response?.resultUrls) {
+                imageUrl = response.resultUrls[0];
+              } else if (statusData.data?.resultUrls) {
+                imageUrl = statusData.data.resultUrls[0];
+              } else if (statusData.data?.url) {
+                imageUrl = statusData.data.url;
+              } else if (statusData.data?.imageUrl) {
+                imageUrl = statusData.data.imageUrl;
+              }
+              break;
+            } else if (status === 'FAILED' || status === 'fail') {
+              return err(statusData.data?.errorMessage || statusData.data?.failMsg || 'Image generation failed', 500);
+            }
           }
         }
       }
@@ -3113,7 +3181,7 @@ async function handleMediaGenerate(request) {
         aspect_ratio: aspectRatio,
         conversation_id: conversationId || null,
         created_at: new Date(),
-        expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
+        expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       });
 
       return ok({ success: true, url: imageUrl, mediaId, type: 'image' });
