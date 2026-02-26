@@ -690,9 +690,6 @@ function CreateMenu({ onGenerate, isGenerating }) {
             >
               <Sparkles className="w-4 h-4" />
               Generate {activeTab === 'image' ? 'Image' : 'Video'}
-              <span className="text-[10px] opacity-70">
-                ({activeTab === 'image' ? currentImageModel.costLabel : currentVideoModel.costLabel})
-              </span>
             </button>
           </div>
         </div>
