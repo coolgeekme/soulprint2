@@ -3109,32 +3109,33 @@ export default function ChatPage() {
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-6">
-          <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 sm:py-6">
+          <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
             {messages.map((msg, idx) => (
               <div key={msg.id || idx} className={`msg-appear flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'assistant' && (
-                  <div className="w-7 h-7 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mr-3 flex-shrink-0 mt-0.5">
-                    <SoulPrintLogo size={14} />
+                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0 mt-0.5">
+                    <SoulPrintLogo size={12} className="sm:hidden" />
+                    <SoulPrintLogo size={14} className="hidden sm:block" />
                   </div>
                 )}
-                <div className={`max-w-[85%] ${msg.role === 'user' ? 'max-w-[75%]' : ''}`}>
+                <div className={`min-w-0 ${msg.role === 'user' ? 'max-w-[85%] sm:max-w-[75%]' : 'max-w-[90%] sm:max-w-[85%]'}`}>
                   {/* Show image preview in user message */}
                   {msg.role === 'user' && msg.attachments?.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2 justify-end">
                       {msg.attachments.map((att, i) => (
                         att.type === 'image' ? (
                           <img key={i} src={`data:${att.mimeType};base64,${att.base64}`} alt={att.name}
-                            className="h-24 rounded-lg object-cover border border-white/10" />
+                            className="h-16 sm:h-24 rounded-lg object-cover border border-white/10" />
                         ) : (
-                          <div key={i} className="flex items-center gap-1.5 bg-white/8 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white">
-                            <FileText className="w-3 h-3 text-orange-400" />{att.name}
+                          <div key={i} className="flex items-center gap-1.5 bg-white/8 border border-white/15 rounded-lg px-2 py-1 sm:px-2.5 sm:py-1.5 text-[11px] sm:text-xs text-white">
+                            <FileText className="w-3 h-3 text-orange-400" /><span className="truncate max-w-[100px] sm:max-w-none">{att.name}</span>
                           </div>
                         )
                       ))}
                     </div>
                   )}
-                  <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-orange-500/15 border border-orange-500/20 text-white' : 'bg-white/4 border border-white/8 text-gray-200'}`}>
+                  <div className={`rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-relaxed break-words ${msg.role === 'user' ? 'bg-orange-500/15 border border-orange-500/20 text-white' : 'bg-white/4 border border-white/8 text-gray-200'}`}>
                     {msg.role === 'assistant' ? (
                       <>
                         {/* Image card */}
@@ -3157,14 +3158,14 @@ export default function ChatPage() {
                               src={msg.video_url}
                               controls
                               playsInline
-                              className="w-full max-h-80 object-contain"
+                              className="w-full max-h-60 sm:max-h-80 object-contain"
                             >
                               Your browser does not support the video tag.
                             </video>
                             <div className="p-2 flex justify-end">
                               <a href={msg.video_url} target="_blank" rel="noopener noreferrer" download
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-lg hover:bg-orange-500/25 transition-colors">
-                                <Download className="w-3.5 h-3.5" /> Download
+                                className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-[11px] sm:text-xs rounded-lg hover:bg-orange-500/25 transition-colors">
+                                <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Download
                               </a>
                             </div>
                           </div>
@@ -3173,31 +3174,36 @@ export default function ChatPage() {
                         {!msg.image_url && !msg.video_url && (
                           <ReactMarkdown remarkPlugins={[remarkGfm]}
                             components={{
-                              p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
-                              code: ({inline, children}) => inline ? <code className="bg-white/10 px-1 rounded text-orange-300 text-xs">{children}</code> : <pre className="bg-[#0a0a0a] p-3 rounded-lg mt-2 overflow-x-auto text-xs"><code>{children}</code></pre>,
+                              p: ({children}) => <p className="mb-2 last:mb-0 break-words">{children}</p>,
+                              code: ({inline, children}) => inline 
+                                ? <code className="bg-white/10 px-1 rounded text-orange-300 text-[11px] sm:text-xs break-all">{children}</code> 
+                                : <pre className="bg-[#0a0a0a] p-2 sm:p-3 rounded-lg mt-2 overflow-x-auto text-[11px] sm:text-xs whitespace-pre-wrap break-words"><code>{children}</code></pre>,
                               ul: ({children}) => <ul className="list-disc pl-4 space-y-1 mb-2">{children}</ul>,
                               ol: ({children}) => <ol className="list-decimal pl-4 space-y-1 mb-2">{children}</ol>,
                               strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
-                              a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline hover:text-orange-300">{children}</a>,
-                              h1: ({children}) => <h1 className="text-lg font-bold text-white mb-2">{children}</h1>,
-                              h2: ({children}) => <h2 className="text-base font-bold text-white mb-1.5">{children}</h2>,
-                              h3: ({children}) => <h3 className="text-sm font-semibold text-white mb-1">{children}</h3>,
+                              a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline hover:text-orange-300 break-all">{children}</a>,
+                              h1: ({children}) => <h1 className="text-base sm:text-lg font-bold text-white mb-2">{children}</h1>,
+                              h2: ({children}) => <h2 className="text-sm sm:text-base font-bold text-white mb-1.5">{children}</h2>,
+                              h3: ({children}) => <h3 className="text-[13px] sm:text-sm font-semibold text-white mb-1">{children}</h3>,
                               blockquote: ({children}) => <blockquote className="border-l-2 border-orange-500/40 pl-3 italic text-gray-400">{children}</blockquote>,
                               img: ({src, alt}) => <img src={src} alt={alt} className="max-w-full rounded-lg mt-2" />,
+                              table: ({children}) => <div className="overflow-x-auto my-2"><table className="min-w-full text-[11px] sm:text-xs border-collapse">{children}</table></div>,
+                              th: ({children}) => <th className="border border-white/20 px-2 py-1 bg-white/5 text-left font-semibold">{children}</th>,
+                              td: ({children}) => <td className="border border-white/10 px-2 py-1">{children}</td>,
                             }}>
                             {msg.content}
                           </ReactMarkdown>
                         )}
                       </>
                     ) : (
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                     )}
                   </div>
                   {msg.role === 'assistant' && msg.id !== 'greeting' && (
                     <div className="flex items-center gap-2 mt-1.5 ml-1">
-                      <button onClick={() => submitFeedback(msg.id, 'up')} className="text-gray-700 hover:text-green-400 transition-colors"><ThumbsUp className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => submitFeedback(msg.id, 'down')} className="text-gray-700 hover:text-red-400 transition-colors"><ThumbsDown className="w-3.5 h-3.5" /></button>
-                      {msg.model_used && <span className="text-[10px] text-gray-700">{msg.model_used}</span>}
+                      <button onClick={() => submitFeedback(msg.id, 'up')} className="text-gray-700 hover:text-green-400 transition-colors"><ThumbsUp className="w-3 h-3 sm:w-3.5 sm:h-3.5" /></button>
+                      <button onClick={() => submitFeedback(msg.id, 'down')} className="text-gray-700 hover:text-red-400 transition-colors"><ThumbsDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" /></button>
+                      {msg.model_used && <span className="text-[9px] sm:text-[10px] text-gray-700 truncate max-w-[80px] sm:max-w-none">{msg.model_used}</span>}
                     </div>
                   )}
                 </div>
