@@ -1148,6 +1148,10 @@ export default function AdminPage() {
             <ConversationsTab token={token} />
           )}
 
+          {activeTab === 'feedback' && token && (
+            <FeedbackTab token={token} />
+          )}
+
           {activeTab === 'assessments' && token && (
             <AssessmentsTab token={token} />
           )}
