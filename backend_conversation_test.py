@@ -20,7 +20,7 @@ class ConversationAPITester:
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
         
     def login(self):
-        """Step 1: Login to get authentication token"""
+        """Step 1: Login to get authentication token (or register if needed)"""
         self.log("🔐 Testing login...")
         
         url = f"{BASE_URL}/auth/login"
@@ -46,6 +46,10 @@ class ConversationAPITester:
                 else:
                     self.log("❌ Login failed - no token in response")
                     return False
+            elif response.status_code == 404:
+                # User not found, try to register
+                self.log("👤 User not found, attempting registration...")
+                return self.register()
             else:
                 self.log(f"❌ Login failed with status {response.status_code}")
                 if hasattr(response, 'text'):
@@ -54,6 +58,43 @@ class ConversationAPITester:
                 
         except Exception as e:
             self.log(f"❌ Login error: {str(e)}")
+            return False
+    
+    def register(self):
+        """Register a new user"""
+        self.log("📝 Registering new user...")
+        
+        url = f"{BASE_URL}/auth/register"
+        data = {
+            "email": TEST_EMAIL,
+            "passcode": TEST_PASSWORD
+        }
+        
+        try:
+            response = self.session.post(url, json=data, timeout=30)
+            self.log(f"Registration response status: {response.status_code}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                self.token = result.get('token')
+                if self.token:
+                    # Set Authorization header for subsequent requests
+                    self.session.headers.update({
+                        'Authorization': f'Bearer {self.token}'
+                    })
+                    self.log("✅ Registration successful - token obtained")
+                    return True
+                else:
+                    self.log("❌ Registration failed - no token in response")
+                    return False
+            else:
+                self.log(f"❌ Registration failed with status {response.status_code}")
+                if hasattr(response, 'text'):
+                    self.log(f"Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ Registration error: {str(e)}")
             return False
     
     def get_conversations(self):
