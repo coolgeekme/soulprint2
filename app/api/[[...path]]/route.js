@@ -4769,7 +4769,7 @@ async function processCloudImport(importId, userId, cloudUrl, importType, provid
 }
 
 // Helper to extract ChatGPT messages from ZIP buffer
-async function extractChatGPTMessages(buffer) {
+async function extractChatGPTMessagesFromBuffer(buffer) {
   const messages = [];
   try {
     const yauzl = await import('yauzl-promise');
@@ -4807,13 +4807,13 @@ async function extractChatGPTMessages(buffer) {
       }
     }
   } catch (e) {
-    console.error('[extractChatGPTMessages] Error:', e);
+    console.error('[extractChatGPTMessagesFromBuffer] Error:', e);
   }
   return messages;
 }
 
 // Helper to extract Facebook messages from ZIP buffer
-async function extractFacebookMessages(buffer) {
+async function extractFacebookMessagesFromBuffer(buffer) {
   const messages = [];
   try {
     const yauzl = await import('yauzl-promise');
@@ -4847,7 +4847,7 @@ async function extractFacebookMessages(buffer) {
       }
     }
   } catch (e) {
-    console.error('[extractFacebookMessages] Error:', e);
+    console.error('[extractFacebookMessagesFromBuffer] Error:', e);
   }
   return messages;
 }
