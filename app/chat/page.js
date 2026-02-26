@@ -857,7 +857,48 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     setLinking(false);
   }
 
-  const tabs = ['imports', 'telegram', 'schedules', 'profile', 'feedback'];
+  // Memories state
+  const [memories, setMemories] = useState([]);
+  const [memoriesLoading, setMemoriesLoading] = useState(false);
+  const [newMemory, setNewMemory] = useState('');
+  const [newMemoryCategory, setNewMemoryCategory] = useState('other');
+  const memoryCategories = ['health', 'preferences', 'personal', 'work', 'relationships', 'goals', 'other'];
+
+  const loadMemories = async () => {
+    setMemoriesLoading(true);
+    try {
+      const res = await fetch('/api/memories', { headers: { Authorization: `Bearer ${token}` } });
+      const d = await res.json();
+      setMemories(d.memories || []);
+    } catch (e) {}
+    setMemoriesLoading(false);
+  };
+
+  const addMemory = async () => {
+    if (!newMemory.trim()) return;
+    try {
+      await fetch('/api/memories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: newMemory, category: newMemoryCategory, importance: 'medium' }),
+      });
+      setNewMemory('');
+      loadMemories();
+    } catch (e) {}
+  };
+
+  const deleteMemory = async (id) => {
+    if (!confirm('Delete this memory?')) return;
+    try {
+      await fetch(`/api/memories/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      loadMemories();
+    } catch (e) {}
+  };
+
+  const tabs = ['imports', 'telegram', 'schedules', 'memories', 'profile', 'feedback'];
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 safe-area-all">
