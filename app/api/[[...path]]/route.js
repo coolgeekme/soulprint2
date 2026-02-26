@@ -3069,29 +3069,26 @@ async function handleMediaGenerate(request) {
           await new Promise(r => setTimeout(r, 3000));
           attempts++;
 
-          const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/getTaskDetail?taskId=${taskId}`, {
+          const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
             headers: { Authorization: `Bearer ${kieKey}` },
           });
           const statusData = await statusRes.json();
 
           if (statusData.code === 200) {
-            const status = statusData.data?.status;
-            if (status === 'SUCCESS' || status === 'COMPLETED') {
-              // Extract image URL from response
-              const output = statusData.data?.output;
-              if (output?.images?.[0]) {
-                imageUrl = output.images[0];
-              } else if (output?.image_url) {
-                imageUrl = output.image_url;
-              } else if (output?.url) {
-                imageUrl = output.url;
-              } else if (typeof output === 'string') {
-                imageUrl = output;
+            const status = statusData.data?.state;
+            if (status === 'success') {
+              // Parse resultJson to get image URL
+              try {
+                const resultJson = JSON.parse(statusData.data?.resultJson || '{}');
+                imageUrl = resultJson?.resultUrls?.[0] || resultJson?.url || resultJson?.image_url;
+              } catch (e) {
+                console.error('Failed to parse resultJson:', e);
               }
-              break;
-            } else if (status === 'FAILED') {
-              return err(statusData.data?.errorMessage || 'Image generation failed', 500);
+              if (imageUrl) break;
+            } else if (status === 'fail') {
+              return err(statusData.data?.failMsg || 'Image generation failed', 500);
             }
+            // Still waiting/queuing/generating - continue polling
           }
         }
       } else {
