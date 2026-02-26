@@ -1524,10 +1524,14 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   if (!feedbackText.trim()) return;
                   setFeedbackSubmitting(true);
                   try {
-                    await fetch('/api/feedback', {
+                    await fetch('/api/user-feedback', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ type: feedbackType, message: feedbackText }),
+                      body: JSON.stringify({ 
+                        category: feedbackType === 'issue' ? 'bug' : feedbackType === 'idea' ? 'feature' : 'general',
+                        message: feedbackText,
+                        rating: feedbackType === 'love' ? 5 : feedbackType === 'good' ? 4 : null
+                      }),
                     });
                     setFeedbackText('');
                     setFeedbackType('');
