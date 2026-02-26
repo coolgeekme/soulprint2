@@ -11,7 +11,7 @@ import zipfile
 import io
 import base64
 
-BASE_URL = "https://personality-ai-hub.preview.emergentagent.com"
+BASE_URL = "https://personality-engine-1.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

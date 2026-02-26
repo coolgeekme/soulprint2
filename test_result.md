@@ -813,7 +813,7 @@ agent_communication:
   - agent: "main"
     message: "PRIORITY: Test chunked data import system. MongoDB-based chunk storage now implemented. Test flow: (1) POST /api/data-import/chunked/init with {filename, fileSize, source, totalChunks} - should create upload session. (2) POST /api/data-import/chunked/chunk with FormData containing uploadId, chunkIndex, chunk blob - should store chunk in upload_chunks collection. (3) POST /api/data-import/chunked/complete with {uploadId} - should reassemble chunks, parse ZIP, analyze data, return analysis results. Create a small test ZIP file with mock conversations.json for ChatGPT format testing. Auth required for all endpoints."
   - agent: "main"
-    message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://personality-ai-hub.preview.emergentagent.com. Test with fresh user registration first."
+    message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://personality-engine-1.preview.emergentagent.com. Test with fresh user registration first."
   - agent: "testing"
     message: "🎉 BACKEND TESTING COMPLETE! All critical endpoints tested successfully. Registration, login, assessment flow (36 questions), chat streaming with memory injection, admin APIs, and connector stubs all working perfectly. The SoulPrint Engine backend is fully functional and ready for production use."
   - agent: "main"
