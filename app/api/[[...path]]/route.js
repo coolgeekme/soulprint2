@@ -3305,19 +3305,32 @@ async function handleMediaStatus(request) {
   try {
     // Determine which endpoint to use based on model
     const modelConfig = KIE_VIDEO_MODELS[media.model];
+    let statusRes;
+    
     if (!modelConfig) {
       // Fallback to runway endpoint
-      const statusRes = await fetch(`https://api.kie.ai/api/v1/runway/record-detail?taskId=${taskId}`, {
+      statusRes = await fetch(`https://api.kie.ai/api/v1/runway/record-detail?taskId=${taskId}`, {
         headers: { Authorization: `Bearer ${kieKey}` },
       });
-      const data = await statusRes.json();
-      return processVideoStatus(db, media, data);
+    } else if (modelConfig.useJobsApi || media.use_jobs_api) {
+      // Use Jobs API status endpoint for models using the unified Jobs API
+      statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+        headers: { Authorization: `Bearer ${kieKey}` },
+      });
+    } else if (modelConfig.statusEndpoint) {
+      // Use legacy status endpoint
+      statusRes = await fetch(`https://api.kie.ai/api/v1/${modelConfig.statusEndpoint}?taskId=${taskId}`, {
+        headers: { Authorization: `Bearer ${kieKey}` },
+      });
+    } else {
+      // Fallback to Jobs API
+      statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+        headers: { Authorization: `Bearer ${kieKey}` },
+      });
     }
-
-    const statusRes = await fetch(`https://api.kie.ai/api/v1/${modelConfig.statusEndpoint}?taskId=${taskId}`, {
-      headers: { Authorization: `Bearer ${kieKey}` },
-    });
+    
     const data = await statusRes.json();
+    console.log('Video status response for model', media.model, ':', JSON.stringify(data).substring(0, 500));
     return processVideoStatus(db, media, data);
   } catch (e) {
     console.error('Media status error:', e);
