@@ -2986,22 +2986,22 @@ async function handleVideoStatus(request, taskId) {
 // UNIFIED MEDIA GENERATION API
 // ============================================================
 
-// Model endpoint mappings for Kie.ai
+// Model endpoint mappings for Kie.ai (using unified jobs API)
 const KIE_IMAGE_MODELS = {
-  'seedream-5-lite': { endpoint: 'seedream/5-lite-text-to-image', statusEndpoint: 'seedream/record-info' },
-  'nano-banana': { endpoint: 'nano-banana/generate', statusEndpoint: 'nano-banana/record-info' },
-  'gpt4o-image': { endpoint: 'gpt4o-image/generate', statusEndpoint: 'gpt4o-image/record-info' },
-  'flux-pro': { endpoint: 'flux/pro-text-to-image', statusEndpoint: 'flux/record-info' },
-  'midjourney-v7': { endpoint: 'midjourney/v7-text-to-image', statusEndpoint: 'midjourney/record-info' },
-  'gpt-image-1-5': { endpoint: 'gpt-image-1-5/generate', statusEndpoint: 'gpt-image-1-5/record-info' },
+  'seedream-5-lite': { model: 'bytedance/seedream', useJobsApi: true },
+  'nano-banana': { endpoint: 'nano-banana/generate', statusEndpoint: 'nano-banana/record-info', useJobsApi: false },
+  'gpt4o-image': { endpoint: 'gpt4o-image/generate', statusEndpoint: 'gpt4o-image/record-info', useJobsApi: false },
+  'flux-pro': { model: 'black-forest-labs/flux-pro', useJobsApi: true },
+  'midjourney-v7': { model: 'midjourney/v7', useJobsApi: true },
+  'gpt-image-1-5': { endpoint: 'gpt-image-1-5/generate', statusEndpoint: 'gpt-image-1-5/record-info', useJobsApi: false },
 };
 
 const KIE_VIDEO_MODELS = {
-  'kling-3-720p': { endpoint: 'kling/3-0-text-to-video', statusEndpoint: 'kling/record-info', params: { resolution: '720p', audio: false, duration: 5 } },
-  'sora-2-stable': { endpoint: 'sora-2/text-to-video-stable', statusEndpoint: 'sora-2/record-info', params: { duration: 10 } },
-  'kling-2-6': { endpoint: 'kling/2-6-text-to-video', statusEndpoint: 'kling/record-info', params: { duration: 5, audio: false } },
-  'runway': { endpoint: 'runway/generate', statusEndpoint: 'runway/record-detail', params: { duration: 5, quality: '720p' } },
-  'wan-2-6': { endpoint: 'wan/2-6-text-to-video', statusEndpoint: 'wan/record-info', params: { resolution: '1080p', duration: 15 } },
+  'kling-3-720p': { model: 'kling/v1.6-standard', useJobsApi: true, params: { duration: '5' } },
+  'sora-2-stable': { model: 'openai/sora', useJobsApi: true, params: { duration: '10s' } },
+  'kling-2-6': { model: 'kling/v2.0-standard', useJobsApi: true, params: { duration: '5' } },
+  'runway': { endpoint: 'runway/generate', statusEndpoint: 'runway/record-detail', useJobsApi: false, params: { duration: 5, quality: '720p' } },
+  'wan-2-6': { model: 'alibaba/wan-2.1', useJobsApi: true, params: { duration: '10s' } },
 };
 
 // Generate image or video using the unified Kie.ai API
