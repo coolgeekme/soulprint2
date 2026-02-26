@@ -70,8 +70,12 @@ def test_admin_user_management():
         
         # 2. Test Create User (POST /api/admin/users)
         print("2️⃣ Testing Create User (POST /api/admin/users)")
+        # Use timestamp to ensure unique email
+        timestamp = str(int(time.time()))
+        unique_email = f"newuser{timestamp}@test.com"
+        
         new_user_data = {
-            "email": "newuser@test.com",
+            "email": unique_email,
             "passcode": "pass123",
             "display_name": "Test User",
             "role": "user",
