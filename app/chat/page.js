@@ -1771,6 +1771,11 @@ export default function ChatPage() {
 
   const currentModel = MODELS.find(m => m.value === selectedModel) || MODELS[0];
 
+  // Filter conversations based on search query
+  const filteredConversations = searchQuery.trim() 
+    ? conversations.filter(c => (c.title || 'Conversation').toLowerCase().includes(searchQuery.toLowerCase()))
+    : conversations;
+
   return (
     <div className="flex h-screen bg-[#0a0a0a] overflow-hidden safe-area-all">
       {showSidebar && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowSidebar(false)} />}
