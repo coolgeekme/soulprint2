@@ -2079,6 +2079,15 @@ export default function ChatPage() {
           ))}
         </div>
         <div className="p-3 border-t border-white/5 space-y-2">
+          {/* Admin Dashboard link - only for admins */}
+          {(user?.role === 'admin' || user?.role === 'superadmin') && (
+            <a 
+              href="/admin"
+              className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-lg text-orange-400 hover:text-orange-300 text-xs transition-colors"
+            >
+              <Shield className="w-3.5 h-3.5" /> Admin Dashboard
+            </a>
+          )}
           <button 
             onClick={() => setShowFeedbackModal(true)}
             className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white text-xs transition-colors"
