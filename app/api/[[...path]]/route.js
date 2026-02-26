@@ -4651,7 +4651,7 @@ async function handleChunkedInit(request) {
   return ok({ uploadId });
 }
 
-// Chunked upload - Receive chunk
+// Chunked upload - Receive chunk (store on disk, not MongoDB)
 async function handleChunkedChunk(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -4673,15 +4673,18 @@ async function handleChunkedChunk(request) {
       return err('Upload session not found', 404);
     }
 
-    // Store chunk data
-    const chunkBuffer = Buffer.from(await chunk.arrayBuffer());
+    // Store chunk on disk instead of MongoDB (better for large files)
+    const fs = require('fs').promises;
+    const path = require('path');
+    const chunkDir = path.join('/tmp', 'uploads', uploadId);
     
-    await db.collection('upload_chunks').insertOne({
-      upload_id: uploadId,
-      chunk_index: chunkIndex,
-      data: chunkBuffer,
-      created_at: new Date(),
-    });
+    // Create directory if it doesn't exist
+    await fs.mkdir(chunkDir, { recursive: true });
+    
+    // Write chunk to disk
+    const chunkBuffer = Buffer.from(await chunk.arrayBuffer());
+    const chunkPath = path.join(chunkDir, `chunk_${String(chunkIndex).padStart(6, '0')}`);
+    await fs.writeFile(chunkPath, chunkBuffer);
 
     // Update session
     await db.collection('upload_sessions').updateOne(
@@ -4692,7 +4695,7 @@ async function handleChunkedChunk(request) {
       }
     );
 
-    console.log(`[ChunkedUpload] Received chunk ${chunkIndex + 1}/${session.total_chunks} for ${uploadId}`);
+    console.log(`[ChunkedUpload] Stored chunk ${chunkIndex + 1}/${session.total_chunks} for ${uploadId} (${chunkBuffer.length} bytes)`);
 
     return ok({ received: chunkIndex });
   } catch (error) {
