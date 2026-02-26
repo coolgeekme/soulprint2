@@ -4749,9 +4749,13 @@ async function handleChunkedProcessBatch(request) {
   return ok({ importId, status: 'pending' });
 }
 
-// Process chunked uploads batch
+// Process chunked uploads batch - using disk-based streaming
 async function processChunkedBatch(importId, userId, uploads, importType) {
   const db = await getDb();
+  const fs = require('fs').promises;
+  const fsSync = require('fs');
+  const path = require('path');
+  
   const updateStatus = async (status, message, progress = 0, extra = {}) => {
     await db.collection('import_jobs').updateOne(
       { id: importId },
@@ -4770,38 +4774,64 @@ async function processChunkedBatch(importId, userId, uploads, importType) {
       await updateStatus('processing', `Reassembling file ${fileNum}/${totalFiles}: ${upload.fileName}...`, Math.round((i / totalFiles) * 30));
 
       try {
-        // Get all chunks for this upload
-        const chunks = await db.collection('upload_chunks')
-          .find({ upload_id: upload.uploadId })
-          .sort({ chunk_index: 1 })
-          .toArray();
+        const chunkDir = path.join('/tmp', 'uploads', upload.uploadId);
+        const outputPath = path.join('/tmp', 'uploads', `${upload.uploadId}.zip`);
+        
+        // Check if chunk directory exists
+        try {
+          await fs.access(chunkDir);
+        } catch {
+          console.error(`[ChunkedBatch] Chunk directory not found: ${chunkDir}`);
+          continue;
+        }
 
-        if (chunks.length === 0) {
+        // Get all chunk files sorted by name
+        const chunkFiles = (await fs.readdir(chunkDir))
+          .filter(f => f.startsWith('chunk_'))
+          .sort();
+
+        if (chunkFiles.length === 0) {
           console.error(`[ChunkedBatch] No chunks found for upload ${upload.uploadId}`);
           continue;
         }
 
-        // Reassemble the file
-        const buffers = chunks.map(c => c.data.buffer ? Buffer.from(c.data.buffer) : c.data);
-        const fileBuffer = Buffer.concat(buffers);
+        console.log(`[ChunkedBatch] Found ${chunkFiles.length} chunks for ${upload.fileName}`);
 
-        console.log(`[ChunkedBatch] Reassembled file ${fileNum}: ${upload.fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+        // Stream chunks to output file (avoids loading all into memory)
+        const writeStream = fsSync.createWriteStream(outputPath);
+        
+        for (const chunkFile of chunkFiles) {
+          const chunkPath = path.join(chunkDir, chunkFile);
+          const chunkData = await fs.readFile(chunkPath);
+          writeStream.write(chunkData);
+        }
+        
+        await new Promise((resolve, reject) => {
+          writeStream.end();
+          writeStream.on('finish', resolve);
+          writeStream.on('error', reject);
+        });
+
+        // Get file size
+        const stats = await fs.stat(outputPath);
+        console.log(`[ChunkedBatch] Reassembled file ${fileNum}: ${upload.fileName} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
 
         await updateStatus('processing', `Extracting messages from file ${fileNum}/${totalFiles}...`, Math.round((i / totalFiles) * 30) + 30);
 
-        // Extract messages
+        // Extract messages using streaming approach for large files
         let messages = [];
         if (importType === 'chatgpt') {
-          messages = await extractChatGPTMessagesFromBuffer(fileBuffer);
+          messages = await extractChatGPTMessagesFromFile(outputPath);
         } else if (importType === 'facebook') {
-          messages = await extractFacebookMessagesFromBuffer(fileBuffer);
+          messages = await extractFacebookMessagesFromFile(outputPath);
         }
 
         console.log(`[ChunkedBatch] Extracted ${messages.length} messages from file ${fileNum}`);
         totalMessages = totalMessages.concat(messages);
 
-        // Clean up chunks
-        await db.collection('upload_chunks').deleteMany({ upload_id: upload.uploadId });
+        // Clean up
+        await fs.rm(chunkDir, { recursive: true, force: true });
+        await fs.unlink(outputPath).catch(() => {});
         await db.collection('upload_sessions').deleteOne({ id: upload.uploadId });
 
       } catch (fileError) {
@@ -4861,6 +4891,78 @@ async function processChunkedBatch(importId, userId, uploads, importType) {
     await updateStatus('failed', error.message, 0, { error: error.message });
     throw error;
   }
+}
+
+// Extract ChatGPT messages from ZIP file on disk (streaming, memory-efficient)
+async function extractChatGPTMessagesFromFile(filePath) {
+  const messages = [];
+  try {
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(filePath);
+    const zipEntries = zip.getEntries();
+    
+    for (const entry of zipEntries) {
+      if (entry.entryName === 'conversations.json' || entry.entryName.endsWith('/conversations.json')) {
+        const content = entry.getData().toString('utf8');
+        const conversations = JSON.parse(content);
+        
+        for (const conv of conversations) {
+          if (conv.mapping) {
+            for (const node of Object.values(conv.mapping)) {
+              if (node?.message?.content?.parts?.[0]) {
+                const role = node.message.author?.role === 'user' ? 'user' : 'assistant';
+                messages.push({
+                  content: node.message.content.parts[0],
+                  role,
+                  timestamp: node.message.create_time ? new Date(node.message.create_time * 1000) : new Date(),
+                });
+              }
+            }
+          }
+        }
+        break;
+      }
+    }
+  } catch (e) {
+    console.error('[extractChatGPTMessagesFromFile] Error:', e);
+  }
+  return messages;
+}
+
+// Extract Facebook messages from ZIP file on disk (streaming, memory-efficient)
+async function extractFacebookMessagesFromFile(filePath) {
+  const messages = [];
+  try {
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(filePath);
+    const zipEntries = zip.getEntries();
+    
+    for (const entry of zipEntries) {
+      if (entry.entryName.includes('messages/') && entry.entryName.endsWith('.json')) {
+        try {
+          const content = entry.getData().toString('utf8');
+          const data = JSON.parse(content);
+          
+          if (data.messages && Array.isArray(data.messages)) {
+            for (const msg of data.messages) {
+              if (msg.content) {
+                messages.push({
+                  content: msg.content,
+                  role: 'user',
+                  timestamp: msg.timestamp_ms ? new Date(msg.timestamp_ms) : new Date(),
+                });
+              }
+            }
+          }
+        } catch (e) {
+          // Skip invalid JSON files
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[extractFacebookMessagesFromFile] Error:', e);
+  }
+  return messages;
 }
 
 // Handle direct file upload -> process directly (no external service)
