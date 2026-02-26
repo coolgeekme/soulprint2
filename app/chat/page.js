@@ -3437,6 +3437,9 @@ export default function ChatPage() {
                 )}
               </button>
 
+              {/* Create (Image/Video) button */}
+              <CreateMenu onGenerate={handleMediaGenerate} isGenerating={isGeneratingMedia} />
+
               <div className="flex-1 relative">
                 <input
                   ref={inputRef}
