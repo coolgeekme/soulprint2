@@ -2977,6 +2977,13 @@ export default function ChatPage() {
           ))}
         </div>
         <div className="p-3 border-t border-white/5 space-y-2">
+          {/* Gallery button */}
+          <button 
+            onClick={() => setShowGallery(true)}
+            className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-gradient-to-r from-pink-500/10 to-purple-500/10 hover:from-pink-500/20 hover:to-purple-500/20 border border-pink-500/30 rounded-lg text-pink-400 hover:text-pink-300 text-xs transition-colors"
+          >
+            <GalleryHorizontal className="w-3.5 h-3.5" /> Media Gallery
+          </button>
           {/* Admin Dashboard link - only for admins */}
           {(user?.role === 'admin' || user?.role === 'superadmin') && (
             <a 
