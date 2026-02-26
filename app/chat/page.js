@@ -960,11 +960,14 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
             <p className="font-medium text-gray-300 flex items-center gap-2">
               <HardDrive className="w-4 h-4" /> How to import large files:
             </p>
-            <ol className="list-decimal pl-5 space-y-1">
-              <li>Upload your export ZIP to <span className="text-cyan-400">Google Drive</span>, <span className="text-blue-400">Dropbox</span>, or <span className="text-purple-400">OneDrive</span></li>
-              <li>Make the file <span className="text-orange-400">publicly accessible</span> (or get a shareable link)</li>
-              <li>Paste the sharing link below</li>
+            <ol className="list-decimal pl-5 space-y-1.5">
+              <li><span className="text-blue-400 font-medium">Dropbox (Recommended)</span>: Upload ZIP → Share → Get link → Change <code className="bg-black/30 px-1 rounded">?dl=0</code> to <code className="bg-black/30 px-1 rounded">?dl=1</code></li>
+              <li><span className="text-cyan-400">Google Drive</span>: Works for files under 100MB. For larger files, use Dropbox.</li>
+              <li><span className="text-purple-400">OneDrive</span>: Upload ZIP → Share → "Anyone with the link" → Copy link</li>
             </ol>
+            <p className="text-yellow-500/80 text-[10px] mt-2 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" /> Google Drive blocks large file downloads. Use Dropbox for files over 100MB.
+            </p>
           </div>
 
           {/* URL Input */}
@@ -976,14 +979,15 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                 type="url"
                 value={cloudUrl}
                 onChange={(e) => setCloudUrl(e.target.value)}
-                placeholder="https://drive.google.com/file/d/... or Dropbox link"
+                placeholder="https://www.dropbox.com/... or Google Drive link"
                 className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50"
                 disabled={isImporting}
               />
             </div>
             {cloudUrl && (
               <p className="mt-1.5 text-xs text-gray-500">
-                Detected: <span className="text-cyan-400 capitalize">{detectCloudProvider(cloudUrl)}</span>
+                Detected: <span className={`capitalize ${detectCloudProvider(cloudUrl) === 'dropbox' ? 'text-blue-400' : 'text-cyan-400'}`}>{detectCloudProvider(cloudUrl)}</span>
+                {detectCloudProvider(cloudUrl) === 'google' && <span className="text-yellow-500/70 ml-2">(may not work for large files)</span>}
               </p>
             )}
           </div>
