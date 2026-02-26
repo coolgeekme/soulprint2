@@ -1232,15 +1232,23 @@ export default function AdminPage() {
           <SoulPrintLogo size={20} />
           <span className="font-condensed font-bold text-white text-sm tracking-widest uppercase">Admin</span>
         </div>
-        <select 
-          value={activeTab}
-          onChange={(e) => setActiveTab(e.target.value)}
-          className="bg-[#111] border border-white/10 rounded-lg px-3 py-2 text-xs text-white"
-        >
-          {TABS.map(tab => (
-            <option key={tab.id} value={tab.id}>{tab.label}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <a 
+            href="/chat" 
+            className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white text-xs transition-colors"
+          >
+            <MessageSquare className="w-3.5 h-3.5" /> Chat
+          </a>
+          <select 
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value)}
+            className="bg-[#111] border border-white/10 rounded-lg px-3 py-2 text-xs text-white"
+          >
+            {TABS.map(tab => (
+              <option key={tab.id} value={tab.id}>{tab.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Desktop Sidebar */}
