@@ -5713,6 +5713,10 @@ export async function DELETE(request, { params }) {
       const importId = pathArr[1];
       return handleDeleteDataImport(request, importId);
     }
+    if (pathStr.startsWith('admin/announcements/') && pathArr.length === 3) {
+      const announcementId = pathArr[2];
+      return handleAdminDeleteAnnouncement(request, announcementId);
+    }
     return err('Not found', 404);
   } catch (error) {
     console.error('DELETE error:', error);
