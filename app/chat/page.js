@@ -2362,6 +2362,9 @@ export default function ChatPage() {
 
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} token={token} />}
       
+      {/* Feedback Modal */}
+      {showFeedbackModal && <FeedbackModal onClose={() => setShowFeedbackModal(false)} token={token} />}
+      
       {/* PWA Install Prompt */}
       <InstallPrompt />
     </div>
