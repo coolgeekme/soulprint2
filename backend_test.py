@@ -54,7 +54,7 @@ def test_login():
     
     login_data = {
         "email": "test@soulprint.com",
-        "password": "test123"
+        "passcode": "test123"
     }
     
     response = make_request("POST", "auth/login", login_data)
