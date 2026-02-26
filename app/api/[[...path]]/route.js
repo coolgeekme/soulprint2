@@ -4591,7 +4591,7 @@ async function handleChunkedUploadChunk(request) {
   }
 }
 
-// Chunked upload: Complete and process (messages already extracted during chunk upload)
+// Chunked upload: Complete - reassemble ZIP and extract messages properly
 async function handleChunkedUploadComplete(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -4612,23 +4612,70 @@ async function handleChunkedUploadComplete(request) {
     return err(`Missing chunks: received ${upload.received_chunks.length} of ${upload.total_chunks}`);
   }
 
+  const tempDir = `/tmp/upload_${uploadId}`;
+  const tempZipPath = `${tempDir}/upload.zip`;
+
   try {
     // Update status
     await db.collection('chunked_uploads').updateOne(
       { id: uploadId },
-      { $set: { status: 'analyzing' } }
+      { $set: { status: 'processing' } }
     );
 
-    // Get extracted messages (already collected during chunk uploads)
-    const extractedMessages = upload.extracted_messages || [];
+    // Create temp directory
+    await mkdir(tempDir, { recursive: true });
+
+    // Reassemble chunks into a ZIP file (process in batches to manage memory)
+    console.log(`Reassembling ${upload.total_chunks} chunks into ZIP file...`);
     
-    // Remove duplicates
-    const uniqueMessages = [...new Set(extractedMessages)].filter(m => m && m.length > 15);
+    const writeStream = fs.createWriteStream(tempZipPath);
+    const BATCH_SIZE = 50; // Process 50 chunks at a time
     
-    console.log(`Total extracted messages: ${uniqueMessages.length} from ${upload.total_chunks} chunks`);
+    for (let batchStart = 0; batchStart < upload.total_chunks; batchStart += BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, upload.total_chunks);
+      
+      // Fetch chunks for this batch
+      const chunkDocs = await db.collection('upload_chunks')
+        .find({ 
+          upload_id: uploadId, 
+          chunk_index: { $gte: batchStart, $lt: batchEnd } 
+        })
+        .sort({ chunk_index: 1 })
+        .toArray();
+      
+      // Write chunks to file
+      for (const doc of chunkDocs) {
+        const buffer = Buffer.from(doc.data, 'base64');
+        writeStream.write(buffer);
+      }
+      
+      // Delete processed chunks to free memory
+      await db.collection('upload_chunks').deleteMany({ 
+        upload_id: uploadId, 
+        chunk_index: { $gte: batchStart, $lt: batchEnd } 
+      });
+      
+      console.log(`Processed chunks ${batchStart}-${batchEnd} of ${upload.total_chunks}`);
+    }
+    
+    // Close the write stream and wait for it to finish
+    await new Promise((resolve, reject) => {
+      writeStream.end();
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+    });
+
+    console.log(`ZIP file created at ${tempZipPath}`);
+
+    // Extract messages from the ZIP file
+    const messages = await extractMessagesFromZip(tempZipPath, upload.source);
+    
+    console.log(`Extracted ${messages.length} messages from ZIP`);
 
     // Check if we have enough data
-    if (uniqueMessages.length < 5) {
+    if (messages.length < 5) {
+      // Clean up
+      await rm(tempDir, { recursive: true, force: true }).catch(() => {});
       await db.collection('chunked_uploads').deleteOne({ id: uploadId });
       return err('Could not extract enough messages from your export. The file may be empty, corrupted, or in an unsupported format. Please ensure you uploaded a ChatGPT or Facebook data export ZIP file.', 400);
     }
@@ -4636,10 +4683,10 @@ async function handleChunkedUploadComplete(request) {
     // Prepare data for analysis
     const parsedData = { 
       source: upload.source || 'chatgpt', 
-      sampleMessages: uniqueMessages.slice(0, 200), // Use sampleMessages for compatibility
-      userMessages: uniqueMessages.slice(0, 200),
-      conversationCount: Math.ceil(uniqueMessages.length / 10),
-      userMessageCount: uniqueMessages.length,
+      sampleMessages: messages.slice(0, 200),
+      userMessages: messages.slice(0, 200),
+      conversationCount: Math.ceil(messages.length / 10),
+      userMessageCount: messages.length,
     };
 
     // Create import record
@@ -4667,7 +4714,6 @@ async function handleChunkedUploadComplete(request) {
         { id: importId },
         { $set: { status: 'error', error: analysis.error } }
       );
-      // Still return success but with limited data
       console.error('Analysis error:', analysis.error);
     } else {
       // Save analysis results
@@ -4693,7 +4739,8 @@ async function handleChunkedUploadComplete(request) {
       invalidateSystemPromptCache(user.id);
     }
 
-    // Clean up - delete chunked upload record
+    // Clean up temp files and database records
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
     await db.collection('chunked_uploads').deleteOne({ id: uploadId });
 
     return ok({
@@ -4702,8 +4749,8 @@ async function handleChunkedUploadComplete(request) {
       analysis: analysis.error ? { summary: 'Import completed but analysis had issues.' } : analysis,
       stats: {
         source: parsedData.source,
-        messagesExtracted: uniqueMessages.length,
-        messagesAnalyzed: Math.min(uniqueMessages.length, 200),
+        messagesExtracted: messages.length,
+        messagesAnalyzed: Math.min(messages.length, 200),
       }
     });
 
@@ -4711,12 +4758,171 @@ async function handleChunkedUploadComplete(request) {
     console.error('Upload complete error:', e);
     
     // Clean up on error
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    await db.collection('upload_chunks').deleteMany({ upload_id: uploadId }).catch(() => {});
     await db.collection('chunked_uploads').updateOne(
       { id: uploadId },
       { $set: { status: 'error', error: e.message } }
     );
     
     return err(`Processing failed: ${e.message}`, 500);
+  }
+}
+
+// Helper function to extract messages from ZIP file
+async function extractMessagesFromZip(zipPath, source) {
+  const messages = [];
+  
+  try {
+    const zip = new AdmZip(zipPath);
+    const zipEntries = zip.getEntries();
+    
+    console.log(`Found ${zipEntries.length} entries in ZIP`);
+    
+    for (const entry of zipEntries) {
+      // Skip directories and non-JSON files
+      if (entry.isDirectory) continue;
+      const name = entry.entryName.toLowerCase();
+      if (!name.endsWith('.json')) continue;
+      
+      // Skip small files (likely not conversation data)
+      if (entry.header.size < 100) continue;
+      
+      try {
+        const content = entry.getData().toString('utf8');
+        const data = JSON.parse(content);
+        
+        // Extract messages based on source type
+        if (source === 'chatgpt' || name.includes('conversation')) {
+          extractChatGPTMessages(data, messages);
+        } else if (source === 'facebook' || name.includes('message') || name.includes('inbox')) {
+          extractFacebookMessages(data, messages);
+        } else {
+          // Try both formats
+          extractChatGPTMessages(data, messages);
+          extractFacebookMessages(data, messages);
+        }
+        
+        // Limit to prevent memory issues
+        if (messages.length > 1000) break;
+        
+      } catch (parseErr) {
+        // Skip files that can't be parsed
+        console.log(`Skipping ${entry.entryName}: ${parseErr.message}`);
+        continue;
+      }
+    }
+  } catch (zipErr) {
+    console.error('ZIP extraction error:', zipErr);
+    throw new Error(`Failed to extract ZIP: ${zipErr.message}`);
+  }
+  
+  // Remove duplicates and clean
+  const uniqueMessages = [...new Set(messages)]
+    .filter(m => m && m.length > 10 && m.length < 2000)
+    .map(m => m.trim().substring(0, 500));
+  
+  return uniqueMessages;
+}
+
+// Extract messages from ChatGPT export format
+function extractChatGPTMessages(data, messages) {
+  // Handle array of conversations
+  if (Array.isArray(data)) {
+    for (const conv of data) {
+      extractChatGPTMessages(conv, messages);
+    }
+    return;
+  }
+  
+  // Handle single conversation object
+  if (data.mapping) {
+    // New ChatGPT export format with mapping
+    for (const [, node] of Object.entries(data.mapping)) {
+      if (node.message?.content?.parts) {
+        for (const part of node.message.content.parts) {
+          if (typeof part === 'string' && part.length > 10) {
+            messages.push(part);
+          }
+        }
+      }
+      // Also check for text field
+      if (node.message?.content?.text && typeof node.message.content.text === 'string') {
+        messages.push(node.message.content.text);
+      }
+    }
+  }
+  
+  // Handle older format with messages array
+  if (data.messages && Array.isArray(data.messages)) {
+    for (const msg of data.messages) {
+      if (msg.content?.parts) {
+        for (const part of msg.content.parts) {
+          if (typeof part === 'string' && part.length > 10) {
+            messages.push(part);
+          }
+        }
+      }
+      if (msg.text && typeof msg.text === 'string' && msg.text.length > 10) {
+        messages.push(msg.text);
+      }
+    }
+  }
+  
+  // Handle conversation_turns format
+  if (data.conversation_turns && Array.isArray(data.conversation_turns)) {
+    for (const turn of data.conversation_turns) {
+      if (turn.content && typeof turn.content === 'string' && turn.content.length > 10) {
+        messages.push(turn.content);
+      }
+    }
+  }
+}
+
+// Extract messages from Facebook export format
+function extractFacebookMessages(data, messages) {
+  // Handle messages array
+  if (data.messages && Array.isArray(data.messages)) {
+    for (const msg of data.messages) {
+      if (msg.content && typeof msg.content === 'string' && msg.content.length > 10) {
+        messages.push(decodeUTF8(msg.content));
+      }
+    }
+  }
+  
+  // Handle participants format
+  if (data.participants && data.messages) {
+    // This is likely a conversation export
+    for (const msg of (data.messages || [])) {
+      if (msg.content && typeof msg.content === 'string') {
+        messages.push(decodeUTF8(msg.content));
+      }
+    }
+  }
+  
+  // Handle nested structure
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      if (item.content && typeof item.content === 'string') {
+        messages.push(decodeUTF8(item.content));
+      }
+      if (item.messages) {
+        extractFacebookMessages(item, messages);
+      }
+    }
+  }
+}
+
+// Decode Facebook's UTF-8 encoded strings
+function decodeUTF8(str) {
+  if (!str) return '';
+  try {
+    // Facebook encodes special characters as \u00XX sequences
+    return str.replace(/\\u00([0-9a-fA-F]{2})/g, (match, hex) => {
+      return String.fromCharCode(parseInt(hex, 16));
+    });
+  } catch {
+    return str;
   }
 }
 
