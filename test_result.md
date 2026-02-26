@@ -449,8 +449,8 @@ backend:
     working: false
     file: "app/api/[[...path]]/route.js"
     stuck_count: 0
-    priority: "medium"
-    needs_retesting: false
+    priority: "high"
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "testing"
@@ -458,6 +458,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "❌ TESTED: Video status polling returns 'recordInfo is null' error from Kie.ai API. This appears to be a third-party service issue - the endpoint is implemented correctly but Kie.ai is not returning expected task status. Backend code is correct."
+      - working: "NA"
+        agent: "main"
+        comment: "Fixed video status polling bug. Issue: Models with useJobsApi=true (kling-3-720p, sora-2-stable, kling-2-6, wan-2-6) were calling undefined statusEndpoint. Fix: (1) handleMediaStatus now checks for modelConfig.useJobsApi and uses 'jobs/recordInfo' endpoint for Jobs API models. (2) processVideoStatus now parses resultJson field (stringified JSON) which is the Jobs API response format. (3) Added proper fallback handling for legacy endpoints. Should now correctly poll video status for all video models."
 
   - task: "Kimi AI Integration (POST /api/chat/stream + GET /api/models)"
     implemented: true
