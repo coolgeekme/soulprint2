@@ -717,6 +717,50 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: DELETE /api/conversations/:id working perfectly! Successfully tested: (1) Conversation creation and deletion, (2) Conversation completely removed from user's list, (3) Associated messages also deleted, (4) Error handling: 404 for non-existent conversations, (5) Authentication required, (6) User ownership validation working. Verified deletion persistence and that other conversations remain unaffected."
 
+  - task: "User Feedback System (POST /api/user-feedback)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "User feedback submission endpoint implemented. Accepts message, category, rating. Stores in user_feedback collection with user info and timestamps."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: User feedback submission working perfectly! Accepts {message: 'This is test feedback for the app. It works great!', category: 'general', rating: 4}. Returns success confirmation. Authentication required. Feedback stored in MongoDB with user_id, email, status='new', created_at timestamp."
+
+  - task: "Admin Feedback Management (GET /api/admin/feedback)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Admin endpoint to retrieve all user feedback with filtering by status. Returns feedback array with stats (total, new, reviewed, resolved counts)."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Admin feedback retrieval working perfectly! Returns paginated feedback array with user_email, message, category, rating, status, created_at. Includes stats: total=2, new=2, reviewed=0, resolved=0. Requires admin/superadmin role. Supports status filtering via query params."
+
+  - task: "Admin Feedback AI Summary (POST /api/admin/feedback/summarize)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Admin endpoint to generate AI summary of feedback using OpenAI. Supports filtering by status, category, limit. Returns comprehensive analysis."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: AI feedback summarization working perfectly! Processes feedback collection, generates comprehensive analysis using GPT-4o-mini. Returns summary with overall themes, action items, sentiment analysis. Tested with 2 feedback items - identified positive user sentiment, functionality appreciation, 4/5 ratings. Includes feedbackCount=2, dateRange with oldest/newest timestamps. Requires admin/superadmin role."
 frontend:
   - task: "Landing Page (/)"
     implemented: true
