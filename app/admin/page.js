@@ -461,6 +461,267 @@ function ConversationsTab({ token }) {
   );
 }
 
+// Announcements Tab
+function AnnouncementsTab({ token }) {
+  const [announcements, setAnnouncements] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [formData, setFormData] = useState({ title: '', content: '', type: 'info', link: '', published: false });
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/announcements', { headers: { Authorization: `Bearer ${token}` } });
+      const d = await res.json();
+      setAnnouncements(d.announcements || []);
+    } catch (e) {
+      console.error('Failed to load announcements:', e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleSave = async () => {
+    if (!formData.title.trim() || !formData.content.trim()) {
+      alert('Title and content are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (editing) {
+        await fetch(`/api/admin/announcements/${editing}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(formData),
+        });
+      } else {
+        await fetch('/api/admin/announcements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(formData),
+        });
+      }
+      setShowForm(false);
+      setEditing(null);
+      setFormData({ title: '', content: '', type: 'info', link: '', published: false });
+      load();
+    } catch (e) {
+      alert('Failed to save announcement');
+    }
+    setSaving(false);
+  };
+
+  const handleEdit = (ann) => {
+    setEditing(ann.id);
+    setFormData({
+      title: ann.title,
+      content: ann.content,
+      type: ann.type || 'info',
+      link: ann.link || '',
+      published: ann.published,
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Are you sure you want to delete this announcement?')) return;
+    try {
+      await fetch(`/api/admin/announcements/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      load();
+    } catch (e) {
+      alert('Failed to delete announcement');
+    }
+  };
+
+  const togglePublish = async (ann) => {
+    try {
+      await fetch(`/api/admin/announcements/${ann.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ published: !ann.published }),
+      });
+      load();
+    } catch (e) {
+      alert('Failed to update announcement');
+    }
+  };
+
+  const typeColors = {
+    info: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    warning: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    success: 'bg-green-500/20 text-green-400 border-green-500/30',
+    update: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-white">Announcements</h2>
+          <p className="text-xs text-gray-500">Create and manage announcements for users</p>
+        </div>
+        <button
+          onClick={() => { setShowForm(true); setEditing(null); setFormData({ title: '', content: '', type: 'info', link: '', published: false }); }}
+          className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-all"
+        >
+          <Plus className="w-4 h-4" /> New Announcement
+        </button>
+      </div>
+
+      {/* Form Modal */}
+      {showForm && (
+        <div className="bg-[#111] border border-white/10 rounded-xl p-5 space-y-4">
+          <h3 className="text-white font-semibold">{editing ? 'Edit Announcement' : 'Create Announcement'}</h3>
+          
+          <div>
+            <label className="block text-gray-500 text-xs mb-1">Title *</label>
+            <input
+              type="text"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              placeholder="Announcement title..."
+              className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-gray-500 text-xs mb-1">Content *</label>
+            <textarea
+              value={formData.content}
+              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+              placeholder="Announcement message..."
+              rows={3}
+              className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-gray-500 text-xs mb-1">Type</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+              >
+                <option value="info">ℹ️ Info</option>
+                <option value="update">🚀 Update</option>
+                <option value="warning">⚠️ Warning</option>
+                <option value="success">✅ Success</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-gray-500 text-xs mb-1">Link (optional)</label>
+              <input
+                type="url"
+                value={formData.link}
+                onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+                placeholder="https://..."
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="published"
+              checked={formData.published}
+              onChange={(e) => setFormData({ ...formData, published: e.target.checked })}
+              className="w-4 h-4 rounded border-white/20 bg-[#0a0a0a]"
+            />
+            <label htmlFor="published" className="text-gray-400 text-sm">Publish immediately</label>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
+            </button>
+            <button
+              onClick={() => { setShowForm(false); setEditing(null); }}
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg text-sm transition-all"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Announcements List */}
+      {loading ? (
+        <div className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-600" /></div>
+      ) : announcements.length === 0 ? (
+        <div className="text-center py-12 text-gray-600">
+          <Megaphone className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p>No announcements yet</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {announcements.map(ann => (
+            <div key={ann.id} className={`bg-[#111] border rounded-xl p-4 ${ann.published ? 'border-green-500/30' : 'border-white/10'}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${typeColors[ann.type] || typeColors.info}`}>
+                      {ann.type === 'info' ? 'ℹ️' : ann.type === 'update' ? '🚀' : ann.type === 'warning' ? '⚠️' : '✅'} {ann.type}
+                    </span>
+                    {ann.published ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">Published</span>
+                    ) : (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">Draft</span>
+                    )}
+                    {ann.link && (
+                      <a href={ann.link} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
+                        <Link className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <h4 className="text-white font-medium mb-1">{ann.title}</h4>
+                  <p className="text-gray-400 text-sm">{ann.content}</p>
+                  <p className="text-gray-600 text-[10px] mt-2">{new Date(ann.created_at).toLocaleString()}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => togglePublish(ann)}
+                    className={`p-2 rounded-lg text-xs transition-colors ${ann.published ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                    title={ann.published ? 'Unpublish' : 'Publish'}
+                  >
+                    {ann.published ? <Check className="w-4 h-4" /> : <Megaphone className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => handleEdit(ann)}
+                    className="p-2 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+                    title="Edit"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(ann.id)}
+                    className="p-2 rounded-lg bg-white/5 text-gray-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Feedback Tab
 function FeedbackTab({ token }) {
   const [feedback, setFeedback] = useState([]);
