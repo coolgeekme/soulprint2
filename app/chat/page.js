@@ -2266,6 +2266,12 @@ export default function ChatPage() {
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareResponses, setCompareResponses] = useState(null); // { responses: [], comparisonId, userMessageId }
   const [selectedCompareResponse, setSelectedCompareResponse] = useState(null);
+  // Gallery & Media generation state
+  const [showGallery, setShowGallery] = useState(false);
+  const [galleryItems, setGalleryItems] = useState([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [selectedGalleryItem, setSelectedGalleryItem] = useState(null);
+  const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const messagesEndRef = useRef(null);
