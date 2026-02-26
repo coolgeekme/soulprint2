@@ -1174,6 +1174,52 @@ async function handleCreateConversation(request) {
   return ok({ id: conv.id, title: conv.title, created_at: conv.created_at });
 }
 
+// CONVERSATIONS - Rename
+async function handleRenameConversation(request, conversationId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json().catch(() => ({}));
+  const { title } = body;
+  if (!title || typeof title !== 'string' || title.trim().length === 0) {
+    return err('Title is required', 400);
+  }
+
+  const db = await getDb();
+  
+  // Verify conversation belongs to user
+  const conv = await db.collection('conversations').findOne({ id: conversationId, user_id: user.id });
+  if (!conv) return err('Conversation not found', 404);
+
+  // Update the title
+  await db.collection('conversations').updateOne(
+    { id: conversationId },
+    { $set: { title: title.trim(), updated_at: new Date() } }
+  );
+
+  return ok({ success: true, title: title.trim() });
+}
+
+// CONVERSATIONS - Delete
+async function handleDeleteConversation(request, conversationId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  
+  // Verify conversation belongs to user
+  const conv = await db.collection('conversations').findOne({ id: conversationId, user_id: user.id });
+  if (!conv) return err('Conversation not found', 404);
+
+  // Delete the conversation
+  await db.collection('conversations').deleteOne({ id: conversationId });
+  
+  // Delete all messages in the conversation
+  await db.collection('messages').deleteMany({ conversation_id: conversationId });
+
+  return ok({ success: true });
+}
+
 // MESSAGES - Get by conversationId
 async function handleGetMessages(request) {
   const user = await authenticate(request);
