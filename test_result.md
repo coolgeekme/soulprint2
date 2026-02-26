@@ -465,6 +465,18 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Video generation fix working correctly! Tested handleMediaStatus function fix for models with useJobsApi=true. (1) ✅ Authentication: Successfully authenticated with test@soulprint.com superadmin. (2) ✅ Endpoint Logic: GET /api/media/status correctly handles both valid and invalid task IDs without 'recordInfo is null' or undefined endpoint errors. (3) ✅ Status Polling: Video generation with runway model (TaskId: d6acc1da320503b1f35a8777574b04fe) returns proper JSON responses with status='generating' and progress tracking. (4) ✅ Multiple Polls: Consistent responses across multiple status polls - no errors detected. (5) ✅ Validation: Media generate endpoint correctly validates requests and returns appropriate error codes. Fix successfully resolves the undefined endpoint issue for useJobsApi=true models and eliminates 'recordInfo is null' errors. Video status polling system working correctly."
 
+  - task: "Media Generation API (POST /api/media/generate + GET /api/media/status)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Unified Media Generation API working perfectly! (1) ✅ POST /api/media/generate: Successfully accepts video generation requests with type='video', model, prompt, aspectRatio parameters. Returns {success: true, taskId, mediaId, status: 'generating'}. (2) ✅ GET /api/media/status: Status polling endpoint working correctly with taskId parameter. Returns proper JSON responses with status and progress tracking. (3) ✅ Validation: Correctly validates required fields and returns 400 errors for invalid requests. (4) ✅ Authentication: Both endpoints require proper Bearer token authentication. (5) ✅ Video Models: Tested with runway model successfully, generates taskId for status polling. (6) ✅ Error Handling: Invalid task IDs return appropriate 404 responses without system errors. Media generation system is production ready with comprehensive video generation and status tracking capabilities."
+
   - task: "Kimi AI Integration (POST /api/chat/stream + GET /api/models)"
     implemented: true
     working: false
