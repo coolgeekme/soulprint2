@@ -2353,6 +2353,27 @@ async function handleChatStream(request) {
           { id: convId }, { $set: { updated_at: new Date() } }
         );
 
+        // ── Long-Term Memory Extraction (async, non-blocking) ──────────────────
+        // Extract and save important facts from this conversation exchange
+        (async () => {
+          try {
+            const userContent = typeof userMessageContent === 'string' 
+              ? userMessageContent 
+              : userMessageContent.find(c => c.type === 'text')?.text || '';
+            
+            // Only extract memories from substantial exchanges
+            if (userContent.length > 20 && fullContent.length > 50) {
+              const extractedMemories = await extractMemoriesFromMessage(userContent, fullContent, user.id);
+              if (extractedMemories.length > 0) {
+                await saveExtractedMemories(db, user.id, extractedMemories, convId);
+                console.log(`Extracted ${extractedMemories.length} memories for user ${user.id}`);
+              }
+            }
+          } catch (memErr) {
+            console.error('Memory extraction background error:', memErr);
+          }
+        })();
+
         send({ type: 'done' });
         controller.close();
       } catch (error) {
