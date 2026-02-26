@@ -7,6 +7,7 @@ Testing the Multi-Model Comparison and memory management APIs for the SoulPrint 
 import requests
 import json
 import sys
+import jwt
 from datetime import datetime
 
 # Configuration
@@ -16,6 +17,16 @@ API_BASE = f"{BASE_URL}/api"
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSCODE = "test123"
+TEST_USER_ID = "94807c2e-c74f-46a6-a249-5bf7366f2134"
+JWT_SECRET = "soulprint-super-secret-jwt-key-2025-change-in-prod"
+
+# Available models for testing
+AVAILABLE_MODELS = [
+    {"model": "gpt-4o", "provider": "openai"},
+    {"model": "gpt-4o-mini", "provider": "openai"}, 
+    {"model": "gemini-2.0-flash", "provider": "gemini"},
+    {"model": "claude-sonnet-4-5-20250929", "provider": "anthropic"}
+]
 
 class MemoryTester:
     def __init__(self):
