@@ -1301,9 +1301,9 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           {/* Import Button */}
           <button
             onClick={importMode === 'direct' ? handleDirectUpload : handleUrlImport}
-            disabled={(importMode === 'direct' ? !selectedFile : !cloudUrl.trim()) || isImporting}
+            disabled={(importMode === 'direct' ? selectedFiles.length === 0 : !cloudUrl.trim()) || isImporting}
             className={`w-full py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-              ((importMode === 'direct' ? selectedFile : cloudUrl.trim()) && !isImporting)
+              ((importMode === 'direct' ? selectedFiles.length > 0 : cloudUrl.trim()) && !isImporting)
                 ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
                 : 'bg-white/5 text-gray-600 cursor-not-allowed'
             }`}
@@ -1316,7 +1316,9 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
             ) : (
               <>
                 <Upload className="w-4 h-4" />
-                {importMode === 'direct' ? 'Upload & Import' : 'Import from URL'}
+                {importMode === 'direct' 
+                  ? `Upload & Import${selectedFiles.length > 1 ? ` (${selectedFiles.length} files)` : ''}`
+                  : 'Import from URL'}
               </>
             )}
           </button>
