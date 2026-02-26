@@ -4768,26 +4768,21 @@ async function processCloudImport(importId, userId, cloudUrl, importType, provid
   }
 }
 
-// Helper to extract ChatGPT messages from ZIP buffer
+// Helper to extract ChatGPT messages from ZIP buffer using unzipper
 async function extractChatGPTMessagesFromBuffer(buffer) {
   const messages = [];
   try {
-    const yauzl = await import('yauzl-promise');
-    const { Readable } = await import('stream');
+    const unzipper = require('unzipper');
+    const { Readable } = require('stream');
     
-    // Create a readable stream from buffer
-    const zipBuffer = buffer;
-    const zip = await yauzl.fromBuffer(zipBuffer);
+    // Create a readable stream from buffer and pipe through unzipper
+    const stream = Readable.from(buffer);
+    const directory = await unzipper.Open.buffer(buffer);
     
-    for await (const entry of zip) {
-      if (entry.filename === 'conversations.json' || entry.filename.endsWith('/conversations.json')) {
-        const stream = await entry.openReadStream();
-        const chunks = [];
-        for await (const chunk of stream) {
-          chunks.push(chunk);
-        }
-        const content = Buffer.concat(chunks).toString('utf8');
-        const conversations = JSON.parse(content);
+    for (const file of directory.files) {
+      if (file.path === 'conversations.json' || file.path.endsWith('/conversations.json')) {
+        const content = await file.buffer();
+        const conversations = JSON.parse(content.toString('utf8'));
         
         for (const conv of conversations) {
           if (conv.mapping) {
@@ -4812,23 +4807,18 @@ async function extractChatGPTMessagesFromBuffer(buffer) {
   return messages;
 }
 
-// Helper to extract Facebook messages from ZIP buffer
+// Helper to extract Facebook messages from ZIP buffer using unzipper
 async function extractFacebookMessagesFromBuffer(buffer) {
   const messages = [];
   try {
-    const yauzl = await import('yauzl-promise');
-    const zip = await yauzl.fromBuffer(buffer);
+    const unzipper = require('unzipper');
+    const directory = await unzipper.Open.buffer(buffer);
     
-    for await (const entry of zip) {
-      if (entry.filename.includes('messages/') && entry.filename.endsWith('.json')) {
+    for (const file of directory.files) {
+      if (file.path.includes('messages/') && file.path.endsWith('.json')) {
         try {
-          const stream = await entry.openReadStream();
-          const chunks = [];
-          for await (const chunk of stream) {
-            chunks.push(chunk);
-          }
-          const content = Buffer.concat(chunks).toString('utf8');
-          const data = JSON.parse(content);
+          const content = await file.buffer();
+          const data = JSON.parse(content.toString('utf8'));
           
           if (data.messages && Array.isArray(data.messages)) {
             for (const msg of data.messages) {
