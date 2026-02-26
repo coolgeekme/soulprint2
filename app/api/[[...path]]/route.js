@@ -1581,6 +1581,7 @@ function trimHistory(messages, maxContextTokens = 6000) {
 
 // Ensure messages alternate between user and assistant roles
 // OpenAI API requires: system -> user -> assistant -> user -> assistant...
+// Gemini API requires: First message must be 'user' role, then alternate user/model
 function ensureAlternatingMessages(messages) {
   if (!messages || messages.length === 0) return [];
   
@@ -1603,6 +1604,13 @@ function ensureAlternatingMessages(messages) {
     lastRole = msg.role;
   }
   
+  // CRITICAL: Gemini requires the first message to be from 'user' role
+  // If history starts with assistant/model message, remove it
+  while (result.length > 0 && result[0].role === 'assistant') {
+    result.shift();
+  }
+  
+  // If after sanitization we have no messages, that's okay - we'll just have the current user message
   return result;
 }
 
