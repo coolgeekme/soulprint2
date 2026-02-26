@@ -2977,6 +2977,310 @@ async function handleVideoStatus(request, taskId) {
   }
 }
 
+// ============================================================
+// UNIFIED MEDIA GENERATION API
+// ============================================================
+
+// Model endpoint mappings for Kie.ai
+const KIE_IMAGE_MODELS = {
+  'seedream-5-lite': { endpoint: 'seedream/5-lite-text-to-image', statusEndpoint: 'seedream/record-info' },
+  'nano-banana': { endpoint: 'nano-banana/generate', statusEndpoint: 'nano-banana/record-info' },
+  'gpt4o-image': { endpoint: 'gpt4o-image/generate', statusEndpoint: 'gpt4o-image/record-info' },
+  'flux-pro': { endpoint: 'flux/pro-text-to-image', statusEndpoint: 'flux/record-info' },
+  'midjourney-v7': { endpoint: 'midjourney/v7-text-to-image', statusEndpoint: 'midjourney/record-info' },
+  'gpt-image-1-5': { endpoint: 'gpt-image-1-5/generate', statusEndpoint: 'gpt-image-1-5/record-info' },
+};
+
+const KIE_VIDEO_MODELS = {
+  'kling-3-720p': { endpoint: 'kling/3-0-text-to-video', statusEndpoint: 'kling/record-info', params: { resolution: '720p', audio: false, duration: 5 } },
+  'sora-2-stable': { endpoint: 'sora-2/text-to-video-stable', statusEndpoint: 'sora-2/record-info', params: { duration: 10 } },
+  'kling-2-6': { endpoint: 'kling/2-6-text-to-video', statusEndpoint: 'kling/record-info', params: { duration: 5, audio: false } },
+  'runway': { endpoint: 'runway/generate', statusEndpoint: 'runway/record-detail', params: { duration: 5, quality: '720p' } },
+  'wan-2-6': { endpoint: 'wan/2-6-text-to-video', statusEndpoint: 'wan/record-info', params: { resolution: '1080p', duration: 15 } },
+};
+
+// Generate image or video using the unified Kie.ai API
+async function handleMediaGenerate(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { type, model, prompt, aspectRatio = '1:1', conversationId } = body;
+
+  if (!type || !['image', 'video'].includes(type)) return err('type must be "image" or "video"');
+  if (!model) return err('model required');
+  if (!prompt) return err('prompt required');
+
+  const kieKey = process.env.KIE_API_KEY;
+  if (!kieKey) return err('Kie.ai key not configured', 500);
+
+  const db = await getDb();
+
+  try {
+    if (type === 'image') {
+      const modelConfig = KIE_IMAGE_MODELS[model];
+      if (!modelConfig) return err(`Unknown image model: ${model}`, 400);
+
+      // Submit image generation task
+      const res = await fetch(`https://api.kie.ai/api/v1/${modelConfig.endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+        body: JSON.stringify({
+          prompt,
+          size: aspectRatio,
+          nVariants: 1,
+          aspectRatio: aspectRatio,
+        }),
+      });
+      const data = await res.json();
+      
+      if (data.code !== 200) {
+        console.error('Kie.ai image error:', data);
+        return err(data.msg || 'Image generation failed', 400);
+      }
+
+      const taskId = data.data?.taskId;
+      if (!taskId) return err('No task ID returned', 500);
+
+      // Poll for completion (images are usually fast)
+      let imageUrl = null;
+      let attempts = 0;
+      const maxAttempts = 60; // 3 minutes max
+
+      while (!imageUrl && attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 3000));
+        attempts++;
+
+        const statusRes = await fetch(`https://api.kie.ai/api/v1/${modelConfig.statusEndpoint}?taskId=${taskId}`, {
+          headers: { Authorization: `Bearer ${kieKey}` },
+        });
+        const statusData = await statusRes.json();
+
+        if (statusData.code === 200) {
+          const status = statusData.data?.status || statusData.data?.state;
+          if (status === 'SUCCESS' || status === 'success') {
+            // Try different response formats
+            const response = statusData.data?.response;
+            if (typeof response === 'string') {
+              try {
+                const parsed = JSON.parse(response);
+                imageUrl = parsed?.resultUrls?.[0] || parsed?.url || parsed?.imageUrl;
+              } catch (e) {
+                imageUrl = response; // Maybe it's just a URL string
+              }
+            } else if (response?.resultUrls) {
+              imageUrl = response.resultUrls[0];
+            } else if (statusData.data?.resultUrls) {
+              imageUrl = statusData.data.resultUrls[0];
+            } else if (statusData.data?.url) {
+              imageUrl = statusData.data.url;
+            } else if (statusData.data?.imageUrl) {
+              imageUrl = statusData.data.imageUrl;
+            }
+            break;
+          } else if (status === 'FAILED' || status === 'fail') {
+            return err(statusData.data?.errorMessage || statusData.data?.failMsg || 'Image generation failed', 500);
+          }
+        }
+      }
+
+      if (!imageUrl) return err('Image generation timed out', 500);
+
+      // Save to gallery
+      const mediaId = uuidv4();
+      const modelLabels = {
+        'seedream-5-lite': 'Seedream 5.0 Lite',
+        'nano-banana': 'Nano Banana',
+        'gpt4o-image': 'GPT-4o Image',
+        'flux-pro': 'Flux Pro',
+        'midjourney-v7': 'Midjourney V7',
+        'gpt-image-1-5': 'GPT Image 1.5',
+      };
+
+      await db.collection('media_gallery').insertOne({
+        id: mediaId,
+        user_id: user.id,
+        type: 'image',
+        model,
+        model_label: modelLabels[model] || model,
+        prompt,
+        url: imageUrl,
+        aspect_ratio: aspectRatio,
+        conversation_id: conversationId || null,
+        created_at: new Date(),
+        expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
+      });
+
+      return ok({ success: true, url: imageUrl, mediaId, type: 'image' });
+
+    } else if (type === 'video') {
+      const modelConfig = KIE_VIDEO_MODELS[model];
+      if (!modelConfig) return err(`Unknown video model: ${model}`, 400);
+
+      // Submit video generation task
+      const videoParams = {
+        prompt,
+        ...modelConfig.params,
+        aspectRatio: aspectRatio === '1:1' ? '16:9' : aspectRatio, // Most video models prefer 16:9
+      };
+
+      const res = await fetch(`https://api.kie.ai/api/v1/${modelConfig.endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+        body: JSON.stringify(videoParams),
+      });
+      const data = await res.json();
+
+      if (data.code !== 200) {
+        console.error('Kie.ai video error:', data);
+        return err(data.msg || 'Video generation failed', 400);
+      }
+
+      const taskId = data.data?.taskId;
+      if (!taskId) return err('No task ID returned', 500);
+
+      // Store video job for async polling
+      const mediaId = uuidv4();
+      const modelLabels = {
+        'kling-3-720p': 'Kling 3.0 (720p)',
+        'sora-2-stable': 'Sora 2 Stable',
+        'kling-2-6': 'Kling 2.6',
+        'runway': 'Runway Gen-3',
+        'wan-2-6': 'Wan 2.6',
+      };
+
+      await db.collection('media_gallery').insertOne({
+        id: mediaId,
+        user_id: user.id,
+        type: 'video',
+        model,
+        model_label: modelLabels[model] || model,
+        prompt,
+        url: null, // Will be updated when complete
+        task_id: taskId,
+        status: 'generating',
+        aspect_ratio: videoParams.aspectRatio,
+        conversation_id: conversationId || null,
+        created_at: new Date(),
+        expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      });
+
+      return ok({ success: true, taskId, mediaId, type: 'video', status: 'generating' });
+    }
+  } catch (e) {
+    console.error('Media generation error:', e);
+    return err('Media generation failed: ' + e.message, 500);
+  }
+}
+
+// Check status of async media generation (videos)
+async function handleMediaStatus(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const url = new URL(request.url);
+  const taskId = url.searchParams.get('taskId');
+  if (!taskId) return err('taskId required');
+
+  const kieKey = process.env.KIE_API_KEY;
+  if (!kieKey) return err('Kie.ai key not configured', 500);
+
+  const db = await getDb();
+  
+  // Find the media item
+  const media = await db.collection('media_gallery').findOne({ task_id: taskId, user_id: user.id });
+  if (!media) return err('Media not found', 404);
+
+  // If already completed, return cached result
+  if (media.status === 'completed' && media.url) {
+    return ok({ status: 'completed', url: media.url, thumbnail_url: media.thumbnail_url });
+  }
+  if (media.status === 'failed') {
+    return ok({ status: 'failed', error: media.error });
+  }
+
+  try {
+    // Determine which endpoint to use based on model
+    const modelConfig = KIE_VIDEO_MODELS[media.model];
+    if (!modelConfig) {
+      // Fallback to runway endpoint
+      const statusRes = await fetch(`https://api.kie.ai/api/v1/runway/record-detail?taskId=${taskId}`, {
+        headers: { Authorization: `Bearer ${kieKey}` },
+      });
+      const data = await statusRes.json();
+      return processVideoStatus(db, media, data);
+    }
+
+    const statusRes = await fetch(`https://api.kie.ai/api/v1/${modelConfig.statusEndpoint}?taskId=${taskId}`, {
+      headers: { Authorization: `Bearer ${kieKey}` },
+    });
+    const data = await statusRes.json();
+    return processVideoStatus(db, media, data);
+  } catch (e) {
+    console.error('Media status error:', e);
+    return ok({ status: 'generating', progress: 'checking...' });
+  }
+}
+
+// Helper to process video status response
+async function processVideoStatus(db, media, data) {
+  if (data.code !== 200) {
+    return ok({ status: 'generating', progress: 'processing...' });
+  }
+
+  const state = data.data?.state || data.data?.status;
+  
+  if (state === 'success' || state === 'SUCCESS') {
+    // Video ready
+    const videoUrl = data.data?.works?.[0]?.resource || 
+                     data.data?.resultUrls?.[0] || 
+                     data.data?.videoUrl ||
+                     data.data?.url;
+    const thumbnailUrl = data.data?.works?.[0]?.coverImage || 
+                         data.data?.thumbnail ||
+                         data.data?.coverUrl;
+
+    if (videoUrl) {
+      await db.collection('media_gallery').updateOne(
+        { id: media.id },
+        { $set: { status: 'completed', url: videoUrl, thumbnail_url: thumbnailUrl } }
+      );
+      return ok({ status: 'completed', url: videoUrl, thumbnail_url: thumbnailUrl });
+    }
+  } else if (state === 'fail' || state === 'FAILED') {
+    const error = data.data?.failMsg || data.data?.errorMessage || 'Generation failed';
+    await db.collection('media_gallery').updateOne(
+      { id: media.id },
+      { $set: { status: 'failed', error } }
+    );
+    return ok({ status: 'failed', error });
+  }
+
+  return ok({ status: 'generating', progress: state || 'processing...' });
+}
+
+// Get user's media gallery
+async function handleMediaGallery(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  
+  const items = await db.collection('media_gallery')
+    .find({ 
+      user_id: user.id,
+      $or: [
+        { status: { $ne: 'failed' } },
+        { status: { $exists: false } }
+      ]
+    })
+    .sort({ created_at: -1 })
+    .limit(100)
+    .toArray();
+
+  return NextResponse.json(items);
+}
+
 // FEEDBACK - Submit
 async function handleSubmitFeedback(request) {
   const user = await authenticate(request);
