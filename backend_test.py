@@ -162,6 +162,28 @@ def test_user_announcements(token):
     print("👤 Testing User Announcement APIs")
     print("="*60)
     
+    # First create a published announcement for testing
+    print("\n0️⃣ Creating published announcement for testing...")
+    announcement_data = {
+        "title": "Published Test Announcement",
+        "content": "This announcement will stay published for user testing.",
+        "type": "info",
+        "link": "https://test.example.com",
+        "published": True
+    }
+    
+    response = make_request("POST", "admin/announcements", announcement_data, token=token)
+    test_announcement_id = None
+    
+    if response and response.status_code == 200:
+        try:
+            data = response.json()
+            if data.get("success") and "announcement" in data:
+                test_announcement_id = data["announcement"]["id"]
+                print(f"✅ Test announcement created: {test_announcement_id}")
+        except:
+            pass
+    
     # Test 1: Get published announcements
     print("\n1️⃣ Testing GET /api/announcements (Get Published)")
     
@@ -199,6 +221,17 @@ def test_user_announcements(token):
                 data = response.json()
                 if data.get("success"):
                     print("✅ Announcement dismissed successfully!")
+                    
+                    # Verify dismissal by checking announcements again
+                    print("   Verifying dismissal...")
+                    verify_response = make_request("GET", "announcements", token=token)
+                    if verify_response and verify_response.status_code == 200:
+                        verify_data = verify_response.json()
+                        dismissed_found = any(a.get("id") == announcement_id_to_dismiss for a in verify_data.get("unread", []))
+                        if not dismissed_found:
+                            print("✅ Announcement successfully removed from unread list!")
+                        else:
+                            print("⚠️  Announcement still appears in unread list")
                 else:
                     print("❌ Dismiss announcement failed - no success field")
             except:
