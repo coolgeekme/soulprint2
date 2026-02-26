@@ -3032,6 +3032,123 @@ async function handleAdminResetPasscode(request, userId) {
   return ok({ success: true });
 }
 
+// ADMIN - Create new user
+async function handleAdminCreateUser(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { email, passcode, display_name, role, accepted } = body;
+
+  if (!email || !passcode) {
+    return err('Email and passcode are required', 400);
+  }
+
+  // Validate email format
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return err('Invalid email format', 400);
+  }
+
+  const db = await getDb();
+
+  // Check if user already exists
+  const existing = await db.collection('users').findOne({ email: email.toLowerCase() });
+  if (existing) {
+    return err('A user with this email already exists', 400);
+  }
+
+  // Only superadmin can create admin/superadmin users
+  if ((role === 'admin' || role === 'superadmin') && admin.role !== 'superadmin') {
+    return err('Only superadmin can create admin users', 403);
+  }
+
+  const hashedPasscode = await hashPassword(passcode);
+  const newUser = {
+    id: uuidv4(),
+    email: email.toLowerCase(),
+    passcode_hash: hashedPasscode,
+    display_name: display_name || '',
+    role: role || 'user',
+    accepted: accepted ?? true,
+    onboarding_complete: false,
+    assessment_complete: false,
+    created_at: new Date(),
+    created_by: admin.id,
+  };
+
+  await db.collection('users').insertOne(newUser);
+
+  // Log action
+  await db.collection('admin_audit_log').insertOne({
+    id: uuidv4(),
+    admin_user_id: admin.id,
+    action: 'create_user',
+    target_user_id: newUser.id,
+    metadata: { email: newUser.email, role: newUser.role },
+    created_at: new Date(),
+  });
+
+  return ok({ 
+    success: true, 
+    user: { 
+      id: newUser.id, 
+      email: newUser.email, 
+      display_name: newUser.display_name,
+      role: newUser.role 
+    } 
+  });
+}
+
+// ADMIN - Delete user
+async function handleAdminDeleteUser(request, userId) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  // Only superadmin can delete users
+  if (admin.role !== 'superadmin') {
+    return err('Only superadmin can delete users', 403);
+  }
+
+  const db = await getDb();
+
+  // Get user info before deletion
+  const user = await db.collection('users').findOne({ id: userId });
+  if (!user) {
+    return err('User not found', 404);
+  }
+
+  // Prevent deleting yourself
+  if (user.id === admin.id) {
+    return err('You cannot delete your own account', 400);
+  }
+
+  // Prevent deleting other superadmins (safety)
+  if (user.role === 'superadmin') {
+    return err('Cannot delete superadmin users', 400);
+  }
+
+  // Delete user
+  await db.collection('users').deleteOne({ id: userId });
+
+  // Optionally delete related data (conversations, messages, etc.)
+  await db.collection('conversations').deleteMany({ user_id: userId });
+  await db.collection('messages').deleteMany({ user_id: userId });
+  await db.collection('soul_profiles').deleteMany({ user_id: userId });
+  await db.collection('assessment_responses').deleteMany({ user_id: userId });
+
+  // Log action
+  await db.collection('admin_audit_log').insertOne({
+    id: uuidv4(),
+    admin_user_id: admin.id,
+    action: 'delete_user',
+    target_user_id: userId,
+    metadata: { email: user.email },
+    created_at: new Date(),
+  });
+
+  return ok({ success: true });
+}
+
 async function handleAdminGetWaitlist(request) {
   const admin = await requireAdmin(request);
   if (!admin) return err('Forbidden', 403);
