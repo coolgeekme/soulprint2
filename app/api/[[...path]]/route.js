@@ -4618,6 +4618,78 @@ async function handleAdminInviteAdmin(request) {
 // CLOUD IMPORT (for large files)
 // ============================================================
 
+// Handle direct file upload -> transfer.sh -> process
+async function handleDirectUpload(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const formData = await request.formData();
+    const file = formData.get('file');
+    const type = formData.get('type') || 'chatgpt';
+
+    if (!file) return err('No file provided');
+
+    const fileName = file.name || 'upload.zip';
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    
+    console.log(`[DirectUpload] Uploading ${fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB) to transfer.sh`);
+
+    // Upload to transfer.sh from server-side (no CORS issues)
+    const transferResponse = await fetch(`https://transfer.sh/${encodeURIComponent(fileName)}`, {
+      method: 'PUT',
+      headers: {
+        'Max-Days': '1',
+        'Content-Type': 'application/octet-stream',
+      },
+      body: fileBuffer,
+    });
+
+    if (!transferResponse.ok) {
+      const errorText = await transferResponse.text();
+      console.error('[DirectUpload] transfer.sh error:', errorText);
+      throw new Error(`Failed to upload to transfer.sh: ${transferResponse.status}`);
+    }
+
+    const downloadUrl = (await transferResponse.text()).trim();
+    console.log(`[DirectUpload] File uploaded to: ${downloadUrl}`);
+
+    // Now create import job and process
+    const db = await getDb();
+    const importId = uuidv4();
+
+    await db.collection('import_jobs').insertOne({
+      id: importId,
+      user_id: user.id,
+      type,
+      source: 'direct_upload',
+      provider: 'transfer.sh',
+      cloud_url: downloadUrl,
+      status: 'pending',
+      progress: 0,
+      message: 'Processing file...',
+      messages_count: 0,
+      error: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+
+    // Process in background
+    processCloudImport(importId, user.id, downloadUrl, type, 'transfer.sh').catch(err => {
+      console.error('Direct upload processing error:', err);
+      db.collection('import_jobs').updateOne(
+        { id: importId },
+        { $set: { status: 'failed', error: err.message, updated_at: new Date() } }
+      );
+    });
+
+    return ok({ importId, status: 'pending', uploadedTo: downloadUrl });
+  } catch (error) {
+    console.error('[DirectUpload] Error:', error);
+    return err(error.message || 'Upload failed', 500);
+  }
+}
+
 async function handleCloudImport(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
