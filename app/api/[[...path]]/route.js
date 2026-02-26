@@ -4615,6 +4615,267 @@ async function handleAdminInviteAdmin(request) {
 }
 
 // ============================================================
+// CLOUD IMPORT (for large files)
+// ============================================================
+
+async function handleCloudImport(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { url, type = 'chatgpt', provider = 'direct' } = body;
+
+  if (!url) return err('URL required');
+
+  const db = await getDb();
+  const importId = uuidv4();
+
+  // Create import job
+  await db.collection('import_jobs').insertOne({
+    id: importId,
+    user_id: user.id,
+    type,
+    source: 'cloud',
+    provider,
+    cloud_url: url,
+    status: 'pending',
+    progress: 0,
+    message: 'Starting download...',
+    messages_count: 0,
+    error: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
+
+  // Process in background
+  processCloudImport(importId, user.id, url, type, provider).catch(err => {
+    console.error('Cloud import error:', err);
+    db.collection('import_jobs').updateOne(
+      { id: importId },
+      { $set: { status: 'failed', error: err.message, updated_at: new Date() } }
+    );
+  });
+
+  return ok({ importId, status: 'pending' });
+}
+
+async function processCloudImport(importId, userId, cloudUrl, importType, provider) {
+  const db = await getDb();
+  const updateStatus = async (status, message, progress = 0, extra = {}) => {
+    await db.collection('import_jobs').updateOne(
+      { id: importId },
+      { $set: { status, message, progress, ...extra, updated_at: new Date() } }
+    );
+  };
+
+  try {
+    // Convert cloud URLs to direct download URLs
+    let downloadUrl = cloudUrl;
+    
+    if (provider === 'google' || cloudUrl.includes('drive.google.com')) {
+      // Extract file ID from Google Drive URL
+      const match = cloudUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match) {
+        downloadUrl = `https://drive.google.com/uc?export=download&id=${match[1]}`;
+      }
+    } else if (provider === 'dropbox' || cloudUrl.includes('dropbox.com')) {
+      // Convert Dropbox share link to direct download
+      downloadUrl = cloudUrl.replace('?dl=0', '?dl=1').replace('www.dropbox.com', 'dl.dropboxusercontent.com');
+    } else if (provider === 'onedrive' || cloudUrl.includes('1drv.ms') || cloudUrl.includes('onedrive.live.com')) {
+      // OneDrive: need to convert share link
+      // For simplicity, instruct user to use direct download link
+      downloadUrl = cloudUrl.replace('redir?', 'download?');
+    }
+
+    await updateStatus('processing', 'Downloading file...', 10);
+
+    // Download the file
+    console.log(`[CloudImport] Downloading from: ${downloadUrl}`);
+    const response = await fetch(downloadUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status} ${response.statusText}. Make sure the file is publicly accessible.`);
+    }
+
+    const contentLength = response.headers.get('content-length');
+    console.log(`[CloudImport] File size: ${contentLength ? (parseInt(contentLength) / 1024 / 1024).toFixed(2) + ' MB' : 'unknown'}`);
+
+    await updateStatus('processing', 'Processing file...', 30);
+
+    // Get the file as array buffer
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    await updateStatus('processing', 'Extracting messages...', 50);
+
+    // Process the file based on type
+    let messages = [];
+    
+    if (importType === 'chatgpt') {
+      messages = await extractChatGPTMessages(buffer);
+    } else if (importType === 'facebook') {
+      messages = await extractFacebookMessages(buffer);
+    }
+
+    await updateStatus('processing', 'Saving messages...', 80);
+
+    // Save messages to database
+    if (messages.length > 0) {
+      // Deduplicate
+      const existingHashes = new Set();
+      const existingMsgs = await db.collection('imported_messages')
+        .find({ user_id: userId })
+        .project({ content_hash: 1 })
+        .toArray();
+      existingMsgs.forEach(m => existingHashes.add(m.content_hash));
+
+      const crypto = require('crypto');
+      const newMessages = messages.filter(m => {
+        const hash = crypto.createHash('md5').update(m.content || '').digest('hex');
+        m.content_hash = hash;
+        return !existingHashes.has(hash);
+      });
+
+      if (newMessages.length > 0) {
+        const docs = newMessages.map(m => ({
+          id: uuidv4(),
+          user_id: userId,
+          content: m.content,
+          role: m.role,
+          timestamp: m.timestamp,
+          source: importType,
+          content_hash: m.content_hash,
+          imported_at: new Date(),
+        }));
+
+        await db.collection('imported_messages').insertMany(docs);
+      }
+
+      await updateStatus('completed', `Successfully imported ${newMessages.length} new messages (${messages.length - newMessages.length} duplicates skipped)`, 100, { messages_count: newMessages.length });
+    } else {
+      await updateStatus('completed', 'No messages found in the file', 100, { messages_count: 0 });
+    }
+
+  } catch (error) {
+    console.error('[CloudImport] Error:', error);
+    await updateStatus('failed', error.message, 0, { error: error.message });
+    throw error;
+  }
+}
+
+// Helper to extract ChatGPT messages from ZIP buffer
+async function extractChatGPTMessages(buffer) {
+  const messages = [];
+  try {
+    const yauzl = await import('yauzl-promise');
+    const { Readable } = await import('stream');
+    
+    // Create a readable stream from buffer
+    const zipBuffer = buffer;
+    const zip = await yauzl.fromBuffer(zipBuffer);
+    
+    for await (const entry of zip) {
+      if (entry.filename === 'conversations.json' || entry.filename.endsWith('/conversations.json')) {
+        const stream = await entry.openReadStream();
+        const chunks = [];
+        for await (const chunk of stream) {
+          chunks.push(chunk);
+        }
+        const content = Buffer.concat(chunks).toString('utf8');
+        const conversations = JSON.parse(content);
+        
+        for (const conv of conversations) {
+          if (conv.mapping) {
+            for (const node of Object.values(conv.mapping)) {
+              if (node?.message?.content?.parts?.[0]) {
+                const role = node.message.author?.role === 'user' ? 'user' : 'assistant';
+                messages.push({
+                  content: node.message.content.parts[0],
+                  role,
+                  timestamp: node.message.create_time ? new Date(node.message.create_time * 1000) : new Date(),
+                });
+              }
+            }
+          }
+        }
+        break;
+      }
+    }
+  } catch (e) {
+    console.error('[extractChatGPTMessages] Error:', e);
+  }
+  return messages;
+}
+
+// Helper to extract Facebook messages from ZIP buffer
+async function extractFacebookMessages(buffer) {
+  const messages = [];
+  try {
+    const yauzl = await import('yauzl-promise');
+    const zip = await yauzl.fromBuffer(buffer);
+    
+    for await (const entry of zip) {
+      if (entry.filename.includes('messages/') && entry.filename.endsWith('.json')) {
+        try {
+          const stream = await entry.openReadStream();
+          const chunks = [];
+          for await (const chunk of stream) {
+            chunks.push(chunk);
+          }
+          const content = Buffer.concat(chunks).toString('utf8');
+          const data = JSON.parse(content);
+          
+          if (data.messages && Array.isArray(data.messages)) {
+            for (const msg of data.messages) {
+              if (msg.content) {
+                messages.push({
+                  content: msg.content,
+                  role: 'user',
+                  timestamp: msg.timestamp_ms ? new Date(msg.timestamp_ms) : new Date(),
+                });
+              }
+            }
+          }
+        } catch (e) {
+          // Skip invalid JSON files
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[extractFacebookMessages] Error:', e);
+  }
+  return messages;
+}
+
+// Get import job status
+async function handleImportStatus(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const url = new URL(request.url);
+  const importId = url.searchParams.get('importId');
+  if (!importId) return err('importId required');
+
+  const db = await getDb();
+  const job = await db.collection('import_jobs').findOne({ id: importId, user_id: user.id });
+  
+  if (!job) return err('Import not found', 404);
+
+  return ok({
+    status: job.status,
+    message: job.message,
+    progress: job.progress,
+    messagesCount: job.messages_count,
+    error: job.error,
+  });
+}
+
+// ============================================================
 // TELEGRAM CONNECTOR
 // ============================================================
 
