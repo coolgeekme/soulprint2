@@ -132,7 +132,7 @@ def test_chunked_upload():
     # First login to get token
     login_data = {
         "email": "test@soulprint.com", 
-        "password": "test123"
+        "passcode": "test123"
     }
     
     login_response = make_request("POST", "/auth/login", login_data)
