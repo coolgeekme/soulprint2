@@ -3110,7 +3110,7 @@ export default function ChatPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 sm:py-6">
-          <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
+          <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
             {messages.map((msg, idx) => (
               <div key={msg.id || idx} className={`msg-appear flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'assistant' && (
@@ -3119,7 +3119,7 @@ export default function ChatPage() {
                     <SoulPrintLogo size={14} className="hidden sm:block" />
                   </div>
                 )}
-                <div className={`min-w-0 ${msg.role === 'user' ? 'max-w-[85%] sm:max-w-[75%]' : 'max-w-[90%] sm:max-w-[85%]'}`}>
+                <div className={`min-w-0 ${msg.role === 'user' ? 'max-w-[90%] sm:max-w-[85%] lg:max-w-[80%]' : 'max-w-[95%] sm:max-w-[90%] lg:max-w-[85%]'}`}>
                   {/* Show image preview in user message */}
                   {msg.role === 'user' && msg.attachments?.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2 justify-end">
