@@ -800,27 +800,14 @@ function GalleryModal({ item, onClose }) {
   );
 }
 
-// ── CloudImportModal: Import large files - Direct upload or cloud URL ──────────────────
+// ── CloudImportModal: Import large files directly ──────────────────
 function CloudImportModal({ onClose, token, onImportComplete }) {
-  const [importMode, setImportMode] = useState('direct'); // 'direct' or 'url'
-  const [cloudUrl, setCloudUrl] = useState('');
-  const [importType, setImportType] = useState('chatgpt'); // 'chatgpt' or 'facebook'
+  const [importType, setImportType] = useState('chatgpt');
   const [isImporting, setIsImporting] = useState(false);
   const [importStatus, setImportStatus] = useState(null);
   const [error, setError] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState([]); // Support multiple files
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [currentFileIndex, setCurrentFileIndex] = useState(0);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const fileInputRef = useRef(null);
-
-  const detectCloudProvider = (url) => {
-    if (url.includes('drive.google.com')) return 'google';
-    if (url.includes('dropbox.com')) return 'dropbox';
-    if (url.includes('transfer.sh')) return 'transfer.sh';
-    if (url.includes('gofile.io')) return 'gofile';
-    if (url.includes('onedrive.live.com') || url.includes('1drv.ms')) return 'onedrive';
-    return 'direct';
-  };
 
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
@@ -829,493 +816,197 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
   };
 
-  const getTotalSize = () => {
-    return selectedFiles.reduce((sum, f) => sum + f.size, 0);
-  };
+  const getTotalSize = () => selectedFiles.reduce((sum, f) => sum + f.size, 0);
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    
     const invalidFiles = files.filter(f => !f.name.endsWith('.zip'));
     if (invalidFiles.length > 0) {
-      setError(`Please select only ZIP files. Invalid: ${invalidFiles.map(f => f.name).join(', ')}`);
+      setError('Please select only ZIP files');
       return;
     }
-    
     setSelectedFiles(files);
     setError('');
   };
 
-  const removeFile = (index) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
+  const removeFile = (index) => setSelectedFiles(prev => prev.filter((_, i) => i !== index));
 
-  // Upload a single file directly to our backend in chunks
-  const uploadFileInChunks = async (file, fileNum, totalFiles) => {
-    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+  const uploadFileInChunks = async (file, fileNum, totalFiles, setStatus) => {
+    const CHUNK_SIZE = 5 * 1024 * 1024;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     
-    console.log(`[File ${fileNum}/${totalFiles}] Uploading ${file.name} in ${totalChunks} chunks`);
-
-    // Initialize upload session
     const initRes = await fetch('/api/imports/chunked/init', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        filename: file.name,
-        fileSize: file.size,
-        totalChunks,
-        type: importType,
-      }),
+      body: JSON.stringify({ filename: file.name, fileSize: file.size, totalChunks, type: importType }),
     });
-
-    if (!initRes.ok) {
-      const err = await initRes.json();
-      throw new Error(err.error || 'Failed to initialize upload');
-    }
-
+    if (!initRes.ok) throw new Error('Failed to initialize upload');
     const { uploadId } = await initRes.json();
 
-    // Upload chunks
-    for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-      const start = chunkIndex * CHUNK_SIZE;
-      const end = Math.min(start + CHUNK_SIZE, file.size);
-      const chunk = file.slice(start, end);
-
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = file.slice(i * CHUNK_SIZE, Math.min((i + 1) * CHUNK_SIZE, file.size));
       const formData = new FormData();
       formData.append('uploadId', uploadId);
-      formData.append('chunkIndex', chunkIndex.toString());
+      formData.append('chunkIndex', i.toString());
       formData.append('chunk', chunk);
-
-      const chunkRes = await fetch('/api/imports/chunked/chunk', {
+      
+      const res = await fetch('/api/imports/chunked/chunk', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-
-      if (!chunkRes.ok) {
-        throw new Error(`Failed to upload chunk ${chunkIndex + 1}/${totalChunks}`);
-      }
-
-      // Update progress
-      const chunkProgress = ((chunkIndex + 1) / totalChunks) * 100;
-      const fileProgress = ((fileNum - 1) / totalFiles * 100) + (chunkProgress / totalFiles);
-      setUploadProgress(Math.round(fileProgress));
-      setImportStatus({
-        status: 'uploading',
-        message: `Uploading file ${fileNum}/${totalFiles}: ${file.name} (${Math.round(chunkProgress)}%)`,
-        progress: Math.round(fileProgress),
-      });
+      if (!res.ok) throw new Error(`Chunk ${i + 1} failed`);
+      
+      const pct = Math.round(((i + 1) / totalChunks) * 100);
+      const overall = Math.round(((fileNum - 1) / totalFiles * 100) + (pct / totalFiles));
+      setStatus({ status: 'uploading', message: `${file.name}: ${pct}%`, progress: overall });
     }
-
     return { uploadId, fileName: file.name };
   };
 
-  // Direct upload - chunked to our backend
-  const handleDirectUpload = async () => {
-    if (selectedFiles.length === 0) {
-      setError('Please select at least one file');
-      return;
-    }
-
+  const handleUpload = async () => {
+    if (selectedFiles.length === 0) return setError('Please select a file');
     setError('');
     setIsImporting(true);
-    setCurrentFileIndex(0);
-    setImportStatus({ status: 'uploading', message: 'Starting upload...', progress: 0 });
+    setImportStatus({ status: 'uploading', message: 'Starting...', progress: 0 });
 
     try {
-      const totalFiles = selectedFiles.length;
-      const uploadedFiles = [];
-
-      // Upload each file in chunks
+      const uploads = [];
       for (let i = 0; i < selectedFiles.length; i++) {
-        setCurrentFileIndex(i);
-        const file = selectedFiles[i];
-        console.log(`Uploading file ${i + 1}/${totalFiles}: ${file.name}`);
-        
-        const uploadResult = await uploadFileInChunks(file, i + 1, totalFiles);
-        uploadedFiles.push(uploadResult);
+        uploads.push(await uploadFileInChunks(selectedFiles[i], i + 1, selectedFiles.length, setImportStatus));
       }
-
-      console.log('All files uploaded:', uploadedFiles);
-      setImportStatus({ status: 'processing', message: 'Processing your data...', progress: 95 });
-
-      // Send all upload IDs to our backend for processing
+      
+      setImportStatus({ status: 'processing', message: 'Processing data...', progress: 95 });
+      
       const res = await fetch('/api/imports/chunked/process-batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          uploads: uploadedFiles,
-          type: importType,
-        }),
+        body: JSON.stringify({ uploads, type: importType }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Import failed');
-      }
-
+      if (!res.ok) throw new Error(data.error || 'Processing failed');
+      
       if (data.importId) {
-        pollImportStatus(data.importId);
+        const poll = async (polls = 0) => {
+          if (polls > 360) return setError('Timeout');
+          const r = await fetch(`/api/imports/status?importId=${data.importId}`, { headers: { Authorization: `Bearer ${token}` } });
+          const d = await r.json();
+          if (d.status === 'completed') {
+            setImportStatus({ status: 'completed', message: d.message || `Imported ${d.messagesCount || 0} messages!`, progress: 100 });
+            setIsImporting(false);
+          } else if (d.status === 'failed') {
+            setError(d.error || 'Failed');
+            setImportStatus(null);
+            setIsImporting(false);
+          } else {
+            setImportStatus({ status: 'processing', message: d.message || 'Processing...', progress: d.progress || 50 });
+            setTimeout(() => poll(polls + 1), 5000);
+          }
+        };
+        poll();
       }
-
     } catch (err) {
-      console.error('Upload error:', err);
-      setError(err.message || 'Upload failed. Please try again.');
+      setError(err.message);
       setImportStatus(null);
       setIsImporting(false);
     }
-  };
-
-  // Import from existing cloud URL
-  const handleUrlImport = async () => {
-    if (!cloudUrl.trim()) {
-      setError('Please enter a cloud storage link');
-      return;
-    }
-
-    setError('');
-    setIsImporting(true);
-    setImportStatus({ status: 'pending', message: 'Starting import...', progress: 0 });
-
-    try {
-      const res = await fetch('/api/imports/cloud', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          url: cloudUrl.trim(),
-          type: importType,
-          provider: detectCloudProvider(cloudUrl),
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Import failed');
-        setImportStatus(null);
-        setIsImporting(false);
-        return;
-      }
-
-      if (data.importId) {
-        pollImportStatus(data.importId);
-      } else {
-        setImportStatus({ status: 'completed', message: `Successfully imported ${data.messagesCount || 0} messages!`, progress: 100 });
-        setIsImporting(false);
-        if (onImportComplete) onImportComplete(data);
-      }
-    } catch (err) {
-      setError('Connection error: ' + err.message);
-      setImportStatus(null);
-      setIsImporting(false);
-    }
-  };
-
-  const pollImportStatus = async (importId) => {
-    const maxPolls = 180; // 15 minutes max for large files
-    let polls = 0;
-
-    const poll = async () => {
-      if (polls >= maxPolls) {
-        setError('Import timed out. Please try again.');
-        setIsImporting(false);
-        return;
-      }
-
-      try {
-        const res = await fetch(`/api/imports/status?importId=${importId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-
-        if (data.status === 'completed') {
-          setImportStatus({ status: 'completed', message: `Successfully imported ${data.messagesCount || 0} messages!`, progress: 100 });
-          setIsImporting(false);
-          if (onImportComplete) onImportComplete(data);
-          return;
-        } else if (data.status === 'failed') {
-          setError(data.error || 'Import failed');
-          setImportStatus(null);
-          setIsImporting(false);
-          return;
-        }
-
-        setImportStatus({
-          status: 'processing',
-          message: data.message || 'Processing...',
-          progress: data.progress || 0,
-        });
-
-        polls++;
-        setTimeout(poll, 5000);
-      } catch (err) {
-        polls++;
-        setTimeout(poll, 5000);
-      }
-    };
-
-    poll();
   };
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
-        {/* Header */}
+      <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
               <Upload className="w-5 h-5 text-white" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">Import Large Files</h2>
-              <p className="text-xs text-gray-500">Up to 10GB supported</p>
+              <p className="text-xs text-gray-500">Direct upload • No external services</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white p-1" disabled={isImporting}>
-            <X className="w-5 h-5" />
-          </button>
+          <button onClick={onClose} className="text-gray-500 hover:text-white p-1" disabled={isImporting}><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Import Type Selection */}
           <div>
             <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">Data Source</label>
             <div className="flex gap-2">
-              <button
-                onClick={() => setImportType('chatgpt')}
-                disabled={isImporting}
-                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors ${
-                  importType === 'chatgpt'
-                    ? 'bg-green-500/20 border border-green-500/40 text-green-400'
-                    : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white'
-                }`}
-              >
+              <button onClick={() => setImportType('chatgpt')} disabled={isImporting}
+                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium ${importType === 'chatgpt' ? 'bg-green-500/20 border border-green-500/40 text-green-400' : 'bg-white/5 border border-white/10 text-gray-400'}`}>
                 ChatGPT Export
               </button>
-              <button
-                onClick={() => setImportType('facebook')}
-                disabled={isImporting}
-                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors ${
-                  importType === 'facebook'
-                    ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400'
-                    : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white'
-                }`}
-              >
+              <button onClick={() => setImportType('facebook')} disabled={isImporting}
+                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium ${importType === 'facebook' ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400' : 'bg-white/5 border border-white/10 text-gray-400'}`}>
                 Facebook Export
               </button>
             </div>
           </div>
 
-          {/* Import Mode Toggle */}
-          <div className="flex rounded-lg bg-white/5 p-1">
-            <button
-              onClick={() => { setImportMode('direct'); setError(''); }}
-              disabled={isImporting}
-              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                importMode === 'direct'
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              <Upload className="w-4 h-4" />
-              WeTransfer
-            </button>
-            <button
-              onClick={() => { setImportMode('url'); setError(''); }}
-              disabled={isImporting}
-              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
-                importMode === 'url'
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              <Link2 className="w-4 h-4" />
-              Other Services
-            </button>
-          </div>
-
-          {/* Direct Upload Mode - Using WeTransfer */}
-          {importMode === 'direct' && (
-            <div className="space-y-4">
-              {/* Step-by-step instructions */}
-              <div className="bg-gradient-to-br from-blue-500/10 to-pink-500/10 border border-blue-500/20 rounded-xl p-4">
-                <p className="text-sm font-medium text-white mb-3 flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-blue-400" />
-                  Simple 3-Step Process
-                </p>
-                
-                <div className="space-y-3 text-sm">
-                  {/* Step 1 */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold flex-shrink-0">1</div>
-                    <div className="flex-1">
-                      <p className="text-gray-300">Upload your ZIP file to WeTransfer (free, no account needed)</p>
-                      <button
-                        onClick={() => window.open('https://wetransfer.com/', '_blank')}
-                        disabled={isImporting}
-                        className="mt-2 px-4 py-2 bg-blue-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        Open WeTransfer
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Step 2 */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold flex-shrink-0">2</div>
-                    <div className="flex-1">
-                      <p className="text-gray-300">After upload, copy the page URL</p>
-                      <p className="text-xs text-gray-500 mt-1">It looks like: <code className="bg-black/30 px-1 rounded">https://we.tl/t-AbCdEfGh</code></p>
-                    </div>
-                  </div>
-
-                  {/* Step 3 */}
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold flex-shrink-0">3</div>
-                    <div className="flex-1">
-                      <p className="text-gray-300">Paste the link below and click Import</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* URL Input for WeTransfer link */}
-              <div>
-                <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">WeTransfer Link</label>
-                <div className="relative">
-                  <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="url"
-                    value={cloudUrl}
-                    onChange={(e) => setCloudUrl(e.target.value)}
-                    placeholder="https://we.tl/t/... (paste your link here)"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50"
-                    disabled={isImporting}
-                  />
-                </div>
-                {cloudUrl && (cloudUrl.includes('we.tl') || cloudUrl.includes('wetransfer.com')) && (
-                  <p className="mt-1.5 text-xs text-green-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> WeTransfer link detected
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* URL Mode - Other cloud services */}
-          {importMode === 'url' && (
-            <div className="space-y-4">
-              <div className="bg-white/5 rounded-xl p-3 text-xs text-gray-400">
-                <p className="font-medium text-gray-300 mb-2">Other supported services:</p>
-                <div className="flex flex-wrap gap-2">
-                  <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded">Dropbox</span>
-                  <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded">OneDrive</span>
-                  <span className="px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded">Google Drive*</span>
-                </div>
-                <p className="text-[10px] text-yellow-500/70 mt-2">*Google Drive may block files over 100MB. Use GoFile.io for large files.</p>
-              </div>
-
-              <div>
-                <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">Cloud Storage Link</label>
-                <div className="relative">
-                  <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="url"
-                    value={cloudUrl}
-                    onChange={(e) => setCloudUrl(e.target.value)}
-                    placeholder="https://www.dropbox.com/... or other link"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50"
-                    disabled={isImporting}
-                  />
-                </div>
-                {cloudUrl && (
-                  <p className="mt-1.5 text-xs text-gray-500">
-                    Detected: <span className="text-blue-400 capitalize">{detectCloudProvider(cloudUrl)}</span>
-                    {detectCloudProvider(cloudUrl) === 'google' && <span className="text-yellow-500/70 ml-2">(may not work for large files)</span>}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Error Message */}
-          {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span className="flex-1">{error}</span>
-            </div>
-          )}
-
-          {/* Import Status */}
-          {importStatus && (
-            <div className={`p-4 rounded-lg ${
-              importStatus.status === 'completed' ? 'bg-green-500/10 border border-green-500/30' :
-              importStatus.status === 'failed' ? 'bg-red-500/10 border border-red-500/30' :
-              'bg-blue-500/10 border border-blue-500/30'
-            }`}>
-              <div className="flex items-center gap-2 mb-2">
-                {importStatus.status === 'completed' ? (
-                  <CheckCircle2 className="w-4 h-4 text-green-400" />
-                ) : importStatus.status === 'failed' ? (
-                  <AlertCircle className="w-4 h-4 text-red-400" />
-                ) : (
-                  <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
-                )}
-                <span className={`text-sm font-medium ${
-                  importStatus.status === 'completed' ? 'text-green-400' :
-                  importStatus.status === 'failed' ? 'text-red-400' :
-                  'text-blue-400'
-                }`}>
-                  {importStatus.message}
-                </span>
-              </div>
-              {(importStatus.status === 'uploading' || importStatus.status === 'processing') && importStatus.progress > 0 && (
-                <div className="w-full bg-white/10 rounded-full h-1.5">
-                  <div
-                    className={`h-1.5 rounded-full transition-all duration-500 ${
-                      importStatus.status === 'uploading' ? 'bg-orange-500' : 'bg-blue-500'
-                    }`}
-                    style={{ width: `${importStatus.progress}%` }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Import Button or Done Button */}
-          {importStatus?.status === 'completed' ? (
-            <button
-              onClick={onClose}
-              className="w-full py-3 rounded-xl text-sm font-medium bg-green-500 text-white hover:bg-green-600 transition-all flex items-center justify-center gap-2"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Done
-            </button>
-          ) : (
-            <button
-              onClick={handleUrlImport}
-              disabled={!cloudUrl.trim() || isImporting}
-              className={`w-full py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                (cloudUrl.trim() && !isImporting)
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
-                  : 'bg-white/5 text-gray-600 cursor-not-allowed'
-              }`}
-            >
-              {isImporting ? (
+          <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-xl p-4">
+            <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".zip" multiple className="hidden" disabled={isImporting} />
+            <button onClick={() => fileInputRef.current?.click()} disabled={isImporting}
+              className={`w-full py-6 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 ${selectedFiles.length > 0 ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-white/20 hover:border-cyan-500/50'}`}>
+              {selectedFiles.length > 0 ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {importStatus?.status === 'uploading' ? 'Uploading...' : 'Processing...'}
+                  <FileArchive className="w-10 h-10 text-cyan-400" />
+                  <span className="text-sm text-white font-medium">{selectedFiles.length} file(s) • {formatFileSize(getTotalSize())}</span>
+                  <span className="text-[10px] text-cyan-400/70">Click to change</span>
                 </>
               ) : (
                 <>
-                  <Download className="w-4 h-4" />
-                  Import Data
+                  <Upload className="w-10 h-10 text-gray-500" />
+                  <span className="text-sm text-gray-400">Click to select ZIP file(s)</span>
+                  <span className="text-xs text-gray-600">Multiple files supported • Any size</span>
                 </>
               )}
+            </button>
+          </div>
+
+          {selectedFiles.length > 0 && !isImporting && (
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {selectedFiles.map((file, i) => (
+                <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileArchive className="w-4 h-4 text-cyan-400" />
+                    <span className="text-sm text-gray-300 truncate">{file.name}</span>
+                    <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
+                  </div>
+                  <button onClick={() => removeFile(i)} className="text-gray-500 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+              <AlertCircle className="w-4 h-4" /><span>{error}</span>
+            </div>
+          )}
+
+          {importStatus && (
+            <div className={`p-4 rounded-lg ${importStatus.status === 'completed' ? 'bg-green-500/10 border border-green-500/30' : 'bg-cyan-500/10 border border-cyan-500/30'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                {importStatus.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />}
+                <span className={`text-sm font-medium ${importStatus.status === 'completed' ? 'text-green-400' : 'text-cyan-400'}`}>{importStatus.message}</span>
+              </div>
+              {importStatus.progress > 0 && importStatus.status !== 'completed' && (
+                <div className="w-full bg-white/10 rounded-full h-2">
+                  <div className="bg-cyan-500 h-2 rounded-full transition-all" style={{ width: `${importStatus.progress}%` }} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {importStatus?.status === 'completed' ? (
+            <button onClick={onClose} className="w-full py-3 rounded-xl text-sm font-medium bg-green-500 text-white hover:bg-green-600 flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Done
+            </button>
+          ) : (
+            <button onClick={handleUpload} disabled={selectedFiles.length === 0 || isImporting}
+              className={`w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 ${selectedFiles.length > 0 && !isImporting ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white' : 'bg-white/5 text-gray-600 cursor-not-allowed'}`}>
+              {isImporting ? <><Loader2 className="w-4 h-4 animate-spin" /> {importStatus?.status === 'uploading' ? 'Uploading...' : 'Processing...'}</> : <><Upload className="w-4 h-4" /> Upload & Import</>}
             </button>
           )}
         </div>
@@ -1323,7 +1014,6 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     </div>
   );
 }
-
 // Schedule templates for UI
 const SCHEDULE_TEMPLATES = [
   { id: 'ai_news',    name: '🤖 AI News Digest',     prompt: 'Summarize the top 5 most important AI and machine learning stories from the last 24 hours. For each story include: what happened, why it matters, and a source if available. Format it clearly.' },
