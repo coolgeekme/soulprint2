@@ -4469,7 +4469,7 @@ function cleanExtractedText(text) {
     .substring(0, 500);
 }
 
-// Chunked upload: Complete and process
+// Chunked upload: Complete and process (messages already extracted during chunk upload)
 async function handleChunkedUploadComplete(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -4497,109 +4497,28 @@ async function handleChunkedUploadComplete(request) {
       { $set: { status: 'analyzing' } }
     );
 
-    // For large files, we need to process in a memory-efficient way
-    // Strategy: Extract only the relevant data we need from the chunks
-    // without loading the entire file into memory
+    // Get extracted messages (already collected during chunk uploads)
+    const extractedMessages = upload.extracted_messages || [];
     
-    let parsedData = { 
-      source: upload.source || 'chatgpt', 
-      userMessages: [], 
-      sampleMessages: [], // For compatibility
-      conversationCount: 0 
-    };
-    let processedChunks = 0;
-    const BATCH_SIZE = 30; // Process 30 chunks at a time (~30MB)
+    // Remove duplicates
+    const uniqueMessages = [...new Set(extractedMessages)].filter(m => m && m.length > 15);
     
-    // Process chunks in batches to extract text content
-    for (let batchStart = 0; batchStart < upload.total_chunks; batchStart += BATCH_SIZE) {
-      const batchEnd = Math.min(batchStart + BATCH_SIZE, upload.total_chunks);
-      
-      const chunkDocs = await db.collection('upload_chunks')
-        .find({ 
-          upload_id: uploadId, 
-          chunk_index: { $gte: batchStart, $lt: batchEnd } 
-        })
-        .sort({ chunk_index: 1 })
-        .toArray();
-      
-      if (chunkDocs.length === 0) continue;
-      
-      // Concatenate this batch
-      const batchBuffers = chunkDocs.map(doc => Buffer.from(doc.data, 'base64'));
-      const batchBuffer = Buffer.concat(batchBuffers);
-      
-      // Convert to string and look for JSON content
-      const textContent = batchBuffer.toString('utf8', 0, Math.min(batchBuffer.length, 5000000)); // Max 5MB text per batch
-      
-      // Extract messages - try multiple ChatGPT formats
-      // Format 1: "content": { "parts": ["message"] }
-      const chatgptMatches1 = textContent.match(/"parts"\s*:\s*\[\s*"([^"]{10,800})"/g) || [];
-      for (const match of chatgptMatches1.slice(0, 50)) {
-        const content = match.match(/"parts"\s*:\s*\[\s*"([^"]+)"/)?.[1];
-        if (content && content.length > 10 && !content.includes('\\u')) {
-          parsedData.userMessages.push(content.substring(0, 500));
-        }
-      }
-      
-      // Format 2: "text": "message" (newer format)
-      const chatgptMatches2 = textContent.match(/"text"\s*:\s*"([^"]{10,800})"/g) || [];
-      for (const match of chatgptMatches2.slice(0, 50)) {
-        const content = match.match(/"text"\s*:\s*"([^"]+)"/)?.[1];
-        if (content && content.length > 15 && !content.startsWith('http') && !content.includes('\\u')) {
-          parsedData.userMessages.push(content.substring(0, 500));
-        }
-      }
-      
-      // Format 3: "message": "..." (generic)
-      const chatgptMatches3 = textContent.match(/"message"\s*:\s*"([^"]{15,800})"/g) || [];
-      for (const match of chatgptMatches3.slice(0, 30)) {
-        const content = match.match(/"message"\s*:\s*"([^"]+)"/)?.[1];
-        if (content && content.length > 15) {
-          parsedData.userMessages.push(content.substring(0, 500));
-        }
-      }
-      
-      // Facebook format: "content": "message"
-      const fbMatches = textContent.match(/"content"\s*:\s*"([^"]{10,500})"/g) || [];
-      for (const match of fbMatches.slice(0, 50)) {
-        const content = match.match(/"content"\s*:\s*"([^"]+)"/)?.[1];
-        if (content && content.length > 10) {
-          parsedData.userMessages.push(content.substring(0, 500));
-        }
-      }
-      
-      // Delete processed chunks immediately to free memory
-      await db.collection('upload_chunks').deleteMany({ 
-        upload_id: uploadId, 
-        chunk_index: { $gte: batchStart, $lt: batchEnd } 
-      });
-      
-      processedChunks = batchEnd;
-      
-      // If we have enough messages, stop processing
-      if (parsedData.userMessages.length >= 300) break;
-      
-      // Force garbage collection between batches
-      if (global.gc) global.gc();
-    }
-    
-    // Clean up any remaining chunks
-    await db.collection('upload_chunks').deleteMany({ upload_id: uploadId });
-    
-    // Remove duplicates and limit messages for analysis
-    parsedData.userMessages = [...new Set(parsedData.userMessages)].slice(0, 200);
-    parsedData.sampleMessages = parsedData.userMessages; // For compatibility with analyzeCommmunicationStyle
-    parsedData.userMessageCount = parsedData.userMessages.length;
-    parsedData.conversationCount = Math.ceil(parsedData.userMessages.length / 10);
-    
-    console.log(`Extracted ${parsedData.userMessages.length} messages from ${processedChunks} chunks`);
+    console.log(`Total extracted messages: ${uniqueMessages.length} from ${upload.total_chunks} chunks`);
 
     // Check if we have enough data
-    if (parsedData.userMessages.length < 5) {
-      // Delete the upload record
+    if (uniqueMessages.length < 5) {
       await db.collection('chunked_uploads').deleteOne({ id: uploadId });
-      return err('Could not extract enough messages from your export. Please ensure the file contains conversation history.', 400);
+      return err('Could not extract enough messages from your export. The file may be empty, corrupted, or in an unsupported format. Please ensure you uploaded a ChatGPT or Facebook data export ZIP file.', 400);
     }
+
+    // Prepare data for analysis
+    const parsedData = { 
+      source: upload.source || 'chatgpt', 
+      sampleMessages: uniqueMessages.slice(0, 200), // Use sampleMessages for compatibility
+      userMessages: uniqueMessages.slice(0, 200),
+      conversationCount: Math.ceil(uniqueMessages.length / 10),
+      userMessageCount: uniqueMessages.length,
+    };
 
     // Create import record
     const importId = uuidv4();
@@ -4612,8 +4531,8 @@ async function handleChunkedUploadComplete(request) {
       file_size: upload.file_size,
       parsed_stats: {
         source: parsedData.source,
-        conversationCount: parsedData.conversationCount || 0,
-        messageCount: parsedData.userMessageCount || 0,
+        conversationCount: parsedData.conversationCount,
+        messageCount: parsedData.userMessageCount,
       },
       created_at: new Date(),
     });
@@ -4626,43 +4545,43 @@ async function handleChunkedUploadComplete(request) {
         { id: importId },
         { $set: { status: 'error', error: analysis.error } }
       );
-      throw new Error(analysis.error);
+      // Still return success but with limited data
+      console.error('Analysis error:', analysis.error);
+    } else {
+      // Save analysis results
+      await db.collection('data_imports').updateOne(
+        { id: importId },
+        { $set: { status: 'complete', analysis, completed_at: new Date() } }
+      );
+
+      // Update soul profile
+      const existingProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
+      const updatedInsights = mergeInsights(existingProfile?.insights || {}, analysis, parsedData.source);
+      
+      await db.collection('soul_profiles').updateOne(
+        { user_id: user.id },
+        { 
+          $set: { insights: updatedInsights, updated_at: new Date() },
+          $push: { import_history: { import_id: importId, source: parsedData.source, analyzed_at: new Date() } }
+        },
+        { upsert: true }
+      );
+
+      // Invalidate system prompt cache
+      invalidateSystemPromptCache(user.id);
     }
 
-    // Save analysis results
-    await db.collection('data_imports').updateOne(
-      { id: importId },
-      { $set: { status: 'complete', analysis, completed_at: new Date() } }
-    );
-
-    // Update soul profile
-    const existingProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
-    const updatedInsights = mergeInsights(existingProfile?.insights || {}, analysis, parsedData.source);
-    
-    await db.collection('soul_profiles').updateOne(
-      { user_id: user.id },
-      { 
-        $set: { insights: updatedInsights, updated_at: new Date() },
-        $push: { import_history: { import_id: importId, source: parsedData.source, analyzed_at: new Date() } }
-      },
-      { upsert: true }
-    );
-
-    // Invalidate system prompt cache so both web and Telegram get updated profile
-    invalidateSystemPromptCache(user.id);
-
-    // Delete chunked upload record
+    // Clean up - delete chunked upload record
     await db.collection('chunked_uploads').deleteOne({ id: uploadId });
 
     return ok({
       success: true,
       importId,
-      analysis,
+      analysis: analysis.error ? { summary: 'Import completed but analysis had issues.' } : analysis,
       stats: {
         source: parsedData.source,
-        conversationsAnalyzed: parsedData.conversationCount || 0,
-        messagesAnalyzed: parsedData.userMessageCount || parsedData.messageCount || 0,
-        postsAnalyzed: parsedData.postCount || 0,
+        messagesExtracted: uniqueMessages.length,
+        messagesAnalyzed: Math.min(uniqueMessages.length, 200),
       }
     });
 
@@ -4670,7 +4589,6 @@ async function handleChunkedUploadComplete(request) {
     console.error('Upload complete error:', e);
     
     // Clean up on error
-    await db.collection('upload_chunks').deleteMany({ upload_id: uploadId }).catch(() => {});
     await db.collection('chunked_uploads').updateOne(
       { id: uploadId },
       { $set: { status: 'error', error: e.message } }
