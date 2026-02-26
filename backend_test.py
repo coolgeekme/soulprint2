@@ -820,18 +820,48 @@ class MemoryTester:
 def main():
     """Main test execution"""
     try:
-        tester = MemoryTester()
-        success = tester.run_comprehensive_test()
+        # Run Multi-Model Comparison tests
+        print("🔍 MULTI-MODEL COMPARISON TESTING")
+        print("=" * 60)
         
-        if success:
-            print("\n✅ Memory System Testing: PASSED")
+        comparison_tester = MultiModelCompareTester()
+        comparison_success = comparison_tester.run_comprehensive_test()
+        
+        print("\n" + "=" * 60)
+        
+        # Run Memory System tests
+        print("🧠 MEMORY SYSTEM TESTING") 
+        print("=" * 60)
+        
+        memory_tester = MemoryTester()
+        memory_success = memory_tester.run_comprehensive_test()
+        
+        # Overall results
+        print("\n" + "=" * 80)
+        print("🎯 OVERALL TEST RESULTS")
+        print("=" * 80)
+        
+        if comparison_success:
+            print("✅ Multi-Model Comparison: PASSED")
+        else:
+            print("❌ Multi-Model Comparison: FAILED")
+            
+        if memory_success:
+            print("✅ Memory System: PASSED")
+        else:
+            print("❌ Memory System: FAILED")
+            
+        overall_success = comparison_success and memory_success
+        
+        if overall_success:
+            print("\n🎉 ALL BACKEND TESTS: PASSED")
             sys.exit(0)
         else:
-            print("\n❌ Memory System Testing: FAILED")
+            print("\n❌ SOME BACKEND TESTS: FAILED")
             sys.exit(1)
             
     except Exception as e:
-        print(f"\n💥 Memory System Testing: CRASHED - {str(e)}")
+        print(f"\n💥 Backend Testing: CRASHED - {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
