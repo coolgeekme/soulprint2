@@ -4768,21 +4768,18 @@ async function processCloudImport(importId, userId, cloudUrl, importType, provid
   }
 }
 
-// Helper to extract ChatGPT messages from ZIP buffer using unzipper
+// Helper to extract ChatGPT messages from ZIP buffer using adm-zip
 async function extractChatGPTMessagesFromBuffer(buffer) {
   const messages = [];
   try {
-    const unzipper = require('unzipper');
-    const { Readable } = require('stream');
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(buffer);
+    const zipEntries = zip.getEntries();
     
-    // Create a readable stream from buffer and pipe through unzipper
-    const stream = Readable.from(buffer);
-    const directory = await unzipper.Open.buffer(buffer);
-    
-    for (const file of directory.files) {
-      if (file.path === 'conversations.json' || file.path.endsWith('/conversations.json')) {
-        const content = await file.buffer();
-        const conversations = JSON.parse(content.toString('utf8'));
+    for (const entry of zipEntries) {
+      if (entry.entryName === 'conversations.json' || entry.entryName.endsWith('/conversations.json')) {
+        const content = entry.getData().toString('utf8');
+        const conversations = JSON.parse(content);
         
         for (const conv of conversations) {
           if (conv.mapping) {
@@ -4807,18 +4804,19 @@ async function extractChatGPTMessagesFromBuffer(buffer) {
   return messages;
 }
 
-// Helper to extract Facebook messages from ZIP buffer using unzipper
+// Helper to extract Facebook messages from ZIP buffer using adm-zip
 async function extractFacebookMessagesFromBuffer(buffer) {
   const messages = [];
   try {
-    const unzipper = require('unzipper');
-    const directory = await unzipper.Open.buffer(buffer);
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(buffer);
+    const zipEntries = zip.getEntries();
     
-    for (const file of directory.files) {
-      if (file.path.includes('messages/') && file.path.endsWith('.json')) {
+    for (const entry of zipEntries) {
+      if (entry.entryName.includes('messages/') && entry.entryName.endsWith('.json')) {
         try {
-          const content = await file.buffer();
-          const data = JSON.parse(content.toString('utf8'));
+          const content = entry.getData().toString('utf8');
+          const data = JSON.parse(content);
           
           if (data.messages && Array.isArray(data.messages)) {
             for (const msg of data.messages) {
