@@ -5628,6 +5628,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'admin/settings') return handleAdminUpdateSettings(request);
     if (pathStr === 'admin/waitlist/approve') return handleAdminApproveWaitlist(request);
     if (pathStr === 'admin/feedback/summarize') return handleAdminSummarizeFeedback(request);
+    if (pathStr === 'admin/announcements') return handleAdminCreateAnnouncement(request);
+    if (pathStr === 'announcements/dismiss') return handleDismissAnnouncement(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
 
     // Other connector stubs
