@@ -4769,60 +4769,95 @@ async function handleChunkedUploadComplete(request) {
   }
 }
 
-// Helper function to extract messages from ZIP file
+// Helper function to extract messages from ZIP file using streaming (memory efficient)
 async function extractMessagesFromZip(zipPath, source) {
   const messages = [];
+  let filesProcessed = 0;
+  const MAX_FILES = 100; // Limit files to process
+  const MAX_MESSAGES = 500; // Stop once we have enough messages
   
-  try {
-    const zip = new AdmZip(zipPath);
-    const zipEntries = zip.getEntries();
-    
-    console.log(`Found ${zipEntries.length} entries in ZIP`);
-    
-    for (const entry of zipEntries) {
-      // Skip directories and non-JSON files
-      if (entry.isDirectory) continue;
-      const name = entry.entryName.toLowerCase();
-      if (!name.endsWith('.json')) continue;
-      
-      // Skip small files (likely not conversation data)
-      if (entry.header.size < 100) continue;
-      
-      try {
-        const content = entry.getData().toString('utf8');
-        const data = JSON.parse(content);
+  return new Promise((resolve, reject) => {
+    fs.createReadStream(zipPath)
+      .pipe(unzipper.Parse())
+      .on('entry', async (entry) => {
+        const fileName = entry.path.toLowerCase();
+        const type = entry.type;
         
-        // Extract messages based on source type
-        if (source === 'chatgpt' || name.includes('conversation')) {
-          extractChatGPTMessages(data, messages);
-        } else if (source === 'facebook' || name.includes('message') || name.includes('inbox')) {
-          extractFacebookMessages(data, messages);
-        } else {
-          // Try both formats
-          extractChatGPTMessages(data, messages);
-          extractFacebookMessages(data, messages);
+        // Skip if we have enough data
+        if (messages.length >= MAX_MESSAGES || filesProcessed >= MAX_FILES) {
+          entry.autodrain();
+          return;
         }
         
-        // Limit to prevent memory issues
-        if (messages.length > 1000) break;
+        // Skip directories and non-JSON files
+        if (type === 'Directory' || !fileName.endsWith('.json')) {
+          entry.autodrain();
+          return;
+        }
         
-      } catch (parseErr) {
-        // Skip files that can't be parsed
-        console.log(`Skipping ${entry.entryName}: ${parseErr.message}`);
-        continue;
-      }
-    }
-  } catch (zipErr) {
-    console.error('ZIP extraction error:', zipErr);
-    throw new Error(`Failed to extract ZIP: ${zipErr.message}`);
-  }
-  
-  // Remove duplicates and clean
-  const uniqueMessages = [...new Set(messages)]
-    .filter(m => m && m.length > 10 && m.length < 2000)
-    .map(m => m.trim().substring(0, 500));
-  
-  return uniqueMessages;
+        // Skip obviously non-conversation files
+        if (fileName.includes('model_comparisons') || 
+            fileName.includes('shared_conversations') ||
+            fileName.includes('user_info') ||
+            fileName.includes('settings')) {
+          entry.autodrain();
+          return;
+        }
+        
+        filesProcessed++;
+        
+        try {
+          // Read the file content
+          const chunks = [];
+          for await (const chunk of entry) {
+            chunks.push(chunk);
+            // Limit file size to prevent memory issues (10MB max per file)
+            if (Buffer.concat(chunks).length > 10 * 1024 * 1024) {
+              console.log(`Skipping large file: ${fileName}`);
+              break;
+            }
+          }
+          
+          const content = Buffer.concat(chunks).toString('utf8');
+          
+          // Try to parse JSON
+          try {
+            const data = JSON.parse(content);
+            
+            // Extract messages based on source type
+            if (source === 'chatgpt' || fileName.includes('conversation')) {
+              extractChatGPTMessages(data, messages);
+            } else if (source === 'facebook' || fileName.includes('message') || fileName.includes('inbox')) {
+              extractFacebookMessages(data, messages);
+            } else {
+              // Try both formats
+              extractChatGPTMessages(data, messages);
+              extractFacebookMessages(data, messages);
+            }
+            
+            console.log(`Processed ${fileName}: now have ${messages.length} messages`);
+          } catch (parseErr) {
+            console.log(`Skipping ${fileName}: invalid JSON`);
+          }
+        } catch (readErr) {
+          console.log(`Error reading ${fileName}: ${readErr.message}`);
+        }
+      })
+      .on('close', () => {
+        console.log(`ZIP processing complete. Processed ${filesProcessed} files, extracted ${messages.length} messages`);
+        
+        // Remove duplicates and clean
+        const uniqueMessages = [...new Set(messages)]
+          .filter(m => m && m.length > 10 && m.length < 2000)
+          .map(m => m.trim().substring(0, 500));
+        
+        resolve(uniqueMessages);
+      })
+      .on('error', (err) => {
+        console.error('ZIP stream error:', err);
+        reject(new Error(`Failed to process ZIP: ${err.message}`));
+      });
+  });
 }
 
 // Extract messages from ChatGPT export format
