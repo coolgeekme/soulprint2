@@ -2119,12 +2119,11 @@ export default function ChatPage() {
   }, [token]);
 
   const sendMessage = useCallback(async () => {
-    if ((!input.trim() && attachments.length === 0) || loading) return;
+    if ((!input.trim() && attachments.length === 0) || loading || compareLoading) return;
     const content = input.trim();
     const currentAttachments = [...attachments];
     setInput('');
     setAttachments([]);
-    setLoading(true);
     setStreamingContent('');
     setSearchingWeb(false);
     setSearchQueries([]);
@@ -2136,9 +2135,58 @@ export default function ChatPage() {
     const userMsg = { id: `u-${Date.now()}`, role: 'user', content: displayContent, created_at: new Date().toISOString(), attachments: currentAttachments };
     setMessages(prev => [...prev.filter(m => m.id !== 'greeting' || prev.length === 1), userMsg]);
 
+    // Clear any previous comparison
+    setCompareResponses(null);
+    setSelectedCompareResponse(null);
+
     let newConvId = conversationId;
     let fullContent = '';
 
+    // ── Compare Mode: Send to multiple models ──
+    if (compareMode && compareModels.length > 0) {
+      setCompareLoading(true);
+      try {
+        const res = await fetch('/api/chat/compare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            conversationId: newConvId,
+            content,
+            models: compareModels,
+            attachments: currentAttachments,
+            enableWebSearch: webSearchEnabled,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: `Error: ${errData.error || 'Comparison failed'}`, created_at: new Date().toISOString() }]);
+          setCompareLoading(false);
+          return;
+        }
+
+        const data = await res.json();
+        setConversationId(data.conversationId);
+        setCompareResponses({
+          responses: data.responses,
+          comparisonId: data.comparisonId,
+          userMessageId: data.userMessageId,
+          usedWebSearch: data.usedWebSearch,
+        });
+
+        // Refresh conversations list
+        fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : []));
+      } catch (err) {
+        setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: 'Connection error during comparison. Please try again.', created_at: new Date().toISOString() }]);
+      } finally {
+        setCompareLoading(false);
+      }
+      return;
+    }
+
+    // ── Single Model Mode: Stream response ──
+    setLoading(true);
     try {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
@@ -2223,7 +2271,60 @@ export default function ChatPage() {
       setSearchingWeb(false);
       inputRef.current?.focus();
     }
-  }, [input, loading, token, selectedModel, conversationId, attachments, webSearchEnabled]);
+  }, [input, loading, compareLoading, token, selectedModel, conversationId, attachments, webSearchEnabled, compareMode, compareModels]);
+
+  // Handle selecting a response from comparison
+  const handleSelectCompareResponse = useCallback(async (response) => {
+    if (!compareResponses || selectedCompareResponse) return;
+    
+    setSelectedCompareResponse(response.model);
+    
+    try {
+      const res = await fetch('/api/chat/compare/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          comparisonId: compareResponses.comparisonId,
+          selectedModel: response.model,
+          selectedContent: response.content,
+        }),
+      });
+
+      if (!res.ok) {
+        console.error('Failed to save comparison selection');
+        return;
+      }
+
+      const data = await res.json();
+      
+      // Add the selected response as a message and switch to that model
+      const finalMsg = {
+        id: data.messageId || `a-${Date.now()}`,
+        role: 'assistant',
+        content: response.content,
+        created_at: new Date().toISOString(),
+        model_used: response.model,
+        from_comparison: true,
+      };
+      setMessages(prev => [...prev, finalMsg]);
+      
+      // Switch to the selected model for future messages
+      setSelectedModel(response.model);
+      
+      // Clear comparison state after a short delay (to show the selection)
+      setTimeout(() => {
+        setCompareResponses(null);
+        setSelectedCompareResponse(null);
+      }, 1500);
+      
+      // Refresh conversations
+      fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : []));
+        
+    } catch (err) {
+      console.error('Error saving comparison selection:', err);
+    }
+  }, [compareResponses, selectedCompareResponse, token]);
 
   async function loadConversation(convId) {
     setConversationId(convId);
