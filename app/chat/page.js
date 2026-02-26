@@ -1348,6 +1348,88 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
             </div>
           )}
 
+          {/* MEMORIES TAB */}
+          {activeTab === 'memories' && (
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4">
+                <h4 className="text-white text-sm font-medium mb-1">🧠 Long-Term Memory</h4>
+                <p className="text-gray-500 text-xs">
+                  Important facts about you that the AI remembers across ALL conversations. Memories are auto-extracted from chats and can also be added manually.
+                </p>
+              </div>
+
+              {/* Add Memory Form */}
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newMemory}
+                    onChange={(e) => setNewMemory(e.target.value)}
+                    placeholder="Add a fact about yourself... (e.g., 'I am allergic to peanuts')"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500/40 outline-none"
+                    onKeyDown={(e) => e.key === 'Enter' && addMemory()}
+                  />
+                  <button onClick={addMemory} disabled={!newMemory.trim()} className="px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg text-sm hover:bg-purple-500/30 transition-colors disabled:opacity-50">
+                    Add
+                  </button>
+                </div>
+                <select
+                  value={newMemoryCategory}
+                  onChange={(e) => setNewMemoryCategory(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-gray-400 text-xs"
+                >
+                  {memoryCategories.map(cat => (
+                    <option key={cat} value={cat}>Category: {cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Load Memories Button */}
+              <button onClick={loadMemories} className="w-full py-2 bg-white/5 border border-white/10 rounded-lg text-gray-500 hover:text-white text-xs transition-colors">
+                {memoriesLoading ? 'Loading...' : 'Load Memories'}
+              </button>
+
+              {/* Memories List */}
+              {memories.length > 0 ? (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {memories.map(mem => (
+                    <div key={mem.id} className={`flex items-start gap-3 p-3 rounded-lg border ${
+                      mem.category === 'health' ? 'bg-red-500/5 border-red-500/20' :
+                      mem.category === 'preferences' ? 'bg-blue-500/5 border-blue-500/20' :
+                      mem.category === 'relationships' ? 'bg-pink-500/5 border-pink-500/20' :
+                      mem.category === 'work' ? 'bg-green-500/5 border-green-500/20' :
+                      'bg-white/5 border-white/10'
+                    }`}>
+                      <div className="flex-1">
+                        <p className="text-white text-sm">{mem.content}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                            mem.category === 'health' ? 'bg-red-500/20 text-red-400' :
+                            mem.category === 'preferences' ? 'bg-blue-500/20 text-blue-400' :
+                            mem.category === 'relationships' ? 'bg-pink-500/20 text-pink-400' :
+                            mem.category === 'work' ? 'bg-green-500/20 text-green-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {mem.category}
+                          </span>
+                          <span className="text-gray-600 text-[10px]">{mem.source === 'auto' ? '🤖 Auto' : '✍️ Manual'}</span>
+                          {mem.importance === 'high' && <span className="text-orange-400 text-[10px]">⚠️ Important</span>}
+                        </div>
+                      </div>
+                      <button onClick={() => deleteMemory(mem.id)} className="text-gray-600 hover:text-red-400 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-600 text-xs text-center py-4">
+                  No memories yet. Chat with the AI and important facts will be automatically remembered, or add them manually above.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* PROFILE TAB */}
           {activeTab === 'profile' && (
             <div className="space-y-5">
