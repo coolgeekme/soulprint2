@@ -1687,6 +1687,20 @@ export default function ChatPage() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [convMenuId]);
 
+  // Dismiss announcement
+  async function dismissAnnouncement(announcementId) {
+    setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
+    try {
+      await fetch('/api/announcements/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ announcementId }),
+      });
+    } catch (e) {
+      console.error('Failed to dismiss announcement:', e);
+    }
+  }
+
   async function handleFileSelect(e) {
     const files = Array.from(e.target.files || []);
     setFileError('');
