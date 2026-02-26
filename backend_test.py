@@ -47,7 +47,7 @@ def test_feedback_system():
     print("Step 1: Testing Login")
     login_data = {
         "email": "test@soulprint.com",
-        "password": "test123"
+        "passcode": "test123"
     }
     
     login_response = make_request("POST", "/auth/login", login_data)
