@@ -839,7 +839,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     }
   };
 
-  // Direct upload to transfer.sh then process
+  // Direct upload through our backend (which proxies to transfer.sh)
   const handleDirectUpload = async () => {
     if (!selectedFile) {
       setError('Please select a file');
@@ -848,13 +848,18 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
     setError('');
     setIsImporting(true);
-    setImportStatus({ status: 'uploading', message: 'Uploading to secure storage...', progress: 0 });
+    setImportStatus({ status: 'uploading', message: 'Uploading...', progress: 0 });
 
     try {
-      // Upload to transfer.sh
+      // Create FormData and upload to our backend
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('type', importType);
+
+      // Use XMLHttpRequest for progress tracking
       const xhr = new XMLHttpRequest();
       
-      await new Promise((resolve, reject) => {
+      const result = await new Promise((resolve, reject) => {
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
             const percent = Math.round((e.loaded / e.total) * 100);
@@ -869,44 +874,36 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
         xhr.addEventListener('load', () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(xhr.responseText.trim());
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error('Invalid response'));
+            }
           } else {
-            reject(new Error(`Upload failed: ${xhr.status}`));
+            try {
+              const errData = JSON.parse(xhr.responseText);
+              reject(new Error(errData.error || `Upload failed: ${xhr.status}`));
+            } catch {
+              reject(new Error(`Upload failed: ${xhr.status}`));
+            }
           }
         });
 
-        xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+        xhr.addEventListener('error', () => reject(new Error('Upload failed - network error')));
         xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
 
-        // Use transfer.sh for secure temporary storage
-        xhr.open('PUT', `https://transfer.sh/${encodeURIComponent(selectedFile.name)}`);
-        xhr.setRequestHeader('Max-Days', '1'); // File expires in 1 day
-        xhr.send(selectedFile);
-      }).then(async (downloadUrl) => {
-        console.log('File uploaded to:', downloadUrl);
-        setImportStatus({ status: 'processing', message: 'Processing your data...', progress: 0 });
-
-        // Now call our backend to process the file
-        const res = await fetch('/api/imports/cloud', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            url: downloadUrl,
-            type: importType,
-            provider: 'transfer.sh',
-          }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || 'Import failed');
-        }
-
-        if (data.importId) {
-          pollImportStatus(data.importId);
-        }
+        // Upload to our backend (which proxies to transfer.sh)
+        xhr.open('POST', '/api/imports/direct');
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.send(formData);
       });
+
+      console.log('Upload result:', result);
+      setImportStatus({ status: 'processing', message: 'Processing your data...', progress: 0 });
+
+      if (result.importId) {
+        pollImportStatus(result.importId);
+      }
 
     } catch (err) {
       console.error('Upload error:', err);
