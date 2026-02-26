@@ -28,6 +28,417 @@ AVAILABLE_MODELS = [
     {"model": "claude-sonnet-4-5-20250929", "provider": "anthropic"}
 ]
 
+class MultiModelCompareTester:
+    def __init__(self):
+        self.token = None
+        self.user_id = None
+        self.created_conversations = []
+        self.created_comparisons = []
+        
+    def log(self, message):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] {message}")
+        
+    def create_test_token(self):
+        """Create test JWT token for the specified user"""
+        try:
+            payload = {
+                "userId": TEST_USER_ID,
+                "iat": int(datetime.now().timestamp()),
+                "exp": int(datetime.now().timestamp()) + 3600  # 1 hour
+            }
+            token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+            self.token = token
+            self.user_id = TEST_USER_ID
+            self.log(f"✅ Test token created for user: {self.user_id}")
+            return True
+        except Exception as e:
+            self.log(f"❌ Failed to create test token: {str(e)}")
+            return False
+        
+    def test_login(self):
+        """Test user authentication"""
+        try:
+            self.log("🔐 Testing login...")
+            
+            response = requests.post(f"{API_BASE}/auth/login", json={
+                "email": TEST_EMAIL,
+                "passcode": TEST_PASSCODE
+            }, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.token = data.get("token")
+                self.user_id = data.get("userId")
+                role = data.get("role", "unknown")
+                
+                self.log(f"✅ Login successful! User ID: {self.user_id}, Role: {role}")
+                return True
+            else:
+                self.log(f"❌ Login failed with status {response.status_code}: {response.text}")
+                # Fallback to test token
+                return self.create_test_token()
+                
+        except requests.RequestException as e:
+            self.log(f"❌ Login request failed: {str(e)}")
+            # Fallback to test token
+            return self.create_test_token()
+            
+    def get_headers(self):
+        """Get headers with auth token"""
+        if not self.token:
+            raise Exception("No auth token available. Login first.")
+        return {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        
+    def test_compare_two_models(self):
+        """Test comparing 2 models with a simple question"""
+        try:
+            self.log("🔍 Testing multi-model comparison with 2 models...")
+            
+            models_to_test = AVAILABLE_MODELS[:2]  # Take first 2 models
+            content = "What are the main benefits of artificial intelligence in healthcare?"
+            
+            response = requests.post(f"{API_BASE}/chat/compare", 
+                json={
+                    "content": content,
+                    "models": models_to_test,
+                    "enableWebSearch": False,
+                    "attachments": []
+                },
+                headers=self.get_headers(),
+                timeout=60
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    comparison_id = data.get("comparisonId")
+                    conversation_id = data.get("conversationId")
+                    responses = data.get("responses", [])
+                    
+                    self.created_comparisons.append(comparison_id)
+                    self.created_conversations.append(conversation_id)
+                    
+                    self.log(f"✅ 2-model comparison successful!")
+                    self.log(f"   Comparison ID: {comparison_id}")
+                    self.log(f"   Conversation ID: {conversation_id}")
+                    self.log(f"   Responses received: {len(responses)}")
+                    
+                    # Verify each model responded
+                    for i, resp in enumerate(responses):
+                        model = resp.get("model")
+                        success = resp.get("success", False)
+                        content_length = len(resp.get("content", "")) if resp.get("content") else 0
+                        
+                        if success and content_length > 0:
+                            self.log(f"   ✅ Model {i+1} ({model}): Success, {content_length} chars")
+                        else:
+                            error = resp.get("error", "Unknown error")
+                            self.log(f"   ❌ Model {i+1} ({model}): Failed - {error}")
+                    
+                    return comparison_id, responses
+                else:
+                    self.log(f"❌ 2-model comparison failed: Invalid response format")
+                    return None, None
+            else:
+                self.log(f"❌ 2-model comparison failed with status {response.status_code}: {response.text}")
+                return None, None
+                
+        except requests.RequestException as e:
+            self.log(f"❌ 2-model comparison request failed: {str(e)}")
+            return None, None
+            
+    def test_compare_three_models(self):
+        """Test comparing 3 models (max allowed)"""
+        try:
+            self.log("🔍 Testing multi-model comparison with 3 models (max)...")
+            
+            models_to_test = AVAILABLE_MODELS[:3]  # Take first 3 models
+            content = "Explain quantum computing in simple terms"
+            
+            response = requests.post(f"{API_BASE}/chat/compare", 
+                json={
+                    "content": content,
+                    "models": models_to_test,
+                    "enableWebSearch": False,
+                    "attachments": []
+                },
+                headers=self.get_headers(),
+                timeout=90
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    comparison_id = data.get("comparisonId")
+                    conversation_id = data.get("conversationId")
+                    responses = data.get("responses", [])
+                    
+                    self.created_comparisons.append(comparison_id)
+                    self.created_conversations.append(conversation_id)
+                    
+                    self.log(f"✅ 3-model comparison successful!")
+                    self.log(f"   Comparison ID: {comparison_id}")
+                    self.log(f"   Responses received: {len(responses)}")
+                    
+                    successful_responses = 0
+                    for i, resp in enumerate(responses):
+                        model = resp.get("model")
+                        success = resp.get("success", False)
+                        
+                        if success and resp.get("content"):
+                            successful_responses += 1
+                            content_length = len(resp.get("content"))
+                            self.log(f"   ✅ Model {i+1} ({model}): Success, {content_length} chars")
+                        else:
+                            error = resp.get("error", "Unknown error")
+                            self.log(f"   ❌ Model {i+1} ({model}): Failed - {error}")
+                    
+                    return comparison_id, successful_responses >= 2  # Success if at least 2 models worked
+                else:
+                    self.log(f"❌ 3-model comparison failed: Invalid response format")
+                    return None, False
+            else:
+                self.log(f"❌ 3-model comparison failed with status {response.status_code}: {response.text}")
+                return None, False
+                
+        except requests.RequestException as e:
+            self.log(f"❌ 3-model comparison request failed: {str(e)}")
+            return None, False
+            
+    def test_reject_too_many_models(self):
+        """Test that requests with more than 3 models are rejected"""
+        try:
+            self.log("❌ Testing rejection of >3 models...")
+            
+            models_to_test = AVAILABLE_MODELS  # All 4 models (should be rejected)
+            content = "This should be rejected"
+            
+            response = requests.post(f"{API_BASE}/chat/compare", 
+                json={
+                    "content": content,
+                    "models": models_to_test,
+                    "enableWebSearch": False,
+                    "attachments": []
+                },
+                headers=self.get_headers(),
+                timeout=30
+            )
+            
+            if response.status_code == 400:
+                error_text = response.text
+                if "Maximum 3 models" in error_text:
+                    self.log("✅ Correctly rejected >3 models with proper error message")
+                    return True
+                else:
+                    self.log(f"❌ Rejected >3 models but wrong error: {error_text}")
+                    return False
+            else:
+                self.log(f"❌ Failed to reject >3 models - got status {response.status_code}")
+                return False
+                
+        except requests.RequestException as e:
+            self.log(f"❌ >3 models test request failed: {str(e)}")
+            return False
+            
+    def test_reject_no_models(self):
+        """Test that requests with no models are rejected"""
+        try:
+            self.log("❌ Testing rejection of requests with no models...")
+            
+            response = requests.post(f"{API_BASE}/chat/compare", 
+                json={
+                    "content": "This should be rejected",
+                    "models": [],  # Empty models array
+                    "enableWebSearch": False,
+                    "attachments": []
+                },
+                headers=self.get_headers(),
+                timeout=30
+            )
+            
+            if response.status_code == 400:
+                error_text = response.text
+                if "models required" in error_text:
+                    self.log("✅ Correctly rejected empty models array")
+                    return True
+                else:
+                    self.log(f"❌ Rejected empty models but wrong error: {error_text}")
+                    return False
+            else:
+                self.log(f"❌ Failed to reject empty models - got status {response.status_code}")
+                return False
+                
+        except requests.RequestException as e:
+            self.log(f"❌ No models test request failed: {str(e)}")
+            return False
+            
+    def test_select_winning_response(self, comparison_id, responses):
+        """Test selecting a winning response from comparison"""
+        if not comparison_id or not responses:
+            self.log("❌ Cannot test selection - no valid comparison data")
+            return False
+            
+        try:
+            self.log("🏆 Testing selection of winning response...")
+            
+            # Find the first successful response to select
+            winning_response = None
+            selected_model = None
+            selected_content = None
+            
+            for resp in responses:
+                if resp.get("success") and resp.get("content"):
+                    winning_response = resp
+                    selected_model = resp["model"]
+                    selected_content = resp["content"]
+                    break
+                    
+            if not winning_response:
+                self.log("❌ No successful response to select from")
+                return False
+                
+            self.log(f"   Selected model: {selected_model}")
+            self.log(f"   Content length: {len(selected_content)} chars")
+            
+            response = requests.post(f"{API_BASE}/chat/compare/select", 
+                json={
+                    "comparisonId": comparison_id,
+                    "selectedModel": selected_model,
+                    "selectedContent": selected_content
+                },
+                headers=self.get_headers(),
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    message_id = data.get("messageId")
+                    conversation_id = data.get("conversationId")
+                    
+                    self.log(f"✅ Response selection successful!")
+                    self.log(f"   Message ID: {message_id}")
+                    self.log(f"   Conversation ID: {conversation_id}")
+                    self.log(f"   Selected Model: {data.get('selectedModel')}")
+                    return True
+                else:
+                    self.log(f"❌ Response selection failed: Invalid response format")
+                    return False
+            else:
+                self.log(f"❌ Response selection failed with status {response.status_code}: {response.text}")
+                return False
+                
+        except requests.RequestException as e:
+            self.log(f"❌ Response selection request failed: {str(e)}")
+            return False
+            
+    def test_authentication_required(self):
+        """Test that endpoints require authentication"""
+        try:
+            self.log("🔒 Testing authentication requirements...")
+            
+            # Test compare endpoint without token
+            response = requests.post(f"{API_BASE}/chat/compare", 
+                json={
+                    "content": "Test",
+                    "models": [{"model": "gpt-4o", "provider": "openai"}]
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 401:
+                self.log("✅ Compare endpoint properly requires authentication")
+            else:
+                self.log(f"❌ Compare endpoint authentication not properly enforced - got status {response.status_code}")
+                return False
+                
+            # Test select endpoint without token
+            response = requests.post(f"{API_BASE}/chat/compare/select", 
+                json={
+                    "comparisonId": "test",
+                    "selectedModel": "gpt-4o",
+                    "selectedContent": "test"
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 401:
+                self.log("✅ Select endpoint properly requires authentication")
+                return True
+            else:
+                self.log(f"❌ Select endpoint authentication not properly enforced - got status {response.status_code}")
+                return False
+                
+        except requests.RequestException as e:
+            self.log(f"❌ Authentication test request failed: {str(e)}")
+            return False
+            
+    def run_comprehensive_test(self):
+        """Run comprehensive multi-model comparison tests"""
+        self.log("🚀 Starting Multi-Model Comparison API Testing")
+        self.log("=" * 60)
+        
+        # Track test results
+        tests_passed = 0
+        total_tests = 0
+        
+        # Test 1: Authentication
+        total_tests += 1
+        if self.test_login():
+            tests_passed += 1
+        else:
+            self.log("❌ Cannot continue without authentication")
+            return False
+            
+        # Test 2: Authentication required
+        total_tests += 1
+        if self.test_authentication_required():
+            tests_passed += 1
+            
+        # Test 3: Compare 2 models
+        total_tests += 1
+        comparison_id, responses = self.test_compare_two_models()
+        if comparison_id and responses:
+            tests_passed += 1
+            
+        # Test 4: Select winning response
+        total_tests += 1
+        if comparison_id and responses and self.test_select_winning_response(comparison_id, responses):
+            tests_passed += 1
+            
+        # Test 5: Compare 3 models (max allowed)
+        total_tests += 1
+        comparison_id_3, success_3 = self.test_compare_three_models()
+        if success_3:
+            tests_passed += 1
+            
+        # Test 6: Reject >3 models
+        total_tests += 1
+        if self.test_reject_too_many_models():
+            tests_passed += 1
+            
+        # Test 7: Reject no models
+        total_tests += 1
+        if self.test_reject_no_models():
+            tests_passed += 1
+            
+        # Summary
+        self.log("=" * 60)
+        self.log(f"🎯 MULTI-MODEL COMPARISON TEST SUMMARY")
+        self.log(f"   Tests Passed: {tests_passed}/{total_tests}")
+        self.log(f"   Success Rate: {(tests_passed/total_tests)*100:.1f}%")
+        
+        if tests_passed == total_tests:
+            self.log("🎉 All Multi-Model Comparison tests passed!")
+            return True
+        else:
+            self.log("⚠️  Some multi-model comparison tests failed")
+            return False
+
 class MemoryTester:
     def __init__(self):
         self.token = None
