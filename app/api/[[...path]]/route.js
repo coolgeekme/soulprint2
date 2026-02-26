@@ -5260,22 +5260,62 @@ async function processCloudImport(importId, userId, cloudUrl, importType, provid
     let downloadUrl = cloudUrl;
     let fileId = null;
     
-    // Handle Pixeldrain URLs - simple direct download
-    if (provider === 'pixeldrain' || cloudUrl.includes('pixeldrain.com')) {
-      console.log(`[CloudImport] Processing Pixeldrain URL: ${cloudUrl}`);
+    // Handle WeTransfer URLs
+    if (provider === 'wetransfer' || cloudUrl.includes('we.tl') || cloudUrl.includes('wetransfer.com')) {
+      console.log(`[CloudImport] Processing WeTransfer URL: ${cloudUrl}`);
       
-      // Extract file ID from URL (e.g., https://pixeldrain.com/u/AbCdEfGh)
-      const pixelMatch = cloudUrl.match(/\/u\/([a-zA-Z0-9]+)/);
-      if (pixelMatch) {
-        const pixelFileId = pixelMatch[1];
-        // Pixeldrain direct download URL format
-        downloadUrl = `https://pixeldrain.com/api/file/${pixelFileId}?download`;
-        console.log(`[CloudImport] Pixeldrain direct URL: ${downloadUrl}`);
+      try {
+        // First, resolve we.tl short URL to full URL
+        let fullUrl = cloudUrl;
+        if (cloudUrl.includes('we.tl')) {
+          const redirectRes = await fetch(cloudUrl, { 
+            method: 'HEAD',
+            redirect: 'manual' 
+          });
+          fullUrl = redirectRes.headers.get('location') || cloudUrl;
+          console.log(`[CloudImport] WeTransfer resolved to: ${fullUrl}`);
+        }
+        
+        // Extract transfer ID and security hash from URL
+        // Format: https://wetransfer.com/downloads/TRANSFER_ID/SECURITY_HASH
+        const wtMatch = fullUrl.match(/wetransfer\.com\/downloads\/([^\/]+)\/([^\/\?]+)/);
+        
+        if (wtMatch) {
+          const transferId = wtMatch[1];
+          const securityHash = wtMatch[2];
+          
+          // Get download link from WeTransfer API
+          const apiUrl = `https://wetransfer.com/api/v4/transfers/${transferId}/download`;
+          const apiRes = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({ security_hash: securityHash, intent: 'entire_transfer' }),
+          });
+          
+          if (apiRes.ok) {
+            const apiData = await apiRes.json();
+            if (apiData.direct_link) {
+              downloadUrl = apiData.direct_link;
+              console.log(`[CloudImport] Got WeTransfer direct link`);
+            }
+          }
+        }
+        
+        if (downloadUrl === cloudUrl) {
+          throw new Error('Could not extract download link from WeTransfer. Please make sure the link is valid and has not expired.');
+        }
+      } catch (wtError) {
+        console.error(`[CloudImport] WeTransfer error:`, wtError);
+        throw new Error('Failed to process WeTransfer link. Please make sure the link is valid and has not expired (links expire after 7 days).');
       }
     } else if (provider === 'gofile' || cloudUrl.includes('gofile.io')) {
       // GoFile requires premium account for API access - show helpful error
       console.log(`[CloudImport] GoFile URL detected - requires premium API`);
-      throw new Error('GoFile requires a premium account for direct downloads. Please use Pixeldrain instead (free, no account needed).');
+      throw new Error('GoFile requires a premium account for direct downloads. Please use WeTransfer instead (free, no account needed).');
     } else if (provider === 'google' || cloudUrl.includes('drive.google.com')) {
       // Extract file ID from Google Drive URL
       const match = cloudUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
