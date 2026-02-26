@@ -2994,21 +2994,41 @@ async function handleAdminUpdateUser(request, userId) {
   const body = await request.json();
   const db = await getDb();
 
+  // Get current user
+  const user = await db.collection('users').findOne({ id: userId });
+  if (!user) return err('User not found', 404);
+
   const update = {};
+  
+  // Basic fields
   if (body.accepted !== undefined) update.accepted = body.accepted;
+  if (body.display_name !== undefined) update.display_name = body.display_name;
+  
+  // Email change - check for duplicates
+  if (body.email !== undefined && body.email !== user.email) {
+    const existing = await db.collection('users').findOne({ email: body.email.toLowerCase() });
+    if (existing) return err('A user with this email already exists', 400);
+    update.email = body.email.toLowerCase();
+  }
+  
+  // Role change - only superadmin
   if (body.role !== undefined) {
-    // Only superadmin can change roles
     if (admin.role !== 'superadmin') return err('Only superadmin can change roles', 403);
     update.role = body.role;
   }
 
+  if (Object.keys(update).length === 0) {
+    return ok({ success: true, message: 'No changes' });
+  }
+
+  update.updated_at = new Date();
   await db.collection('users').updateOne({ id: userId }, { $set: update });
 
   // Log action
   await db.collection('admin_audit_log').insertOne({
     id: uuidv4(),
     admin_user_id: admin.id,
-    action: body.accepted !== undefined ? (body.accepted ? 'accept_user' : 'reject_user') : 'update_role',
+    action: 'update_user',
     target_user_id: userId,
     metadata: body,
     created_at: new Date(),
