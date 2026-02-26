@@ -529,6 +529,281 @@ function CompareModePicker({ selectedModels, setSelectedModels, maxModels = 3 })
   );
 }
 
+// ── CreateMenu: Dropdown for Image/Video generation ──────────────────────────
+function CreateMenu({ onGenerate, isGenerating }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('image'); // 'image' or 'video'
+  const [selectedImageModel, setSelectedImageModel] = useState(IMAGE_MODELS[0].value);
+  const [selectedVideoModel, setSelectedVideoModel] = useState(VIDEO_MODELS[0].value);
+  const [prompt, setPrompt] = useState('');
+  const [aspectRatio, setAspectRatio] = useState('1:1');
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleGenerate = () => {
+    if (!prompt.trim()) return;
+    const model = activeTab === 'image' ? selectedImageModel : selectedVideoModel;
+    onGenerate({
+      type: activeTab,
+      model,
+      prompt: prompt.trim(),
+      aspectRatio,
+    });
+    setPrompt('');
+    setIsOpen(false);
+  };
+
+  const currentImageModel = IMAGE_MODELS.find(m => m.value === selectedImageModel) || IMAGE_MODELS[0];
+  const currentVideoModel = VIDEO_MODELS.find(m => m.value === selectedVideoModel) || VIDEO_MODELS[0];
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={isGenerating}
+        className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${
+          isOpen 
+            ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white' 
+            : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+        } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
+        title="Create Image or Video"
+      >
+        {isGenerating ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Sparkles className="w-4 h-4" />
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute bottom-full mb-2 right-0 bg-[#111] border border-white/10 rounded-2xl shadow-2xl w-80 overflow-hidden z-30">
+          {/* Tabs */}
+          <div className="flex border-b border-white/10">
+            <button
+              onClick={() => setActiveTab('image')}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
+                activeTab === 'image' ? 'text-pink-400 bg-pink-500/10 border-b-2 border-pink-500' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <ImagePlus className="w-4 h-4" />
+              Image
+            </button>
+            <button
+              onClick={() => setActiveTab('video')}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
+                activeTab === 'video' ? 'text-purple-400 bg-purple-500/10 border-b-2 border-purple-500' : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <Film className="w-4 h-4" />
+              Video
+            </button>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {/* Model Selector */}
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-gray-600 mb-2 block">
+                {activeTab === 'image' ? 'Image Model' : 'Video Model'}
+              </label>
+              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                {(activeTab === 'image' ? IMAGE_MODELS : VIDEO_MODELS).map(model => (
+                  <button
+                    key={model.value}
+                    onClick={() => activeTab === 'image' ? setSelectedImageModel(model.value) : setSelectedVideoModel(model.value)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors ${
+                      (activeTab === 'image' ? selectedImageModel : selectedVideoModel) === model.value
+                        ? 'bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 text-white'
+                        : 'bg-white/3 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">{model.label}</span>
+                      <span className="text-[9px] text-gray-600">{model.description}</span>
+                    </div>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      model === (activeTab === 'image' ? IMAGE_MODELS[0] : VIDEO_MODELS[0])
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-white/5 text-gray-500'
+                    }`}>
+                      {model.costLabel}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Aspect Ratio for Images */}
+            {activeTab === 'image' && (
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-gray-600 mb-2 block">Aspect Ratio</label>
+                <div className="flex gap-2">
+                  {['1:1', '16:9', '9:16', '4:3'].map(ratio => (
+                    <button
+                      key={ratio}
+                      onClick={() => setAspectRatio(ratio)}
+                      className={`flex-1 py-1.5 rounded text-[10px] font-medium transition-colors ${
+                        aspectRatio === ratio
+                          ? 'bg-pink-500/20 border border-pink-500/40 text-pink-400'
+                          : 'bg-white/5 border border-white/10 text-gray-500 hover:text-white'
+                      }`}
+                    >
+                      {ratio}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Prompt Input */}
+            <div>
+              <label className="text-[10px] uppercase tracking-wider text-gray-600 mb-2 block">
+                Describe what you want to create
+              </label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={activeTab === 'image' 
+                  ? "A serene mountain landscape at sunset with golden light..."
+                  : "A cinematic drone shot flying through a futuristic city..."
+                }
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-pink-500/50"
+                rows={3}
+              />
+            </div>
+
+            {/* Generate Button */}
+            <button
+              onClick={handleGenerate}
+              disabled={!prompt.trim()}
+              className={`w-full py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                prompt.trim()
+                  ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600'
+                  : 'bg-white/5 text-gray-600 cursor-not-allowed'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+              Generate {activeTab === 'image' ? 'Image' : 'Video'}
+              <span className="text-[10px] opacity-70">
+                ({activeTab === 'image' ? currentImageModel.costLabel : currentVideoModel.costLabel})
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── GalleryItem: Single item in the media gallery ────────────────────────────
+function GalleryItem({ item, onClick }) {
+  const isVideo = item.type === 'video';
+  
+  return (
+    <div 
+      onClick={() => onClick(item)}
+      className="relative group cursor-pointer rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-white/20 transition-all"
+    >
+      {isVideo ? (
+        <div className="aspect-video bg-gradient-to-br from-purple-500/10 to-pink-500/10 flex items-center justify-center">
+          {item.thumbnail_url ? (
+            <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <Film className="w-8 h-8 text-purple-400" />
+          )}
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Play className="w-10 h-10 text-white" />
+          </div>
+        </div>
+      ) : (
+        <div className="aspect-square">
+          <img src={item.url} alt={item.prompt} className="w-full h-full object-cover" />
+        </div>
+      )}
+      
+      <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
+        <p className="text-[10px] text-white truncate">{item.prompt}</p>
+        <div className="flex items-center gap-2 mt-1">
+          <span className={`text-[9px] px-1.5 py-0.5 rounded ${isVideo ? 'bg-purple-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
+            {item.model_label || item.model}
+          </span>
+          <span className="text-[9px] text-gray-500">
+            {new Date(item.created_at).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── GalleryModal: Full-screen view of a gallery item ─────────────────────────
+function GalleryModal({ item, onClose }) {
+  if (!item) return null;
+  
+  const isVideo = item.type === 'video';
+  
+  return (
+    <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <span className={`text-xs px-2 py-1 rounded ${isVideo ? 'bg-purple-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
+              {isVideo ? 'Video' : 'Image'} • {item.model_label || item.model}
+            </span>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        
+        <div className="flex-1 flex items-center justify-center overflow-hidden rounded-xl bg-black">
+          {isVideo ? (
+            <video 
+              src={item.url} 
+              controls 
+              autoPlay 
+              className="max-w-full max-h-[70vh] rounded-lg"
+            />
+          ) : (
+            <img 
+              src={item.url} 
+              alt={item.prompt} 
+              className="max-w-full max-h-[70vh] object-contain rounded-lg"
+            />
+          )}
+        </div>
+        
+        <div className="mt-4 p-4 bg-white/5 rounded-xl">
+          <p className="text-sm text-gray-300 mb-2">{item.prompt}</p>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500">
+              {new Date(item.created_at).toLocaleString()}
+            </span>
+            <a 
+              href={item.url} 
+              download 
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-lg text-xs text-white hover:bg-white/20 transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Schedule templates for UI
 const SCHEDULE_TEMPLATES = [
   { id: 'ai_news',    name: '🤖 AI News Digest',     prompt: 'Summarize the top 5 most important AI and machine learning stories from the last 24 hours. For each story include: what happened, why it matters, and a source if available. Format it clearly.' },
