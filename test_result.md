@@ -761,6 +761,66 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: AI feedback summarization working perfectly! Processes feedback collection, generates comprehensive analysis using GPT-4o-mini. Returns summary with overall themes, action items, sentiment analysis. Tested with 2 feedback items - identified positive user sentiment, functionality appreciation, 4/5 ratings. Includes feedbackCount=2, dateRange with oldest/newest timestamps. Requires admin/superadmin role."
+
+  - task: "Admin Announcement Management (POST /api/admin/announcements)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Admin announcement creation working perfectly! Successfully creates announcements with title, content, type, link, and published status. Requires admin/superadmin role (403 for regular users). Returns complete announcement object with UUID, created_by, timestamps. Test data: {title: 'Test Announcement', content: 'This is a test announcement with a link.', type: 'update', link: 'https://example.com', published: true}."
+
+  - task: "Admin Get Announcements (GET /api/admin/announcements)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Admin get announcements working perfectly! Returns paginated list of all announcements (both published and unpublished) sorted by created_at descending. Requires admin/superadmin role. Successfully retrieved announcements with all fields: id, title, content, type, link, published, created_by, created_at, updated_at."
+
+  - task: "Admin Update Announcements (PUT /api/admin/announcements/:id)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Admin announcement update working perfectly! Successfully updates announcement fields including published status. Requires admin/superadmin role. Validated with unpublishing test (published: false). Returns {success: true} on successful update. Proper error handling for non-existent announcement IDs (404)."
+
+  - task: "User Get Published Announcements (GET /api/announcements)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: User get published announcements working perfectly! Returns only published announcements with proper filtering. Includes two arrays: 'announcements' (all published) and 'unread' (published but not dismissed by user). Authentication required. Properly filters out unpublished announcements. Response includes: id, title, content, type, link, created_at fields."
+
+  - task: "User Dismiss Announcements (POST /api/announcements/dismiss)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: User announcement dismissal working perfectly! Successfully dismisses announcements with {announcementId} payload. Authentication required. Validates announcementId field (400 if missing). Updates user_dismissed_announcements collection with $addToSet to prevent duplicates. Verification test confirmed dismissed announcements are removed from 'unread' array while remaining in 'announcements' array."
 frontend:
   - task: "Landing Page (/)"
     implemented: true
