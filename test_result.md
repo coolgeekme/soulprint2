@@ -321,7 +321,7 @@ backend:
         agent: "testing"
         comment: "⚠️ SKIPPED: File upload testing not included in current test suite. Endpoint is implemented but requires multipart/form-data testing."
 
-  - task: "Admin Users (GET/PUT /api/admin/users)"
+  - task: "Admin Users (GET/POST/PUT/DELETE /api/admin/users)"
     implemented: true
     working: true
     file: "app/api/[[...path]]/route.js"
@@ -335,6 +335,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Admin users API working correctly. GET returns paginated user list with profile data."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Complete CRUD admin user management working perfectly! (1) ✅ POST /api/auth/login: Authentication working with test@soulprint.com/test123, returns token and superadmin role. (2) ✅ POST /api/admin/users: Successfully creates new users with email, passcode, display_name, role, accepted fields. Returns user object with ID. (3) ✅ PUT /api/admin/users/:id: Successfully updates user display_name and other fields. (4) ✅ DELETE /api/admin/users/:id: Successfully deletes users and all related data. Only superadmin can delete. (5) ✅ Error Handling: Properly prevents duplicate emails (400 error), deleted users return 404, role-based access control working. All security checks functional. User creation→update→deletion flow completed successfully with user ID 7d4f9505-c941-44d9-9b9c-24e1f356c7a4."
 
   - task: "Admin Metrics (GET /api/admin/metrics)"
     implemented: true
