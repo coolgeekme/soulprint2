@@ -7,7 +7,7 @@ from datetime import datetime
 
 # Test Configuration
 BASE_URL = "https://personality-engine-1.preview.emergentagent.com/api"
-TEST_EMAIL = "reggie@coolgeek.me"
+TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "password123"  # any password works for superadmin accounts
 
 class ConversationAPITester:
