@@ -2585,6 +2585,161 @@ ${feedbackText.substring(0, 15000)}`
   }
 }
 
+// ============================================================
+// ANNOUNCEMENTS SYSTEM
+// ============================================================
+
+// ADMIN - Create announcement
+async function handleAdminCreateAnnouncement(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  if (user.role !== 'superadmin' && user.role !== 'admin') return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { title, content, type, link, published } = body;
+
+  if (!title || !content) {
+    return err('Title and content are required', 400);
+  }
+
+  const db = await getDb();
+  const announcement = {
+    id: uuidv4(),
+    title: title.trim(),
+    content: content.trim(),
+    type: type || 'info', // info, warning, success, update
+    link: link?.trim() || null,
+    published: published ?? false,
+    created_by: user.id,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+
+  await db.collection('announcements').insertOne(announcement);
+
+  return ok({ success: true, announcement });
+}
+
+// ADMIN - Get all announcements
+async function handleAdminGetAnnouncements(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  if (user.role !== 'superadmin' && user.role !== 'admin') return err('Forbidden', 403);
+
+  const db = await getDb();
+  const announcements = await db.collection('announcements')
+    .find({})
+    .sort({ created_at: -1 })
+    .toArray();
+
+  return ok({ announcements });
+}
+
+// ADMIN - Update announcement
+async function handleAdminUpdateAnnouncement(request, announcementId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  if (user.role !== 'superadmin' && user.role !== 'admin') return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { title, content, type, link, published } = body;
+
+  const db = await getDb();
+  const announcement = await db.collection('announcements').findOne({ id: announcementId });
+  if (!announcement) return err('Announcement not found', 404);
+
+  const updates = { updated_at: new Date() };
+  if (title !== undefined) updates.title = title.trim();
+  if (content !== undefined) updates.content = content.trim();
+  if (type !== undefined) updates.type = type;
+  if (link !== undefined) updates.link = link?.trim() || null;
+  if (published !== undefined) updates.published = published;
+
+  await db.collection('announcements').updateOne(
+    { id: announcementId },
+    { $set: updates }
+  );
+
+  return ok({ success: true });
+}
+
+// ADMIN - Delete announcement
+async function handleAdminDeleteAnnouncement(request, announcementId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  if (user.role !== 'superadmin' && user.role !== 'admin') return err('Forbidden', 403);
+
+  const db = await getDb();
+  const announcement = await db.collection('announcements').findOne({ id: announcementId });
+  if (!announcement) return err('Announcement not found', 404);
+
+  await db.collection('announcements').deleteOne({ id: announcementId });
+
+  return ok({ success: true });
+}
+
+// USER - Get published announcements
+async function handleGetAnnouncements(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  
+  // Get published announcements
+  const announcements = await db.collection('announcements')
+    .find({ published: true })
+    .sort({ created_at: -1 })
+    .limit(10)
+    .toArray();
+
+  // Get user's dismissed announcements
+  const userDismissed = await db.collection('user_dismissed_announcements')
+    .findOne({ user_id: user.id });
+  const dismissedIds = userDismissed?.announcement_ids || [];
+
+  // Filter out dismissed ones for the "unread" list
+  const unread = announcements.filter(a => !dismissedIds.includes(a.id));
+
+  return ok({ 
+    announcements: announcements.map(a => ({
+      id: a.id,
+      title: a.title,
+      content: a.content,
+      type: a.type,
+      link: a.link,
+      created_at: a.created_at,
+    })),
+    unread: unread.map(a => ({
+      id: a.id,
+      title: a.title,
+      content: a.content,
+      type: a.type,
+      link: a.link,
+      created_at: a.created_at,
+    })),
+  });
+}
+
+// USER - Dismiss announcement
+async function handleDismissAnnouncement(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { announcementId } = body;
+
+  if (!announcementId) return err('announcementId required', 400);
+
+  const db = await getDb();
+  await db.collection('user_dismissed_announcements').updateOne(
+    { user_id: user.id },
+    { $addToSet: { announcement_ids: announcementId } },
+    { upsert: true }
+  );
+
+  return ok({ success: true });
+}
+
 // IMPORTS - Upload
 async function handleImportUpload(request) {
   const user = await authenticate(request);
