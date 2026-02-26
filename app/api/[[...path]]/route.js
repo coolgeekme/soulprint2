@@ -4716,16 +4716,23 @@ async function processCloudImport(importId, userId, cloudUrl, importType, provid
       // Look for download confirmation URL in the HTML
       // Google Drive returns a page with a "Download anyway" link for large files
       const confirmMatch = html.match(/confirm=([a-zA-Z0-9_-]+)/);
+      const atMatch = html.match(/at=([a-zA-Z0-9_-]+)/);
       const uuidMatch = html.match(/uuid=([a-zA-Z0-9_-]+)/);
       
-      if (confirmMatch) {
+      // Extract any cookies from the initial response
+      const setCookieHeader = response.headers.get('set-cookie') || '';
+      
+      if (confirmMatch || atMatch) {
         // Try with confirmation token
-        const confirmUrl = `https://drive.google.com/uc?export=download&confirm=${confirmMatch[1]}&id=${fileId}`;
+        const confirmToken = confirmMatch ? confirmMatch[1] : 't';
+        const atToken = atMatch ? `&at=${atMatch[1]}` : '';
+        const confirmUrl = `https://drive.google.com/uc?export=download&confirm=${confirmToken}&id=${fileId}${atToken}`;
         console.log(`[CloudImport] Retrying with confirmation token: ${confirmUrl}`);
         
         response = await fetch(confirmUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Cookie': setCookieHeader.split(';')[0] || '',
           },
           redirect: 'follow',
         });
@@ -4736,23 +4743,46 @@ async function processCloudImport(importId, userId, cloudUrl, importType, provid
         
         const arrayBuffer = await response.arrayBuffer();
         buffer = Buffer.from(arrayBuffer);
-      } else {
-        // Try alternative API approach for Google Drive
-        const altUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=AIzaSyC1qbk75NzWBvSaDh6KnOb6dNTd3XqJJZ8`;
-        console.log(`[CloudImport] Trying alternative API: ${altUrl}`);
         
-        // If no API key works, try the download/exportLinks approach
-        const exportUrl = `https://drive.google.com/u/0/uc?id=${fileId}&export=download&confirm=t`;
+        // Check if we still got HTML after confirmation
+        const firstCheck = buffer.slice(0, 100).toString();
+        if (firstCheck.includes('<!DOCTYPE html') || firstCheck.includes('<html')) {
+          // Final fallback - try with confirm=t&uuid
+          const uuid = uuidMatch ? uuidMatch[1] : '';
+          const finalUrl = `https://drive.google.com/uc?export=download&confirm=t&uuid=${uuid}&id=${fileId}`;
+          console.log(`[CloudImport] Final attempt with uuid: ${finalUrl}`);
+          
+          response = await fetch(finalUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Cookie': setCookieHeader.split(';')[0] || '',
+            },
+            redirect: 'follow',
+          });
+          
+          const arrayBuffer2 = await response.arrayBuffer();
+          buffer = Buffer.from(arrayBuffer2);
+          
+          const secondCheck = buffer.slice(0, 100).toString();
+          if (secondCheck.includes('<!DOCTYPE html') || secondCheck.includes('<html')) {
+            throw new Error('Google Drive is blocking direct download for this large file. Please use Dropbox instead: 1) Upload your ZIP to Dropbox, 2) Get shareable link, 3) Change ?dl=0 to ?dl=1 in the URL, 4) Paste here.');
+          }
+        }
+      } else {
+        // Try alternative approaches
+        const exportUrl = `https://drive.google.com/uc?id=${fileId}&export=download&confirm=t`;
+        console.log(`[CloudImport] Trying export URL: ${exportUrl}`);
+        
         response = await fetch(exportUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': '*/*',
           },
           redirect: 'follow',
         });
         
         if (!response.ok) {
-          throw new Error('Failed to download from Google Drive. For files over 100MB, please try using Dropbox instead, or ensure the file is truly publicly accessible.');
+          throw new Error('Failed to download from Google Drive. For files over 100MB, please use Dropbox instead.');
         }
         
         const arrayBuffer = await response.arrayBuffer();
@@ -4761,7 +4791,7 @@ async function processCloudImport(importId, userId, cloudUrl, importType, provid
         // Check if we still got HTML
         const firstBytes = buffer.slice(0, 100).toString();
         if (firstBytes.includes('<!DOCTYPE html') || firstBytes.includes('<html')) {
-          throw new Error('Google Drive is blocking direct download for this large file. Please upload to Dropbox instead and share the link with "Anyone with link can download".');
+          throw new Error('Google Drive requires virus scan confirmation for this file. Please use Dropbox instead: 1) Upload to Dropbox, 2) Get shareable link (dl=1), 3) Paste here.');
         }
       }
     } else {
