@@ -817,6 +817,9 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   };
 
   const getTotalSize = () => selectedFiles.reduce((sum, f) => sum + f.size, 0);
+  
+  const isLargeUpload = getTotalSize() > 500 * 1024 * 1024; // > 500MB
+  const estimatedMinutes = Math.ceil(getTotalSize() / (1024 * 1024) / 10); // Assume ~10MB/s upload
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || []);
