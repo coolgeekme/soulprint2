@@ -5683,6 +5683,10 @@ export async function PUT(request, { params }) {
       const feedbackId = pathArr[2];
       return handleAdminUpdateFeedback(request, feedbackId);
     }
+    if (pathStr.startsWith('admin/announcements/') && pathArr.length === 3) {
+      const announcementId = pathArr[2];
+      return handleAdminUpdateAnnouncement(request, announcementId);
+    }
 
     return err('Not found', 404);
   } catch (error) {
