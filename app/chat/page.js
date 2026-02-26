@@ -1927,6 +1927,14 @@ export default function ChatPage() {
               <Globe className="w-3 h-3" />
               {webSearchEnabled ? 'Web On' : 'Web Off'}
             </button>
+            {/* Feedback button */}
+            <a
+              href="mailto:feedback@soulprint.ai?subject=SoulPrint Feedback"
+              title="Send Feedback"
+              className="text-gray-500 hover:text-orange-400 transition-colors"
+            >
+              <MessageCircle className="w-5 h-5" />
+            </a>
             <button onClick={() => setShowSettings(true)} className="text-gray-500 hover:text-white transition-colors">
               <Settings className="w-5 h-5" />
             </button>
