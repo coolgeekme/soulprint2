@@ -320,6 +320,161 @@ const TIMEZONES = [
   { label: 'Sydney (UTC+10)', offset: 10 },
 ];
 
+// Feedback Modal Component
+function FeedbackModal({ onClose, token }) {
+  const [message, setMessage] = useState('');
+  const [category, setCategory] = useState('general');
+  const [rating, setRating] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!message.trim() || message.trim().length < 5) {
+      setError('Please enter at least 5 characters');
+      return;
+    }
+    
+    setSubmitting(true);
+    setError('');
+    
+    try {
+      const res = await fetch('/api/user-feedback', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          message: message.trim(),
+          category,
+          rating: rating > 0 ? rating : null,
+        }),
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to submit');
+      
+      setSubmitted(true);
+      setTimeout(() => onClose(), 2000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (submitted) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="bg-gradient-to-br from-[#111] to-[#1a1a1a] border border-white/10 rounded-2xl p-8 max-w-md w-full text-center">
+          <div className="text-5xl mb-4">🙏</div>
+          <h3 className="text-xl font-semibold text-white mb-2">Thank You!</h3>
+          <p className="text-gray-400">Your feedback has been submitted. We truly appreciate it!</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-gradient-to-br from-[#111] to-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-orange-500" />
+            Send Feedback
+          </h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Category */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Category</label>
+            <div className="flex flex-wrap gap-2">
+              {['general', 'bug', 'feature', 'other'].map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-sm capitalize transition-all ${
+                    category === cat 
+                      ? 'bg-orange-500/20 border-orange-500/50 text-orange-400 border' 
+                      : 'bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10'
+                  }`}
+                >
+                  {cat === 'bug' ? '🐛 Bug' : cat === 'feature' ? '💡 Feature Request' : cat === 'other' ? '📝 Other' : '💬 General'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Message */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Your Feedback</label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Tell us what's on your mind... What's working well? What could be better? Any ideas?"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:border-orange-500/50 outline-none transition-colors min-h-[120px] resize-none"
+              required
+            />
+          </div>
+
+          {/* Rating (optional) */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Rating (optional)</label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4, 5].map(star => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(rating === star ? 0 : star)}
+                  className={`text-2xl transition-transform hover:scale-110 ${star <= rating ? 'text-orange-400' : 'text-gray-700'}`}
+                >
+                  ★
+                </button>
+              ))}
+              {rating > 0 && <span className="text-sm text-gray-500 ml-2 self-center">{rating}/5</span>}
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
+          )}
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={submitting || !message.trim()}
+            className="w-full btn-orange py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4" />
+                Submit Feedback
+              </>
+            )}
+          </button>
+          
+          <p className="text-xs text-gray-600 text-center">
+            Your feedback helps us improve SoulPrint for everyone.
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Settings / Telegram / Imports Modal
 function SettingsModal({ onClose, token, onAssessmentReset }) {
   const [activeTab, setActiveTab] = useState('imports');
