@@ -1548,13 +1548,13 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
               <div className="pt-4 border-t border-white/10">
                 <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-3">Other ways to reach us</p>
                 <div className="space-y-2">
-                  <a href="mailto:feedback@soulprint.ai" className="flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/8 hover:bg-white/5 transition-colors">
+                  <a href="mailto:team@archeforge.com" className="flex items-center gap-3 p-3 rounded-xl bg-white/3 border border-white/8 hover:bg-white/5 transition-colors">
                     <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
                       <span className="text-sm">📧</span>
                     </div>
                     <div>
                       <p className="text-white text-xs font-medium">Email</p>
-                      <p className="text-gray-600 text-[10px]">feedback@soulprint.ai</p>
+                      <p className="text-gray-600 text-[10px]">team@archeforge.com</p>
                     </div>
                   </a>
                 </div>
