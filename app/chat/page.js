@@ -2798,6 +2798,73 @@ export default function ChatPage() {
                 <TypingIndicator />
               </div>
             )}
+
+            {/* Compare Mode Loading */}
+            {compareLoading && (
+              <div className="msg-appear">
+                <div className="bg-gradient-to-br from-orange-500/5 to-purple-500/5 border border-white/10 rounded-2xl p-4 mb-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+                      <GitCompare className="w-4 h-4 text-orange-400 animate-pulse" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-white">Comparing {compareModels.length} models...</p>
+                      <p className="text-xs text-gray-500">This may take a moment</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {compareModels.map(m => {
+                      const modelInfo = MODELS.find(mod => mod.value === m.model);
+                      return (
+                        <CompareResponseCard 
+                          key={m.model} 
+                          response={{ model: m.model, provider: m.provider, label: modelInfo?.label, group: modelInfo?.group }}
+                          isLoading={true}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Compare Mode Responses */}
+            {compareResponses && !compareLoading && (
+              <div className="msg-appear">
+                <div className="bg-gradient-to-br from-orange-500/5 to-purple-500/5 border border-white/10 rounded-2xl p-4 mb-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+                        <GitCompare className="w-4 h-4 text-orange-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white">Compare Responses</p>
+                        <p className="text-xs text-gray-500">
+                          {compareResponses.usedWebSearch && <span className="text-cyan-400 mr-2">🌐 Web search used</span>}
+                          Select your preferred response
+                        </p>
+                      </div>
+                    </div>
+                    {selectedCompareResponse && (
+                      <span className="text-xs text-green-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Response selected
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {compareResponses.responses.map(response => (
+                      <CompareResponseCard 
+                        key={response.model} 
+                        response={response}
+                        onSelect={handleSelectCompareResponse}
+                        selected={selectedCompareResponse === response.model}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
         </div>
