@@ -4618,6 +4618,248 @@ async function handleAdminInviteAdmin(request) {
 // CLOUD IMPORT (for large files)
 // ============================================================
 
+// Chunked upload - Initialize
+async function handleChunkedInit(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { filename, fileSize, totalChunks, type = 'chatgpt' } = body;
+
+  if (!filename || !totalChunks) {
+    return err('Missing required fields');
+  }
+
+  const db = await getDb();
+  const uploadId = uuidv4();
+
+  await db.collection('upload_sessions').insertOne({
+    id: uploadId,
+    user_id: user.id,
+    filename,
+    file_size: fileSize,
+    total_chunks: totalChunks,
+    received_chunks: [],
+    type,
+    status: 'uploading',
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
+
+  console.log(`[ChunkedUpload] Initialized upload ${uploadId} for ${filename} (${totalChunks} chunks)`);
+
+  return ok({ uploadId });
+}
+
+// Chunked upload - Receive chunk
+async function handleChunkedChunk(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const formData = await request.formData();
+    const uploadId = formData.get('uploadId');
+    const chunkIndex = parseInt(formData.get('chunkIndex'), 10);
+    const chunk = formData.get('chunk');
+
+    if (!uploadId || chunkIndex === undefined || !chunk) {
+      return err('Missing required fields');
+    }
+
+    const db = await getDb();
+    const session = await db.collection('upload_sessions').findOne({ id: uploadId, user_id: user.id });
+
+    if (!session) {
+      return err('Upload session not found', 404);
+    }
+
+    // Store chunk data
+    const chunkBuffer = Buffer.from(await chunk.arrayBuffer());
+    
+    await db.collection('upload_chunks').insertOne({
+      upload_id: uploadId,
+      chunk_index: chunkIndex,
+      data: chunkBuffer,
+      created_at: new Date(),
+    });
+
+    // Update session
+    await db.collection('upload_sessions').updateOne(
+      { id: uploadId },
+      { 
+        $addToSet: { received_chunks: chunkIndex },
+        $set: { updated_at: new Date() }
+      }
+    );
+
+    console.log(`[ChunkedUpload] Received chunk ${chunkIndex + 1}/${session.total_chunks} for ${uploadId}`);
+
+    return ok({ received: chunkIndex });
+  } catch (error) {
+    console.error('[ChunkedChunk] Error:', error);
+    return err(error.message || 'Failed to process chunk', 500);
+  }
+}
+
+// Chunked upload - Process batch of files
+async function handleChunkedProcessBatch(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { uploads, type = 'chatgpt' } = body;
+
+  if (!uploads || !Array.isArray(uploads) || uploads.length === 0) {
+    return err('No uploads provided');
+  }
+
+  const db = await getDb();
+  const importId = uuidv4();
+
+  // Create import job
+  await db.collection('import_jobs').insertOne({
+    id: importId,
+    user_id: user.id,
+    type,
+    source: 'chunked_batch',
+    upload_ids: uploads.map(u => u.uploadId),
+    total_files: uploads.length,
+    processed_files: 0,
+    status: 'pending',
+    progress: 0,
+    message: `Processing ${uploads.length} file(s)...`,
+    messages_count: 0,
+    error: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
+
+  // Process in background
+  processChunkedBatch(importId, user.id, uploads, type).catch(err => {
+    console.error('Chunked batch processing error:', err);
+    db.collection('import_jobs').updateOne(
+      { id: importId },
+      { $set: { status: 'failed', error: err.message, updated_at: new Date() } }
+    );
+  });
+
+  return ok({ importId, status: 'pending' });
+}
+
+// Process chunked uploads batch
+async function processChunkedBatch(importId, userId, uploads, importType) {
+  const db = await getDb();
+  const updateStatus = async (status, message, progress = 0, extra = {}) => {
+    await db.collection('import_jobs').updateOne(
+      { id: importId },
+      { $set: { status, message, progress, ...extra, updated_at: new Date() } }
+    );
+  };
+
+  try {
+    let totalMessages = [];
+    const totalFiles = uploads.length;
+
+    for (let i = 0; i < uploads.length; i++) {
+      const upload = uploads[i];
+      const fileNum = i + 1;
+
+      await updateStatus('processing', `Reassembling file ${fileNum}/${totalFiles}: ${upload.fileName}...`, Math.round((i / totalFiles) * 30));
+
+      try {
+        // Get all chunks for this upload
+        const chunks = await db.collection('upload_chunks')
+          .find({ upload_id: upload.uploadId })
+          .sort({ chunk_index: 1 })
+          .toArray();
+
+        if (chunks.length === 0) {
+          console.error(`[ChunkedBatch] No chunks found for upload ${upload.uploadId}`);
+          continue;
+        }
+
+        // Reassemble the file
+        const buffers = chunks.map(c => c.data.buffer ? Buffer.from(c.data.buffer) : c.data);
+        const fileBuffer = Buffer.concat(buffers);
+
+        console.log(`[ChunkedBatch] Reassembled file ${fileNum}: ${upload.fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+
+        await updateStatus('processing', `Extracting messages from file ${fileNum}/${totalFiles}...`, Math.round((i / totalFiles) * 30) + 30);
+
+        // Extract messages
+        let messages = [];
+        if (importType === 'chatgpt') {
+          messages = await extractChatGPTMessagesFromBuffer(fileBuffer);
+        } else if (importType === 'facebook') {
+          messages = await extractFacebookMessagesFromBuffer(fileBuffer);
+        }
+
+        console.log(`[ChunkedBatch] Extracted ${messages.length} messages from file ${fileNum}`);
+        totalMessages = totalMessages.concat(messages);
+
+        // Clean up chunks
+        await db.collection('upload_chunks').deleteMany({ upload_id: upload.uploadId });
+        await db.collection('upload_sessions').deleteOne({ id: upload.uploadId });
+
+      } catch (fileError) {
+        console.error(`Error processing file ${fileNum}:`, fileError);
+      }
+    }
+
+    await updateStatus('processing', 'Saving messages...', 80);
+
+    // Deduplicate and save all messages
+    if (totalMessages.length > 0) {
+      const existingHashes = new Set();
+      const existingMsgs = await db.collection('imported_messages')
+        .find({ user_id: userId })
+        .project({ content_hash: 1 })
+        .toArray();
+      existingMsgs.forEach(m => existingHashes.add(m.content_hash));
+
+      const crypto = require('crypto');
+      const newMessages = totalMessages.filter(m => {
+        const hash = crypto.createHash('md5').update(m.content || '').digest('hex');
+        m.content_hash = hash;
+        return !existingHashes.has(hash);
+      });
+
+      if (newMessages.length > 0) {
+        const docs = newMessages.map(m => ({
+          id: uuidv4(),
+          user_id: userId,
+          content: m.content,
+          role: m.role,
+          timestamp: m.timestamp,
+          source: importType,
+          content_hash: m.content_hash,
+          imported_at: new Date(),
+        }));
+
+        // Insert in batches
+        const batchSize = 1000;
+        for (let j = 0; j < docs.length; j += batchSize) {
+          const batch = docs.slice(j, j + batchSize);
+          await db.collection('imported_messages').insertMany(batch);
+        }
+      }
+
+      await updateStatus('completed', `Successfully imported ${newMessages.length} new messages from ${totalFiles} file(s) (${totalMessages.length - newMessages.length} duplicates skipped)`, 100, {
+        messages_count: newMessages.length,
+        total_extracted: totalMessages.length,
+        files_processed: totalFiles
+      });
+    } else {
+      await updateStatus('completed', `No messages found in ${totalFiles} file(s)`, 100, { messages_count: 0 });
+    }
+
+  } catch (error) {
+    console.error('[ChunkedBatch] Processing error:', error);
+    await updateStatus('failed', error.message, 0, { error: error.message });
+    throw error;
+  }
+}
+
 // Handle direct file upload -> process directly (no external service)
 async function handleDirectUpload(request) {
   const user = await authenticate(request);
