@@ -6360,6 +6360,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'assessment/complete') return handleAssessmentComplete(request);
     if (pathStr === 'conversations') return handleCreateConversation(request);
     if (pathStr === 'chat/stream') return handleChatStream(request);
+    if (pathStr === 'chat/compare') return handleChatCompare(request);
+    if (pathStr === 'chat/compare/select') return handleCompareSelect(request);
     if (pathStr === 'feedback') return handleSubmitFeedback(request);
     if (pathStr === 'user-feedback') return handleSubmitUserFeedback(request);
     if (pathStr === 'generate/image') return handleGenerateImage(request);
