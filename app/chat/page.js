@@ -324,7 +324,7 @@ function CompareResponseCard({ response, onSelect, isLoading, selected, totalMod
   const getProviderColor = (prov) => {
     switch (prov) {
       case 'openai': return 'text-green-400 border-green-500/30 bg-green-500/10';
-      case 'anthropic': return 'text-purple-400 border-purple-500/30 bg-purple-500/10';
+      case 'anthropic': return 'text-blue-400 border-blue-500/30 bg-blue-500/10';
       case 'gemini': return 'text-blue-400 border-blue-500/30 bg-blue-500/10';
       case 'perplexity': return 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10';
       case 'kimi': return 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10';
@@ -448,7 +448,7 @@ function CompareModePicker({ selectedModels, setSelectedModels, maxModels = 3 })
   const getProviderBadgeColor = (provider) => {
     switch (provider) {
       case 'openai': return 'bg-green-500/20 text-green-400';
-      case 'anthropic': return 'bg-purple-500/20 text-purple-400';
+      case 'anthropic': return 'bg-blue-500/20 text-blue-400';
       case 'gemini': return 'bg-blue-500/20 text-blue-400';
       case 'perplexity': return 'bg-cyan-500/20 text-cyan-400';
       case 'kimi': return 'bg-yellow-500/20 text-yellow-400';
@@ -578,7 +578,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
         disabled={isGenerating}
         className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${
           isOpen 
-            ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white' 
+            ? 'bg-gradient-to-r from-pink-500 to-blue-500 text-white' 
             : 'bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:border-white/20'
         } ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
         title="Create Image or Video"
@@ -606,7 +606,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
             <button
               onClick={() => setActiveTab('video')}
               className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
-                activeTab === 'video' ? 'text-purple-400 bg-purple-500/10 border-b-2 border-purple-500' : 'text-gray-500 hover:text-gray-300'
+                activeTab === 'video' ? 'text-blue-400 bg-blue-500/10 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               <Film className="w-4 h-4" />
@@ -627,7 +627,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
                     onClick={() => activeTab === 'image' ? setSelectedImageModel(model.value) : setSelectedVideoModel(model.value)}
                     className={`w-full flex items-center px-3 py-2 rounded-lg text-xs transition-colors ${
                       (activeTab === 'image' ? selectedImageModel : selectedVideoModel) === model.value
-                        ? 'bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 text-white'
+                        ? 'bg-gradient-to-r from-pink-500/20 to-blue-500/20 border border-pink-500/30 text-white'
                         : 'bg-white/3 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white'
                     }`}
                   >
@@ -685,7 +685,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
               disabled={!prompt.trim()}
               className={`w-full py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                 prompt.trim()
-                  ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600'
+                  ? 'bg-gradient-to-r from-pink-500 to-blue-500 text-white hover:from-pink-600 hover:to-purple-600'
                   : 'bg-white/5 text-gray-600 cursor-not-allowed'
               }`}
             >
@@ -709,11 +709,11 @@ function GalleryItem({ item, onClick }) {
       className="relative group cursor-pointer rounded-xl overflow-hidden bg-white/5 border border-white/10 hover:border-white/20 transition-all"
     >
       {isVideo ? (
-        <div className="aspect-video bg-gradient-to-br from-purple-500/10 to-pink-500/10 flex items-center justify-center">
+        <div className="aspect-video bg-gradient-to-br from-blue-500/10 to-pink-500/10 flex items-center justify-center">
           {item.thumbnail_url ? (
             <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover" />
           ) : (
-            <Film className="w-8 h-8 text-purple-400" />
+            <Film className="w-8 h-8 text-blue-400" />
           )}
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
             <Play className="w-10 h-10 text-white" />
@@ -728,7 +728,7 @@ function GalleryItem({ item, onClick }) {
       <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/80 to-transparent">
         <p className="text-[10px] text-white truncate">{item.prompt}</p>
         <div className="flex items-center gap-2 mt-1">
-          <span className={`text-[9px] px-1.5 py-0.5 rounded ${isVideo ? 'bg-purple-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded ${isVideo ? 'bg-blue-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
             {item.model_label || item.model}
           </span>
           <span className="text-[9px] text-gray-500">
@@ -751,7 +751,7 @@ function GalleryModal({ item, onClose }) {
       <div className="max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <span className={`text-xs px-2 py-1 rounded ${isVideo ? 'bg-purple-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
+            <span className={`text-xs px-2 py-1 rounded ${isVideo ? 'bg-blue-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
               {isVideo ? 'Video' : 'Image'} • {item.model_label || item.model}
             </span>
           </div>
@@ -1116,12 +1116,12 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
               disabled={isImporting}
               className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                 importMode === 'direct'
-                  ? 'bg-purple-500/20 text-purple-400'
+                  ? 'bg-blue-500/20 text-blue-400'
                   : 'text-gray-500 hover:text-gray-300'
               }`}
             >
               <Upload className="w-4 h-4" />
-              Pixeldrain
+              WeTransfer
             </button>
             <button
               onClick={() => { setImportMode('url'); setError(''); }}
@@ -1137,45 +1137,45 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
             </button>
           </div>
 
-          {/* Direct Upload Mode - Using Pixeldrain */}
+          {/* Direct Upload Mode - Using WeTransfer */}
           {importMode === 'direct' && (
             <div className="space-y-4">
               {/* Step-by-step instructions */}
-              <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl p-4">
+              <div className="bg-gradient-to-br from-blue-500/10 to-pink-500/10 border border-blue-500/20 rounded-xl p-4">
                 <p className="text-sm font-medium text-white mb-3 flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-purple-400" />
+                  <Zap className="w-4 h-4 text-blue-400" />
                   Simple 3-Step Process
                 </p>
                 
                 <div className="space-y-3 text-sm">
                   {/* Step 1 */}
                   <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold flex-shrink-0">1</div>
+                    <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold flex-shrink-0">1</div>
                     <div className="flex-1">
-                      <p className="text-gray-300">Upload your ZIP file to Pixeldrain (free, no account needed)</p>
+                      <p className="text-gray-300">Upload your ZIP file to WeTransfer (free, no account needed)</p>
                       <button
-                        onClick={() => window.open('https://pixeldrain.com/', '_blank')}
+                        onClick={() => window.open('https://wetransfer.com/', '_blank')}
                         disabled={isImporting}
-                        className="mt-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        className="mt-2 px-4 py-2 bg-blue-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
                       >
                         <ExternalLink className="w-4 h-4" />
-                        Open Pixeldrain
+                        Open WeTransfer
                       </button>
                     </div>
                   </div>
 
                   {/* Step 2 */}
                   <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold flex-shrink-0">2</div>
+                    <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold flex-shrink-0">2</div>
                     <div className="flex-1">
                       <p className="text-gray-300">After upload, copy the page URL</p>
-                      <p className="text-xs text-gray-500 mt-1">It looks like: <code className="bg-black/30 px-1 rounded">https://pixeldrain.com/u/AbCdEfGh</code></p>
+                      <p className="text-xs text-gray-500 mt-1">It looks like: <code className="bg-black/30 px-1 rounded">https://we.tl/t-AbCdEfGh</code></p>
                     </div>
                   </div>
 
                   {/* Step 3 */}
                   <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-xs font-bold flex-shrink-0">3</div>
+                    <div className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold flex-shrink-0">3</div>
                     <div className="flex-1">
                       <p className="text-gray-300">Paste the link below and click Import</p>
                     </div>
@@ -1183,23 +1183,23 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                 </div>
               </div>
 
-              {/* URL Input for Pixeldrain link */}
+              {/* URL Input for WeTransfer link */}
               <div>
-                <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">Pixeldrain Link</label>
+                <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">WeTransfer Link</label>
                 <div className="relative">
                   <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input
                     type="url"
                     value={cloudUrl}
                     onChange={(e) => setCloudUrl(e.target.value)}
-                    placeholder="https://pixeldrain.com/u/... (paste your link here)"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50"
+                    placeholder="https://we.tl/t/... (paste your link here)"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50"
                     disabled={isImporting}
                   />
                 </div>
-                {cloudUrl && cloudUrl.includes('pixeldrain.com') && (
+                {cloudUrl && cloudUrl.includes('wetransfer.com') && (
                   <p className="mt-1.5 text-xs text-green-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Pixeldrain link detected
+                    <CheckCircle2 className="w-3 h-3" /> WeTransfer link detected
                   </p>
                 )}
               </div>
@@ -1213,7 +1213,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                 <p className="font-medium text-gray-300 mb-2">Other supported services:</p>
                 <div className="flex flex-wrap gap-2">
                   <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded">Dropbox</span>
-                  <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded">OneDrive</span>
+                  <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded">OneDrive</span>
                   <span className="px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded">Google Drive*</span>
                 </div>
                 <p className="text-[10px] text-yellow-500/70 mt-2">*Google Drive may block files over 100MB. Use GoFile.io for large files.</p>
@@ -2049,7 +2049,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   </div>
                   
                   {soulProfile.latestSummary && (
-                    <div className="p-3 rounded-lg bg-gradient-to-r from-orange-500/10 to-purple-500/10 border border-orange-500/20 mb-3">
+                    <div className="p-3 rounded-lg bg-gradient-to-r from-orange-500/10 to-blue-500/10 border border-orange-500/20 mb-3">
                       <p className="text-gray-300 text-xs leading-relaxed">{soulProfile.latestSummary}</p>
                     </div>
                   )}
@@ -2405,7 +2405,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           {/* MEMORIES TAB */}
           {activeTab === 'memories' && (
             <div className="space-y-4">
-              <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4">
+              <div className="bg-gradient-to-r from-blue-500/10 to-blue-500/10 border border-blue-500/20 rounded-xl p-4">
                 <h4 className="text-white text-sm font-medium mb-1">🧠 Long-Term Memory</h4>
                 <p className="text-gray-500 text-xs">
                   Important facts about you that the AI remembers across ALL conversations. Memories are auto-extracted from chats and can also be added manually.
@@ -2420,10 +2420,10 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                     value={newMemory}
                     onChange={(e) => setNewMemory(e.target.value)}
                     placeholder="Add a fact about yourself... (e.g., 'I am allergic to peanuts')"
-                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-purple-500/40 outline-none"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-blue-500/40 outline-none"
                     onKeyDown={(e) => e.key === 'Enter' && addMemory()}
                   />
-                  <button onClick={addMemory} disabled={!newMemory.trim()} className="px-4 py-2 bg-purple-500/20 text-purple-400 rounded-lg text-sm hover:bg-purple-500/30 transition-colors disabled:opacity-50">
+                  <button onClick={addMemory} disabled={!newMemory.trim()} className="px-4 py-2 bg-blue-500/20 text-blue-400 rounded-lg text-sm hover:bg-blue-500/30 transition-colors disabled:opacity-50">
                     Add
                   </button>
                 </div>
@@ -2519,7 +2519,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   <h3 className="text-white text-sm font-semibold mb-3">🧠 Soul Profile</h3>
                   
                   {soulProfile.latestSummary && (
-                    <div className="p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 mb-4">
+                    <div className="p-3 rounded-lg bg-gradient-to-r from-blue-500/10 to-blue-500/10 border border-blue-500/20 mb-4">
                       <p className="text-gray-300 text-xs leading-relaxed">{soulProfile.latestSummary}</p>
                     </div>
                   )}
@@ -2586,7 +2586,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                       console.error('Export error:', e);
                     }
                   }}
-                  className="w-full py-2.5 px-4 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 rounded-lg text-white text-sm hover:from-purple-500/30 hover:to-blue-500/30 transition-all flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-500/20 to-blue-500/20 border border-blue-500/30 rounded-lg text-white text-sm hover:from-blue-500/30 hover:to-blue-500/30 transition-all flex items-center justify-center gap-2"
                 >
                   <Download className="w-4 h-4" />
                   Download Profile (Markdown)
@@ -2676,7 +2676,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   </button>
                   <button 
                     onClick={() => setFeedbackType('idea')}
-                    className={`flex-1 py-3 rounded-xl border text-center transition-all ${feedbackType === 'idea' ? 'bg-purple-500/20 border-purple-500/40 text-purple-400' : 'bg-white/3 border-white/10 text-gray-400 hover:bg-white/5'}`}
+                    className={`flex-1 py-3 rounded-xl border text-center transition-all ${feedbackType === 'idea' ? 'bg-blue-500/20 border-blue-500/40 text-blue-400' : 'bg-white/3 border-white/10 text-gray-400 hover:bg-white/5'}`}
                   >
                     <span className="text-lg">💡</span>
                     <p className="text-[10px] mt-1">Have idea</p>
@@ -3534,7 +3534,7 @@ export default function ChatPage() {
           {/* Gallery button */}
           <button 
             onClick={() => setShowGallery(true)}
-            className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-gradient-to-r from-pink-500/10 to-purple-500/10 hover:from-pink-500/20 hover:to-purple-500/20 border border-pink-500/30 rounded-lg text-pink-400 hover:text-pink-300 text-xs transition-colors"
+            className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-gradient-to-r from-pink-500/10 to-blue-500/10 hover:from-pink-500/20 hover:to-blue-500/20 border border-pink-500/30 rounded-lg text-pink-400 hover:text-pink-300 text-xs transition-colors"
           >
             <GalleryHorizontal className="w-3.5 h-3.5" /> Media Gallery
           </button>
@@ -3615,20 +3615,20 @@ export default function ChatPage() {
                 className={`relative flex items-start gap-3 p-3 rounded-xl border backdrop-blur-sm ${
                   ann.type === 'warning' ? 'bg-orange-500/10 border-orange-500/30' :
                   ann.type === 'success' ? 'bg-green-500/10 border-green-500/30' :
-                  ann.type === 'update' ? 'bg-purple-500/10 border-purple-500/30' :
+                  ann.type === 'update' ? 'bg-blue-500/10 border-blue-500/30' :
                   'bg-blue-500/10 border-blue-500/30'
                 }`}
               >
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                   ann.type === 'warning' ? 'bg-orange-500/20' :
                   ann.type === 'success' ? 'bg-green-500/20' :
-                  ann.type === 'update' ? 'bg-purple-500/20' :
+                  ann.type === 'update' ? 'bg-blue-500/20' :
                   'bg-blue-500/20'
                 }`}>
                   <Megaphone className={`w-4 h-4 ${
                     ann.type === 'warning' ? 'text-orange-400' :
                     ann.type === 'success' ? 'text-green-400' :
-                    ann.type === 'update' ? 'text-purple-400' :
+                    ann.type === 'update' ? 'text-blue-400' :
                     'text-blue-400'
                   }`} />
                 </div>
@@ -3830,7 +3830,7 @@ export default function ChatPage() {
             {/* Compare Mode Loading */}
             {compareLoading && (
               <div className="msg-appear -mx-4 md:-mx-8 lg:-mx-16 px-4 md:px-8 lg:px-16">
-                <div className="bg-gradient-to-br from-orange-500/5 to-purple-500/5 border border-white/10 rounded-2xl p-5 mb-4">
+                <div className="bg-gradient-to-br from-orange-500/5 to-blue-500/5 border border-white/10 rounded-2xl p-5 mb-4">
                   <div className="flex items-center gap-3 mb-5">
                     <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
                       <GitCompare className="w-5 h-5 text-orange-400 animate-pulse" />
@@ -3860,7 +3860,7 @@ export default function ChatPage() {
             {/* Compare Mode Responses */}
             {compareResponses && !compareLoading && (
               <div className="msg-appear -mx-4 md:-mx-8 lg:-mx-16 px-4 md:px-8 lg:px-16">
-                <div className="bg-gradient-to-br from-orange-500/5 to-purple-500/5 border border-white/10 rounded-2xl p-5 mb-4">
+                <div className="bg-gradient-to-br from-orange-500/5 to-blue-500/5 border border-white/10 rounded-2xl p-5 mb-4">
                   <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
@@ -4034,7 +4034,7 @@ export default function ChatPage() {
               <button onClick={sendMessage}
                 disabled={(!input.trim() && attachments.length === 0 && !speech.isListening) || loading || compareLoading || (compareMode && compareModels.length === 0)}
                 className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
-                  compareMode ? 'bg-gradient-to-r from-orange-500 to-purple-500 hover:from-orange-600 hover:to-purple-600' : 'bg-orange-500 hover:bg-orange-600'
+                  compareMode ? 'bg-gradient-to-r from-orange-500 to-blue-500 hover:from-orange-600 hover:to-purple-600' : 'bg-orange-500 hover:bg-orange-600'
                 }`}>
                 {loading || compareLoading ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-spin" /> : compareMode ? <GitCompare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" /> : <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />}
               </button>
@@ -4043,7 +4043,7 @@ export default function ChatPage() {
               {speech.isListening
                 ? <span className="text-orange-500/70 animate-pulse">🎙 {speech.mode === 'live' ? 'Listening — tap mic to stop' : 'Recording — tap to stop'}</span>
                 : compareMode
-                  ? <span className="text-purple-400/70">Compare: {compareModels.length} model{compareModels.length !== 1 ? 's' : ''}</span>
+                  ? <span className="text-blue-400/70">Compare: {compareModels.length} model{compareModels.length !== 1 ? 's' : ''}</span>
                   : <span className="hidden sm:inline">Supports JPG, PNG, PDF, TXT, CSV · Tap 🎙 for voice · Max 10MB</span>}
               {!speech.isListening && !compareMode && <span className="sm:hidden">Tap 🎙 for voice · Attach files</span>}
             </p>
@@ -4063,7 +4063,7 @@ export default function ChatPage() {
             {/* Header */}
             <div className="flex items-center justify-between mb-6 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-purple-500 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-blue-500 flex items-center justify-center">
                   <GalleryHorizontal className="w-5 h-5 text-white" />
                 </div>
                 <div>
