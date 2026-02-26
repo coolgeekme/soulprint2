@@ -505,6 +505,12 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   const [creatingSchedule, setCreatingSchedule] = useState(false);
   const [scheduleError, setScheduleError] = useState('');
 
+  // Feedback state
+  const [feedbackType, setFeedbackType] = useState('');
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
   useEffect(() => {
     fetch('/api/imports', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(d => setImports(Array.isArray(d) ? d : [])).catch(() => {});
