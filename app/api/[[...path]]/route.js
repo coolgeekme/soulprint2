@@ -6022,6 +6022,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
     if (pathStr === 'schedules') return handleGetSchedules(request);
     if (pathStr === 'schedules/templates') return ok(SCHEDULE_TEMPLATES);
+    if (pathStr === 'memories') return handleGetMemories(request);
 
     // Admin routes
     if (pathStr === 'admin/users') return handleAdminGetUsers(request);
