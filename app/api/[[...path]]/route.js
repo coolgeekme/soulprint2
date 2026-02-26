@@ -4535,7 +4535,7 @@ async function handleChunkedUploadInit(request) {
   return ok({ uploadId, message: 'Upload session created' });
 }
 
-// Chunked upload: Receive a chunk and extract messages immediately
+// Chunked upload: Receive a chunk and store it
 async function handleChunkedUploadChunk(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -4556,93 +4556,39 @@ async function handleChunkedUploadChunk(request) {
     if (!upload) return err('Upload session not found', 404);
     if (upload.status !== 'uploading') return err('Upload already completed or failed');
 
-    // Convert chunk to text and extract messages IMMEDIATELY
+    // Convert chunk to base64 and store as separate document
     const chunkBuffer = Buffer.from(await chunk.arrayBuffer());
-    const textContent = chunkBuffer.toString('utf8');
+    const chunkBase64 = chunkBuffer.toString('base64');
     
-    // Extract messages from this chunk using multiple patterns
-    const extractedMessages = [];
+    // Store chunk as separate document to avoid 16MB limit
+    await db.collection('upload_chunks').updateOne(
+      { upload_id: uploadId, chunk_index: chunkIndex },
+      { 
+        $set: { 
+          upload_id: uploadId,
+          chunk_index: chunkIndex,
+          data: chunkBase64,
+          size: chunkBuffer.length,
+          created_at: new Date()
+        }
+      },
+      { upsert: true }
+    );
     
-    // Pattern 1: ChatGPT "parts": ["message"]
-    const partsMatches = textContent.matchAll(/"parts"\s*:\s*\[\s*"([^"]{15,1000})"/g);
-    for (const match of partsMatches) {
-      const content = match[1];
-      if (content && content.length > 15 && !content.includes('\\u0') && !content.startsWith('http')) {
-        extractedMessages.push(cleanExtractedText(content));
-      }
-    }
-    
-    // Pattern 2: ChatGPT "text": "message" (newer format)
-    const textMatches = textContent.matchAll(/"text"\s*:\s*"([^"]{20,1000})"/g);
-    for (const match of textMatches) {
-      const content = match[1];
-      if (content && content.length > 20 && !content.startsWith('http') && !content.includes('data:image')) {
-        extractedMessages.push(cleanExtractedText(content));
-      }
-    }
-    
-    // Pattern 3: "message": { "content": { "parts": ["..."] } }
-    const nestedMatches = textContent.matchAll(/"content"\s*:\s*\{\s*"parts"\s*:\s*\[\s*"([^"]{15,800})"/g);
-    for (const match of nestedMatches) {
-      const content = match[1];
-      if (content && content.length > 15) {
-        extractedMessages.push(cleanExtractedText(content));
-      }
-    }
-    
-    // Pattern 4: Facebook "content": "message"
-    const fbMatches = textContent.matchAll(/"content"\s*:\s*"([^"]{15,600})"/g);
-    for (const match of fbMatches) {
-      const content = match[1];
-      if (content && content.length > 15 && !content.includes('\\u0')) {
-        extractedMessages.push(cleanExtractedText(content));
-      }
-    }
-    
-    // Pattern 5: "body": "message" (some Facebook formats)
-    const bodyMatches = textContent.matchAll(/"body"\s*:\s*"([^"]{15,600})"/g);
-    for (const match of bodyMatches) {
-      const content = match[1];
-      if (content && content.length > 15) {
-        extractedMessages.push(cleanExtractedText(content));
-      }
-    }
-    
-    // Update upload: mark chunk received and add extracted messages
-    // Limit to 10 messages per chunk to avoid bloating
-    const newMessages = extractedMessages.slice(0, 10);
-    
+    // Update received chunks list
     await db.collection('chunked_uploads').updateOne(
       { id: uploadId },
-      { 
-        $addToSet: { received_chunks: chunkIndex },
-        $push: { extracted_messages: { $each: newMessages, $slice: -500 } } // Keep last 500 messages
-      }
+      { $addToSet: { received_chunks: chunkIndex } }
     );
     
     return ok({ 
       received: chunkIndex, 
-      extracted: newMessages.length,
-      message: `Chunk ${chunkIndex + 1} processed` 
+      message: `Chunk ${chunkIndex + 1} received` 
     });
   } catch (e) {
     console.error('Chunk upload error:', e);
     return err(`Chunk upload failed: ${e.message}`, 500);
   }
-}
-
-// Helper to clean extracted text
-function cleanExtractedText(text) {
-  if (!text) return '';
-  return text
-    .replace(/\\n/g, ' ')
-    .replace(/\\t/g, ' ')
-    .replace(/\\r/g, '')
-    .replace(/\\\\/g, '\\')
-    .replace(/\\"/g, '"')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .substring(0, 500);
 }
 
 // Chunked upload: Complete and process (messages already extracted during chunk upload)
