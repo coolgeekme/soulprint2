@@ -800,23 +800,124 @@ function GalleryModal({ item, onClose }) {
   );
 }
 
-// ── CloudImportModal: Import large files from cloud storage ──────────────────
+// ── CloudImportModal: Import large files - Direct upload or cloud URL ──────────────────
 function CloudImportModal({ onClose, token, onImportComplete }) {
+  const [importMode, setImportMode] = useState('direct'); // 'direct' or 'url'
   const [cloudUrl, setCloudUrl] = useState('');
   const [importType, setImportType] = useState('chatgpt'); // 'chatgpt' or 'facebook'
   const [isImporting, setIsImporting] = useState(false);
-  const [importStatus, setImportStatus] = useState(null); // { status: 'pending'|'processing'|'completed'|'failed', message, progress }
+  const [importStatus, setImportStatus] = useState(null);
   const [error, setError] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef(null);
 
   const detectCloudProvider = (url) => {
     if (url.includes('drive.google.com')) return 'google';
     if (url.includes('dropbox.com')) return 'dropbox';
+    if (url.includes('transfer.sh')) return 'transfer.sh';
     if (url.includes('onedrive.live.com') || url.includes('1drv.ms')) return 'onedrive';
-    if (url.includes('icloud.com')) return 'icloud';
     return 'direct';
   };
 
-  const handleImport = async () => {
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.endsWith('.zip')) {
+        setError('Please select a ZIP file');
+        return;
+      }
+      setSelectedFile(file);
+      setError('');
+    }
+  };
+
+  // Direct upload to transfer.sh then process
+  const handleDirectUpload = async () => {
+    if (!selectedFile) {
+      setError('Please select a file');
+      return;
+    }
+
+    setError('');
+    setIsImporting(true);
+    setImportStatus({ status: 'uploading', message: 'Uploading to secure storage...', progress: 0 });
+
+    try {
+      // Upload to transfer.sh
+      const xhr = new XMLHttpRequest();
+      
+      await new Promise((resolve, reject) => {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(percent);
+            setImportStatus({ 
+              status: 'uploading', 
+              message: `Uploading... ${percent}%`, 
+              progress: percent 
+            });
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(xhr.responseText.trim());
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+        xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+        // Use transfer.sh for secure temporary storage
+        xhr.open('PUT', `https://transfer.sh/${encodeURIComponent(selectedFile.name)}`);
+        xhr.setRequestHeader('Max-Days', '1'); // File expires in 1 day
+        xhr.send(selectedFile);
+      }).then(async (downloadUrl) => {
+        console.log('File uploaded to:', downloadUrl);
+        setImportStatus({ status: 'processing', message: 'Processing your data...', progress: 0 });
+
+        // Now call our backend to process the file
+        const res = await fetch('/api/imports/cloud', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            url: downloadUrl,
+            type: importType,
+            provider: 'transfer.sh',
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Import failed');
+        }
+
+        if (data.importId) {
+          pollImportStatus(data.importId);
+        }
+      });
+
+    } catch (err) {
+      console.error('Upload error:', err);
+      setError(err.message || 'Upload failed. Please try again.');
+      setImportStatus(null);
+      setIsImporting(false);
+    }
+  };
+
+  // Import from existing cloud URL
+  const handleUrlImport = async () => {
     if (!cloudUrl.trim()) {
       setError('Please enter a cloud storage link');
       return;
@@ -846,7 +947,6 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
         return;
       }
 
-      // Start polling for status
       if (data.importId) {
         pollImportStatus(data.importId);
       } else {
@@ -862,7 +962,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   };
 
   const pollImportStatus = async (importId) => {
-    const maxPolls = 120; // 10 minutes max
+    const maxPolls = 180; // 15 minutes max for large files
     let polls = 0;
 
     const poll = async () => {
@@ -890,7 +990,6 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           return;
         }
 
-        // Still processing
         setImportStatus({
           status: 'processing',
           message: data.message || 'Processing...',
@@ -898,7 +997,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
         });
 
         polls++;
-        setTimeout(poll, 5000); // Poll every 5 seconds
+        setTimeout(poll, 5000);
       } catch (err) {
         polls++;
         setTimeout(poll, 5000);
@@ -914,15 +1013,15 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-              <Cloud className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+              <Upload className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Import from Cloud</h2>
-              <p className="text-xs text-gray-500">For large files (1GB+)</p>
+              <h2 className="text-lg font-semibold text-white">Import Large Files</h2>
+              <p className="text-xs text-gray-500">Up to 10GB supported</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white p-1">
+          <button onClick={onClose} className="text-gray-500 hover:text-white p-1" disabled={isImporting}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -934,6 +1033,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
             <div className="flex gap-2">
               <button
                 onClick={() => setImportType('chatgpt')}
+                disabled={isImporting}
                 className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors ${
                   importType === 'chatgpt'
                     ? 'bg-green-500/20 border border-green-500/40 text-green-400'
@@ -944,6 +1044,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
               </button>
               <button
                 onClick={() => setImportType('facebook')}
+                disabled={isImporting}
                 className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-colors ${
                   importType === 'facebook'
                     ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400'
@@ -955,48 +1056,121 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
             </div>
           </div>
 
-          {/* Instructions */}
-          <div className="bg-white/5 rounded-xl p-4 text-xs text-gray-400 space-y-2">
-            <p className="font-medium text-gray-300 flex items-center gap-2">
-              <HardDrive className="w-4 h-4" /> How to import large files:
-            </p>
-            <ol className="list-decimal pl-5 space-y-1.5">
-              <li><span className="text-blue-400 font-medium">Dropbox (Recommended)</span>: Upload ZIP → Share → Get link → Change <code className="bg-black/30 px-1 rounded">?dl=0</code> to <code className="bg-black/30 px-1 rounded">?dl=1</code></li>
-              <li><span className="text-cyan-400">Google Drive</span>: Works for files under 100MB. For larger files, use Dropbox.</li>
-              <li><span className="text-purple-400">OneDrive</span>: Upload ZIP → Share → "Anyone with the link" → Copy link</li>
-            </ol>
-            <p className="text-yellow-500/80 text-[10px] mt-2 flex items-center gap-1">
-              <AlertCircle className="w-3 h-3" /> Google Drive blocks large file downloads. Use Dropbox for files over 100MB.
-            </p>
+          {/* Import Mode Toggle */}
+          <div className="flex rounded-lg bg-white/5 p-1">
+            <button
+              onClick={() => { setImportMode('direct'); setError(''); }}
+              disabled={isImporting}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                importMode === 'direct'
+                  ? 'bg-orange-500/20 text-orange-400'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <Upload className="w-4 h-4" />
+              Direct Upload
+            </button>
+            <button
+              onClick={() => { setImportMode('url'); setError(''); }}
+              disabled={isImporting}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                importMode === 'url'
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <Link2 className="w-4 h-4" />
+              Cloud URL
+            </button>
           </div>
 
-          {/* URL Input */}
-          <div>
-            <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">Cloud Storage Link</label>
-            <div className="relative">
-              <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              <input
-                type="url"
-                value={cloudUrl}
-                onChange={(e) => setCloudUrl(e.target.value)}
-                placeholder="https://www.dropbox.com/... or Google Drive link"
-                className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50"
-                disabled={isImporting}
-              />
+          {/* Direct Upload Mode */}
+          {importMode === 'direct' && (
+            <div className="space-y-4">
+              <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-xl p-4">
+                <p className="text-xs text-gray-400 mb-3 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-orange-400" />
+                  <span><span className="text-orange-400 font-medium">Recommended:</span> Select your ZIP file and we'll handle everything automatically.</span>
+                </p>
+                
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept=".zip"
+                  className="hidden"
+                  disabled={isImporting}
+                />
+                
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isImporting}
+                  className={`w-full py-4 border-2 border-dashed rounded-xl transition-colors flex flex-col items-center justify-center gap-2 ${
+                    selectedFile 
+                      ? 'border-orange-500/50 bg-orange-500/10' 
+                      : 'border-white/20 hover:border-orange-500/50 hover:bg-white/5'
+                  }`}
+                >
+                  {selectedFile ? (
+                    <>
+                      <FileArchive className="w-8 h-8 text-orange-400" />
+                      <span className="text-sm text-white font-medium">{selectedFile.name}</span>
+                      <span className="text-xs text-gray-500">{formatFileSize(selectedFile.size)}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-8 h-8 text-gray-500" />
+                      <span className="text-sm text-gray-400">Click to select ZIP file</span>
+                      <span className="text-xs text-gray-600">Up to 10GB</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-            {cloudUrl && (
-              <p className="mt-1.5 text-xs text-gray-500">
-                Detected: <span className={`capitalize ${detectCloudProvider(cloudUrl) === 'dropbox' ? 'text-blue-400' : 'text-cyan-400'}`}>{detectCloudProvider(cloudUrl)}</span>
-                {detectCloudProvider(cloudUrl) === 'google' && <span className="text-yellow-500/70 ml-2">(may not work for large files)</span>}
-              </p>
-            )}
-          </div>
+          )}
+
+          {/* URL Mode */}
+          {importMode === 'url' && (
+            <div className="space-y-4">
+              <div className="bg-white/5 rounded-xl p-3 text-xs text-gray-400">
+                <p className="font-medium text-gray-300 mb-2">Supported services:</p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded">Dropbox</span>
+                  <span className="px-2 py-1 bg-purple-500/20 text-purple-400 rounded">OneDrive</span>
+                  <span className="px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded">Google Drive*</span>
+                  <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded">transfer.sh</span>
+                </div>
+                <p className="text-[10px] text-yellow-500/70 mt-2">*Google Drive may block files over 100MB</p>
+              </div>
+
+              <div>
+                <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">Cloud Storage Link</label>
+                <div className="relative">
+                  <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    type="url"
+                    value={cloudUrl}
+                    onChange={(e) => setCloudUrl(e.target.value)}
+                    placeholder="https://www.dropbox.com/... or other link"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500/50"
+                    disabled={isImporting}
+                  />
+                </div>
+                {cloudUrl && (
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    Detected: <span className="text-blue-400 capitalize">{detectCloudProvider(cloudUrl)}</span>
+                    {detectCloudProvider(cloudUrl) === 'google' && <span className="text-yellow-500/70 ml-2">(may not work for large files)</span>}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {error}
+              <span className="flex-1">{error}</span>
             </div>
           )}
 
@@ -1023,10 +1197,12 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                   {importStatus.message}
                 </span>
               </div>
-              {importStatus.status === 'processing' && importStatus.progress > 0 && (
+              {(importStatus.status === 'uploading' || importStatus.status === 'processing') && importStatus.progress > 0 && (
                 <div className="w-full bg-white/10 rounded-full h-1.5">
                   <div
-                    className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                    className={`h-1.5 rounded-full transition-all duration-500 ${
+                      importStatus.status === 'uploading' ? 'bg-orange-500' : 'bg-blue-500'
+                    }`}
                     style={{ width: `${importStatus.progress}%` }}
                   />
                 </div>
@@ -1036,23 +1212,23 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
           {/* Import Button */}
           <button
-            onClick={handleImport}
-            disabled={!cloudUrl.trim() || isImporting}
+            onClick={importMode === 'direct' ? handleDirectUpload : handleUrlImport}
+            disabled={(importMode === 'direct' ? !selectedFile : !cloudUrl.trim()) || isImporting}
             className={`w-full py-3 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-              cloudUrl.trim() && !isImporting
-                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600'
+              ((importMode === 'direct' ? selectedFile : cloudUrl.trim()) && !isImporting)
+                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-orange-600 hover:to-red-600'
                 : 'bg-white/5 text-gray-600 cursor-not-allowed'
             }`}
           >
             {isImporting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Importing...
+                {importStatus?.status === 'uploading' ? 'Uploading...' : 'Processing...'}
               </>
             ) : (
               <>
-                <Cloud className="w-4 h-4" />
-                Start Import
+                <Upload className="w-4 h-4" />
+                {importMode === 'direct' ? 'Upload & Import' : 'Import from URL'}
               </>
             )}
           </button>
