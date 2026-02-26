@@ -1,868 +1,358 @@
 #!/usr/bin/env python3
 """
-SoulPrint Engine - Multi-Model Comparison & Memory System API Testing
-Testing the Multi-Model Comparison and memory management APIs for the SoulPrint Engine.
+SoulPrint Engine Cloud Import API Testing Suite
+Tests POST /api/imports/cloud and GET /api/imports/status endpoints
 """
 
 import requests
 import json
+import time
 import sys
-import jwt
-from datetime import datetime
+import os
+from urllib.parse import urljoin
 
 # Configuration
 BASE_URL = "https://multi-model-chat-15.preview.emergentagent.com"
-API_BASE = f"{BASE_URL}/api"
+TEST_CREDENTIALS = {
+    "email": "test@soulprint.com",
+    "password": "test123"
+}
 
-# Test credentials
-TEST_EMAIL = "test@soulprint.com"
-TEST_PASSCODE = "test123"
-TEST_USER_ID = "94807c2e-c74f-46a6-a249-5bf7366f2134"
-JWT_SECRET = "soulprint-super-secret-jwt-key-2025-change-in-prod"
-
-# Available models for testing
-AVAILABLE_MODELS = [
-    {"model": "gpt-4o", "provider": "openai"},
-    {"model": "gpt-4o-mini", "provider": "openai"}, 
-    {"model": "gemini-2.0-flash", "provider": "gemini"},
-    {"model": "claude-sonnet-4-5-20250929", "provider": "anthropic"}
-]
-
-class MultiModelCompareTester:
+class CloudImportTester:
     def __init__(self):
+        self.base_url = BASE_URL
         self.token = None
-        self.user_id = None
-        self.created_conversations = []
-        self.created_comparisons = []
-        
-    def log(self, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        print(f"[{timestamp}] {message}")
-        
-    def create_test_token(self):
-        """Create test JWT token for the specified user"""
+        self.session = requests.Session()
+        self.session.headers.update({
+            'Content-Type': 'application/json',
+            'User-Agent': 'SoulPrint-CloudImport-Tester/1.0'
+        })
+
+    def authenticate(self):
+        """Authenticate and get JWT token"""
         try:
-            payload = {
-                "userId": TEST_USER_ID,
-                "iat": int(datetime.now().timestamp()),
-                "exp": int(datetime.now().timestamp()) + 3600  # 1 hour
-            }
-            token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
-            self.token = token
-            self.user_id = TEST_USER_ID
-            self.log(f"✅ Test token created for user: {self.user_id}")
-            return True
+            url = urljoin(self.base_url, '/api/auth/login')
+            response = self.session.post(url, json=TEST_CREDENTIALS)
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.token = data.get('token')
+                self.session.headers.update({
+                    'Authorization': f'Bearer {self.token}'
+                })
+                print(f"✅ Authentication successful - Role: {data.get('role', 'unknown')}")
+                return True
+            else:
+                print(f"❌ Authentication failed: {response.status_code} - {response.text}")
+                return False
+                
         except Exception as e:
-            self.log(f"❌ Failed to create test token: {str(e)}")
-            return False
-        
-    def test_login(self):
-        """Test user authentication"""
-        try:
-            self.log("🔐 Testing login...")
-            
-            response = requests.post(f"{API_BASE}/auth/login", json={
-                "email": TEST_EMAIL,
-                "passcode": TEST_PASSCODE
-            }, timeout=30)
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.token = data.get("token")
-                self.user_id = data.get("userId")
-                role = data.get("role", "unknown")
-                
-                self.log(f"✅ Login successful! User ID: {self.user_id}, Role: {role}")
-                return True
-            else:
-                self.log(f"❌ Login failed with status {response.status_code}: {response.text}")
-                # Fallback to test token
-                return self.create_test_token()
-                
-        except requests.RequestException as e:
-            self.log(f"❌ Login request failed: {str(e)}")
-            # Fallback to test token
-            return self.create_test_token()
-            
-    def get_headers(self):
-        """Get headers with auth token"""
-        if not self.token:
-            raise Exception("No auth token available. Login first.")
-        return {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json"
-        }
-        
-    def test_compare_two_models(self):
-        """Test comparing 2 models with a simple question"""
-        try:
-            self.log("🔍 Testing multi-model comparison with 2 models...")
-            
-            models_to_test = AVAILABLE_MODELS[:2]  # Take first 2 models
-            content = "What are the main benefits of artificial intelligence in healthcare?"
-            
-            response = requests.post(f"{API_BASE}/chat/compare", 
-                json={
-                    "content": content,
-                    "models": models_to_test,
-                    "enableWebSearch": False,
-                    "attachments": []
-                },
-                headers=self.get_headers(),
-                timeout=60
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("success"):
-                    comparison_id = data.get("comparisonId")
-                    conversation_id = data.get("conversationId")
-                    responses = data.get("responses", [])
-                    
-                    self.created_comparisons.append(comparison_id)
-                    self.created_conversations.append(conversation_id)
-                    
-                    self.log(f"✅ 2-model comparison successful!")
-                    self.log(f"   Comparison ID: {comparison_id}")
-                    self.log(f"   Conversation ID: {conversation_id}")
-                    self.log(f"   Responses received: {len(responses)}")
-                    
-                    # Verify each model responded
-                    for i, resp in enumerate(responses):
-                        model = resp.get("model")
-                        success = resp.get("success", False)
-                        content_length = len(resp.get("content", "")) if resp.get("content") else 0
-                        
-                        if success and content_length > 0:
-                            self.log(f"   ✅ Model {i+1} ({model}): Success, {content_length} chars")
-                        else:
-                            error = resp.get("error", "Unknown error")
-                            self.log(f"   ❌ Model {i+1} ({model}): Failed - {error}")
-                    
-                    return comparison_id, responses
-                else:
-                    self.log(f"❌ 2-model comparison failed: Invalid response format")
-                    return None, None
-            else:
-                self.log(f"❌ 2-model comparison failed with status {response.status_code}: {response.text}")
-                return None, None
-                
-        except requests.RequestException as e:
-            self.log(f"❌ 2-model comparison request failed: {str(e)}")
-            return None, None
-            
-    def test_compare_three_models(self):
-        """Test comparing 3 models (max allowed)"""
-        try:
-            self.log("🔍 Testing multi-model comparison with 3 models (max)...")
-            
-            models_to_test = AVAILABLE_MODELS[:3]  # Take first 3 models
-            content = "Explain quantum computing in simple terms"
-            
-            response = requests.post(f"{API_BASE}/chat/compare", 
-                json={
-                    "content": content,
-                    "models": models_to_test,
-                    "enableWebSearch": False,
-                    "attachments": []
-                },
-                headers=self.get_headers(),
-                timeout=90
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("success"):
-                    comparison_id = data.get("comparisonId")
-                    conversation_id = data.get("conversationId")
-                    responses = data.get("responses", [])
-                    
-                    self.created_comparisons.append(comparison_id)
-                    self.created_conversations.append(conversation_id)
-                    
-                    self.log(f"✅ 3-model comparison successful!")
-                    self.log(f"   Comparison ID: {comparison_id}")
-                    self.log(f"   Responses received: {len(responses)}")
-                    
-                    successful_responses = 0
-                    for i, resp in enumerate(responses):
-                        model = resp.get("model")
-                        success = resp.get("success", False)
-                        
-                        if success and resp.get("content"):
-                            successful_responses += 1
-                            content_length = len(resp.get("content"))
-                            self.log(f"   ✅ Model {i+1} ({model}): Success, {content_length} chars")
-                        else:
-                            error = resp.get("error", "Unknown error")
-                            self.log(f"   ❌ Model {i+1} ({model}): Failed - {error}")
-                    
-                    return comparison_id, successful_responses >= 2  # Success if at least 2 models worked
-                else:
-                    self.log(f"❌ 3-model comparison failed: Invalid response format")
-                    return None, False
-            else:
-                self.log(f"❌ 3-model comparison failed with status {response.status_code}: {response.text}")
-                return None, False
-                
-        except requests.RequestException as e:
-            self.log(f"❌ 3-model comparison request failed: {str(e)}")
-            return None, False
-            
-    def test_reject_too_many_models(self):
-        """Test that requests with more than 3 models are rejected"""
-        try:
-            self.log("❌ Testing rejection of >3 models...")
-            
-            models_to_test = AVAILABLE_MODELS  # All 4 models (should be rejected)
-            content = "This should be rejected"
-            
-            response = requests.post(f"{API_BASE}/chat/compare", 
-                json={
-                    "content": content,
-                    "models": models_to_test,
-                    "enableWebSearch": False,
-                    "attachments": []
-                },
-                headers=self.get_headers(),
-                timeout=30
-            )
-            
-            if response.status_code == 400:
-                error_text = response.text
-                if "Maximum 3 models" in error_text:
-                    self.log("✅ Correctly rejected >3 models with proper error message")
-                    return True
-                else:
-                    self.log(f"❌ Rejected >3 models but wrong error: {error_text}")
-                    return False
-            else:
-                self.log(f"❌ Failed to reject >3 models - got status {response.status_code}")
-                return False
-                
-        except requests.RequestException as e:
-            self.log(f"❌ >3 models test request failed: {str(e)}")
-            return False
-            
-    def test_reject_no_models(self):
-        """Test that requests with no models are rejected"""
-        try:
-            self.log("❌ Testing rejection of requests with no models...")
-            
-            response = requests.post(f"{API_BASE}/chat/compare", 
-                json={
-                    "content": "This should be rejected",
-                    "models": [],  # Empty models array
-                    "enableWebSearch": False,
-                    "attachments": []
-                },
-                headers=self.get_headers(),
-                timeout=30
-            )
-            
-            if response.status_code == 400:
-                error_text = response.text
-                if "models required" in error_text:
-                    self.log("✅ Correctly rejected empty models array")
-                    return True
-                else:
-                    self.log(f"❌ Rejected empty models but wrong error: {error_text}")
-                    return False
-            else:
-                self.log(f"❌ Failed to reject empty models - got status {response.status_code}")
-                return False
-                
-        except requests.RequestException as e:
-            self.log(f"❌ No models test request failed: {str(e)}")
-            return False
-            
-    def test_select_winning_response(self, comparison_id, responses):
-        """Test selecting a winning response from comparison"""
-        if not comparison_id or not responses:
-            self.log("❌ Cannot test selection - no valid comparison data")
-            return False
-            
-        try:
-            self.log("🏆 Testing selection of winning response...")
-            
-            # Find the first successful response to select
-            winning_response = None
-            selected_model = None
-            selected_content = None
-            
-            for resp in responses:
-                if resp.get("success") and resp.get("content"):
-                    winning_response = resp
-                    selected_model = resp["model"]
-                    selected_content = resp["content"]
-                    break
-                    
-            if not winning_response:
-                self.log("❌ No successful response to select from")
-                return False
-                
-            self.log(f"   Selected model: {selected_model}")
-            self.log(f"   Content length: {len(selected_content)} chars")
-            
-            response = requests.post(f"{API_BASE}/chat/compare/select", 
-                json={
-                    "comparisonId": comparison_id,
-                    "selectedModel": selected_model,
-                    "selectedContent": selected_content
-                },
-                headers=self.get_headers(),
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("success"):
-                    message_id = data.get("messageId")
-                    conversation_id = data.get("conversationId")
-                    
-                    self.log(f"✅ Response selection successful!")
-                    self.log(f"   Message ID: {message_id}")
-                    self.log(f"   Conversation ID: {conversation_id}")
-                    self.log(f"   Selected Model: {data.get('selectedModel')}")
-                    return True
-                else:
-                    self.log(f"❌ Response selection failed: Invalid response format")
-                    return False
-            else:
-                self.log(f"❌ Response selection failed with status {response.status_code}: {response.text}")
-                return False
-                
-        except requests.RequestException as e:
-            self.log(f"❌ Response selection request failed: {str(e)}")
-            return False
-            
-    def test_authentication_required(self):
-        """Test that endpoints require authentication"""
-        try:
-            self.log("🔒 Testing authentication requirements...")
-            
-            # Test compare endpoint without token
-            response = requests.post(f"{API_BASE}/chat/compare", 
-                json={
-                    "content": "Test",
-                    "models": [{"model": "gpt-4o", "provider": "openai"}]
-                },
-                timeout=30
-            )
-            
-            if response.status_code == 401:
-                self.log("✅ Compare endpoint properly requires authentication")
-            else:
-                self.log(f"❌ Compare endpoint authentication not properly enforced - got status {response.status_code}")
-                return False
-                
-            # Test select endpoint without token
-            response = requests.post(f"{API_BASE}/chat/compare/select", 
-                json={
-                    "comparisonId": "test",
-                    "selectedModel": "gpt-4o",
-                    "selectedContent": "test"
-                },
-                timeout=30
-            )
-            
-            if response.status_code == 401:
-                self.log("✅ Select endpoint properly requires authentication")
-                return True
-            else:
-                self.log(f"❌ Select endpoint authentication not properly enforced - got status {response.status_code}")
-                return False
-                
-        except requests.RequestException as e:
-            self.log(f"❌ Authentication test request failed: {str(e)}")
-            return False
-            
-    def run_comprehensive_test(self):
-        """Run comprehensive multi-model comparison tests"""
-        self.log("🚀 Starting Multi-Model Comparison API Testing")
-        self.log("=" * 60)
-        
-        # Track test results
-        tests_passed = 0
-        total_tests = 0
-        
-        # Test 1: Authentication
-        total_tests += 1
-        if self.test_login():
-            tests_passed += 1
-        else:
-            self.log("❌ Cannot continue without authentication")
-            return False
-            
-        # Test 2: Authentication required
-        total_tests += 1
-        if self.test_authentication_required():
-            tests_passed += 1
-            
-        # Test 3: Compare 2 models
-        total_tests += 1
-        comparison_id, responses = self.test_compare_two_models()
-        if comparison_id and responses:
-            tests_passed += 1
-            
-        # Test 4: Select winning response
-        total_tests += 1
-        if comparison_id and responses and self.test_select_winning_response(comparison_id, responses):
-            tests_passed += 1
-            
-        # Test 5: Compare 3 models (max allowed)
-        total_tests += 1
-        comparison_id_3, success_3 = self.test_compare_three_models()
-        if success_3:
-            tests_passed += 1
-            
-        # Test 6: Reject >3 models
-        total_tests += 1
-        if self.test_reject_too_many_models():
-            tests_passed += 1
-            
-        # Test 7: Reject no models
-        total_tests += 1
-        if self.test_reject_no_models():
-            tests_passed += 1
-            
-        # Summary
-        self.log("=" * 60)
-        self.log(f"🎯 MULTI-MODEL COMPARISON TEST SUMMARY")
-        self.log(f"   Tests Passed: {tests_passed}/{total_tests}")
-        self.log(f"   Success Rate: {(tests_passed/total_tests)*100:.1f}%")
-        
-        if tests_passed == total_tests:
-            self.log("🎉 All Multi-Model Comparison tests passed!")
-            return True
-        else:
-            self.log("⚠️  Some multi-model comparison tests failed")
+            print(f"❌ Authentication error: {str(e)}")
             return False
 
-class MemoryTester:
-    def __init__(self):
-        self.token = None
-        self.user_id = None
-        self.created_memories = []
-        
-    def log(self, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        print(f"[{timestamp}] {message}")
-        
-    def test_login(self):
-        """Test user authentication"""
+    def test_cloud_import_no_auth(self):
+        """Test POST /api/imports/cloud without authentication"""
+        print("\n🔒 Testing Cloud Import without authentication...")
         try:
-            self.log("🔐 Testing login...")
+            # Remove auth header temporarily
+            auth_header = self.session.headers.pop('Authorization', None)
             
-            response = requests.post(f"{API_BASE}/auth/login", json={
-                "email": TEST_EMAIL,
-                "passcode": TEST_PASSCODE
-            }, timeout=30)
+            url = urljoin(self.base_url, '/api/imports/cloud')
+            response = self.session.post(url, json={
+                "url": "https://example.com/test.zip",
+                "type": "chatgpt",
+                "provider": "direct"
+            })
             
-            if response.status_code == 200:
-                data = response.json()
-                self.token = data.get("token")
-                self.user_id = data.get("userId")
-                role = data.get("role", "unknown")
-                
-                self.log(f"✅ Login successful! User ID: {self.user_id}, Role: {role}")
+            # Restore auth header
+            if auth_header:
+                self.session.headers['Authorization'] = auth_header
+            
+            if response.status_code == 401:
+                print("✅ PASSED: Returns 401 Unauthorized without auth")
                 return True
             else:
-                self.log(f"❌ Login failed with status {response.status_code}: {response.text}")
+                print(f"❌ FAILED: Expected 401, got {response.status_code}")
                 return False
                 
-        except requests.RequestException as e:
-            self.log(f"❌ Login request failed: {str(e)}")
+        except Exception as e:
+            print(f"❌ ERROR: {str(e)}")
             return False
-            
-    def get_headers(self):
-        """Get headers with auth token"""
-        if not self.token:
-            raise Exception("No auth token available. Login first.")
-        return {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json"
-        }
-        
-    def test_create_memory(self, content, category, importance):
-        """Test creating a memory"""
+
+    def test_import_status_no_auth(self):
+        """Test GET /api/imports/status without authentication"""
+        print("\n🔒 Testing Import Status without authentication...")
         try:
-            self.log(f"💾 Creating memory: '{content}' (category: {category}, importance: {importance})")
+            # Remove auth header temporarily
+            auth_header = self.session.headers.pop('Authorization', None)
             
-            response = requests.post(f"{API_BASE}/memories", 
-                json={
-                    "content": content,
-                    "category": category,
-                    "importance": importance
-                },
-                headers=self.get_headers(),
-                timeout=30
-            )
+            url = urljoin(self.base_url, '/api/imports/status?importId=test123')
+            response = self.session.get(url)
+            
+            # Restore auth header
+            if auth_header:
+                self.session.headers['Authorization'] = auth_header
+            
+            if response.status_code == 401:
+                print("✅ PASSED: Returns 401 Unauthorized without auth")
+                return True
+            else:
+                print(f"❌ FAILED: Expected 401, got {response.status_code}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ ERROR: {str(e)}")
+            return False
+
+    def test_cloud_import_validation(self):
+        """Test POST /api/imports/cloud validation"""
+        print("\n✏️ Testing Cloud Import validation...")
+        try:
+            url = urljoin(self.base_url, '/api/imports/cloud')
+            
+            # Test missing URL
+            response = self.session.post(url, json={
+                "type": "chatgpt",
+                "provider": "direct"
+            })
+            
+            if response.status_code == 400 and 'URL required' in response.text:
+                print("✅ PASSED: Validates missing URL (400 error)")
+                return True
+            else:
+                print(f"❌ FAILED: Expected URL validation error, got {response.status_code} - {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ ERROR: {str(e)}")
+            return False
+
+    def test_cloud_import_creation(self):
+        """Test POST /api/imports/cloud job creation"""
+        print("\n📤 Testing Cloud Import job creation...")
+        try:
+            url = urljoin(self.base_url, '/api/imports/cloud')
+            
+            # Test with a public test URL (will likely fail download, but should create job)
+            test_data = {
+                "url": "https://httpbin.org/json",  # This will fail as it's not a ZIP, but tests job creation
+                "type": "chatgpt",
+                "provider": "direct"
+            }
+            
+            response = self.session.post(url, json=test_data)
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get("success") and data.get("memory"):
-                    memory = data["memory"]
-                    memory_id = memory["id"]
-                    self.created_memories.append(memory_id)
-                    
-                    self.log(f"✅ Memory created successfully! ID: {memory_id}")
-                    self.log(f"   Content: {memory['content']}")
-                    self.log(f"   Category: {memory['category']}")
-                    self.log(f"   Importance: {memory['importance']}")
-                    self.log(f"   Source: {memory['source']}")
-                    return memory_id
+                if 'importId' in data and 'status' in data and data['status'] == 'pending':
+                    print(f"✅ PASSED: Created import job with ID: {data['importId']}")
+                    return data['importId']
                 else:
-                    self.log(f"❌ Memory creation failed: Invalid response format")
+                    print(f"❌ FAILED: Missing expected response fields: {data}")
                     return None
             else:
-                self.log(f"❌ Memory creation failed with status {response.status_code}: {response.text}")
+                print(f"❌ FAILED: Expected 200, got {response.status_code} - {response.text}")
                 return None
                 
-        except requests.RequestException as e:
-            self.log(f"❌ Memory creation request failed: {str(e)}")
+        except Exception as e:
+            print(f"❌ ERROR: {str(e)}")
             return None
-            
-    def test_get_memories(self):
-        """Test retrieving all memories"""
+
+    def test_cloud_import_dropbox_detection(self):
+        """Test POST /api/imports/cloud with Dropbox URL format"""
+        print("\n📦 Testing Cloud Import with Dropbox URL...")
         try:
-            self.log("📋 Retrieving all memories...")
+            url = urljoin(self.base_url, '/api/imports/cloud')
             
-            response = requests.get(f"{API_BASE}/memories",
-                headers=self.get_headers(),
-                timeout=30
-            )
+            # Test with Dropbox URL format (will likely fail download, but tests provider detection)
+            test_data = {
+                "url": "https://www.dropbox.com/s/abc123/test.zip?dl=0",
+                "type": "chatgpt",
+                "provider": "dropbox"  # or should be auto-detected
+            }
+            
+            response = self.session.post(url, json=test_data)
             
             if response.status_code == 200:
                 data = response.json()
-                memories = data.get("memories", [])
-                categories = data.get("categories", [])
-                
-                self.log(f"✅ Retrieved {len(memories)} memories")
-                self.log(f"   Available categories: {', '.join(categories)}")
-                
-                for i, memory in enumerate(memories):
-                    self.log(f"   Memory {i+1}: {memory['content']} (category: {memory['category']}, importance: {memory['importance']})")
-                
-                return memories
+                if 'importId' in data and 'status' in data and data['status'] == 'pending':
+                    print(f"✅ PASSED: Created Dropbox import job with ID: {data['importId']}")
+                    return data['importId']
+                else:
+                    print(f"❌ FAILED: Missing expected response fields: {data}")
+                    return None
             else:
-                self.log(f"❌ Failed to retrieve memories with status {response.status_code}: {response.text}")
+                print(f"❌ FAILED: Expected 200, got {response.status_code} - {response.text}")
                 return None
                 
-        except requests.RequestException as e:
-            self.log(f"❌ Memory retrieval request failed: {str(e)}")
+        except Exception as e:
+            print(f"❌ ERROR: {str(e)}")
             return None
-            
-    def test_update_memory(self, memory_id, new_content=None, new_category=None, new_importance=None):
-        """Test updating a memory"""
+
+    def test_import_status_polling(self, import_id):
+        """Test GET /api/imports/status for valid importId"""
+        print(f"\n📊 Testing Import Status polling for ID: {import_id}")
         try:
-            updates = {}
-            update_desc = []
-            
-            if new_content:
-                updates["content"] = new_content
-                update_desc.append(f"content: '{new_content}'")
-            if new_category:
-                updates["category"] = new_category
-                update_desc.append(f"category: {new_category}")
-            if new_importance:
-                updates["importance"] = new_importance
-                update_desc.append(f"importance: {new_importance}")
-                
-            self.log(f"✏️  Updating memory {memory_id}: {', '.join(update_desc)}")
-            
-            response = requests.put(f"{API_BASE}/memories/{memory_id}",
-                json=updates,
-                headers=self.get_headers(),
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("success"):
-                    self.log(f"✅ Memory updated successfully!")
-                    return True
-                else:
-                    self.log(f"❌ Memory update failed: Invalid response format")
-                    return False
-            else:
-                self.log(f"❌ Memory update failed with status {response.status_code}: {response.text}")
+            if not import_id:
+                print("❌ SKIPPED: No importId provided")
                 return False
                 
-        except requests.RequestException as e:
-            self.log(f"❌ Memory update request failed: {str(e)}")
-            return False
+            url = urljoin(self.base_url, f'/api/imports/status?importId={import_id}')
             
-    def test_delete_memory(self, memory_id):
-        """Test deleting a memory"""
-        try:
-            self.log(f"🗑️  Deleting memory {memory_id}...")
-            
-            response = requests.delete(f"{API_BASE}/memories/{memory_id}",
-                headers=self.get_headers(),
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("success"):
-                    self.log(f"✅ Memory deleted successfully!")
-                    # Remove from our tracking list
-                    if memory_id in self.created_memories:
-                        self.created_memories.remove(memory_id)
-                    return True
-                else:
-                    self.log(f"❌ Memory deletion failed: Invalid response format")
-                    return False
-            else:
-                self.log(f"❌ Memory deletion failed with status {response.status_code}: {response.text}")
-                return False
+            # Poll a few times to see status changes
+            for i in range(3):
+                response = self.session.get(url)
                 
-        except requests.RequestException as e:
-            self.log(f"❌ Memory deletion request failed: {str(e)}")
-            return False
-            
-    def test_memory_categories(self):
-        """Test memory filtering by category"""
-        try:
-            self.log("🏷️  Testing memory category filtering...")
-            
-            # Test filtering by health category
-            response = requests.get(f"{API_BASE}/memories?category=health",
-                headers=self.get_headers(),
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                health_memories = data.get("memories", [])
-                
-                self.log(f"✅ Health category filter working: {len(health_memories)} health memories found")
-                
-                # Verify all returned memories are health category
-                for memory in health_memories:
-                    if memory["category"] != "health":
-                        self.log(f"❌ Category filtering error: Non-health memory returned: {memory}")
-                        return False
+                if response.status_code == 200:
+                    data = response.json()
+                    required_fields = ['status', 'message', 'progress', 'messagesCount', 'error']
+                    
+                    # Check if all required fields are present
+                    if all(field in data for field in required_fields):
+                        print(f"✅ Poll {i+1}: Status={data['status']}, Progress={data['progress']}%, Message='{data['message']}'")
                         
-                return True
-            else:
-                self.log(f"❌ Category filtering failed with status {response.status_code}: {response.text}")
-                return False
+                        # If status is failed or completed, stop polling
+                        if data['status'] in ['completed', 'failed']:
+                            if data['status'] == 'failed' and data['error']:
+                                print(f"   ℹ️  Expected failure reason: {data['error']}")
+                            break
+                    else:
+                        print(f"❌ FAILED: Missing required fields in response: {data}")
+                        return False
+                else:
+                    print(f"❌ FAILED: Expected 200, got {response.status_code} - {response.text}")
+                    return False
                 
-        except requests.RequestException as e:
-            self.log(f"❌ Category filtering request failed: {str(e)}")
-            return False
+                # Wait a bit before next poll
+                if i < 2:
+                    time.sleep(2)
             
-    def test_authentication_required(self):
-        """Test that endpoints require authentication"""
+            print("✅ PASSED: Import status polling working correctly")
+            return True
+            
+        except Exception as e:
+            print(f"❌ ERROR: {str(e)}")
+            return False
+
+    def test_import_status_invalid_id(self):
+        """Test GET /api/imports/status for non-existent importId"""
+        print("\n🔍 Testing Import Status with invalid importId...")
         try:
-            self.log("🔒 Testing authentication requirements...")
+            url = urljoin(self.base_url, '/api/imports/status?importId=non-existent-id-12345')
+            response = self.session.get(url)
             
-            # Test without token
-            response = requests.get(f"{API_BASE}/memories", timeout=30)
-            
-            if response.status_code == 401:
-                self.log("✅ Authentication properly required (401 returned without token)")
+            if response.status_code == 404:
+                print("✅ PASSED: Returns 404 for non-existent importId")
                 return True
             else:
-                self.log(f"❌ Authentication not properly enforced - got status {response.status_code}")
+                print(f"❌ FAILED: Expected 404, got {response.status_code} - {response.text}")
                 return False
                 
-        except requests.RequestException as e:
-            self.log(f"❌ Authentication test request failed: {str(e)}")
+        except Exception as e:
+            print(f"❌ ERROR: {str(e)}")
             return False
-            
-    def test_memory_validation(self):
-        """Test memory validation rules"""
+
+    def test_import_status_missing_param(self):
+        """Test GET /api/imports/status without importId parameter"""
+        print("\n❓ Testing Import Status without importId parameter...")
         try:
-            self.log("✅ Testing memory validation...")
+            url = urljoin(self.base_url, '/api/imports/status')
+            response = self.session.get(url)
             
-            # Test empty content
-            response = requests.post(f"{API_BASE}/memories", 
-                json={"content": "", "category": "health", "importance": "high"},
-                headers=self.get_headers(),
-                timeout=30
-            )
-            
-            if response.status_code == 400:
-                self.log("✅ Empty content properly rejected (400 returned)")
-            else:
-                self.log(f"❌ Empty content not properly validated - got status {response.status_code}")
-                return False
-                
-            # Test very short content
-            response = requests.post(f"{API_BASE}/memories", 
-                json={"content": "Hi", "category": "health", "importance": "high"},
-                headers=self.get_headers(),
-                timeout=30
-            )
-            
-            if response.status_code == 400:
-                self.log("✅ Short content properly rejected (400 returned)")
+            if response.status_code == 400 and 'importId required' in response.text:
+                print("✅ PASSED: Validates missing importId parameter")
                 return True
             else:
-                self.log(f"❌ Short content not properly validated - got status {response.status_code}")
+                print(f"❌ FAILED: Expected importId validation error, got {response.status_code} - {response.text}")
                 return False
                 
-        except requests.RequestException as e:
-            self.log(f"❌ Validation test request failed: {str(e)}")
+        except Exception as e:
+            print(f"❌ ERROR: {str(e)}")
             return False
-            
-    def run_comprehensive_test(self):
-        """Run comprehensive memory system tests"""
-        self.log("🚀 Starting Long-Term Memory System API Testing")
-        self.log("=" * 60)
+
+    def run_all_tests(self):
+        """Run all Cloud Import API tests"""
+        print("🚀 Starting SoulPrint Cloud Import API Tests")
+        print("=" * 60)
+        
+        # Authentication
+        if not self.authenticate():
+            print("❌ Cannot continue without authentication")
+            return False
         
         # Track test results
-        tests_passed = 0
-        total_tests = 0
+        results = []
         
-        # Test 1: Authentication
-        total_tests += 1
-        if self.test_login():
-            tests_passed += 1
+        # Test scenarios
+        test_methods = [
+            ("Authentication Required - Cloud Import", self.test_cloud_import_no_auth),
+            ("Authentication Required - Import Status", self.test_import_status_no_auth),
+            ("Validation - Missing URL", self.test_cloud_import_validation),
+            ("Import Status - Missing Parameter", self.test_import_status_missing_param),
+            ("Import Status - Invalid ID", self.test_import_status_invalid_id),
+        ]
+        
+        # Run basic tests first
+        for test_name, test_method in test_methods:
+            try:
+                result = test_method()
+                results.append((test_name, result))
+            except Exception as e:
+                print(f"❌ {test_name} ERROR: {str(e)}")
+                results.append((test_name, False))
+        
+        # Test import job creation and status polling
+        print("\n" + "=" * 60)
+        print("📋 Testing Import Job Flow...")
+        
+        # Test job creation
+        import_id = self.test_cloud_import_creation()
+        results.append(("Import Job Creation", import_id is not None))
+        
+        # Test status polling with the created job
+        if import_id:
+            status_result = self.test_import_status_polling(import_id)
+            results.append(("Import Status Polling", status_result))
         else:
-            self.log("❌ Cannot continue without authentication")
-            return False
-            
-        # Test 2: Authentication required
-        total_tests += 1
-        if self.test_authentication_required():
-            tests_passed += 1
-            
-        # Test 3: Memory validation
-        total_tests += 1
-        if self.test_memory_validation():
-            tests_passed += 1
-            
-        # Test 4: Create first memory (health/high)
-        total_tests += 1
-        memory1_id = self.test_create_memory(
-            "I am allergic to peanuts",
-            "health", 
-            "high"
-        )
-        if memory1_id:
-            tests_passed += 1
-            
-        # Test 5: Create second memory (preferences/medium)  
-        total_tests += 1
-        memory2_id = self.test_create_memory(
-            "My favorite color is blue",
-            "preferences",
-            "medium"
-        )
-        if memory2_id:
-            tests_passed += 1
-            
-        # Test 6: Get all memories
-        total_tests += 1
-        memories = self.test_get_memories()
-        if memories is not None:
-            tests_passed += 1
-            
-        # Test 7: Test category filtering
-        total_tests += 1
-        if self.test_memory_categories():
-            tests_passed += 1
-            
-        # Test 8: Update memory
-        total_tests += 1
-        if memory1_id and self.test_update_memory(
-            memory1_id, 
-            new_content="I am severely allergic to peanuts and tree nuts",
-            new_importance="high"
-        ):
-            tests_passed += 1
-            
-        # Test 9: Verify update by getting memories again
-        total_tests += 1
-        updated_memories = self.test_get_memories()
-        if updated_memories is not None:
-            tests_passed += 1
-            # Find and verify the updated memory
-            updated_memory = next((m for m in updated_memories if m["id"] == memory1_id), None)
-            if updated_memory and "tree nuts" in updated_memory["content"]:
-                self.log("✅ Memory update verified in retrieval")
-            else:
-                self.log("❌ Memory update not reflected in retrieval")
-                
-        # Test 10: Delete one memory
-        total_tests += 1
-        if memory2_id and self.test_delete_memory(memory2_id):
-            tests_passed += 1
-            
-        # Test 11: Verify deletion
-        total_tests += 1
-        final_memories = self.test_get_memories()
-        if final_memories is not None:
-            deleted_memory = next((m for m in final_memories if m["id"] == memory2_id), None)
-            if deleted_memory is None:
-                self.log("✅ Memory deletion verified - deleted memory not in results")
-                tests_passed += 1
-            else:
-                self.log("❌ Memory deletion failed - deleted memory still exists")
-                
-        # Summary
-        self.log("=" * 60)
-        self.log(f"🎯 MEMORY SYSTEM TEST SUMMARY")
-        self.log(f"   Tests Passed: {tests_passed}/{total_tests}")
-        self.log(f"   Success Rate: {(tests_passed/total_tests)*100:.1f}%")
+            results.append(("Import Status Polling", False))
         
-        if tests_passed == total_tests:
-            self.log("🎉 All Long-Term Memory System tests passed!")
+        # Test Dropbox provider detection
+        dropbox_id = self.test_cloud_import_dropbox_detection()
+        results.append(("Dropbox Provider Detection", dropbox_id is not None))
+        
+        # Summary
+        print("\n" + "=" * 60)
+        print("📊 TEST SUMMARY")
+        print("=" * 60)
+        
+        passed = 0
+        total = len(results)
+        
+        for test_name, result in results:
+            status = "✅ PASSED" if result else "❌ FAILED"
+            print(f"{status}: {test_name}")
+            if result:
+                passed += 1
+        
+        print(f"\n📈 Results: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+        
+        if passed == total:
+            print("🎉 All Cloud Import API tests PASSED!")
             return True
         else:
-            self.log("⚠️  Some memory system tests failed")
+            print(f"⚠️ {total-passed} test(s) failed")
             return False
 
 def main():
     """Main test execution"""
-    try:
-        # Run Multi-Model Comparison tests
-        print("🔍 MULTI-MODEL COMPARISON TESTING")
-        print("=" * 60)
-        
-        comparison_tester = MultiModelCompareTester()
-        comparison_success = comparison_tester.run_comprehensive_test()
-        
-        print("\n" + "=" * 60)
-        
-        # Run Memory System tests
-        print("🧠 MEMORY SYSTEM TESTING") 
-        print("=" * 60)
-        
-        memory_tester = MemoryTester()
-        memory_success = memory_tester.run_comprehensive_test()
-        
-        # Overall results
-        print("\n" + "=" * 80)
-        print("🎯 OVERALL TEST RESULTS")
-        print("=" * 80)
-        
-        if comparison_success:
-            print("✅ Multi-Model Comparison: PASSED")
-        else:
-            print("❌ Multi-Model Comparison: FAILED")
-            
-        if memory_success:
-            print("✅ Memory System: PASSED")
-        else:
-            print("❌ Memory System: FAILED")
-            
-        overall_success = comparison_success and memory_success
-        
-        if overall_success:
-            print("\n🎉 ALL BACKEND TESTS: PASSED")
-            sys.exit(0)
-        else:
-            print("\n❌ SOME BACKEND TESTS: FAILED")
-            sys.exit(1)
-            
-    except Exception as e:
-        print(f"\n💥 Backend Testing: CRASHED - {str(e)}")
-        sys.exit(1)
+    print("SoulPrint Engine - Cloud Import API Test Suite")
+    print(f"Testing against: {BASE_URL}")
+    print(f"Test credentials: {TEST_CREDENTIALS['email']}")
+    
+    tester = CloudImportTester()
+    success = tester.run_all_tests()
+    
+    return 0 if success else 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
