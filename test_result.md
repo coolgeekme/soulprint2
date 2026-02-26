@@ -970,7 +970,9 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Video Status Poll API (GET /api/generate/video/{taskId})"
+    - "Media Generation API (POST /api/media/generate + GET /api/media/status)"
   stuck_tasks: 
     - "Kimi AI Integration (POST /api/chat/stream + GET /api/models)"
   test_all: false
