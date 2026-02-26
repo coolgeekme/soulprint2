@@ -7687,6 +7687,9 @@ export async function POST(request, { params }) {
     if (pathStr === 'imports/cloud') return handleCloudImport(request);
     if (pathStr === 'imports/cloud-batch') return handleCloudBatchImport(request);
     if (pathStr === 'imports/direct') return handleDirectUpload(request);
+    if (pathStr === 'imports/chunked/init') return handleChunkedInit(request);
+    if (pathStr === 'imports/chunked/chunk') return handleChunkedChunk(request);
+    if (pathStr === 'imports/chunked/process-batch') return handleChunkedProcessBatch(request);
     if (pathStr === 'transcribe') return handleTranscribe(request);
     if (pathStr === 'telegram/link') return handleTelegramLink(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
