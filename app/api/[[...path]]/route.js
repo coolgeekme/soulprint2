@@ -4780,6 +4780,199 @@ async function handleCloudImport(request) {
   return ok({ importId, status: 'pending' });
 }
 
+// Handle batch cloud import (multiple files from GoFile)
+async function handleCloudBatchImport(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { files, type = 'chatgpt', provider = 'gofile' } = body;
+
+  if (!files || !Array.isArray(files) || files.length === 0) {
+    return err('No files provided');
+  }
+
+  const db = await getDb();
+  const importId = uuidv4();
+
+  // Create import job
+  await db.collection('import_jobs').insertOne({
+    id: importId,
+    user_id: user.id,
+    type,
+    source: 'cloud_batch',
+    provider,
+    files: files,
+    total_files: files.length,
+    processed_files: 0,
+    status: 'pending',
+    progress: 0,
+    message: `Processing ${files.length} file(s)...`,
+    messages_count: 0,
+    error: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+  });
+
+  // Process in background
+  processCloudBatchImport(importId, user.id, files, type, provider).catch(err => {
+    console.error('Cloud batch import error:', err);
+    db.collection('import_jobs').updateOne(
+      { id: importId },
+      { $set: { status: 'failed', error: err.message, updated_at: new Date() } }
+    );
+  });
+
+  return ok({ importId, status: 'pending' });
+}
+
+// Process multiple files from cloud storage
+async function processCloudBatchImport(importId, userId, files, importType, provider) {
+  const db = await getDb();
+  const updateStatus = async (status, message, progress = 0, extra = {}) => {
+    await db.collection('import_jobs').updateOne(
+      { id: importId },
+      { $set: { status, message, progress, ...extra, updated_at: new Date() } }
+    );
+  };
+
+  try {
+    let totalMessages = [];
+    const totalFiles = files.length;
+
+    for (let i = 0; i < files.length; i++) {
+      const fileInfo = files[i];
+      const fileNum = i + 1;
+      
+      await updateStatus('processing', `Downloading file ${fileNum}/${totalFiles}: ${fileInfo.fileName}...`, Math.round((i / totalFiles) * 50));
+
+      try {
+        // For GoFile, we need to get the direct download URL
+        let downloadUrl;
+        
+        if (provider === 'gofile' && fileInfo.fileId) {
+          // GoFile direct download requires getting the content info first
+          // The download page URL is like: https://gofile.io/d/XXXXXX
+          // We need to use their API to get the direct link
+          const contentId = fileInfo.url?.split('/d/')[1] || fileInfo.fileId;
+          
+          // Try to get direct download link from GoFile API
+          const infoRes = await fetch(`https://api.gofile.io/contents/${contentId}?wt=4fd6sg89d7s6`, {
+            headers: {
+              'Accept': 'application/json',
+            }
+          });
+          
+          if (infoRes.ok) {
+            const infoData = await infoRes.json();
+            if (infoData.status === 'ok' && infoData.data?.children) {
+              const fileData = Object.values(infoData.data.children)[0];
+              downloadUrl = fileData?.link;
+            }
+          }
+          
+          // Fallback: construct direct download URL
+          if (!downloadUrl) {
+            downloadUrl = `https://${fileInfo.server || 'store1'}.gofile.io/download/web/${fileInfo.fileId}/${encodeURIComponent(fileInfo.fileName)}`;
+          }
+        } else {
+          downloadUrl = fileInfo.url;
+        }
+
+        console.log(`[BatchImport] Downloading file ${fileNum}/${totalFiles} from: ${downloadUrl}`);
+
+        // Download the file
+        const response = await fetch(downloadUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': '*/*',
+          },
+          redirect: 'follow',
+        });
+
+        if (!response.ok) {
+          console.error(`Failed to download file ${fileNum}: ${response.status}`);
+          continue; // Skip this file but continue with others
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        console.log(`[BatchImport] Downloaded file ${fileNum}, size: ${(buffer.length / 1024 / 1024).toFixed(2)} MB`);
+
+        await updateStatus('processing', `Extracting messages from file ${fileNum}/${totalFiles}...`, Math.round((i / totalFiles) * 50) + 25);
+
+        // Extract messages
+        let messages = [];
+        if (importType === 'chatgpt') {
+          messages = await extractChatGPTMessagesFromBuffer(buffer);
+        } else if (importType === 'facebook') {
+          messages = await extractFacebookMessagesFromBuffer(buffer);
+        }
+
+        console.log(`[BatchImport] Extracted ${messages.length} messages from file ${fileNum}`);
+        totalMessages = totalMessages.concat(messages);
+
+      } catch (fileError) {
+        console.error(`Error processing file ${fileNum}:`, fileError);
+        // Continue with other files
+      }
+    }
+
+    await updateStatus('processing', 'Saving messages...', 80);
+
+    // Deduplicate and save all messages
+    if (totalMessages.length > 0) {
+      const existingHashes = new Set();
+      const existingMsgs = await db.collection('imported_messages')
+        .find({ user_id: userId })
+        .project({ content_hash: 1 })
+        .toArray();
+      existingMsgs.forEach(m => existingHashes.add(m.content_hash));
+
+      const crypto = require('crypto');
+      const newMessages = totalMessages.filter(m => {
+        const hash = crypto.createHash('md5').update(m.content || '').digest('hex');
+        m.content_hash = hash;
+        return !existingHashes.has(hash);
+      });
+
+      if (newMessages.length > 0) {
+        const docs = newMessages.map(m => ({
+          id: uuidv4(),
+          user_id: userId,
+          content: m.content,
+          role: m.role,
+          timestamp: m.timestamp,
+          source: importType,
+          content_hash: m.content_hash,
+          imported_at: new Date(),
+        }));
+
+        // Insert in batches to avoid memory issues
+        const batchSize = 1000;
+        for (let i = 0; i < docs.length; i += batchSize) {
+          const batch = docs.slice(i, i + batchSize);
+          await db.collection('imported_messages').insertMany(batch);
+        }
+      }
+
+      await updateStatus('completed', `Successfully imported ${newMessages.length} new messages from ${totalFiles} file(s) (${totalMessages.length - newMessages.length} duplicates skipped)`, 100, { 
+        messages_count: newMessages.length,
+        total_extracted: totalMessages.length,
+        files_processed: totalFiles
+      });
+    } else {
+      await updateStatus('completed', `No messages found in ${totalFiles} file(s)`, 100, { messages_count: 0 });
+    }
+
+  } catch (error) {
+    console.error('[BatchImport] Processing error:', error);
+    await updateStatus('failed', error.message, 0, { error: error.message });
+    throw error;
+  }
+}
+
 async function processCloudImport(importId, userId, cloudUrl, importType, provider) {
   const db = await getDb();
   const updateStatus = async (status, message, progress = 0, extra = {}) => {
