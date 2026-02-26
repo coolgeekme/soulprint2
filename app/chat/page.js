@@ -8,10 +8,29 @@ import {
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
   Image as ImageIcon, Paperclip, Search, Video, Download, RefreshCw, Play,
   MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain,
-  GitCompare, CheckCircle2, Clock, Zap
+  GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import InstallPrompt from '@/app/components/InstallPrompt';
+
+// Image Generation Models (sorted by cost - cheapest first)
+const IMAGE_MODELS = [
+  { value: 'seedream-5-lite', label: 'Seedream 5.0 Lite', provider: 'kie', cost: 5.5, costLabel: '$0.03', description: 'Fast & affordable' },
+  { value: 'nano-banana', label: 'Nano Banana', provider: 'kie', cost: 10, costLabel: '$0.05', description: 'Gemini-powered' },
+  { value: 'gpt4o-image', label: 'GPT-4o Image', provider: 'kie', cost: 20, costLabel: '$0.10', description: 'High quality text' },
+  { value: 'flux-pro', label: 'Flux Pro', provider: 'kie', cost: 25, costLabel: '$0.13', description: 'Artistic styles' },
+  { value: 'midjourney-v7', label: 'Midjourney V7', provider: 'kie', cost: 40, costLabel: '$0.20', description: 'Premium quality' },
+  { value: 'gpt-image-1-5', label: 'GPT Image 1.5', provider: 'kie', cost: 50, costLabel: '$0.25', description: 'OpenAI flagship' },
+];
+
+// Video Generation Models (sorted by cost - cheapest first)
+const VIDEO_MODELS = [
+  { value: 'kling-3-720p', label: 'Kling 3.0 (720p)', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: '5s, no audio' },
+  { value: 'sora-2-stable', label: 'Sora 2 Stable', provider: 'kie', cost: 35, costLabel: '$0.18', description: '10s video' },
+  { value: 'kling-2-6', label: 'Kling 2.6', provider: 'kie', cost: 55, costLabel: '$0.28', description: '5s with options' },
+  { value: 'runway', label: 'Runway Gen-3', provider: 'kie', cost: 100, costLabel: '$0.50', description: 'Pro quality' },
+  { value: 'wan-2-6', label: 'Wan 2.6', provider: 'kie', cost: 150, costLabel: '$0.75', description: '15s 1080p' },
+];
 
 const MODELS = [
   // OpenAI
