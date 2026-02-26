@@ -6120,6 +6120,10 @@ export async function PUT(request, { params }) {
       const taskId = pathArr[1];
       return handleUpdateSchedule(request, taskId);
     }
+    if (pathStr.startsWith('memories/') && pathArr.length === 2) {
+      const memoryId = pathArr[1];
+      return handleUpdateMemory(request, memoryId);
+    }
 
     // Admin user update: admin/users/:id
     if (pathStr.startsWith('admin/users/') && pathStr.endsWith('/accept')) {
