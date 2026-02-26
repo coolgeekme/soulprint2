@@ -3187,26 +3187,58 @@ async function handleMediaGenerate(request) {
       const modelConfig = KIE_VIDEO_MODELS[model];
       if (!modelConfig) return err(`Unknown video model: ${model}`, 400);
 
-      // Submit video generation task
-      const videoParams = {
-        prompt,
-        ...modelConfig.params,
-        aspectRatio: aspectRatio === '1:1' ? '16:9' : aspectRatio, // Most video models prefer 16:9
-      };
+      let taskId;
+      const aspectRatioForVideo = aspectRatio === '1:1' ? '16:9' : aspectRatio;
 
-      const res = await fetch(`https://api.kie.ai/api/v1/${modelConfig.endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
-        body: JSON.stringify(videoParams),
-      });
-      const data = await res.json();
+      if (modelConfig.useJobsApi) {
+        // Use unified Jobs API for video generation
+        const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+          body: JSON.stringify({
+            model: modelConfig.model,
+            input: {
+              prompt,
+              aspect_ratio: aspectRatioForVideo,
+              ...modelConfig.params,
+            },
+          }),
+        });
+        const data = await res.json();
+        
+        console.log('Kie.ai Jobs API video response:', JSON.stringify(data).substring(0, 500));
 
-      if (data.code !== 200) {
-        console.error('Kie.ai video error:', data);
-        return err(data.msg || 'Video generation failed', 400);
+        if (data.code !== 200) {
+          console.error('Kie.ai Jobs API video error:', data);
+          return err(data.msg || data.error || 'Video generation failed', 400);
+        }
+
+        taskId = data.data?.taskId;
+      } else {
+        // Use legacy endpoint
+        const videoParams = {
+          prompt,
+          ...modelConfig.params,
+          aspectRatio: aspectRatioForVideo,
+        };
+
+        const res = await fetch(`https://api.kie.ai/api/v1/${modelConfig.endpoint}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+          body: JSON.stringify(videoParams),
+        });
+        const data = await res.json();
+
+        console.log('Kie.ai legacy video response:', JSON.stringify(data).substring(0, 500));
+
+        if (data.code !== 200) {
+          console.error('Kie.ai video error:', data);
+          return err(data.msg || 'Video generation failed', 400);
+        }
+
+        taskId = data.data?.taskId;
       }
 
-      const taskId = data.data?.taskId;
       if (!taskId) return err('No task ID returned', 500);
 
       // Store video job for async polling
@@ -3229,10 +3261,11 @@ async function handleMediaGenerate(request) {
         url: null, // Will be updated when complete
         task_id: taskId,
         status: 'generating',
-        aspect_ratio: videoParams.aspectRatio,
+        aspect_ratio: aspectRatioForVideo,
         conversation_id: conversationId || null,
         created_at: new Date(),
         expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        use_jobs_api: modelConfig.useJobsApi || false, // Track which API to use for status
       });
 
       return ok({ success: true, taskId, mediaId, type: 'video', status: 'generating' });
