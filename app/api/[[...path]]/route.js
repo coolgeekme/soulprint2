@@ -4618,7 +4618,7 @@ async function handleAdminInviteAdmin(request) {
 // CLOUD IMPORT (for large files)
 // ============================================================
 
-// Handle direct file upload -> transfer.sh -> process
+// Handle direct file upload -> process directly (no external service)
 async function handleDirectUpload(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -4633,40 +4633,20 @@ async function handleDirectUpload(request) {
     const fileName = file.name || 'upload.zip';
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     
-    console.log(`[DirectUpload] Uploading ${fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB) to transfer.sh`);
+    console.log(`[DirectUpload] Processing ${fileName} (${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB) directly`);
 
-    // Upload to transfer.sh from server-side (no CORS issues)
-    const transferResponse = await fetch(`https://transfer.sh/${encodeURIComponent(fileName)}`, {
-      method: 'PUT',
-      headers: {
-        'Max-Days': '1',
-        'Content-Type': 'application/octet-stream',
-      },
-      body: fileBuffer,
-    });
-
-    if (!transferResponse.ok) {
-      const errorText = await transferResponse.text();
-      console.error('[DirectUpload] transfer.sh error:', errorText);
-      throw new Error(`Failed to upload to transfer.sh: ${transferResponse.status}`);
-    }
-
-    const downloadUrl = (await transferResponse.text()).trim();
-    console.log(`[DirectUpload] File uploaded to: ${downloadUrl}`);
-
-    // Now create import job and process
     const db = await getDb();
     const importId = uuidv4();
 
+    // Create import job
     await db.collection('import_jobs').insertOne({
       id: importId,
       user_id: user.id,
       type,
       source: 'direct_upload',
-      provider: 'transfer.sh',
-      cloud_url: downloadUrl,
-      status: 'pending',
-      progress: 0,
+      provider: 'direct',
+      status: 'processing',
+      progress: 10,
       message: 'Processing file...',
       messages_count: 0,
       error: null,
@@ -4674,8 +4654,8 @@ async function handleDirectUpload(request) {
       updated_at: new Date(),
     });
 
-    // Process in background
-    processCloudImport(importId, user.id, downloadUrl, type, 'transfer.sh').catch(err => {
+    // Process the file directly in memory
+    processDirectUpload(importId, user.id, fileBuffer, type).catch(err => {
       console.error('Direct upload processing error:', err);
       db.collection('import_jobs').updateOne(
         { id: importId },
@@ -4683,10 +4663,79 @@ async function handleDirectUpload(request) {
       );
     });
 
-    return ok({ importId, status: 'pending', uploadedTo: downloadUrl });
+    return ok({ importId, status: 'processing' });
   } catch (error) {
     console.error('[DirectUpload] Error:', error);
     return err(error.message || 'Upload failed', 500);
+  }
+}
+
+// Process file buffer directly
+async function processDirectUpload(importId, userId, buffer, importType) {
+  const db = await getDb();
+  const updateStatus = async (status, message, progress = 0, extra = {}) => {
+    await db.collection('import_jobs').updateOne(
+      { id: importId },
+      { $set: { status, message, progress, ...extra, updated_at: new Date() } }
+    );
+  };
+
+  try {
+    await updateStatus('processing', 'Extracting messages...', 30);
+
+    // Process the file based on type
+    let messages = [];
+    
+    if (importType === 'chatgpt') {
+      messages = await extractChatGPTMessagesFromBuffer(buffer);
+    } else if (importType === 'facebook') {
+      messages = await extractFacebookMessagesFromBuffer(buffer);
+    }
+
+    console.log(`[DirectUpload] Extracted ${messages.length} messages`);
+    await updateStatus('processing', 'Saving messages...', 60);
+
+    // Save messages to database
+    if (messages.length > 0) {
+      // Deduplicate
+      const existingHashes = new Set();
+      const existingMsgs = await db.collection('imported_messages')
+        .find({ user_id: userId })
+        .project({ content_hash: 1 })
+        .toArray();
+      existingMsgs.forEach(m => existingHashes.add(m.content_hash));
+
+      const crypto = require('crypto');
+      const newMessages = messages.filter(m => {
+        const hash = crypto.createHash('md5').update(m.content || '').digest('hex');
+        m.content_hash = hash;
+        return !existingHashes.has(hash);
+      });
+
+      if (newMessages.length > 0) {
+        const docs = newMessages.map(m => ({
+          id: uuidv4(),
+          user_id: userId,
+          content: m.content,
+          role: m.role,
+          timestamp: m.timestamp,
+          source: importType,
+          content_hash: m.content_hash,
+          imported_at: new Date(),
+        }));
+
+        await db.collection('imported_messages').insertMany(docs);
+      }
+
+      await updateStatus('completed', `Successfully imported ${newMessages.length} new messages (${messages.length - newMessages.length} duplicates skipped)`, 100, { messages_count: newMessages.length });
+    } else {
+      await updateStatus('completed', 'No messages found in the file', 100, { messages_count: 0 });
+    }
+
+  } catch (error) {
+    console.error('[DirectUpload] Processing error:', error);
+    await updateStatus('failed', error.message, 0, { error: error.message });
+    throw error;
   }
 }
 
