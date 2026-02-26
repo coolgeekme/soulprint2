@@ -4847,33 +4847,56 @@ async function processCloudBatchImport(importId, userId, files, importType, prov
       await updateStatus('processing', `Downloading file ${fileNum}/${totalFiles}: ${fileInfo.fileName}...`, Math.round((i / totalFiles) * 50));
 
       try {
-        // For GoFile, we need to get the direct download URL
         let downloadUrl;
         
         if (provider === 'gofile' && fileInfo.fileId) {
-          // GoFile direct download requires getting the content info first
-          // The download page URL is like: https://gofile.io/d/XXXXXX
-          // We need to use their API to get the direct link
-          const contentId = fileInfo.url?.split('/d/')[1] || fileInfo.fileId;
+          // GoFile requires fetching the direct download link via API
+          // Extract content code from download page URL (e.g., https://gofile.io/d/XXXXX)
+          let contentCode = fileInfo.fileId;
+          if (fileInfo.url) {
+            const match = fileInfo.url.match(/\/d\/([a-zA-Z0-9]+)/);
+            if (match) contentCode = match[1];
+          }
           
-          // Try to get direct download link from GoFile API
-          const infoRes = await fetch(`https://api.gofile.io/contents/${contentId}?wt=4fd6sg89d7s6`, {
+          console.log(`[BatchImport] Fetching GoFile content info for: ${contentCode}`);
+          
+          // Get the direct download link from GoFile API
+          const contentRes = await fetch(`https://api.gofile.io/contents/${contentCode}?wt=4fd6sg89d7s6`, {
             headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               'Accept': 'application/json',
             }
           });
           
-          if (infoRes.ok) {
-            const infoData = await infoRes.json();
-            if (infoData.status === 'ok' && infoData.data?.children) {
-              const fileData = Object.values(infoData.data.children)[0];
-              downloadUrl = fileData?.link;
+          if (!contentRes.ok) {
+            console.error(`[BatchImport] Failed to get GoFile content info: ${contentRes.status}`);
+            // Try alternative: use the server from upload response
+            const server = fileInfo.server || 'store1';
+            downloadUrl = `https://${server}.gofile.io/download/web/${fileInfo.fileId}/${encodeURIComponent(fileInfo.fileName)}`;
+          } else {
+            const contentData = await contentRes.json();
+            console.log(`[BatchImport] GoFile content response:`, JSON.stringify(contentData).substring(0, 500));
+            
+            if (contentData.status === 'ok' && contentData.data) {
+              // Find the file in the children
+              const children = contentData.data.children || contentData.data.contents?.children;
+              if (children) {
+                const fileData = Object.values(children).find(f => 
+                  f.id === fileInfo.fileId || f.name === fileInfo.fileName
+                ) || Object.values(children)[0];
+                
+                if (fileData) {
+                  downloadUrl = fileData.link || fileData.directLink;
+                  console.log(`[BatchImport] Found direct link: ${downloadUrl}`);
+                }
+              }
             }
-          }
-          
-          // Fallback: construct direct download URL
-          if (!downloadUrl) {
-            downloadUrl = `https://${fileInfo.server || 'store1'}.gofile.io/download/web/${fileInfo.fileId}/${encodeURIComponent(fileInfo.fileName)}`;
+            
+            // Fallback if we couldn't extract the link
+            if (!downloadUrl) {
+              const server = fileInfo.server || 'store1';
+              downloadUrl = `https://${server}.gofile.io/download/web/${fileInfo.fileId}/${encodeURIComponent(fileInfo.fileName)}`;
+            }
           }
         } else {
           downloadUrl = fileInfo.url;
@@ -4881,11 +4904,12 @@ async function processCloudBatchImport(importId, userId, files, importType, prov
 
         console.log(`[BatchImport] Downloading file ${fileNum}/${totalFiles} from: ${downloadUrl}`);
 
-        // Download the file
+        // Download the file with proper headers
         const response = await fetch(downloadUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': '*/*',
+            'Referer': 'https://gofile.io/',
           },
           redirect: 'follow',
         });
@@ -4897,6 +4921,13 @@ async function processCloudBatchImport(importId, userId, files, importType, prov
 
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
+        
+        // Check if we got HTML instead of a ZIP file
+        const firstBytes = buffer.slice(0, 20).toString();
+        if (firstBytes.includes('<!DOCTYPE') || firstBytes.includes('<html')) {
+          console.error(`[BatchImport] Got HTML instead of file for ${fileInfo.fileName}. GoFile may require authentication.`);
+          continue;
+        }
         
         console.log(`[BatchImport] Downloaded file ${fileNum}, size: ${(buffer.length / 1024 / 1024).toFixed(2)} MB`);
 
