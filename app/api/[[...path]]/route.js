@@ -10018,6 +10018,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'schedules') return handleCreateSchedule(request);
     if (pathStr === 'cron/run-schedules') return handleRunSchedules(request);
     if (pathStr === 'places/search') return handlePlacesSearch(request);
+    if (pathStr === 'profile/soulprint/generate') return handleGenerateSoulPrint(request);
     if (pathStr === 'places/geocode') return handleGeocode(request);
     if (pathStr === 'user/location') return handleSaveUserLocation(request);
     if (pathStr === 'data-import/upload') return handleDataImportUpload(request);
