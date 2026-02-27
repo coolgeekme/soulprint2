@@ -63,12 +63,24 @@ export default function BlogPage() {
             <span className="text-gray-600">/</span>
             <span className="text-gray-400">Blog</span>
           </div>
-          <Link 
-            href="/auth" 
-            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg text-sm font-medium transition-colors"
-          >
-            Get Started
-          </Link>
+          <div className="flex items-center gap-3">
+            {isLoggedIn ? (
+              <Link 
+                href="/chat" 
+                className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg text-sm font-medium transition-colors"
+              >
+                <MessageSquare className="w-4 h-4" />
+                Back to Chat
+              </Link>
+            ) : (
+              <Link 
+                href="/auth" 
+                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg text-sm font-medium transition-colors"
+              >
+                Get Started
+              </Link>
+            )}
+          </div>
         </div>
       </header>
 
