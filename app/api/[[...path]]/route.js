@@ -1713,6 +1713,22 @@ async function handleFirebaseAuth(request) {
     const count = await db.collection('users').countDocuments();
     const role = count === 0 ? 'superadmin' : 'user';
     
+    // Check if valid beta code was provided
+    let acceptedViaBetaCode = false;
+    if (accessCode && role !== 'superadmin') {
+      const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
+      if (betaCode && betaCode.code && 
+          betaCode.code.toUpperCase() === accessCode.toUpperCase().trim() &&
+          (!betaCode.expires_at || new Date(betaCode.expires_at) >= new Date())) {
+        acceptedViaBetaCode = true;
+        // Increment usage count
+        await db.collection('beta_codes').updateOne(
+          { id: 'current' },
+          { $inc: { uses: 1 } }
+        );
+      }
+    }
+    
     await db.collection('users').insertOne({
       id: userId,
       email: email.toLowerCase(),
@@ -1720,10 +1736,11 @@ async function handleFirebaseAuth(request) {
       firebase_photo_url: photoURL || null,
       display_name: displayName || null,
       role,
-      accepted: role === 'superadmin',
+      accepted: role === 'superadmin' || acceptedViaBetaCode,
       created_at: now,
       last_active_at: now,
       access_code_used: accessCode || null,
+      beta_code_used: acceptedViaBetaCode ? accessCode : null,
       auth_provider: 'firebase',
     });
     
@@ -1742,7 +1759,7 @@ async function handleFirebaseAuth(request) {
       created_at: now,
     });
     
-    user = { id: userId, role, accepted: role === 'superadmin' };
+    user = { id: userId, role, accepted: role === 'superadmin' || acceptedViaBetaCode };
   }
   
   // Generate our own JWT token for subsequent API calls
