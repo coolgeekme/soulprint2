@@ -3487,6 +3487,47 @@ export default function ChatPage() {
             </div>
           ))}
         </div>
+        
+        {/* Latest News Widget */}
+        {latestNews.length > 0 && (
+          <div className="px-3 py-2 border-t border-white/5">
+            <button 
+              onClick={() => setShowNewsExpanded(!showNewsExpanded)}
+              className="flex items-center justify-between w-full text-left mb-2"
+            >
+              <div className="flex items-center gap-1.5">
+                <Newspaper className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Latest News</span>
+              </div>
+              <ChevronDown className={`w-3 h-3 text-gray-600 transition-transform ${showNewsExpanded ? 'rotate-180' : ''}`} />
+            </button>
+            <div className={`space-y-1.5 overflow-hidden transition-all ${showNewsExpanded ? 'max-h-40' : 'max-h-16'}`}>
+              {latestNews.slice(0, showNewsExpanded ? 3 : 1).map(post => (
+                <a 
+                  key={post.id}
+                  href={`/blog/${post.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block p-2 bg-white/3 hover:bg-white/5 border border-white/5 hover:border-blue-500/30 rounded-lg transition-colors group"
+                >
+                  <p className="text-[11px] text-gray-300 group-hover:text-white line-clamp-2 leading-tight">{post.title}</p>
+                  <p className="text-[9px] text-gray-600 mt-0.5">{new Date(post.published_at || post.created_at).toLocaleDateString()}</p>
+                </a>
+              ))}
+            </div>
+            {latestNews.length > 1 && (
+              <a 
+                href="/blog"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 mt-2 py-1"
+              >
+                View all posts <ChevronRight className="w-3 h-3" />
+              </a>
+            )}
+          </div>
+        )}
+        
         <div className="p-3 border-t border-white/5 space-y-2">
           {/* Gallery button */}
           <button 
