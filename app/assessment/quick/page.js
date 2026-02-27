@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Check, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Sparkles, RefreshCw } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 export default function QuickAssessmentPage() {
