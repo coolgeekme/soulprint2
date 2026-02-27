@@ -2055,8 +2055,12 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                     </div>
                   )}
 
-                  {/* Not Complete State */}
-                  {!soulPrintData.assessmentComplete && !soulPrintData.communicationTraits?.length && (
+                  {/* Not Complete State - Only show if truly nothing to display */}
+                  {!soulPrintData.assessmentComplete && 
+                   !soulPrintData.communicationTraits?.length && 
+                   !soulPrintData.soulInsights &&
+                   !soulPrintData.answersByPillar?.length &&
+                   Object.keys(soulPrintData.answersByPillar || {}).length === 0 && (
                     <div className="text-center py-8">
                       <div className="w-16 h-16 mx-auto bg-white/5 rounded-2xl flex items-center justify-center mb-4">
                         <FileText className="w-8 h-8 text-gray-600" />
