@@ -2701,7 +2701,7 @@ async function handleChatStream(request) {
   historyMessages.push({ role: 'user', content: userMessageContent });
 
   // ── Best Practice: Rate Limiting ────────────────────────────────────────────
-  if (checkRateLimit(user.id)) {
+  if (checkChatRateLimit(user.id)) {
     return err('Rate limit exceeded — please slow down (max 80 messages/hour)', 429);
   }
 
