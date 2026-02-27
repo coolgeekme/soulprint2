@@ -800,7 +800,7 @@ function GalleryModal({ item, onClose }) {
   );
 }
 
-// ── CloudImportModal: Import large files directly ──────────────────
+// ── CloudImportModal: Import with client-side ZIP processing ──────────────────
 function CloudImportModal({ onClose, token, onImportComplete }) {
   const [importType, setImportType] = useState('chatgpt');
   const [isImporting, setIsImporting] = useState(false);
@@ -808,21 +808,8 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   const [error, setError] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [extractedData, setExtractedData] = useState(null);
   const fileInputRef = useRef(null);
-
-  // Prevent accidental navigation during upload
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (isImporting) {
-        e.preventDefault();
-        e.returnValue = 'Upload in progress. Are you sure you want to leave?';
-        return e.returnValue;
-      }
-    };
-    
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isImporting]);
 
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
@@ -832,91 +819,196 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   };
 
   const getTotalSize = () => selectedFiles.reduce((sum, f) => sum + f.size, 0);
-  
-  const isLargeUpload = getTotalSize() > 500 * 1024 * 1024; // > 500MB
-  // Realistic estimate: assume ~3 MB/s average upload speed
-  const sizeInMB = getTotalSize() / (1024 * 1024);
-  const estimatedSeconds = sizeInMB / 3; // 3 MB/s upload speed
-  const estimatedMinutes = Math.max(1, Math.ceil(estimatedSeconds / 60));
 
-  const handleFileSelect = (e) => {
+  // Extract data from ZIP file client-side
+  const extractFromZip = async (file, type) => {
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(file);
+    const messages = [];
+    const posts = [];
+
+    if (type === 'chatgpt') {
+      // Look for conversations.json
+      const conversationsFile = zip.file('conversations.json');
+      if (conversationsFile) {
+        const content = await conversationsFile.async('string');
+        const conversations = JSON.parse(content);
+        
+        for (const conv of conversations) {
+          if (conv.mapping) {
+            for (const nodeId in conv.mapping) {
+              const node = conv.mapping[nodeId];
+              if (node.message?.content?.parts?.[0]) {
+                const role = node.message.author?.role;
+                const content = node.message.content.parts.join('\n');
+                if (content && content.trim() && (role === 'user' || role === 'assistant')) {
+                  messages.push({
+                    role: role === 'user' ? 'user' : 'assistant',
+                    content: content.trim(),
+                    timestamp: node.message.create_time ? new Date(node.message.create_time * 1000).toISOString() : null,
+                    conversation_id: conv.id,
+                    conversation_title: conv.title
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    } else if (type === 'facebook') {
+      // Look for messages in inbox folder
+      const messageFiles = Object.keys(zip.files).filter(f => 
+        f.includes('messages/inbox/') && f.endsWith('.json')
+      );
+      
+      for (const filePath of messageFiles) {
+        try {
+          const content = await zip.file(filePath).async('string');
+          const data = JSON.parse(content);
+          if (data.messages) {
+            for (const msg of data.messages) {
+              if (msg.content) {
+                messages.push({
+                  role: msg.sender_name?.toLowerCase().includes('you') ? 'user' : 'other',
+                  content: msg.content,
+                  timestamp: msg.timestamp_ms ? new Date(msg.timestamp_ms).toISOString() : null,
+                  sender: msg.sender_name
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.log('Skipping file:', filePath);
+        }
+      }
+
+      // Look for posts
+      const postFiles = Object.keys(zip.files).filter(f => 
+        f.includes('posts/') && f.endsWith('.json')
+      );
+      
+      for (const filePath of postFiles) {
+        try {
+          const content = await zip.file(filePath).async('string');
+          const data = JSON.parse(content);
+          if (Array.isArray(data)) {
+            for (const post of data) {
+              if (post.data?.[0]?.post) {
+                posts.push({
+                  content: post.data[0].post,
+                  timestamp: post.timestamp ? new Date(post.timestamp * 1000).toISOString() : null
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.log('Skipping file:', filePath);
+        }
+      }
+    }
+
+    return { messages, posts };
+  };
+
+  const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
+    
     const invalidFiles = files.filter(f => !f.name.endsWith('.zip'));
     if (invalidFiles.length > 0) {
       setError('Please select only ZIP files');
       return;
     }
+    
     setSelectedFiles(files);
     setError('');
-  };
-
-  const removeFile = (index) => setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-
-  const uploadFileInChunks = async (file, fileNum, totalFiles, setStatus) => {
-    const CHUNK_SIZE = 5 * 1024 * 1024;
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    setExtractedData(null);
     
-    const initRes = await fetch('/api/imports/chunked/init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ filename: file.name, fileSize: file.size, totalChunks, type: importType }),
-    });
-    if (!initRes.ok) throw new Error('Failed to initialize upload');
-    const { uploadId } = await initRes.json();
-
-    for (let i = 0; i < totalChunks; i++) {
-      const chunk = file.slice(i * CHUNK_SIZE, Math.min((i + 1) * CHUNK_SIZE, file.size));
-      const formData = new FormData();
-      formData.append('uploadId', uploadId);
-      formData.append('chunkIndex', i.toString());
-      formData.append('chunk', chunk);
-      
-      const res = await fetch('/api/imports/chunked/chunk', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      if (!res.ok) throw new Error(`Chunk ${i + 1} failed`);
-      
-      const pct = Math.round(((i + 1) / totalChunks) * 100);
-      const overall = Math.round(((fileNum - 1) / totalFiles * 100) + (pct / totalFiles));
-      setStatus({ status: 'uploading', message: `${file.name}: ${pct}%`, progress: overall });
-    }
-    return { uploadId, fileName: file.name };
-  };
-
-  const handleUpload = async () => {
-    if (selectedFiles.length === 0) return setError('Please select a file');
-    setError('');
-    setIsImporting(true);
-    setImportStatus({ status: 'uploading', message: 'Starting...', progress: 0 });
-
+    // Auto-extract preview
+    setImportStatus({ status: 'extracting', message: 'Reading ZIP file...', progress: 10 });
+    
     try {
-      const uploads = [];
-      for (let i = 0; i < selectedFiles.length; i++) {
-        uploads.push(await uploadFileInChunks(selectedFiles[i], i + 1, selectedFiles.length, setImportStatus));
+      let totalMessages = [];
+      let totalPosts = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        setImportStatus({ 
+          status: 'extracting', 
+          message: `Processing ${files[i].name}...`, 
+          progress: Math.round(((i + 1) / files.length) * 80) 
+        });
+        
+        const { messages, posts } = await extractFromZip(files[i], importType);
+        totalMessages.push(...messages);
+        totalPosts.push(...posts);
       }
       
-      setImportStatus({ status: 'processing', message: 'Processing data...', progress: 95 });
-      
-      const res = await fetch('/api/imports/chunked/process-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ uploads, type: importType }),
+      setExtractedData({
+        messages: totalMessages,
+        posts: totalPosts,
+        dataSize: JSON.stringify({ messages: totalMessages, posts: totalPosts }).length
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Processing failed');
+      setImportStatus(null);
       
+    } catch (err) {
+      console.error('Extraction error:', err);
+      setError('Failed to read ZIP file. Make sure it\'s a valid export.');
+      setImportStatus(null);
+    }
+  };
+
+  const removeFile = () => {
+    setSelectedFiles([]);
+    setExtractedData(null);
+    setError('');
+  };
+
+  const handleImport = async () => {
+    if (!extractedData || extractedData.messages.length === 0) {
+      setError('No messages found to import');
+      return;
+    }
+    
+    setIsImporting(true);
+    setError('');
+    setImportStatus({ status: 'uploading', message: 'Uploading extracted data...', progress: 20 });
+
+    try {
+      // Upload extracted data (much smaller than full ZIP!)
+      const res = await fetch('/api/imports/extracted', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          type: importType,
+          messages: extractedData.messages,
+          posts: extractedData.posts
+        }),
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Import failed');
+      
+      setImportStatus({ status: 'processing', message: 'Analyzing your data...', progress: 60 });
+      
+      // Poll for completion
       if (data.importId) {
         const poll = async (polls = 0) => {
-          if (polls > 360) return setError('Timeout');
-          const r = await fetch(`/api/imports/status?importId=${data.importId}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (polls > 120) return setError('Timeout');
+          const r = await fetch(`/api/imports/status?importId=${data.importId}`, { 
+            headers: { Authorization: `Bearer ${token}` } 
+          });
           const d = await r.json();
+          
           if (d.status === 'completed') {
-            setImportStatus({ status: 'completed', message: d.message || `Imported ${d.messagesCount || 0} messages!`, progress: 100 });
+            setImportStatus({ 
+              status: 'completed', 
+              message: d.message || `Imported ${d.messagesCount || 0} messages!`, 
+              progress: 100 
+            });
             setIsImporting(false);
-            // Store analysis result for display
             if (d.analysis || d.profileComparison || d.memoriesAdded) {
               setAnalysisResult({
                 analysis: d.analysis,
@@ -926,12 +1018,16 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
               });
             }
           } else if (d.status === 'failed') {
-            setError(d.error || 'Failed');
+            setError(d.error || 'Import failed');
             setImportStatus(null);
             setIsImporting(false);
           } else {
-            setImportStatus({ status: 'processing', message: d.message || 'Processing...', progress: d.progress || 50 });
-            setTimeout(() => poll(polls + 1), 5000);
+            setImportStatus({ 
+              status: 'processing', 
+              message: d.message || 'Processing...', 
+              progress: Math.min(95, 60 + polls) 
+            });
+            setTimeout(() => poll(polls + 1), 2000);
           }
         };
         poll();
@@ -945,228 +1041,221 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-white/10">
+      <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-5 border-b border-white/10 sticky top-0 bg-[#111] z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center">
-              <Upload className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Import Large Files</h2>
-              <p className="text-xs text-gray-500">Direct upload • No external services</p>
+              <h2 className="text-lg font-semibold text-white">Smart Import</h2>
+              <p className="text-xs text-gray-500">Fast • Processes locally • Private</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-white p-1" disabled={isImporting}><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-gray-500 hover:text-white p-1" disabled={isImporting}>
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="p-5 space-y-5">
+          {/* Data Source Selection */}
           <div>
             <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">Data Source</label>
             <div className="flex gap-2">
-              <button onClick={() => setImportType('chatgpt')} disabled={isImporting}
-                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium ${importType === 'chatgpt' ? 'bg-green-500/20 border border-green-500/40 text-green-400' : 'bg-white/5 border border-white/10 text-gray-400'}`}>
+              <button 
+                onClick={() => { setImportType('chatgpt'); setExtractedData(null); setSelectedFiles([]); }} 
+                disabled={isImporting}
+                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                  importType === 'chatgpt' 
+                    ? 'bg-green-500/20 border border-green-500/40 text-green-400' 
+                    : 'bg-white/5 border border-white/10 text-gray-400 hover:border-white/20'
+                }`}>
                 ChatGPT Export
               </button>
-              <button onClick={() => setImportType('facebook')} disabled={isImporting}
-                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium ${importType === 'facebook' ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400' : 'bg-white/5 border border-white/10 text-gray-400'}`}>
+              <button 
+                onClick={() => { setImportType('facebook'); setExtractedData(null); setSelectedFiles([]); }} 
+                disabled={isImporting}
+                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+                  importType === 'facebook' 
+                    ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400' 
+                    : 'bg-white/5 border border-white/10 text-gray-400 hover:border-white/20'
+                }`}>
                 Facebook Export
               </button>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-xl p-4">
-            <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".zip" multiple className="hidden" disabled={isImporting} />
-            <button onClick={() => fileInputRef.current?.click()} disabled={isImporting}
-              className={`w-full py-6 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 ${selectedFiles.length > 0 ? 'border-cyan-500/50 bg-cyan-500/10' : 'border-white/20 hover:border-cyan-500/50'}`}>
-              {selectedFiles.length > 0 ? (
-                <>
-                  <FileArchive className="w-10 h-10 text-cyan-400" />
-                  <span className="text-sm text-white font-medium">{selectedFiles.length} file(s) • {formatFileSize(getTotalSize())}</span>
-                  <span className="text-[10px] text-cyan-400/70">Click to change</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-10 h-10 text-gray-500" />
-                  <span className="text-sm text-gray-400">Click to select ZIP file(s)</span>
-                  <span className="text-xs text-gray-600">Multiple files supported • Any size</span>
-                </>
-              )}
-            </button>
+          {/* File Selection */}
+          <div className="bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-xl p-4">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileSelect} 
+              accept=".zip" 
+              className="hidden" 
+              disabled={isImporting} 
+            />
+            
+            {!extractedData ? (
+              <button 
+                onClick={() => fileInputRef.current?.click()} 
+                disabled={isImporting || importStatus?.status === 'extracting'}
+                className="w-full py-8 border-2 border-dashed border-white/20 hover:border-emerald-500/50 rounded-xl flex flex-col items-center justify-center gap-2 transition-all">
+                {importStatus?.status === 'extracting' ? (
+                  <>
+                    <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
+                    <span className="text-sm text-emerald-400">{importStatus.message}</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-10 h-10 text-gray-500" />
+                    <span className="text-sm text-gray-400">Click to select your {importType === 'chatgpt' ? 'ChatGPT' : 'Facebook'} export ZIP</span>
+                    <span className="text-xs text-gray-600">We'll extract just the conversations • Files stay on your device</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <div className="space-y-3">
+                {/* Selected File */}
+                <div className="flex items-center justify-between bg-black/30 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileArchive className="w-4 h-4 text-emerald-400" />
+                    <span className="text-sm text-gray-300 truncate">{selectedFiles[0]?.name}</span>
+                    <span className="text-xs text-gray-500">({formatFileSize(getTotalSize())})</span>
+                  </div>
+                  <button onClick={removeFile} disabled={isImporting} className="text-gray-500 hover:text-red-400 p-1">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                
+                {/* Extraction Preview */}
+                <div className="bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                    <span className="text-emerald-400 font-medium">Ready to Import</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-white">{extractedData.messages.length.toLocaleString()}</div>
+                      <div className="text-xs text-gray-500">Messages Found</div>
+                    </div>
+                    <div className="bg-black/30 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-white">{formatFileSize(extractedData.dataSize)}</div>
+                      <div className="text-xs text-gray-500">Data to Upload</div>
+                    </div>
+                  </div>
+                  
+                  <div className="text-xs text-emerald-400/80 flex items-center gap-1">
+                    <Zap className="w-3 h-3" />
+                    <span>
+                      {getTotalSize() > 100 * 1024 * 1024 
+                        ? `${Math.round(getTotalSize() / extractedData.dataSize)}x smaller than original file!` 
+                        : 'Fast upload - only conversation data'
+                      }
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {selectedFiles.length > 0 && !isImporting && (
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {selectedFiles.map((file, i) => (
-                <div key={i} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileArchive className="w-4 h-4 text-cyan-400" />
-                    <span className="text-sm text-gray-300 truncate">{file.name}</span>
-                    <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
-                  </div>
-                  <button onClick={() => removeFile(i)} className="text-gray-500 hover:text-red-400 p-1"><X className="w-4 h-4" /></button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Large file warning */}
-          {selectedFiles.length > 0 && isLargeUpload && !isImporting && (
-            <div className="flex items-start gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="text-yellow-400 font-medium">Large file detected ({formatFileSize(getTotalSize())})</p>
-                <p className="text-yellow-500/80 text-xs mt-1">
-                  Estimated upload time: ~{estimatedMinutes} minute{estimatedMinutes > 1 ? 's' : ''}. 
-                  Please ensure you have a stable internet connection.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Active upload warning */}
-          {isImporting && (
-            <div className="flex items-start gap-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
-              <div className="w-5 h-5 flex-shrink-0 mt-0.5">
-                <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />
-              </div>
-              <div className="text-sm">
-                <p className="text-orange-400 font-medium">Upload in progress</p>
-                <p className="text-orange-500/80 text-xs mt-1">
-                  ⚠️ <span className="font-medium">Do not close this tab</span> or navigate away until the upload completes. 
-                  Your browser must stay open.
-                </p>
-              </div>
-            </div>
-          )}
-
+          {/* Error */}
           {error && (
             <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
-              <AlertCircle className="w-4 h-4" /><span>{error}</span>
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
-          {importStatus && (
-            <div className={`p-4 rounded-lg ${importStatus.status === 'completed' ? 'bg-green-500/10 border border-green-500/30' : 'bg-cyan-500/10 border border-cyan-500/30'}`}>
+          {/* Progress */}
+          {importStatus && importStatus.status !== 'extracting' && (
+            <div className={`p-4 rounded-lg ${
+              importStatus.status === 'completed' 
+                ? 'bg-green-500/10 border border-green-500/30' 
+                : 'bg-cyan-500/10 border border-cyan-500/30'
+            }`}>
               <div className="flex items-center gap-2 mb-2">
-                {importStatus.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />}
-                <span className={`text-sm font-medium ${importStatus.status === 'completed' ? 'text-green-400' : 'text-cyan-400'}`}>{importStatus.message}</span>
+                {importStatus.status === 'completed' 
+                  ? <CheckCircle2 className="w-4 h-4 text-green-400" /> 
+                  : <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
+                }
+                <span className={`text-sm font-medium ${
+                  importStatus.status === 'completed' ? 'text-green-400' : 'text-cyan-400'
+                }`}>
+                  {importStatus.message}
+                </span>
               </div>
               {importStatus.progress > 0 && importStatus.status !== 'completed' && (
                 <div className="w-full bg-white/10 rounded-full h-2">
-                  <div className="bg-cyan-500 h-2 rounded-full transition-all" style={{ width: `${importStatus.progress}%` }} />
+                  <div 
+                    className="bg-cyan-500 h-2 rounded-full transition-all" 
+                    style={{ width: `${importStatus.progress}%` }} 
+                  />
                 </div>
               )}
             </div>
           )}
 
-          {importStatus?.status === 'completed' ? (
-            <div className="space-y-4">
-              {/* Success Banner */}
-              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-xl p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-green-500/30 rounded-full flex items-center justify-center">
-                    <CheckCircle2 className="w-5 h-5 text-green-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-white font-semibold">Import Successful!</h3>
-                    <p className="text-green-400/80 text-sm">{importStatus.message}</p>
-                  </div>
+          {/* Completion with Analysis */}
+          {importStatus?.status === 'completed' && analysisResult && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-white">{analysisResult.messagesCount}</div>
+                  <div className="text-xs text-gray-500">Messages Imported</div>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold text-orange-400">{analysisResult.memoriesAdded}</div>
+                  <div className="text-xs text-gray-500">Memories Added</div>
                 </div>
               </div>
 
-              {/* Analysis Results */}
-              {analysisResult && (
-                <div className="space-y-3">
-                  {/* Stats */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                      <div className="text-2xl font-bold text-white">{analysisResult.messagesCount}</div>
-                      <div className="text-xs text-gray-500">Messages Imported</div>
-                    </div>
-                    <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                      <div className="text-2xl font-bold text-orange-400">{analysisResult.memoriesAdded}</div>
-                      <div className="text-xs text-gray-500">Memories Added</div>
-                    </div>
+              {analysisResult.analysis && (
+                <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="w-4 h-4 text-purple-400" />
+                    <span className="text-sm font-medium text-purple-300">Personalization Enhanced</span>
                   </div>
-
-                  {/* Analysis Summary */}
-                  {analysisResult.analysis && (
-                    <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Sparkles className="w-4 h-4 text-purple-400" />
-                        <span className="text-sm font-medium text-purple-300">Personalization Enhanced</span>
-                      </div>
-                      
-                      {analysisResult.analysis.summary && (
-                        <p className="text-gray-300 text-sm mb-3">{analysisResult.analysis.summary}</p>
-                      )}
-
-                      {/* Communication Style */}
-                      {analysisResult.analysis.communicationStyle && (
-                        <div className="bg-black/20 rounded-lg p-3 mb-2">
-                          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Your Communication Style</div>
-                          <div className="flex flex-wrap gap-2">
-                            <span className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full">
-                              {analysisResult.analysis.communicationStyle.formality || 'Adaptive'}
-                            </span>
-                            <span className="px-2 py-1 bg-pink-500/20 text-pink-300 text-xs rounded-full">
-                              {analysisResult.analysis.communicationStyle.tone || 'Balanced'}
-                            </span>
-                            <span className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full">
-                              {analysisResult.analysis.communicationStyle.verbosity || 'Concise'}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Interests */}
-                      {analysisResult.analysis.interests && analysisResult.analysis.interests.length > 0 && (
-                        <div className="bg-black/20 rounded-lg p-3 mb-2">
-                          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Discovered Interests</div>
-                          <div className="flex flex-wrap gap-1">
-                            {analysisResult.analysis.interests.slice(0, 6).map((interest, i) => (
-                              <span key={i} className="px-2 py-0.5 bg-white/10 text-gray-300 text-xs rounded">
-                                {interest}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Key Insights */}
-                      {analysisResult.analysis.insights && analysisResult.analysis.insights.length > 0 && (
-                        <div className="mt-3">
-                          <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Key Insights</div>
-                          <ul className="space-y-1">
-                            {analysisResult.analysis.insights.slice(0, 3).map((insight, i) => (
-                              <li key={i} className="text-xs text-gray-400 flex items-start gap-2">
-                                <span className="text-purple-400">•</span>
-                                <span>{insight}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
+                  
+                  {analysisResult.analysis.summary && (
+                    <p className="text-gray-300 text-sm mb-3">{analysisResult.analysis.summary}</p>
                   )}
 
-                  {/* No analysis but still successful */}
-                  {!analysisResult.analysis && (
-                    <div className="bg-white/5 border border-white/10 rounded-lg p-4 text-center">
-                      <p className="text-gray-400 text-sm">Your data has been imported and will help personalize your experience.</p>
+                  {analysisResult.analysis.interests?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {analysisResult.analysis.interests.slice(0, 5).map((interest, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-white/10 text-gray-300 text-xs rounded">
+                          {interest}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </div>
               )}
-
-              <button onClick={onClose} className="w-full py-3 rounded-xl text-sm font-medium bg-green-500 text-white hover:bg-green-600 flex items-center justify-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Continue to Chat
-              </button>
             </div>
+          )}
+
+          {/* Action Button */}
+          {importStatus?.status === 'completed' ? (
+            <button 
+              onClick={onClose} 
+              className="w-full py-3 rounded-xl text-sm font-medium bg-green-500 text-white hover:bg-green-600 flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Continue to Chat
+            </button>
           ) : (
-            <button onClick={handleUpload} disabled={selectedFiles.length === 0 || isImporting}
-              className={`w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 ${selectedFiles.length > 0 && !isImporting ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white' : 'bg-white/5 text-gray-600 cursor-not-allowed'}`}>
-              {isImporting ? <><Loader2 className="w-4 h-4 animate-spin" /> {importStatus?.status === 'uploading' ? 'Uploading...' : 'Processing...'}</> : <><Upload className="w-4 h-4" /> Upload & Import</>}
+            <button 
+              onClick={handleImport} 
+              disabled={!extractedData || extractedData.messages.length === 0 || isImporting}
+              className={`w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all ${
+                extractedData && extractedData.messages.length > 0 && !isImporting
+                  ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white hover:opacity-90' 
+                  : 'bg-white/5 text-gray-600 cursor-not-allowed'
+              }`}>
+              {isImporting 
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing...</>
+                : <><Zap className="w-4 h-4" /> Import {extractedData?.messages?.length?.toLocaleString() || 0} Messages</>
+              }
             </button>
           )}
         </div>
