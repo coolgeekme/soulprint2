@@ -1309,6 +1309,56 @@ function SettingsTab({ token }) {
         </div>
       </div>
 
+      {/* Assessment Mode */}
+      <div>
+        <label className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-2 block">Assessment Mode</label>
+        <p className="text-gray-600 text-xs mb-3">Choose which assessment options users see during onboarding.</p>
+        <div className="space-y-2">
+          <label className="flex items-center gap-3 p-3 bg-[#111] border border-white/8 rounded-xl cursor-pointer hover:border-white/20 transition-colors">
+            <input
+              type="radio"
+              name="assessment_mode"
+              value="both"
+              checked={(settings.assessment_mode || 'both') === 'both'}
+              onChange={e => setSettings(s => ({ ...s, assessment_mode: e.target.value }))}
+              className="accent-orange-500"
+            />
+            <div>
+              <span className="text-white text-sm">Both Options</span>
+              <p className="text-gray-500 text-xs">User chooses between Quick Start or Full Assessment</p>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 p-3 bg-[#111] border border-white/8 rounded-xl cursor-pointer hover:border-white/20 transition-colors">
+            <input
+              type="radio"
+              name="assessment_mode"
+              value="quick_only"
+              checked={settings.assessment_mode === 'quick_only'}
+              onChange={e => setSettings(s => ({ ...s, assessment_mode: e.target.value }))}
+              className="accent-orange-500"
+            />
+            <div>
+              <span className="text-white text-sm">Quick Start Only</span>
+              <p className="text-gray-500 text-xs">10 questions + learns as they chat (~2 min)</p>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 p-3 bg-[#111] border border-white/8 rounded-xl cursor-pointer hover:border-white/20 transition-colors">
+            <input
+              type="radio"
+              name="assessment_mode"
+              value="full_only"
+              checked={settings.assessment_mode === 'full_only'}
+              onChange={e => setSettings(s => ({ ...s, assessment_mode: e.target.value }))}
+              className="accent-orange-500"
+            />
+            <div>
+              <span className="text-white text-sm">Full Assessment Only</span>
+              <p className="text-gray-500 text-xs">36 questions across 6 pillars (~5-7 min)</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
       {/* Telegram Setup */}
       <div>
         <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-3">Telegram Bot</p>
