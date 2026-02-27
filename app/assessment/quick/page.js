@@ -239,7 +239,7 @@ export default function QuickAssessmentPage() {
           </button>
 
           <div className="flex-1 flex flex-col justify-center">
-            <div className="flex flex-col items-center mb-8">
+            <div className="flex flex-col items-center mb-6">
               <div className="w-16 h-16 bg-orange-500/20 rounded-full flex items-center justify-center mb-4">
                 <Sparkles className="w-8 h-8 text-orange-500" />
               </div>
@@ -247,13 +247,33 @@ export default function QuickAssessmentPage() {
               <p className="text-gray-400 text-sm text-center">What would you like to call me?</p>
             </div>
 
-            <input
-              type="text"
-              value={assistantName}
-              onChange={e => setAssistantName(e.target.value)}
-              placeholder="SoulPrint"
-              className="w-full bg-[#1a1a1a] border border-gray-700 rounded-xl px-4 py-4 text-white text-center text-lg placeholder-gray-600 focus:outline-none focus:border-orange-500 transition-colors mb-6"
-            />
+            <div className="relative mb-4">
+              <input
+                type="text"
+                value={assistantName}
+                onChange={e => setAssistantName(e.target.value)}
+                placeholder="SoulPrint"
+                className="w-full bg-[#1a1a1a] border border-gray-700 rounded-xl px-4 py-4 text-white text-center text-lg placeholder-gray-600 focus:outline-none focus:border-orange-500 transition-colors"
+              />
+            </div>
+
+            {/* Random Name Generator */}
+            <button
+              type="button"
+              onClick={() => {
+                const names = ['Atlas', 'Nova', 'Echo', 'Sage', 'Onyx', 'Luna', 'Phoenix', 'Aria', 'Kai', 'Orion', 'Zephyr', 'Ember', 'Pixel', 'Cosmo', 'Astra', 'Maven', 'Prism', 'Zenith', 'Cipher', 'Nimbus'];
+                setAssistantName(names[Math.floor(Math.random() * names.length)]);
+              }}
+              className="text-orange-500 hover:text-orange-400 text-sm mb-4 flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Suggest a random name
+            </button>
+
+            {/* Reassuring message */}
+            <p className="text-gray-600 text-xs text-center mb-6">
+              Don't worry, you can always change my name later in settings.
+            </p>
 
             <button
               onClick={handleComplete}
