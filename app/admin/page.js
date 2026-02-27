@@ -2004,6 +2004,10 @@ export default function AdminPage() {
   const [adminRole, setAdminRole] = useState('admin');
   const [loading, setLoading] = useState(true);
   const [waitlistCount, setWaitlistCount] = useState(0);
+  
+  // Dashboard sub-tabs and date range
+  const [metricsSubTab, setMetricsSubTab] = useState('quick');
+  const [dateRange, setDateRange] = useState('30d');
 
   const loadMetrics = (t) => {
     fetch('/api/admin/metrics', { headers: { Authorization: `Bearer ${t}` } })
