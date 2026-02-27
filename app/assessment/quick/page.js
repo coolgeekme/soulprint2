@@ -168,7 +168,7 @@ export default function QuickAssessmentPage() {
         });
         
         // Redirect to chat after showing summary
-        setTimeout(() => router.push('/app'), 3000);
+        setTimeout(() => router.push('/chat'), 3000);
       }
     } catch (e) {
       console.error('Failed to complete assessment:', e);
