@@ -1699,6 +1699,12 @@ async function handleLogin(request) {
   const { email, passcode } = body;
   if (!email || !passcode) return err('Email and passcode required');
 
+  // Rate limit by email to prevent brute force
+  const rateCheck = checkRateLimit(email.toLowerCase(), 'auth');
+  if (!rateCheck.allowed) {
+    return err(`Too many login attempts. Try again in ${rateCheck.retryAfter} seconds.`, 429);
+  }
+
   const db = await getDb();
   const user = await db.collection('users').findOne({ email: email.toLowerCase() });
   if (!user) return err('User not found', 404);  // distinct from wrong password
