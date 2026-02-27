@@ -2238,6 +2238,26 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                 </div>
               ) : soulPrintData ? (
                 <>
+                  {/* Profile Completion Progress */}
+                  {soulPrintData.assessmentProgress && !soulPrintData.assessmentProgress.fullAssessmentComplete && (
+                    <div className="p-4 bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/30 rounded-xl">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-orange-400 text-xs font-medium">Profile Completion</span>
+                        <span className="text-white text-sm font-semibold">{soulPrintData.assessmentProgress?.overall?.percentage || 0}%</span>
+                      </div>
+                      <div className="h-2 bg-black/30 rounded-full overflow-hidden mb-2">
+                        <div 
+                          className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-500"
+                          style={{ width: `${soulPrintData.assessmentProgress?.overall?.percentage || 0}%` }}
+                        />
+                      </div>
+                      <p className="text-gray-500 text-[10px]">
+                        {soulPrintData.assessmentProgress?.overall?.answered || 0} of 36 questions answered across 6 pillars.
+                        {soulPrintData.assessmentProgress?.overall?.percentage < 100 && " I'll ask more as we chat."}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Header with Generate Button */}
                   <div className="text-center pb-4 border-b border-white/10">
                     <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mb-3 border border-orange-500/30">
