@@ -9122,6 +9122,18 @@ async function handleGetSoulPrint(request) {
   const profile = await db.collection('profiles').findOne({ user_id: user.id });
   const commProfile = await db.collection('communication_profiles').findOne({ user_id: user.id });
   const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
+  
+  // Get latest and previous SoulPrint snapshots
+  const snapshots = await db.collection('soulprint_snapshots')
+    .find({ user_id: user.id })
+    .sort({ created_at: -1 })
+    .limit(2)
+    .toArray();
+  
+  const latestSnapshot = snapshots[0] || null;
+  const previousSnapshot = snapshots[1] || null;
+  
+  // Get assessment answers
   const assessmentAnswers = await db.collection('assessment_answers')
     .find({ user_id: user.id })
     .sort({ created_at: 1 })
