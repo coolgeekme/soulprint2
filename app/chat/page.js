@@ -1867,7 +1867,31 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     } catch (e) {}
   };
 
-  const tabs = ['imports', 'telegram', 'schedules', 'memories', 'profile', 'feedback'];
+  const tabs = ['soulprint', 'imports', 'telegram', 'schedules', 'memories', 'profile', 'feedback'];
+
+  // SoulPrint data
+  const [soulPrintData, setSoulPrintData] = useState(null);
+  const [soulPrintLoading, setSoulPrintLoading] = useState(false);
+
+  const loadSoulPrint = async () => {
+    setSoulPrintLoading(true);
+    try {
+      const res = await fetch('/api/profile/soulprint', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setSoulPrintData(data);
+    } catch (e) {
+      console.error('Failed to load SoulPrint:', e);
+    }
+    setSoulPrintLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'soulprint' && !soulPrintData) {
+      loadSoulPrint();
+    }
+  }, [activeTab]);
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 safe-area-all">
