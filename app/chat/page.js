@@ -1060,9 +1060,109 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           )}
 
           {importStatus?.status === 'completed' ? (
-            <button onClick={onClose} className="w-full py-3 rounded-xl text-sm font-medium bg-green-500 text-white hover:bg-green-600 flex items-center justify-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Done
-            </button>
+            <div className="space-y-4">
+              {/* Success Banner */}
+              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-xl p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-green-500/30 rounded-full flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold">Import Successful!</h3>
+                    <p className="text-green-400/80 text-sm">{importStatus.message}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Analysis Results */}
+              {analysisResult && (
+                <div className="space-y-3">
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-white">{analysisResult.messagesCount}</div>
+                      <div className="text-xs text-gray-500">Messages Imported</div>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-orange-400">{analysisResult.memoriesAdded}</div>
+                      <div className="text-xs text-gray-500">Memories Added</div>
+                    </div>
+                  </div>
+
+                  {/* Analysis Summary */}
+                  {analysisResult.analysis && (
+                    <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        <span className="text-sm font-medium text-purple-300">Personalization Enhanced</span>
+                      </div>
+                      
+                      {analysisResult.analysis.summary && (
+                        <p className="text-gray-300 text-sm mb-3">{analysisResult.analysis.summary}</p>
+                      )}
+
+                      {/* Communication Style */}
+                      {analysisResult.analysis.communicationStyle && (
+                        <div className="bg-black/20 rounded-lg p-3 mb-2">
+                          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Your Communication Style</div>
+                          <div className="flex flex-wrap gap-2">
+                            <span className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full">
+                              {analysisResult.analysis.communicationStyle.formality || 'Adaptive'}
+                            </span>
+                            <span className="px-2 py-1 bg-pink-500/20 text-pink-300 text-xs rounded-full">
+                              {analysisResult.analysis.communicationStyle.tone || 'Balanced'}
+                            </span>
+                            <span className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full">
+                              {analysisResult.analysis.communicationStyle.verbosity || 'Concise'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Interests */}
+                      {analysisResult.analysis.interests && analysisResult.analysis.interests.length > 0 && (
+                        <div className="bg-black/20 rounded-lg p-3 mb-2">
+                          <div className="text-xs text-gray-500 uppercase tracking-wider mb-1">Discovered Interests</div>
+                          <div className="flex flex-wrap gap-1">
+                            {analysisResult.analysis.interests.slice(0, 6).map((interest, i) => (
+                              <span key={i} className="px-2 py-0.5 bg-white/10 text-gray-300 text-xs rounded">
+                                {interest}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Key Insights */}
+                      {analysisResult.analysis.insights && analysisResult.analysis.insights.length > 0 && (
+                        <div className="mt-3">
+                          <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Key Insights</div>
+                          <ul className="space-y-1">
+                            {analysisResult.analysis.insights.slice(0, 3).map((insight, i) => (
+                              <li key={i} className="text-xs text-gray-400 flex items-start gap-2">
+                                <span className="text-purple-400">•</span>
+                                <span>{insight}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* No analysis but still successful */}
+                  {!analysisResult.analysis && (
+                    <div className="bg-white/5 border border-white/10 rounded-lg p-4 text-center">
+                      <p className="text-gray-400 text-sm">Your data has been imported and will help personalize your experience.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button onClick={onClose} className="w-full py-3 rounded-xl text-sm font-medium bg-green-500 text-white hover:bg-green-600 flex items-center justify-center gap-2">
+                <CheckCircle2 className="w-4 h-4" /> Continue to Chat
+              </button>
+            </div>
           ) : (
             <button onClick={handleUpload} disabled={selectedFiles.length === 0 || isImporting}
               className={`w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 ${selectedFiles.length > 0 && !isImporting ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white' : 'bg-white/5 text-gray-600 cursor-not-allowed'}`}>
