@@ -1156,7 +1156,7 @@ const SEED_QUESTIONS = [
   // DECISION MAKING (6)
   { pillar: 'decision_making', order_index: 13, question_text: 'When faced with a major decision, walk me through your actual process — from the moment you realize a choice needs to be made.' },
   { pillar: 'decision_making', order_index: 14, question_text: 'How do you balance logic and gut feeling when making important choices?' },
-  { pillar: 'decision_making', order_index: 15, question_text: 'Describe how you handle situations where there is no clearly right answer.' },
+  { pillar: 'decision_making', order_index: 15, question_text: 'Describe how you handle situations where there is no clear right answer.' },
   { pillar: 'decision_making', order_index: 16, question_text: 'How do you respond internally and externally when you realize you made the wrong decision?' },
   { pillar: 'decision_making', order_index: 17, question_text: 'How much information do you need before you feel comfortable committing to a decision?' },
   { pillar: 'decision_making', order_index: 18, question_text: 'How do you approach decisions that significantly affect other people?' },
