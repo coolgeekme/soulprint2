@@ -1951,100 +1951,132 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                 </div>
               ) : soulPrintData ? (
                 <>
-                  {/* Header */}
+                  {/* Header with Generate Button */}
                   <div className="text-center pb-4 border-b border-white/10">
                     <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mb-3 border border-orange-500/30">
                       <Sparkles className="w-8 h-8 text-orange-400" />
                     </div>
                     <h3 className="text-white font-semibold">{soulPrintData.displayName}'s SoulPrint</h3>
-                    <p className="text-gray-500 text-xs mt-1">Your unique communication identity</p>
+                    <p className="text-gray-500 text-xs mt-1">Your dynamic communication identity</p>
+                    
+                    {/* Generate/Refresh Button */}
+                    <button
+                      onClick={generateSoulPrint}
+                      disabled={generatingSnapshot}
+                      className="mt-4 px-4 py-2 bg-gradient-to-r from-orange-500 to-purple-500 hover:from-orange-600 hover:to-purple-600 text-white text-xs font-medium rounded-lg transition-all disabled:opacity-50 flex items-center gap-2 mx-auto"
+                    >
+                      {generatingSnapshot ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Analyzing your data...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          {soulPrintData.latestSnapshot ? 'Refresh SoulPrint' : 'Generate SoulPrint'}
+                        </>
+                      )}
+                    </button>
                   </div>
 
-                  {/* Communication Traits */}
-                  {soulPrintData.communicationTraits?.length > 0 && (
-                    <div>
-                      <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
-                        <span>🎨</span> Communication Style
-                      </h4>
-                      <div className="space-y-3">
-                        {soulPrintData.communicationTraits.map((trait, i) => (
-                          <div key={i} className="p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg">{trait.icon}</span>
-                                <span className="text-white text-sm font-medium">{trait.name}</span>
-                              </div>
-                              <span className="text-orange-400 text-xs font-semibold">{trait.label}</span>
-                            </div>
-                            {trait.value && typeof trait.value === 'number' && (
-                              <div className="h-1.5 bg-black/30 rounded-full overflow-hidden mb-2">
-                                <div 
-                                  className="h-full bg-gradient-to-r from-orange-500 to-purple-500 rounded-full transition-all"
-                                  style={{ width: `${trait.value}%` }}
-                                />
-                              </div>
-                            )}
-                            <p className="text-gray-500 text-[11px]">{trait.description}</p>
-                          </div>
+                  {/* Latest AI-Generated Snapshot */}
+                  {soulPrintData.latestSnapshot && (
+                    <>
+                      {/* Data Sources Badge */}
+                      <div className="flex flex-wrap gap-1.5 justify-center">
+                        {soulPrintData.latestSnapshot.dataSources?.map((src, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-white/5 text-gray-500 text-[9px] rounded-full border border-white/10 uppercase tracking-wider">
+                            {src.replace(/_/g, ' ')}
+                          </span>
                         ))}
                       </div>
-                    </div>
-                  )}
 
-                  {/* How AI Communicates With You */}
-                  {soulPrintData.adaptations?.length > 0 && (
-                    <div>
-                      <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
-                        <span>🤖</span> How {soulPrintData.assistantName || 'SoulPrint'} Communicates With You
-                      </h4>
-                      <div className="p-4 bg-gradient-to-br from-blue-500/5 to-purple-500/5 rounded-xl border border-blue-500/20">
-                        <ul className="space-y-2">
-                          {soulPrintData.adaptations.map((adapt, i) => (
-                            <li key={i} className="flex items-start gap-2 text-gray-400 text-xs">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
-                              <span>{adapt}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  )}
+                      {/* Summary */}
+                      {soulPrintData.latestSnapshot.summary && (
+                        <div className="p-4 bg-gradient-to-br from-orange-500/10 to-purple-500/10 rounded-xl border border-orange-500/20">
+                          <p className="text-gray-300 text-sm leading-relaxed">{soulPrintData.latestSnapshot.summary}</p>
+                        </div>
+                      )}
 
-                  {/* Preferences */}
-                  {(soulPrintData.decisionSupport || soulPrintData.feedbackStyle) && (
-                    <div>
-                      <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
-                        <span>⚙️</span> Your Preferences
-                      </h4>
-                      <div className="grid grid-cols-2 gap-3">
-                        {soulPrintData.decisionSupport && (
-                          <div className="p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
-                            <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Decision Support</p>
-                            <p className="text-white text-sm capitalize">{soulPrintData.decisionSupport.replace(/_/g, ' ')}</p>
+                      {/* Communication Style */}
+                      {soulPrintData.latestSnapshot.communicationStyle && (
+                        <div>
+                          <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                            <span>🎨</span> Communication Style
+                          </h4>
+                          <div className="p-4 bg-[#1a1a1a] rounded-xl border border-white/5 space-y-3">
+                            <p className="text-gray-300 text-sm">{soulPrintData.latestSnapshot.communicationStyle.overall}</p>
+                            <div className="flex flex-wrap gap-2">
+                              <span className="px-2 py-1 bg-blue-500/10 text-blue-400 text-[10px] rounded-full border border-blue-500/20">
+                                {soulPrintData.latestSnapshot.communicationStyle.tone}
+                              </span>
+                              <span className="px-2 py-1 bg-green-500/10 text-green-400 text-[10px] rounded-full border border-green-500/20">
+                                {soulPrintData.latestSnapshot.communicationStyle.directness}
+                              </span>
+                              <span className="px-2 py-1 bg-purple-500/10 text-purple-400 text-[10px] rounded-full border border-purple-500/20">
+                                {soulPrintData.latestSnapshot.communicationStyle.detail_preference}
+                              </span>
+                            </div>
+                            {soulPrintData.latestSnapshot.communicationStyle.traits?.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pt-2">
+                                {soulPrintData.latestSnapshot.communicationStyle.traits.map((trait, i) => (
+                                  <span key={i} className="px-2 py-0.5 bg-white/5 text-gray-400 text-[10px] rounded-full">
+                                    {trait}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        )}
-                        {soulPrintData.feedbackStyle && (
-                          <div className="p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
-                            <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Feedback Style</p>
-                            <p className="text-white text-sm capitalize">{soulPrintData.feedbackStyle.replace(/_/g, ' ')}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
 
-                  {/* Soul Insights from Imports */}
-                  {soulPrintData.soulInsights && (
-                    <div>
-                      <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
-                        <span>✨</span> Learned From Your Data
-                      </h4>
-                      
-                      {soulPrintData.soulInsights.interests?.length > 0 && (
-                        <div className="mb-3">
-                          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-2">Your Interests</p>
+                          {/* Show Changes from Previous */}
+                          {soulPrintData.previousSnapshot?.communicationStyle && (
+                            <div className="mt-2 p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
+                              <p className="text-yellow-400 text-[10px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1">
+                                <GitCompare className="w-3 h-3" /> Changes from previous
+                              </p>
+                              <p className="text-gray-500 text-[11px]">
+                                Previous: {soulPrintData.previousSnapshot.communicationStyle.tone} / {soulPrintData.previousSnapshot.communicationStyle.directness}
+                                {soulPrintData.previousSnapshot.communicationStyle.tone !== soulPrintData.latestSnapshot.communicationStyle.tone && (
+                                  <span className="text-yellow-400"> → Now more {soulPrintData.latestSnapshot.communicationStyle.tone}</span>
+                                )}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Personality */}
+                      {soulPrintData.latestSnapshot.personality && (
+                        <div>
+                          <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                            <span>🧠</span> Personality Profile
+                          </h4>
+                          <div className="p-4 bg-[#1a1a1a] rounded-xl border border-white/5 space-y-3">
+                            <p className="text-gray-300 text-sm">{soulPrintData.latestSnapshot.personality.overview}</p>
+                            {soulPrintData.latestSnapshot.personality.strengths?.length > 0 && (
+                              <div>
+                                <p className="text-gray-600 text-[10px] uppercase tracking-wider mb-1.5">Strengths</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {soulPrintData.latestSnapshot.personality.strengths.map((s, i) => (
+                                    <span key={i} className="px-2 py-1 bg-green-500/10 text-green-400 text-[10px] rounded-full border border-green-500/20">
+                                      {s}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Interests */}
+                      {soulPrintData.latestSnapshot.interests?.length > 0 && (
+                        <div>
+                          <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                            <span>💡</span> Interests & Topics
+                          </h4>
                           <div className="flex flex-wrap gap-1.5">
-                            {soulPrintData.soulInsights.interests.slice(0, 10).map((interest, i) => (
+                            {soulPrintData.latestSnapshot.interests.map((interest, i) => (
                               <span key={i} className="px-2 py-1 bg-orange-500/10 text-orange-400 text-[11px] rounded-full border border-orange-500/20">
                                 {interest}
                               </span>
@@ -2053,61 +2085,159 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                         </div>
                       )}
 
-                      {soulPrintData.soulInsights.insights?.length > 0 && (
-                        <div className="p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
-                          <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-2">Personality Insights</p>
-                          <ul className="space-y-1.5">
-                            {soulPrintData.soulInsights.insights.slice(0, 5).map((insight, i) => (
-                              <li key={i} className="text-gray-400 text-xs flex items-start gap-2">
-                                <span className="text-purple-400">•</span>
-                                {insight}
-                              </li>
+                      {/* Values */}
+                      {soulPrintData.latestSnapshot.values?.length > 0 && (
+                        <div>
+                          <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                            <span>❤️</span> What You Value
+                          </h4>
+                          <div className="flex flex-wrap gap-1.5">
+                            {soulPrintData.latestSnapshot.values.map((value, i) => (
+                              <span key={i} className="px-2 py-1 bg-pink-500/10 text-pink-400 text-[11px] rounded-full border border-pink-500/20">
+                                {value}
+                              </span>
                             ))}
-                          </ul>
+                          </div>
                         </div>
                       )}
-                    </div>
-                  )}
 
-                  {/* Profile Summary */}
-                  {soulPrintData.profileSummary && (
-                    <div>
-                      <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
-                        <span>📝</span> Profile Summary
-                      </h4>
-                      <div className="p-4 bg-[#1a1a1a] rounded-xl border border-white/5">
-                        <p className="text-gray-400 text-xs whitespace-pre-wrap leading-relaxed">{soulPrintData.profileSummary}</p>
+                      {/* How to Communicate */}
+                      {soulPrintData.latestSnapshot.howToCommunicate?.length > 0 && (
+                        <div>
+                          <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                            <span>🤖</span> How {soulPrintData.assistantName || 'SoulPrint'} Adapts to You
+                          </h4>
+                          <div className="p-4 bg-gradient-to-br from-blue-500/5 to-purple-500/5 rounded-xl border border-blue-500/20">
+                            <ul className="space-y-2">
+                              {soulPrintData.latestSnapshot.howToCommunicate.map((tip, i) => (
+                                <li key={i} className="flex items-start gap-2 text-gray-400 text-xs">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 mt-0.5 flex-shrink-0" />
+                                  <span>{tip}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Unique Insights */}
+                      {soulPrintData.latestSnapshot.insights?.length > 0 && (
+                        <div>
+                          <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                            <span>✨</span> Unique Insights
+                          </h4>
+                          <div className="space-y-2">
+                            {soulPrintData.latestSnapshot.insights.map((insight, i) => (
+                              <div key={i} className="p-3 bg-[#1a1a1a] rounded-lg border border-white/5">
+                                <p className="text-gray-400 text-xs">{insight}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Growth Areas */}
+                      {soulPrintData.latestSnapshot.growthAreas?.length > 0 && (
+                        <div>
+                          <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                            <span>🌱</span> Growth Opportunities
+                          </h4>
+                          <div className="flex flex-wrap gap-1.5">
+                            {soulPrintData.latestSnapshot.growthAreas.map((area, i) => (
+                              <span key={i} className="px-2 py-1 bg-cyan-500/10 text-cyan-400 text-[11px] rounded-full border border-cyan-500/20">
+                                {area}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Generated timestamp */}
+                      <div className="pt-3 border-t border-white/5 text-center">
+                        <p className="text-gray-600 text-[10px]">
+                          Generated {new Date(soulPrintData.latestSnapshot.generatedAt).toLocaleDateString()} at {new Date(soulPrintData.latestSnapshot.generatedAt).toLocaleTimeString()}
+                        </p>
                       </div>
-                    </div>
+                    </>
                   )}
 
-                  {/* Not Complete State - Only show if truly nothing to display */}
-                  {!soulPrintData.assessmentComplete && 
+                  {/* Show basic data if no snapshot yet */}
+                  {!soulPrintData.latestSnapshot && (
+                    <>
+                      {/* Communication Traits from Assessment */}
+                      {soulPrintData.communicationTraits?.length > 0 && (
+                        <div>
+                          <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                            <span>🎨</span> Communication Style (from Assessment)
+                          </h4>
+                          <div className="space-y-3">
+                            {soulPrintData.communicationTraits.map((trait, i) => (
+                              <div key={i} className="p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-lg">{trait.icon}</span>
+                                    <span className="text-white text-sm font-medium">{trait.name}</span>
+                                  </div>
+                                  <span className="text-orange-400 text-xs font-semibold">{trait.label}</span>
+                                </div>
+                                {trait.value && typeof trait.value === 'number' && (
+                                  <div className="h-1.5 bg-black/30 rounded-full overflow-hidden mb-2">
+                                    <div className="h-full bg-gradient-to-r from-orange-500 to-purple-500 rounded-full" style={{ width: `${trait.value}%` }} />
+                                  </div>
+                                )}
+                                <p className="text-gray-500 text-[11px]">{trait.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Soul Insights from Imports */}
+                      {soulPrintData.soulInsights && (
+                        <div>
+                          <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+                            <span>💡</span> From Your Imported Data
+                          </h4>
+                          {soulPrintData.soulInsights.interests?.length > 0 && (
+                            <div className="mb-3">
+                              <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-2">Interests</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {soulPrintData.soulInsights.interests.slice(0, 10).map((interest, i) => (
+                                  <span key={i} className="px-2 py-1 bg-orange-500/10 text-orange-400 text-[11px] rounded-full border border-orange-500/20">
+                                    {interest}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Prompt to generate */}
+                      <div className="text-center py-6 border border-dashed border-white/10 rounded-xl">
+                        <Sparkles className="w-8 h-8 text-gray-600 mx-auto mb-3" />
+                        <p className="text-gray-400 text-sm mb-2">Ready to see your full SoulPrint?</p>
+                        <p className="text-gray-600 text-xs mb-4">Click "Generate SoulPrint" above to analyze all your data</p>
+                      </div>
+                    </>
+                  )}
+
+                  {/* No data at all */}
+                  {!soulPrintData.latestSnapshot && 
                    !soulPrintData.communicationTraits?.length && 
                    !soulPrintData.soulInsights &&
-                   !soulPrintData.answersByPillar?.length &&
-                   Object.keys(soulPrintData.answersByPillar || {}).length === 0 && (
+                   !soulPrintData.assessmentComplete && (
                     <div className="text-center py-8">
                       <div className="w-16 h-16 mx-auto bg-white/5 rounded-2xl flex items-center justify-center mb-4">
                         <FileText className="w-8 h-8 text-gray-600" />
                       </div>
-                      <p className="text-gray-500 text-sm mb-2">Complete your assessment to build your SoulPrint</p>
-                      <p className="text-gray-600 text-xs mb-4">Your SoulPrint helps personalize how the AI communicates with you.</p>
+                      <p className="text-gray-500 text-sm mb-2">Build your SoulPrint</p>
+                      <p className="text-gray-600 text-xs mb-4">Complete an assessment or import chat history to get started.</p>
                       <button
                         onClick={() => window.location.href = '/assessment'}
                         className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm rounded-lg transition-colors"
                       >
                         Take Assessment
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Last Updated */}
-                  {soulPrintData.lastUpdated && (
-                    <div className="pt-3 border-t border-white/5 flex items-center justify-between text-[10px] text-gray-600">
-                      <span>Last updated: {new Date(soulPrintData.lastUpdated).toLocaleDateString()}</span>
-                      <button onClick={loadSoulPrint} className="text-orange-500 hover:text-orange-400 flex items-center gap-1">
-                        <RefreshCw className="w-3 h-3" /> Refresh
                       </button>
                     </div>
                   )}
