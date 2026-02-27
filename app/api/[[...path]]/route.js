@@ -3049,7 +3049,7 @@ async function handleChatCompare(request) {
   const db = await getDb();
 
   // Rate limiting - compare mode uses 3x the rate
-  if (checkRateLimit(user.id, models.length * 20)) {
+  if (checkChatRateLimit(user.id, models.length * 20)) {
     return err('Rate limit exceeded — comparison mode uses more quota', 429);
   }
 
