@@ -1944,10 +1944,10 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     setUploading(false);
   }
 
-  // Handle assessment reset
-  async function handleResetAssessment() {
-    if (!confirm('Are you sure you want to retake the 36-question assessment? Your previous answers will be archived.')) return;
-    
+  // Handle assessment reset - show choice modal
+  const [showAssessmentChoice, setShowAssessmentChoice] = useState(false);
+  
+  async function handleResetAssessment(type = 'full') {
     try {
       const res = await fetch('/api/assessment/reset', {
         method: 'POST',
@@ -1957,7 +1957,12 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
       if (res.ok) {
         onAssessmentReset?.();
         onClose();
-        window.location.href = '/assessment';
+        // Navigate to the appropriate assessment type
+        if (type === 'quick') {
+          window.location.href = '/assessment/quick';
+        } else {
+          window.location.href = '/assessment';
+        }
       } else {
         alert('Failed to reset assessment');
       }
