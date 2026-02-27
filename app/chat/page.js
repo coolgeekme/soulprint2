@@ -1879,10 +1879,17 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
       const res = await fetch('/api/profile/soulprint', {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!res.ok) {
+        console.error('SoulPrint API error:', res.status);
+        setSoulPrintData(null);
+        return;
+      }
       const data = await res.json();
+      console.log('SoulPrint data loaded:', data);
       setSoulPrintData(data);
     } catch (e) {
       console.error('Failed to load SoulPrint:', e);
+      setSoulPrintData(null);
     }
     setSoulPrintLoading(false);
   };
