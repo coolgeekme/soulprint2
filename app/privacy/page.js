@@ -32,58 +32,117 @@ export default function PrivacyPolicyPage() {
         </p>
 
         <div className="prose prose-invert prose-orange max-w-none space-y-8">
+          {/* Section 1 */}
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">1. Information We Collect</h2>
+            <p className="text-gray-300 leading-relaxed">We collect:</p>
+            <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
+              <li>Email address (for account creation)</li>
+              <li>Conversation content submitted to the Service</li>
+              <li>Usage metrics (tokens, session counts, interaction timestamps)</li>
+              <li>Technical metadata (IP address, browser type, device type)</li>
+            </ul>
+            <p className="text-gray-300 leading-relaxed mt-3 font-medium">
+              We do not collect unnecessary personal information.
+            </p>
+          </section>
+
+          {/* Section 2 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">2. How We Use Information</h2>
+            <p className="text-gray-300 leading-relaxed">We use collected information to:</p>
+            <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
+              <li>Provide the Service</li>
+              <li>Maintain conversational continuity</li>
+              <li>Improve system performance</li>
+              <li>Monitor system health and cost metrics</li>
+              <li>Ensure security</li>
+            </ul>
+            <p className="text-gray-300 leading-relaxed mt-3 font-medium text-orange-400">
+              We do not sell user data.
+            </p>
+          </section>
+
+          {/* Section 3 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">3. AI Processing</h2>
             <p className="text-gray-300 leading-relaxed">
-              We collect information you provide directly to us, including:
+              User conversations are processed by large language model providers under contractual agreements.
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-2">
+              These providers may temporarily process data to generate responses but do not retain personal data 
+              beyond necessary operational use, subject to their policies.
+            </p>
+          </section>
+
+          {/* Section 4 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">4. Data Storage</h2>
+            <p className="text-gray-300 leading-relaxed">
+              Conversation history and memory objects may be stored to support continuity features.
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-2">
+              Beta data retention policies may change as the Service evolves.
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-2">
+              Users may request deletion of their account and associated data.
+            </p>
+          </section>
+
+          {/* Section 5 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">5. Data Security</h2>
+            <p className="text-gray-300 leading-relaxed">
+              We implement reasonable administrative and technical safeguards to protect user data.
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-2">
+              No system can guarantee absolute security.
+            </p>
+          </section>
+
+          {/* Section 6 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">6. Data Retention</h2>
+            <p className="text-gray-300 leading-relaxed">
+              We retain data as long as your account remains active or as necessary to provide the Service.
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-2">
+              Users may request deletion at any time.
+            </p>
+          </section>
+
+          {/* Section 7 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">7. Children's Privacy</h2>
+            <p className="text-gray-300 leading-relaxed">
+              SoulPrint is not intended for users under 18 years of age.
+            </p>
+          </section>
+
+          {/* Section 8 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">8. Your Rights</h2>
+            <p className="text-gray-300 leading-relaxed">
+              Depending on your jurisdiction, you may have rights to:
             </p>
             <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
-              <li>Email address for account creation</li>
-              <li>Conversation content and messages</li>
-              <li>Assessment responses and preferences</li>
-              <li>Imported data from connected services (with your consent)</li>
+              <li>Access your data</li>
+              <li>Correct your data</li>
+              <li>Delete your data</li>
             </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-white mb-3">2. How We Use Your Information</h2>
-            <p className="text-gray-300 leading-relaxed">
-              We use your information solely to:
-            </p>
-            <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
-              <li>Provide and personalize the SoulPrint service</li>
-              <li>Remember your preferences and communication style</li>
-              <li>Improve and develop new features</li>
-              <li>Communicate with you about the service</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-white mb-3">3. Data Protection</h2>
-            <p className="text-gray-300 leading-relaxed">
-              Your conversations and personal data are encrypted and stored securely. 
-              We do not sell your data to third parties. We do not use your conversations 
-              to train AI models.
+            <p className="text-gray-300 leading-relaxed mt-3">
+              Contact: <a href="mailto:team@archeforge.com" className="text-orange-500 hover:text-orange-400 underline">team@archeforge.com</a>
             </p>
           </section>
 
+          {/* Section 9 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">4. Your Rights</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">9. Changes to This Policy</h2>
             <p className="text-gray-300 leading-relaxed">
-              You have the right to:
+              We may update this Privacy Policy periodically.
             </p>
-            <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
-              <li>Access your personal data</li>
-              <li>Delete your account and all associated data</li>
-              <li>Export your data</li>
-              <li>Opt out of non-essential data collection</li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold text-white mb-3">5. Contact Us</h2>
-            <p className="text-gray-300 leading-relaxed">
-              For privacy-related questions, please contact us at privacy@archeforge.com
+            <p className="text-gray-300 leading-relaxed mt-2">
+              Continued use of the Service constitutes acceptance of changes.
             </p>
           </section>
         </div>
