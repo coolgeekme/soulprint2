@@ -14,6 +14,54 @@ export const maxDuration = 300; // 5 minutes max for this route (large file proc
 export const dynamic = 'force-dynamic';
 
 // ============================================================
+// RATE LIMITING
+// ============================================================
+const rateLimitStore = new Map();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMITS = {
+  chat: 30, // 30 requests per minute
+  auth: 10, // 10 login attempts per minute
+  export: 5, // 5 exports per minute
+  default: 60, // 60 requests per minute for other endpoints
+};
+
+function checkRateLimit(identifier, type = 'default') {
+  const key = `${identifier}:${type}`;
+  const now = Date.now();
+  const limit = RATE_LIMITS[type] || RATE_LIMITS.default;
+  
+  if (!rateLimitStore.has(key)) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return { allowed: true, remaining: limit - 1 };
+  }
+  
+  const record = rateLimitStore.get(key);
+  
+  if (now > record.resetAt) {
+    record.count = 1;
+    record.resetAt = now + RATE_LIMIT_WINDOW;
+    return { allowed: true, remaining: limit - 1 };
+  }
+  
+  if (record.count >= limit) {
+    return { allowed: false, remaining: 0, retryAfter: Math.ceil((record.resetAt - now) / 1000) };
+  }
+  
+  record.count++;
+  return { allowed: true, remaining: limit - record.count };
+}
+
+// Clean up old rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of rateLimitStore.entries()) {
+    if (now > record.resetAt) {
+      rateLimitStore.delete(key);
+    }
+  }
+}, 60 * 1000);
+
+// ============================================================
 // DATA IMPORT ANALYSIS (ChatGPT / Facebook)
 // ============================================================
 
