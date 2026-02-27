@@ -11055,6 +11055,8 @@ export async function GET(request, { params }) {
     if (pathStr === 'assessment/layered/questions') return handleGetLayeredQuestions(request);
     if (pathStr === 'assessment/settings') return handleGetAssessmentSettings(request);
     if (pathStr === 'assessment/validation/next') return handleGetNextValidation(request);
+    if (pathStr === 'assessment/gradual/next') return handleGetGradualQuestion(request);
+    if (pathStr === 'assessment/gradual/progress') return handleGetAssessmentProgress(request);
     if (pathStr === 'profile/communication') return handleGetCommunicationProfile(request);
     if (pathStr === 'profile/soulprint') return handleGetSoulPrint(request);
     if (pathStr === 'privacy/settings') return handleGetPrivacySettings(request);
