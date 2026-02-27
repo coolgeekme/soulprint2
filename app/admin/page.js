@@ -562,10 +562,10 @@ function UsersTab({ token, adminRole }) {
                         {u.role !== 'superadmin' && (
                           <button 
                             onClick={() => handleDeleteUser(u)} 
-                            className="text-[10px] text-gray-600 hover:text-red-400 transition-colors"
+                            className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                             title="Delete user"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         )}
                       </>
