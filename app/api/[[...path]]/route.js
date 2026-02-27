@@ -10787,6 +10787,9 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/waitlist') return handleAdminGetWaitlist(request);
     if (pathStr === 'admin/feedback') return handleAdminGetFeedback(request);
     if (pathStr === 'admin/beta-code/stats') return handleAdminGetBetaCodeStats(request);
+    if (pathStr === 'admin/beta-groups') return handleAdminGetBetaGroups(request);
+    if (pathStr === 'admin/beta-codes') return handleAdminGetBetaCodes(request);
+    if (pathStr === 'admin/beta-redemptions') return handleAdminGetBetaRedemptions(request);
     if (pathStr === 'user/location') return handleGetUserLocation(request);
     if (pathStr === 'data-imports') return handleGetDataImports(request);
     if (pathStr === 'profile/export') return handleProfileExport(request);
