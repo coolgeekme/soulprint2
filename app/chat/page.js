@@ -807,6 +807,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   const [importStatus, setImportStatus] = useState(null);
   const [error, setError] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [analysisResult, setAnalysisResult] = useState(null);
   const fileInputRef = useRef(null);
 
   // Prevent accidental navigation during upload
@@ -834,7 +835,6 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   
   const isLargeUpload = getTotalSize() > 500 * 1024 * 1024; // > 500MB
   // Realistic estimate: assume ~3 MB/s average upload speed
-  // 2GB = 2048 MB / 3 MB/s = ~683 seconds = ~11 minutes
   const sizeInMB = getTotalSize() / (1024 * 1024);
   const estimatedSeconds = sizeInMB / 3; // 3 MB/s upload speed
   const estimatedMinutes = Math.max(1, Math.ceil(estimatedSeconds / 60));
