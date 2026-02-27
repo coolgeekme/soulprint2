@@ -9320,6 +9320,10 @@ export async function PUT(request, { params }) {
       const announcementId = pathArr[2];
       return handleAdminUpdateAnnouncement(request, announcementId);
     }
+    if (pathStr.startsWith('admin/blog/posts/') && pathArr.length === 4) {
+      const postId = pathArr[3];
+      return handleAdminUpdateBlogPost(request, postId);
+    }
 
     return err('Not found', 404);
   } catch (error) {
