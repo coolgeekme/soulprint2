@@ -751,6 +751,7 @@ async function buildSystemPrompt(db, userId) {
   const user = await db.collection('users').findOne({ id: userId });
   const profile = await db.collection('profiles').findOne({ user_id: userId });
   const soulProfile = await db.collection('soul_profiles').findOne({ user_id: userId });
+  const commProfile = await db.collection('communication_profiles').findOne({ user_id: userId });
   const answers = await db.collection('assessment_answers')
     .find({ user_id: userId })
     .sort({ created_at: 1 })
@@ -762,7 +763,7 @@ async function buildSystemPrompt(db, userId) {
   const field = profile?.field || '';
   const helpWith = profile?.help_with || [];
 
-  // Build assessment context from answers
+  // Build assessment context from answers (full 36-question assessment)
   let assessmentContext = '';
   if (answers.length > 0) {
     const questionIds = answers.map(a => a.question_id);
@@ -775,6 +776,15 @@ async function buildSystemPrompt(db, userId) {
       return q ? `Q (${q.pillar}): ${q.question_text}\nA: ${a.answer_text}` : '';
     }).filter(Boolean).slice(0, 12).join('\n\n');
     assessmentContext = `\n## Assessment Insights\n${answersText}`;
+  }
+  
+  // Build communication profile context (from layered assessment)
+  let commProfileContext = '';
+  if (commProfile) {
+    const adaptations = generateAdaptivePrompt(commProfile);
+    if (adaptations) {
+      commProfileContext = `\n## Communication Preferences (from Quick Assessment)\n${adaptations}`;
+    }
   }
 
   // Build rich soul profile context from data imports
