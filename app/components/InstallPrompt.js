@@ -24,8 +24,8 @@ export default function InstallPrompt() {
     const dismissedTime = dismissed ? parseInt(dismissed) : 0;
     const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
 
-    // Show again after 7 days
-    if (standalone || (dismissed && daysSinceDismissed < 7)) {
+    // Show again after 3 days (changed from 7)
+    if (standalone || (dismissed && daysSinceDismissed < 3)) {
       return;
     }
 
