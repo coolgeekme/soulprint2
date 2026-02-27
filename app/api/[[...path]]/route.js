@@ -1172,6 +1172,366 @@ const SEED_QUESTIONS = [
 ];
 
 // ============================================================
+// LAYERED ASSESSMENT (Quick Start) - Layer 1 Core Questions
+// ============================================================
+const LAYERED_ASSESSMENT_QUESTIONS = {
+  layer1: [
+    // Communication Core (3 questions)
+    {
+      id: 'comm_explain',
+      category: 'communication',
+      question: 'When you need to explain something important, you naturally:',
+      options: [
+        { value: 'write', label: 'Write it out first' },
+        { value: 'talk', label: 'Talk it through' },
+        { value: 'visual', label: 'Use visuals/examples' },
+        { value: 'mix', label: 'Mix of all three' }
+      ]
+    },
+    {
+      id: 'comm_detail',
+      category: 'communication',
+      question: 'If I give you too much detail, you\'ll:',
+      options: [
+        { value: 'skim', label: 'Skim for what matters' },
+        { value: 'read_all', label: 'Read it all anyway' },
+        { value: 'frustrated', label: 'Get frustrated and disengage' },
+        { value: 'summarize', label: 'Ask me to summarize' }
+      ]
+    },
+    {
+      id: 'comm_misunderstand',
+      category: 'communication',
+      question: 'When someone misunderstands you, your first move is:',
+      options: [
+        { value: 'reexplain', label: 'Re-explain more clearly' },
+        { value: 'ask', label: 'Ask what they heard' },
+        { value: 'frustrated', label: 'Get frustrated' },
+        { value: 'different_angle', label: 'Try a different angle' }
+      ]
+    },
+    // Emotional Intelligence Core (2 questions)
+    {
+      id: 'emotion_stress',
+      category: 'emotional_intelligence',
+      question: 'When you\'re stressed, you tend to:',
+      options: [
+        { value: 'space', label: 'Want space to think' },
+        { value: 'talk', label: 'Talk it out' },
+        { value: 'distraction', label: 'Dive into work/distraction' },
+        { value: 'reassurance', label: 'Need reassurance' }
+      ]
+    },
+    {
+      id: 'emotion_disappointment',
+      category: 'emotional_intelligence',
+      question: 'How do you typically handle disappointment?',
+      options: [
+        { value: 'process_quick', label: 'Process internally, move on quickly' },
+        { value: 'sit_with', label: 'Need time to sit with it' },
+        { value: 'analyze', label: 'Analyze what went wrong' },
+        { value: 'talk_through', label: 'Talk through it with someone' }
+      ]
+    },
+    // Decision-Making Core (2 questions)
+    {
+      id: 'decision_approach',
+      category: 'decision_making',
+      question: 'When facing a big decision, you:',
+      options: [
+        { value: 'gut', label: 'Trust your gut immediately' },
+        { value: 'research', label: 'Research extensively first' },
+        { value: 'opinions', label: 'Seek multiple opinions' },
+        { value: 'blend', label: 'Blend intuition + data' }
+      ]
+    },
+    {
+      id: 'decision_options',
+      category: 'decision_making',
+      question: 'You\'d rather have:',
+      options: [
+        { value: 'three_clear', label: '3 great options with clear pros/cons' },
+        { value: 'all_options', label: 'All possible options to evaluate' },
+        { value: 'one_recommended', label: 'One recommended option with reasoning' },
+        { value: 'framework', label: 'Framework to decide myself' }
+      ]
+    },
+    // Work Style Core (1 question)
+    {
+      id: 'feedback_style',
+      category: 'work_style',
+      question: 'Your ideal feedback is:',
+      options: [
+        { value: 'direct', label: 'Direct and immediate' },
+        { value: 'thoughtful', label: 'Thoughtful and detailed' },
+        { value: 'sandwich', label: 'Sandwich approach (positive/negative/positive)' },
+        { value: 'data_driven', label: 'Data-driven with examples' }
+      ]
+    },
+    // Context Capture (2 questions)
+    {
+      id: 'help_with',
+      category: 'context',
+      question: 'What are you hoping I can help you with?',
+      type: 'text',
+      placeholder: 'Tell me about your goals, challenges, or what brings you here...'
+    },
+    {
+      id: 'ai_personality',
+      category: 'context',
+      question: 'On a scale, you prefer AI that feels:',
+      type: 'slider',
+      min: 0,
+      max: 100,
+      minLabel: 'Professional Assistant',
+      maxLabel: 'Friendly Companion',
+      defaultValue: 50
+    }
+  ],
+  // Layer 2: Smart Follow-ups based on Layer 1 answers
+  layer2: {
+    // Follow-ups for "Write it out first"
+    'comm_explain:write': [
+      {
+        id: 'write_style',
+        question: 'When you write, do you prefer to draft everything at once or build it piece by piece?',
+        options: [
+          { value: 'all_at_once', label: 'Draft everything at once' },
+          { value: 'piece_by_piece', label: 'Build it piece by piece' }
+        ]
+      },
+      {
+        id: 'edit_style',
+        question: 'Do you edit as you go or dump it all out first?',
+        options: [
+          { value: 'edit_as_go', label: 'Edit as I go' },
+          { value: 'dump_first', label: 'Dump it all out first, then edit' }
+        ]
+      }
+    ],
+    // Follow-ups for stress response "Want space to think"
+    'emotion_stress:space': [
+      {
+        id: 'space_duration',
+        question: 'When you need space, how long before you\'re ready to engage again?',
+        options: [
+          { value: 'minutes', label: 'Minutes' },
+          { value: 'hours', label: 'Hours' },
+          { value: 'days', label: 'Days' }
+        ]
+      },
+      {
+        id: 'check_in',
+        question: 'Should I check in on you or wait for you to come back?',
+        options: [
+          { value: 'check_in', label: 'Check in on me' },
+          { value: 'wait', label: 'Wait for me to come back' }
+        ]
+      }
+    ],
+    // Follow-ups for "Research extensively first"
+    'decision_approach:research': [
+      {
+        id: 'research_depth',
+        question: 'How many sources do you typically want before feeling confident?',
+        options: [
+          { value: 'few', label: '2-3 solid sources' },
+          { value: 'moderate', label: '5-7 sources' },
+          { value: 'comprehensive', label: 'As many as possible' }
+        ]
+      },
+      {
+        id: 'research_style',
+        question: 'Do you prefer curated research or broad exploration?',
+        options: [
+          { value: 'curated', label: 'Curated - give me the best' },
+          { value: 'broad', label: 'Broad - let me explore' }
+        ]
+      }
+    ],
+    // Follow-ups for "Direct and immediate" feedback
+    'feedback_style:direct': [
+      {
+        id: 'feedback_timing',
+        question: 'Should I call out issues as I see them, or wait until you ask?',
+        options: [
+          { value: 'proactive', label: 'Call them out immediately' },
+          { value: 'wait', label: 'Wait until I ask' }
+        ]
+      },
+      {
+        id: 'feedback_context',
+        question: 'How much context do you want with criticism?',
+        options: [
+          { value: 'just_fix', label: 'Just the fix' },
+          { value: 'with_why', label: 'The fix plus the why' }
+        ]
+      }
+    ],
+    // Follow-ups for "Talk it out" stress response
+    'emotion_stress:talk': [
+      {
+        id: 'talk_preference',
+        question: 'When you need to talk it out, do you want advice or just to vent?',
+        options: [
+          { value: 'advice', label: 'Give me advice' },
+          { value: 'vent', label: 'Just let me vent' },
+          { value: 'both', label: 'Ask me first' }
+        ]
+      }
+    ],
+    // Follow-ups for "Thoughtful and detailed" feedback
+    'feedback_style:thoughtful': [
+      {
+        id: 'detail_level',
+        question: 'How much detail do you actually want?',
+        options: [
+          { value: 'comprehensive', label: 'Everything - I want the full picture' },
+          { value: 'moderate', label: 'Key points with supporting details' },
+          { value: 'summary_plus', label: 'Summary with option to dive deeper' }
+        ]
+      }
+    ]
+  },
+  // Layer 3: Behavioral Validation Questions (shown in chat)
+  layer3_validations: [
+    { id: 'detail_check', trigger: 'after_detailed_response', question: 'Was that too much detail or about right?', options: ['Too much', 'About right', 'Could use more'] },
+    { id: 'directness_check', trigger: 'after_direct_response', question: 'Too blunt or just right?', options: ['Too blunt', 'Just right', 'Could be more direct'] },
+    { id: 'options_check', trigger: 'after_options', question: 'Helpful to see options, or would you rather I just recommend one?', options: ['Options are helpful', 'Just recommend one'] },
+    { id: 'level_check', trigger: 'after_technical', question: 'Am I pitching this at the right level?', options: ['Too simple', 'Just right', 'Too complex'] },
+    { id: 'length_check', trigger: 'after_long_response', question: 'Should I keep responses shorter?', options: ['Yes, shorter please', 'This length is good', 'Go even deeper'] }
+  ]
+};
+
+// Calculate communication profile from layered assessment
+function calculateCommunicationProfile(responses) {
+  const profile = {
+    // Core dimensions (0-100 scale)
+    directness: 50,
+    emotional_warmth: 50,
+    information_density: 50,
+    proactivity: 50,
+    
+    // Specific preferences
+    modality: 'mixed',
+    feedback_style: 'balanced',
+    decision_support: 'options',
+    stress_response: 'space',
+    
+    // Confidence scores
+    confidence: {
+      communication: 0.5,
+      emotional: 0.5,
+      work_style: 0.5
+    },
+    
+    // Raw answers for reference
+    raw_answers: responses
+  };
+  
+  // Calculate directness
+  if (responses.feedback_style === 'direct') profile.directness = 85;
+  else if (responses.feedback_style === 'data_driven') profile.directness = 70;
+  else if (responses.feedback_style === 'thoughtful') profile.directness = 50;
+  else if (responses.feedback_style === 'sandwich') profile.directness = 30;
+  
+  // Calculate emotional warmth based on AI personality slider
+  if (responses.ai_personality !== undefined) {
+    profile.emotional_warmth = responses.ai_personality;
+  }
+  
+  // Calculate information density
+  if (responses.comm_detail === 'read_all') profile.information_density = 90;
+  else if (responses.comm_detail === 'skim') profile.information_density = 40;
+  else if (responses.comm_detail === 'summarize') profile.information_density = 30;
+  else if (responses.comm_detail === 'frustrated') profile.information_density = 20;
+  
+  // Calculate proactivity preference
+  if (responses.feedback_timing === 'proactive') profile.proactivity = 80;
+  else if (responses.feedback_timing === 'wait') profile.proactivity = 30;
+  if (responses.check_in === 'check_in') profile.proactivity = Math.min(100, profile.proactivity + 20);
+  else if (responses.check_in === 'wait') profile.proactivity = Math.max(0, profile.proactivity - 20);
+  
+  // Set modality preference
+  profile.modality = responses.comm_explain || 'mix';
+  
+  // Set feedback style
+  profile.feedback_style = responses.feedback_style || 'balanced';
+  
+  // Set decision support preference
+  if (responses.decision_options === 'one_recommended') profile.decision_support = 'recommendation';
+  else if (responses.decision_options === 'three_clear') profile.decision_support = 'curated_options';
+  else if (responses.decision_options === 'all_options') profile.decision_support = 'comprehensive';
+  else if (responses.decision_options === 'framework') profile.decision_support = 'framework';
+  
+  // Set stress response
+  profile.stress_response = responses.emotion_stress || 'space';
+  
+  // Update confidence based on completion
+  const layer1Count = Object.keys(responses).filter(k => 
+    LAYERED_ASSESSMENT_QUESTIONS.layer1.some(q => q.id === k)
+  ).length;
+  profile.confidence.communication = Math.min(1, layer1Count / 10 * 0.8);
+  profile.confidence.emotional = responses.emotion_stress && responses.emotion_disappointment ? 0.7 : 0.5;
+  profile.confidence.work_style = responses.feedback_style ? 0.7 : 0.5;
+  
+  return profile;
+}
+
+// Generate adaptive system prompt based on profile
+function generateAdaptivePrompt(profile) {
+  let adaptations = [];
+  
+  // Adjust based on directness score
+  if (profile.directness > 70) {
+    adaptations.push('Be direct and concise. Cut fluff. Lead with conclusions, support if needed.');
+  } else if (profile.directness < 40) {
+    adaptations.push('Use a gentle, diplomatic approach. Build up to main points gradually.');
+  }
+  
+  // Adjust based on emotional warmth
+  if (profile.emotional_warmth > 70) {
+    adaptations.push('Be warm and friendly. Use conversational language. Show personality.');
+  } else if (profile.emotional_warmth < 30) {
+    adaptations.push('Keep tone professional, not overly friendly. Focus on substance over relationship building.');
+  }
+  
+  // Adjust based on information density
+  if (profile.information_density > 70) {
+    adaptations.push('User can handle complexity - don\'t oversimplify. Provide depth and nuance.');
+  } else if (profile.information_density < 40) {
+    adaptations.push('Keep responses concise and scannable. Use bullet points. Avoid information overload.');
+  }
+  
+  // Adjust based on decision support preference
+  if (profile.decision_support === 'recommendation') {
+    adaptations.push('Lead with a single clear recommendation, then explain reasoning.');
+  } else if (profile.decision_support === 'curated_options') {
+    adaptations.push('Present 2-3 options with clear pros/cons for each.');
+  } else if (profile.decision_support === 'framework') {
+    adaptations.push('Provide frameworks and criteria to help them decide themselves.');
+  }
+  
+  // Adjust based on proactivity
+  if (profile.proactivity > 70) {
+    adaptations.push('Be proactive - anticipate needs, offer suggestions, call out issues.');
+  } else if (profile.proactivity < 40) {
+    adaptations.push('Be responsive rather than proactive. Wait for them to ask for input.');
+  }
+  
+  // Adjust based on feedback style
+  if (profile.feedback_style === 'direct') {
+    adaptations.push('Give feedback immediately and directly. Don\'t sugar coat.');
+  } else if (profile.feedback_style === 'sandwich') {
+    adaptations.push('Use sandwich feedback: positive observation, constructive point, positive close.');
+  } else if (profile.feedback_style === 'data_driven') {
+    adaptations.push('Support feedback with data and examples. Show the reasoning.');
+  }
+  
+  return adaptations.join('\n');
+}
+
+// ============================================================
 // ROUTE HANDLERS
 // ============================================================
 
