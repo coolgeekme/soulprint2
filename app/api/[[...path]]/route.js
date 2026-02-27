@@ -9327,6 +9327,7 @@ export async function POST(request, { params }) {
   try {
     if (pathStr === 'auth/register') return handleRegister(request);
     if (pathStr === 'auth/login') return handleLogin(request);
+    if (pathStr === 'auth/firebase') return handleFirebaseAuth(request);
     if (pathStr === 'assessment/answer') return handleSubmitAnswer(request);
     if (pathStr === 'assessment/complete') return handleAssessmentComplete(request);
     if (pathStr === 'assessment/layered/answer') return handleSubmitLayeredAnswer(request);
