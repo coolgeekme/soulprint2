@@ -920,6 +920,393 @@ function AnnouncementsTab({ token }) {
   );
 }
 
+
+// Blog Tab
+function BlogTab({ token }) {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showEditor, setShowEditor] = useState(false);
+  const [editingPost, setEditingPost] = useState(null);
+  const [form, setForm] = useState({
+    title: '',
+    content: '',
+    excerpt: '',
+    featured_image: '',
+    category: '',
+    tags: '',
+    author: 'SoulPrint Team',
+    status: 'draft'
+  });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadPosts();
+  }, []);
+
+  const loadPosts = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/blog/posts', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setPosts(data.posts || []);
+    } catch (e) {
+      console.error('Failed to load posts:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openNewPost = () => {
+    setEditingPost(null);
+    setForm({
+      title: '',
+      content: '',
+      excerpt: '',
+      featured_image: '',
+      category: '',
+      tags: '',
+      author: 'SoulPrint Team',
+      status: 'draft'
+    });
+    setShowEditor(true);
+  };
+
+  const openEditPost = (post) => {
+    setEditingPost(post);
+    setForm({
+      title: post.title,
+      content: post.content,
+      excerpt: post.excerpt || '',
+      featured_image: post.featured_image || '',
+      category: post.category || '',
+      tags: (post.tags || []).join(', '),
+      author: post.author || 'SoulPrint Team',
+      status: post.status
+    });
+    setShowEditor(true);
+  };
+
+  const handleSave = async (publishNow = false) => {
+    if (!form.title.trim() || !form.content.trim()) {
+      alert('Title and content are required');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        status: publishNow ? 'published' : form.status
+      };
+
+      const url = editingPost 
+        ? `/api/admin/blog/posts/${editingPost.id}`
+        : '/api/admin/blog/posts';
+      
+      const res = await fetch(url, {
+        method: editingPost ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setShowEditor(false);
+        loadPosts();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to save');
+      }
+    } catch (e) {
+      alert('Failed to save post');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (post) => {
+    if (!confirm(`Delete "${post.title}"? This cannot be undone.`)) return;
+    
+    try {
+      const res = await fetch(`/api/admin/blog/posts/${post.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        loadPosts();
+      }
+    } catch (e) {
+      alert('Failed to delete');
+    }
+  };
+
+  const togglePublish = async (post) => {
+    try {
+      const res = await fetch(`/api/admin/blog/posts/${post.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          status: post.status === 'published' ? 'draft' : 'published'
+        })
+      });
+      if (res.ok) {
+        loadPosts();
+      }
+    } catch (e) {
+      alert('Failed to update');
+    }
+  };
+
+  const formatDate = (date) => {
+    if (!date) return '—';
+    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // Editor Modal
+  if (showEditor) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <button 
+            onClick={() => setShowEditor(false)}
+            className="text-gray-400 hover:text-white flex items-center gap-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back to posts
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleSave(false)}
+              disabled={saving}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm text-white flex items-center gap-2"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+              Save Draft
+            </button>
+            <button
+              onClick={() => handleSave(true)}
+              disabled={saving}
+              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg text-sm text-white flex items-center gap-2"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+              {editingPost?.status === 'published' ? 'Update' : 'Publish'}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Editor */}
+          <div className="lg:col-span-2 space-y-4">
+            <input
+              type="text"
+              placeholder="Post Title"
+              value={form.title}
+              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-white text-xl font-semibold placeholder-gray-600 focus:border-orange-500/50 outline-none"
+            />
+            <textarea
+              placeholder="Write your content here... (Markdown supported)"
+              value={form.content}
+              onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+              rows={20}
+              className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:border-orange-500/50 outline-none resize-none font-mono text-sm"
+            />
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-4">
+            <div className="bg-[#111] border border-white/10 rounded-xl p-4 space-y-4">
+              <h3 className="text-white font-semibold text-sm">Post Settings</h3>
+              
+              <div>
+                <label className="text-gray-500 text-xs uppercase tracking-wider mb-1 block">Status</label>
+                <select
+                  value={form.status}
+                  onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                  className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-gray-500 text-xs uppercase tracking-wider mb-1 block">Author</label>
+                <input
+                  type="text"
+                  value={form.author}
+                  onChange={e => setForm(f => ({ ...f, author: e.target.value }))}
+                  className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-gray-500 text-xs uppercase tracking-wider mb-1 block">Category</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Product Updates"
+                  value={form.category}
+                  onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                  className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-gray-500 text-xs uppercase tracking-wider mb-1 block">Tags (comma separated)</label>
+                <input
+                  type="text"
+                  placeholder="e.g., AI, Updates, Tips"
+                  value={form.tags}
+                  onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
+                  className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-gray-500 text-xs uppercase tracking-wider mb-1 block">Featured Image URL</label>
+                <input
+                  type="text"
+                  placeholder="https://..."
+                  value={form.featured_image}
+                  onChange={e => setForm(f => ({ ...f, featured_image: e.target.value }))}
+                  className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none"
+                />
+                {form.featured_image && (
+                  <img src={form.featured_image} alt="Preview" className="mt-2 rounded-lg w-full aspect-video object-cover" />
+                )}
+              </div>
+
+              <div>
+                <label className="text-gray-500 text-xs uppercase tracking-wider mb-1 block">Excerpt (SEO)</label>
+                <textarea
+                  placeholder="Brief description for search results..."
+                  value={form.excerpt}
+                  onChange={e => setForm(f => ({ ...f, excerpt: e.target.value }))}
+                  rows={3}
+                  className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none resize-none"
+                />
+                <p className="text-gray-600 text-xs mt-1">{form.excerpt.length}/160 characters</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Posts List
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-white text-xl font-bold">Blog Posts</h2>
+          <p className="text-gray-500 text-sm">{posts.length} total posts</p>
+        </div>
+        <button
+          onClick={openNewPost}
+          className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg text-sm text-white flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          New Post
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-600" />
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="text-center py-12 bg-[#111] border border-white/8 rounded-xl">
+          <PenSquare className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+          <p className="text-gray-500 mb-4">No blog posts yet</p>
+          <button
+            onClick={openNewPost}
+            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg text-sm text-white inline-flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Create your first post
+          </button>
+        </div>
+      ) : (
+        <div className="bg-[#111] border border-white/8 rounded-xl overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-white/8 text-left">
+                <th className="px-4 py-3 text-gray-500 text-xs font-bold uppercase tracking-wider">Title</th>
+                <th className="px-4 py-3 text-gray-500 text-xs font-bold uppercase tracking-wider hidden md:table-cell">Category</th>
+                <th className="px-4 py-3 text-gray-500 text-xs font-bold uppercase tracking-wider hidden sm:table-cell">Status</th>
+                <th className="px-4 py-3 text-gray-500 text-xs font-bold uppercase tracking-wider hidden lg:table-cell">Date</th>
+                <th className="px-4 py-3 text-gray-500 text-xs font-bold uppercase tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {posts.map(post => (
+                <tr key={post.id} className="border-b border-white/5 hover:bg-white/3">
+                  <td className="px-4 py-3">
+                    <div>
+                      <p className="text-white font-medium text-sm truncate max-w-xs">{post.title}</p>
+                      <p className="text-gray-600 text-xs">{post.author}</p>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell">
+                    <span className="text-gray-400 text-sm">{post.category || '—'}</span>
+                  </td>
+                  <td className="px-4 py-3 hidden sm:table-cell">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      post.status === 'published' 
+                        ? 'bg-green-500/20 text-green-400' 
+                        : 'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {post.status === 'published' ? 'Published' : 'Draft'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell">
+                    <span className="text-gray-500 text-sm">{formatDate(post.published_at || post.created_at)}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => togglePublish(post)}
+                        className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                        title={post.status === 'published' ? 'Unpublish' : 'Publish'}
+                      >
+                        {post.status === 'published' ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={() => openEditPost(post)}
+                        className="p-1.5 text-gray-500 hover:text-orange-400 hover:bg-orange-500/10 rounded-lg transition-colors"
+                        title="Edit"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(post)}
+                        className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // Feedback Tab
 function FeedbackTab({ token }) {
   const [feedback, setFeedback] = useState([]);
