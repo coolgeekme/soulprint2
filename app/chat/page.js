@@ -1444,6 +1444,284 @@ function FeedbackModal({ onClose, token }) {
   );
 }
 
+// Privacy & Data Management Tab Component
+function PrivacyTab({ token }) {
+  const [dataUsage, setDataUsage] = useState(null);
+  const [privacySettings, setPrivacySettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteEmail, setDeleteEmail] = useState('');
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [usageRes, settingsRes] = await Promise.all([
+        fetch('/api/privacy/data-usage', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/privacy/settings', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      setDataUsage(await usageRes.json());
+      setPrivacySettings(await settingsRes.json());
+    } catch (e) {
+      console.error('Failed to load privacy data:', e);
+    }
+    setLoading(false);
+  };
+
+  const updateSetting = async (key, value) => {
+    try {
+      await fetch('/api/privacy/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ [key]: value })
+      });
+      setPrivacySettings(prev => ({ ...prev, [key]: value }));
+    } catch (e) {
+      alert('Failed to update setting');
+    }
+  };
+
+  const exportData = async () => {
+    setActionLoading('export');
+    try {
+      const res = await fetch('/api/privacy/export', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `soulprint-data-export-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Failed to export data');
+    }
+    setActionLoading(null);
+  };
+
+  const purgeChatHistory = async () => {
+    if (!confirm('Are you sure you want to delete ALL your chat history? This cannot be undone.')) return;
+    setActionLoading('purge-chats');
+    try {
+      const res = await fetch('/api/privacy/purge-chats', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      alert(`Deleted ${data.messages_deleted} messages and ${data.conversations_deleted} conversations.`);
+      loadData();
+    } catch (e) {
+      alert('Failed to purge chat history');
+    }
+    setActionLoading(null);
+  };
+
+  const purgeImportedData = async () => {
+    if (!confirm('Are you sure you want to delete all imported data (ChatGPT, Facebook, etc.)? This cannot be undone.')) return;
+    setActionLoading('purge-imports');
+    try {
+      const res = await fetch('/api/privacy/purge-imports', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      alert(`Deleted ${data.imported_messages_deleted} imported messages.`);
+      loadData();
+    } catch (e) {
+      alert('Failed to purge imported data');
+    }
+    setActionLoading(null);
+  };
+
+  const deleteAccount = async () => {
+    setActionLoading('delete');
+    try {
+      const res = await fetch('/api/privacy/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ confirm_email: deleteEmail })
+      });
+      if (res.ok) {
+        alert('Your account has been deleted. You will be logged out.');
+        localStorage.removeItem('sp_token');
+        localStorage.removeItem('sp_user');
+        window.location.href = '/';
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete account');
+      }
+    } catch (e) {
+      alert('Failed to delete account');
+    }
+    setActionLoading(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="text-center pb-4 border-b border-white/10">
+        <div className="w-12 h-12 mx-auto bg-green-500/10 rounded-xl flex items-center justify-center mb-3 border border-green-500/20">
+          <Shield className="w-6 h-6 text-green-400" />
+        </div>
+        <h3 className="text-white font-semibold">Privacy & Security</h3>
+        <p className="text-gray-500 text-xs mt-1">Manage your data and privacy settings</p>
+      </div>
+
+      {/* Data Usage Summary */}
+      {dataUsage && (
+        <div>
+          <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+            <span>📊</span> Your Data
+          </h4>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(dataUsage.data_stored || {}).map(([key, val]) => (
+              <div key={key} className="p-2 bg-[#1a1a1a] rounded-lg border border-white/5">
+                <p className="text-gray-500 text-[10px] uppercase">{key.replace(/_/g, ' ')}</p>
+                <p className="text-white text-lg font-semibold">{val.toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* AI Training Opt-Out */}
+      <div>
+        <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+          <span>🤖</span> AI Privacy
+        </h4>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
+            <div>
+              <p className="text-white text-sm">Opt out of AI training</p>
+              <p className="text-gray-500 text-[10px]">Your data won't be used to improve our models</p>
+            </div>
+            <button
+              onClick={() => updateSetting('ai_training_opt_out', !privacySettings?.ai_training_opt_out)}
+              className={`w-10 h-5 rounded-full transition-all relative ${privacySettings?.ai_training_opt_out ? 'bg-green-500' : 'bg-white/10'}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${privacySettings?.ai_training_opt_out ? 'right-0.5' : 'left-0.5'}`} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
+            <div>
+              <p className="text-white text-sm">Analytics opt-out</p>
+              <p className="text-gray-500 text-[10px]">Disable anonymous usage tracking</p>
+            </div>
+            <button
+              onClick={() => updateSetting('analytics_opt_out', !privacySettings?.analytics_opt_out)}
+              className={`w-10 h-5 rounded-full transition-all relative ${privacySettings?.analytics_opt_out ? 'bg-green-500' : 'bg-white/10'}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${privacySettings?.analytics_opt_out ? 'right-0.5' : 'left-0.5'}`} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Data Export */}
+      <div>
+        <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+          <span>📥</span> Export Your Data
+        </h4>
+        <p className="text-gray-500 text-xs mb-3">Download a copy of all your data in JSON format.</p>
+        <button
+          onClick={exportData}
+          disabled={actionLoading === 'export'}
+          className="w-full px-4 py-2.5 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {actionLoading === 'export' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          Download My Data
+        </button>
+      </div>
+
+      {/* Data Deletion */}
+      <div>
+        <h4 className="text-white text-sm font-semibold mb-3 flex items-center gap-2">
+          <span>🗑️</span> Delete Data
+        </h4>
+        <div className="space-y-2">
+          <button
+            onClick={purgeChatHistory}
+            disabled={!!actionLoading}
+            className="w-full px-4 py-2.5 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-sm rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {actionLoading === 'purge-chats' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Delete All Chat History
+          </button>
+          <button
+            onClick={purgeImportedData}
+            disabled={!!actionLoading}
+            className="w-full px-4 py-2.5 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-sm rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {actionLoading === 'purge-imports' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Delete All Imported Data
+          </button>
+        </div>
+      </div>
+
+      {/* Delete Account */}
+      <div className="pt-4 border-t border-white/10">
+        <h4 className="text-red-400 text-sm font-semibold mb-3 flex items-center gap-2">
+          <span>⚠️</span> Danger Zone
+        </h4>
+        {!showDeleteConfirm ? (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="w-full px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-sm rounded-xl transition-colors"
+          >
+            Delete My Account
+          </button>
+        ) : (
+          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl space-y-3">
+            <p className="text-red-400 text-xs">This will permanently delete your account and ALL associated data. This action cannot be undone.</p>
+            <input
+              type="email"
+              placeholder="Type your email to confirm"
+              value={deleteEmail}
+              onChange={e => setDeleteEmail(e.target.value)}
+              className="w-full bg-black/30 border border-red-500/30 rounded-lg px-3 py-2 text-white text-sm focus:border-red-500 outline-none"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setDeleteEmail(''); }}
+                className="flex-1 px-3 py-2 bg-white/5 text-gray-400 text-sm rounded-lg hover:bg-white/10"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteAccount}
+                disabled={!deleteEmail || actionLoading === 'delete'}
+                className="flex-1 px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {actionLoading === 'delete' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Delete Forever
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* AI Disclosure */}
+      <div className="pt-4 border-t border-white/5">
+        <p className="text-gray-600 text-[10px] text-center">
+          🤖 SoulPrint uses AI to generate responses. All conversations are with an AI assistant, not a human.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // Settings / Telegram / Imports Modal
 function SettingsModal({ onClose, token, onAssessmentReset }) {
   const [activeTab, setActiveTab] = useState('imports');
