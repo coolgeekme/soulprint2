@@ -9362,6 +9362,10 @@ export async function DELETE(request, { params }) {
       const userId = pathArr[2];
       return handleAdminDeleteUser(request, userId);
     }
+    if (pathStr.startsWith('admin/blog/posts/') && pathArr.length === 4) {
+      const postId = pathArr[3];
+      return handleAdminDeleteBlogPost(request, postId);
+    }
     return err('Not found', 404);
   } catch (error) {
     console.error('DELETE error:', error);
