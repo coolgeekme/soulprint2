@@ -237,8 +237,20 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ARE YOU BUILT FOR THIS SECTION */}
+      <section className="bg-[#0a0a0a] grid-bg pt-24 pb-8 px-8">
+        <div className="max-w-2xl mx-auto text-center mb-8">
+          <h2 className="font-condensed font-black text-white text-3xl md:text-4xl uppercase tracking-wide">
+            Are You Built For This?
+          </h2>
+          <p className="text-gray-500 text-sm mt-3">
+            Common questions about SoulPrint
+          </p>
+        </div>
+      </section>
+
       {/* FAQ SECTION */}
-      <section className="bg-[#0a0a0a] grid-bg py-24 px-8">
+      <section className="bg-[#0a0a0a] grid-bg pb-24 px-8">
         <div className="max-w-2xl mx-auto">
           {FAQS.map((faq, i) => (
             <FAQItem key={i} q={faq.q} a={faq.a} />
