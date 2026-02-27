@@ -5914,6 +5914,374 @@ async function handleAdminSendBetaCode(request) {
 }
 
 // ============================================================
+// ADVANCED BETA CODE MANAGEMENT (Groups, Multiple Codes, Analytics)
+// ============================================================
+
+// Generate a random code with prefix
+function generateBetaCode(prefix = 'BETA') {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = prefix + '-';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// Get all beta groups with metrics
+async function handleAdminGetBetaGroups(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  const groups = await db.collection('beta_groups').find({}).sort({ created_at: -1 }).toArray();
+  
+  // Calculate metrics for each group
+  const groupsWithMetrics = await Promise.all(groups.map(async (group) => {
+    const codes = await db.collection('beta_codes_v2').find({ group_id: group.id }).toArray();
+    const totalCodes = codes.length;
+    const activeCodes = codes.filter(c => c.active && (!c.expires_at || new Date(c.expires_at) >= new Date())).length;
+    const totalRedemptions = codes.reduce((sum, c) => sum + (c.uses_count || 0), 0);
+    
+    // Get unique users who used codes from this group
+    const redemptions = await db.collection('beta_code_redemptions').find({ 
+      code_id: { $in: codes.map(c => c.id) } 
+    }).toArray();
+    const uniqueUsers = new Set(redemptions.map(r => r.user_id)).size;
+    
+    return {
+      ...group,
+      total_codes: totalCodes,
+      active_codes: activeCodes,
+      total_redemptions: totalRedemptions,
+      unique_users: uniqueUsers,
+      conversion_rate: totalCodes > 0 ? Math.round((totalRedemptions / totalCodes) * 100) : 0,
+    };
+  }));
+
+  return ok({ groups: groupsWithMetrics });
+}
+
+// Create a new beta group
+async function handleAdminCreateBetaGroup(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { name, description } = body;
+  
+  if (!name) return err('Group name required');
+
+  const db = await getDb();
+  const groupId = uuidv4();
+  
+  await db.collection('beta_groups').insertOne({
+    id: groupId,
+    name: name.trim(),
+    description: description || '',
+    created_at: new Date(),
+    created_by: admin.id,
+  });
+
+  return ok({ id: groupId, name: name.trim(), success: true });
+}
+
+// Delete a beta group (and optionally its codes)
+async function handleAdminDeleteBetaGroup(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { group_id, delete_codes = false } = body;
+  
+  if (!group_id) return err('Group ID required');
+
+  const db = await getDb();
+  
+  // Delete or deactivate codes in this group
+  if (delete_codes) {
+    await db.collection('beta_codes_v2').deleteMany({ group_id });
+  } else {
+    await db.collection('beta_codes_v2').updateMany(
+      { group_id },
+      { $set: { active: false, group_id: null } }
+    );
+  }
+  
+  await db.collection('beta_groups').deleteOne({ id: group_id });
+
+  return ok({ success: true });
+}
+
+// Get all beta codes with full details
+async function handleAdminGetBetaCodes(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  const url = new URL(request.url);
+  const groupId = url.searchParams.get('group_id');
+  
+  const query = groupId ? { group_id: groupId } : {};
+  const codes = await db.collection('beta_codes_v2').find(query).sort({ created_at: -1 }).toArray();
+  
+  // Get group names
+  const groups = await db.collection('beta_groups').find({}).toArray();
+  const groupMap = new Map(groups.map(g => [g.id, g.name]));
+  
+  const codesWithDetails = codes.map(code => ({
+    ...code,
+    group_name: code.group_id ? groupMap.get(code.group_id) : 'Ungrouped',
+    is_expired: code.expires_at && new Date(code.expires_at) < new Date(),
+    is_exhausted: code.max_uses && code.uses_count >= code.max_uses,
+  }));
+
+  return ok({ codes: codesWithDetails });
+}
+
+// Create beta codes (single or bulk)
+async function handleAdminCreateBetaCodes(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { 
+    group_id, 
+    count = 1, 
+    prefix = 'BETA',
+    max_uses = null,  // null = unlimited
+    is_single_use = false,
+    expires_at = null,
+    custom_code = null,  // For single code creation
+    label = '',
+  } = body;
+
+  if (count < 1 || count > 100) {
+    return err('Count must be between 1 and 100');
+  }
+
+  const db = await getDb();
+  const createdCodes = [];
+  
+  for (let i = 0; i < count; i++) {
+    const code = custom_code && count === 1 
+      ? custom_code.toUpperCase().trim() 
+      : generateBetaCode(prefix);
+    
+    const codeDoc = {
+      id: uuidv4(),
+      code,
+      group_id: group_id || null,
+      label: label || '',
+      max_uses: is_single_use ? 1 : (max_uses || null),
+      uses_count: 0,
+      is_single_use,
+      expires_at: expires_at ? new Date(expires_at) : null,
+      active: true,
+      created_at: new Date(),
+      created_by: admin.id,
+    };
+    
+    await db.collection('beta_codes_v2').insertOne(codeDoc);
+    createdCodes.push(codeDoc);
+  }
+
+  return ok({ codes: createdCodes, success: true });
+}
+
+// Update a beta code
+async function handleAdminUpdateBetaCode(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { code_id, active, max_uses, expires_at, label, group_id } = body;
+  
+  if (!code_id) return err('Code ID required');
+
+  const db = await getDb();
+  const updates = {};
+  
+  if (typeof active === 'boolean') updates.active = active;
+  if (max_uses !== undefined) updates.max_uses = max_uses;
+  if (expires_at !== undefined) updates.expires_at = expires_at ? new Date(expires_at) : null;
+  if (label !== undefined) updates.label = label;
+  if (group_id !== undefined) updates.group_id = group_id;
+  
+  updates.updated_at = new Date();
+
+  await db.collection('beta_codes_v2').updateOne(
+    { id: code_id },
+    { $set: updates }
+  );
+
+  return ok({ success: true });
+}
+
+// Delete a beta code
+async function handleAdminDeleteBetaCodeV2(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { code_id } = body;
+  
+  if (!code_id) return err('Code ID required');
+
+  const db = await getDb();
+  await db.collection('beta_codes_v2').deleteOne({ id: code_id });
+
+  return ok({ success: true });
+}
+
+// Get redemption history for a code or all codes
+async function handleAdminGetBetaRedemptions(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  const url = new URL(request.url);
+  const codeId = url.searchParams.get('code_id');
+  const groupId = url.searchParams.get('group_id');
+  
+  let query = {};
+  
+  if (codeId) {
+    query.code_id = codeId;
+  } else if (groupId) {
+    const codes = await db.collection('beta_codes_v2').find({ group_id: groupId }).toArray();
+    query.code_id = { $in: codes.map(c => c.id) };
+  }
+  
+  const redemptions = await db.collection('beta_code_redemptions')
+    .find(query)
+    .sort({ redeemed_at: -1 })
+    .limit(100)
+    .toArray();
+  
+  // Get code details
+  const codeIds = [...new Set(redemptions.map(r => r.code_id))];
+  const codes = await db.collection('beta_codes_v2').find({ id: { $in: codeIds } }).toArray();
+  const codeMap = new Map(codes.map(c => [c.id, c.code]));
+  
+  const redemptionsWithDetails = redemptions.map(r => ({
+    ...r,
+    code: codeMap.get(r.code_id) || 'Unknown',
+  }));
+
+  return ok({ redemptions: redemptionsWithDetails });
+}
+
+// Validate and redeem a beta code (V2 - supports multiple codes)
+async function handleValidateBetaCodeV2(request) {
+  const body = await request.json();
+  const { code, user_id, user_email } = body;
+  
+  if (!code) return ok({ valid: false });
+
+  const db = await getDb();
+  
+  // First check v2 codes
+  const betaCode = await db.collection('beta_codes_v2').findOne({ 
+    code: code.toUpperCase().trim(),
+    active: true,
+  });
+  
+  if (!betaCode) {
+    // Fall back to legacy single code
+    const legacyCode = await db.collection('beta_codes').findOne({ id: 'current' });
+    if (legacyCode && legacyCode.code && 
+        legacyCode.code.toUpperCase() === code.toUpperCase().trim() &&
+        (!legacyCode.expires_at || new Date(legacyCode.expires_at) >= new Date())) {
+      return ok({ valid: true, legacy: true });
+    }
+    return ok({ valid: false });
+  }
+
+  // Check if expired
+  if (betaCode.expires_at && new Date(betaCode.expires_at) < new Date()) {
+    return ok({ valid: false, expired: true });
+  }
+
+  // Check if exhausted
+  if (betaCode.max_uses && betaCode.uses_count >= betaCode.max_uses) {
+    return ok({ valid: false, exhausted: true });
+  }
+
+  // If user info provided, record the redemption
+  if (user_id && user_email) {
+    // Check if user already used this code
+    const existingRedemption = await db.collection('beta_code_redemptions').findOne({
+      code_id: betaCode.id,
+      user_id,
+    });
+    
+    if (existingRedemption) {
+      return ok({ valid: true, already_used: true });
+    }
+    
+    // Record redemption
+    await db.collection('beta_code_redemptions').insertOne({
+      id: uuidv4(),
+      code_id: betaCode.id,
+      code: betaCode.code,
+      user_id,
+      user_email,
+      redeemed_at: new Date(),
+    });
+    
+    // Increment usage count
+    await db.collection('beta_codes_v2').updateOne(
+      { id: betaCode.id },
+      { $inc: { uses_count: 1 } }
+    );
+  }
+
+  return ok({ 
+    valid: true, 
+    code_id: betaCode.id,
+    group_id: betaCode.group_id,
+  });
+}
+
+// Send notification email when a new user registers
+async function sendNewUserNotificationEmail(user) {
+  const ADMIN_EMAIL = 'reggie@archeforge.com';
+  
+  try {
+    const { Resend } = await import('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    
+    await resend.emails.send({
+      from: 'SoulPrint <onboarding@resend.dev>',
+      to: ADMIN_EMAIL,
+      subject: '🎉 New User Registration - SoulPrint',
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #f97316; margin: 0;">New User Registered!</h1>
+          </div>
+          
+          <div style="background: #1a1a1a; border-radius: 12px; padding: 24px; color: #fff;">
+            <h2 style="color: #f97316; margin-top: 0;">User Details</h2>
+            <p><strong>Email:</strong> ${user.email}</p>
+            <p><strong>Registered:</strong> ${new Date().toLocaleString()}</p>
+            ${user.beta_code_used ? `<p><strong>Beta Code Used:</strong> ${user.beta_code_used}</p>` : ''}
+            <p><strong>Status:</strong> ${user.accepted ? '✅ Auto-accepted via beta code' : '⏳ On waitlist'}</p>
+          </div>
+          
+          <p style="color: #666; font-size: 12px; text-align: center; margin-top: 30px;">
+            SoulPrint AI • New User Notification
+          </p>
+        </div>
+      `,
+    });
+    console.log('[Email] New user notification sent to', ADMIN_EMAIL);
+  } catch (e) {
+    console.error('[Email] Failed to send new user notification:', e.message);
+  }
+}
+
+// ============================================================
 // CLOUD IMPORT (for large files)
 // ============================================================
 
