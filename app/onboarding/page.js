@@ -97,7 +97,7 @@ export default function OnboardingPage() {
           ← Back
         </button>
 
-        <h1 className="text-3xl font-bold text-white mb-1">Welcome aboard, {userName}!</h1>
+        <h1 className="text-3xl font-bold text-white mb-1">Welcome aboard{userName ? `, ${userName}` : ''}!</h1>
         <p className="text-gray-500 text-sm mb-8">Quick intro so your SoulPrint knows who it&apos;s working with.</p>
 
         <div className="space-y-8">
