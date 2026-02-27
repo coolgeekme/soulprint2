@@ -8351,7 +8351,7 @@ async function handleCompleteLayeredAssessment(request) {
   );
   
   // Clear the system prompt cache
-  systemPromptCache.delete(user.id);
+  _systemPromptCache.delete(user.id);
   
   return ok({ 
     success: true,
