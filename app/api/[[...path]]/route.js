@@ -1764,6 +1764,9 @@ async function handleFirebaseAuth(request) {
       created_at: now,
     });
     
+    // Send welcome email for new Firebase users (non-blocking)
+    sendWelcomeEmail(email, displayName).catch(e => console.error('Welcome email failed:', e));
+    
     user = { id: userId, role, accepted: role === 'superadmin' || acceptedViaBetaCode };
   }
   
