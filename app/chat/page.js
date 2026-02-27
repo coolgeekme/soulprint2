@@ -2687,6 +2687,17 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
               </div>
             </div>
           )}
+
+          {/* Legal Links Footer */}
+          <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-center gap-4">
+            <Link href="/terms" className="text-gray-500 text-xs hover:text-orange-500 transition-colors">
+              Terms of Service
+            </Link>
+            <span className="text-gray-700">•</span>
+            <Link href="/privacy" className="text-gray-500 text-xs hover:text-orange-500 transition-colors">
+              Privacy Policy
+            </Link>
+          </div>
         </div>
       </div>
     </div>
