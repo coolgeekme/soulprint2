@@ -3367,10 +3367,17 @@ export default function ChatPage() {
 
   const currentModel = MODELS.find(m => m.value === selectedModel) || MODELS[0];
 
-  // Filter conversations based on search query
-  const filteredConversations = searchQuery.trim() 
+  // Filter conversations based on search query and pin Telegram chats to top
+  const filteredConversations = (searchQuery.trim() 
     ? conversations.filter(c => (c.title || 'Conversation').toLowerCase().includes(searchQuery.toLowerCase()))
-    : conversations;
+    : conversations
+  ).sort((a, b) => {
+    // Pin Telegram conversations to the top
+    if (a.source === 'telegram' && b.source !== 'telegram') return -1;
+    if (a.source !== 'telegram' && b.source === 'telegram') return 1;
+    // Keep original order for same type (most recent first)
+    return 0;
+  });
 
   return (
     <div className="flex h-screen bg-[#0a0a0a] overflow-hidden safe-area-all">
