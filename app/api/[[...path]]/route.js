@@ -1543,6 +1543,35 @@ function generateAdaptivePrompt(profile) {
   return adaptations.join('\n');
 }
 
+// Generate human-readable trait descriptions
+function getTraitDescription(trait, value) {
+  const descriptions = {
+    directness: {
+      high: { label: 'Direct Communicator', desc: 'You prefer getting straight to the point without unnecessary preamble.' },
+      medium: { label: 'Balanced', desc: 'You adapt your directness based on the situation.' },
+      low: { label: 'Diplomatic', desc: 'You prefer a gentler, more nuanced approach to communication.' }
+    },
+    emotional_warmth: {
+      high: { label: 'Warm & Personable', desc: 'You value friendly, conversational interactions.' },
+      medium: { label: 'Balanced Warmth', desc: 'You blend professional and friendly communication.' },
+      low: { label: 'Professional', desc: 'You prefer focused, task-oriented communication.' }
+    },
+    information_density: {
+      high: { label: 'Detail-Oriented', desc: 'You appreciate comprehensive, nuanced information.' },
+      medium: { label: 'Balanced Detail', desc: 'You like a mix of overview and detail.' },
+      low: { label: 'Concise', desc: 'You prefer brief, scannable information.' }
+    },
+    proactivity: {
+      high: { label: 'Proactive Partner', desc: 'You like suggestions and anticipation of your needs.' },
+      medium: { label: 'Balanced Support', desc: 'You appreciate proactive help when relevant.' },
+      low: { label: 'On-Demand', desc: 'You prefer to ask for help when you need it.' }
+    }
+  };
+  
+  const level = value > 70 ? 'high' : value < 40 ? 'low' : 'medium';
+  return descriptions[trait]?.[level] || { label: 'Unknown', desc: '' };
+}
+
 // ============================================================
 // ROUTE HANDLERS
 // ============================================================
