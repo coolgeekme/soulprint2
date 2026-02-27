@@ -2931,6 +2931,10 @@ export default function AdminPage() {
             <FeedbackTab token={token} />
           )}
 
+          {activeTab === 'betacodes' && token && (
+            <BetaCodesTab token={token} />
+          )}
+
           {activeTab === 'assessments' && token && (
             <AssessmentsTab token={token} />
           )}
