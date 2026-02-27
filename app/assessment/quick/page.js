@@ -355,8 +355,8 @@ export default function QuickAssessmentPage() {
                 </button>
               </div>
             ) : currentQuestion.type === 'slider' ? (
-              <div className="flex-1 flex flex-col justify-center">
-                <div className="space-y-6">
+              <div className="flex-1 flex flex-col">
+                <div className="space-y-4 mb-8">
                   <input
                     type="range"
                     min={currentQuestion.min || 0}
@@ -370,9 +370,10 @@ export default function QuickAssessmentPage() {
                     <span>{currentQuestion.maxLabel}</span>
                   </div>
                 </div>
+                <div className="flex-1" />
                 <button
                   onClick={handleSliderSubmit}
-                  className="btn-orange w-full py-3 rounded-xl text-sm mt-8"
+                  className="btn-orange w-full py-3 rounded-xl text-sm"
                 >
                   Continue <ChevronRight className="w-4 h-4 inline ml-1" />
                 </button>
