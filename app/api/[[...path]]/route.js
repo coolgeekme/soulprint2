@@ -1609,6 +1609,10 @@ async function handleRegister(request) {
   });
 
   const token = generateToken(userId);
+  
+  // Send welcome email (non-blocking)
+  sendWelcomeEmail(email, null).catch(e => console.error('Welcome email failed:', e));
+  
   return ok({ token, userId, role, accepted: role === 'superadmin' || acceptedViaBetaCode });
 }
 
