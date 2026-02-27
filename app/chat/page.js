@@ -1929,20 +1929,21 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   </div>
 
                   {/* Facebook Upload */}
-                  <div className="p-3 sm:p-4 rounded-xl bg-[#1a1a1a] border border-white/5">
+                  <div className="p-3 sm:p-4 rounded-xl bg-[#1a1a1a] border border-white/5 opacity-60">
                     <div className="flex items-start gap-3">
                       <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
                         <span className="text-lg sm:text-xl">📘</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium">Facebook Archive</p>
-                        <p className="text-gray-600 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Select all ZIP files from your Facebook export</p>
-                        <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400 text-xs hover:bg-blue-500/15 transition-colors">
+                        <div className="flex items-center gap-2">
+                          <p className="text-white text-sm font-medium">Facebook Archive</p>
+                          <span className="text-[10px] bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full">Coming Soon</span>
+                        </div>
+                        <p className="text-gray-600 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Import your Facebook messages and posts</p>
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400/50 text-xs cursor-not-allowed">
                           <Upload className="w-3.5 h-3.5" /> 
-                          <span className="hidden sm:inline">Select ZIP File(s)</span>
-                          <span className="sm:hidden">Upload</span>
-                          <input type="file" accept=".zip" multiple className="hidden" onChange={(e) => { handleDataImportUpload(e.target.files, 'facebook'); e.target.value = ''; }} disabled={uploading} />
-                        </label>
+                          <span>Coming Soon</span>
+                        </div>
                       </div>
                     </div>
                   </div>
