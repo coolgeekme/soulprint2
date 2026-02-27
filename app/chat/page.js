@@ -2818,6 +2818,9 @@ export default function ChatPage() {
     // Fetch announcements
     fetch('/api/announcements', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json()).then(d => setAnnouncements(d.unread || [])).catch(() => {});
+    // Fetch latest news/blog posts
+    fetch('/api/blog/posts?limit=3')
+      .then(r => r.json()).then(d => setLatestNews(d.posts || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
