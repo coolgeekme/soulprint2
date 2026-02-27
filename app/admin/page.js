@@ -1832,10 +1832,15 @@ function SettingsTab({ token }) {
   const [loading, setLoading] = useState(false);
   const [tgSetup, setTgSetup] = useState(null);
   const [tgLoading, setTgLoading] = useState(false);
+  const [betaStats, setBetaStats] = useState(null);
+  const [generatingCode, setGeneratingCode] = useState(false);
 
   useEffect(() => {
     fetch('/api/admin/settings', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(setSettings).catch(() => {});
+    // Fetch beta code stats
+    fetch('/api/admin/beta-code/stats', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(setBetaStats).catch(() => {});
   }, []);
 
   async function save() {
@@ -1847,6 +1852,32 @@ function SettingsTab({ token }) {
     });
     setLoading(false);
     alert('Settings saved');
+  }
+
+  async function generateNewCode() {
+    const newCode = prompt('Enter new beta access code (or leave empty for random):');
+    if (newCode === null) return; // User cancelled
+    
+    setGeneratingCode(true);
+    try {
+      const res = await fetch('/api/admin/beta-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ 
+          code: newCode.trim() || undefined,
+          expires_at: settings.beta_code_expires_at || null 
+        }),
+      });
+      const data = await res.json();
+      if (data.code) {
+        setSettings(s => ({ ...s, beta_access_code: data.code }));
+        setBetaStats(prev => ({ ...prev, code: data.code, uses: 0 }));
+        alert(`Beta code set to: ${data.code}`);
+      }
+    } catch (e) {
+      alert('Failed to generate code');
+    }
+    setGeneratingCode(false);
   }
 
   async function setupTelegram() {
