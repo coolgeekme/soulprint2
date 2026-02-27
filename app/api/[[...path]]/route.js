@@ -10943,6 +10943,7 @@ export async function PUT(request, { params }) {
       const postId = pathArr[3];
       return handleAdminUpdateBlogPost(request, postId);
     }
+    if (pathStr === 'admin/beta-codes') return handleAdminUpdateBetaCode(request);
 
     return err('Not found', 404);
   } catch (error) {
