@@ -9111,6 +9111,140 @@ async function handleGetCommunicationProfile(request) {
   });
 }
 
+// Get user's complete SoulPrint (all profile data)
+async function handleGetSoulPrint(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  
+  // Get all profile data
+  const profile = await db.collection('profiles').findOne({ user_id: user.id });
+  const commProfile = await db.collection('communication_profiles').findOne({ user_id: user.id });
+  const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
+  const assessmentAnswers = await db.collection('assessment_answers')
+    .find({ user_id: user.id })
+    .sort({ created_at: 1 })
+    .toArray();
+  
+  // Get question text for answers
+  const questionIds = assessmentAnswers.map(a => a.question_id);
+  const questions = await db.collection('assessment_questions')
+    .find({ id: { $in: questionIds } })
+    .toArray();
+  const qMap = Object.fromEntries(questions.map(q => [q.id, q]));
+  
+  // Build communication traits from commProfile
+  const communicationTraits = [];
+  if (commProfile) {
+    // Directness
+    const directness = getTraitDescription('directness', commProfile.directness || 50);
+    communicationTraits.push({
+      name: 'Communication Style',
+      value: commProfile.directness || 50,
+      label: directness.label,
+      description: directness.desc,
+      icon: '🎯'
+    });
+    
+    // Emotional Warmth
+    const warmth = getTraitDescription('emotional_warmth', commProfile.emotional_warmth || 50);
+    communicationTraits.push({
+      name: 'Warmth Level',
+      value: commProfile.emotional_warmth || 50,
+      label: warmth.label,
+      description: warmth.desc,
+      icon: '💝'
+    });
+    
+    // Information Density
+    const density = getTraitDescription('information_density', commProfile.information_density || 50);
+    communicationTraits.push({
+      name: 'Detail Preference',
+      value: commProfile.information_density || 50,
+      label: density.label,
+      description: density.desc,
+      icon: '📊'
+    });
+    
+    // Proactivity
+    const proactive = getTraitDescription('proactivity', commProfile.proactivity || 50);
+    communicationTraits.push({
+      name: 'Support Style',
+      value: commProfile.proactivity || 50,
+      label: proactive.label,
+      description: proactive.desc,
+      icon: '🚀'
+    });
+  }
+  
+  // Build adaptations list (how AI communicates with them)
+  const adaptations = commProfile ? generateAdaptivePrompt(commProfile).split('\n').filter(Boolean) : [];
+  
+  // Get profile history/changes
+  const profileHistory = await db.collection('soul_profile_history')
+    .find({ user_id: user.id })
+    .sort({ created_at: -1 })
+    .limit(10)
+    .toArray();
+  
+  // Format assessment answers by pillar
+  const answersByPillar = {};
+  assessmentAnswers.forEach(a => {
+    const q = qMap[a.question_id];
+    if (!q) return;
+    if (!answersByPillar[q.pillar]) answersByPillar[q.pillar] = [];
+    answersByPillar[q.pillar].push({
+      question: q.question_text,
+      answer: a.answer_text,
+      answered_at: a.created_at
+    });
+  });
+  
+  // Build response
+  return ok({
+    // Basic info
+    displayName: profile?.display_name || user.email?.split('@')[0],
+    assistantName: profile?.assistant_name || 'SoulPrint',
+    assessmentComplete: profile?.assessment_complete || false,
+    
+    // Communication profile (from Quick Assessment)
+    communicationTraits,
+    adaptations,
+    decisionSupport: commProfile?.decision_support || null,
+    feedbackStyle: commProfile?.feedback_style || null,
+    stressResponse: commProfile?.stress_response || null,
+    
+    // Soul profile (from data imports)
+    soulInsights: soulProfile?.insights || null,
+    importedFrom: soulProfile?.sources || [],
+    lastImportAt: soulProfile?.updated_at || null,
+    
+    // Assessment answers
+    answersByPillar,
+    totalAnswers: assessmentAnswers.length,
+    
+    // Profile summary
+    profileSummary: profile?.soul_profile_summary || null,
+    
+    // History of changes
+    profileHistory: profileHistory.map(h => ({
+      date: h.created_at,
+      changes: h.changes,
+      source: h.source
+    })),
+    
+    // Onboarding data
+    descriptors: profile?.descriptors || [],
+    field: profile?.field || '',
+    helpWith: profile?.help_with || [],
+    
+    // Timestamps
+    createdAt: profile?.created_at,
+    lastUpdated: commProfile?.updated_at || soulProfile?.updated_at || profile?.created_at
+  });
+}
+
 // ============================================================
 // EXTRACTED DATA IMPORT (Client-side processed)
 // ============================================================
