@@ -2798,9 +2798,46 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
             <div className="space-y-5">
               {profile && (
                 <>
+                  {/* Assistant Name - Editable */}
+                  <div>
+                    <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-1">Assistant Name</p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editingAssistantName ?? (profile.assistant_name || 'SoulPrint')}
+                        onChange={e => setEditingAssistantName(e.target.value)}
+                        className="flex-1 bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none"
+                        placeholder="Name your AI assistant"
+                      />
+                      {editingAssistantName !== null && editingAssistantName !== profile.assistant_name && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await fetch('/api/profile', {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                body: JSON.stringify({ assistant_name: editingAssistantName })
+                              });
+                              setProfile(p => ({ ...p, assistant_name: editingAssistantName }));
+                              setAssistantName(editingAssistantName);
+                              setEditingAssistantName(null);
+                              alert('Assistant name updated!');
+                            } catch (e) {
+                              alert('Failed to update');
+                            }
+                          }}
+                          className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-colors"
+                        >
+                          Save
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-gray-600 text-[10px] mt-1">This is what you'll call your AI companion</p>
+                  </div>
+
+                  {/* Other profile fields */}
                   {[
                     ['Display Name', profile.display_name],
-                    ['Assistant Name', profile.assistant_name || 'SoulPrint'],
                     ['Field', profile.field],
                     ['Role', profile.descriptors?.join(', ')],
                   ].map(([label, val]) => (
