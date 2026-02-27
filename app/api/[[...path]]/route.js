@@ -4781,7 +4781,18 @@ async function handleAdminApproveWaitlist(request) {
   const db = await getDb();
 
   if (approve_all) {
+    // Get all waitlisted users first to send emails
+    const waitlistedUsers = await db.collection('users').find({ accepted: false }).toArray();
     await db.collection('users').updateMany({ accepted: false }, { $set: { accepted: true } });
+    
+    // Send acceptance emails (non-blocking)
+    for (const user of waitlistedUsers) {
+      const profile = await db.collection('profiles').findOne({ user_id: user.id });
+      sendAcceptedEmail(user.email, profile?.display_name || null).catch(e => 
+        console.error(`Acceptance email failed for ${user.email}:`, e)
+      );
+    }
+    
     return ok({ success: true, message: 'All waitlisted users approved' });
   }
 
@@ -4789,10 +4800,21 @@ async function handleAdminApproveWaitlist(request) {
     return err('user_ids array required');
   }
 
+  // Get users before updating to send emails
+  const usersToApprove = await db.collection('users').find({ id: { $in: user_ids } }).toArray();
+  
   await db.collection('users').updateMany(
     { id: { $in: user_ids } },
     { $set: { accepted: true } }
   );
+
+  // Send acceptance emails (non-blocking)
+  for (const user of usersToApprove) {
+    const profile = await db.collection('profiles').findOne({ user_id: user.id });
+    sendAcceptedEmail(user.email, profile?.display_name || null).catch(e => 
+      console.error(`Acceptance email failed for ${user.email}:`, e)
+    );
+  }
 
   // Log action
   await db.collection('admin_audit_log').insertOne({
