@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { generateToken, verifyToken, hashPassword, comparePassword, getTokenFromRequest } from '@/lib/auth';
 import { getProvider, AVAILABLE_MODELS } from '@/lib/llm/providers';
+import { sendWelcomeEmail, sendAcceptedEmail, sendBetaCodeEmail } from '@/lib/email';
 import path from 'path';
 import fs from 'fs';
 import { writeFile, mkdir, rm, readFile } from 'fs/promises';
