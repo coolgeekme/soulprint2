@@ -1801,19 +1801,39 @@ async function handleFirebaseAuth(request) {
     const count = await db.collection('users').countDocuments();
     const role = count === 0 ? 'superadmin' : 'user';
     
-    // Check if valid beta code was provided
+    // Check if valid beta code was provided (v2 system with fallback to legacy)
     let acceptedViaBetaCode = false;
+    let usedCodeId = null;
     if (accessCode && role !== 'superadmin') {
-      const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
-      if (betaCode && betaCode.code && 
-          betaCode.code.toUpperCase() === accessCode.toUpperCase().trim() &&
-          (!betaCode.expires_at || new Date(betaCode.expires_at) >= new Date())) {
+      // Try v2 codes first
+      const v2Code = await db.collection('beta_codes_v2').findOne({ 
+        code: accessCode.toUpperCase().trim(),
+        active: true,
+      });
+      
+      if (v2Code && 
+          (!v2Code.expires_at || new Date(v2Code.expires_at) >= new Date()) &&
+          (!v2Code.max_uses || v2Code.uses_count < v2Code.max_uses)) {
         acceptedViaBetaCode = true;
+        usedCodeId = v2Code.id;
         // Increment usage count
-        await db.collection('beta_codes').updateOne(
-          { id: 'current' },
-          { $inc: { uses: 1 } }
+        await db.collection('beta_codes_v2').updateOne(
+          { id: v2Code.id },
+          { $inc: { uses_count: 1 } }
         );
+      } else {
+        // Fallback to legacy code
+        const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
+        if (betaCode && betaCode.code && 
+            betaCode.code.toUpperCase() === accessCode.toUpperCase().trim() &&
+            (!betaCode.expires_at || new Date(betaCode.expires_at) >= new Date())) {
+          acceptedViaBetaCode = true;
+          // Increment usage count
+          await db.collection('beta_codes').updateOne(
+            { id: 'current' },
+            { $inc: { uses: 1 } }
+          );
+        }
       }
     }
     
@@ -1829,8 +1849,21 @@ async function handleFirebaseAuth(request) {
       last_active_at: now,
       access_code_used: accessCode || null,
       beta_code_used: acceptedViaBetaCode ? accessCode : null,
+      beta_code_id: usedCodeId,
       auth_provider: 'firebase',
     });
+    
+    // Record beta code redemption if v2 code was used
+    if (usedCodeId) {
+      await db.collection('beta_code_redemptions').insertOne({
+        id: uuidv4(),
+        code_id: usedCodeId,
+        code: accessCode.toUpperCase().trim(),
+        user_id: userId,
+        user_email: email.toLowerCase(),
+        redeemed_at: now,
+      });
+    }
     
     // Create empty profile
     await db.collection('profiles').insertOne({
@@ -1849,6 +1882,13 @@ async function handleFirebaseAuth(request) {
     
     // Send welcome email for new Firebase users (non-blocking)
     sendWelcomeEmail(email, displayName).catch(e => console.error('Welcome email failed:', e));
+    
+    // Send new user notification email to admin (non-blocking)
+    sendNewUserNotificationEmail({
+      email: email.toLowerCase(),
+      beta_code_used: acceptedViaBetaCode ? accessCode : null,
+      accepted: role === 'superadmin' || acceptedViaBetaCode,
+    }).catch(e => console.error('Admin notification email failed:', e));
     
     user = { id: userId, role, accepted: role === 'superadmin' || acceptedViaBetaCode };
   }
