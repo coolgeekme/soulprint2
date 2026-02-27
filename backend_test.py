@@ -65,179 +65,218 @@ class LayeredAssessmentTester:
         except Exception as e:
             return self.test_step("Authentication failed", False, f"Exception: {str(e)}")
 
-    def test_video_generation_runway(self):
-        """Test video generation with runway model (known working model)"""
-        self.log("=== VIDEO GENERATION TEST: runway ===")
+    def test_assessment_settings(self):
+        """Test GET /api/assessment/settings (no auth required)"""
+        self.log("=== ASSESSMENT SETTINGS TEST ===")
         
         try:
-            payload = {
-                "type": "video",
-                "model": "runway",
-                "prompt": "A cat playing piano",
-                "aspectRatio": "16:9"
-            }
-            
-            response = self.session.post(
-                f"{self.base_url}/media/generate",
-                headers={"Content-Type": "application/json"},
-                json=payload,
-                timeout=30
+            # Test without auth
+            response = requests.get(
+                f"{self.base_url}/assessment/settings",
+                timeout=10
             )
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get('success') and data.get('taskId'):
+                if 'assessment_mode' in data:
                     return self.test_step(
-                        "Video generation initiated for runway model", True,
-                        f"TaskId: {data.get('taskId')}, MediaId: {data.get('mediaId')}, Status: {data.get('status')}"
-                    ), data.get('taskId')
+                        "Assessment settings endpoint working", True,
+                        f"Assessment mode: {data.get('assessment_mode')}, Default: {data.get('default_assessment')}"
+                    )
                 else:
                     return self.test_step(
-                        "Video generation failed for runway model", False,
-                        f"Response: {json.dumps(data)[:300]}"
-                    ), None
+                        "Assessment settings endpoint failed", False,
+                        "Missing assessment_mode in response"
+                    )
             else:
                 return self.test_step(
-                    "Video generation failed for runway model", False,
-                    f"Status: {response.status_code}, Response: {response.text[:300]}"
-                ), None
+                    "Assessment settings endpoint failed", False,
+                    f"Status: {response.status_code}, Response: {response.text[:200]}"
+                )
                 
         except Exception as e:
             return self.test_step(
-                "Video generation failed for runway model", False,
+                "Assessment settings endpoint failed", False,
                 f"Exception: {str(e)}"
-            ), None
+            )
 
-    def test_video_status_endpoint_logic(self, task_id):
-        """Test the video status endpoint - checking for the specific fix"""
-        self.log("=== VIDEO STATUS ENDPOINT LOGIC TEST ===")
+    def test_layered_questions(self):
+        """Test GET /api/assessment/layered/questions"""
+        self.log("=== LAYERED ASSESSMENT QUESTIONS TEST ===")
         
         try:
             response = self.session.get(
-                f"{self.base_url}/media/status?taskId={task_id}",
-                timeout=15
+                f"{self.base_url}/assessment/layered/questions",
+                timeout=10
             )
             
             if response.status_code == 200:
                 data = response.json()
-                status = data.get('status', 'unknown')
-                
-                # Check for the specific errors the fix was meant to address
-                if 'recordInfo is null' in response.text:
+                if 'layer1' in data and 'layer2' in data and 'progress' in data:
+                    layer1_count = len(data['layer1'])
+                    layer2_count = len(data['layer2'])
+                    progress = data['progress']
+                    
                     return self.test_step(
-                        "Video status endpoint FAILED - recordInfo is null error present",
-                        False,
-                        "'recordInfo is null' error still occurring - fix not working"
-                    )
-                
-                # Check for undefined endpoint errors
-                if 'undefined' in response.text.lower() and 'endpoint' in response.text.lower():
-                    return self.test_step(
-                        "Video status endpoint FAILED - undefined endpoint error",
-                        False,
-                        "Undefined endpoint error detected - routing logic issue"
-                    )
-                
-                # Check for jobs/recordInfo endpoint being called correctly
-                # (This would be in server logs, but we can check response structure)
-                if status in ['generating', 'completed', 'failed', 'processing']:
-                    return self.test_step(
-                        "Video status endpoint working correctly",
-                        True,
-                        f"Status: {status}, No 'recordInfo is null' or undefined endpoint errors detected"
+                        "Layered assessment questions endpoint working", True,
+                        f"Layer1: {layer1_count} questions, Layer2: {layer2_count} questions, "
+                        f"Progress: L1 complete: {progress.get('layer1_complete')}, "
+                        f"L2 complete: {progress.get('layer2_complete')}"
                     )
                 else:
                     return self.test_step(
-                        "Video status endpoint working (unknown status)",
-                        True,
-                        f"Status: {status}, No critical errors detected"
+                        "Layered assessment questions endpoint failed", False,
+                        f"Missing expected fields in response: {list(data.keys())}"
                     )
+            elif response.status_code == 401:
+                return self.test_step(
+                    "Layered assessment questions endpoint requires auth", True,
+                    "Correctly requires authentication"
+                )
             else:
                 return self.test_step(
-                    "Video status endpoint failed",
-                    False,
-                    f"HTTP {response.status_code}: {response.text[:300]}"
+                    "Layered assessment questions endpoint failed", False,
+                    f"Status: {response.status_code}, Response: {response.text[:200]}"
                 )
                 
         except Exception as e:
             return self.test_step(
-                "Video status endpoint failed",
-                False,
+                "Layered assessment questions endpoint failed", False,
                 f"Exception: {str(e)}"
             )
 
-    def test_media_generate_validation(self):
-        """Test the media/generate endpoint validation and response format"""
-        self.log("=== MEDIA GENERATE ENDPOINT VALIDATION ===")
+    def test_layered_answer_submission(self):
+        """Test POST /api/assessment/layered/answer"""
+        self.log("=== LAYERED ASSESSMENT ANSWER SUBMISSION TEST ===")
         
-        # Test with missing required fields
+        # Test submitting answers for Layer 1 questions
+        layer1_answers = [
+            {"question_id": "comm_explain", "answer": "write", "layer": 1},
+            {"question_id": "comm_detail", "answer": "skim", "layer": 1},
+            {"question_id": "emotion_stress", "answer": "space", "layer": 1},
+        ]
+        
+        success_count = 0
+        for i, answer_data in enumerate(layer1_answers):
+            try:
+                response = self.session.post(
+                    f"{self.base_url}/assessment/layered/answer",
+                    headers={"Content-Type": "application/json"},
+                    json=answer_data,
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('success'):
+                        success_count += 1
+                        self.test_step(
+                            f"Layer 1 answer {i+1} submission successful", True,
+                            f"Question: {answer_data['question_id']}, Answer: {answer_data['answer']}, "
+                            f"Layer1 complete: {data.get('layer1_complete')}"
+                        )
+                    else:
+                        self.test_step(
+                            f"Layer 1 answer {i+1} submission failed", False,
+                            f"No success field in response: {json.dumps(data)[:200]}"
+                        )
+                else:
+                    self.test_step(
+                        f"Layer 1 answer {i+1} submission failed", False,
+                        f"Status: {response.status_code}, Response: {response.text[:200]}"
+                    )
+                    
+            except Exception as e:
+                self.test_step(
+                    f"Layer 1 answer {i+1} submission failed", False,
+                    f"Exception: {str(e)}"
+                )
+        
+        return success_count == len(layer1_answers)
+
+    def test_layered_completion(self):
+        """Test POST /api/assessment/layered/complete"""
+        self.log("=== LAYERED ASSESSMENT COMPLETION TEST ===")
+        
         try:
             response = self.session.post(
-                f"{self.base_url}/media/generate",
+                f"{self.base_url}/assessment/layered/complete",
                 headers={"Content-Type": "application/json"},
-                json={},
+                json={"assistant_name": "Perseus"},
                 timeout=10
             )
             
-            if response.status_code == 400:
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success') and 'profile_summary' in data:
+                    return self.test_step(
+                        "Layered assessment completion successful", True,
+                        f"Profile summary generated (length: {len(data['profile_summary'])} chars)"
+                    )
+                else:
+                    return self.test_step(
+                        "Layered assessment completion failed", False,
+                        f"Missing success or profile_summary: {json.dumps(data)[:200]}"
+                    )
+            elif response.status_code == 400:
                 return self.test_step(
-                    "Media generate endpoint validation working",
-                    True,
-                    "Correctly rejects empty requests with 400 error"
+                    "Layered assessment completion expected failure", True,
+                    f"Expected 400 error (likely incomplete assessment): {response.text[:200]}"
                 )
             else:
                 return self.test_step(
-                    "Media generate endpoint validation issue",
-                    False,
-                    f"Expected 400 for empty request, got {response.status_code}"
+                    "Layered assessment completion failed", False,
+                    f"Status: {response.status_code}, Response: {response.text[:200]}"
                 )
                 
         except Exception as e:
             return self.test_step(
-                "Media generate endpoint validation test failed",
-                False,
+                "Layered assessment completion failed", False,
                 f"Exception: {str(e)}"
             )
 
-    def test_invalid_task_id_handling(self):
-        """Test how the status endpoint handles invalid task IDs"""
-        self.log("=== INVALID TASK ID HANDLING TEST ===")
+    def test_communication_profile(self):
+        """Test GET /api/profile/communication"""
+        self.log("=== COMMUNICATION PROFILE TEST ===")
         
         try:
-            fake_task_id = "invalid-task-id-12345"
             response = self.session.get(
-                f"{self.base_url}/media/status?taskId={fake_task_id}",
+                f"{self.base_url}/profile/communication",
                 timeout=10
             )
             
-            # The endpoint should handle invalid task IDs gracefully
-            if response.status_code in [404, 400, 200]:
-                data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
+            if response.status_code == 200:
+                data = response.json()
+                has_profile = data.get('hasProfile', False)
                 
-                # Check that it's not throwing undefined endpoint errors
-                if 'undefined' in response.text.lower():
+                if has_profile:
+                    profile = data.get('profile', {})
+                    adaptations = data.get('adaptations', '')
+                    
                     return self.test_step(
-                        "Invalid task ID handling FAILED",
-                        False,
-                        "Undefined endpoint error with invalid task ID - fix not working"
+                        "Communication profile retrieved successfully", True,
+                        f"Has profile: {has_profile}, Profile fields: {list(profile.keys())}, "
+                        f"Adaptations length: {len(adaptations)} chars"
                     )
-                
+                else:
+                    return self.test_step(
+                        "No communication profile found", True,
+                        "User has not completed layered assessment yet (expected for new users)"
+                    )
+            elif response.status_code == 401:
                 return self.test_step(
-                    "Invalid task ID handling working",
-                    True,
-                    f"Status: {response.status_code}, No undefined endpoint errors"
+                    "Communication profile endpoint requires auth", True,
+                    "Correctly requires authentication"
                 )
             else:
                 return self.test_step(
-                    "Invalid task ID handling unexpected response",
-                    False,
-                    f"Unexpected status code: {response.status_code}"
+                    "Communication profile endpoint failed", False,
+                    f"Status: {response.status_code}, Response: {response.text[:200]}"
                 )
                 
         except Exception as e:
             return self.test_step(
-                "Invalid task ID handling test failed",
-                False,
+                "Communication profile endpoint failed", False,
                 f"Exception: {str(e)}"
             )
 
