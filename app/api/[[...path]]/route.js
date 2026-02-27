@@ -5320,10 +5320,14 @@ async function processChunkedBatch(importId, userId, uploads, importType) {
         }
       }
 
+      // Extract and save memories from the imported messages
+      const memoriesAdded = await extractMemoriesFromImport(db, userId, newMessages, importType);
+
       await updateStatus('completed', `Successfully imported ${newMessages.length} new messages from ${totalFiles} file(s) (${totalMessages.length - newMessages.length} duplicates skipped)`, 100, {
         messages_count: newMessages.length,
         total_extracted: totalMessages.length,
-        files_processed: totalFiles
+        files_processed: totalFiles,
+        memories_added: memoriesAdded
       });
     } else {
       await updateStatus('completed', `No messages found in ${totalFiles} file(s)`, 100, { messages_count: 0 });
