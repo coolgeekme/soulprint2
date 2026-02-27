@@ -88,30 +88,70 @@ export default function AuthPage() {
       let result;
       
       if (mode === 'signup') {
+        // For sign up, use Firebase
         result = await signUpWithEmail(email, password);
+        
+        if (result.error) {
+          if (result.error.includes('email-already-in-use')) {
+            throw new Error('Email already in use. Try signing in instead.');
+          }
+          if (result.error.includes('weak-password')) {
+            throw new Error('Password must be at least 6 characters');
+          }
+          if (result.error.includes('invalid-email')) {
+            throw new Error('Invalid email address');
+          }
+          throw new Error(result.error);
+        }
+        
+        const data = await syncWithBackend(result.user, result.idToken);
+        handlePostAuth(data);
       } else {
+        // For sign in, try Firebase first, then fall back to legacy auth
         result = await signInWithEmail(email, password);
+        
+        if (result.error) {
+          // Firebase auth failed - try legacy auth for existing users
+          if (result.error.includes('user-not-found') || 
+              result.error.includes('wrong-password') || 
+              result.error.includes('invalid-credential') ||
+              result.error.includes('invalid-login-credentials')) {
+            
+            // Try legacy authentication
+            const legacyRes = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, passcode: password }),
+            });
+            
+            if (legacyRes.ok) {
+              const data = await legacyRes.json();
+              localStorage.setItem('sp_token', data.token);
+              localStorage.setItem('sp_user', JSON.stringify(data));
+              handlePostAuth(data);
+              return;
+            }
+            
+            const legacyData = await legacyRes.json();
+            if (legacyRes.status === 401) {
+              throw new Error('Invalid email or password');
+            }
+            if (legacyRes.status === 404) {
+              throw new Error('No account found with this email');
+            }
+            throw new Error(legacyData.error || 'Invalid email or password');
+          }
+          
+          if (result.error.includes('invalid-email')) {
+            throw new Error('Invalid email address');
+          }
+          throw new Error(result.error);
+        }
+        
+        // Firebase auth succeeded
+        const data = await syncWithBackend(result.user, result.idToken);
+        handlePostAuth(data);
       }
-
-      if (result.error) {
-        // Handle specific Firebase errors
-        if (result.error.includes('user-not-found') || result.error.includes('wrong-password')) {
-          throw new Error('Invalid email or password');
-        }
-        if (result.error.includes('email-already-in-use')) {
-          throw new Error('Email already in use. Try signing in instead.');
-        }
-        if (result.error.includes('weak-password')) {
-          throw new Error('Password must be at least 6 characters');
-        }
-        if (result.error.includes('invalid-email')) {
-          throw new Error('Invalid email address');
-        }
-        throw new Error(result.error);
-      }
-
-      const data = await syncWithBackend(result.user, result.idToken);
-      handlePostAuth(data);
     } catch (err) {
       setError(err.message || 'Authentication failed');
     } finally {
