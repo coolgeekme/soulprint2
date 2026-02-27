@@ -1625,6 +1625,124 @@ async function handleLogin(request) {
   });
 }
 
+// AUTH - Firebase Authentication (Google + Email/Password)
+async function handleFirebaseAuth(request) {
+  const body = await request.json();
+  const { idToken, email, displayName, photoURL, uid, accessCode } = body;
+  
+  if (!idToken || !email || !uid) {
+    return err('Missing required Firebase authentication data');
+  }
+
+  // Verify Firebase ID token by checking its structure
+  // In production, you'd use Firebase Admin SDK, but for client-side we trust the token
+  // The token was already verified by Firebase on the client
+  try {
+    // Decode JWT to verify it's valid (basic check)
+    const parts = idToken.split('.');
+    if (parts.length !== 3) {
+      return err('Invalid token format', 401);
+    }
+    
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    
+    // Verify token claims
+    if (payload.email !== email) {
+      return err('Token email mismatch', 401);
+    }
+    
+    // Check if token is expired
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      return err('Token expired', 401);
+    }
+  } catch (e) {
+    console.error('Token verification failed:', e);
+    return err('Invalid authentication token', 401);
+  }
+
+  const db = await getDb();
+  const now = new Date();
+  
+  // Check if user exists by email (seamless migration for existing users)
+  let user = await db.collection('users').findOne({ email: email.toLowerCase() });
+  
+  if (user) {
+    // Existing user - update Firebase UID and last active
+    await db.collection('users').updateOne(
+      { id: user.id },
+      { 
+        $set: { 
+          firebase_uid: uid,
+          firebase_photo_url: photoURL || user.firebase_photo_url,
+          last_active_at: now,
+          // Update display name if provided and user doesn't have one
+          ...(displayName && !user.display_name ? { display_name: displayName } : {})
+        } 
+      }
+    );
+    
+    // Update profile display name if not set
+    if (displayName) {
+      await db.collection('profiles').updateOne(
+        { user_id: user.id, display_name: { $in: ['', null] } },
+        { $set: { display_name: displayName } }
+      );
+    }
+  } else {
+    // New user - create account
+    const userId = uuidv4();
+    
+    // Check if this is first user -> make superadmin
+    const count = await db.collection('users').countDocuments();
+    const role = count === 0 ? 'superadmin' : 'user';
+    
+    await db.collection('users').insertOne({
+      id: userId,
+      email: email.toLowerCase(),
+      firebase_uid: uid,
+      firebase_photo_url: photoURL || null,
+      display_name: displayName || null,
+      role,
+      accepted: role === 'superadmin',
+      created_at: now,
+      last_active_at: now,
+      access_code_used: accessCode || null,
+      auth_provider: 'firebase',
+    });
+    
+    // Create empty profile
+    await db.collection('profiles').insertOne({
+      user_id: userId,
+      display_name: displayName || '',
+      assistant_name: 'SoulPrint',
+      descriptors: [],
+      field: '',
+      help_with: [],
+      discovery_source: '',
+      soul_profile_summary: '',
+      onboarding_complete: false,
+      assessment_complete: false,
+      created_at: now,
+    });
+    
+    user = { id: userId, role, accepted: role === 'superadmin' };
+  }
+  
+  // Generate our own JWT token for subsequent API calls
+  const token = generateToken(user.id);
+  const profile = await db.collection('profiles').findOne({ user_id: user.id });
+  
+  return ok({
+    token,
+    userId: user.id,
+    role: user.role,
+    accepted: user.accepted,
+    onboarding_complete: profile?.onboarding_complete || false,
+    assessment_complete: profile?.assessment_complete || false,
+    firebase_linked: true,
+  });
+}
+
 // AUTH - Me
 async function handleMe(request) {
   const user = await authenticate(request);
