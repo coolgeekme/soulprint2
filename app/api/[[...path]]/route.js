@@ -9036,6 +9036,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'imports/chunked/init') return handleChunkedInit(request);
     if (pathStr === 'imports/chunked/chunk') return handleChunkedChunk(request);
     if (pathStr === 'imports/chunked/process-batch') return handleChunkedProcessBatch(request);
+    if (pathStr === 'imports/extracted') return handleImportExtracted(request);
     if (pathStr === 'transcribe') return handleTranscribe(request);
     if (pathStr === 'telegram/link') return handleTelegramLink(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
