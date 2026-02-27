@@ -9134,7 +9134,7 @@ async function handleGetSoulPrint(request) {
     .toArray();
   const qMap = Object.fromEntries(questions.map(q => [q.id, q]));
   
-  // Build communication traits from commProfile
+  // Build communication traits from commProfile OR from layered assessment answers
   const communicationTraits = [];
   if (commProfile) {
     // Directness
@@ -9175,6 +9175,16 @@ async function handleGetSoulPrint(request) {
       label: proactive.label,
       description: proactive.desc,
       icon: '🚀'
+    });
+  } else if (profile?.assessment_complete) {
+    // Fallback: Generate basic traits if no communication_profile but assessment is complete
+    // This handles users who completed the Full Assessment (not Quick)
+    communicationTraits.push({
+      name: 'Assessment Status',
+      value: 100,
+      label: 'Completed',
+      description: 'You\'ve completed the full assessment. Your SoulPrint is being built from your responses.',
+      icon: '✅'
     });
   }
   
