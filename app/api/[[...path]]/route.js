@@ -10325,6 +10325,10 @@ export async function GET(request, { params }) {
     if (pathStr === 'assessment/validation/next') return handleGetNextValidation(request);
     if (pathStr === 'profile/communication') return handleGetCommunicationProfile(request);
     if (pathStr === 'profile/soulprint') return handleGetSoulPrint(request);
+    if (pathStr === 'privacy/settings') return handleGetPrivacySettings(request);
+    if (pathStr === 'privacy/export') return handleExportUserData(request);
+    if (pathStr === 'privacy/data-usage') return handleGetDataUsageSummary(request);
+    if (pathStr === 'privacy/sessions') return handleGetSessions(request);
     if (pathStr === 'blog/posts') return handleGetBlogPosts(request);
     if (pathStr.startsWith('blog/posts/')) {
       const slug = pathArr[2];
