@@ -1872,6 +1872,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   // SoulPrint data
   const [soulPrintData, setSoulPrintData] = useState(null);
   const [soulPrintLoading, setSoulPrintLoading] = useState(false);
+  const [generatingSnapshot, setGeneratingSnapshot] = useState(false);
 
   const loadSoulPrint = async () => {
     setSoulPrintLoading(true);
@@ -1892,6 +1893,31 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
       setSoulPrintData(null);
     }
     setSoulPrintLoading(false);
+  };
+
+  const generateSoulPrint = async () => {
+    setGeneratingSnapshot(true);
+    try {
+      const res = await fetch('/api/profile/soulprint/generate', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.snapshot) {
+        // Update the soulPrintData with the new snapshot
+        setSoulPrintData(prev => ({
+          ...prev,
+          previousSnapshot: prev?.latestSnapshot || null,
+          latestSnapshot: data.snapshot
+        }));
+      } else {
+        alert(data.error || 'Failed to generate SoulPrint');
+      }
+    } catch (e) {
+      console.error('Failed to generate SoulPrint:', e);
+      alert('Failed to generate SoulPrint');
+    }
+    setGeneratingSnapshot(false);
   };
 
   useEffect(() => {
