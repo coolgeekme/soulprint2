@@ -10407,10 +10407,48 @@ async function handleGetSoulPrint(request) {
       communicationStyle: previousSnapshot.communication_style,
     } : null,
     
+    // Assessment progress for gradual system
+    assessmentProgress: await getAssessmentProgress(db, user.id, profile),
+    
     // Timestamps
     createdAt: profile?.created_at,
     lastUpdated: commProfile?.updated_at || soulProfile?.updated_at || profile?.created_at
   });
+}
+
+// Helper to get assessment progress
+async function getAssessmentProgress(db, userId, profile) {
+  const gradualProgress = await db.collection('gradual_assessment_progress').findOne({ user_id: userId });
+  const allQuestions = await db.collection('assessment_questions')
+    .find({ active: true })
+    .sort({ order_index: 1 })
+    .toArray();
+  
+  const answeredIds = new Set(gradualProgress?.answered_question_ids || []);
+  
+  const pillars = ['communication', 'emotional_intelligence', 'decision_making', 'social_dynamics', 'cognitive_style', 'assertiveness'];
+  const pillarProgress = {};
+  
+  for (const pillar of pillars) {
+    const pillarQuestions = allQuestions.filter(q => q.pillar === pillar);
+    const answeredInPillar = pillarQuestions.filter(q => answeredIds.has(q.id)).length;
+    pillarProgress[pillar] = {
+      answered: answeredInPillar,
+      total: pillarQuestions.length,
+      percentage: pillarQuestions.length > 0 ? Math.round((answeredInPillar / pillarQuestions.length) * 100) : 0,
+    };
+  }
+  
+  return {
+    quickStartComplete: profile?.assessment_complete || false,
+    fullAssessmentComplete: profile?.full_assessment_complete || false,
+    overall: {
+      answered: answeredIds.size,
+      total: 36,
+      percentage: Math.round((answeredIds.size / 36) * 100)
+    },
+    pillars: pillarProgress
+  };
 }
 
 // Generate/Refresh SoulPrint Analysis using AI
