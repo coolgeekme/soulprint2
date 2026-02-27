@@ -921,6 +921,183 @@ function AnnouncementsTab({ token }) {
 }
 
 
+// Markdown Editor Toolbar Component
+function MarkdownToolbar({ textareaRef, content, setContent }) {
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkText, setLinkText] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const imageInputRef = useRef(null);
+
+  const insertText = (before, after = '', placeholder = '') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = content.substring(start, end) || placeholder;
+    const newText = content.substring(0, start) + before + selectedText + after + content.substring(end);
+    
+    setContent(newText);
+    
+    // Restore focus and selection
+    setTimeout(() => {
+      textarea.focus();
+      const newCursorPos = start + before.length + selectedText.length + after.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  };
+
+  const handleBold = () => insertText('**', '**', 'bold text');
+  const handleItalic = () => insertText('*', '*', 'italic text');
+  const handleHeading = () => insertText('\n## ', '\n', 'Heading');
+  const handleBulletList = () => insertText('\n- ', '', 'list item');
+  const handleNumberedList = () => insertText('\n1. ', '', 'list item');
+  const handleQuote = () => insertText('\n> ', '\n', 'quote');
+  const handleCode = () => insertText('`', '`', 'code');
+  const handleCodeBlock = () => insertText('\n```\n', '\n```\n', 'code block');
+
+  const handleLinkInsert = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = content.substring(start, end);
+    
+    setLinkText(selectedText || '');
+    setLinkUrl('');
+    setShowLinkModal(true);
+  };
+
+  const insertLink = () => {
+    if (!linkUrl.trim()) return;
+    const text = linkText.trim() || linkUrl;
+    insertText(`[${text}](${linkUrl})`, '', '');
+    setShowLinkModal(false);
+    setLinkUrl('');
+    setLinkText('');
+  };
+
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    
+    setUploading(true);
+    
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        alert(`${file.name} is not an image`);
+        continue;
+      }
+      
+      // Convert to base64 and create data URL (simple local storage approach)
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result;
+        const altText = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        insertText(`\n![${altText}](${dataUrl})\n`, '', '');
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    setUploading(false);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  };
+
+  const toolbarButtons = [
+    { icon: Bold, action: handleBold, title: 'Bold (Ctrl+B)' },
+    { icon: Italic, action: handleItalic, title: 'Italic (Ctrl+I)' },
+    { icon: Heading, action: handleHeading, title: 'Heading' },
+    { divider: true },
+    { icon: List, action: handleBulletList, title: 'Bullet List' },
+    { icon: ListOrdered, action: handleNumberedList, title: 'Numbered List' },
+    { icon: Quote, action: handleQuote, title: 'Quote' },
+    { divider: true },
+    { icon: Code, action: handleCode, title: 'Inline Code' },
+    { icon: Link2, action: handleLinkInsert, title: 'Insert Link' },
+    { icon: ImagePlus, action: () => imageInputRef.current?.click(), title: 'Insert Image(s)', uploading },
+  ];
+
+  return (
+    <>
+      <div className="flex items-center gap-1 p-2 bg-[#0a0a0a] border border-white/10 border-b-0 rounded-t-xl">
+        {toolbarButtons.map((btn, i) => 
+          btn.divider ? (
+            <div key={i} className="w-px h-5 bg-white/10 mx-1" />
+          ) : (
+            <button
+              key={i}
+              type="button"
+              onClick={btn.action}
+              disabled={btn.uploading}
+              title={btn.title}
+              className="p-1.5 text-gray-500 hover:text-white hover:bg-white/10 rounded transition-colors disabled:opacity-50"
+            >
+              {btn.uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <btn.icon className="w-4 h-4" />}
+            </button>
+          )
+        )}
+        <input 
+          ref={imageInputRef} 
+          type="file" 
+          accept="image/*" 
+          multiple 
+          className="hidden" 
+          onChange={handleImageUpload}
+        />
+      </div>
+      
+      {/* Link Modal */}
+      {showLinkModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowLinkModal(false)}>
+          <div className="bg-[#111] border border-white/10 rounded-xl p-5 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="text-white font-semibold mb-4">Insert Link</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-gray-500 text-xs mb-1 block">Link Text</label>
+                <input
+                  type="text"
+                  value={linkText}
+                  onChange={e => setLinkText(e.target.value)}
+                  placeholder="Display text"
+                  className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-gray-500 text-xs mb-1 block">URL *</label>
+                <input
+                  type="url"
+                  value={linkUrl}
+                  onChange={e => setLinkUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none"
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={insertLink}
+                  disabled={!linkUrl.trim()}
+                  className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                >
+                  Insert Link
+                </button>
+                <button
+                  onClick={() => setShowLinkModal(false)}
+                  className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // Blog Tab
 function BlogTab({ token }) {
   const [posts, setPosts] = useState([]);
@@ -938,6 +1115,7 @@ function BlogTab({ token }) {
     status: 'draft'
   });
   const [saving, setSaving] = useState(false);
+  const contentTextareaRef = useRef(null);
 
   useEffect(() => {
     loadPosts();
