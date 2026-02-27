@@ -82,7 +82,7 @@ export default function OnboardingPage() {
           onboarding_complete: true,
         }),
       });
-      router.push('/assessment');
+      router.push('/assessment/select');
     } catch (err) {
       alert('Error saving profile. Please try again.');
     } finally {
