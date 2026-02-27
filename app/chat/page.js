@@ -1950,12 +1950,14 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                               </div>
                               <span className="text-orange-400 text-xs font-semibold">{trait.label}</span>
                             </div>
-                            <div className="h-1.5 bg-black/30 rounded-full overflow-hidden mb-2">
-                              <div 
-                                className="h-full bg-gradient-to-r from-orange-500 to-purple-500 rounded-full transition-all"
-                                style={{ width: `${trait.value}%` }}
-                              />
-                            </div>
+                            {trait.value && typeof trait.value === 'number' && (
+                              <div className="h-1.5 bg-black/30 rounded-full overflow-hidden mb-2">
+                                <div 
+                                  className="h-full bg-gradient-to-r from-orange-500 to-purple-500 rounded-full transition-all"
+                                  style={{ width: `${trait.value}%` }}
+                                />
+                              </div>
+                            )}
                             <p className="text-gray-500 text-[11px]">{trait.description}</p>
                           </div>
                         ))}
