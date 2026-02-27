@@ -1010,7 +1010,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Media Generation API (POST /api/media/generate + GET /api/media/status)"
+    - "Layered Assessment System (GET /api/assessment/layered/questions, POST /api/assessment/layered/answer, POST /api/assessment/layered/complete)"
   stuck_tasks: 
     - "Kimi AI Integration (POST /api/chat/stream + GET /api/models)"
   test_all: false
