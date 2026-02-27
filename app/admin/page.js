@@ -6,7 +6,8 @@ import {
   Search, ChevronLeft, Check, X, RefreshCw, TrendingUp,
   UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
-  PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar
+  PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar,
+  KeyRound, Mail, Send
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
