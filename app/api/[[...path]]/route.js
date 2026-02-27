@@ -8952,6 +8952,195 @@ Return JSON with:
 }
 
 // ============================================================
+// BLOG API HANDLERS
+// ============================================================
+
+// Helper to generate URL-friendly slug
+function generateSlug(title) {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .substring(0, 100);
+}
+
+// Get all published blog posts (public)
+async function handleGetBlogPosts(request) {
+  const db = await getDb();
+  const url = new URL(request.url);
+  const limit = parseInt(url.searchParams.get('limit')) || 50;
+  const category = url.searchParams.get('category');
+  const tag = url.searchParams.get('tag');
+  
+  const query = { status: 'published' };
+  if (category) query.category = category;
+  if (tag) query.tags = tag;
+  
+  const posts = await db.collection('blog_posts')
+    .find(query)
+    .sort({ published_at: -1 })
+    .limit(limit)
+    .toArray();
+  
+  // Get all unique categories and tags for filtering
+  const allPosts = await db.collection('blog_posts')
+    .find({ status: 'published' })
+    .project({ category: 1, tags: 1 })
+    .toArray();
+  
+  const categories = [...new Set(allPosts.map(p => p.category).filter(Boolean))];
+  const tags = [...new Set(allPosts.flatMap(p => p.tags || []))];
+  
+  return ok({ posts, categories, tags });
+}
+
+// Get single blog post by slug (public)
+async function handleGetBlogPost(request, slug) {
+  const db = await getDb();
+  
+  const post = await db.collection('blog_posts').findOne({ 
+    slug, 
+    status: 'published' 
+  });
+  
+  if (!post) return err('Post not found', 404);
+  
+  // Get related posts (same category)
+  const relatedPosts = await db.collection('blog_posts')
+    .find({ 
+      status: 'published', 
+      category: post.category, 
+      id: { $ne: post.id } 
+    })
+    .sort({ published_at: -1 })
+    .limit(3)
+    .toArray();
+  
+  return ok({ post, relatedPosts });
+}
+
+// Admin: Get all blog posts (including drafts)
+async function handleAdminGetBlogPosts(request) {
+  const user = await authenticate(request);
+  if (!user || user.role !== 'superadmin') return err('Unauthorized', 401);
+  
+  const db = await getDb();
+  const posts = await db.collection('blog_posts')
+    .find({})
+    .sort({ created_at: -1 })
+    .toArray();
+  
+  return ok({ posts });
+}
+
+// Admin: Create blog post
+async function handleAdminCreateBlogPost(request) {
+  const user = await authenticate(request);
+  if (!user || user.role !== 'superadmin') return err('Unauthorized', 401);
+  
+  const body = await request.json();
+  const { title, content, excerpt, featured_image, category, tags, author, status } = body;
+  
+  if (!title || !content) return err('Title and content are required');
+  
+  const db = await getDb();
+  
+  // Generate unique slug
+  let slug = generateSlug(title);
+  const existingSlug = await db.collection('blog_posts').findOne({ slug });
+  if (existingSlug) {
+    slug = `${slug}-${Date.now().toString(36)}`;
+  }
+  
+  const post = {
+    id: uuidv4(),
+    slug,
+    title,
+    content,
+    excerpt: excerpt || content.substring(0, 160).replace(/[#*_`]/g, '') + '...',
+    featured_image: featured_image || null,
+    category: category || 'General',
+    tags: tags || [],
+    author: author || 'SoulPrint Team',
+    status: status || 'draft',
+    created_at: new Date(),
+    updated_at: new Date(),
+    published_at: status === 'published' ? new Date() : null,
+    created_by: user.id,
+  };
+  
+  await db.collection('blog_posts').insertOne(post);
+  
+  return ok({ success: true, post });
+}
+
+// Admin: Update blog post
+async function handleAdminUpdateBlogPost(request, postId) {
+  const user = await authenticate(request);
+  if (!user || user.role !== 'superadmin') return err('Unauthorized', 401);
+  
+  const body = await request.json();
+  const { title, content, excerpt, featured_image, category, tags, author, status } = body;
+  
+  const db = await getDb();
+  const existingPost = await db.collection('blog_posts').findOne({ id: postId });
+  
+  if (!existingPost) return err('Post not found', 404);
+  
+  const updates = {
+    updated_at: new Date(),
+  };
+  
+  if (title !== undefined) {
+    updates.title = title;
+    // Update slug if title changed
+    if (title !== existingPost.title) {
+      let newSlug = generateSlug(title);
+      const existingSlug = await db.collection('blog_posts').findOne({ slug: newSlug, id: { $ne: postId } });
+      if (existingSlug) {
+        newSlug = `${newSlug}-${Date.now().toString(36)}`;
+      }
+      updates.slug = newSlug;
+    }
+  }
+  if (content !== undefined) updates.content = content;
+  if (excerpt !== undefined) updates.excerpt = excerpt;
+  if (featured_image !== undefined) updates.featured_image = featured_image;
+  if (category !== undefined) updates.category = category;
+  if (tags !== undefined) updates.tags = tags;
+  if (author !== undefined) updates.author = author;
+  if (status !== undefined) {
+    updates.status = status;
+    // Set published_at when publishing
+    if (status === 'published' && existingPost.status !== 'published') {
+      updates.published_at = new Date();
+    }
+  }
+  
+  await db.collection('blog_posts').updateOne(
+    { id: postId },
+    { $set: updates }
+  );
+  
+  const updatedPost = await db.collection('blog_posts').findOne({ id: postId });
+  
+  return ok({ success: true, post: updatedPost });
+}
+
+// Admin: Delete blog post
+async function handleAdminDeleteBlogPost(request, postId) {
+  const user = await authenticate(request);
+  if (!user || user.role !== 'superadmin') return err('Unauthorized', 401);
+  
+  const db = await getDb();
+  const result = await db.collection('blog_posts').deleteOne({ id: postId });
+  
+  if (result.deletedCount === 0) return err('Post not found', 404);
+  
+  return ok({ success: true });
+}
+
+// ============================================================
 // ROUTER
 // ============================================================
 
