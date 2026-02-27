@@ -1873,6 +1873,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   const [soulPrintData, setSoulPrintData] = useState(null);
   const [soulPrintLoading, setSoulPrintLoading] = useState(false);
   const [generatingSnapshot, setGeneratingSnapshot] = useState(false);
+  const [editingAssistantName, setEditingAssistantName] = useState(null);
 
   const loadSoulPrint = async () => {
     setSoulPrintLoading(true);
