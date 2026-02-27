@@ -191,6 +191,30 @@
   background: rgba(249, 115, 22, 0.5);
 }
 
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Settings tabs horizontal scroll indicator */
+.tabs-scroll-container {
+  position: relative;
+}
+.tabs-scroll-container::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  background: linear-gradient(to right, transparent, #111);
+  pointer-events: none;
+}
+
 /* Textarea */
 textarea:focus, input:focus {
   outline: none;
