@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend testing for SoulPrint Engine Video Generation Fix
-Tests the handleMediaStatus fix and endpoint logic
+Backend testing for SoulPrint Engine Layered Assessment System
+Tests the new layered assessment endpoints
 """
 
 import requests
@@ -15,7 +15,7 @@ BASE_URL = "https://chunk-upload.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSCODE = "test123"
 
-class VideoGenerationTester:
+class LayeredAssessmentTester:
     def __init__(self):
         self.session = requests.Session()
         self.auth_token = None
