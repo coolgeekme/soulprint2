@@ -1867,7 +1867,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     } catch (e) {}
   };
 
-  const tabs = ['soulprint', 'imports', 'telegram', 'schedules', 'memories', 'profile', 'feedback'];
+  const tabs = ['soulprint', 'imports', 'telegram', 'schedules', 'memories', 'profile', 'privacy', 'feedback'];
 
   // SoulPrint data
   const [soulPrintData, setSoulPrintData] = useState(null);
