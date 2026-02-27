@@ -2134,7 +2134,9 @@ export default function AdminPage() {
               </h1>
               <p className="text-gray-600 text-xs mt-0.5 capitalize">{adminRole} access</p>
             </div>
-            {activeTab === 'metrics' && (
+          </div>
+          
+          {activeTab === 'metrics' && (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
                   {[
