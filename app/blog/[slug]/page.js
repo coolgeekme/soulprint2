@@ -111,15 +111,17 @@ export default function BlogPostPage() {
           Back to all posts
         </Link>
 
-        {/* Category */}
+        {/* Category - Centered */}
         {post.category && (
-          <span className="inline-block text-xs text-orange-500 font-medium uppercase tracking-wider mb-4">
-            {post.category}
-          </span>
+          <div className="text-center mb-6">
+            <span className="inline-block text-xs text-orange-500 font-medium uppercase tracking-wider bg-orange-500/10 px-3 py-1 rounded-full">
+              {post.category}
+            </span>
+          </div>
         )}
 
         {/* Title */}
-        <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 leading-tight">
+        <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 leading-tight text-center">
           {post.title}
         </h1>
 
