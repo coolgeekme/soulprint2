@@ -9941,6 +9941,270 @@ async function handleGetNextValidation(request) {
   });
 }
 
+// ============================================================
+// GRADUAL ASSESSMENT SYSTEM
+// Asks remaining 36-question assessment questions over time
+// ============================================================
+
+// Get the next gradual assessment question for the user
+async function handleGetGradualQuestion(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const db = await getDb();
+  
+  // Get user's profile to check assessment type
+  const profile = await db.collection('profiles').findOne({ user_id: user.id });
+  
+  // Get gradual progress record
+  let gradualProgress = await db.collection('gradual_assessment_progress').findOne({ user_id: user.id });
+  
+  // If no progress record exists, initialize it
+  if (!gradualProgress) {
+    // Check what questions user has already answered
+    const existingAnswers = await db.collection('assessment_answers')
+      .find({ user_id: user.id })
+      .toArray();
+    const answeredQuestionIds = existingAnswers.map(a => a.question_id);
+    
+    gradualProgress = {
+      id: uuidv4(),
+      user_id: user.id,
+      answered_question_ids: answeredQuestionIds,
+      total_questions: 36,
+      last_question_at: null,
+      questions_since_last_prompt: 0,
+      created_at: new Date(),
+    };
+    await db.collection('gradual_assessment_progress').insertOne(gradualProgress);
+  }
+  
+  // Get all active questions
+  const allQuestions = await db.collection('assessment_questions')
+    .find({ active: true })
+    .sort({ order_index: 1 })
+    .toArray();
+  
+  // Find unanswered questions
+  const answeredIds = new Set(gradualProgress.answered_question_ids || []);
+  const unansweredQuestions = allQuestions.filter(q => !answeredIds.has(q.id));
+  
+  if (unansweredQuestions.length === 0) {
+    return ok({ 
+      hasQuestion: false, 
+      complete: true,
+      progress: {
+        answered: gradualProgress.answered_question_ids?.length || 0,
+        total: 36,
+        percentage: 100
+      }
+    });
+  }
+  
+  // Determine if we should ask a question now
+  // Logic: Ask after every 5-10 chat messages, but not too frequently
+  const messageCount = await db.collection('messages')
+    .countDocuments({ 
+      user_id: user.id, 
+      role: 'user',
+      created_at: { $gt: gradualProgress.last_question_at || new Date(0) }
+    });
+  
+  // Don't ask if less than 5 messages since last question
+  const MIN_MESSAGES_BETWEEN = 5;
+  if (messageCount < MIN_MESSAGES_BETWEEN) {
+    return ok({ 
+      hasQuestion: false, 
+      shouldWait: true,
+      messagesUntilNext: MIN_MESSAGES_BETWEEN - messageCount,
+      progress: {
+        answered: answeredIds.size,
+        total: 36,
+        percentage: Math.round((answeredIds.size / 36) * 100)
+      }
+    });
+  }
+  
+  // Get the next question (prioritize by pillar to ensure coverage)
+  // Group unanswered by pillar and pick from least-answered pillar
+  const pillarCounts = {};
+  for (const q of unansweredQuestions) {
+    pillarCounts[q.pillar] = (pillarCounts[q.pillar] || 0) + 1;
+  }
+  
+  // Pick the pillar with most remaining questions
+  const targetPillar = Object.entries(pillarCounts)
+    .sort((a, b) => b[1] - a[1])[0]?.[0];
+  
+  const nextQuestion = unansweredQuestions.find(q => q.pillar === targetPillar) || unansweredQuestions[0];
+  
+  return ok({
+    hasQuestion: true,
+    question: {
+      id: nextQuestion.id,
+      pillar: nextQuestion.pillar,
+      question_text: nextQuestion.question_text,
+      order_index: nextQuestion.order_index,
+    },
+    progress: {
+      answered: answeredIds.size,
+      total: 36,
+      percentage: Math.round((answeredIds.size / 36) * 100),
+      remaining: unansweredQuestions.length,
+    },
+    pillarProgress: Object.fromEntries(
+      ['communication', 'emotional_intelligence', 'decision_making', 'social_dynamics', 'cognitive_style', 'assertiveness']
+        .map(p => {
+          const totalInPillar = allQuestions.filter(q => q.pillar === p).length;
+          const answeredInPillar = allQuestions.filter(q => q.pillar === p && answeredIds.has(q.id)).length;
+          return [p, { answered: answeredInPillar, total: totalInPillar }];
+        })
+    )
+  });
+}
+
+// Submit a gradual assessment answer
+async function handleSubmitGradualAnswer(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const body = await request.json();
+  const { question_id, answer } = body;
+  
+  if (!question_id || !answer) return err('question_id and answer required');
+  
+  const db = await getDb();
+  
+  // Save the answer
+  await db.collection('assessment_answers').updateOne(
+    { user_id: user.id, question_id },
+    {
+      $set: {
+        id: uuidv4(),
+        user_id: user.id,
+        question_id,
+        answer_text: answer,
+        source: 'gradual', // Mark as coming from gradual system
+        created_at: new Date(),
+      }
+    },
+    { upsert: true }
+  );
+  
+  // Update gradual progress
+  await db.collection('gradual_assessment_progress').updateOne(
+    { user_id: user.id },
+    {
+      $addToSet: { answered_question_ids: question_id },
+      $set: { 
+        last_question_at: new Date(),
+        updated_at: new Date()
+      }
+    },
+    { upsert: true }
+  );
+  
+  // Check if all 36 are now complete
+  const progress = await db.collection('gradual_assessment_progress').findOne({ user_id: user.id });
+  const isComplete = (progress?.answered_question_ids?.length || 0) >= 36;
+  
+  if (isComplete) {
+    // Mark full assessment as complete
+    await db.collection('profiles').updateOne(
+      { user_id: user.id },
+      { $set: { full_assessment_complete: true, updated_at: new Date() } }
+    );
+  }
+  
+  // Clear system prompt cache to reflect new profile data
+  _systemPromptCache.delete(user.id);
+  
+  return ok({ 
+    success: true,
+    progress: {
+      answered: progress?.answered_question_ids?.length || 0,
+      total: 36,
+      percentage: Math.round(((progress?.answered_question_ids?.length || 0) / 36) * 100),
+      isComplete
+    }
+  });
+}
+
+// Skip a gradual assessment question (for now)
+async function handleSkipGradualQuestion(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const body = await request.json();
+  const { question_id } = body;
+  
+  const db = await getDb();
+  
+  // Update last question time to delay next prompt
+  await db.collection('gradual_assessment_progress').updateOne(
+    { user_id: user.id },
+    {
+      $set: { 
+        last_question_at: new Date(),
+        updated_at: new Date()
+      },
+      $addToSet: { skipped_question_ids: question_id }
+    },
+    { upsert: true }
+  );
+  
+  return ok({ success: true });
+}
+
+// Get full assessment progress summary
+async function handleGetAssessmentProgress(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const db = await getDb();
+  
+  // Get all data sources
+  const profile = await db.collection('profiles').findOne({ user_id: user.id });
+  const gradualProgress = await db.collection('gradual_assessment_progress').findOne({ user_id: user.id });
+  const allQuestions = await db.collection('assessment_questions')
+    .find({ active: true })
+    .sort({ order_index: 1 })
+    .toArray();
+  
+  const answeredIds = new Set(gradualProgress?.answered_question_ids || []);
+  
+  // Calculate pillar-by-pillar progress
+  const pillars = ['communication', 'emotional_intelligence', 'decision_making', 'social_dynamics', 'cognitive_style', 'assertiveness'];
+  const pillarProgress = {};
+  
+  for (const pillar of pillars) {
+    const pillarQuestions = allQuestions.filter(q => q.pillar === pillar);
+    const answeredInPillar = pillarQuestions.filter(q => answeredIds.has(q.id));
+    pillarProgress[pillar] = {
+      answered: answeredInPillar.length,
+      total: pillarQuestions.length,
+      percentage: pillarQuestions.length > 0 ? Math.round((answeredInPillar.length / pillarQuestions.length) * 100) : 0,
+      questions: pillarQuestions.map(q => ({
+        id: q.id,
+        text: q.question_text,
+        answered: answeredIds.has(q.id)
+      }))
+    };
+  }
+  
+  return ok({
+    assessmentType: profile?.assessment_type || 'unknown',
+    quickStartComplete: profile?.assessment_complete || false,
+    fullAssessmentComplete: profile?.full_assessment_complete || false,
+    overall: {
+      answered: answeredIds.size,
+      total: 36,
+      percentage: Math.round((answeredIds.size / 36) * 100)
+    },
+    pillars: pillarProgress
+  });
+}
+
 // Get user's communication profile
 async function handleGetCommunicationProfile(request) {
   const user = await authenticate(request);
