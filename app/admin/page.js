@@ -1828,6 +1828,432 @@ function AssessmentsTab({ token }) {
   );
 }
 
+// Beta Codes Tab - Full management of beta access codes with groups
+function BetaCodesTab({ token }) {
+  const [groups, setGroups] = useState([]);
+  const [codes, setCodes] = useState([]);
+  const [redemptions, setRedemptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState('codes'); // 'codes', 'groups', 'redemptions'
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    group_id: '',
+    count: 1,
+    prefix: 'BETA',
+    max_uses: '',
+    is_single_use: false,
+    expires_at: '',
+    custom_code: '',
+    label: '',
+  });
+  const [groupForm, setGroupForm] = useState({ name: '', description: '' });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [groupsRes, codesRes, redemptionsRes] = await Promise.all([
+        fetch('/api/admin/beta-groups', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/beta-codes', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/admin/beta-redemptions', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const groupsData = await groupsRes.json();
+      const codesData = await codesRes.json();
+      const redemptionsData = await redemptionsRes.json();
+      setGroups(groupsData.groups || []);
+      setCodes(codesData.codes || []);
+      setRedemptions(redemptionsData.redemptions || []);
+    } catch (e) {
+      console.error('Failed to load beta code data:', e);
+    }
+    setLoading(false);
+  }
+
+  async function createGroup() {
+    if (!groupForm.name.trim()) return alert('Group name required');
+    try {
+      await fetch('/api/admin/beta-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(groupForm),
+      });
+      setShowGroupModal(false);
+      setGroupForm({ name: '', description: '' });
+      loadData();
+    } catch (e) {
+      alert('Failed to create group');
+    }
+  }
+
+  async function deleteGroup(groupId) {
+    if (!confirm('Delete this group? Codes will be unassigned.')) return;
+    try {
+      await fetch('/api/admin/beta-groups', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ group_id: groupId }),
+      });
+      loadData();
+    } catch (e) {
+      alert('Failed to delete group');
+    }
+  }
+
+  async function createCodes() {
+    const payload = {
+      ...createForm,
+      count: parseInt(createForm.count) || 1,
+      max_uses: createForm.max_uses ? parseInt(createForm.max_uses) : null,
+      group_id: createForm.group_id || null,
+    };
+    try {
+      const res = await fetch('/api/admin/beta-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.codes) {
+        alert(`Created ${data.codes.length} code(s)!`);
+        setShowCreateModal(false);
+        setCreateForm({
+          group_id: '',
+          count: 1,
+          prefix: 'BETA',
+          max_uses: '',
+          is_single_use: false,
+          expires_at: '',
+          custom_code: '',
+          label: '',
+        });
+        loadData();
+      }
+    } catch (e) {
+      alert('Failed to create codes');
+    }
+  }
+
+  async function toggleCodeActive(codeId, currentActive) {
+    try {
+      await fetch('/api/admin/beta-codes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code_id: codeId, active: !currentActive }),
+      });
+      loadData();
+    } catch (e) {
+      alert('Failed to update code');
+    }
+  }
+
+  async function deleteCode(codeId) {
+    if (!confirm('Delete this code permanently?')) return;
+    try {
+      await fetch('/api/admin/beta-codes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code_id: codeId }),
+      });
+      loadData();
+    } catch (e) {
+      alert('Failed to delete code');
+    }
+  }
+
+  function copyCode(code) {
+    navigator.clipboard.writeText(code);
+    alert('Copied to clipboard!');
+  }
+
+  if (loading) {
+    return <div className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-600" /></div>;
+  }
+
+  const filteredCodes = selectedGroup 
+    ? codes.filter(c => c.group_id === selectedGroup)
+    : codes;
+
+  const totalRedemptions = codes.reduce((sum, c) => sum + (c.uses_count || 0), 0);
+  const activeCodes = codes.filter(c => c.active && !c.is_expired && !c.is_exhausted).length;
+
+  return (
+    <div className="space-y-4">
+      {/* Stats Row */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="bg-[#111] border border-white/8 rounded-xl p-4">
+          <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase">Groups</p>
+          <p className="text-2xl font-bold text-white mt-1">{groups.length}</p>
+        </div>
+        <div className="bg-[#111] border border-white/8 rounded-xl p-4">
+          <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase">Total Codes</p>
+          <p className="text-2xl font-bold text-white mt-1">{codes.length}</p>
+        </div>
+        <div className="bg-[#111] border border-white/8 rounded-xl p-4">
+          <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase">Active Codes</p>
+          <p className="text-2xl font-bold text-green-400 mt-1">{activeCodes}</p>
+        </div>
+        <div className="bg-[#111] border border-white/8 rounded-xl p-4">
+          <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase">Redemptions</p>
+          <p className="text-2xl font-bold text-orange-400 mt-1">{totalRedemptions}</p>
+        </div>
+      </div>
+
+      {/* Actions Bar */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          <button onClick={() => setActiveView('codes')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeView === 'codes' ? 'bg-orange-500 text-white' : 'bg-white/5 text-gray-400 hover:text-white'}`}>
+            Codes ({codes.length})
+          </button>
+          <button onClick={() => setActiveView('groups')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeView === 'groups' ? 'bg-orange-500 text-white' : 'bg-white/5 text-gray-400 hover:text-white'}`}>
+            Groups ({groups.length})
+          </button>
+          <button onClick={() => setActiveView('redemptions')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeView === 'redemptions' ? 'bg-orange-500 text-white' : 'bg-white/5 text-gray-400 hover:text-white'}`}>
+            History ({redemptions.length})
+          </button>
+        </div>
+        <div className="flex gap-2">
+          {activeView === 'groups' && (
+            <button onClick={() => setShowGroupModal(true)} className="btn-orange px-3 py-1.5 rounded-lg text-xs flex items-center gap-1">
+              <Plus className="w-3 h-3" /> New Group
+            </button>
+          )}
+          {activeView === 'codes' && (
+            <button onClick={() => setShowCreateModal(true)} className="btn-orange px-3 py-1.5 rounded-lg text-xs flex items-center gap-1">
+              <Plus className="w-3 h-3" /> Generate Codes
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Filter by Group (for codes view) */}
+      {activeView === 'codes' && groups.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setSelectedGroup(null)}
+            className={`px-2 py-1 rounded text-xs ${!selectedGroup ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-white/5 text-gray-500 hover:text-white'}`}>
+            All
+          </button>
+          {groups.map(g => (
+            <button key={g.id} onClick={() => setSelectedGroup(g.id)}
+              className={`px-2 py-1 rounded text-xs ${selectedGroup === g.id ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-white/5 text-gray-500 hover:text-white'}`}>
+              {g.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Codes View */}
+      {activeView === 'codes' && (
+        <div className="space-y-2">
+          {filteredCodes.length === 0 ? (
+            <p className="text-gray-600 text-sm text-center py-8">No codes yet. Click "Generate Codes" to create some.</p>
+          ) : (
+            filteredCodes.map(code => (
+              <div key={code.id} className={`p-4 bg-[#111] border rounded-xl ${code.active && !code.is_expired && !code.is_exhausted ? 'border-white/8' : 'border-white/3 opacity-60'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => copyCode(code.code)} className="font-mono text-lg text-white hover:text-orange-400 transition-colors">
+                      {code.code}
+                    </button>
+                    {code.label && <span className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded">{code.label}</span>}
+                    {code.group_name && code.group_name !== 'Ungrouped' && (
+                      <span className="text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">{code.group_name}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="text-gray-500">
+                      <span className="text-white font-medium">{code.uses_count || 0}</span>
+                      {code.max_uses ? ` / ${code.max_uses}` : ''} uses
+                    </span>
+                    {code.expires_at && (
+                      <span className={`${code.is_expired ? 'text-red-400' : 'text-gray-500'}`}>
+                        {code.is_expired ? 'Expired' : `Expires ${new Date(code.expires_at).toLocaleDateString()}`}
+                      </span>
+                    )}
+                    {code.is_single_use && <span className="text-yellow-400">Single-use</span>}
+                    <button onClick={() => toggleCodeActive(code.id, code.active)}
+                      className={`px-2 py-1 rounded ${code.active ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                      {code.active ? 'Active' : 'Disabled'}
+                    </button>
+                    <button onClick={() => deleteCode(code.id)} className="text-gray-600 hover:text-red-400">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Groups View */}
+      {activeView === 'groups' && (
+        <div className="space-y-2">
+          {groups.length === 0 ? (
+            <p className="text-gray-600 text-sm text-center py-8">No groups yet. Create one to organize your codes.</p>
+          ) : (
+            groups.map(group => (
+              <div key={group.id} className="p-4 bg-[#111] border border-white/8 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-white font-medium">{group.name}</h3>
+                    {group.description && <p className="text-gray-500 text-xs mt-1">{group.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-4 text-xs">
+                    <div className="text-center">
+                      <p className="text-white font-medium">{group.total_codes || 0}</p>
+                      <p className="text-gray-600">codes</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-orange-400 font-medium">{group.total_redemptions || 0}</p>
+                      <p className="text-gray-600">used</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-green-400 font-medium">{group.conversion_rate || 0}%</p>
+                      <p className="text-gray-600">rate</p>
+                    </div>
+                    <button onClick={() => deleteGroup(group.id)} className="text-gray-600 hover:text-red-400 ml-4">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Redemptions View */}
+      {activeView === 'redemptions' && (
+        <div className="space-y-2">
+          {redemptions.length === 0 ? (
+            <p className="text-gray-600 text-sm text-center py-8">No redemptions yet.</p>
+          ) : (
+            redemptions.map(r => (
+              <div key={r.id} className="p-3 bg-[#111] border border-white/8 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-orange-400 text-sm">{r.code}</span>
+                  <span className="text-white text-sm">{r.user_email}</span>
+                </div>
+                <span className="text-gray-500 text-xs">{new Date(r.redeemed_at).toLocaleString()}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Create Codes Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111] border border-white/10 rounded-2xl p-6 max-w-md w-full">
+            <h2 className="text-white font-semibold mb-4">Generate Beta Codes</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-gray-400 text-xs block mb-1">Group (optional)</label>
+                <select value={createForm.group_id} onChange={e => setCreateForm(f => ({ ...f, group_id: e.target.value }))}
+                  className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm p-2 rounded-lg">
+                  <option value="">No Group</option>
+                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1">Number of Codes</label>
+                  <input type="number" min="1" max="100" value={createForm.count}
+                    onChange={e => setCreateForm(f => ({ ...f, count: e.target.value }))}
+                    className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm p-2 rounded-lg" />
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1">Prefix</label>
+                  <input type="text" value={createForm.prefix}
+                    onChange={e => setCreateForm(f => ({ ...f, prefix: e.target.value.toUpperCase() }))}
+                    className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm p-2 rounded-lg" />
+                </div>
+              </div>
+              {createForm.count == 1 && (
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1">Custom Code (optional)</label>
+                  <input type="text" value={createForm.custom_code}
+                    onChange={e => setCreateForm(f => ({ ...f, custom_code: e.target.value.toUpperCase() }))}
+                    placeholder="Leave empty for random"
+                    className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm p-2 rounded-lg" />
+                </div>
+              )}
+              <div>
+                <label className="text-gray-400 text-xs block mb-1">Label (optional)</label>
+                <input type="text" value={createForm.label}
+                  onChange={e => setCreateForm(f => ({ ...f, label: e.target.value }))}
+                  placeholder="e.g., Twitter Campaign"
+                  className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm p-2 rounded-lg" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1">Max Uses (empty = unlimited)</label>
+                  <input type="number" min="1" value={createForm.max_uses}
+                    onChange={e => setCreateForm(f => ({ ...f, max_uses: e.target.value }))}
+                    className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm p-2 rounded-lg" />
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs block mb-1">Expires</label>
+                  <input type="date" value={createForm.expires_at}
+                    onChange={e => setCreateForm(f => ({ ...f, expires_at: e.target.value }))}
+                    className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm p-2 rounded-lg" />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-400">
+                <input type="checkbox" checked={createForm.is_single_use}
+                  onChange={e => setCreateForm(f => ({ ...f, is_single_use: e.target.checked, max_uses: e.target.checked ? '' : f.max_uses }))}
+                  className="rounded" />
+                Single-use (one code per user)
+              </label>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowCreateModal(false)} className="flex-1 py-2 bg-white/5 text-gray-400 rounded-lg text-sm hover:bg-white/10">Cancel</button>
+              <button onClick={createCodes} className="flex-1 btn-orange py-2 rounded-lg text-sm">Create {createForm.count} Code{createForm.count > 1 ? 's' : ''}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Group Modal */}
+      {showGroupModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111] border border-white/10 rounded-2xl p-6 max-w-md w-full">
+            <h2 className="text-white font-semibold mb-4">Create Code Group</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-gray-400 text-xs block mb-1">Group Name *</label>
+                <input type="text" value={groupForm.name}
+                  onChange={e => setGroupForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g., Influencers, VIP Beta, Press"
+                  className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm p-2 rounded-lg" />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs block mb-1">Description (optional)</label>
+                <textarea value={groupForm.description}
+                  onChange={e => setGroupForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Notes about this group..."
+                  className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm p-2 rounded-lg resize-none" rows={2} />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowGroupModal(false)} className="flex-1 py-2 bg-white/5 text-gray-400 rounded-lg text-sm hover:bg-white/10">Cancel</button>
+              <button onClick={createGroup} className="flex-1 btn-orange py-2 rounded-lg text-sm">Create Group</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Settings Tab
 function SettingsTab({ token }) {
   const [settings, setSettings] = useState(null);
