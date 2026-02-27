@@ -10414,6 +10414,11 @@ export async function POST(request, { params }) {
     if (pathStr === 'cron/run-schedules') return handleRunSchedules(request);
     if (pathStr === 'places/search') return handlePlacesSearch(request);
     if (pathStr === 'profile/soulprint/generate') return handleGenerateSoulPrint(request);
+    if (pathStr === 'privacy/purge-chats') return handlePurgeChatHistory(request);
+    if (pathStr === 'privacy/purge-imports') return handlePurgeImportedData(request);
+    if (pathStr === 'privacy/settings') return handleUpdatePrivacySettings(request);
+    if (pathStr === 'privacy/delete-account') return handleDeleteUserData(request);
+    if (pathStr === 'privacy/revoke-session') return handleRevokeSession(request);
     if (pathStr === 'places/geocode') return handleGeocode(request);
     if (pathStr === 'user/location') return handleSaveUserLocation(request);
     if (pathStr === 'data-import/upload') return handleDataImportUpload(request);
