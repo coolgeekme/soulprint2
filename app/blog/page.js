@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar, User, Tag, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Tag, ChevronRight, MessageSquare } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 export default function BlogPage() {
@@ -13,8 +13,12 @@ export default function BlogPage() {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedTag, setSelectedTag] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
+    // Check if user is logged in
+    const token = localStorage.getItem('sp_token');
+    setIsLoggedIn(!!token);
     fetchPosts();
   }, [selectedCategory, selectedTag]);
 
