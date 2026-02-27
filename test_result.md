@@ -855,7 +855,7 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Complete Long-Term Memory System working perfectly! All 11 tests passed (100% success rate). (1) ✅ POST /api/auth/login: Authentication working with test@soulprint.com/test123, returns superadmin role and token. (2) ✅ Authentication: All memory endpoints properly require JWT token (401 without auth). (3) ✅ Memory Validation: Empty content and short content properly rejected (400 errors). (4) ✅ POST /api/memories: Successfully creates memories with content, category (health/preferences), importance (high/medium), returns memory objects with UUID, source='manual'. (5) ✅ GET /api/memories: Retrieves all user memories with proper structure (id, content, category, importance, source, created_at), returns available categories array (health, preferences, personal, work, relationships, goals, other). (6) ✅ Category Filtering: GET /api/memories?category=health correctly filters memories by category. (7) ✅ PUT /api/memories/:id: Successfully updates memory content and importance, changes persist in database. (8) ✅ DELETE /api/memories/:id: Successfully deletes memories, verified removal from user's memory list. (9) ✅ Data Persistence: All memory operations properly persist to MongoDB with user_id association. (10) ✅ Cache Invalidation: System prompt cache properly invalidated on memory changes. Memory system fully functional with comprehensive CRUD operations, validation, filtering, and security."
 
-  - task: "Multi-Model Comparison APIs (POST /api/chat/compare, POST /api/chat/compare/select)"
+  - task: "Layered Assessment System (GET /api/assessment/layered/questions, POST /api/assessment/layered/answer, POST /api/assessment/layered/complete)"
     implemented: true
     working: true
     file: "app/api/[[...path]]/route.js"
@@ -865,7 +865,31 @@ backend:
     status_history:
       - working: true
         agent: "testing"
-        comment: "✅ TESTED: Multi-Model Comparison feature working perfectly! All 7 tests passed (100% success rate). (1) ✅ POST /api/auth/login: Authentication working with test@soulprint.com/test123, returns superadmin token. (2) ✅ Authentication Security: Both comparison endpoints properly require JWT token (401 without auth). (3) ✅ POST /api/chat/compare with 2 models: Successfully compared gpt-4o vs gpt-4o-mini on healthcare AI question. Both models returned responses (1396 and 1828 chars respectively). Returns comparisonId, conversationId, userMessageId, and responses array. (4) ✅ POST /api/chat/compare/select: Successfully selected winning response (gpt-4o), created assistant message in conversation, updated comparison record with selected model, tracked user preferences. Returns messageId, conversationId, selectedModel. (5) ✅ POST /api/chat/compare with 3 models (max): Successfully compared gpt-4o, gpt-4o-mini, and gemini-2.0-flash on quantum computing explanation. All 3 models returned successful responses (1050, 1270, 1305 chars). (6) ✅ Validation: Correctly rejects requests with >3 models (400 error: 'Maximum 3 models allowed'). (7) ✅ Validation: Correctly rejects requests with empty models array (400 error: 'models required'). Multi-Model Comparison system fully functional with proper authentication, validation, parallel model execution, response selection, and conversation integration."
+        comment: "✅ TESTED: Complete Layered Assessment System working perfectly! All 5 test steps passed (100% success rate). (1) ✅ GET /api/assessment/layered/questions: Successfully retrieves 10 Layer1 questions with progress tracking. Returns layer1 questions array, layer2 follow-up questions (generated based on Layer1 answers), and progress status (layer1_complete, layer2_complete, answered array). (2) ✅ POST /api/assessment/layered/answer: Successfully submits all 10 Layer1 answers with real-world data (communication preferences, emotional responses, decision-making styles). Each answer properly updates progress and determines follow-up questions. Layer1 completion correctly detected after all 10 questions answered with 6 follow-up questions generated. (3) ✅ POST /api/assessment/layered/complete: Successfully completes assessment with assistant_name 'Perseus'. Generates comprehensive profile summary (230 chars) and marks assessment complete. (4) ✅ Authentication: All endpoints correctly require Bearer token authentication except settings endpoint. (5) ✅ Communication Profile Generation: Creates detailed communication profile with all 9 expected fields (directness, emotional_warmth, information_density, proactivity, modality, feedback_style, decision_support, stress_response, confidence) and 253-char adaptations summary. Complete assessment flow functional from questions → answers → completion → profile creation. System ready for production use."
+
+  - task: "Assessment Settings API (GET /api/assessment/settings)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Assessment settings endpoint working perfectly! GET /api/assessment/settings returns proper configuration without authentication required. Response includes assessment_mode: 'both' (supports full_only, quick_only, both modes) and default_assessment: 'quick'. Endpoint accessible to all users for determining available assessment types."
+
+  - task: "Communication Profile API (GET /api/profile/communication)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Communication profile endpoint working perfectly! Requires authentication (401 without token). Returns comprehensive response with hasProfile boolean, complete profile object with 9 fields (directness, emotional_warmth, information_density, proactivity, modality, feedback_style, decision_support, stress_response, confidence), generated adaptations summary (253 chars), and updated_at timestamp. Profile creation confirmed working through layered assessment completion. Properly handles users without profiles (hasProfile: false)."
 
 frontend:
   - task: "Landing Page (/)"
