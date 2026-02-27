@@ -8604,6 +8604,9 @@ export async function POST(request, { params }) {
     if (pathStr === 'auth/login') return handleLogin(request);
     if (pathStr === 'assessment/answer') return handleSubmitAnswer(request);
     if (pathStr === 'assessment/complete') return handleAssessmentComplete(request);
+    if (pathStr === 'assessment/layered/answer') return handleSubmitLayeredAnswer(request);
+    if (pathStr === 'assessment/layered/complete') return handleCompleteLayeredAssessment(request);
+    if (pathStr === 'assessment/validation/submit') return handleLayer3Validation(request);
     if (pathStr === 'conversations') return handleCreateConversation(request);
     if (pathStr === 'chat/stream') return handleChatStream(request);
     if (pathStr === 'chat/compare') return handleChatCompare(request);
