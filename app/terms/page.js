@@ -68,23 +68,6 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 3 */}
-          <section>
-            <h2 className="text-xl font-semibold text-white mb-3">3. Account Registration</h2>
-            <p className="text-gray-300 leading-relaxed">
-              To access SoulPrint, you must provide a valid email address.
-            </p>
-            <p className="text-gray-300 leading-relaxed mt-2">You agree to:</p>
-            <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
-              <li>Provide accurate information</li>
-              <li>Maintain the confidentiality of your account</li>
-              <li>Accept responsibility for activity under your account</li>
-            </ul>
-            <p className="text-gray-300 leading-relaxed mt-2">
-              We reserve the right to suspend or terminate accounts at our discretion.
-            </p>
-          </section>
-
           {/* Section 4 */}
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">4. Beta Status</h2>
