@@ -5,7 +5,8 @@ import {
   Users, BarChart2, MessageSquare, Upload, Settings, Shield,
   Search, ChevronLeft, Check, X, RefreshCw, TrendingUp,
   UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
-  DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2
+  DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
+  PenSquare, Eye, EyeOff, Image, Tag
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'waitlist', label: 'Waitlist', icon: ListChecks },
   { id: 'users', label: 'All Users', icon: Users },
   { id: 'conversations', label: 'Conversations', icon: MessageSquare },
+  { id: 'blog', label: 'Blog', icon: PenSquare },
   { id: 'announcements', label: 'Announcements', icon: Megaphone },
   { id: 'feedback', label: 'Feedback', icon: MessageCircle },
   { id: 'assessments', label: 'Assessments', icon: FileText },
