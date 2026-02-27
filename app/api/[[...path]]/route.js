@@ -10874,6 +10874,9 @@ export async function POST(request, { params }) {
     if (pathStr === 'admin/blog/posts') return handleAdminCreateBlogPost(request);
     if (pathStr === 'admin/beta-code') return handleAdminCreateBetaCode(request);
     if (pathStr === 'admin/beta-code/send') return handleAdminSendBetaCode(request);
+    if (pathStr === 'admin/beta-groups') return handleAdminCreateBetaGroup(request);
+    if (pathStr === 'admin/beta-codes') return handleAdminCreateBetaCodes(request);
+    if (pathStr === 'beta-code/validate-v2') return handleValidateBetaCodeV2(request);
     if (pathStr === 'announcements/dismiss') return handleDismissAnnouncement(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
 
