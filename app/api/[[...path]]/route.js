@@ -9477,6 +9477,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'auth/register') return handleRegister(request);
     if (pathStr === 'auth/login') return handleLogin(request);
     if (pathStr === 'auth/firebase') return handleFirebaseAuth(request);
+    if (pathStr === 'auth/redeem-code') return handleRedeemBetaCode(request);
+    if (pathStr === 'auth/validate-code') return handleValidateBetaCode(request);
     if (pathStr === 'assessment/answer') return handleSubmitAnswer(request);
     if (pathStr === 'assessment/complete') return handleAssessmentComplete(request);
     if (pathStr === 'assessment/layered/answer') return handleSubmitLayeredAnswer(request);
