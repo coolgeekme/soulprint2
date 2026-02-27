@@ -3263,10 +3263,10 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                           </div>
                           <div className="flex-1">
                             <h3 className="text-white font-medium group-hover:text-green-300 transition-colors">Quick Start</h3>
-                            <p className="text-gray-500 text-xs mt-0.5">6 questions • ~2 minutes</p>
+                            <p className="text-gray-500 text-xs mt-0.5">6 questions now • Full profile over time</p>
                           </div>
                         </div>
-                        <p className="text-gray-400 text-xs mt-3">Perfect for a quick profile refresh. Covers the essentials.</p>
+                        <p className="text-gray-400 text-xs mt-3">Start chatting quickly. I'll ask the remaining questions naturally during our conversations to build your complete 6-pillar profile.</p>
                       </button>
                       
                       {/* Full Assessment Option */}
@@ -3283,7 +3283,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                             <p className="text-gray-500 text-xs mt-0.5">36 questions • ~10 minutes</p>
                           </div>
                         </div>
-                        <p className="text-gray-400 text-xs mt-3">Comprehensive analysis across all 6 pillars for the most accurate profile.</p>
+                        <p className="text-gray-400 text-xs mt-3">Complete all 6 pillars now for the most accurate profile from the start.</p>
                       </button>
                     </div>
                     
