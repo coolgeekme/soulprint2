@@ -9637,6 +9637,7 @@ export async function DELETE(request, { params }) {
       const postId = pathArr[3];
       return handleAdminDeleteBlogPost(request, postId);
     }
+    if (pathStr === 'admin/beta-code') return handleAdminDeleteBetaCode(request);
     return err('Not found', 404);
   } catch (error) {
     console.error('DELETE error:', error);
