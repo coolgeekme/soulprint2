@@ -160,6 +160,9 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* BLOG SECTION */}
+      <BlogPreview />
+
       {/* FOOTER */}
       <footer className="bg-[#f0f0f0] py-12 px-8">
         <div className="max-w-5xl mx-auto">
