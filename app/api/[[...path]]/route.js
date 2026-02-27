@@ -9930,7 +9930,6 @@ export async function GET(request, { params }) {
     if (pathStr === 'assessment/validation/next') return handleGetNextValidation(request);
     if (pathStr === 'profile/communication') return handleGetCommunicationProfile(request);
     if (pathStr === 'profile/soulprint') return handleGetSoulPrint(request);
-    if (pathStr === 'profile/soulprint/generate') return handleGenerateSoulPrint(request);
     if (pathStr === 'blog/posts') return handleGetBlogPosts(request);
     if (pathStr.startsWith('blog/posts/')) {
       const slug = pathArr[2];
