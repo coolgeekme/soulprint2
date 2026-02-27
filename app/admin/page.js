@@ -1290,13 +1290,24 @@ function BlogTab({ token }) {
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
               className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-white text-xl font-semibold placeholder-gray-600 focus:border-orange-500/50 outline-none"
             />
-            <textarea
-              placeholder="Write your content here... (Markdown supported)"
-              value={form.content}
-              onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
-              rows={20}
-              className="w-full bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:border-orange-500/50 outline-none resize-none font-mono text-sm"
-            />
+            <div>
+              <MarkdownToolbar 
+                textareaRef={contentTextareaRef}
+                content={form.content}
+                setContent={(newContent) => setForm(f => ({ ...f, content: newContent }))}
+              />
+              <textarea
+                ref={contentTextareaRef}
+                placeholder="Write your content here... (Markdown supported)"
+                value={form.content}
+                onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
+                rows={20}
+                className="w-full bg-[#111] border border-white/10 rounded-b-xl px-4 py-3 text-white placeholder-gray-600 focus:border-orange-500/50 outline-none resize-none font-mono text-sm"
+              />
+            </div>
+            <p className="text-gray-600 text-xs">
+              💡 Tip: Use the toolbar above to format text. Images are embedded as base64 for simplicity.
+            </p>
           </div>
 
           {/* Sidebar */}
