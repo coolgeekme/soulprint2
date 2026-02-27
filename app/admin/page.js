@@ -2010,6 +2010,52 @@ function SettingsTab({ token }) {
             />
             <p className="text-gray-600 text-[10px] mt-1">Leave empty for no expiration</p>
           </div>
+
+          {/* Send Code via Email */}
+          {betaStats?.code && (
+            <div className="mt-4 pt-4 border-t border-white/5">
+              <label className="text-gray-500 text-[10px] uppercase tracking-wider mb-2 block flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5" />
+                Send Code via Email
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  placeholder="user@email.com"
+                  id="betaEmailInput"
+                  className="flex-1 bg-black/30 border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:border-orange-500/40"
+                />
+                <button
+                  onClick={async () => {
+                    const emailInput = document.getElementById('betaEmailInput');
+                    const email = emailInput?.value?.trim();
+                    if (!email) { alert('Enter an email address'); return; }
+                    
+                    try {
+                      const res = await fetch('/api/admin/beta-code/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ email }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        alert(`Beta code sent to ${email}!`);
+                        emailInput.value = '';
+                      } else {
+                        alert(data.error || 'Failed to send');
+                      }
+                    } catch (e) {
+                      alert('Failed to send email');
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Send
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
