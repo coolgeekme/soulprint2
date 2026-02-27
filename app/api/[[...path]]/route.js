@@ -5176,6 +5176,154 @@ async function handleAdminInviteAdmin(request) {
 }
 
 // ============================================================
+// BETA ACCESS CODE MANAGEMENT
+// ============================================================
+
+// Get beta code stats
+async function handleAdminGetBetaCodeStats(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
+  
+  if (!betaCode) {
+    return ok({ code: null, uses: 0, expires_at: null });
+  }
+
+  return ok({
+    code: betaCode.code,
+    uses: betaCode.uses || 0,
+    expires_at: betaCode.expires_at,
+    created_at: betaCode.created_at,
+  });
+}
+
+// Create/Update beta code
+async function handleAdminCreateBetaCode(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  let { code, expires_at } = body;
+
+  // Generate random code if not provided
+  if (!code) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    code = 'BETA-';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+  } else {
+    code = code.toUpperCase().trim();
+  }
+
+  const db = await getDb();
+  await db.collection('beta_codes').updateOne(
+    { id: 'current' },
+    { 
+      $set: { 
+        id: 'current',
+        code,
+        expires_at: expires_at ? new Date(expires_at) : null,
+        created_at: new Date(),
+        uses: 0,
+      } 
+    },
+    { upsert: true }
+  );
+
+  return ok({ code, success: true });
+}
+
+// Delete/Disable beta code
+async function handleAdminDeleteBetaCode(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  await db.collection('beta_codes').deleteOne({ id: 'current' });
+
+  return ok({ success: true });
+}
+
+// Redeem beta code (for waitlisted users)
+async function handleRedeemBetaCode(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { code } = body;
+  
+  if (!code) return err('Access code required');
+
+  const db = await getDb();
+  
+  // Check if user is already accepted
+  if (user.accepted) {
+    return ok({ success: true, message: 'Already accepted' });
+  }
+
+  // Find the beta code
+  const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
+  
+  if (!betaCode || !betaCode.code) {
+    return err('Invalid access code', 400);
+  }
+
+  // Check if code matches
+  if (betaCode.code.toUpperCase() !== code.toUpperCase().trim()) {
+    return err('Invalid access code', 400);
+  }
+
+  // Check if expired
+  if (betaCode.expires_at && new Date(betaCode.expires_at) < new Date()) {
+    return err('This access code has expired', 400);
+  }
+
+  // Accept the user
+  await db.collection('users').updateOne(
+    { id: user.id },
+    { $set: { accepted: true, beta_code_used: code, accepted_at: new Date() } }
+  );
+
+  // Increment usage count
+  await db.collection('beta_codes').updateOne(
+    { id: 'current' },
+    { $inc: { uses: 1 } }
+  );
+
+  return ok({ success: true, message: 'Access granted!' });
+}
+
+// Validate beta code during registration (without requiring auth)
+async function handleValidateBetaCode(request) {
+  const body = await request.json();
+  const { code } = body;
+  
+  if (!code) return ok({ valid: false });
+
+  const db = await getDb();
+  const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
+  
+  if (!betaCode || !betaCode.code) {
+    return ok({ valid: false });
+  }
+
+  // Check if code matches
+  if (betaCode.code.toUpperCase() !== code.toUpperCase().trim()) {
+    return ok({ valid: false });
+  }
+
+  // Check if expired
+  if (betaCode.expires_at && new Date(betaCode.expires_at) < new Date()) {
+    return ok({ valid: false, expired: true });
+  }
+
+  return ok({ valid: true });
+}
+
+// ============================================================
 // CLOUD IMPORT (for large files)
 // ============================================================
 
