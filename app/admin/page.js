@@ -1918,6 +1918,101 @@ function SettingsTab({ token }) {
         </div>
       </div>
 
+      {/* Beta Access Code */}
+      {settings.waitlist_enabled && (
+        <div className="p-4 bg-gradient-to-r from-orange-500/5 to-transparent border border-orange-500/20 rounded-xl">
+          <label className="text-orange-400 text-xs font-bold tracking-widest uppercase mb-3 block flex items-center gap-2">
+            <KeyRound className="w-4 h-4" />
+            Beta Access Code
+          </label>
+          <p className="text-gray-500 text-xs mb-4">
+            Share this code with beta users so they can bypass the waitlist during registration or from the waitlist page.
+          </p>
+          
+          {/* Current Code Display */}
+          <div className="bg-black/30 border border-white/10 rounded-lg p-3 mb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Current Code</p>
+                {betaStats?.code ? (
+                  <p className="text-white font-mono text-lg tracking-widest">{betaStats.code}</p>
+                ) : (
+                  <p className="text-gray-600 italic text-sm">No code set</p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  if (betaStats?.code) {
+                    navigator.clipboard.writeText(betaStats.code);
+                    alert('Code copied to clipboard!');
+                  }
+                }}
+                disabled={!betaStats?.code}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-xs rounded-lg transition-colors disabled:opacity-30"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+
+          {/* Code Stats */}
+          {betaStats?.code && (
+            <div className="flex items-center gap-4 mb-4 text-xs">
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-green-400" />
+                <span className="text-gray-400"><span className="text-white font-medium">{betaStats.uses || 0}</span> uses</span>
+              </div>
+              {betaStats.expires_at && (
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-yellow-400" />
+                  <span className="text-gray-400">Expires: <span className="text-white">{new Date(betaStats.expires_at).toLocaleDateString()}</span></span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Generate/Change Code */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={generateNewCode}
+              disabled={generatingCode}
+              className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {generatingCode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              {betaStats?.code ? 'Change Code' : 'Generate Code'}
+            </button>
+            {betaStats?.code && (
+              <button
+                onClick={async () => {
+                  if (confirm('Are you sure you want to disable the beta code?')) {
+                    await fetch('/api/admin/beta-code', {
+                      method: 'DELETE',
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    setBetaStats(prev => ({ ...prev, code: null, uses: 0 }));
+                  }
+                }}
+                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm rounded-lg transition-colors"
+              >
+                Disable
+              </button>
+            )}
+          </div>
+
+          {/* Expiration Date */}
+          <div className="mt-4 pt-4 border-t border-white/5">
+            <label className="text-gray-500 text-[10px] uppercase tracking-wider mb-2 block">Code Expiration (Optional)</label>
+            <input
+              type="date"
+              value={settings.beta_code_expires_at ? settings.beta_code_expires_at.split('T')[0] : ''}
+              onChange={e => setSettings(s => ({ ...s, beta_code_expires_at: e.target.value ? new Date(e.target.value).toISOString() : null }))}
+              className="bg-black/30 border border-white/10 text-white text-sm rounded-lg px-3 py-2 w-full focus:border-orange-500/40"
+            />
+            <p className="text-gray-600 text-[10px] mt-1">Leave empty for no expiration</p>
+          </div>
+        </div>
+      )}
+
       {/* Assessment Mode */}
       <div>
         <label className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-2 block">Assessment Mode</label>
