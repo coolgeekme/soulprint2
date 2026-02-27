@@ -11185,6 +11185,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'beta-code/validate-v2') return handleValidateBetaCodeV2(request);
     if (pathStr === 'announcements/dismiss') return handleDismissAnnouncement(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
+    if (pathStr === 'assessment/gradual/answer') return handleSubmitGradualAnswer(request);
+    if (pathStr === 'assessment/gradual/skip') return handleSkipGradualQuestion(request);
 
     // Other connector stubs
     if (pathStr === 'connectors/discord/webhook') return handleConnectorStub('discord');
