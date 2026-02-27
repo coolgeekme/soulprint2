@@ -6141,12 +6141,46 @@ async function handleImportStatus(request) {
   
   if (!job) return err('Import not found', 404);
 
+  // If completed, also fetch the analysis and profile data
+  let analysis = null;
+  let profileComparison = null;
+  let memoriesAdded = 0;
+  
+  if (job.status === 'completed') {
+    // Get the data import record with analysis
+    const dataImport = await db.collection('data_imports').findOne({ 
+      user_id: user.id,
+      created_at: { $gte: new Date(Date.now() - 5 * 60 * 1000) } // Within last 5 minutes
+    }, { sort: { created_at: -1 } });
+    
+    if (dataImport?.analysis) {
+      analysis = dataImport.analysis;
+    }
+    
+    // Get current soul profile for comparison
+    const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
+    if (soulProfile) {
+      profileComparison = {
+        interests: soulProfile.interests || [],
+        communicationStyle: soulProfile.insights?.communicationStyle || null,
+        vocabulary: soulProfile.insights?.vocabulary || null,
+        personalityTraits: soulProfile.insights?.personalityTraits || []
+      };
+    }
+    
+    // Count memories added from this import
+    memoriesAdded = job.memories_added || 0;
+  }
+
   return ok({
     status: job.status,
     message: job.message,
     progress: job.progress,
     messagesCount: job.messages_count,
     error: job.error,
+    analysis,
+    profileComparison,
+    memoriesAdded
   });
 }
 
