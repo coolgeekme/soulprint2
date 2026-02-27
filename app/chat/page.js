@@ -2770,6 +2770,9 @@ export default function ChatPage() {
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
   // Cloud import state
   const [showCloudImport, setShowCloudImport] = useState(false);
+  // Latest news state
+  const [latestNews, setLatestNews] = useState([]);
+  const [showNewsExpanded, setShowNewsExpanded] = useState(false);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const messagesEndRef = useRef(null);
