@@ -2212,13 +2212,16 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           <h2 className="text-white font-semibold text-sm sm:text-base">Settings</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
         </div>
-        <div className="flex border-b border-white/10 overflow-x-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {tabs.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-2.5 sm:px-4 py-3 text-[9px] sm:text-[10px] font-bold tracking-wider uppercase transition-colors whitespace-nowrap flex-shrink-0 ${activeTab === tab ? 'text-orange-500 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-300'}`}>
-              {tab === 'soulprint' ? '🪪' : tab === 'imports' ? '📥' : tab === 'telegram' ? '💬' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : '📝'} {tab}
-            </button>
-          ))}
+        <div className="relative tabs-scroll-container">
+          <div className="flex border-b border-white/10 overflow-x-auto scrollbar-hide px-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            {tabs.map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                className={`px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-semibold tracking-wide uppercase transition-colors whitespace-nowrap flex-shrink-0 ${activeTab === tab ? 'text-orange-500 border-b-2 border-orange-500 bg-orange-500/5' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}>
+                {tab === 'soulprint' ? '🪪' : tab === 'imports' ? '📥' : tab === 'telegram' ? '💬' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : '📝'} {tab}
+              </button>
+            ))}
+          </div>
+          <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-[#111] to-transparent pointer-events-none" />
         </div>
         <div className="flex-1 overflow-y-auto p-4 sm:p-5">
           {/* SOULPRINT TAB */}
