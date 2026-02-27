@@ -5147,6 +5147,128 @@ async function handleChunkedChunk(request) {
   }
 }
 
+// Extract memories from imported messages using AI
+async function extractMemoriesFromImport(db, userId, messages, source) {
+  if (!messages || messages.length === 0) return 0;
+
+  // Sample messages for memory extraction (take up to 50 representative messages)
+  const userMessages = messages
+    .filter(m => m.role === 'user' || m.role === 'human')
+    .slice(0, 50);
+
+  if (userMessages.length === 0) return 0;
+
+  const OPENAI_KEY = process.env.OPENAI_API_KEY;
+  if (!OPENAI_KEY) {
+    console.log('[MemoryExtract] No OpenAI key, skipping memory extraction');
+    return 0;
+  }
+
+  try {
+    // Prepare messages for analysis
+    const messagesText = userMessages
+      .map(m => m.content)
+      .filter(c => c && c.length > 20) // Only meaningful messages
+      .join('\n---\n');
+
+    if (messagesText.length < 100) return 0;
+
+    // Use AI to extract important facts/memories
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are extracting important personal facts and memories from a user's conversation history.
+Extract facts that would be useful for a personal AI assistant to remember, such as:
+- Personal details (name, location, family, relationships)
+- Preferences and favorites (food, music, hobbies)
+- Work/career information
+- Health information
+- Important life events
+- Goals and aspirations
+- Recurring topics they care about
+
+Return a JSON array of memory objects with this format:
+[{"content": "The fact or memory", "category": "personal|preference|work|health|event|goal|interest", "importance": "high|medium|low"}]
+
+Only extract factual information, not opinions or temporary states. Maximum 15 memories.`
+          },
+          {
+            role: 'user',
+            content: `Extract important personal memories from these ${source} messages:\n\n${messagesText.substring(0, 15000)}`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+      }),
+    });
+
+    if (!response.ok) {
+      console.log('[MemoryExtract] OpenAI API error:', response.status);
+      return 0;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+
+    // Parse the JSON response
+    let memories = [];
+    try {
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        memories = JSON.parse(jsonMatch[0]);
+      }
+    } catch (parseError) {
+      console.log('[MemoryExtract] Failed to parse memories:', parseError);
+      return 0;
+    }
+
+    if (!Array.isArray(memories) || memories.length === 0) return 0;
+
+    // Save memories to database
+    const memoryDocs = memories
+      .filter(m => m.content && m.content.length > 5)
+      .map(m => ({
+        id: uuidv4(),
+        user_id: userId,
+        content: m.content,
+        category: m.category || 'general',
+        importance: m.importance || 'medium',
+        source: `${source}_import`,
+        pinned: m.importance === 'high',
+        created_at: new Date(),
+      }));
+
+    if (memoryDocs.length > 0) {
+      // Check for duplicates
+      const existingMemories = await db.collection('memories')
+        .find({ user_id: userId })
+        .toArray();
+      
+      const existingContents = new Set(existingMemories.map(m => m.content.toLowerCase().trim()));
+      const newMemories = memoryDocs.filter(m => !existingContents.has(m.content.toLowerCase().trim()));
+
+      if (newMemories.length > 0) {
+        await db.collection('memories').insertMany(newMemories);
+        console.log(`[MemoryExtract] Added ${newMemories.length} memories from ${source} import`);
+        return newMemories.length;
+      }
+    }
+
+    return 0;
+  } catch (error) {
+    console.error('[MemoryExtract] Error:', error);
+    return 0;
+  }
+}
+
 // Chunked upload - Process batch of files
 async function handleChunkedProcessBatch(request) {
   const user = await authenticate(request);
