@@ -39,14 +39,26 @@ export default function TermsOfServicePage() {
               By accessing or using SoulPrint ("Service"), you agree to be bound by these Terms of Service ("Terms"). 
               If you do not agree, do not use the Service.
             </p>
-            <p className="text-gray-300 leading-relaxed mt-2">
-              You must be at least 18 years old to use SoulPrint.
-            </p>
           </section>
 
           {/* Section 2 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">2. Description of Service</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">2. User Eligibility and Accounts</h2>
+            <p className="text-gray-300 leading-relaxed">
+              You must be at least <span className="text-white font-semibold">13 years old</span> to use the Service. 
+              If you are 13-17 years old, you must have permission from a parent or legal guardian. 
+              <span className="text-orange-400 font-medium"> Users under 13 are not permitted.</span>
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-2">
+              Account creation requires accurate information, including age verification where required; 
+              you are responsible for maintaining confidentiality and compliance. 
+              Notify us of unauthorized use immediately.
+            </p>
+          </section>
+
+          {/* Section 3 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">3. Description of Service</h2>
             <p className="text-gray-300 leading-relaxed">
               SoulPrint is an AI-powered conversational system that provides adaptive, identity-aware interaction experiences. 
               The Service may evolve over time, and features may be added, removed, or modified without prior notice.
