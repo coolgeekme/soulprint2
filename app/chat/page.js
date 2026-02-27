@@ -3541,6 +3541,12 @@ export default function ChatPage() {
   // Latest news state
   const [latestNews, setLatestNews] = useState([]);
   const [showNewsExpanded, setShowNewsExpanded] = useState(false);
+  // Gradual assessment state
+  const [gradualQuestion, setGradualQuestion] = useState(null);
+  const [gradualAnswer, setGradualAnswer] = useState('');
+  const [gradualProgress, setGradualProgress] = useState(null);
+  const [showGradualPrompt, setShowGradualPrompt] = useState(false);
+  const [submittingGradual, setSubmittingGradual] = useState(false);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const messagesEndRef = useRef(null);
