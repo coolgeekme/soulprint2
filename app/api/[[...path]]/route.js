@@ -2611,6 +2611,12 @@ async function handleChatStream(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
 
+  // Rate limit check
+  const rateCheck = checkRateLimit(user.id, 'chat');
+  if (!rateCheck.allowed) {
+    return err(`Rate limit exceeded. Try again in ${rateCheck.retryAfter} seconds.`, 429);
+  }
+
   if (!user.accepted && user.role === 'user') {
     return err('Account pending approval', 403);
   }
