@@ -214,13 +214,27 @@ export default function QuickAssessmentPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-green-500">✓</span>
-              <span>I'll learn more as we chat</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-green-500">✓</span>
               <span>You can adjust settings anytime</span>
             </div>
           </div>
+          
+          {/* Gradual Assessment Explanation */}
+          <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 mt-4 text-left">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Sparkles className="w-4 h-4 text-orange-400" />
+              </div>
+              <div>
+                <h3 className="text-orange-400 font-medium text-sm mb-1">Building Your Complete Profile</h3>
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Over time, I'll ask you a few more questions during our conversations to build a complete 
+                  understanding of who you are across all 6 personality dimensions. This happens naturally 
+                  as we chat — no pressure!
+                </p>
+              </div>
+            </div>
+          </div>
+          
           <p className="text-gray-500 text-sm mt-6">Redirecting to chat...</p>
         </div>
       </div>
