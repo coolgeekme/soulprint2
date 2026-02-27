@@ -916,6 +916,15 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           if (d.status === 'completed') {
             setImportStatus({ status: 'completed', message: d.message || `Imported ${d.messagesCount || 0} messages!`, progress: 100 });
             setIsImporting(false);
+            // Store analysis result for display
+            if (d.analysis || d.profileComparison || d.memoriesAdded) {
+              setAnalysisResult({
+                analysis: d.analysis,
+                profile: d.profileComparison,
+                memoriesAdded: d.memoriesAdded || 0,
+                messagesCount: d.messagesCount || 0
+              });
+            }
           } else if (d.status === 'failed') {
             setError(d.error || 'Failed');
             setImportStatus(null);
