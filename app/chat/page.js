@@ -1938,7 +1938,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           {tabs.map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={`px-2.5 sm:px-4 py-3 text-[9px] sm:text-[10px] font-bold tracking-wider uppercase transition-colors whitespace-nowrap flex-shrink-0 ${activeTab === tab ? 'text-orange-500 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-300'}`}>
-              {tab === 'soulprint' ? '🪪' : tab === 'imports' ? '📥' : tab === 'telegram' ? '💬' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'profile' ? '👤' : '📝'} {tab}
+              {tab === 'soulprint' ? '🪪' : tab === 'imports' ? '📥' : tab === 'telegram' ? '💬' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : '📝'} {tab}
             </button>
           ))}
         </div>
