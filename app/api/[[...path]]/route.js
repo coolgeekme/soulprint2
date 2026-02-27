@@ -2145,20 +2145,20 @@ async function handleGetMessages(request) {
 
 // ── In-memory caches (per process) ───────────────────────────────────────────
 const _systemPromptCache = new Map(); // userId → { prompt, ts }
-const _rateLimitCache    = new Map(); // userId → { count, windowStart }
+const _chatRateLimitCache = new Map(); // userId → { count, windowStart }
 
-// ── Rate Limiter ──────────────────────────────────────────────────────────────
-function checkRateLimit(userId, maxPerHour = 80) {
+// ── Chat Rate Limiter (per hour) ──────────────────────────────────────────────
+function checkChatRateLimit(userId, maxPerHour = 80) {
   const now = Date.now();
   const windowMs = 60 * 60 * 1000;
-  const entry = _rateLimitCache.get(userId) || { count: 0, windowStart: now };
+  const entry = _chatRateLimitCache.get(userId) || { count: 0, windowStart: now };
   if (now - entry.windowStart > windowMs) {
     entry.count = 1;
     entry.windowStart = now;
   } else {
     entry.count++;
   }
-  _rateLimitCache.set(userId, entry);
+  _chatRateLimitCache.set(userId, entry);
   return entry.count > maxPerHour;
 }
 
