@@ -5387,6 +5387,48 @@ async function handleValidateBetaCode(request) {
   return ok({ valid: true });
 }
 
+// Send beta code via email
+async function handleAdminSendBetaCode(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { email, name } = body;
+  
+  if (!email) return err('Email required');
+
+  const db = await getDb();
+  const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
+  
+  if (!betaCode || !betaCode.code) {
+    return err('No beta code configured. Create one first in Settings.');
+  }
+
+  // Check if expired
+  if (betaCode.expires_at && new Date(betaCode.expires_at) < new Date()) {
+    return err('Beta code has expired. Please create a new one.');
+  }
+
+  // Send the email
+  const result = await sendBetaCodeEmail(email, betaCode.code, name);
+  
+  if (!result.success) {
+    return err(`Failed to send email: ${result.error}`);
+  }
+
+  // Log the send
+  await db.collection('beta_code_sends').insertOne({
+    id: uuidv4(),
+    email,
+    name: name || null,
+    code: betaCode.code,
+    sent_by: admin.id,
+    sent_at: new Date(),
+  });
+
+  return ok({ success: true, message: `Beta code sent to ${email}` });
+}
+
 // ============================================================
 // CLOUD IMPORT (for large files)
 // ============================================================
