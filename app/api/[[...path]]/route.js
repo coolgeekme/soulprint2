@@ -10987,6 +10987,8 @@ export async function DELETE(request, { params }) {
       return handleAdminDeleteBlogPost(request, postId);
     }
     if (pathStr === 'admin/beta-code') return handleAdminDeleteBetaCode(request);
+    if (pathStr === 'admin/beta-groups') return handleAdminDeleteBetaGroup(request);
+    if (pathStr === 'admin/beta-codes') return handleAdminDeleteBetaCodeV2(request);
     return err('Not found', 404);
   } catch (error) {
     console.error('DELETE error:', error);
