@@ -168,6 +168,14 @@ export default function AuthPage() {
             <p className="text-red-400 text-xs text-center bg-red-500/10 border border-red-500/20 rounded-lg py-2.5 px-3">{error}</p>
           )}
 
+          {/* Terms Agreement */}
+          <p className="text-center text-[10px] text-gray-500 px-2">
+            By continuing, you agree to our{' '}
+            <Link href="/terms" className="text-orange-500 hover:text-orange-400 underline">Terms of Service</Link>
+            {' '}and{' '}
+            <Link href="/privacy" className="text-orange-500 hover:text-orange-400 underline">Privacy Policy</Link>.
+          </p>
+
           {/* Submit */}
           <button
             type="submit"
