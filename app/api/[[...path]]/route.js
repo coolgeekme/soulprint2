@@ -7833,7 +7833,7 @@ async function handleTelegramWebhook(request) {
   }
 
   // ── Best Practice: Rate Limiting for Telegram ─────────────────────────────
-  if (checkRateLimit(userId, 60)) {
+  if (checkChatRateLimit(userId, 60)) {
     await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, '⚠️ You\'ve sent too many messages. Please wait a bit before sending more.');
     return ok({ ok: true });
   }
