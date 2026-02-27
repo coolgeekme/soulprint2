@@ -1,9 +1,123 @@
 // LANDING PAGE - Route: /
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, Twitter, Github, Linkedin, Youtube, Instagram } from 'lucide-react';
+import { ChevronDown, ChevronRight, Twitter, Github, Linkedin, Youtube, Instagram, Calendar, User, ArrowRight } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
+
+// Blog Preview Component
+function BlogPreview() {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/blog/posts?limit=3')
+      .then(r => r.json())
+      .then(data => {
+        setPosts(data.posts || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const formatDate = (date) => {
+    if (!date) return '';
+    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // Don't show section if no posts
+  if (!loading && posts.length === 0) return null;
+
+  return (
+    <section className="bg-white py-20 px-8">
+      <div className="max-w-5xl mx-auto">
+        <div className="flex items-center justify-between mb-12">
+          <div>
+            <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-2">
+              LATEST NEWS
+            </p>
+            <h2 className="font-condensed font-black text-gray-900 text-3xl md:text-4xl uppercase">
+              From the Blog
+            </h2>
+          </div>
+          <Link 
+            href="/blog" 
+            className="hidden sm:inline-flex items-center gap-2 text-orange-500 hover:text-orange-600 font-medium text-sm transition-colors"
+          >
+            View all posts <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="bg-gray-100 rounded-2xl h-80 animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {posts.map(post => (
+              <Link 
+                key={post.id}
+                href={`/blog/${post.slug}`}
+                className="group bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:border-orange-500/50 hover:shadow-lg transition-all duration-300"
+              >
+                {/* Image */}
+                {post.featured_image ? (
+                  <div className="aspect-video bg-gray-200 overflow-hidden">
+                    <img 
+                      src={post.featured_image} 
+                      alt={post.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  </div>
+                ) : (
+                  <div className="aspect-video bg-gradient-to-br from-orange-100 to-pink-100 flex items-center justify-center">
+                    <SoulPrintLogo size={40} />
+                  </div>
+                )}
+                
+                {/* Content */}
+                <div className="p-6">
+                  {post.category && (
+                    <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">
+                      {post.category}
+                    </span>
+                  )}
+                  <h3 className="font-condensed font-bold text-gray-900 text-lg mt-2 mb-3 group-hover:text-orange-600 transition-colors line-clamp-2 uppercase">
+                    {post.title}
+                  </h3>
+                  <p className="text-gray-600 text-sm line-clamp-2 mb-4">
+                    {post.excerpt}
+                  </p>
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <User className="w-3 h-3" />
+                      {post.author}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {formatDate(post.published_at)}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-8 text-center sm:hidden">
+          <Link 
+            href="/blog" 
+            className="inline-flex items-center gap-2 text-orange-500 hover:text-orange-600 font-medium text-sm transition-colors"
+          >
+            View all posts <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 const HERO_IMAGE = "https://images.unsplash.com/photo-1453396450673-3fe83d2db2c4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwzfHxkYXJrJTIwcG9ydHJhaXR8ZW58MHx8fGJsYWNrX2FuZF93aGl0ZXwxNzcxOTcxNzQ3fDA&ixlib=rb-4.1.0&q=85";
 const FEATURE_IMAGES = [
