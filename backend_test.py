@@ -281,35 +281,37 @@ class LayeredAssessmentTester:
             )
 
     def run_all_tests(self):
-        """Run comprehensive video generation fix tests"""
-        self.log("🎬 STARTING SOULPRINT ENGINE VIDEO GENERATION FIX TESTING")
+        """Run comprehensive layered assessment system tests"""
+        self.log("🧠 STARTING SOULPRINT ENGINE LAYERED ASSESSMENT TESTING")
         self.log(f"Base URL: {self.base_url}")
         self.log(f"Test credentials: {TEST_EMAIL}")
         
-        # Step 1: Authenticate
+        # Step 1: Test assessment settings (no auth)
+        self.test_assessment_settings()
+        
+        # Step 2: Authenticate
         if not self.authenticate():
             self.log("❌ Cannot proceed without authentication")
             return False
         
-        # Step 2: Test media generate endpoint validation
-        self.test_media_generate_validation()
+        # Step 3: Test layered assessment questions
+        self.test_layered_questions()
         
-        # Step 3: Test invalid task ID handling (tests fix logic)
-        self.test_invalid_task_id_handling()
+        # Step 4: Test communication profile (before assessment)
+        self.test_communication_profile()
         
-        # Step 4: Test with runway model if available
-        success, task_id = self.test_video_generation_runway()
-        if success and task_id:
-            # Test status endpoint with real task ID
-            self.test_video_status_endpoint_logic(task_id)
-        else:
-            self.log("⚠️ Runway model test failed, testing status endpoint logic with mock task ID")
-            # Test with a mock task ID to verify endpoint logic
-            self.test_video_status_endpoint_logic("mock-task-id-for-testing")
+        # Step 5: Test answer submission
+        answer_success = self.test_layered_answer_submission()
+        
+        # Step 6: Test completion (may fail if not enough answers)
+        self.test_layered_completion()
+        
+        # Step 7: Test communication profile (after assessment attempts)
+        self.test_communication_profile()
         
         # Summary
         self.log(f"\n{'='*60}")
-        self.log("🎬 VIDEO GENERATION FIX TEST SUMMARY")
+        self.log("🧠 LAYERED ASSESSMENT SYSTEM TEST SUMMARY")
         self.log(f"{'='*60}")
         
         # Detailed results
@@ -333,22 +335,23 @@ class LayeredAssessmentTester:
                         self.log(f"    Details: {result['details']}")
         
         self.log(f"\n🔍 KEY FINDINGS:")
-        self.log(f"   • Testing handleMediaStatus function fix")
-        self.log(f"   • Primary issue: Models with useJobsApi=true were calling undefined endpoints")
-        self.log(f"   • Fix: Route to 'jobs/recordInfo' endpoint for Jobs API models")
-        self.log(f"   • Fix: Parse resultJson field for Jobs API response format")
-        self.log(f"   • Success criteria: No 'recordInfo is null' errors")
-        self.log(f"   • Success criteria: No 'undefined' endpoint errors")
+        self.log(f"   • Testing new Layered Assessment System")
+        self.log(f"   • Endpoints: GET /assessment/layered/questions")
+        self.log(f"   • Endpoints: POST /assessment/layered/answer")  
+        self.log(f"   • Endpoints: POST /assessment/layered/complete")
+        self.log(f"   • Endpoints: GET /assessment/settings")
+        self.log(f"   • Endpoints: GET /profile/communication")
+        self.log(f"   • Test Flow: Questions → Answers → Complete → Profile")
         
         return failed == 0
 
 def main():
-    tester = VideoGenerationTester()
+    tester = LayeredAssessmentTester()
     
     try:
         success = tester.run_all_tests()
         if success:
-            print(f"\n🎉 ALL TESTS PASSED! Video generation fix appears to be working correctly.")
+            print(f"\n🎉 ALL TESTS PASSED! Layered Assessment System appears to be working correctly.")
             sys.exit(0)
         else:
             print(f"\n⚠️  SOME TESTS FAILED. Check the detailed results above.")
