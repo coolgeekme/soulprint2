@@ -19,6 +19,7 @@ const TABS = [
   { id: 'blog', label: 'Blog', icon: PenSquare },
   { id: 'announcements', label: 'Announcements', icon: Megaphone },
   { id: 'feedback', label: 'Feedback', icon: MessageCircle },
+  { id: 'betacodes', label: 'Beta Codes', icon: KeyRound },
   { id: 'assessments', label: 'Assessments', icon: FileText },
   { id: 'imports', label: 'Imports', icon: Upload },
   { id: 'settings', label: 'Settings', icon: Settings },
