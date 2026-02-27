@@ -2,11 +2,16 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { KeyRound, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 export default function WaitlistPage() {
   const router = useRouter();
   const [botName, setBotName] = useState('SoulPrint');
+  const [accessCode, setAccessCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('sp_token');
@@ -22,11 +27,51 @@ export default function WaitlistPage() {
       .catch(() => {});
   }, []);
 
+  async function handleAccessCode(e) {
+    e.preventDefault();
+    if (!accessCode.trim()) {
+      setError('Please enter an access code');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    
+    try {
+      const token = localStorage.getItem('sp_token');
+      const res = await fetch('/api/auth/redeem-code', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ code: accessCode.trim().toUpperCase() }),
+      });
+
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setError(data.error || 'Invalid access code');
+        setLoading(false);
+        return;
+      }
+
+      // Success - show checkmark then redirect
+      setSuccess(true);
+      setTimeout(() => {
+        router.push('/chat');
+      }, 1500);
+    } catch (err) {
+      setError('Failed to verify code. Please try again.');
+    }
+    setLoading(false);
+  }
+
   return (
     <div className="min-h-screen grid-bg flex flex-col items-center justify-center px-4 text-center relative overflow-hidden">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.15)_0%,transparent_70%)]" />
 
-      <div className="relative z-10 max-w-md">
+      <div className="relative z-10 max-w-md w-full">
         <SoulPrintLogo size={64} />
 
         <h1 className="font-condensed font-black text-white text-4xl mt-6 mb-4 uppercase tracking-tight">
@@ -43,7 +88,60 @@ export default function WaitlistPage() {
           <p className="text-gray-500 text-xs">We&apos;ll notify you when access is granted</p>
         </div>
 
-        <Link href="/" className="btn-orange inline-block px-8 py-4 rounded-xl text-sm">
+        {/* Access Code Section */}
+        <div className="mb-8 p-5 rounded-2xl bg-[#111] border border-white/10">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <KeyRound className="w-4 h-4 text-orange-500" />
+            <p className="text-white text-sm font-medium">Have an Access Code?</p>
+          </div>
+          <p className="text-gray-500 text-xs mb-4">
+            Enter your beta access code to skip the waitlist
+          </p>
+
+          {success ? (
+            <div className="flex flex-col items-center gap-2 py-4">
+              <CheckCircle2 className="w-10 h-10 text-green-500" />
+              <p className="text-green-400 text-sm font-medium">Access Granted!</p>
+              <p className="text-gray-500 text-xs">Redirecting to app...</p>
+            </div>
+          ) : (
+            <form onSubmit={handleAccessCode} className="space-y-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="ENTER ACCESS CODE"
+                  value={accessCode}
+                  onChange={e => setAccessCode(e.target.value.toUpperCase())}
+                  className="w-full bg-black border border-white/10 text-white placeholder-gray-600 text-center text-sm tracking-[0.3em] font-mono py-3 px-4 rounded-lg focus:border-orange-500/50 transition-colors uppercase"
+                />
+              </div>
+
+              {error && (
+                <div className="flex items-center justify-center gap-2 text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg py-2">
+                  <XCircle className="w-3.5 h-3.5" />
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading || !accessCode.trim()}
+                className="w-full btn-orange py-3 rounded-lg text-sm tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    VERIFYING...
+                  </>
+                ) : (
+                  'REDEEM CODE →'
+                )}
+              </button>
+            </form>
+          )}
+        </div>
+
+        <Link href="/" className="btn-orange inline-block px-8 py-4 rounded-xl text-sm bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300">
           GOT IT — BACK TO HOME
         </Link>
 
