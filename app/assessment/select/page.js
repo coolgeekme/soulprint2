@@ -122,7 +122,7 @@ export default function AssessmentSelectPage() {
         {/* Skip option */}
         <div className="mt-8 text-center">
           <button
-            onClick={() => router.push('/app')}
+            onClick={() => router.push('/chat')}
             className="text-gray-500 text-sm hover:text-gray-400 transition-colors"
           >
             Skip for now — I'll learn as we chat
