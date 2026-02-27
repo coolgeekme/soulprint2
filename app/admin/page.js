@@ -2135,99 +2135,170 @@ export default function AdminPage() {
               <p className="text-gray-600 text-xs mt-0.5 capitalize">{adminRole} access</p>
             </div>
             {activeTab === 'metrics' && (
-              <button onClick={() => loadMetrics(token)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors px-3 py-1.5 bg-white/3 border border-white/8 rounded-lg">
-                <RefreshCw className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Refresh</span>
-              </button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
+                  {[
+                    { id: 'quick', label: 'Quick Stats' },
+                    { id: 'users', label: 'User Metrics' },
+                    { id: 'engagement', label: 'Engagement' },
+                    { id: 'costs', label: 'Costs' },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setMetricsSubTab(tab.id)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                        metricsSubTab === tab.id 
+                          ? 'bg-orange-500 text-white' 
+                          : 'text-gray-500 hover:text-white'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-500" />
+                  <select
+                    value={dateRange}
+                    onChange={e => setDateRange(e.target.value)}
+                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-orange-500/50 outline-none"
+                  >
+                    <option value="7d">Last 7 days</option>
+                    <option value="30d">Last 30 days</option>
+                    <option value="90d">Last 90 days</option>
+                    <option value="all">All time</option>
+                  </select>
+                  <button onClick={() => loadMetrics(token)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors px-3 py-1.5 bg-white/3 border border-white/8 rounded-lg">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
             )}
-          </div>
 
           {activeTab === 'metrics' && metrics && (
             <div className="space-y-4 sm:space-y-6">
-              {/* Row 1: Users & Activity */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <MetricCard label="Total Users" value={metrics.total_users} sub={`${metrics.accepted_users || 0} approved`} icon={Users} color="orange" />
-                <MetricCard label="WAU" value={metrics.wau} sub="Weekly Active" icon={TrendingUp} color="green" />
-                <MetricCard label="Day 7 Ret." value={metrics.day7_retention != null ? `${metrics.day7_retention}%` : '—'} icon={UserCheck} color="blue" />
-                <MetricCard label="CSAT" value={metrics.csat != null ? `${metrics.csat}%` : '—'} sub={`${metrics.thumbs_up || 0}↑ ${metrics.thumbs_down || 0}↓`} icon={ThumbsUp} color="purple" />
-              </div>
+              {/* Quick Stats Sub-tab */}
+              {metricsSubTab === 'quick' && (
+                <>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <MetricCard label="Total Users" value={metrics.total_users} sub={`${metrics.accepted_users || 0} approved`} icon={Users} color="orange" />
+                    <MetricCard label="WAU" value={metrics.wau} sub="Weekly Active" icon={TrendingUp} color="green" />
+                    <MetricCard label="Day 7 Ret." value={metrics.day7_retention != null ? `${metrics.day7_retention}%` : '—'} icon={UserCheck} color="blue" />
+                    <MetricCard label="CSAT" value={metrics.csat != null ? `${metrics.csat}%` : '—'} sub={`${metrics.thumbs_up || 0}↑ ${metrics.thumbs_down || 0}↓`} icon={ThumbsUp} color="purple" />
+                  </div>
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                    <MetricCard label="Total Msgs" value={metrics.total_messages} icon={MessageSquare} color="green" />
+                    <MetricCard label="New (30d)" value={metrics.recent_signups_30d} icon={Users} color="blue" />
+                    <MetricCard
+                      label="Est. Monthly Total"
+                      value={metrics.est_projected_monthly_cost != null ? `$${metrics.est_projected_monthly_cost.toFixed(3)}` : '—'}
+                      sub="LLM costs"
+                      icon={DollarSign}
+                      color="orange"
+                    />
+                  </div>
+                </>
+              )}
 
-              {/* Row 2: Engagement */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                <MetricCard label="Sess/User (7d)" value={metrics.avg_sessions_per_user_7d} icon={Clock} color="orange" />
-                <MetricCard label="Msgs/Session" value={metrics.avg_messages_per_session} icon={MessageSquare} color="green" />
-                <MetricCard label="Assessment" value={`${metrics.assessment_completion_rate}%`} icon={FileText} color="blue" />
-                <MetricCard label="Import Rate" value={`${metrics.import_adoption_rate}%`} icon={Upload} color="purple" />
-              </div>
+              {/* User Metrics Sub-tab */}
+              {metricsSubTab === 'users' && (
+                <>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <MetricCard label="Total Users" value={metrics.total_users} sub={`${metrics.accepted_users || 0} approved`} icon={Users} color="orange" />
+                    <MetricCard label="New (30d)" value={metrics.recent_signups_30d} icon={Users} color="blue" />
+                    <MetricCard label="Day 7 Ret." value={metrics.day7_retention != null ? `${metrics.day7_retention}%` : '—'} icon={UserCheck} color="green" />
+                    <MetricCard label="Multi-Session" value={`${metrics.multi_session_rate}%`} sub="2+ convos" icon={Database} color="purple" />
+                  </div>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <MetricCard label="WAU" value={metrics.wau} sub="Weekly Active" icon={TrendingUp} color="orange" />
+                    <MetricCard label="Assessment" value={`${metrics.assessment_completion_rate}%`} icon={FileText} color="blue" />
+                    <MetricCard label="Import Rate" value={`${metrics.import_adoption_rate}%`} icon={Upload} color="green" />
+                    <MetricCard label="CSAT" value={metrics.csat != null ? `${metrics.csat}%` : '—'} sub={`${metrics.thumbs_up || 0}↑ ${metrics.thumbs_down || 0}↓`} icon={ThumbsUp} color="purple" />
+                  </div>
+                </>
+              )}
 
-              {/* Row 3: More stats */}
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                <MetricCard label="Multi-Session" value={`${metrics.multi_session_rate}%`} sub="2+ convos" icon={Database} color="orange" />
-                <MetricCard label="Total Msgs" value={metrics.total_messages} icon={MessageSquare} color="green" />
-                <MetricCard label="New (30d)" value={metrics.recent_signups_30d} icon={Users} color="blue" />
-              </div>
+              {/* Engagement Sub-tab */}
+              {metricsSubTab === 'engagement' && (
+                <>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <MetricCard label="Sess/User (7d)" value={metrics.avg_sessions_per_user_7d} icon={Clock} color="orange" />
+                    <MetricCard label="Msgs/Session" value={metrics.avg_messages_per_session} icon={MessageSquare} color="green" />
+                    <MetricCard label="Total Msgs" value={metrics.total_messages} icon={MessageSquare} color="blue" />
+                    <MetricCard label="CSAT" value={metrics.csat != null ? `${metrics.csat}%` : '—'} sub={`${metrics.thumbs_up || 0}↑ ${metrics.thumbs_down || 0}↓`} icon={ThumbsUp} color="purple" />
+                  </div>
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                    <MetricCard label="Assessment" value={`${metrics.assessment_completion_rate}%`} sub="Completion rate" icon={FileText} color="orange" />
+                    <MetricCard label="Import Rate" value={`${metrics.import_adoption_rate}%`} sub="Data imports" icon={Upload} color="green" />
+                    <MetricCard label="Multi-Session" value={`${metrics.multi_session_rate}%`} sub="Users with 2+ convos" icon={Database} color="blue" />
+                  </div>
+                </>
+              )}
 
-              {/* Cost Section */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <DollarSign className="w-4 h-4 text-orange-400" />
-                  <h3 className="text-sm font-bold text-white tracking-wide">LLM Cost Estimates</h3>
-                  <span className="text-[10px] text-gray-600 bg-white/5 border border-white/8 px-2 py-0.5 rounded-full">mid-2025 pricing</span>
-                </div>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                  <MetricCard
-                    label="Est. Cost / User / Month"
-                    value={metrics.est_cost_per_user_month != null ? `$${metrics.est_cost_per_user_month.toFixed(4)}` : '—'}
-                    sub="Based on last 30d usage"
-                    icon={DollarSign}
-                    color="green"
-                  />
-                  <MetricCard
-                    label="Est. Monthly Total"
-                    value={metrics.est_projected_monthly_cost != null ? `$${metrics.est_projected_monthly_cost.toFixed(3)}` : '—'}
-                    sub={`Across ${metrics.accepted_users || 0} active users`}
-                    icon={TrendingUp}
-                    color="orange"
-                  />
-                  <MetricCard
-                    label="Total Est. Cost (All-time)"
-                    value={metrics.est_total_cost != null ? `$${metrics.est_total_cost.toFixed(3)}` : '—'}
-                    sub={`From ${metrics.total_messages || 0} total messages`}
-                    icon={Zap}
-                    color="purple"
-                  />
-                </div>
+              {/* Costs Sub-tab */}
+              {metricsSubTab === 'costs' && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <DollarSign className="w-4 h-4 text-orange-400" />
+                    <h3 className="text-sm font-bold text-white tracking-wide">LLM Cost Estimates</h3>
+                    <span className="text-[10px] text-gray-600 bg-white/5 border border-white/8 px-2 py-0.5 rounded-full">mid-2025 pricing</span>
+                  </div>
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                    <MetricCard
+                      label="Est. Cost / User / Month"
+                      value={metrics.est_cost_per_user_month != null ? `$${metrics.est_cost_per_user_month.toFixed(4)}` : '—'}
+                      sub="Based on last 30d usage"
+                      icon={DollarSign}
+                      color="green"
+                    />
+                    <MetricCard
+                      label="Est. Monthly Total"
+                      value={metrics.est_projected_monthly_cost != null ? `$${metrics.est_projected_monthly_cost.toFixed(3)}` : '—'}
+                      sub={`Across ${metrics.accepted_users || 0} active users`}
+                      icon={TrendingUp}
+                      color="orange"
+                    />
+                    <MetricCard
+                      label="Total Est. Cost (All-time)"
+                      value={metrics.est_total_cost != null ? `$${metrics.est_total_cost.toFixed(3)}` : '—'}
+                      sub={`From ${metrics.total_messages || 0} total messages`}
+                      icon={Zap}
+                      color="purple"
+                    />
+                  </div>
 
-                {/* Cost by model breakdown */}
-                {costByModelEntries.length > 0 && (
-                  <div className="bg-[#111] border border-white/8 rounded-xl p-4">
-                    <p className="text-[10px] font-bold text-gray-600 tracking-widest uppercase mb-3">Cost Breakdown by Model</p>
-                    <div className="space-y-2">
-                      {costByModelEntries.map(([modelName, data]) => {
-                        const maxCost = costByModelEntries[0][1].cost || 1;
-                        const pct = Math.round((data.cost / maxCost) * 100);
-                        return (
-                          <div key={modelName} className="flex items-center gap-3">
-                            <span className="text-xs text-gray-400 w-48 truncate flex-shrink-0">{modelName}</span>
-                            <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
-                              <div className="h-full bg-orange-500/60 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  {/* Cost by model breakdown */}
+                  {costByModelEntries.length > 0 && (
+                    <div className="bg-[#111] border border-white/8 rounded-xl p-4">
+                      <p className="text-[10px] font-bold text-gray-600 tracking-widest uppercase mb-3">Cost Breakdown by Model</p>
+                      <div className="space-y-2">
+                        {costByModelEntries.map(([modelName, data]) => {
+                          const maxCost = costByModelEntries[0][1].cost || 1;
+                          const pct = Math.round((data.cost / maxCost) * 100);
+                          return (
+                            <div key={modelName} className="flex items-center gap-3">
+                              <span className="text-xs text-gray-400 w-48 truncate flex-shrink-0">{modelName}</span>
+                              <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                                <div className="h-full bg-orange-500/60 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="text-xs text-orange-400 w-16 text-right flex-shrink-0">${data.cost.toFixed(4)}</span>
+                              <span className="text-[10px] text-gray-600 w-16 text-right flex-shrink-0">{data.messages} msgs</span>
                             </div>
-                            <span className="text-xs text-orange-400 w-16 text-right flex-shrink-0">${data.cost.toFixed(4)}</span>
-                            <span className="text-[10px] text-gray-600 w-16 text-right flex-shrink-0">{data.messages} msgs</span>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
+                      <p className="text-[10px] text-gray-700 mt-3 pt-3 border-t border-white/5">
+                        Prices based on: GPT-4o $5/$15, GPT-4o-mini $0.15/$0.60, Claude Sonnet $3/$15, Gemini Flash $0.075/$0.30, Sonar $1/$1 per 1M tokens (input/output)
+                      </p>
                     </div>
-                    <p className="text-[10px] text-gray-700 mt-3 pt-3 border-t border-white/5">
-                      Prices based on: GPT-4o $5/$15, GPT-4o-mini $0.15/$0.60, Claude Sonnet $3/$15, Gemini Flash $0.075/$0.30, Sonar $1/$1 per 1M tokens (input/output)
-                    </p>
-                  </div>
-                )}
-                {costByModelEntries.length === 0 && (
-                  <div className="bg-[#111] border border-white/8 rounded-xl p-5 text-center text-gray-600 text-xs">
-                    Cost breakdown will appear here after users start chatting
-                  </div>
-                )}
-              </div>
+                  )}
+                  {costByModelEntries.length === 0 && (
+                    <div className="bg-[#111] border border-white/8 rounded-xl p-5 text-center text-gray-600 text-xs">
+                      Cost breakdown will appear here after users start chatting
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
