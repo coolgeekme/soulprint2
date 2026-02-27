@@ -8551,6 +8551,10 @@ export async function GET(request, { params }) {
     if (pathStr === 'auth/me') return handleMe(request);
     if (pathStr === 'assessment/questions') return handleGetQuestions(request);
     if (pathStr === 'assessment/progress') return handleGetProgress(request);
+    if (pathStr === 'assessment/layered/questions') return handleGetLayeredQuestions(request);
+    if (pathStr === 'assessment/settings') return handleGetAssessmentSettings(request);
+    if (pathStr === 'assessment/validation/next') return handleGetNextValidation(request);
+    if (pathStr === 'profile/communication') return handleGetCommunicationProfile(request);
     if (pathStr === 'conversations') return handleGetConversations(request);
     if (pathStr === 'messages') return handleGetMessages(request);
     if (pathStr === 'imports') return handleGetImports(request);
