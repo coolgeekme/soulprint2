@@ -2988,6 +2988,11 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
             </div>
           )}
 
+          {/* PRIVACY TAB */}
+          {activeTab === 'privacy' && (
+            <PrivacyTab token={token} />
+          )}
+
           {/* FEEDBACK TAB */}
           {activeTab === 'feedback' && (
             <div className="space-y-5">
