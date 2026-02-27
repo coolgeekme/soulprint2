@@ -2690,14 +2690,31 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           )}
 
           {/* Legal Links Footer */}
-          <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-center gap-4">
-            <Link href="/terms" className="text-gray-500 text-xs hover:text-orange-500 transition-colors">
-              Terms of Service
-            </Link>
-            <span className="text-gray-700">•</span>
-            <Link href="/privacy" className="text-gray-500 text-xs hover:text-orange-500 transition-colors">
-              Privacy Policy
-            </Link>
+          <div className="mt-6 pt-4 border-t border-white/10">
+            {/* Logout Button */}
+            <button
+              onClick={() => {
+                if (confirm('Are you sure you want to log out?')) {
+                  localStorage.removeItem('sp_token');
+                  localStorage.removeItem('sp_user');
+                  window.location.href = '/auth';
+                }
+              }}
+              className="w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-red-400 text-sm font-medium transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Log Out
+            </button>
+            
+            <div className="flex items-center justify-center gap-4">
+              <Link href="/terms" className="text-gray-500 text-xs hover:text-orange-500 transition-colors">
+                Terms of Service
+              </Link>
+              <span className="text-gray-700">•</span>
+              <Link href="/privacy" className="text-gray-500 text-xs hover:text-orange-500 transition-colors">
+                Privacy Policy
+              </Link>
+            </div>
           </div>
         </div>
       </div>
