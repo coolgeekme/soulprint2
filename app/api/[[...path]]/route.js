@@ -9156,6 +9156,12 @@ export async function GET(request, { params }) {
     if (pathStr === 'assessment/settings') return handleGetAssessmentSettings(request);
     if (pathStr === 'assessment/validation/next') return handleGetNextValidation(request);
     if (pathStr === 'profile/communication') return handleGetCommunicationProfile(request);
+    if (pathStr === 'blog/posts') return handleGetBlogPosts(request);
+    if (pathStr.startsWith('blog/posts/')) {
+      const slug = pathArr[2];
+      return handleGetBlogPost(request, slug);
+    }
+    if (pathStr === 'admin/blog/posts') return handleAdminGetBlogPosts(request);
     if (pathStr === 'conversations') return handleGetConversations(request);
     if (pathStr === 'messages') return handleGetMessages(request);
     if (pathStr === 'imports') return handleGetImports(request);
