@@ -3229,13 +3229,13 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
 
               {/* Retake Assessment Section */}
               <div className="pt-5 border-t border-white/10">
-                <h3 className="text-white text-sm font-semibold mb-2">📋 36-Question Assessment</h3>
+                <h3 className="text-white text-sm font-semibold mb-2">📋 Retake Assessment</h3>
                 <p className="text-gray-500 text-xs mb-4">
                   Your SoulPrint personality assessment helps me understand your communication style, preferences, and goals. 
                   You can retake it anytime to update your profile.
                 </p>
                 <button
-                  onClick={handleResetAssessment}
+                  onClick={() => setShowAssessmentChoice(true)}
                   className="w-full py-2.5 px-4 bg-white/5 border border-white/10 rounded-lg text-white text-sm hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
                 >
                   <RefreshCw className="w-4 h-4" />
@@ -3243,6 +3243,59 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                 </button>
                 <p className="text-gray-700 text-[10px] mt-2 text-center">Your previous answers will be archived</p>
               </div>
+
+              {/* Assessment Choice Modal */}
+              {showAssessmentChoice && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                  <div className="bg-[#111] border border-white/10 rounded-2xl p-6 max-w-md w-full">
+                    <h2 className="text-white font-semibold text-lg mb-2">Choose Assessment Type</h2>
+                    <p className="text-gray-500 text-sm mb-6">Your previous answers will be archived. Select which assessment you'd like to take:</p>
+                    
+                    <div className="space-y-3">
+                      {/* Quick Start Option */}
+                      <button
+                        onClick={() => handleResetAssessment('quick')}
+                        className="w-full p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl text-left hover:border-green-500/50 transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                            <Zap className="w-5 h-5 text-green-400" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-white font-medium group-hover:text-green-300 transition-colors">Quick Start</h3>
+                            <p className="text-gray-500 text-xs mt-0.5">6 questions • ~2 minutes</p>
+                          </div>
+                        </div>
+                        <p className="text-gray-400 text-xs mt-3">Perfect for a quick profile refresh. Covers the essentials.</p>
+                      </button>
+                      
+                      {/* Full Assessment Option */}
+                      <button
+                        onClick={() => handleResetAssessment('full')}
+                        className="w-full p-4 bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/30 rounded-xl text-left hover:border-orange-500/50 transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center">
+                            <FileText className="w-5 h-5 text-orange-400" />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-white font-medium group-hover:text-orange-300 transition-colors">Full Assessment</h3>
+                            <p className="text-gray-500 text-xs mt-0.5">36 questions • ~10 minutes</p>
+                          </div>
+                        </div>
+                        <p className="text-gray-400 text-xs mt-3">Comprehensive analysis across all 6 pillars for the most accurate profile.</p>
+                      </button>
+                    </div>
+                    
+                    <button
+                      onClick={() => setShowAssessmentChoice(false)}
+                      className="w-full mt-4 py-2 text-gray-500 hover:text-white text-sm transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Install App Section */}
               <div className="pt-5 border-t border-white/10">
