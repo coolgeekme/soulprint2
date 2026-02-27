@@ -3696,6 +3696,96 @@ export default function ChatPage() {
       .catch(() => {});
   }, [token]);
 
+  // Check for gradual assessment questions
+  const checkGradualQuestion = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/assessment/gradual/next', { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+      const data = await res.json();
+      
+      if (data.hasQuestion && data.question) {
+        setGradualQuestion(data.question);
+        setGradualProgress(data.progress);
+        // Don't show immediately - wait a moment after conversation activity
+        setTimeout(() => setShowGradualPrompt(true), 2000);
+      } else if (data.progress) {
+        setGradualProgress(data.progress);
+      }
+    } catch (e) {
+      console.error('Failed to check gradual question:', e);
+    }
+  }, [token]);
+
+  // Check for gradual question after messages change (but not too often)
+  useEffect(() => {
+    if (!token || messages.length < 5) return;
+    
+    // Only check every 5 messages after first 5
+    if (messages.length % 5 !== 0) return;
+    
+    // Don't check if we already have a question pending
+    if (showGradualPrompt || gradualQuestion) return;
+    
+    checkGradualQuestion();
+  }, [messages.length, token, showGradualPrompt, gradualQuestion, checkGradualQuestion]);
+
+  // Submit gradual assessment answer
+  const submitGradualAnswer = async () => {
+    if (!gradualAnswer.trim() || !gradualQuestion) return;
+    
+    setSubmittingGradual(true);
+    try {
+      const res = await fetch('/api/assessment/gradual/answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ 
+          question_id: gradualQuestion.id, 
+          answer: gradualAnswer 
+        }),
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setGradualProgress(data.progress);
+        setShowGradualPrompt(false);
+        setGradualQuestion(null);
+        setGradualAnswer('');
+        
+        // Show thank you message in chat
+        setMessages(prev => [...prev, {
+          id: `gradual-${Date.now()}`,
+          role: 'assistant',
+          content: `✨ **Thanks for sharing!** Your profile is now ${data.progress.percentage}% complete across all 6 pillars.${data.progress.isComplete ? '\n\n🎉 **Congratulations!** Your full profile is now complete!' : ''}`,
+          created_at: new Date().toISOString(),
+        }]);
+      }
+    } catch (e) {
+      console.error('Failed to submit gradual answer:', e);
+    }
+    setSubmittingGradual(false);
+  };
+
+  // Skip gradual question for now
+  const skipGradualQuestion = async () => {
+    if (!gradualQuestion) return;
+    
+    try {
+      await fetch('/api/assessment/gradual/skip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ question_id: gradualQuestion.id }),
+      });
+    } catch (e) {
+      console.error('Failed to skip gradual question:', e);
+    }
+    
+    setShowGradualPrompt(false);
+    setGradualQuestion(null);
+    setGradualAnswer('');
+  };
+
   const sendMessage = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || loading || compareLoading) return;
     const content = input.trim();
