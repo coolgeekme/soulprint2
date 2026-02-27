@@ -9261,10 +9261,226 @@ async function handleGetSoulPrint(request) {
     field: profile?.field || '',
     helpWith: profile?.help_with || [],
     
+    // Latest AI-generated SoulPrint snapshot
+    latestSnapshot: latestSnapshot ? {
+      id: latestSnapshot.id,
+      generatedAt: latestSnapshot.created_at,
+      insights: latestSnapshot.insights,
+      communicationStyle: latestSnapshot.communication_style,
+      interests: latestSnapshot.interests,
+      personality: latestSnapshot.personality,
+      growthAreas: latestSnapshot.growth_areas,
+      dataSources: latestSnapshot.data_sources,
+    } : null,
+    
+    // Previous snapshot for comparison
+    previousSnapshot: previousSnapshot ? {
+      id: previousSnapshot.id,
+      generatedAt: previousSnapshot.created_at,
+      communicationStyle: previousSnapshot.communication_style,
+    } : null,
+    
     // Timestamps
     createdAt: profile?.created_at,
     lastUpdated: commProfile?.updated_at || soulProfile?.updated_at || profile?.created_at
   });
+}
+
+// Generate/Refresh SoulPrint Analysis using AI
+async function handleGenerateSoulPrint(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  
+  // Gather all data sources
+  const profile = await db.collection('profiles').findOne({ user_id: user.id });
+  const commProfile = await db.collection('communication_profiles').findOne({ user_id: user.id });
+  const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
+  
+  // Get assessment answers
+  const assessmentAnswers = await db.collection('assessment_answers')
+    .find({ user_id: user.id })
+    .toArray();
+  
+  // Get recent SoulPrint chat messages (last 100)
+  const recentMessages = await db.collection('messages')
+    .find({ user_id: user.id })
+    .sort({ created_at: -1 })
+    .limit(100)
+    .toArray();
+  
+  // Get imported messages sample (last 200)
+  const importedMessages = await db.collection('imported_messages')
+    .find({ user_id: user.id })
+    .sort({ timestamp: -1 })
+    .limit(200)
+    .toArray();
+  
+  // Get memories
+  const memories = await db.collection('memories')
+    .find({ user_id: user.id })
+    .toArray();
+  
+  // Build context for AI analysis
+  const dataSources = [];
+  let contextParts = [];
+  
+  // Assessment data
+  if (assessmentAnswers.length > 0) {
+    dataSources.push('assessment');
+    const questions = await db.collection('assessment_questions').find({}).toArray();
+    const qMap = Object.fromEntries(questions.map(q => [q.id, q.question_text]));
+    const assessmentText = assessmentAnswers.map(a => 
+      `Q: ${qMap[a.question_id] || 'Unknown'}\nA: ${a.answer_text}`
+    ).join('\n\n');
+    contextParts.push(`## Assessment Responses\n${assessmentText}`);
+  }
+  
+  // Communication profile
+  if (commProfile) {
+    dataSources.push('quick_assessment');
+    contextParts.push(`## Communication Profile Scores
+- Directness: ${commProfile.directness || 50}/100
+- Emotional Warmth: ${commProfile.emotional_warmth || 50}/100
+- Information Density: ${commProfile.information_density || 50}/100
+- Proactivity: ${commProfile.proactivity || 50}/100
+- Decision Support Preference: ${commProfile.decision_support || 'balanced'}
+- Feedback Style: ${commProfile.feedback_style || 'balanced'}`);
+  }
+  
+  // Recent SoulPrint conversations
+  if (recentMessages.length > 0) {
+    dataSources.push('soulprint_chats');
+    const chatSample = recentMessages
+      .slice(0, 50)
+      .map(m => `${m.role}: ${m.content?.substring(0, 300)}`)
+      .join('\n');
+    contextParts.push(`## Recent SoulPrint Conversations (sample)\n${chatSample}`);
+  }
+  
+  // Imported ChatGPT/Facebook messages
+  if (importedMessages.length > 0) {
+    dataSources.push('imported_history');
+    const importedSample = importedMessages
+      .slice(0, 100)
+      .map(m => m.content?.substring(0, 200))
+      .filter(Boolean)
+      .join('\n---\n');
+    contextParts.push(`## Imported Chat History (sample)\n${importedSample}`);
+  }
+  
+  // Memories
+  if (memories.length > 0) {
+    dataSources.push('memories');
+    const memoriesText = memories.map(m => `- ${m.content}`).join('\n');
+    contextParts.push(`## Stored Memories\n${memoriesText}`);
+  }
+  
+  // Soul profile insights
+  if (soulProfile?.insights) {
+    const insights = soulProfile.insights;
+    if (insights.interests?.length) {
+      contextParts.push(`## Previously Identified Interests\n${insights.interests.join(', ')}`);
+    }
+    if (insights.insights?.length) {
+      contextParts.push(`## Previous Personality Insights\n${insights.insights.join('\n')}`);
+    }
+  }
+  
+  // If no data, return error
+  if (contextParts.length === 0) {
+    return err('Not enough data to generate SoulPrint. Complete an assessment or import some chat history first.', 400);
+  }
+  
+  // Generate SoulPrint using AI
+  const analysisPrompt = `You are analyzing a user's communication patterns and personality to create their "SoulPrint" - a comprehensive profile of who they are.
+
+Based on the following data, generate a detailed SoulPrint analysis:
+
+${contextParts.join('\n\n')}
+
+---
+
+Respond with a JSON object containing:
+{
+  "summary": "A 2-3 sentence overview of who this person is",
+  "communication_style": {
+    "overall": "Brief description of their overall communication style",
+    "tone": "warm/professional/casual/formal/mixed",
+    "directness": "direct/diplomatic/balanced",
+    "detail_preference": "concise/detailed/balanced",
+    "traits": ["list", "of", "key", "communication", "traits"]
+  },
+  "personality": {
+    "overview": "Brief personality overview",
+    "strengths": ["list", "of", "strengths"],
+    "traits": ["list", "of", "personality", "traits"]
+  },
+  "interests": ["list", "of", "identified", "interests", "and", "topics"],
+  "values": ["what", "they", "seem", "to", "value"],
+  "growth_areas": ["potential", "areas", "for", "growth"],
+  "insights": ["unique", "observations", "about", "this", "person"],
+  "how_to_communicate": ["specific", "tips", "for", "communicating", "with", "them"]
+}
+
+Be specific and insightful. Base everything on the actual data provided.`;
+
+  try {
+    const OpenAI = (await import('openai')).default;
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: analysisPrompt }],
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+    });
+    
+    const analysis = JSON.parse(completion.choices[0].message.content);
+    
+    // Create snapshot
+    const snapshotId = uuidv4();
+    const snapshot = {
+      id: snapshotId,
+      user_id: user.id,
+      created_at: new Date(),
+      data_sources: dataSources,
+      insights: analysis.insights,
+      summary: analysis.summary,
+      communication_style: analysis.communication_style,
+      personality: analysis.personality,
+      interests: analysis.interests,
+      values: analysis.values,
+      growth_areas: analysis.growth_areas,
+      how_to_communicate: analysis.how_to_communicate,
+    };
+    
+    // Save snapshot
+    await db.collection('soulprint_snapshots').insertOne(snapshot);
+    
+    // Return the new snapshot
+    return ok({
+      success: true,
+      snapshot: {
+        id: snapshotId,
+        generatedAt: snapshot.created_at,
+        dataSources,
+        summary: analysis.summary,
+        communicationStyle: analysis.communication_style,
+        personality: analysis.personality,
+        interests: analysis.interests,
+        values: analysis.values,
+        growthAreas: analysis.growth_areas,
+        insights: analysis.insights,
+        howToCommunicate: analysis.how_to_communicate,
+      }
+    });
+    
+  } catch (e) {
+    console.error('SoulPrint generation failed:', e);
+    return err('Failed to generate SoulPrint analysis', 500);
+  }
 }
 
 // ============================================================
