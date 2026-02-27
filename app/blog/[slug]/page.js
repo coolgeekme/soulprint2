@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar, User, Tag, Share2, Twitter, Facebook, Linkedin } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Tag, Share2, Twitter, Facebook, Linkedin, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
@@ -12,8 +12,13 @@ export default function BlogPostPage() {
   const [post, setPost] = useState(null);
   const [relatedPosts, setRelatedPosts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
+    // Check if user is logged in
+    const token = localStorage.getItem('sp_token');
+    setIsLoggedIn(!!token);
+    
     if (params.slug) {
       fetchPost(params.slug);
     }
