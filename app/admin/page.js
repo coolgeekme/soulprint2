@@ -554,10 +554,10 @@ function UsersTab({ token, adminRole }) {
                         </select>
                         <button 
                           onClick={() => openEditForm(u)} 
-                          className="text-[10px] text-gray-600 hover:text-blue-400 transition-colors"
+                          className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
                           title="Edit user"
                         >
-                          <Edit className="w-3.5 h-3.5" />
+                          <Edit className="w-4 h-4" />
                         </button>
                         {u.role !== 'superadmin' && (
                           <button 
