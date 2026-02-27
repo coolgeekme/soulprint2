@@ -1564,15 +1564,32 @@ async function handleRegister(request) {
   const count = await db.collection('users').countDocuments();
   const role = count === 0 ? 'superadmin' : 'user';
 
+  // Check if valid beta code was provided
+  let acceptedViaBetaCode = false;
+  if (access_code && role !== 'superadmin') {
+    const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
+    if (betaCode && betaCode.code && 
+        betaCode.code.toUpperCase() === access_code.toUpperCase().trim() &&
+        (!betaCode.expires_at || new Date(betaCode.expires_at) >= new Date())) {
+      acceptedViaBetaCode = true;
+      // Increment usage count
+      await db.collection('beta_codes').updateOne(
+        { id: 'current' },
+        { $inc: { uses: 1 } }
+      );
+    }
+  }
+
   await db.collection('users').insertOne({
     id: userId,
     email: email.toLowerCase(),
     passcode_hash: hashed,
     role,
-    accepted: role === 'superadmin',
+    accepted: role === 'superadmin' || acceptedViaBetaCode,
     created_at: now,
     last_active_at: now,
     access_code_used: access_code || null,
+    beta_code_used: acceptedViaBetaCode ? access_code : null,
   });
 
   // Create empty profile
@@ -1591,7 +1608,7 @@ async function handleRegister(request) {
   });
 
   const token = generateToken(userId);
-  return ok({ token, userId, role, accepted: role === 'superadmin' });
+  return ok({ token, userId, role, accepted: role === 'superadmin' || acceptedViaBetaCode });
 }
 
 // AUTH - Login
