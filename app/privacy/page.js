@@ -115,7 +115,7 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">7. Children's Privacy</h2>
             <p className="text-gray-300 leading-relaxed">
-              SoulPrint is not intended for users under 18 years of age.
+              SoulPrint is not intended for users under 13 years of age. Users aged 13-17 must have parental or guardian permission.
             </p>
           </section>
 
