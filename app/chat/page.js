@@ -4684,6 +4684,18 @@ export default function ChatPage() {
                   </div>
                 )}
                 <div className={`min-w-0 ${msg.role === 'user' ? 'max-w-[90%] sm:max-w-[85%] lg:max-w-[80%]' : 'max-w-[95%] sm:max-w-[90%] lg:max-w-[85%]'}`}>
+                  {/* User message edit controls */}
+                  {msg.role === 'user' && !loading && (
+                    <div className="flex justify-end mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => startEditMessage(msg)}
+                        className="text-gray-600 hover:text-orange-400 transition-colors p-1 rounded"
+                        title="Edit message"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                   {/* Show image preview in user message */}
                   {msg.role === 'user' && msg.attachments?.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2 justify-end">
