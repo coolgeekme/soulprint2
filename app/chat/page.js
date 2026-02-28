@@ -5173,6 +5173,8 @@ export default function ChatPage() {
                       sendMessage();
                       // Reset height after sending
                       e.target.style.height = 'auto';
+                      // Ensure focus stays on input
+                      setTimeout(() => e.target.focus(), 50);
                     }
                     // Shift+Enter creates new line (default textarea behavior)
                   }}
@@ -5187,9 +5189,10 @@ export default function ChatPage() {
 
               <button onClick={() => {
                 sendMessage();
-                // Reset textarea height after sending
+                // Reset textarea height and refocus after sending
                 if (inputRef.current) {
                   inputRef.current.style.height = 'auto';
+                  setTimeout(() => inputRef.current?.focus(), 50);
                 }
               }}
                 disabled={(!input.trim() && attachments.length === 0 && !speech.isListening) || loading || compareLoading || (compareMode && compareModels.length === 0)}
