@@ -4395,19 +4395,29 @@ export default function ChatPage() {
       {showSidebar && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowSidebar(false)} />}
 
       {/* Sidebar */}
-      <div className={`fixed lg:relative z-50 h-full w-64 bg-[#0f0f0f] border-r border-white/5 flex flex-col transform transition-transform duration-200 ${showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="p-4 border-b border-white/5 pwa-header">
-          <div className="flex items-center gap-2 mb-3">
+      <div className={`fixed lg:relative z-50 h-full bg-[#0f0f0f] border-r border-white/5 flex flex-col transform transition-all duration-300 ${
+        sidebarCollapsed 
+          ? 'w-16 lg:w-16' 
+          : 'w-64'
+      } ${showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className={`p-4 border-b border-white/5 pwa-header ${sidebarCollapsed ? 'px-2' : ''}`}>
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} mb-3`}>
             <SoulPrintLogo size={22} />
-            <span className="font-condensed font-bold text-white text-sm tracking-widest uppercase">{assistantName}</span>
+            {!sidebarCollapsed && <span className="font-condensed font-bold text-white text-sm tracking-widest uppercase">{assistantName}</span>}
           </div>
-          <button onClick={newConversation} className="w-full btn-orange py-2.5 rounded-lg text-xs flex items-center justify-center gap-1.5">
-            <Plus className="w-3.5 h-3.5" /> New Chat
-          </button>
+          {sidebarCollapsed ? (
+            <button onClick={newConversation} className="w-full btn-orange py-2.5 rounded-lg flex items-center justify-center" title="New Chat">
+              <Plus className="w-4 h-4" />
+            </button>
+          ) : (
+            <button onClick={newConversation} className="w-full btn-orange py-2.5 rounded-lg text-xs flex items-center justify-center gap-1.5">
+              <Plus className="w-3.5 h-3.5" /> New Chat
+            </button>
+          )}
         </div>
         
-        {/* Search conversations */}
-        {conversations.length > 0 && (
+        {/* Search conversations - hidden when collapsed */}
+        {!sidebarCollapsed && conversations.length > 0 && (
           <div className="px-3 py-2 border-b border-white/5">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600" />
