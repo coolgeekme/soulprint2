@@ -36,9 +36,13 @@ const VIDEO_MODELS = [
 
 const MODELS = [
   // OpenAI
+  { value: 'gpt-5.2',      label: 'GPT-5.2 (Latest)',   provider: 'openai',      group: 'OpenAI' },
+  { value: 'gpt-5',        label: 'GPT-5',              provider: 'openai',      group: 'OpenAI' },
+  { value: 'o3',           label: 'o3 (Reasoning)',     provider: 'openai',      group: 'OpenAI' },
+  { value: 'o3-mini',      label: 'o3 Mini',            provider: 'openai',      group: 'OpenAI' },
+  { value: 'gpt-4.1',      label: 'GPT-4.1',            provider: 'openai',      group: 'OpenAI' },
   { value: 'gpt-4o',       label: 'GPT-4o',             provider: 'openai',      group: 'OpenAI' },
   { value: 'gpt-4o-mini',  label: 'GPT-4o Mini',        provider: 'openai',      group: 'OpenAI' },
-  { value: 'gpt-4.1',      label: 'GPT-4.1',            provider: 'openai',      group: 'OpenAI' },
   // Anthropic
   { value: 'claude-opus-4-5-20251101',   label: 'Claude Opus 4.5',   provider: 'anthropic', group: 'Claude' },
   { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5', provider: 'anthropic', group: 'Claude' },
