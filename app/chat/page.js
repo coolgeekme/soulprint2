@@ -4440,14 +4440,23 @@ export default function ChatPage() {
           </div>
         )}
         
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className={`flex-1 overflow-y-auto ${sidebarCollapsed ? 'p-1' : 'p-2'}`}>
           {conversations.length === 0 ? (
-            <p className="text-gray-700 text-xs text-center mt-6">No conversations yet</p>
+            !sidebarCollapsed && <p className="text-gray-700 text-xs text-center mt-6">No conversations yet</p>
           ) : filteredConversations.length === 0 ? (
-            <p className="text-gray-600 text-xs text-center mt-6">No matching conversations</p>
+            !sidebarCollapsed && <p className="text-gray-600 text-xs text-center mt-6">No matching conversations</p>
           ) : filteredConversations.map(conv => (
             <div key={conv.id} className="relative group mb-1">
-              {editingConvId === conv.id ? (
+              {sidebarCollapsed ? (
+                // Collapsed view - icon only
+                <button 
+                  onClick={() => loadConversation(conv.id)}
+                  className={`w-full flex items-center justify-center p-2.5 rounded-lg transition-all ${conv.id === conversationId ? 'bg-white/10 text-orange-400' : 'text-gray-500 hover:bg-white/5 hover:text-white'}`}
+                  title={conv.title || 'Conversation'}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                </button>
+              ) : editingConvId === conv.id ? (
                 // Editing mode - inline rename
                 <div className="flex items-center gap-1 px-2 py-1.5 bg-white/5 rounded-lg">
                   <input
