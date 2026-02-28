@@ -4604,15 +4604,14 @@ export default function ChatPage() {
           </button>
           {!sidebarCollapsed && <p className="text-gray-700 text-[10px] text-center truncate">{user?.email}</p>}
           
-          {/* Collapse/Expand toggle - desktop only */}
-          <button 
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden lg:flex items-center justify-center w-full py-2 text-gray-600 hover:text-white hover:bg-white/5 rounded-lg text-xs transition-colors"
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          {/* View Home Page link */}
+          <a 
+            href="/"
+            className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-1.5'} w-full py-2 px-3 text-gray-600 hover:text-white hover:bg-white/5 rounded-lg text-xs transition-colors`}
+            title="View Home Page"
           >
-            <ChevronLeft className={`w-4 h-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} />
-            {!sidebarCollapsed && <span className="ml-1">Collapse</span>}
-          </button>
+            <ExternalLink className="w-3.5 h-3.5" /> {!sidebarCollapsed && 'View Home Page'}
+          </a>
         </div>
       </div>
 
