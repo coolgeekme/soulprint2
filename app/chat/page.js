@@ -4584,7 +4584,7 @@ export default function ChatPage() {
           </div>
         )}
         
-        <div className={`p-3 border-t border-white/5 space-y-2 ${sidebarCollapsed ? 'px-2' : ''}`}>
+        <div className={`p-3 border-t border-white/5 space-y-2 safe-area-bottom ${sidebarCollapsed ? 'px-2' : ''}`} style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}>
           {/* Gallery button */}
           <button 
             onClick={() => setShowGallery(true)}
