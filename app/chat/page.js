@@ -4401,9 +4401,20 @@ export default function ChatPage() {
           : 'w-64'
       } ${showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className={`p-4 border-b border-white/5 pwa-header ${sidebarCollapsed ? 'px-2' : ''}`}>
-          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'gap-2'} mb-3`}>
-            <SoulPrintLogo size={22} />
-            {!sidebarCollapsed && <span className="font-condensed font-bold text-white text-sm tracking-widest uppercase">{assistantName}</span>}
+          {/* Header with collapse toggle */}
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} mb-3`}>
+            <div className={`flex items-center ${sidebarCollapsed ? '' : 'gap-2'}`}>
+              <SoulPrintLogo size={22} />
+              {!sidebarCollapsed && <span className="font-condensed font-bold text-white text-sm tracking-widest uppercase">{assistantName}</span>}
+            </div>
+            {/* Collapse toggle button - desktop only */}
+            <button 
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="hidden lg:flex items-center justify-center p-1.5 text-gray-600 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <ChevronLeft className={`w-4 h-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} />
+            </button>
           </div>
           {sidebarCollapsed ? (
             <button onClick={newConversation} className="w-full btn-orange py-2.5 rounded-lg flex items-center justify-center" title="New Chat">
