@@ -3522,7 +3522,7 @@ export default function ChatPage() {
   const [searchQueries, setSearchQueries] = useState([]);
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
-  const [selectedModel, setSelectedModel] = useState('gpt-5.2');
+  const [selectedModel, setSelectedModel] = useState('gpt-4o');
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
