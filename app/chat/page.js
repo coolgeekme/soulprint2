@@ -4241,12 +4241,138 @@ export default function ChatPage() {
     setConvMenuId(null);
   }
 
+  // State for message feedback and editing
+  const [messageFeedback, setMessageFeedback] = useState({}); // { messageId: 'up' | 'down' }
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [copiedMessageId, setCopiedMessageId] = useState(null);
+
   async function submitFeedback(messageId, rating) {
-    await fetch('/api/feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ conversation_id: conversationId, message_id: messageId, rating }),
-    }).catch(() => {});
+    // Update local state immediately for visual feedback
+    setMessageFeedback(prev => ({ ...prev, [messageId]: rating }));
+    
+    try {
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ 
+          conversation_id: conversationId, 
+          message_id: messageId, 
+          rating,
+          context: {
+            model: messages.find(m => m.id === messageId)?.model_used,
+            timestamp: new Date().toISOString(),
+          }
+        }),
+      });
+    } catch (e) {
+      console.error('Feedback submission failed:', e);
+    }
+  }
+
+  // Copy message to clipboard
+  async function copyMessage(content, messageId) {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (e) {
+      console.error('Copy failed:', e);
+    }
+  }
+
+  // Start editing a user message
+  function startEditMessage(msg) {
+    setEditingMessageId(msg.id);
+    setEditingContent(msg.content);
+  }
+
+  // Cancel editing
+  function cancelEdit() {
+    setEditingMessageId(null);
+    setEditingContent('');
+  }
+
+  // Submit edited message - creates a new branch in the conversation
+  async function submitEditedMessage() {
+    if (!editingContent.trim() || !editingMessageId) return;
+    
+    const editedMsgIndex = messages.findIndex(m => m.id === editingMessageId);
+    if (editedMsgIndex === -1) return;
+    
+    // Keep messages up to and including the one before the edited message
+    const messagesBeforeEdit = messages.slice(0, editedMsgIndex);
+    
+    // Create the edited message
+    const editedMessage = {
+      id: `edited-${Date.now()}`,
+      role: 'user',
+      content: editingContent.trim(),
+      created_at: new Date().toISOString(),
+      edited_from: editingMessageId,
+    };
+    
+    // Update UI with trimmed history + edited message
+    setMessages([...messagesBeforeEdit, editedMessage]);
+    setEditingMessageId(null);
+    setEditingContent('');
+    setLoading(true);
+    
+    // Send the edited message to get a new response
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          content: editingContent.trim(),
+          conversation_id: conversationId,
+          model: selectedModel,
+          history: messagesBeforeEdit.map(m => ({ role: m.role, content: m.content })),
+          edited_from: editingMessageId,
+          web_search_enabled: webSearchEnabled,
+        }),
+      });
+      
+      if (res.ok) {
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        
+        while (reader) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.content) {
+                  fullContent += parsed.content;
+                  setStreamingContent(fullContent);
+                }
+              } catch {}
+            }
+          }
+        }
+        
+        if (fullContent) {
+          setMessages(prev => [...prev, {
+            id: `response-${Date.now()}`,
+            role: 'assistant',
+            content: fullContent,
+            model_used: selectedModel,
+            created_at: new Date().toISOString(),
+          }]);
+        }
+        setStreamingContent('');
+      }
+    } catch (e) {
+      console.error('Edit message failed:', e);
+    }
+    setLoading(false);
   }
 
   const currentModel = MODELS.find(m => m.value === selectedModel) || MODELS[0];
