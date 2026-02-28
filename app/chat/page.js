@@ -4565,30 +4565,43 @@ export default function ChatPage() {
           </div>
         )}
         
-        <div className="p-3 border-t border-white/5 space-y-2">
+        <div className={`p-3 border-t border-white/5 space-y-2 ${sidebarCollapsed ? 'px-2' : ''}`}>
           {/* Gallery button */}
           <button 
             onClick={() => setShowGallery(true)}
-            className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-gradient-to-r from-pink-500/10 to-blue-500/10 hover:from-pink-500/20 hover:to-blue-500/20 border border-pink-500/30 rounded-lg text-pink-400 hover:text-pink-300 text-xs transition-colors"
+            className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-1.5'} w-full py-2 px-3 bg-gradient-to-r from-pink-500/10 to-blue-500/10 hover:from-pink-500/20 hover:to-blue-500/20 border border-pink-500/30 rounded-lg text-pink-400 hover:text-pink-300 text-xs transition-colors`}
+            title="Media Gallery"
           >
-            <GalleryHorizontal className="w-3.5 h-3.5" /> Media Gallery
+            <GalleryHorizontal className="w-3.5 h-3.5" /> {!sidebarCollapsed && 'Media Gallery'}
           </button>
           {/* Admin Dashboard link - only for admins */}
           {(user?.role === 'admin' || user?.role === 'superadmin') && (
             <a 
               href="/admin"
-              className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-lg text-orange-400 hover:text-orange-300 text-xs transition-colors"
+              className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-1.5'} w-full py-2 px-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-lg text-orange-400 hover:text-orange-300 text-xs transition-colors`}
+              title="Admin Dashboard"
             >
-              <Shield className="w-3.5 h-3.5" /> Admin Dashboard
+              <Shield className="w-3.5 h-3.5" /> {!sidebarCollapsed && 'Admin Dashboard'}
             </a>
           )}
           <button 
             onClick={() => setShowFeedbackModal(true)}
-            className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white text-xs transition-colors"
+            className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-1.5'} w-full py-2 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-gray-400 hover:text-white text-xs transition-colors`}
+            title="Send Feedback"
           >
-            <MessageCircle className="w-3.5 h-3.5" /> Send Feedback
+            <MessageCircle className="w-3.5 h-3.5" /> {!sidebarCollapsed && 'Send Feedback'}
           </button>
-          <p className="text-gray-700 text-[10px] text-center truncate">{user?.email}</p>
+          {!sidebarCollapsed && <p className="text-gray-700 text-[10px] text-center truncate">{user?.email}</p>}
+          
+          {/* Collapse/Expand toggle - desktop only */}
+          <button 
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            className="hidden lg:flex items-center justify-center w-full py-2 text-gray-600 hover:text-white hover:bg-white/5 rounded-lg text-xs transition-colors"
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <ChevronLeft className={`w-4 h-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} />
+            {!sidebarCollapsed && <span className="ml-1">Collapse</span>}
+          </button>
         </div>
       </div>
 
