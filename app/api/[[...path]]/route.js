@@ -4130,7 +4130,7 @@ async function handleSubmitFeedback(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { conversation_id, message_id, rating, note } = body;
+  const { conversation_id, message_id, rating, note, context } = body;
 
   const db = await getDb();
   await db.collection('feedback').insertOne({
@@ -4138,10 +4138,19 @@ async function handleSubmitFeedback(request) {
     user_id: user.id,
     conversation_id,
     message_id,
-    rating,
+    rating, // 'up' or 'down'
     note: note || '',
+    context: context || {}, // Store model info and timestamp
     created_at: new Date(),
   });
+
+  // Update message with feedback for analytics
+  if (conversation_id && message_id) {
+    await db.collection('conversations').updateOne(
+      { id: conversation_id, 'messages.id': message_id },
+      { $set: { 'messages.$.user_feedback': rating } }
+    );
+  }
 
   return ok({ success: true });
 }
