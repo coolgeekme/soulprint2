@@ -5070,9 +5070,24 @@ export default function ChatPage() {
                           <div key={group}>
                             <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider mt-1">{group}</div>
                             {groupModels.map(m => (
-                              <button key={m.value} onClick={() => { setSelectedModel(m.value); setShowModelPicker(false); }}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${selectedModel === m.value ? 'bg-orange-500/15 text-orange-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
+                              <button 
+                                key={m.value} 
+                                onClick={() => { 
+                                  if (!m.comingSoon) {
+                                    setSelectedModel(m.value); 
+                                    setShowModelPicker(false); 
+                                  }
+                                }}
+                                disabled={m.comingSoon}
+                                className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${
+                                  m.comingSoon 
+                                    ? 'text-gray-600 cursor-not-allowed opacity-60' 
+                                    : selectedModel === m.value 
+                                      ? 'bg-orange-500/15 text-orange-400' 
+                                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                                }`}>
                                 {m.label}
+                                {m.comingSoon && <span className="ml-1 text-[9px] text-orange-500/70">✨</span>}
                               </button>
                             ))}
                           </div>
