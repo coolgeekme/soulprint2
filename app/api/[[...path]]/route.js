@@ -1642,19 +1642,39 @@ async function handleRegister(request) {
   const count = await db.collection('users').countDocuments();
   const role = count === 0 ? 'superadmin' : 'user';
 
-  // Check if valid beta code was provided
+  // Check if valid beta code was provided (v2 codes first, then legacy)
   let acceptedViaBetaCode = false;
+  let usedCodeId = null;
   if (access_code && role !== 'superadmin') {
-    const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
-    if (betaCode && betaCode.code && 
-        betaCode.code.toUpperCase() === access_code.toUpperCase().trim() &&
-        (!betaCode.expires_at || new Date(betaCode.expires_at) >= new Date())) {
+    // Try v2 codes first
+    const v2Code = await db.collection('beta_codes_v2').findOne({ 
+      code: access_code.toUpperCase().trim(),
+      active: true,
+    });
+    
+    if (v2Code && 
+        (!v2Code.expires_at || new Date(v2Code.expires_at) >= new Date()) &&
+        (!v2Code.max_uses || v2Code.uses_count < v2Code.max_uses)) {
       acceptedViaBetaCode = true;
+      usedCodeId = v2Code.id;
       // Increment usage count
-      await db.collection('beta_codes').updateOne(
-        { id: 'current' },
-        { $inc: { uses: 1 } }
+      await db.collection('beta_codes_v2').updateOne(
+        { id: v2Code.id },
+        { $inc: { uses_count: 1 } }
       );
+    } else {
+      // Fallback to legacy code
+      const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
+      if (betaCode && betaCode.code && 
+          betaCode.code.toUpperCase() === access_code.toUpperCase().trim() &&
+          (!betaCode.expires_at || new Date(betaCode.expires_at) >= new Date())) {
+        acceptedViaBetaCode = true;
+        // Increment usage count
+        await db.collection('beta_codes').updateOne(
+          { id: 'current' },
+          { $inc: { uses: 1 } }
+        );
+      }
     }
   }
 
@@ -1668,7 +1688,21 @@ async function handleRegister(request) {
     last_active_at: now,
     access_code_used: access_code || null,
     beta_code_used: acceptedViaBetaCode ? access_code : null,
+    beta_code_id: usedCodeId,
+    auth_provider: 'legacy',
   });
+
+  // Record beta code redemption if v2 code was used
+  if (usedCodeId) {
+    await db.collection('beta_code_redemptions').insertOne({
+      id: uuidv4(),
+      code_id: usedCodeId,
+      code: access_code.toUpperCase().trim(),
+      user_id: userId,
+      user_email: email.toLowerCase(),
+      redeemed_at: now,
+    });
+  }
 
   // Create empty profile
   await db.collection('profiles').insertOne({
@@ -1689,6 +1723,13 @@ async function handleRegister(request) {
   
   // Send welcome email (non-blocking)
   sendWelcomeEmail(email, null).catch(e => console.error('Welcome email failed:', e));
+  
+  // Send new user notification email to admin (non-blocking)
+  sendNewUserNotificationEmail({
+    email: email.toLowerCase(),
+    beta_code_used: acceptedViaBetaCode ? access_code : null,
+    accepted: role === 'superadmin' || acceptedViaBetaCode,
+  }).catch(e => console.error('Admin notification email failed:', e));
   
   return ok({ token, userId, role, accepted: role === 'superadmin' || acceptedViaBetaCode });
 }
