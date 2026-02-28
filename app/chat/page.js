@@ -3521,6 +3521,7 @@ export default function ChatPage() {
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop sidebar collapse state
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
   const [user, setUser] = useState(null);
   const [assistantName, setAssistantName] = useState('SoulPrint');
