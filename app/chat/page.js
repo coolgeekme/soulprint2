@@ -4907,20 +4907,42 @@ export default function ChatPage() {
               <CreateMenu onGenerate={handleMediaGenerate} isGenerating={isGeneratingMedia} />
 
               <div className="flex-1 relative min-w-0">
-                <input
+                <textarea
                   ref={inputRef}
-                  type="text"
                   value={speech.isListening && interimText ? input + (input ? ' ' : '') + interimText : input}
-                  onChange={e => { if (!speech.isListening) setInput(e.target.value); }}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                  onChange={e => { 
+                    if (!speech.isListening) {
+                      setInput(e.target.value);
+                      // Auto-resize
+                      e.target.style.height = 'auto';
+                      e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+                    }
+                  }}
+                  onKeyDown={e => { 
+                    if (e.key === 'Enter' && !e.shiftKey) { 
+                      e.preventDefault(); 
+                      sendMessage();
+                      // Reset height after sending
+                      e.target.style.height = 'auto';
+                    }
+                    // Shift+Enter creates new line (default textarea behavior)
+                  }}
                   placeholder={speech.isListening ? (speech.mode === 'whisper' ? 'Recording…' : 'Listening…') : attachments.length > 0 ? 'Add message…' : 'Message…'}
-                  className={`w-full bg-transparent text-[13px] sm:text-sm placeholder-gray-600 focus:outline-none py-1 sm:py-1.5 ${speech.isListening ? 'text-orange-300' : 'text-white'}`}
+                  className={`w-full bg-transparent text-[13px] sm:text-sm placeholder-gray-600 focus:outline-none py-1 sm:py-1.5 resize-none overflow-hidden ${speech.isListening ? 'text-orange-300' : 'text-white'}`}
                   disabled={loading}
                   readOnly={speech.isListening}
+                  rows={1}
+                  style={{ minHeight: '24px', maxHeight: '150px' }}
                 />
               </div>
 
-              <button onClick={sendMessage}
+              <button onClick={() => {
+                sendMessage();
+                // Reset textarea height after sending
+                if (inputRef.current) {
+                  inputRef.current.style.height = 'auto';
+                }
+              }}
                 disabled={(!input.trim() && attachments.length === 0 && !speech.isListening) || loading || compareLoading || (compareMode && compareModels.length === 0)}
                 className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
                   compareMode ? 'bg-gradient-to-r from-orange-500 to-blue-500 hover:from-orange-600 hover:to-purple-600' : 'bg-orange-500 hover:bg-orange-600'
