@@ -4772,13 +4772,60 @@ export default function ChatPage() {
                         )}
                       </>
                     ) : (
-                      <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                      // User message - support editing
+                      editingMessageId === msg.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            className="w-full bg-[#0a0a0a] border border-orange-500/30 rounded-lg p-2 text-white text-[13px] sm:text-sm focus:outline-none focus:border-orange-500/50 resize-none"
+                            rows={3}
+                            autoFocus
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button onClick={cancelEdit} className="px-3 py-1 text-gray-500 hover:text-white text-xs transition-colors">
+                              Cancel
+                            </button>
+                            <button 
+                              onClick={submitEditedMessage}
+                              disabled={!editingContent.trim()}
+                              className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded-lg disabled:opacity-50 transition-colors"
+                            >
+                              Save & Regenerate
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                      )
                     )}
                   </div>
                   {msg.role === 'assistant' && msg.id !== 'greeting' && (
                     <div className="flex items-center gap-2 mt-1.5 ml-1">
-                      <button onClick={() => submitFeedback(msg.id, 'up')} className="text-gray-700 hover:text-green-400 transition-colors"><ThumbsUp className="w-3 h-3 sm:w-3.5 sm:h-3.5" /></button>
-                      <button onClick={() => submitFeedback(msg.id, 'down')} className="text-gray-700 hover:text-red-400 transition-colors"><ThumbsDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" /></button>
+                      {/* Thumbs Up */}
+                      <button 
+                        onClick={() => submitFeedback(msg.id, 'up')} 
+                        className={`transition-colors p-1 rounded ${messageFeedback[msg.id] === 'up' ? 'text-green-400 bg-green-400/10' : 'text-gray-700 hover:text-green-400'}`}
+                        title="Good response"
+                      >
+                        <ThumbsUp className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      </button>
+                      {/* Thumbs Down */}
+                      <button 
+                        onClick={() => submitFeedback(msg.id, 'down')} 
+                        className={`transition-colors p-1 rounded ${messageFeedback[msg.id] === 'down' ? 'text-red-400 bg-red-400/10' : 'text-gray-700 hover:text-red-400'}`}
+                        title="Poor response"
+                      >
+                        <ThumbsDown className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      </button>
+                      {/* Copy Button */}
+                      <button 
+                        onClick={() => copyMessage(msg.content, msg.id)} 
+                        className={`transition-colors p-1 rounded ${copiedMessageId === msg.id ? 'text-green-400' : 'text-gray-700 hover:text-white'}`}
+                        title={copiedMessageId === msg.id ? 'Copied!' : 'Copy message'}
+                      >
+                        {copiedMessageId === msg.id ? <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+                      </button>
                       {msg.model_used && <span className="text-[9px] sm:text-[10px] text-gray-700 truncate max-w-[80px] sm:max-w-none">{msg.model_used}</span>}
                     </div>
                   )}
