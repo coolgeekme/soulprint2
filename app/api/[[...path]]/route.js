@@ -6329,47 +6329,15 @@ async function sendNewUserNotificationEmail(user) {
   const ADMIN_EMAIL = 'reggie@archeforge.com';
   
   try {
-    const { Resend } = await import('resend');
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    // Use the email service instead of inline Resend call
+    const { sendNewUserNotification } = await import('@/lib/email.js');
+    const result = await sendNewUserNotification(ADMIN_EMAIL, user);
     
-    const isWaitlist = !user.accepted;
-    const subject = isWaitlist 
-      ? '⏳ New Waitlist Signup - SoulPrint'
-      : '🎉 New User Registration - SoulPrint';
-    
-    await resend.emails.send({
-      from: 'SoulPrint <onboarding@resend.dev>',
-      to: ADMIN_EMAIL,
-      subject,
-      html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <h1 style="color: #f97316; margin: 0;">${isWaitlist ? 'New Waitlist Signup!' : 'New User Registered!'}</h1>
-          </div>
-          
-          <div style="background: #1a1a1a; border-radius: 12px; padding: 24px; color: #fff;">
-            <h2 style="color: #f97316; margin-top: 0;">User Details</h2>
-            <p><strong>Email:</strong> ${user.email}</p>
-            <p><strong>Registered:</strong> ${new Date().toLocaleString()}</p>
-            ${user.beta_code_used ? `<p><strong>Beta Code Used:</strong> ${user.beta_code_used}</p>` : ''}
-            <p><strong>Status:</strong> ${user.accepted ? '✅ Auto-accepted (has valid beta code)' : '⏳ Added to waitlist (no code or invalid code)'}</p>
-          </div>
-          
-          ${isWaitlist ? `
-          <div style="background: #fef3c7; border-radius: 12px; padding: 16px; margin-top: 20px;">
-            <p style="color: #92400e; margin: 0; font-size: 14px;">
-              <strong>Action Required:</strong> This user is on the waitlist and needs to be approved in the admin panel, or you can send them a beta code.
-            </p>
-          </div>
-          ` : ''}
-          
-          <p style="color: #666; font-size: 12px; text-align: center; margin-top: 30px;">
-            SoulPrint AI • New User Notification
-          </p>
-        </div>
-      `,
-    });
-    console.log('[Email] New user notification sent to', ADMIN_EMAIL);
+    if (result.success) {
+      console.log('[Email] New user notification sent to', ADMIN_EMAIL);
+    } else {
+      console.error('[Email] Failed to send new user notification:', result.error);
+    }
   } catch (e) {
     console.error('[Email] Failed to send new user notification:', e.message);
   }
