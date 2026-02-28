@@ -4525,8 +4525,8 @@ export default function ChatPage() {
           ))}
         </div>
         
-        {/* Latest News Widget */}
-        {latestNews.length > 0 && (
+        {/* Latest News Widget - hidden when collapsed */}
+        {!sidebarCollapsed && latestNews.length > 0 && (
           <div className="px-3 py-2 border-t border-white/5">
             <button 
               onClick={() => setShowNewsExpanded(!showNewsExpanded)}
