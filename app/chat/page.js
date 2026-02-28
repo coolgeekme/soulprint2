@@ -3965,7 +3965,8 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
       setSearchingWeb(false);
-      inputRef.current?.focus();
+      // Use setTimeout to ensure focus after all React state updates complete
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [input, loading, compareLoading, token, selectedModel, conversationId, attachments, webSearchEnabled, compareMode, compareModels]);
 
