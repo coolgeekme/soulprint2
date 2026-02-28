@@ -3875,6 +3875,8 @@ export default function ChatPage() {
         setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: 'Connection error during comparison. Please try again.', created_at: new Date().toISOString() }]);
       } finally {
         setCompareLoading(false);
+        // Restore focus to input after compare mode completes
+        setTimeout(() => inputRef.current?.focus(), 100);
       }
       return;
     }
