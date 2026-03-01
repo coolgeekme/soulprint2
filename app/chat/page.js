@@ -1028,6 +1028,13 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
         totalPosts.push(...posts);
       }
       
+      // If no messages found, show helpful message
+      if (totalMessages.length === 0 && totalPosts.length === 0) {
+        setError(`No messages found in your ${importType === 'chatgpt' ? 'ChatGPT' : 'Facebook'} export. This might happen if:\n• The file format has changed\n• The export is empty\n• The file is corrupted\n\nTry re-exporting your data from ${importType === 'chatgpt' ? 'ChatGPT (Settings → Data controls → Export)' : 'Facebook'}.`);
+        setImportStatus(null);
+        return;
+      }
+      
       setExtractedData({
         messages: totalMessages,
         posts: totalPosts,
@@ -1037,7 +1044,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       
     } catch (err) {
       console.error('Extraction error:', err);
-      setError('Failed to read ZIP file. Make sure it\'s a valid export.');
+      setError(`Failed to read ZIP file: ${err.message}\n\nMake sure it's a valid ${importType === 'chatgpt' ? 'ChatGPT' : 'Facebook'} export file.`);
       setImportStatus(null);
     }
   };
