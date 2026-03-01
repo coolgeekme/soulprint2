@@ -11,7 +11,7 @@ import sys
 import os
 
 # Configuration
-BASE_URL = "https://soulprint-ai-engine.preview.emergentagent.com/api"
+BASE_URL = "https://pwa-redesign.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSCODE = "test123"
 
