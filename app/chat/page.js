@@ -4487,6 +4487,19 @@ export default function ChatPage() {
     return 0;
   });
 
+  // Render mobile interface on mobile devices
+  if (isMobile && token && user) {
+    return (
+      <MobileChat
+        token={token}
+        user={user}
+        assistantName={assistantName}
+        onOpenSettings={() => setShowSettings(true)}
+        initialConversationId={conversationId}
+      />
+    );
+  }
+
   return (
     <div className="flex h-screen bg-[#0a0a0a] overflow-hidden safe-area-all">
       {showSidebar && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowSidebar(false)} />}
