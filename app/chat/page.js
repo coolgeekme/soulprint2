@@ -3602,6 +3602,7 @@ function AttachmentPill({ att, onRemove }) {
 
 export default function ChatPage() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
