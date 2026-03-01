@@ -249,12 +249,16 @@ export default function MobileChat({
       .catch(console.error);
   }, [token]);
 
-  // Load profile
+  // Load profile - using /api/auth/me which returns profile info
   useEffect(() => {
     if (!token) return;
-    fetch('/api/profile', { headers: { Authorization: `Bearer ${token}` } })
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => setProfile(data))
+      .then(data => {
+        if (data.profile) {
+          setProfile(data.profile);
+        }
+      })
       .catch(console.error);
   }, [token]);
 
