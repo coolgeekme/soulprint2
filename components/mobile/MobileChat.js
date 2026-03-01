@@ -7,23 +7,7 @@ import {
   Image as ImageIcon, MoreHorizontal, ArrowLeft
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-
-// SoulPrint Logo Component
-const SoulPrintLogo = ({ size = 24, className = '' }) => (
-  <svg width={size} height={size} viewBox="0 0 100 100" className={className}>
-    <defs>
-      <linearGradient id="mobileFlameGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-        <stop offset="0%" stopColor="#f97316" />
-        <stop offset="50%" stopColor="#fb923c" />
-        <stop offset="100%" stopColor="#fbbf24" />
-      </linearGradient>
-    </defs>
-    <path
-      d="M50 5 C30 25, 15 45, 20 65 C25 85, 45 95, 50 95 C55 95, 75 85, 80 65 C85 45, 70 25, 50 5 Z M50 25 C60 40, 65 55, 60 70 C55 80, 50 82, 50 82 C50 82, 45 80, 40 70 C35 55, 40 40, 50 25 Z"
-      fill="url(#mobileFlameGrad)"
-    />
-  </svg>
-);
+import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 // Bottom Tab Bar
 const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
