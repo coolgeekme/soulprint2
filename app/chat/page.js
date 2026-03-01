@@ -834,33 +834,112 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     const posts = [];
 
     if (type === 'chatgpt') {
-      // Look for conversations.json
-      const conversationsFile = zip.file('conversations.json');
+      // Look for conversations.json - could be at root or in a subfolder
+      let conversationsFile = zip.file('conversations.json');
+      
+      // If not at root, search for it anywhere in the ZIP
+      if (!conversationsFile) {
+        const allFiles = Object.keys(zip.files);
+        const convFile = allFiles.find(f => f.endsWith('conversations.json'));
+        if (convFile) {
+          conversationsFile = zip.file(convFile);
+        }
+      }
+      
       if (conversationsFile) {
-        const content = await conversationsFile.async('string');
-        const conversations = JSON.parse(content);
-        
-        for (const conv of conversations) {
-          if (conv.mapping) {
-            for (const nodeId in conv.mapping) {
-              const node = conv.mapping[nodeId];
-              if (node.message?.content?.parts?.[0]) {
-                const role = node.message.author?.role;
-                const content = node.message.content.parts.join('\n');
-                if (content && content.trim() && (role === 'user' || role === 'assistant')) {
+        try {
+          const content = await conversationsFile.async('string');
+          const conversations = JSON.parse(content);
+          
+          // Handle both array format and object format
+          const convArray = Array.isArray(conversations) ? conversations : [conversations];
+          
+          for (const conv of convArray) {
+            // Standard ChatGPT export format with mapping
+            if (conv.mapping) {
+              for (const nodeId in conv.mapping) {
+                const node = conv.mapping[nodeId];
+                if (node.message?.content?.parts?.[0]) {
+                  const role = node.message.author?.role;
+                  const msgContent = node.message.content.parts.join('\n');
+                  if (msgContent && msgContent.trim() && (role === 'user' || role === 'assistant')) {
+                    messages.push({
+                      role: role === 'user' ? 'user' : 'assistant',
+                      content: msgContent.trim(),
+                      timestamp: node.message.create_time ? new Date(node.message.create_time * 1000).toISOString() : null,
+                      conversation_id: conv.id,
+                      conversation_title: conv.title
+                    });
+                  }
+                }
+              }
+            }
+            
+            // Alternative format - direct messages array (older exports)
+            if (conv.messages && Array.isArray(conv.messages)) {
+              for (const msg of conv.messages) {
+                if (msg.content && (msg.role === 'user' || msg.role === 'assistant')) {
                   messages.push({
-                    role: role === 'user' ? 'user' : 'assistant',
-                    content: content.trim(),
-                    timestamp: node.message.create_time ? new Date(node.message.create_time * 1000).toISOString() : null,
-                    conversation_id: conv.id,
+                    role: msg.role,
+                    content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+                    timestamp: msg.timestamp || msg.create_time ? new Date((msg.timestamp || msg.create_time) * 1000).toISOString() : null,
+                    conversation_id: conv.id || conv.conversation_id,
                     conversation_title: conv.title
                   });
                 }
               }
             }
           }
+        } catch (parseError) {
+          console.error('Error parsing conversations.json:', parseError);
         }
       }
+      
+      // Also look for chat.html or other ChatGPT formats
+      if (messages.length === 0) {
+        const allFiles = Object.keys(zip.files);
+        
+        // Check for any JSON files that might contain conversations
+        const jsonFiles = allFiles.filter(f => f.endsWith('.json') && !f.includes('__MACOSX'));
+        
+        for (const jsonFile of jsonFiles.slice(0, 10)) { // Check first 10 JSON files
+          try {
+            const content = await zip.file(jsonFile).async('string');
+            const data = JSON.parse(content);
+            
+            // Try to find messages in various formats
+            if (Array.isArray(data)) {
+              for (const item of data) {
+                if (item.mapping || item.messages) {
+                  // This looks like a conversation, process it
+                  if (item.mapping) {
+                    for (const nodeId in item.mapping) {
+                      const node = item.mapping[nodeId];
+                      if (node.message?.content?.parts?.[0]) {
+                        const role = node.message.author?.role;
+                        const msgContent = node.message.content.parts.join('\n');
+                        if (msgContent && msgContent.trim() && (role === 'user' || role === 'assistant')) {
+                          messages.push({
+                            role: role === 'user' ? 'user' : 'assistant',
+                            content: msgContent.trim(),
+                            timestamp: node.message.create_time ? new Date(node.message.create_time * 1000).toISOString() : null,
+                            conversation_id: item.id,
+                            conversation_title: item.title
+                          });
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            // Skip files that can't be parsed
+          }
+        }
+      }
+      
+      console.log(`ChatGPT import: Found ${messages.length} messages`);
     } else if (type === 'facebook') {
       // Look for messages in inbox folder
       const messageFiles = Object.keys(zip.files).filter(f => 
