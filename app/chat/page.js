@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import InstallPrompt from '@/app/components/InstallPrompt';
+import { useIsMobile } from '@/hooks/use-mobile';
+import MobileChat from '@/components/mobile/MobileChat';
 
 // Image Generation Models (sorted by cost - cheapest first)
 const IMAGE_MODELS = [
