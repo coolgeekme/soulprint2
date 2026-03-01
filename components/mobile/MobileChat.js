@@ -112,15 +112,16 @@ const MessageBubble = ({ message, isUser, assistantName }) => {
     <div className="flex justify-start mb-4 px-4">
       <div className="max-w-[90%]">
         <div className="bg-white/5 rounded-3xl rounded-bl-lg px-4 py-3">
-          <ReactMarkdown 
-            className="text-gray-200 text-[15px] leading-relaxed prose prose-invert prose-sm max-w-none"
-            components={{
-              p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
-              code: ({children}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-orange-300 text-sm">{children}</code>,
-            }}
-          >
-            {message.content}
-          </ReactMarkdown>
+          <div className="text-gray-200 text-[15px] leading-relaxed prose prose-invert prose-sm max-w-none">
+            <ReactMarkdown 
+              components={{
+                p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                code: ({children}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-orange-300 text-sm">{children}</code>,
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
         </div>
         {message.model_used && (
           <span className="text-[10px] text-gray-600 ml-2 mt-1 block">{message.model_used}</span>
