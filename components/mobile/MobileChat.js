@@ -517,8 +517,17 @@ export default function MobileChat({
       {/* Soul Tab */}
       {activeTab === 'soul' && (
         <SoulView 
-          profile={{ ...profile, email: user?.email }}
-          soulPrint={soulPrint}
+          profile={{ 
+            ...profile, 
+            display_name: profile?.display_name || user?.profile?.display_name || user?.email?.split('@')[0],
+            email: user?.email 
+          }}
+          soulPrint={{
+            messageCount: conversations.reduce((sum, c) => sum + (c.message_count || 0), 0),
+            conversationCount: conversations.length,
+            daysActive: conversations.length > 0 ? Math.ceil((Date.now() - new Date(conversations[conversations.length - 1]?.created_at || Date.now()).getTime()) / (1000 * 60 * 60 * 24)) : 0,
+            ...soulPrint
+          }}
           onSettingsClick={onOpenSettings}
         />
       )}
