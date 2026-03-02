@@ -4010,6 +4010,12 @@ export default function ChatPage() {
             if (data.type === 'meta') {
               newConvId = data.conversationId;
               setConversationId(data.conversationId);
+              // Capture Smart Mode selection info
+              if (data.smartMode) {
+                actualModelUsed = data.selectedModel;
+                smartModeReason = data.modelReason;
+                setLastSmartSelection({ model: data.selectedModel, reason: data.modelReason });
+              }
             } else if (data.type === 'search') {
               setSearchingWeb(true);
               setSearchQueries(data.queries || []);
@@ -4033,7 +4039,9 @@ export default function ChatPage() {
                 role: 'assistant',
                 content: fullContent,
                 created_at: new Date().toISOString(),
-                model_used: selectedModel,
+                model_used: actualModelUsed || selectedModel,
+                smart_mode: selectedModel === 'smart',
+                smart_reason: smartModeReason,
                 image_url: streamingImageUrlRef.current || undefined,
                 video_task: streamingVideoTaskRef.current || undefined,
               };
