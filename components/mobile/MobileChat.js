@@ -1786,8 +1786,59 @@ export default function MobileChat({
             onMoreClick={() => setShowMoreOptions(true)}
           />
           
+          {/* Announcements Banner - Sticky top banner on chat screen */}
+          {announcements.length > 0 && (
+            <div className="fixed top-16 left-0 right-0 z-30 px-3 py-2 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-white/5">
+              {announcements.slice(0, 1).map(ann => (
+                <div 
+                  key={ann.id}
+                  className={`flex items-center gap-3 p-2.5 rounded-xl border ${
+                    ann.type === 'warning' ? 'bg-orange-500/10 border-orange-500/30' :
+                    ann.type === 'success' ? 'bg-green-500/10 border-green-500/30' :
+                    ann.type === 'update' ? 'bg-blue-500/10 border-blue-500/30' :
+                    'bg-blue-500/10 border-blue-500/30'
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    ann.type === 'warning' ? 'bg-orange-500/20' :
+                    ann.type === 'success' ? 'bg-green-500/20' :
+                    ann.type === 'update' ? 'bg-blue-500/20' :
+                    'bg-blue-500/20'
+                  }`}>
+                    <Sparkles className={`w-3.5 h-3.5 ${
+                      ann.type === 'warning' ? 'text-orange-400' :
+                      ann.type === 'success' ? 'text-green-400' :
+                      ann.type === 'update' ? 'text-blue-400' :
+                      'text-blue-400'
+                    }`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-xs font-medium truncate">{ann.title}</p>
+                    {ann.link && (
+                      <a 
+                        href={ann.link} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        onClick={() => trackAnnouncementClick(ann.id)}
+                        className="text-[10px] text-blue-400 flex items-center gap-1"
+                      >
+                        Learn more <ChevronRight className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <button 
+                    onClick={() => dismissAnnouncement(ann.id)} 
+                    className="text-gray-500 hover:text-white p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          
           {/* Messages */}
-          <div className="pt-24 pb-44 overflow-y-auto">
+          <div className={`${announcements.length > 0 ? 'pt-36' : 'pt-24'} pb-44 overflow-y-auto`}>
             {messages.map((msg, idx) => (
               <MessageBubble 
                 key={msg.id || idx} 
