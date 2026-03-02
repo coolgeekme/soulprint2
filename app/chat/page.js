@@ -3976,6 +3976,10 @@ export default function ChatPage() {
 
     // ── Single Model Mode: Stream response ──
     setLoading(true);
+    
+    // Create abort controller for this request
+    abortControllerRef.current = new AbortController();
+    
     try {
       const res = await fetch('/api/chat/stream', {
         method: 'POST',
@@ -3984,6 +3988,7 @@ export default function ChatPage() {
           conversationId: newConvId, content, model: selectedModel,
           provider: currentModel.provider, attachments: currentAttachments, enableWebSearch: webSearchEnabled,
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!res.ok) {
