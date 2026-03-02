@@ -826,7 +826,7 @@ export default function MobileChat({
           />
           
           {/* Messages */}
-          <div className="pt-24 pb-36 overflow-y-auto">
+          <div className="pt-24 pb-44 overflow-y-auto">
             {messages.map((msg, idx) => (
               <MessageBubble 
                 key={msg.id || idx} 
