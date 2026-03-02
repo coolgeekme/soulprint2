@@ -1106,7 +1106,7 @@ export default function MobileChat({
   const [streamingContent, setStreamingContent] = useState('');
   const [conversations, setConversations] = useState([]);
   const [conversationId, setConversationId] = useState(initialConversationId);
-  const [selectedModel, setSelectedModel] = useState('gpt-4o');
+  const [selectedModel, setSelectedModel] = useState('smart'); // Default to Smart Mode
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
@@ -1116,6 +1116,7 @@ export default function MobileChat({
   const [attachments, setAttachments] = useState([]);
   const [interimText, setInterimText] = useState('');
   const [editingMessage, setEditingMessage] = useState(null);
+  const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Smart Mode selected
   
   // New state for additional features
   const [showImageGenSheet, setShowImageGenSheet] = useState(false);
