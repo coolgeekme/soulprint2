@@ -1299,6 +1299,8 @@ export default function MobileChat({
       let fullContent = '';
       let newConvId = conversationId;
       let buffer = '';
+      let actualModelUsed = selectedModel;
+      let smartModeReason = null;
 
       while (reader) {
         const { done, value } = await reader.read();
@@ -1315,6 +1317,12 @@ export default function MobileChat({
             if (data.type === 'meta') {
               newConvId = data.conversationId;
               setConversationId(data.conversationId);
+              // Capture Smart Mode selection info
+              if (data.smartMode) {
+                actualModelUsed = data.selectedModel;
+                smartModeReason = data.modelReason;
+                setLastSmartSelection({ model: data.selectedModel, reason: data.modelReason });
+              }
             } else if (data.type === 'delta') {
               fullContent += data.content;
               setStreamingContent(fullContent);
@@ -1330,7 +1338,9 @@ export default function MobileChat({
           id: `a-${Date.now()}`,
           role: 'assistant',
           content: fullContent,
-          model_used: selectedModel,
+          model_used: actualModelUsed,
+          smart_mode: selectedModel === 'smart',
+          smart_reason: smartModeReason,
         }]);
       }
 
