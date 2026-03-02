@@ -1675,6 +1675,7 @@ export default function MobileChat({
                   isActive={conv.id === conversationId}
                   onClick={() => loadConversation(conv.id)}
                   onDelete={deleteConversation}
+                  onRename={openRenameModal}
                 />
               ))
             )}
