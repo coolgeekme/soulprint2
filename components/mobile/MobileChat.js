@@ -160,7 +160,7 @@ const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
   const tabs = [
     { id: 'chat', icon: Sparkles, label: assistantName || 'Chat' },
     { id: 'history', icon: MessageSquare, label: 'History', badge: unreadCount },
-    { id: 'soul', icon: User, label: 'Soul' },
+    { id: 'profile', icon: User, label: 'Profile' },
   ];
 
   return (
