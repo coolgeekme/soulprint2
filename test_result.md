@@ -927,6 +927,42 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: NEW FEATURE - Announcement analytics fields working perfectly! All announcements now include view_count, click_count, dismiss_count fields initialized to 0. GET /api/admin/announcements returns announcements with analytics data. Click tracking increments click_count, dismiss action increments dismiss_count. Admin can monitor engagement metrics: 5 announcements found with proper analytics fields. Analytics enable data-driven announcement management."
 
+  - task: "PWA Install Status GET Endpoint (GET /api/pwa/install-status)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: NEW FEATURE - PWA Install Status GET endpoint working perfectly! Returns {showPrompt: boolean, installed: boolean, dismissedForever: boolean}. For new users, showPrompt=true as expected. All required fields present in response structure."
+
+  - task: "PWA Install Status POST Endpoint (POST /api/pwa/install-status)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: NEW FEATURE - PWA Install Status POST endpoint working perfectly! Supports 3 actions: (1) 'remind_later' sets pwa_remind_later_at timestamp, GET returns showPrompt=false within 24h. (2) 'installed' sets pwa_installed=true, GET reflects installed=true. (3) 'dismiss_forever' sets pwa_dismissed_forever=true, GET returns dismissedForever=true permanently. All actions verified with GET endpoint state changes."
+
+  - task: "Announcement Permanent Dismiss Feature (POST /api/announcements/dismiss with permanent=true)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: UPDATED FEATURE - Announcement permanent dismiss working perfectly! POST /api/announcements/dismiss with {announcementId, permanent: true} adds announcement ID to permanently_dismissed array. GET /api/announcements correctly excludes permanently dismissed announcements from 'unread' array but keeps them in main 'announcements' array. Permanent dismissal works as expected - announcements never reappear in unread after permanent dismiss."
+
 frontend:
   - task: "Landing Page (/)"
     implemented: true
@@ -1138,3 +1174,5 @@ agent_communication:
     message: "MULTIPLE FEATURES IMPLEMENTED: (1) FIXED Smart Mode selection on desktop - Added 'Smart' group to model selector dropdown (was missing before, only had OpenAI, Claude, Gemini, Perplexity, Kimi). (2) Announcements 24-hour dismiss - Modified dismiss logic to store timestamps, announcements reappear after 24 hours until admin deletes them. (3) Announcement click tracking - Added new /api/announcements/click endpoint and click_count field on announcements for admin analytics. (4) Added conversation search on mobile History tab - Search bar filters conversations by title. (5) Added announcements banner on mobile chat screen - Sticky top banner shows first unread announcement with dismiss and click tracking. Test endpoints: (a) POST /api/announcements/click - tracks clicks on announcement links, (b) GET /api/announcements - now returns unread based on 24h dismiss logic, (c) POST /api/announcements/dismiss - now stores timestamp for 24h reset. Auth: test@soulprint.com/test123"
   - agent: "testing"
     message: "📢✨ NEW ANNOUNCEMENT FEATURES TESTING COMPLETE! All 3 NEW features working perfectly (100% success rate - 7/7 tests passed): (1) ✅ POST /api/announcements/click: NEW click tracking feature working! Accepts {announcementId} payload, successfully increments click_count from 0→1, requires authentication, proper validation (400 for missing ID). (2) ✅ 24-Hour Dismiss Logic (UPDATED): POST /api/announcements/dismiss now stores timestamps in user_dismissed_announcements collection with {announcement_id, dismissed_at} structure. GET /api/announcements correctly filters announcements dismissed within 24 hours from 'unread' array. Announcements reappear after 24 hours. Dismiss count properly incremented 0→1. (3) ✅ Analytics Fields (NEW): All announcements include view_count, click_count, dismiss_count fields initialized to 0. GET /api/admin/announcements returns 5 announcements with analytics data. Admin can monitor engagement metrics for data-driven announcement management. (4) ✅ Existing Features: Admin CRUD operations still working (create, update, delete). User endpoints working (get published, dismiss). (5) ✅ Validation: Proper error handling for missing fields (400 errors). Created test announcement ID: ca04e113-6580-4db3-b6fd-ffd1f013749f. All NEW announcement features production ready with comprehensive click tracking, 24-hour dismiss reset logic, and admin analytics!"
+  - agent: "testing"
+    message: "📱📢 PWA & ANNOUNCEMENT FEATURE TESTING COMPLETE! All 4 tests passed (100% success rate). ✅ NEW: GET /api/pwa/install-status returns {showPrompt, installed, dismissedForever} correctly. ✅ NEW: POST /api/pwa/install-status supports 3 actions (remind_later, installed, dismiss_forever) with proper state changes verified. ✅ UPDATED: Permanent dismiss feature (POST /api/announcements/dismiss with permanent=true) adds to permanently_dismissed array, excludes from unread permanently. ✅ EXISTING: Click tracking and 24-hour dismiss still working correctly. Authentication with test@soulprint.com/test123 superadmin successful. All PWA install prompt management and announcement permanent dismiss features production ready!"

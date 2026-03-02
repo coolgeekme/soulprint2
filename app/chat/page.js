@@ -78,30 +78,64 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
   const chunksRef = useRef([]);
   const [isListening, setIsListening] = useState(false);
   const [mode, setMode] = useState(null); // 'live' | 'whisper'
+  const [error, setError] = useState(null);
 
   const hasNativeSpeech = typeof window !== 'undefined' &&
     !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
-  function startLive() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const rec = new SR();
-    rec.continuous = false;
-    rec.interimResults = true;
-    rec.lang = 'en-US';
+  async function startLive() {
+    try {
+      // First request microphone permission
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const rec = new SR();
+      rec.continuous = true; // Keep listening
+      rec.interimResults = true;
+      rec.lang = 'en-US';
 
-    rec.onresult = (e) => {
-      const interim = Array.from(e.results).map(r => r[0].transcript).join('');
-      const final = Array.from(e.results).filter(r => r.isFinal).map(r => r[0].transcript).join('');
-      if (final) onTranscript(final);
-      else onInterim(interim);
-    };
-    rec.onerror = (e) => { console.error('Speech error', e); setIsListening(false); };
-    rec.onend = () => setIsListening(false);
+      rec.onresult = (e) => {
+        let interim = '';
+        let final = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const transcript = e.results[i][0].transcript;
+          if (e.results[i].isFinal) {
+            final += transcript;
+          } else {
+            interim += transcript;
+          }
+        }
+        if (final) onTranscript(final);
+        if (interim) onInterim(interim);
+      };
+      
+      rec.onerror = (e) => { 
+        console.error('Speech error', e.error); 
+        setError(e.error === 'not-allowed' ? 'Microphone access denied' : 'Speech recognition error');
+        setIsListening(false); 
+      };
+      
+      rec.onend = () => {
+        // Auto-restart if still supposed to be listening (for continuous mode)
+        if (isListening && recognitionRef.current) {
+          try {
+            recognitionRef.current.start();
+          } catch (e) {
+            setIsListening(false);
+          }
+        }
+      };
 
-    recognitionRef.current = rec;
-    rec.start();
-    setIsListening(true);
-    setMode('live');
+      recognitionRef.current = rec;
+      rec.start();
+      setIsListening(true);
+      setMode('live');
+      setError(null);
+    } catch (err) {
+      console.error('Mic permission error:', err);
+      setError('Microphone access denied. Please allow microphone access.');
+      setIsListening(false);
+    }
   }
 
   async function startWhisper() {
@@ -130,13 +164,16 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
       mr.start();
       setIsListening(true);
       setMode('whisper');
+      setError(null);
     } catch (err) {
       console.error('Mic access denied', err);
+      setError('Microphone access denied. Please allow microphone access.');
       setIsListening(false);
     }
   }
 
   function start() {
+    setError(null);
     if (hasNativeSpeech) startLive();
     else startWhisper();
   }
@@ -144,6 +181,7 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
   function stop() {
     if (mode === 'live' && recognitionRef.current) {
       recognitionRef.current.stop();
+      recognitionRef.current = null;
     } else if (mode === 'whisper' && mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
@@ -155,7 +193,7 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
     else start();
   }
 
-  return { isListening, toggle, mode };
+  return { isListening, toggle, mode, error };
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -3665,6 +3703,9 @@ export default function ChatPage() {
   const [gradualProgress, setGradualProgress] = useState(null);
   const [showGradualPrompt, setShowGradualPrompt] = useState(false);
   const [submittingGradual, setSubmittingGradual] = useState(false);
+  // PWA Install prompt state
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -3676,6 +3717,62 @@ export default function ChatPage() {
   // Keep refs in sync with state
   useEffect(() => { streamingImageUrlRef.current = streamingImageUrl; }, [streamingImageUrl]);
   useEffect(() => { streamingVideoTaskRef.current = streamingVideoTask; }, [streamingVideoTask]);
+
+  // Capture the beforeinstallprompt event for PWA install
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  // Check if we should show the install prompt
+  useEffect(() => {
+    if (!token) return;
+    // Check if already installed as PWA
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                         window.navigator.standalone === true;
+    if (isStandalone) return; // Already installed
+    
+    // Check user preference from API
+    fetch('/api/pwa/install-status', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.showPrompt) {
+          setShowInstallPrompt(true);
+        }
+      })
+      .catch(() => {});
+  }, [token]);
+
+  // Handle PWA install prompt actions
+  const handleInstallAction = async (action) => {
+    if (action === 'install' && deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const result = await deferredInstallPrompt.userChoice;
+      if (result.outcome === 'accepted') {
+        action = 'installed';
+      } else {
+        action = 'remind_later';
+      }
+      setDeferredInstallPrompt(null);
+    }
+    
+    // Save preference to API
+    try {
+      await fetch('/api/pwa/install-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action }),
+      });
+    } catch (e) {
+      console.error('Failed to save install preference:', e);
+    }
+    
+    setShowInstallPrompt(false);
+  };
 
   // Speech-to-text hook — needs token so init after token is set
   const speech = useSpeechRecognition({
@@ -3730,12 +3827,14 @@ export default function ChatPage() {
 
   // Dismiss announcement
   async function dismissAnnouncement(announcementId) {
+  // Dismiss announcement
+  async function dismissAnnouncement(announcementId, permanent = false) {
     setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
     try {
       await fetch('/api/announcements/dismiss', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ announcementId }),
+        body: JSON.stringify({ announcementId, permanent }),
       });
     } catch (e) {
       console.error('Failed to dismiss announcement:', e);
@@ -4870,15 +4969,75 @@ export default function ChatPage() {
                     </a>
                   )}
                 </div>
-                <button 
-                  onClick={() => dismissAnnouncement(ann.id)} 
-                  className="text-gray-600 hover:text-white transition-colors p-1"
-                  title="Dismiss for 24 hours"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="relative group/dismiss">
+                  <button 
+                    className="text-gray-600 hover:text-white transition-colors p-1"
+                    title="Dismiss options"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  {/* Dismiss dropdown */}
+                  <div className="absolute right-0 top-full mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[140px] z-50 hidden group-hover/dismiss:block">
+                    <button
+                      onClick={() => dismissAnnouncement(ann.id, false)}
+                      className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+                    >
+                      Dismiss for 24h
+                    </button>
+                    <button
+                      onClick={() => dismissAnnouncement(ann.id, true)}
+                      className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white transition-colors border-t border-white/5"
+                    >
+                      Don't show again
+                    </button>
+                  </div>
+                </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* PWA Install Prompt Banner */}
+        {showInstallPrompt && (
+          <div className="px-4 pt-3">
+            <div className="relative flex items-start gap-3 p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 backdrop-blur-sm">
+              <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                <Download className="w-5 h-5 text-green-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-white text-sm font-medium">Install SoulPrint App</h4>
+                <p className="text-gray-400 text-xs mt-1">
+                  Get quick access from your home screen! This is <span className="text-green-400 font-medium">not a download</span> — it's just a shortcut. 
+                  No storage used, no malware, completely safe.
+                </p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <button 
+                    onClick={() => handleInstallAction('install')}
+                    className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors"
+                  >
+                    Install App
+                  </button>
+                  <button 
+                    onClick={() => handleInstallAction('remind_later')}
+                    className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-gray-300 text-xs rounded-lg transition-colors"
+                  >
+                    Remind Me Later
+                  </button>
+                  <button 
+                    onClick={() => handleInstallAction('dismiss_forever')}
+                    className="px-3 py-1.5 text-gray-500 hover:text-gray-300 text-xs transition-colors"
+                  >
+                    Don't show again
+                  </button>
+                </div>
+              </div>
+              <button 
+                onClick={() => handleInstallAction('remind_later')}
+                className="absolute top-2 right-2 text-gray-600 hover:text-white transition-colors p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -5305,8 +5464,8 @@ export default function ChatPage() {
               {/* Mic button */}
               <button
                 onClick={speech.toggle}
-                title={speech.isListening ? 'Stop recording' : 'Start voice input'}
-                className={`flex-shrink-0 transition-all relative ${speech.isListening ? 'text-orange-500' : 'text-gray-600 hover:text-orange-400'}`}
+                title={speech.error || (speech.isListening ? 'Stop recording' : 'Start voice input')}
+                className={`flex-shrink-0 transition-all relative ${speech.isListening ? 'text-orange-500' : speech.error ? 'text-red-400' : 'text-gray-600 hover:text-orange-400'}`}
               >
                 <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
                 {speech.isListening && (
@@ -5518,9 +5677,6 @@ export default function ChatPage() {
           </div>
         </div>
       )}
-      
-      {/* PWA Install Prompt */}
-      <InstallPrompt />
     </div>
   );
 }

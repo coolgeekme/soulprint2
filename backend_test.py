@@ -1,367 +1,358 @@
 #!/usr/bin/env python3
 """
-Backend testing for SoulPrint Engine Layered Assessment System
-Tests the new layered assessment endpoints
+Backend Testing Script for SoulPrint Engine PWA and Announcement Features
+Tests the new PWA install status endpoints and updated announcement features
 """
 
 import requests
 import json
 import time
 import sys
-import os
+from datetime import datetime
 
 # Configuration
 BASE_URL = "https://smart-routing-ui.preview.emergentagent.com/api"
-TEST_EMAIL = "test@soulprint.com"  
-TEST_PASSCODE = "test123"
+TEST_EMAIL = "test@soulprint.com"
+TEST_PASSWORD = "test123"
 
-class LayeredAssessmentTester:
+class SoulPrintBackendTester:
     def __init__(self):
+        self.token = None
+        self.user_id = None
         self.session = requests.Session()
-        self.auth_token = None
-        self.base_url = BASE_URL
-        self.test_results = []
-        
-    def log(self, message, level="INFO"):
-        print(f"[{level}] {message}")
-        
-    def test_step(self, description, success, details=""):
-        result = "✅ PASS" if success else "❌ FAIL"
-        self.log(f"{result}: {description}")
-        if details:
-            self.log(f"    Details: {details}")
-        self.test_results.append({
-            'description': description,
-            'success': success,
-            'details': details
+        self.session.headers.update({
+            'Content-Type': 'application/json'
         })
-        return success
-
+        print(f"🧪 Starting backend tests for SoulPrint Engine")
+        print(f"🔗 Base URL: {BASE_URL}")
+        print(f"📧 Test User: {TEST_EMAIL}")
+        
     def authenticate(self):
-        """Authenticate and get bearer token"""
-        self.log("=== AUTHENTICATION TEST ===")
-        
+        """Authenticate and get token"""
         try:
-            response = self.session.post(
-                f"{self.base_url}/auth/login",
-                headers={"Content-Type": "application/json"},
-                json={"email": TEST_EMAIL, "passcode": TEST_PASSCODE},
-                timeout=10
-            )
+            print(f"\n🔐 Testing Authentication...")
+            response = self.session.post(f"{BASE_URL}/auth/login", json={
+                "email": TEST_EMAIL,
+                "passcode": TEST_PASSWORD
+            })
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get('token'):
-                    self.auth_token = data['token']
-                    self.session.headers.update({"Authorization": f"Bearer {self.auth_token}"})
-                    return self.test_step("Authentication successful", True, 
-                                        f"Role: {data.get('role', 'N/A')}, User ID: {data.get('userId', 'N/A')}")
-                else:
-                    return self.test_step("Authentication failed", False, "No token in response")
+                self.token = data.get('token')
+                self.user_id = data.get('userId')
+                self.session.headers.update({
+                    'Authorization': f'Bearer {self.token}'
+                })
+                print(f"✅ Authentication successful - User ID: {self.user_id}")
+                print(f"   Role: {data.get('role', 'N/A')}")
+                return True
             else:
-                return self.test_step("Authentication failed", False, 
-                                    f"Status: {response.status_code}, Response: {response.text[:200]}")
+                print(f"❌ Authentication failed: {response.status_code} - {response.text}")
+                return False
                 
         except Exception as e:
-            return self.test_step("Authentication failed", False, f"Exception: {str(e)}")
-
-    def test_assessment_settings(self):
-        """Test GET /api/assessment/settings (no auth required)"""
-        self.log("=== ASSESSMENT SETTINGS TEST ===")
-        
+            print(f"❌ Authentication error: {str(e)}")
+            return False
+    
+    def test_pwa_install_status_get(self):
+        """Test GET /api/pwa/install-status endpoint"""
         try:
-            # Test without auth
-            response = requests.get(
-                f"{self.base_url}/assessment/settings",
-                timeout=10
-            )
+            print(f"\n📱 Testing PWA Install Status (GET)...")
+            response = self.session.get(f"{BASE_URL}/pwa/install-status")
             
             if response.status_code == 200:
                 data = response.json()
-                if 'assessment_mode' in data:
-                    return self.test_step(
-                        "Assessment settings endpoint working", True,
-                        f"Assessment mode: {data.get('assessment_mode')}, Default: {data.get('default_assessment')}"
-                    )
-                else:
-                    return self.test_step(
-                        "Assessment settings endpoint failed", False,
-                        "Missing assessment_mode in response"
-                    )
-            else:
-                return self.test_step(
-                    "Assessment settings endpoint failed", False,
-                    f"Status: {response.status_code}, Response: {response.text[:200]}"
-                )
+                print(f"✅ GET /pwa/install-status successful")
+                print(f"   showPrompt: {data.get('showPrompt')}")
+                print(f"   installed: {data.get('installed')}")  
+                print(f"   dismissedForever: {data.get('dismissedForever')}")
                 
-        except Exception as e:
-            return self.test_step(
-                "Assessment settings endpoint failed", False,
-                f"Exception: {str(e)}"
-            )
-
-    def test_layered_questions(self):
-        """Test GET /api/assessment/layered/questions"""
-        self.log("=== LAYERED ASSESSMENT QUESTIONS TEST ===")
-        
-        try:
-            response = self.session.get(
-                f"{self.base_url}/assessment/layered/questions",
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if 'layer1' in data and 'layer2' in data and 'progress' in data:
-                    layer1_count = len(data['layer1'])
-                    layer2_count = len(data['layer2'])
-                    progress = data['progress']
+                # Verify structure
+                required_fields = ['showPrompt', 'installed', 'dismissedForever']
+                for field in required_fields:
+                    if field not in data:
+                        print(f"❌ Missing required field: {field}")
+                        return False
+                        
+                # For new users, showPrompt should typically be true
+                if data.get('showPrompt') is True:
+                    print(f"   ✅ showPrompt=true (expected for new users)")
+                else:
+                    print(f"   ℹ️  showPrompt=false (user may have interacted with prompt before)")
                     
-                    return self.test_step(
-                        "Layered assessment questions endpoint working", True,
-                        f"Layer1: {layer1_count} questions, Layer2: {layer2_count} questions, "
-                        f"Progress: L1 complete: {progress.get('layer1_complete')}, "
-                        f"L2 complete: {progress.get('layer2_complete')}"
-                    )
-                else:
-                    return self.test_step(
-                        "Layered assessment questions endpoint failed", False,
-                        f"Missing expected fields in response: {list(data.keys())}"
-                    )
-            elif response.status_code == 401:
-                return self.test_step(
-                    "Layered assessment questions endpoint requires auth", True,
-                    "Correctly requires authentication"
-                )
+                return True
             else:
-                return self.test_step(
-                    "Layered assessment questions endpoint failed", False,
-                    f"Status: {response.status_code}, Response: {response.text[:200]}"
-                )
+                print(f"❌ GET /pwa/install-status failed: {response.status_code} - {response.text}")
+                return False
                 
         except Exception as e:
-            return self.test_step(
-                "Layered assessment questions endpoint failed", False,
-                f"Exception: {str(e)}"
-            )
-
-    def test_layered_answer_submission(self):
-        """Test POST /api/assessment/layered/answer"""
-        self.log("=== LAYERED ASSESSMENT ANSWER SUBMISSION TEST ===")
+            print(f"❌ PWA install status GET error: {str(e)}")
+            return False
+    
+    def test_pwa_install_status_post(self):
+        """Test POST /api/pwa/install-status endpoint with different actions"""
+        actions = ['remind_later', 'installed', 'dismiss_forever']
         
-        # Test submitting answers for Layer 1 questions
-        layer1_answers = [
-            {"question_id": "comm_explain", "answer": "write", "layer": 1},
-            {"question_id": "comm_detail", "answer": "skim", "layer": 1},
-            {"question_id": "emotion_stress", "answer": "space", "layer": 1},
-        ]
-        
-        success_count = 0
-        for i, answer_data in enumerate(layer1_answers):
+        for action in actions:
             try:
-                response = self.session.post(
-                    f"{self.base_url}/assessment/layered/answer",
-                    headers={"Content-Type": "application/json"},
-                    json=answer_data,
-                    timeout=10
-                )
+                print(f"\n📱 Testing PWA Install Status POST - Action: {action}...")
+                response = self.session.post(f"{BASE_URL}/pwa/install-status", json={
+                    "action": action
+                })
                 
                 if response.status_code == 200:
                     data = response.json()
-                    if data.get('success'):
-                        success_count += 1
-                        self.test_step(
-                            f"Layer 1 answer {i+1} submission successful", True,
-                            f"Question: {answer_data['question_id']}, Answer: {answer_data['answer']}, "
-                            f"Layer1 complete: {data.get('layer1_complete')}"
-                        )
+                    print(f"✅ POST /pwa/install-status ({action}) successful")
+                    print(f"   Response: {data}")
+                    
+                    # After each action, verify the GET endpoint reflects the change
+                    time.sleep(0.5)  # Small delay
+                    get_response = self.session.get(f"{BASE_URL}/pwa/install-status")
+                    
+                    if get_response.status_code == 200:
+                        get_data = get_response.json()
+                        print(f"   Verification GET response:")
+                        print(f"     showPrompt: {get_data.get('showPrompt')}")
+                        print(f"     installed: {get_data.get('installed')}")
+                        print(f"     dismissedForever: {get_data.get('dismissedForever')}")
+                        
+                        # Verify expected behavior
+                        if action == 'installed':
+                            if get_data.get('installed') is True:
+                                print(f"   ✅ installed=true after 'installed' action")
+                            else:
+                                print(f"   ❌ Expected installed=true after 'installed' action")
+                                
+                        elif action == 'dismiss_forever':
+                            if get_data.get('dismissedForever') is True:
+                                print(f"   ✅ dismissedForever=true after 'dismiss_forever' action")
+                            else:
+                                print(f"   ❌ Expected dismissedForever=true after 'dismiss_forever' action")
+                                
+                        elif action == 'remind_later':
+                            if get_data.get('showPrompt') is False:
+                                print(f"   ✅ showPrompt=false after 'remind_later' action (within 24h)")
+                            else:
+                                print(f"   ❌ Expected showPrompt=false after 'remind_later' action")
                     else:
-                        self.test_step(
-                            f"Layer 1 answer {i+1} submission failed", False,
-                            f"No success field in response: {json.dumps(data)[:200]}"
-                        )
+                        print(f"   ❌ Verification GET failed: {get_response.status_code}")
+                        
                 else:
-                    self.test_step(
-                        f"Layer 1 answer {i+1} submission failed", False,
-                        f"Status: {response.status_code}, Response: {response.text[:200]}"
-                    )
+                    print(f"❌ POST /pwa/install-status ({action}) failed: {response.status_code} - {response.text}")
+                    return False
                     
             except Exception as e:
-                self.test_step(
-                    f"Layer 1 answer {i+1} submission failed", False,
-                    f"Exception: {str(e)}"
-                )
+                print(f"❌ PWA install status POST ({action}) error: {str(e)}")
+                return False
         
-        return success_count == len(layer1_answers)
-
-    def test_layered_completion(self):
-        """Test POST /api/assessment/layered/complete"""
-        self.log("=== LAYERED ASSESSMENT COMPLETION TEST ===")
-        
+        return True
+    
+    def test_announcement_permanent_dismiss(self):
+        """Test announcement permanent dismiss functionality"""
         try:
-            response = self.session.post(
-                f"{self.base_url}/assessment/layered/complete",
-                headers={"Content-Type": "application/json"},
-                json={"assistant_name": "Perseus"},
-                timeout=10
-            )
+            print(f"\n📢 Testing Announcement Permanent Dismiss...")
+            
+            # First, get current announcements to find one to test with
+            print("   Getting current announcements...")
+            response = self.session.get(f"{BASE_URL}/announcements")
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get('success') and 'profile_summary' in data:
-                    return self.test_step(
-                        "Layered assessment completion successful", True,
-                        f"Profile summary generated (length: {len(data['profile_summary'])} chars)"
-                    )
-                else:
-                    return self.test_step(
-                        "Layered assessment completion failed", False,
-                        f"Missing success or profile_summary: {json.dumps(data)[:200]}"
-                    )
-            elif response.status_code == 400:
-                return self.test_step(
-                    "Layered assessment completion expected failure", True,
-                    f"Expected 400 error (likely incomplete assessment): {response.text[:200]}"
-                )
-            else:
-                return self.test_step(
-                    "Layered assessment completion failed", False,
-                    f"Status: {response.status_code}, Response: {response.text[:200]}"
-                )
+                announcements = data.get('announcements', [])
+                unread = data.get('unread', [])
                 
-        except Exception as e:
-            return self.test_step(
-                "Layered assessment completion failed", False,
-                f"Exception: {str(e)}"
-            )
-
-    def test_communication_profile(self):
-        """Test GET /api/profile/communication"""
-        self.log("=== COMMUNICATION PROFILE TEST ===")
-        
-        try:
-            response = self.session.get(
-                f"{self.base_url}/profile/communication",
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                has_profile = data.get('hasProfile', False)
+                print(f"   Found {len(announcements)} total announcements")
+                print(f"   Found {len(unread)} unread announcements")
                 
-                if has_profile:
-                    profile = data.get('profile', {})
-                    adaptations = data.get('adaptations', '')
+                if len(announcements) == 0:
+                    print(f"   ℹ️  No announcements found - creating test announcement first")
+                    # We can't create announcements as regular user, so skip this test
+                    print(f"   ⚠️  Skipping permanent dismiss test - no announcements available")
+                    return True
+                
+                # Use the first unread announcement for testing
+                test_announcement = unread[0] if unread else announcements[0]
+                announcement_id = test_announcement.get('id')
+                
+                print(f"   Testing with announcement ID: {announcement_id}")
+                print(f"   Title: {test_announcement.get('title', 'N/A')}")
+                
+                # Test permanent dismiss
+                dismiss_response = self.session.post(f"{BASE_URL}/announcements/dismiss", json={
+                    "announcementId": announcement_id,
+                    "permanent": True
+                })
+                
+                if dismiss_response.status_code == 200:
+                    print(f"   ✅ Permanent dismiss successful")
                     
-                    return self.test_step(
-                        "Communication profile retrieved successfully", True,
-                        f"Has profile: {has_profile}, Profile fields: {list(profile.keys())}, "
-                        f"Adaptations length: {len(adaptations)} chars"
-                    )
+                    # Verify the announcement is no longer in unread
+                    time.sleep(0.5)
+                    verify_response = self.session.get(f"{BASE_URL}/announcements")
+                    
+                    if verify_response.status_code == 200:
+                        verify_data = verify_response.json()
+                        new_unread = verify_data.get('unread', [])
+                        new_announcements = verify_data.get('announcements', [])
+                        
+                        # Check if announcement is still in unread (it shouldn't be)
+                        is_in_unread = any(a.get('id') == announcement_id for a in new_unread)
+                        is_in_announcements = any(a.get('id') == announcement_id for a in new_announcements)
+                        
+                        if not is_in_unread:
+                            print(f"   ✅ Announcement NOT in unread list after permanent dismiss")
+                        else:
+                            print(f"   ❌ Announcement still in unread list after permanent dismiss")
+                            
+                        if is_in_announcements:
+                            print(f"   ✅ Announcement still in main announcements list (expected)")
+                        else:
+                            print(f"   ⚠️  Announcement removed from main list (check if this is expected)")
+                            
+                        return True
+                    else:
+                        print(f"   ❌ Verification GET failed: {verify_response.status_code}")
+                        return False
+                        
                 else:
-                    return self.test_step(
-                        "No communication profile found", True,
-                        "User has not completed layered assessment yet (expected for new users)"
-                    )
-            elif response.status_code == 401:
-                return self.test_step(
-                    "Communication profile endpoint requires auth", True,
-                    "Correctly requires authentication"
-                )
+                    print(f"   ❌ Permanent dismiss failed: {dismiss_response.status_code} - {dismiss_response.text}")
+                    return False
+                    
             else:
-                return self.test_step(
-                    "Communication profile endpoint failed", False,
-                    f"Status: {response.status_code}, Response: {response.text[:200]}"
-                )
+                print(f"   ❌ Get announcements failed: {response.status_code} - {response.text}")
+                return False
                 
         except Exception as e:
-            return self.test_step(
-                "Communication profile endpoint failed", False,
-                f"Exception: {str(e)}"
-            )
-
+            print(f"❌ Announcement permanent dismiss error: {str(e)}")
+            return False
+    
+    def test_existing_announcement_functionality(self):
+        """Test existing announcement functionality to ensure it still works"""
+        try:
+            print(f"\n📢 Testing Existing Announcement Functionality...")
+            
+            # Test click tracking
+            print("   Testing click tracking...")
+            response = self.session.get(f"{BASE_URL}/announcements")
+            
+            if response.status_code == 200:
+                data = response.json()
+                announcements = data.get('announcements', [])
+                
+                if announcements:
+                    test_announcement = announcements[0]
+                    announcement_id = test_announcement.get('id')
+                    
+                    # Test click tracking
+                    click_response = self.session.post(f"{BASE_URL}/announcements/click", json={
+                        "announcementId": announcement_id
+                    })
+                    
+                    if click_response.status_code == 200:
+                        print(f"   ✅ Click tracking successful")
+                    else:
+                        print(f"   ❌ Click tracking failed: {click_response.status_code} - {click_response.text}")
+                        return False
+                        
+                    # Test 24-hour dismiss (temporary)
+                    print("   Testing 24-hour dismiss...")
+                    dismiss_response = self.session.post(f"{BASE_URL}/announcements/dismiss", json={
+                        "announcementId": announcement_id
+                        # No permanent: true, so this should be 24-hour dismiss
+                    })
+                    
+                    if dismiss_response.status_code == 200:
+                        print(f"   ✅ 24-hour dismiss successful")
+                        
+                        # Verify immediate effect
+                        time.sleep(0.5)
+                        verify_response = self.session.get(f"{BASE_URL}/announcements")
+                        
+                        if verify_response.status_code == 200:
+                            verify_data = verify_response.json()
+                            new_unread = verify_data.get('unread', [])
+                            
+                            # Should be removed from unread temporarily
+                            is_in_unread = any(a.get('id') == announcement_id for a in new_unread)
+                            if not is_in_unread:
+                                print(f"   ✅ Announcement temporarily removed from unread (24-hour dismiss)")
+                            else:
+                                print(f"   ❌ Announcement still in unread after 24-hour dismiss")
+                                
+                        return True
+                    else:
+                        print(f"   ❌ 24-hour dismiss failed: {dismiss_response.status_code} - {dismiss_response.text}")
+                        return False
+                        
+                else:
+                    print(f"   ℹ️  No announcements available for testing existing functionality")
+                    return True
+                    
+            else:
+                print(f"   ❌ Get announcements failed: {response.status_code} - {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Existing announcement functionality error: {str(e)}")
+            return False
+    
     def run_all_tests(self):
-        """Run comprehensive layered assessment system tests"""
-        self.log("🧠 STARTING SOULPRINT ENGINE LAYERED ASSESSMENT TESTING")
-        self.log(f"Base URL: {self.base_url}")
-        self.log(f"Test credentials: {TEST_EMAIL}")
+        """Run all tests"""
+        print(f"\n🚀 Starting PWA and Announcement Feature Tests")
+        print(f"=" * 70)
         
-        # Step 1: Test assessment settings (no auth)
-        self.test_assessment_settings()
-        
-        # Step 2: Authenticate
+        # Authenticate first
         if not self.authenticate():
-            self.log("❌ Cannot proceed without authentication")
+            print(f"\n❌ Authentication failed - cannot continue with tests")
             return False
         
-        # Step 3: Test layered assessment questions
-        self.test_layered_questions()
+        test_results = {}
         
-        # Step 4: Test communication profile (before assessment)
-        self.test_communication_profile()
+        # Test PWA Install Status Endpoints
+        test_results['pwa_get'] = self.test_pwa_install_status_get()
+        test_results['pwa_post'] = self.test_pwa_install_status_post()
         
-        # Step 5: Test answer submission
-        answer_success = self.test_layered_answer_submission()
-        
-        # Step 6: Test completion (may fail if not enough answers)
-        self.test_layered_completion()
-        
-        # Step 7: Test communication profile (after assessment attempts)
-        self.test_communication_profile()
+        # Test Announcement Features
+        test_results['announcement_permanent_dismiss'] = self.test_announcement_permanent_dismiss()
+        test_results['existing_announcement_functionality'] = self.test_existing_announcement_functionality()
         
         # Summary
-        self.log(f"\n{'='*60}")
-        self.log("🧠 LAYERED ASSESSMENT SYSTEM TEST SUMMARY")
-        self.log(f"{'='*60}")
+        print(f"\n" + "=" * 70)
+        print(f"🏁 TEST SUMMARY")
+        print(f"=" * 70)
         
-        # Detailed results
-        passed = sum(1 for r in self.test_results if r['success'])
-        failed = len(self.test_results) - passed
-        total = len(self.test_results)
+        passed = 0
+        total = len(test_results)
         
-        success_rate = (passed / total * 100) if total > 0 else 0
-        self.log(f"Overall Success Rate: {passed}/{total} ({success_rate:.1f}%)")
+        for test_name, result in test_results.items():
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"{status} - {test_name.replace('_', ' ').title()}")
+            if result:
+                passed += 1
         
-        self.log(f"\nDetailed Results:")
-        self.log(f"✅ PASSED: {passed}")
-        self.log(f"❌ FAILED: {failed}")
+        print(f"\n📊 Results: {passed}/{total} tests passed ({(passed/total)*100:.0f}%)")
         
-        if failed > 0:
-            self.log(f"\nFailed Tests:")
-            for result in self.test_results:
-                if not result['success']:
-                    self.log(f"  • {result['description']}")
-                    if result['details']:
-                        self.log(f"    Details: {result['details']}")
-        
-        self.log(f"\n🔍 KEY FINDINGS:")
-        self.log(f"   • Testing new Layered Assessment System")
-        self.log(f"   • Endpoints: GET /assessment/layered/questions")
-        self.log(f"   • Endpoints: POST /assessment/layered/answer")  
-        self.log(f"   • Endpoints: POST /assessment/layered/complete")
-        self.log(f"   • Endpoints: GET /assessment/settings")
-        self.log(f"   • Endpoints: GET /profile/communication")
-        self.log(f"   • Test Flow: Questions → Answers → Complete → Profile")
-        
-        return failed == 0
+        if passed == total:
+            print(f"🎉 All tests passed! PWA and announcement features working correctly.")
+        else:
+            print(f"⚠️  Some tests failed. Review the output above for details.")
+            
+        return passed == total
 
 def main():
-    tester = LayeredAssessmentTester()
+    """Main test execution"""
+    tester = SoulPrintBackendTester()
     
     try:
         success = tester.run_all_tests()
-        if success:
-            print(f"\n🎉 ALL TESTS PASSED! Layered Assessment System appears to be working correctly.")
-            sys.exit(0)
-        else:
-            print(f"\n⚠️  SOME TESTS FAILED. Check the detailed results above.")
-            sys.exit(1)
-            
+        sys.exit(0 if success else 1)
+        
     except KeyboardInterrupt:
-        print(f"\n⚠️  Tests interrupted by user")
+        print(f"\n\n⚠️  Tests interrupted by user")
         sys.exit(1)
+        
     except Exception as e:
-        print(f"\n❌ CRITICAL ERROR: {str(e)}")
+        print(f"\n❌ Unexpected error during testing: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ import {
   Mic, Plus, Settings, X, Check, Loader2, Globe,
   Image as ImageIcon, MoreHorizontal, ArrowLeft, Paperclip,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
-  Video, Search, ChevronRight, Square
+  Video, Search, ChevronRight, Square, Download
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
@@ -1149,6 +1149,9 @@ export default function MobileChat({
   const [announcements, setAnnouncements] = useState([]);
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [conversationSearch, setConversationSearch] = useState(''); // For searching conversations
+  // PWA Install prompt state
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -1172,6 +1175,62 @@ export default function MobileChat({
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingContent, scrollToBottom]);
+
+  // Capture the beforeinstallprompt event for PWA install
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  // Check if we should show the install prompt
+  useEffect(() => {
+    if (!token) return;
+    // Check if already installed as PWA
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                         window.navigator.standalone === true;
+    if (isStandalone) return; // Already installed
+    
+    // Check user preference from API
+    fetch('/api/pwa/install-status', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.showPrompt) {
+          setShowInstallPrompt(true);
+        }
+      })
+      .catch(() => {});
+  }, [token]);
+
+  // Handle PWA install prompt actions
+  const handleInstallAction = async (action) => {
+    if (action === 'install' && deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const result = await deferredInstallPrompt.userChoice;
+      if (result.outcome === 'accepted') {
+        action = 'installed';
+      } else {
+        action = 'remind_later';
+      }
+      setDeferredInstallPrompt(null);
+    }
+    
+    // Save preference to API
+    try {
+      await fetch('/api/pwa/install-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action }),
+      });
+    } catch (e) {
+      console.error('Failed to save install preference:', e);
+    }
+    
+    setShowInstallPrompt(false);
+  };
 
   // Load conversations
   useEffect(() => {
@@ -1732,14 +1791,14 @@ export default function MobileChat({
     setEditingMessage(null);
   };
 
-  // Dismiss announcement (24-hour dismiss)
-  const dismissAnnouncement = async (announcementId) => {
+  // Dismiss announcement (24-hour dismiss or permanent)
+  const dismissAnnouncement = async (announcementId, permanent = false) => {
     setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
     try {
       await fetch('/api/announcements/dismiss', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ announcementId }),
+        body: JSON.stringify({ announcementId, permanent }),
       });
     } catch (e) {
       console.error('Failed to dismiss announcement:', e);
@@ -1827,19 +1886,66 @@ export default function MobileChat({
                       </a>
                     )}
                   </div>
-                  <button 
-                    onClick={() => dismissAnnouncement(ann.id)} 
-                    className="text-gray-500 hover:text-white p-1"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={() => dismissAnnouncement(ann.id, false)} 
+                      className="text-gray-500 hover:text-white p-1 text-[9px]"
+                      title="Dismiss for 24h"
+                    >
+                      Later
+                    </button>
+                    <button 
+                      onClick={() => dismissAnnouncement(ann.id, true)} 
+                      className="text-gray-500 hover:text-white p-1"
+                      title="Don't show again"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
           
+          {/* PWA Install Prompt Banner - Mobile */}
+          {showInstallPrompt && (
+            <div className={`fixed ${announcements.length > 0 ? 'top-32' : 'top-16'} left-0 right-0 z-30 px-3 py-2 bg-[#0a0a0a]/95 backdrop-blur-sm`}>
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30">
+                <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                  <Download className="w-4 h-4 text-green-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-xs font-medium">Add to Home Screen</p>
+                  <p className="text-gray-400 text-[10px] mt-0.5">
+                    Quick access! <span className="text-green-400">Safe shortcut</span>, no download needed.
+                  </p>
+                  <div className="flex gap-2 mt-2">
+                    <button 
+                      onClick={() => handleInstallAction('install')}
+                      className="px-2.5 py-1 bg-green-500 text-white text-[10px] font-medium rounded-lg"
+                    >
+                      Install
+                    </button>
+                    <button 
+                      onClick={() => handleInstallAction('remind_later')}
+                      className="px-2.5 py-1 bg-white/5 text-gray-300 text-[10px] rounded-lg"
+                    >
+                      Later
+                    </button>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => handleInstallAction('dismiss_forever')}
+                  className="text-gray-500 p-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+          
           {/* Messages */}
-          <div className={`${announcements.length > 0 ? 'pt-36' : 'pt-24'} pb-44 overflow-y-auto`}>
+          <div className={`${announcements.length > 0 || showInstallPrompt ? (announcements.length > 0 && showInstallPrompt ? 'pt-52' : 'pt-36') : 'pt-24'} pb-44 overflow-y-auto`}>
             {messages.map((msg, idx) => (
               <MessageBubble 
                 key={msg.id || idx} 

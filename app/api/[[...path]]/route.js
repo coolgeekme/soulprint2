@@ -4616,6 +4616,9 @@ async function handleGetAnnouncements(request) {
 
   // Filter out only recently dismissed ones (within 24 hours)
   const unread = announcements.filter(a => {
+    // Check if permanently dismissed
+    if (userDismissed?.permanently_dismissed?.includes(a.id)) return false;
+    
     const dismissedAt = dismissedMap.get(a.id);
     if (!dismissedAt) return true; // Never dismissed
     return dismissedAt < twentyFourHoursAgo; // Dismissed more than 24h ago, show again
@@ -4641,13 +4644,13 @@ async function handleGetAnnouncements(request) {
   });
 }
 
-// USER - Dismiss announcement (with timestamp for 24-hour reset)
+// USER - Dismiss announcement (with timestamp for 24-hour reset, or permanent)
 async function handleDismissAnnouncement(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { announcementId } = body;
+  const { announcementId, permanent } = body;
 
   if (!announcementId) return err('announcementId required', 400);
 
@@ -4659,27 +4662,39 @@ async function handleDismissAnnouncement(request) {
     { $inc: { dismiss_count: 1 } }
   );
 
-  // Store dismiss with timestamp (upsert to update if already exists)
-  // Remove old entry first, then add new one with current timestamp
-  await db.collection('user_dismissed_announcements').updateOne(
-    { user_id: user.id },
-    { 
-      $pull: { dismissed_announcements: { announcement_id: announcementId } }
-    }
-  );
-  
-  await db.collection('user_dismissed_announcements').updateOne(
-    { user_id: user.id },
-    { 
-      $push: { 
-        dismissed_announcements: { 
-          announcement_id: announcementId, 
-          dismissed_at: new Date() 
-        } 
+  if (permanent) {
+    // Permanently dismiss - add to permanently_dismissed array
+    await db.collection('user_dismissed_announcements').updateOne(
+      { user_id: user.id },
+      { 
+        $addToSet: { permanently_dismissed: announcementId },
+        $pull: { dismissed_announcements: { announcement_id: announcementId } }
+      },
+      { upsert: true }
+    );
+  } else {
+    // Temporary dismiss with timestamp (24-hour reset)
+    // Remove old entry first, then add new one with current timestamp
+    await db.collection('user_dismissed_announcements').updateOne(
+      { user_id: user.id },
+      { 
+        $pull: { dismissed_announcements: { announcement_id: announcementId } }
       }
-    },
-    { upsert: true }
-  );
+    );
+    
+    await db.collection('user_dismissed_announcements').updateOne(
+      { user_id: user.id },
+      { 
+        $push: { 
+          dismissed_announcements: { 
+            announcement_id: announcementId, 
+            dismissed_at: new Date() 
+          } 
+        }
+      },
+      { upsert: true }
+    );
+  }
 
   return ok({ success: true });
 }
@@ -4700,6 +4715,65 @@ async function handleAnnouncementClick(request) {
   await db.collection('announcements').updateOne(
     { id: announcementId },
     { $inc: { click_count: 1 } }
+  );
+
+  return ok({ success: true });
+}
+
+// PWA Install Prompt - Get user's install prompt preference
+async function handleGetInstallPromptStatus(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  const prefs = await db.collection('user_preferences').findOne({ user_id: user.id });
+  
+  // Check if user has installed the app
+  const installed = prefs?.pwa_installed || false;
+  // Check if user dismissed forever
+  const dismissedForever = prefs?.pwa_dismissed_forever || false;
+  // Check if user clicked "remind me later" - only hide for 24 hours
+  const remindLaterAt = prefs?.pwa_remind_later_at;
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const shouldRemind = !remindLaterAt || new Date(remindLaterAt) < twentyFourHoursAgo;
+  
+  // Show prompt if: not installed, not dismissed forever, and (never reminded OR reminded > 24h ago)
+  const showPrompt = !installed && !dismissedForever && shouldRemind;
+
+  return ok({ 
+    showPrompt,
+    installed,
+    dismissedForever,
+  });
+}
+
+// PWA Install Prompt - Update install prompt preference
+async function handleUpdateInstallPromptStatus(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { action } = body; // 'installed' | 'remind_later' | 'dismiss_forever'
+
+  if (!['installed', 'remind_later', 'dismiss_forever'].includes(action)) {
+    return err('Invalid action', 400);
+  }
+
+  const db = await getDb();
+  const updates = {};
+
+  if (action === 'installed') {
+    updates.pwa_installed = true;
+  } else if (action === 'remind_later') {
+    updates.pwa_remind_later_at = new Date();
+  } else if (action === 'dismiss_forever') {
+    updates.pwa_dismissed_forever = true;
+  }
+
+  await db.collection('user_preferences').updateOne(
+    { user_id: user.id },
+    { $set: updates },
+    { upsert: true }
   );
 
   return ok({ success: true });
@@ -11401,6 +11475,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'media/gallery') return handleMediaGallery(request);
     if (pathStr === 'media/status') return handleMediaStatus(request);
     if (pathStr === 'imports/status') return handleImportStatus(request);
+    if (pathStr === 'pwa/install-status') return handleGetInstallPromptStatus(request);
 
     return err('Not found', 404);
   } catch (error) {
@@ -11481,6 +11556,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'beta-code/validate-v2') return handleValidateBetaCodeV2(request);
     if (pathStr === 'announcements/dismiss') return handleDismissAnnouncement(request);
     if (pathStr === 'announcements/click') return handleAnnouncementClick(request);
+    if (pathStr === 'pwa/install-status') return handleUpdateInstallPromptStatus(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
     if (pathStr === 'assessment/gradual/answer') return handleSubmitGradualAnswer(request);
     if (pathStr === 'assessment/gradual/skip') return handleSkipGradualQuestion(request);
