@@ -11480,6 +11480,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'admin/beta-codes') return handleAdminCreateBetaCodes(request);
     if (pathStr === 'beta-code/validate-v2') return handleValidateBetaCodeV2(request);
     if (pathStr === 'announcements/dismiss') return handleDismissAnnouncement(request);
+    if (pathStr === 'announcements/click') return handleAnnouncementClick(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
     if (pathStr === 'assessment/gradual/answer') return handleSubmitGradualAnswer(request);
     if (pathStr === 'assessment/gradual/skip') return handleSkipGradualQuestion(request);
