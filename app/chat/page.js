@@ -4856,6 +4856,14 @@ export default function ChatPage() {
                       href={ann.link} 
                       target="_blank" 
                       rel="noopener noreferrer" 
+                      onClick={() => {
+                        // Track click
+                        fetch('/api/announcements/click', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ announcementId: ann.id }),
+                        }).catch(() => {});
+                      }}
                       className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 mt-1.5 transition-colors"
                     >
                       Learn more <ExternalLink className="w-3 h-3" />
@@ -4865,6 +4873,7 @@ export default function ChatPage() {
                 <button 
                   onClick={() => dismissAnnouncement(ann.id)} 
                   className="text-gray-600 hover:text-white transition-colors p-1"
+                  title="Dismiss for 24 hours"
                 >
                   <X className="w-4 h-4" />
                 </button>
