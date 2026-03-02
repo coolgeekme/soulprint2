@@ -1934,10 +1934,6 @@ export default function MobileChat({
         isOpen={showMoreOptions}
         onClose={() => setShowMoreOptions(false)}
         onSettings={onOpenSettings}
-        onImageGen={() => setShowImageGenSheet(true)}
-        onVideoGen={() => setShowVideoGenSheet(true)}
-        onGallery={() => { loadGallery(); setShowGallery(true); }}
-        onCompare={() => setShowCompareMode(true)}
         onImport={() => setShowImportSheet(true)}
       />
 
