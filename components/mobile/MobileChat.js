@@ -1192,14 +1192,15 @@ export default function MobileChat({
       .catch(console.error);
   }, [token]);
 
-  // Load announcements
+  // Load announcements (unread list which respects 24h dismiss)
   useEffect(() => {
     if (!token) return;
     fetch('/api/announcements', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
-        // API returns { announcements: [...] }
-        setAnnouncements(Array.isArray(data.announcements) ? data.announcements : []);
+        // API returns { announcements: [...], unread: [...] }
+        // Use unread for display (respects 24h dismiss)
+        setAnnouncements(Array.isArray(data.unread) ? data.unread : []);
       })
       .catch(console.error);
   }, [token]);
