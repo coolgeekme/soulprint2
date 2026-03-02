@@ -1941,8 +1941,8 @@ export default function MobileChat({
         onImport={() => setShowImportSheet(true)}
       />
 
-      {/* Attachment Sheet */}
-      <AttachmentSheet 
+      {/* Create Options Sheet (+ button) */}
+      <CreateOptionsSheet 
         isOpen={showAttachmentSheet}
         onClose={() => setShowAttachmentSheet(false)}
         onFileSelect={() => fileInputRef.current?.click()}
@@ -1955,6 +1955,10 @@ export default function MobileChat({
           cameraInput.onchange = handleFileSelect;
           cameraInput.click();
         }}
+        onImageGen={() => setShowImageGenSheet(true)}
+        onVideoGen={() => setShowVideoGenSheet(true)}
+        onCompare={() => setShowCompareMode(true)}
+        onGallery={() => { loadGallery(); setShowGallery(true); }}
       />
 
       {/* Image Generation Sheet */}
