@@ -288,6 +288,36 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           className="bg-white/5 rounded-3xl rounded-bl-lg px-4 py-3"
           onClick={() => setShowActions(!showActions)}
         >
+          {/* Show generated image */}
+          {message.image_url && (
+            <div className="mb-3 rounded-2xl overflow-hidden">
+              <img 
+                src={message.image_url} 
+                alt="Generated" 
+                className="w-full h-auto max-h-80 object-contain bg-black/20"
+              />
+            </div>
+          )}
+          
+          {/* Show generated video */}
+          {message.video_url && (
+            <div className="mb-3 rounded-2xl overflow-hidden">
+              <video 
+                src={message.video_url} 
+                controls 
+                className="w-full h-auto max-h-80 bg-black/20"
+              />
+            </div>
+          )}
+          
+          {/* Show loading spinner for generating media */}
+          {message.is_generating && (
+            <div className="flex items-center gap-2 mb-3 text-orange-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="text-sm">Generating...</span>
+            </div>
+          )}
+          
           <div className="text-gray-200 text-[15px] leading-relaxed prose prose-invert prose-sm max-w-none">
             <ReactMarkdown 
               components={{
