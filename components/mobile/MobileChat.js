@@ -1126,6 +1126,9 @@ export default function MobileChat({
   const [editingMessage, setEditingMessage] = useState(null);
   const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Smart Mode selected
   
+  // AbortController for stopping requests
+  const abortControllerRef = useRef(null);
+  
   // New state for additional features
   const [showImageGenSheet, setShowImageGenSheet] = useState(false);
   const [showVideoGenSheet, setShowVideoGenSheet] = useState(false);
