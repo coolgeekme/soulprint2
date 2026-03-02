@@ -2292,6 +2292,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   const [soulPrintLoading, setSoulPrintLoading] = useState(false);
   const [generatingSnapshot, setGeneratingSnapshot] = useState(false);
   const [editingAssistantName, setEditingAssistantName] = useState(null);
+  const [editingDisplayName, setEditingDisplayName] = useState(null);
 
   const loadSoulPrint = async () => {
     setSoulPrintLoading(true);
@@ -3303,9 +3304,44 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                     <p className="text-gray-600 text-[10px] mt-1">This is what you'll call your AI companion</p>
                   </div>
 
-                  {/* Other profile fields */}
+                  {/* Display Name (Your Name) - Editable */}
+                  <div>
+                    <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-1">Your Name</p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={editingDisplayName ?? (profile.display_name || '')}
+                        onChange={e => setEditingDisplayName(e.target.value)}
+                        className="flex-1 bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none"
+                        placeholder="What should the AI call you?"
+                      />
+                      {editingDisplayName !== null && editingDisplayName !== profile.display_name && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await fetch('/api/profile', {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                body: JSON.stringify({ display_name: editingDisplayName })
+                              });
+                              setProfile(p => ({ ...p, display_name: editingDisplayName }));
+                              setEditingDisplayName(null);
+                              alert('Your name has been updated! The AI will now call you ' + editingDisplayName);
+                            } catch (e) {
+                              alert('Failed to update');
+                            }
+                          }}
+                          className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-colors"
+                        >
+                          Save
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-gray-600 text-[10px] mt-1">The AI will address you by this name</p>
+                  </div>
+
+                  {/* Other profile fields (read-only) */}
                   {[
-                    ['Display Name', profile.display_name],
                     ['Field', profile.field],
                     ['Role', profile.descriptors?.join(', ')],
                   ].map(([label, val]) => (

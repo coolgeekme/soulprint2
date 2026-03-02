@@ -437,13 +437,19 @@ const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename 
 };
 
 // Profile View
-const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClick, announcements, onAnnouncementsClick }) => (
+const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClick, announcements, onAnnouncementsClick, onEditName }) => (
   <div className="min-h-screen bg-[#0a0a0a] pt-16 pb-24 px-4">
     <div className="text-center mb-8">
       <div className="w-24 h-24 mx-auto bg-gradient-to-br from-orange-500/20 to-amber-500/20 rounded-full flex items-center justify-center mb-4">
         <SoulPrintLogo size={48} />
       </div>
       <h1 className="text-white text-xl font-semibold">{profile?.display_name || 'Your Profile'}</h1>
+      <button 
+        onClick={onEditName}
+        className="text-orange-400 text-xs mt-1 hover:underline"
+      >
+        ✏️ Edit name
+      </button>
       <p className="text-gray-500 text-sm mt-1">{profile?.email}</p>
       {isAdmin && (
         <span className="inline-block mt-2 px-3 py-1 bg-orange-500/20 text-orange-400 text-xs rounded-full">
@@ -1193,6 +1199,9 @@ export default function MobileChat({
   // PWA Install prompt state
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  // Edit display name state
+  const [showEditNameSheet, setShowEditNameSheet] = useState(false);
+  const [editingDisplayName, setEditingDisplayName] = useState('');
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -1855,6 +1864,29 @@ export default function MobileChat({
     }).catch(() => {});
   };
 
+  // Save display name
+  const saveDisplayName = async () => {
+    if (!editingDisplayName.trim()) return;
+    try {
+      await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ display_name: editingDisplayName.trim() }),
+      });
+      setProfile(p => ({ ...p, display_name: editingDisplayName.trim() }));
+      setShowEditNameSheet(false);
+      setEditingDisplayName('');
+    } catch (e) {
+      console.error('Failed to update name:', e);
+    }
+  };
+
+  // Open edit name sheet
+  const openEditNameSheet = () => {
+    setEditingDisplayName(profile?.display_name || user?.profile?.display_name || '');
+    setShowEditNameSheet(true);
+  };
+
   // Group models by provider
   const groupedModels = MODELS.reduce((acc, model) => {
     if (!acc[model.group]) acc[model.group] = [];
@@ -2207,7 +2239,42 @@ export default function MobileChat({
           onAdminClick={() => window.location.href = '/admin'}
           announcements={announcements}
           onAnnouncementsClick={() => setShowAnnouncements(true)}
+          onEditName={openEditNameSheet}
         />
+      )}
+
+      {/* Edit Display Name Sheet */}
+      {showEditNameSheet && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={() => setShowEditNameSheet(false)}>
+          <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
+            <h3 className="text-white font-semibold text-lg mb-2">Edit Your Name</h3>
+            <p className="text-gray-500 text-sm mb-4">This is how the AI will address you</p>
+            <input
+              type="text"
+              value={editingDisplayName}
+              onChange={(e) => setEditingDisplayName(e.target.value)}
+              placeholder="Enter your preferred name"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white mb-4 focus:border-orange-500/50 outline-none"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowEditNameSheet(false)}
+                className="flex-1 py-3 bg-white/5 text-gray-300 rounded-xl text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={saveDisplayName}
+                disabled={!editingDisplayName.trim()}
+                className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Announcements View */}
