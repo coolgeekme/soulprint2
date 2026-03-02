@@ -1731,6 +1731,29 @@ export default function MobileChat({
     setEditingMessage(null);
   };
 
+  // Dismiss announcement (24-hour dismiss)
+  const dismissAnnouncement = async (announcementId) => {
+    setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
+    try {
+      await fetch('/api/announcements/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ announcementId }),
+      });
+    } catch (e) {
+      console.error('Failed to dismiss announcement:', e);
+    }
+  };
+
+  // Track announcement click
+  const trackAnnouncementClick = (announcementId) => {
+    fetch('/api/announcements/click', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ announcementId }),
+    }).catch(() => {});
+  };
+
   // Group models by provider
   const groupedModels = MODELS.reduce((acc, model) => {
     if (!acc[model.group]) acc[model.group] = [];
