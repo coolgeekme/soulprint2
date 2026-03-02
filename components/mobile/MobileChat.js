@@ -624,7 +624,7 @@ const ImageGenSheet = ({
                 }`}
               >
                 <span className="text-white text-sm font-medium block">{model.label}</span>
-                <span className="text-gray-500 text-xs">{model.cost} • {model.description}</span>
+                <span className="text-gray-500 text-xs">{model.description}</span>
               </button>
             ))}
           </div>
