@@ -18,6 +18,7 @@ export default function AuthPage() {
   const [mode, setMode] = useState('signin'); // 'signin' or 'signup'
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [latency] = useState(() => Math.floor(Math.random() * 30 + 10));
   const buildId = 'v2.5.0';
   const sessionId = () => Math.random().toString(36).slice(2, 10).toUpperCase();
@@ -280,10 +281,37 @@ export default function AuthPage() {
           </div>
         </div>
 
+        {/* Age & Terms Confirmation - Show at top for signup mode */}
+        {mode === 'signup' && (
+          <label className="flex items-start gap-3 cursor-pointer group mb-4 p-3 rounded-xl bg-orange-500/5 border border-orange-500/20">
+            <div className="relative mt-0.5">
+              <input
+                type="checkbox"
+                checked={ageConfirmed}
+                onChange={(e) => setAgeConfirmed(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-5 h-5 border-2 border-gray-600 rounded-md peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-colors flex items-center justify-center">
+                {ageConfirmed && (
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+            </div>
+            <span className="text-xs text-gray-400 leading-relaxed group-hover:text-gray-300 transition-colors">
+              I confirm I am <span className="text-orange-400 font-medium">13 years of age or older</span> and agree to the{' '}
+              <Link href="/terms" className="text-orange-500 hover:text-orange-400 underline">Terms of Service</Link>
+              {' '}and{' '}
+              <Link href="/privacy" className="text-orange-500 hover:text-orange-400 underline">Privacy Policy</Link>
+            </span>
+          </label>
+        )}
+
         {/* Google Sign-In Button */}
         <button
           onClick={handleGoogleSignIn}
-          disabled={googleLoading || loading}
+          disabled={googleLoading || loading || (mode === 'signup' && !ageConfirmed)}
           className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-gray-800 font-medium py-3.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed mb-4"
         >
           {googleLoading ? (
@@ -359,18 +387,20 @@ export default function AuthPage() {
             <p className="text-red-400 text-xs text-center bg-red-500/10 border border-red-500/20 rounded-lg py-2.5 px-3">{error}</p>
           )}
 
-          {/* Terms Agreement */}
-          <p className="text-center text-[10px] text-gray-500 px-2">
-            By continuing, you agree to our{' '}
-            <Link href="/terms" className="text-orange-500 hover:text-orange-400 underline">Terms of Service</Link>
-            {' '}and{' '}
-            <Link href="/privacy" className="text-orange-500 hover:text-orange-400 underline">Privacy Policy</Link>.
-          </p>
+          {/* Terms notice for sign in */}
+          {mode === 'signin' && (
+            <p className="text-center text-[10px] text-gray-500 px-2">
+              By signing in, you agree to our{' '}
+              <Link href="/terms" className="text-orange-500 hover:text-orange-400 underline">Terms of Service</Link>
+              {' '}and{' '}
+              <Link href="/privacy" className="text-orange-500 hover:text-orange-400 underline">Privacy Policy</Link>.
+            </p>
+          )}
 
           {/* Submit */}
           <button
             type="submit"
-            disabled={loading || googleLoading}
+            disabled={loading || googleLoading || (mode === 'signup' && !ageConfirmed)}
             className="btn-orange w-full py-4 rounded-xl text-sm tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {loading ? (
