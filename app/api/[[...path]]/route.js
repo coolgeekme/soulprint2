@@ -627,20 +627,13 @@ async function classifyQueryForSmartMode(content, conversationHistory = []) {
     }
   }
   
-  // Check for image/vision content
-  if (lowerContent.includes('image') || lowerContent.includes('picture') || lowerContent.includes('photo') || lowerContent.includes('look at')) {
+  // Check for image/vision content (only if there seems to be an attachment reference)
+  if (lowerContent.includes('look at this') || lowerContent.includes('in this image') || lowerContent.includes('analyze this')) {
     return { model: 'gpt-4o', provider: 'openai', reason: 'Vision capabilities needed', confidence: 'high' };
   }
   
-  // Check for image generation intent
-  if (lowerContent.includes('generate') && (lowerContent.includes('image') || lowerContent.includes('picture'))) {
-    return { model: 'gpt-4o', provider: 'openai', reason: 'Will route to image generation', confidence: 'high' };
-  }
-  
-  // Check for video generation intent
-  if (lowerContent.includes('generate') && lowerContent.includes('video')) {
-    return { model: 'gpt-4o', provider: 'openai', reason: 'Will route to video generation', confidence: 'high' };
-  }
+  // Skip simple keyword detection for image/video generation - let the main detector handle it
+  // This prevents false positives when users are discussing features or making lists
   
   // For longer queries, use AI classification (slower but more accurate)
   if (content.length > 100) {
@@ -2982,23 +2975,46 @@ async function handleChatStream(request) {
   // Detect if user is asking to generate an image or video
   const detectMediaIntent = (text) => {
     if (!text) return null;
-    const lower = text.toLowerCase();
+    const lower = text.toLowerCase().trim();
+    
+    // Don't detect media intent for long texts (likely task lists, documents, etc.)
+    // Real image/video generation requests are typically short and direct
+    if (text.length > 500) return null;
+    
+    // Don't detect if the text contains multiple line breaks (likely a list or document)
+    const lineBreaks = (text.match(/\n/g) || []).length;
+    if (lineBreaks > 3) return null;
+    
+    // Don't detect if the text seems to be asking about features, discussing, or listing tasks
+    const taskListIndicators = [
+      /\b(task|todo|to-do|list|prioritize|organize|help me|create.*list|feature|ability to|fix|integration|review)\b/i,
+      /\b(should|could|would|can we|let's|need to|want to)\b.*\b(add|implement|build|create|fix)\b/i,
+    ];
+    if (taskListIndicators.some(p => p.test(lower))) return null;
+    
     // Video detection (check first — more specific)
+    // Must be a clear, direct request at the start of the message
     const videoPatterns = [
-      /\bgenerate\s+(?:a\s+)?video\b/i, /\bcreate\s+(?:a\s+)?video\b/i,
-      /\bmake\s+(?:a\s+)?video\b/i, /\bvideo\s+of\b/i,
-      /\banimate\b/i, /\banimation\s+of\b/i, /\bshort\s+(?:film|clip)\b/i,
-      /\bgenerate\s+(?:a\s+)?clip\b/i,
+      /^(?:please\s+)?(?:can you\s+)?generate\s+(?:a\s+)?video\b/i, 
+      /^(?:please\s+)?(?:can you\s+)?create\s+(?:a\s+)?video\b/i,
+      /^(?:please\s+)?(?:can you\s+)?make\s+(?:a\s+)?video\b/i, 
+      /^(?:please\s+)?(?:can you\s+)?video\s+of\b/i,
+      /^(?:please\s+)?(?:can you\s+)?animate\b/i,
     ];
     if (videoPatterns.some(p => p.test(lower))) return 'video';
-    // Image detection
+    
+    // Image detection - must be a clear, direct request
     const imagePatterns = [
-      /\bgenerate\s+(?:an?\s+)?image\b/i, /\bcreate\s+(?:an?\s+)?image\b/i,
-      /\bmake\s+(?:an?\s+)?image\b/i, /\bdraw\s+(?:an?\s+|me\s+)?/i,
-      /\bpicture\s+of\b/i, /\bphoto\s+of\b/i, /\billustration\s+of\b/i,
-      /\bgenerate\s+(?:an?\s+)?illustration\b/i, /\bcreate\s+(?:an?\s+)?picture\b/i,
-      /\bgenerate\s+art\b/i, /\bcreate\s+art\b/i, /\bshow\s+me\s+(?:an?\s+)?image\b/i,
-      /\bpaint\s+(?:me\s+)?(?:an?\s+)?/i, /\bvisualize\b/i,
+      /^(?:please\s+)?(?:can you\s+)?generate\s+(?:an?\s+)?image\b/i, 
+      /^(?:please\s+)?(?:can you\s+)?create\s+(?:an?\s+)?image\b/i,
+      /^(?:please\s+)?(?:can you\s+)?make\s+(?:an?\s+)?image\b/i, 
+      /^(?:please\s+)?(?:can you\s+)?draw\s+(?:me\s+)?(?:an?\s+)?/i,
+      /^(?:please\s+)?(?:can you\s+)?(?:show|give)\s+me\s+(?:an?\s+)?(?:picture|image|photo)\b/i,
+      /^(?:please\s+)?(?:can you\s+)?picture\s+of\b/i, 
+      /^(?:please\s+)?(?:can you\s+)?photo\s+of\b/i, 
+      /^(?:please\s+)?(?:can you\s+)?illustration\s+of\b/i,
+      /^(?:please\s+)?(?:can you\s+)?paint\s+(?:me\s+)?/i, 
+      /^(?:please\s+)?(?:can you\s+)?visualize\b/i,
       /\bdall-?e\b/i, /\bstable\s+diffusion\b/i,
     ];
     if (imagePatterns.some(p => p.test(lower))) return 'image';
