@@ -4671,15 +4671,21 @@ async function handleGetAnnouncements(request) {
     return dismissedAt < twentyFourHoursAgo; // Dismissed more than 24h ago, show again
   });
 
+  // Get dismissed status for each announcement
+  const announcementsWithStatus = announcements.map(a => ({
+    id: a.id,
+    title: a.title,
+    content: a.content,
+    type: a.type,
+    link: a.link,
+    created_at: a.created_at,
+    permanently_dismissed: userDismissed?.permanently_dismissed?.includes(a.id) || false,
+    temporarily_dismissed: dismissedMap.has(a.id) && !userDismissed?.permanently_dismissed?.includes(a.id),
+    dismissed_at: dismissedMap.get(a.id) || null,
+  }));
+
   return ok({ 
-    announcements: announcements.map(a => ({
-      id: a.id,
-      title: a.title,
-      content: a.content,
-      type: a.type,
-      link: a.link,
-      created_at: a.created_at,
-    })),
+    announcements: announcementsWithStatus,
     unread: unread.map(a => ({
       id: a.id,
       title: a.title,
@@ -4762,6 +4768,32 @@ async function handleAnnouncementClick(request) {
   await db.collection('announcements').updateOne(
     { id: announcementId },
     { $inc: { click_count: 1 } }
+  );
+
+  return ok({ success: true });
+}
+
+// USER - Restore (un-dismiss) an announcement
+async function handleRestoreAnnouncement(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { announcementId } = body;
+
+  if (!announcementId) return err('announcementId required', 400);
+
+  const db = await getDb();
+  
+  // Remove from both permanently_dismissed and dismissed_announcements
+  await db.collection('user_dismissed_announcements').updateOne(
+    { user_id: user.id },
+    { 
+      $pull: { 
+        permanently_dismissed: announcementId,
+        dismissed_announcements: { announcement_id: announcementId }
+      }
+    }
   );
 
   return ok({ success: true });
@@ -11603,6 +11635,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'beta-code/validate-v2') return handleValidateBetaCodeV2(request);
     if (pathStr === 'announcements/dismiss') return handleDismissAnnouncement(request);
     if (pathStr === 'announcements/click') return handleAnnouncementClick(request);
+    if (pathStr === 'announcements/restore') return handleRestoreAnnouncement(request);
     if (pathStr === 'pwa/install-status') return handleUpdateInstallPromptStatus(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
     if (pathStr === 'assessment/gradual/answer') return handleSubmitGradualAnswer(request);

@@ -2285,7 +2285,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     } catch (e) {}
   };
 
-  const tabs = ['soulprint', 'imports', 'telegram', 'schedules', 'memories', 'profile', 'privacy', 'feedback'];
+  const tabs = ['soulprint', 'imports', 'telegram', 'schedules', 'memories', 'announcements', 'profile', 'privacy', 'feedback'];
 
   // SoulPrint data
   const [soulPrintData, setSoulPrintData] = useState(null);
@@ -2293,6 +2293,38 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   const [generatingSnapshot, setGeneratingSnapshot] = useState(false);
   const [editingAssistantName, setEditingAssistantName] = useState(null);
   const [editingDisplayName, setEditingDisplayName] = useState(null);
+  // All announcements state (for viewing in settings)
+  const [allAnnouncements, setAllAnnouncements] = useState([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+
+  const loadAllAnnouncements = async () => {
+    setAnnouncementsLoading(true);
+    try {
+      const res = await fetch('/api/announcements', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setAllAnnouncements(data.announcements || []);
+    } catch (e) {
+      console.error('Failed to load announcements:', e);
+    }
+    setAnnouncementsLoading(false);
+  };
+
+  const restoreAnnouncement = async (announcementId) => {
+    try {
+      await fetch('/api/announcements/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ announcementId }),
+      });
+      // Refresh the list
+      loadAllAnnouncements();
+      // Also refresh the main announcements display
+      fetch('/api/announcements', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json()).then(d => setAnnouncements(d.unread || [])).catch(() => {});
+    } catch (e) {
+      console.error('Failed to restore announcement:', e);
+    }
+  };
 
   const loadSoulPrint = async () => {
     setSoulPrintLoading(true);
@@ -3257,6 +3289,87 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
               ) : (
                 <p className="text-gray-600 text-xs text-center py-4">
                   No memories yet. Chat with the AI and important facts will be automatically remembered, or add them manually above.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ANNOUNCEMENTS TAB */}
+          {activeTab === 'announcements' && (
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-xl p-4">
+                <h4 className="text-white text-sm font-medium mb-1">📢 Announcements</h4>
+                <p className="text-gray-500 text-xs">
+                  View all announcements, including ones you've dismissed. Restore any announcement to see it again.
+                </p>
+              </div>
+
+              <button 
+                onClick={loadAllAnnouncements}
+                className="w-full py-2.5 bg-white/5 border border-white/10 rounded-lg text-gray-400 hover:text-white text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                {announcementsLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    Load Announcements
+                  </>
+                )}
+              </button>
+
+              {allAnnouncements.length > 0 ? (
+                <div className="space-y-3">
+                  {allAnnouncements.map(ann => (
+                    <div 
+                      key={ann.id}
+                      className={`p-4 rounded-xl border ${
+                        ann.permanently_dismissed 
+                          ? 'bg-red-500/5 border-red-500/20 opacity-60' 
+                          : ann.temporarily_dismissed 
+                            ? 'bg-yellow-500/5 border-yellow-500/20 opacity-80'
+                            : 'bg-white/5 border-white/10'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="text-white text-sm font-medium">{ann.title}</h4>
+                            {ann.permanently_dismissed && (
+                              <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[9px] rounded">Dismissed Forever</span>
+                            )}
+                            {ann.temporarily_dismissed && !ann.permanently_dismissed && (
+                              <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[9px] rounded">Hidden 24h</span>
+                            )}
+                          </div>
+                          <p className="text-gray-400 text-xs">{ann.content}</p>
+                          {ann.link && (
+                            <a href={ann.link} target="_blank" rel="noopener noreferrer" className="text-blue-400 text-xs hover:underline mt-1 inline-flex items-center gap-1">
+                              View link <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                          <p className="text-gray-600 text-[10px] mt-2">
+                            Posted: {new Date(ann.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        {(ann.permanently_dismissed || ann.temporarily_dismissed) && (
+                          <button
+                            onClick={() => restoreAnnouncement(ann.id)}
+                            className="px-3 py-1.5 bg-green-500/20 text-green-400 text-xs rounded-lg hover:bg-green-500/30 transition-colors flex-shrink-0"
+                          >
+                            Restore
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-600 text-xs text-center py-4">
+                  {announcementsLoading ? 'Loading...' : 'Click "Load Announcements" to view all announcements.'}
                 </p>
               )}
             </div>
@@ -5032,20 +5145,20 @@ export default function ChatPage() {
                   )}
                 </div>
                 {/* Dismiss buttons - always visible */}
-                <div className="flex items-center gap-1 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <button
                     onClick={() => dismissAnnouncement(ann.id, false)}
-                    className="px-2 py-1 text-[10px] text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors"
-                    title="Hide for 24 hours"
+                    className="px-2.5 py-1 text-[10px] text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-md transition-colors"
+                    title="Hide for 24 hours, then show again"
                   >
-                    Later
+                    Remind Later
                   </button>
                   <button
                     onClick={() => dismissAnnouncement(ann.id, true)}
-                    className="p-1 text-gray-600 hover:text-white hover:bg-white/5 rounded transition-colors"
-                    title="Don't show again"
+                    className="px-2.5 py-1 text-[10px] text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
+                    title="Don't show this announcement again"
                   >
-                    <X className="w-4 h-4" />
+                    Dismiss
                   </button>
                 </div>
               </div>

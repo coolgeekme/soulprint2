@@ -1963,20 +1963,20 @@ export default function MobileChat({
                       </a>
                     )}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
                     <button 
                       onClick={() => dismissAnnouncement(ann.id, false)} 
-                      className="text-gray-500 hover:text-white p-1 text-[9px]"
-                      title="Dismiss for 24h"
+                      className="px-2 py-1 bg-white/5 text-gray-400 hover:text-white text-[10px] rounded-md"
+                      title="Hide for 24 hours, show again later"
                     >
-                      Later
+                      Remind Later
                     </button>
                     <button 
                       onClick={() => dismissAnnouncement(ann.id, true)} 
-                      className="text-gray-500 hover:text-white p-1"
-                      title="Don't show again"
+                      className="px-2 py-1 text-gray-500 hover:text-red-400 text-[10px] rounded-md"
+                      title="Don't show this again"
                     >
-                      <X className="w-4 h-4" />
+                      Dismiss
                     </button>
                   </div>
                 </div>
