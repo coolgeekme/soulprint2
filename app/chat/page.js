@@ -3623,6 +3623,7 @@ export default function ChatPage() {
   const [assistantName, setAssistantName] = useState('SoulPrint');
   const [token, setToken] = useState('');
   const [attachments, setAttachments] = useState([]); // [{type, base64/text, name, mimeType}]
+  const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Smart Mode selected
   const [fileError, setFileError] = useState('');
   // Location state
   const [userLocation, setUserLocation] = useState(null);
