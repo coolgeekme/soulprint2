@@ -410,14 +410,14 @@ const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename 
   );
 };
 
-// Soul/Profile View
-const SoulView = ({ profile, soulPrint, onSettingsClick }) => (
+// Profile View
+const ProfileView = ({ profile, soulPrint, onSettingsClick }) => (
   <div className="min-h-screen bg-[#0a0a0a] pt-16 pb-24 px-4">
     <div className="text-center mb-8">
       <div className="w-24 h-24 mx-auto bg-gradient-to-br from-orange-500/20 to-amber-500/20 rounded-full flex items-center justify-center mb-4">
         <SoulPrintLogo size={48} />
       </div>
-      <h1 className="text-white text-xl font-semibold">{profile?.display_name || 'Your SoulPrint'}</h1>
+      <h1 className="text-white text-xl font-semibold">{profile?.display_name || 'Your Profile'}</h1>
       <p className="text-gray-500 text-sm mt-1">{profile?.email}</p>
     </div>
 
