@@ -7,7 +7,7 @@ import requests
 import json
 import time
 
-BASE_URL = "https://pwa-redesign.preview.emergentagent.com"
+BASE_URL = "https://smart-routing-ui.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"
