@@ -1713,8 +1713,8 @@ export default function MobileChat({
         </div>
       )}
 
-      {/* Soul Tab */}
-      {activeTab === 'soul' && (
+      {/* Profile Tab */}
+      {activeTab === 'profile' && (
         <SoulView 
           profile={{ 
             ...profile, 
