@@ -3890,8 +3890,6 @@ export default function ChatPage() {
   }, [convMenuId]);
 
   // Dismiss announcement
-  async function dismissAnnouncement(announcementId) {
-  // Dismiss announcement
   async function dismissAnnouncement(announcementId, permanent = false) {
     setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
     try {
