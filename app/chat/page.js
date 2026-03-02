@@ -2293,6 +2293,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   const [generatingSnapshot, setGeneratingSnapshot] = useState(false);
   const [editingAssistantName, setEditingAssistantName] = useState(null);
   const [editingDisplayName, setEditingDisplayName] = useState(null);
+  const [editingCustomGreeting, setEditingCustomGreeting] = useState(null);
   // All announcements state (for viewing in settings)
   const [allAnnouncements, setAllAnnouncements] = useState([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(false);
@@ -3453,6 +3454,52 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                     <p className="text-gray-600 text-[10px] mt-1">The AI will address you by this name</p>
                   </div>
 
+                  {/* Custom Greeting - Editable */}
+                  <div>
+                    <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-1">Custom Greeting</p>
+                    <div className="flex flex-col gap-2">
+                      <textarea
+                        value={editingCustomGreeting ?? (profile.custom_greeting || '')}
+                        onChange={e => setEditingCustomGreeting(e.target.value)}
+                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none resize-none"
+                        placeholder="Hey {name} 👋 I'm {assistant}! Ready to help you today."
+                        rows={3}
+                      />
+                      {editingCustomGreeting !== null && editingCustomGreeting !== (profile.custom_greeting || '') && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={async () => {
+                              try {
+                                await fetch('/api/profile', {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ custom_greeting: editingCustomGreeting })
+                                });
+                                setProfile(p => ({ ...p, custom_greeting: editingCustomGreeting }));
+                                setEditingCustomGreeting(null);
+                                alert('Greeting saved! Start a new conversation to see it.');
+                              } catch (e) {
+                                alert('Failed to update');
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-colors"
+                          >
+                            Save Greeting
+                          </button>
+                          <button
+                            onClick={() => setEditingCustomGreeting(null)}
+                            className="px-3 py-1.5 bg-white/5 text-gray-400 text-xs rounded-lg hover:bg-white/10"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-gray-600 text-[10px] mt-1.5">
+                      Use <code className="bg-white/10 px-1 rounded">{'{name}'}</code> for your name and <code className="bg-white/10 px-1 rounded">{'{assistant}'}</code> for the AI name. Leave blank for default.
+                    </p>
+                  </div>
+
                   {/* Other profile fields (read-only) */}
                   {[
                     ['Field', profile.field],
@@ -3973,9 +4020,16 @@ export default function ChatPage() {
         setAssistantName(d.profile?.assistant_name || 'SoulPrint');
         const greet = d.profile?.display_name || 'there';
         const botName = d.profile?.assistant_name || 'SoulPrint';
+        const customGreeting = d.profile?.custom_greeting;
+        
+        // Use custom greeting if set, otherwise use default
+        const greetingContent = customGreeting 
+          ? customGreeting.replace('{name}', greet).replace('{assistant}', botName)
+          : `Hey ${greet} 👋 I'm **${botName}**, your personal AI.\n\nI can help with research, analysis, planning, and more. I also have **real-time web search** — just ask me anything current.\n\nWhat's on your mind?`;
+        
         setMessages([{
           id: 'greeting', role: 'assistant',
-          content: `Hey ${greet} 👋 I'm **${botName}**, your personal AI.\n\nI can help with research, analysis, planning, and more. I also have **real-time web search** — just ask me anything current.\n\nWhat's on your mind?`,
+          content: greetingContent,
           created_at: new Date().toISOString(),
         }]);
       })
@@ -4608,7 +4662,14 @@ export default function ChatPage() {
     setConversationId(null);
     const greet = user?.profile?.display_name || 'there';
     const botName = user?.profile?.assistant_name || 'SoulPrint';
-    setMessages([{ id: 'greeting', role: 'assistant', content: `Hey ${greet} 👋 Starting fresh! What's on your mind?`, created_at: new Date().toISOString() }]);
+    const customGreeting = user?.profile?.custom_greeting;
+    
+    // Use custom greeting if set, otherwise use default for new conversation
+    const greetingContent = customGreeting 
+      ? customGreeting.replace('{name}', greet).replace('{assistant}', botName)
+      : `Hey ${greet} 👋 Starting fresh! What's on your mind?`;
+    
+    setMessages([{ id: 'greeting', role: 'assistant', content: greetingContent, created_at: new Date().toISOString() }]);
     setAttachments([]);
     setShowSidebar(false);
   }

@@ -1319,10 +1319,18 @@ export default function MobileChat({
   // Load conversation messages
   useEffect(() => {
     if (!token || !conversationId) {
+      const greet = profile?.display_name || user?.profile?.display_name || 'there';
+      const customGreeting = profile?.custom_greeting || user?.profile?.custom_greeting;
+      
+      // Use custom greeting if set, otherwise use default
+      const greetingContent = customGreeting 
+        ? customGreeting.replace('{name}', greet).replace('{assistant}', assistantName)
+        : `Hey ${greet}! I'm ${assistantName}. What's on your mind?`;
+      
       setMessages([{
         id: 'greeting',
         role: 'assistant',
-        content: `Hey! I'm ${assistantName}. What's on your mind?`,
+        content: greetingContent,
       }]);
       return;
     }
@@ -1334,7 +1342,7 @@ export default function MobileChat({
         setMessages(Array.isArray(data) ? data : []);
       })
       .catch(console.error);
-  }, [token, conversationId, assistantName]);
+  }, [token, conversationId, assistantName, profile, user]);
 
   // Process file for attachment
   const processFile = async (file) => {
@@ -1549,10 +1557,16 @@ export default function MobileChat({
       setConversations(prev => prev.filter(c => c.id !== id));
       if (conversationId === id) {
         setConversationId(null);
+        const greet = profile?.display_name || user?.profile?.display_name || 'there';
+        const customGreeting = profile?.custom_greeting || user?.profile?.custom_greeting;
+        const greetingContent = customGreeting 
+          ? customGreeting.replace('{name}', greet).replace('{assistant}', assistantName)
+          : `Hey ${greet}! I'm ${assistantName}. What's on your mind?`;
+        
         setMessages([{
           id: 'greeting',
           role: 'assistant',
-          content: `Hey! I'm ${assistantName}. What's on your mind?`,
+          content: greetingContent,
         }]);
       }
     } catch (err) {
@@ -1563,10 +1577,16 @@ export default function MobileChat({
   // New conversation
   const newConversation = () => {
     setConversationId(null);
+    const greet = profile?.display_name || user?.profile?.display_name || 'there';
+    const customGreeting = profile?.custom_greeting || user?.profile?.custom_greeting;
+    const greetingContent = customGreeting 
+      ? customGreeting.replace('{name}', greet).replace('{assistant}', assistantName)
+      : `Hey ${greet}! I'm ${assistantName}. What's on your mind?`;
+    
     setMessages([{
       id: 'greeting',
       role: 'assistant',
-      content: `Hey! I'm ${assistantName}. What's on your mind?`,
+      content: greetingContent,
     }]);
     setActiveTab('chat');
   };

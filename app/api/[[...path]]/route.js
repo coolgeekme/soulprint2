@@ -2096,6 +2096,7 @@ async function handleMe(request) {
       soul_profile_summary: profile.soul_profile_summary,
       onboarding_complete: profile.onboarding_complete,
       assessment_complete: profile.assessment_complete,
+      custom_greeting: profile.custom_greeting,
     } : null,
   });
 }
@@ -2106,7 +2107,7 @@ async function handleProfileUpdate(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { display_name, descriptors, field, help_with, discovery_source, assistant_name, onboarding_complete } = body;
+  const { display_name, descriptors, field, help_with, discovery_source, assistant_name, onboarding_complete, custom_greeting } = body;
 
   const db = await getDb();
   const update = {};
@@ -2117,6 +2118,7 @@ async function handleProfileUpdate(request) {
   if (discovery_source !== undefined) update.discovery_source = discovery_source;
   if (assistant_name !== undefined) update.assistant_name = assistant_name;
   if (onboarding_complete !== undefined) update.onboarding_complete = onboarding_complete;
+  if (custom_greeting !== undefined) update.custom_greeting = custom_greeting;
 
   await db.collection('profiles').updateOne(
     { user_id: user.id },
