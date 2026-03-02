@@ -411,7 +411,7 @@ const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename 
 };
 
 // Profile View
-const ProfileView = ({ profile, soulPrint, onSettingsClick }) => (
+const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClick, announcements, onAnnouncementsClick }) => (
   <div className="min-h-screen bg-[#0a0a0a] pt-16 pb-24 px-4">
     <div className="text-center mb-8">
       <div className="w-24 h-24 mx-auto bg-gradient-to-br from-orange-500/20 to-amber-500/20 rounded-full flex items-center justify-center mb-4">
@@ -419,6 +419,11 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick }) => (
       </div>
       <h1 className="text-white text-xl font-semibold">{profile?.display_name || 'Your Profile'}</h1>
       <p className="text-gray-500 text-sm mt-1">{profile?.email}</p>
+      {isAdmin && (
+        <span className="inline-block mt-2 px-3 py-1 bg-orange-500/20 text-orange-400 text-xs rounded-full">
+          Admin
+        </span>
+      )}
     </div>
 
     {/* Quick Stats */}
@@ -447,14 +452,54 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick }) => (
       </div>
     )}
 
+    {/* Announcements Section */}
+    <button 
+      onClick={onAnnouncementsClick}
+      className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-4 flex items-center justify-between transition-colors mb-3"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+          <MessageSquare className="w-4 h-4 text-blue-400" />
+        </div>
+        <div className="text-left">
+          <span className="text-white text-sm block">Announcements</span>
+          {announcements?.length > 0 && (
+            <span className="text-gray-500 text-xs">{announcements.length} announcement{announcements.length > 1 ? 's' : ''}</span>
+          )}
+        </div>
+      </div>
+      <ChevronRight className="w-5 h-5 text-gray-500" />
+    </button>
+
     {/* Settings Button */}
     <button 
       onClick={onSettingsClick}
-      className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-4 flex items-center justify-between transition-colors"
+      className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-4 flex items-center justify-between transition-colors mb-3"
     >
-      <span className="text-white text-sm">Settings & Privacy</span>
-      <Settings className="w-5 h-5 text-gray-500" />
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center">
+          <Settings className="w-4 h-4 text-gray-400" />
+        </div>
+        <span className="text-white text-sm">Settings & Privacy</span>
+      </div>
+      <ChevronRight className="w-5 h-5 text-gray-500" />
     </button>
+
+    {/* Admin Dashboard Button - only shown to admins */}
+    {isAdmin && (
+      <button 
+        onClick={onAdminClick}
+        className="w-full bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-2xl p-4 flex items-center justify-between transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+            <Settings className="w-4 h-4 text-orange-400" />
+          </div>
+          <span className="text-orange-400 text-sm font-medium">Admin Dashboard</span>
+        </div>
+        <ChevronRight className="w-5 h-5 text-orange-400" />
+      </button>
+    )}
   </div>
 );
 
