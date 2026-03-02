@@ -2839,12 +2839,21 @@ async function handleChatStream(request) {
   }
 
   const body = await request.json();
-  const {
+  let {
     conversationId, content, model = 'gpt-4o',
     provider: providerNameRaw = null,
     attachments = [],   // [{ type: 'image'|'document', base64: '...', mimeType: '...', name: '...', text: '...' }]
     enableWebSearch = true,
   } = body;
+  
+  // Smart Mode - automatically select best model
+  let smartModeInfo = null;
+  if (model === 'smart') {
+    smartModeInfo = await classifyQueryForSmartMode(content || '');
+    model = smartModeInfo.model;
+    providerNameRaw = smartModeInfo.provider;
+  }
+  
   // Derive provider from model info; fall back to openai
   const { getModelInfo } = await import('@/lib/llm/providers');
   const modelInfo = getModelInfo(model);
