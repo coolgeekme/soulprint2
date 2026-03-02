@@ -4068,11 +4068,17 @@ export default function ChatPage() {
         }
       }
     } catch (err) {
+      // Handle aborted requests gracefully - don't show error
+      if (err.name === 'AbortError') {
+        // Request was cancelled by user, handled by stopRequest
+        return;
+      }
       setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: 'Connection error. Please try again.', created_at: new Date().toISOString() }]);
       setStreamingContent('');
     } finally {
       setLoading(false);
       setSearchingWeb(false);
+      abortControllerRef.current = null;
       // Use setTimeout to ensure focus after all React state updates complete
       setTimeout(() => inputRef.current?.focus(), 100);
     }
