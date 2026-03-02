@@ -41,6 +41,33 @@ const MODELS = [
 const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.md,.csv,.json,.docx';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+// Image Generation Models (matching desktop)
+const IMAGE_MODELS = [
+  { value: 'seedream-5-lite', label: 'Seedream 5.0 Lite', cost: '$0.03', description: 'Fast & affordable' },
+  { value: 'nano-banana', label: 'Nano Banana', cost: '$0.05', description: 'Gemini-powered' },
+  { value: 'gpt4o-image', label: 'GPT-4o Image', cost: '$0.10', description: 'High quality text' },
+  { value: 'flux-pro', label: 'Flux Pro', cost: '$0.13', description: 'Artistic styles' },
+  { value: 'midjourney-v7', label: 'Midjourney V7', cost: '$0.20', description: 'Premium quality' },
+  { value: 'gpt-image-1-5', label: 'GPT Image 1.5', cost: '$0.25', description: 'OpenAI flagship' },
+];
+
+// Video Generation Models (matching desktop)
+const VIDEO_MODELS = [
+  { value: 'kling-3-720p', label: 'Kling 3.0 (720p)', cost: '$0.10/s', description: '5s, no audio' },
+  { value: 'sora-2-stable', label: 'Sora 2 Stable', cost: '$0.18', description: '10s video' },
+  { value: 'kling-2-6', label: 'Kling 2.6', cost: '$0.28', description: '5s with options' },
+  { value: 'runway', label: 'Runway Gen-3', cost: '$0.50', description: 'Pro quality' },
+  { value: 'wan-2-6', label: 'Wan 2.6', cost: '$0.75', description: '15s 1080p' },
+];
+
+// Aspect ratios for image generation
+const ASPECT_RATIOS = [
+  { value: '1:1', label: 'Square (1:1)' },
+  { value: '16:9', label: 'Landscape (16:9)' },
+  { value: '9:16', label: 'Portrait (9:16)' },
+  { value: '4:3', label: 'Standard (4:3)' },
+];
+
 // Speech recognition hook for mobile
 function useSpeechRecognition({ onTranscript, onInterim, token }) {
   const recognitionRef = useRef(null);
