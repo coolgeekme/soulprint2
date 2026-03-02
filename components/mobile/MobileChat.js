@@ -6,7 +6,7 @@ import {
   Mic, Plus, Settings, X, Check, Loader2, Globe,
   Image as ImageIcon, MoreHorizontal, ArrowLeft, Paperclip,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
-  Video, Search, ChevronRight
+  Video, Search, ChevronRight, Square
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
