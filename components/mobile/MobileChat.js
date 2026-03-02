@@ -1083,6 +1083,12 @@ export default function MobileChat({
         .safe-area-top {
           padding-top: env(safe-area-inset-top, 0);
         }
+        .input-area-bottom {
+          bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+        }
+        .tab-bar-height {
+          height: calc(4rem + env(safe-area-inset-bottom, 0px));
+        }
       `}</style>
     </div>
   );
