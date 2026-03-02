@@ -1370,14 +1370,47 @@ export default function MobileChat({
       }
 
     } catch (err) {
-      setMessages(prev => [...prev, {
-        id: `e-${Date.now()}`,
-        role: 'assistant',
-        content: 'Sorry, something went wrong. Please try again.',
-      }]);
+      // Handle abort gracefully
+      if (err.name === 'AbortError') {
+        // If there's streaming content, save it as partial response
+        if (streamingContent) {
+          setMessages(prev => [...prev, {
+            id: `a-${Date.now()}`,
+            role: 'assistant',
+            content: streamingContent + '\n\n*(Response stopped)*',
+            model_used: selectedModel,
+          }]);
+          setStreamingContent('');
+        }
+      } else {
+        setMessages(prev => [...prev, {
+          id: `e-${Date.now()}`,
+          role: 'assistant',
+          content: 'Sorry, something went wrong. Please try again.',
+        }]);
+      }
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
       setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  };
+
+  // Stop ongoing request
+  const stopRequest = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setLoading(false);
+      // If there's streaming content, save it
+      if (streamingContent) {
+        setMessages(prev => [...prev, {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          content: streamingContent + '\n\n*(Response stopped)*',
+          model_used: selectedModel,
+        }]);
+        setStreamingContent('');
+      }
     }
   };
 
