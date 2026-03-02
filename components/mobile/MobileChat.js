@@ -1852,17 +1852,27 @@ export default function MobileChat({
                 >
                   <Mic className="w-5 h-5" />
                 </button>
-                <button 
-                  onClick={sendMessage}
-                  disabled={(!input.trim() && !attachments.length) || loading}
-                  className={`p-2 rounded-full transition-all ${
-                    (input.trim() || attachments.length) && !loading
-                      ? 'bg-orange-500 text-white'
-                      : 'bg-white/5 text-gray-600'
-                  }`}
-                >
-                  <Send className="w-5 h-5" />
-                </button>
+                {/* Show Stop button when loading, otherwise show Send button */}
+                {loading ? (
+                  <button 
+                    onClick={stopRequest}
+                    className="p-2 rounded-full bg-red-500 text-white transition-all animate-pulse"
+                  >
+                    <Square className="w-5 h-5" />
+                  </button>
+                ) : (
+                  <button 
+                    onClick={sendMessage}
+                    disabled={!input.trim() && !attachments.length}
+                    className={`p-2 rounded-full transition-all ${
+                      input.trim() || attachments.length
+                        ? 'bg-orange-500 text-white'
+                        : 'bg-white/5 text-gray-600'
+                    }`}
+                  >
+                    <Send className="w-5 h-5" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
