@@ -601,10 +601,11 @@ export default function MobileChat({
       return;
     }
     
-    fetch(`/api/conversations/${conversationId}`, { headers: { Authorization: `Bearer ${token}` } })
+    // Use the same endpoint as desktop: /api/messages?conversationId=
+    fetch(`/api/messages?conversationId=${conversationId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
-        if (data.messages) setMessages(data.messages);
+        setMessages(Array.isArray(data) ? data : []);
       })
       .catch(console.error);
   }, [token, conversationId, assistantName]);
