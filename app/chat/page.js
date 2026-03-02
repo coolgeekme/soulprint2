@@ -4078,6 +4078,28 @@ export default function ChatPage() {
     }
   }, [input, loading, compareLoading, token, selectedModel, conversationId, attachments, webSearchEnabled, compareMode, compareModels]);
 
+  // Stop ongoing request
+  const stopRequest = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setLoading(false);
+      setSearchingWeb(false);
+      // If there's streaming content, save it as a partial response
+      if (streamingContent) {
+        setMessages(prev => [...prev, {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          content: streamingContent + '\n\n*(Response stopped)*',
+          created_at: new Date().toISOString(),
+          model_used: selectedModel,
+        }]);
+        setStreamingContent('');
+      }
+      abortControllerRef.current = null;
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [streamingContent, selectedModel]);
+
   // Handle selecting a response from comparison
   const handleSelectCompareResponse = useCallback(async (response) => {
     if (!compareResponses || selectedCompareResponse) return;
