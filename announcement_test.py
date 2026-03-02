@@ -14,7 +14,7 @@ import sys
 import os
 
 # Configuration
-BASE_URL = "https://smart-routing-ui.preview.emergentagent.com/api"
+BASE_URL = "https://ai-telegram-hub-1.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSCODE = "test123"
 

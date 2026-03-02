@@ -2946,12 +2946,12 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                       </div>
                     </div>
                     <div className="space-y-1.5 max-h-52 overflow-y-auto">
-                      {['OpenAI', 'Claude', 'Gemini', 'Perplexity', 'Kimi'].map(group => {
-                        const groupModels = TELEGRAM_MODELS.filter(m => m.group === group);
+                      {['Smart', 'OpenAI', 'Claude', 'Gemini', 'Perplexity', 'Kimi'].map(group => {
+                        const groupModels = TELEGRAM_MODELS.filter(m => m.group === group && !m.comingSoon);
                         if (!groupModels.length) return null;
                         return (
                           <div key={group}>
-                            <p className="text-[9px] font-bold text-gray-600 tracking-widest uppercase px-1 mt-2 mb-1">{group}</p>
+                            <p className="text-[9px] font-bold text-gray-600 tracking-widest uppercase px-1 mt-2 mb-1">{group === 'Smart' ? '🧠 Smart' : group}</p>
                             {groupModels.map(m => (
                               <button key={m.value}
                                 onClick={() => saveTelegramModel(m.value)}
@@ -2960,8 +2960,12 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                                 <span>{m.label}</span>
                                 {telegramModel === m.value && <span className="text-[9px] font-bold text-orange-500/70">ACTIVE</span>}
                                 {m.group === 'Perplexity' && <span className="text-[9px] text-blue-400/70 ml-1">🌐 online</span>}
+                                {m.isSmartMode && <span className="text-[9px] text-purple-400/70 ml-1">auto</span>}
                               </button>
                             ))}
+                            {group === 'Smart' && (
+                              <p className="text-[9px] text-gray-600 px-1 mt-1 mb-2">Auto-selects best model: code → GPT-4o, search → Sonar, creative → Claude</p>
+                            )}
                           </div>
                         );
                       })}

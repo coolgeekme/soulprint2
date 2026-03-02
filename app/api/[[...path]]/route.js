@@ -8075,20 +8075,35 @@ async function handleTelegramWebhook(request) {
     if (parts.length === 1) {
       // Show current model and list options
       const modelList = [
+        '🧠 *Smart Mode*: `smart` - Auto-selects best model for each query',
         '🟢 *OpenAI*: `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`',
         '🟣 *Claude*: `claude-sonnet-4-5-20250929`, `claude-3-5-haiku-20241022`',
         '🔵 *Gemini*: `gemini-2.0-flash`, `gemini-2.5-pro`',
         '🌐 *Perplexity (online)*: `sonar`, `sonar-pro`',
         '🟡 *Kimi*: `kimi-k2-0711-preview`, `moonshot-v1-32k`',
       ].join('\n');
+      const smartNote = currentModel === 'smart' ? ' _(Smart Mode auto-selects models)_' : '';
       await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
-        `🤖 *Current AI model:* \`${currentModel}\`\n\nAvailable models:\n${modelList}\n\nTo switch: \`/model gpt-4o\` or \`/model sonar\`\n\n💡 Perplexity sonar models have *built-in real-time search*!`
+        `🤖 *Current AI model:* \`${currentModel}\`${smartNote}\n\nAvailable models:\n${modelList}\n\nTo switch: \`/model smart\` or \`/model gpt-4o\`\n\n💡 *Smart Mode* intelligently picks the best model for each query (coding → GPT-4o, search → Sonar, creative → Claude, etc.)`
       );
       return ok({ ok: true });
     }
 
     // Switch model
     const newModel = parts[1].trim().toLowerCase();
+    
+    // Handle Smart Mode selection
+    if (newModel === 'smart') {
+      await db.collection('telegram_mappings').updateOne(
+        { telegram_user_id: telegramUserId },
+        { $set: { preferred_model: 'smart', preferred_provider: 'smart' } }
+      );
+      await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+        `🧠 *Smart Mode activated!*\n\nI'll now automatically select the best AI model for each query:\n• 📰 News/search → Perplexity Sonar\n• 💻 Code → GPT-4o\n• ✍️ Creative → Claude\n• 🔢 Math → Gemini\n• 🔬 Analysis → Claude Opus\n\nYour messages will show which model was selected.`
+      );
+      return ok({ ok: true });
+    }
+    
     const { AVAILABLE_MODELS: models } = await import('@/lib/llm/providers');
     const found = models.find(m => m.value === newModel || m.label.toLowerCase().includes(newModel));
     if (!found) {
@@ -8685,8 +8700,17 @@ async function handleTelegramWebhook(request) {
   });
 
   // Determine model for this user
-  const preferredModel = mapping.preferred_model || 'gpt-4o';
-  const preferredProvider = mapping.preferred_provider || 'openai';
+  let preferredModel = mapping.preferred_model || 'gpt-4o';
+  let preferredProvider = mapping.preferred_provider || 'openai';
+  let smartModeInfo = null;
+
+  // ── Smart Mode: Automatically select best model for the query ────────────
+  if (preferredModel === 'smart') {
+    smartModeInfo = await classifyQueryForSmartMode(sanitizedText);
+    preferredModel = smartModeInfo.model;
+    preferredProvider = smartModeInfo.provider;
+    console.log(`[Telegram Smart Mode] Query classified -> Model: ${preferredModel}, Reason: ${smartModeInfo.reason}`);
+  }
 
   // ── Auto-detect media & social post intents in plain messages ────────────
   const lowerText = sanitizedText.toLowerCase();
@@ -8993,7 +9017,8 @@ async function handleTelegramWebhook(request) {
     await db.collection('conversations').updateOne({ id: conv.id }, { $set: { updated_at: new Date() } });
 
     // Send reply (split if > 4096 chars) with model indicator
-    const modelLabel = `_[${preferredModel}${searchNote}]_\n\n`;
+    const smartLabel = smartModeInfo ? ` 🧠 ${smartModeInfo.reason.substring(0, 50)}` : '';
+    const modelLabel = `_[${preferredModel}${searchNote}${smartLabel}]_\n\n`;
     const fullReply = modelLabel + aiResponse;
     const chunks = fullReply.match(/[\s\S]{1,4000}/g) || [fullReply];
     for (const chunk of chunks) {
@@ -9134,6 +9159,17 @@ async function handleTelegramSetModel(request) {
 
   const { model } = await request.json();
   if (!model) return err('model required');
+
+  // Handle Smart Mode specially
+  if (model === 'smart') {
+    const db = await getDb();
+    const result = await db.collection('telegram_mappings').updateOne(
+      { user_id: user.id, linked: true },
+      { $set: { preferred_model: 'smart', preferred_provider: 'smart' } }
+    );
+    if (result.matchedCount === 0) return err('No linked Telegram account found');
+    return ok({ success: true, model: 'smart', label: '🧠 Smart Mode' });
+  }
 
   const { AVAILABLE_MODELS } = await import('@/lib/llm/providers');
   const found = AVAILABLE_MODELS.find(m => m.value === model);

@@ -1,223 +1,288 @@
 <analysis>
+
 <original_problem_statement>
-The user provided a series of feature requests and bug reports to enhance the SoulPrint Engine application. The key requests included:
+The user's initial request was to complete the Stop Generation button for the desktop UI.
 
-**New Features:**
-- **Advanced Beta Code Management:** Move from a single universal beta code to a system supporting multiple codes, code groups, usage limits, expiration dates, user tracking, and admin email notifications on new registrations.
-- **Assessment Choice:** When a user retakes an assessment, they should be offered a choice between a Quick Start and the Full Assessment.
-- **Gradual Assessment System:** Implement a system where users who choose the Quick Start assessment are periodically asked the remaining questions from the full 36-question assessment over time during their chat sessions, with progress tracked.
-- **Auto-Resizing Chat Input:** The main chat input box should automatically resize to fit the content, and users should be able to create new lines using Shift+Enter.
-- **Message Interaction Tools:** Add options to user/assistant messages for:
-    - Thumbs up/down feedback that is meaningfully stored.
-    - Copying the message text.
-    - Editing a user's own message.
-- **Collapsible Sidebar:** The main conversation sidebar on the desktop should be collapsible to an icon-only view.
-- **New LLM Models:** Add newer OpenAI models like GPT-5.2 to the model selector.
-- **Mobile-First PWA Redesign:** A major request to create a distinct, mobile-friendly UX/UI for the PWA, moving away from a simple responsive version of the desktop site.
-
-**UI/UX Improvements & Bug Fixes:**
-- Fix settings modal tabs being cut off and not scrollable.
-- Fix user confusion around the sidebar collapse button location and the main header's navigation arrow.
-- Ensure the chat input box retains focus after a message is sent.
-- Fix the PWA sidebar being cut off at the bottom on mobile devices (iOS safe area).
-- Update the app's favicon and PWA icons with new user-provided designs.
-- Fix the Smart Import feature failing for certain ChatGPT export files.
-- Fix admin email notifications not being sent for all new user registration paths.
+This was followed by a series of feature requests and bug reports, including:
+- Fixing the conversation search on desktop and adding it to mobile.
+- Making Smart Mode a selectable option in the desktop model dropdown.
+- Improving the announcement system:
+  - Making announcements a persistent banner on the mobile chat screen until dismissed.
+  - Adding click/action tracking for admins.
+  - Allowing users to dismiss forever or be reminded later.
+  - Providing a way to view all dismissed announcements in settings.
+- Fixing the microphone on desktop.
+- Adding a persistent Install App prompt for the PWA.
+- Allowing users to visit the main homepage from within the mobile app and see a Back to Chat button when logged in.
+- Implementing an auto-remember feature where the AI saves facts to memory when explicitly told.
+- Making the memory viewing section more obvious.
+- Allowing users to update their display name.
+- Adding an age verification step (13+) to the signup/onboarding process.
+- Fixing an intent detection bug where creating a task list was misinterpreted as an image generation request.
+- Updating marketing copy for features that are coming soon.
+- Allowing users to customize the chat greeting.
+- Integrating Smart Mode into the Telegram chat flow.
 </original_problem_statement>
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a feature-rich Next.js/MongoDB web app, SoulPrint Engine. It includes a hybrid Firebase/legacy authentication system, multiple assessment flows, a chat interface with a multi-model backend, a Smart Import feature, a full-featured blog, and a comprehensive admin panel.
+The application has a dual UI for desktop and mobile, served from . Both interfaces have near feature parity.
 
-Recent major additions include:
-- A full-fledged **beta code management system** in the admin panel for creating and tracking grouped, expiring, and limited-use access codes.
-- A **gradual assessment system** that progressively asks users questions over time to build a complete profile if they initially choose a quick start assessment.
-- An enhanced chat interface with an auto-resizing input box, and per-message actions for feedback, copying, and editing.
-- A collapsible sidebar for a more focused chat experience on desktop.
+Key features implemented include:
+- A Stop Generation button on both desktop and mobile to cancel AI responses.
+- An advanced announcement system with temporary (24hr) and permanent dismissal options, click tracking, and a settings page for admins/users to view all announcements.
+- A Smart Mode for intelligent model selection, which is now a selectable option on desktop.
+- Conversation search on both desktop and mobile.
+- A PWA installation prompt banner.
+- An auto-remember feature that detects user requests like remember this... and saves the information to long-term memory.
+- User profile customization, allowing users to edit their display name and set a custom chat greeting.
+- An age verification checkbox on the signup page.
 
 **Last working item**:
-- Last item agent was working: The agent was in the initial planning and design discussion phase with the user to create a completely new, mobile-first PWA user experience. The goal is to make the PWA feel like a native, personal AI companion rather than a responsive website.
-- Status: NOT STARTED
+- Last item agent was working: The user requested that Smart Mode be made available for conversations happening via Telegram. The agent was investigating the Telegram webhook handler () to identify the correct location to implement the chat model selection logic.
+- Status: IN PROGRESS
 - Agent Testing Done: N
-- Which testing method agent to use? frontend testing agent
+- Which testing method agent to use? backend testing agent. This is a backend change. Testing will likely require a specialized script or manual verification through the Telegram bot interface, as automated testing for bot interactions can be complex.
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
--   Issue 1: Kimi K2 API key not working on the production deployment (P1)
--   Issue 2: PWA icon not displaying correctly on iOS (P2)
+- Issue 1: Implement Smart Mode for Telegram. (P0)
+- Issue 2: Verify fix for desktop conversation search. (P1)
+- Issue 3: Verify fix for mobile announcements disappearing. (P2)
+- Issue 4: Verify fix for desktop microphone. (P2)
 
 Issues Detail:
--   Issue 1:
-     - **Description**: The user reported a 401 Incorrect API key error for the Kimi K2 model on the production deployment. This is an ongoing issue from the previous session.
-     - **Attempted fixes**: The agent confirmed the code reads the key from . The conclusion remains that this is an environment configuration issue on the user's hosting platform.
-     - **Next debug checklist**: This issue is blocked on user action. The user must set  as a secret environment variable in their production deployment settings.
-     - **Why fix this issue and what will be achieved with the fix?**: Restores a key LLM provider for users on the production app.
-     - **Status**: BLOCKED
-     - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** backend
-     - **Blocked on other issue**: None
+- Issue 1:
+  - **Description**: The agent needs to integrate the Smart Mode logic into the Telegram bot's response flow. The current implementation for Telegram seems to use a default model.
+  - **Attempted fixes**: The agent was exploring  to understand the code flow but has not yet made any modifications.
+  - **Next debug checklist**:
+    1.  Continue analyzing .
+    2.  Locate the function responsible for handling incoming text messages and calling the LLM.
+    3.  Import and apply the Smart Mode routing logic from .
+    4.  Ensure the response sent back to Telegram is formatted correctly after passing through the Smart Mode router.
+  - **Why fix this issue and what will be achieved with the fix?**: This will bring feature parity to the Telegram integration, allowing users to benefit from intelligent model selection without being in the web app.
+  - **Status**: IN PROGRESS
+  - **Is recurring issue?** N
+  - **Should Test frontend/backend/both after fix?** backend
+  - **Blocked on other issue**: None
 
--   Issue 2:
-     - **Description**: When using Add to Home Screen on iOS, the app may display a generic fallback icon instead of the custom logo. This is an ongoing issue.
-     - **Attempted fixes**: The agent created and placed all necessary icon files in  and updated  and . This is likely a deployment/caching issue on the user's end.
-     - **Next debug checklist**: This is blocked on user action. The user needs to deploy the latest code changes and may need to clear their device's cache or reinstall the PWA.
-     - **Why fix this issue and what will be achieved with the fix?**: Ensures correct branding for the Progressive Web App (PWA) on user devices.
-     - **Status**: BLOCKED
-     - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** NA (Deployment issue)
-     - **Blocked on other issue**: None
+- Issue 2:
+  - **Description**: The user reported that the conversation search on desktop was not working (nothing comes up). The agent reviewed the code and believed it was correct but did not confirm a fix or provide a reason why it might be failing for the user.
+  - **Attempted fixes**: Agent viewed the code in . No changes were made.
+  - **Next debug checklist**:
+    1.  Reproduce the issue by creating several conversations with distinct titles.
+    2.  Use the search bar on the desktop UI and observe the network requests and console logs.
+    3.  Verify that the  logic in  is working as expected.
+    4.  Check if conversation titles are being saved correctly in the first place.
+  - **Why fix this issue and what will be achieved with the fix?**: It will fix a broken core feature on the desktop UI.
+  - **Status**: NOT STARTED
+  - **Is recurring issue?** N
+  - **Should Test frontend/backend/both after fix?** frontend
+  - **Blocked on other issue**: None
+
+- Issue 3:
+  - **Description**: The user reported that announcements on mobile would appear and then disappear within seconds. The agent made several attempts to fix this, including layout adjustments and removing a  flag. The root cause is not definitively fixed and may recur.
+  - **Attempted fixes**: The agent adjusted CSS, removed a state flag () intended to prevent re-fetching, and manually restored dismissed announcements from the database.
+  - **Next debug checklist**:
+    1.  Test the mobile UI across tab switches and app reloads to see if announcements behave as expected.
+    2.  Use browser developer tools to monitor the state of the  array in .
+    3.  Verify the API call in 's  is not being called excessively or returning empty data unexpectedly.
+  - **Why fix this issue and what will be achieved with the fix?**: Ensures a critical communication feature is stable and reliable for mobile users.
+  - **Status**: TESTING PENDING
+  - **Is recurring issue?** Y
+  - **Should Test frontend/backend/both after fix?** frontend
+  - **Blocked on other issue**: None
+
+- Issue 4:
+  - **Description**: User reported the desktop microphone icon turned orange on hover/click but did not pick up sound. The agent added better error handling to the  hook.
+  - **Attempted fixes**: Added  handling to the speech recognition logic and UI feedback for errors in .
+  - **Next debug checklist**:
+    1.  Test the microphone feature on the desktop UI.
+    2.  Check the browser console for any speech recognition errors that are now being caught.
+    3.  Confirm that browser microphone permissions are being requested and granted correctly.
+  - **Why fix this issue and what will be achieved with the fix?**: It will fix a broken core feature on the desktop UI.
+  - **Status**: USER VERIFICATION PENDING
+  - **Is recurring issue?** N
+  - **Should Test frontend/backend/both after fix?** frontend
+  - **Blocked on other issue**: None
 
 **In progress Task List**:
--   Task 1: Design and Implement a Mobile-First PWA Experience (P0)
+- Task 1: Implement Smart Mode for Telegram (P0)
 
- Task Detail:
-  -   **Where to resume**: The agent has just finished a planning discussion with the user. The agreed-upon design philosophy is Your AI Companion, Not Just Another Chatbot, emphasizing a warm, personal, conversation-first mobile UI. The next step is to start implementing this new UI, likely by creating mobile-specific components or using responsive hooks to render a completely different layout on mobile.
-  -   **What will be achieved with this?**: A significantly improved, native-like mobile experience for the PWA, which was a direct and major user request.
-  -   **Status**: NOT STARTED
-  -   **Should Test frontend/backend/both after fix?**: frontend
-  -   **Blocked on something**: None
+Task Detail:
+- Task 1:
+  - **Where to resume**: In , analyzing the message handling logic to find the integration point for the Smart Mode router.
+  - **What will be achieved with this?**: Telegram users will have their queries automatically routed to the best AI model for the task.
+  - **Status**: IN PROGRESS
+  - **Should Test frontend/backend/both after fix?**: backend
+  - **Blocked on something**: None
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
--   **Admin Dashboard Enhancements (P2)**: The  and  sub-tabs in the admin dashboard are placeholders and need to be populated with real data and visualizations.
--   **Implement Connector Stubs (P2)**: The API routes for Discord, WhatsApp, and SMS are stubs and need full implementation.
+- **Google Services Integration (P1)**: Integrate with Google Gmail, Calendar, and Drive.
+- **Start/Share Conversation with another user (P1)**: Allow AI personas to chat with each other.
+- **Organize Conversations by Topic (P2)**: Implement a way to categorize or tag conversations.
 
 Future Tasks:
--   **Refactor Monolithic API (P0)**: The  file has grown even larger and more complex. It MUST be broken down into separate, domain-focused API routes (e.g., , , ). This is the most critical piece of technical debt.
--   **Refactor Monolithic Frontend (P1)**: The  file is also extremely large and handles logic for chat, settings, modals, assessments, and more. It should be broken down into smaller, manageable components. The upcoming PWA redesign is a good opportunity to start this.
--   **Advanced Memory/RAG (P1)**: Implement a true Retrieval-Augmented Generation (RAG) system by creating and querying vector embeddings from user data.
+- **Refactor Monolithic API (CRITICAL, P0)**: The  file is a major source of technical debt and must be refactored into smaller, domain-specific routes.
+- **Refactor Monolithic Frontend (CRITICAL, P0)**: The  file is over 5000 lines and must be broken down into smaller, manageable components.
+- **Stripe Integration & Pricing Table (P2)**: Implement payment processing and a pricing page.
+- **Publishable Artifacts (P2)**: Create a feature similar to Claude's artifacts.
+- **Admin Dashboard Enhancements (P2)**: Implement the 'Assessments' and 'Imports' sub-tabs.
+- **Implement Connector Stubs (P2)**: Build out functionality for Discord, WhatsApp connectors.
+- **Light/Dark Mode toggle (P3)**.
+- **Location Services (P3)**.
+- **Cite Sources (P3)**.
 
 **Completed work in this session**
-- **Settings Modal UI Fix**: Reworked the settings modal tabs from a broken horizontal scroll into a functional 4x2 grid, making all tabs visible on both desktop and mobile.
-- **Build Error Fix**: Resolved a critical build error caused by a duplicate  function definition in  by renaming one and updating its call sites.
-- **Login Flow Fix**: Debugged and fixed a login issue for the test user by creating a temporary endpoint to update the password hash.
-- **Advanced Beta Code Management**: Implemented a complete system for creating, managing, and tracking multiple, group-based beta codes with usage limits and expiration dates via new API endpoints and a new Beta Codes tab in the admin panel.
-- **Admin Email Notifications**: Fixed and verified that an email notification is sent to the admin for every new user registration (both for waitlist and with a beta code).
-- **Assessment Redo Choice**: Added a modal to allow users to choose between Quick Start and Full Assessment when retaking their assessment.
-- **Gradual Assessment System**: Created a new system to track and periodically ask remaining assessment questions to users who chose the Quick Start, including a progress bar in the UI.
-- **Auto-Resizing Chat Input**: Replaced the standard input with an auto-resizing textarea that supports multiline input via Shift+Enter.
-- **Message Interaction Tools**: Added on-hover icons to messages for copying text, editing user messages, and providing thumbs up/down feedback.
-- **Collapsible Sidebar & UI Polish**: Implemented a collapsible sidebar on desktop and relocated the toggle button to the top, removed a confusing header arrow, and added a View Home Page link based on user feedback.
-- **LLM Model Selector Update**: Added new OpenAI models (e.g., GPT-5.2) and implemented a Coming Soon state for them, and set the default model back to GPT-4o per user request.
-- **Input Focus Fix**: Ensured the chat input box automatically regains focus after a message is sent.
-- **PWA Safe Area Fix**: Added bottom padding to the sidebar to prevent it from being obscured by the home indicator on iOS devices.
-- **Icon/Favicon Updates**: Regenerated all app and PWA icons multiple times using new logo images provided by the user.
-- **Smart Import Robustness**: Improved the ChatGPT import parser to be more resilient to variations in the uploaded ZIP file structure.
+- **Stop Generation Button (Desktop)**: Successfully implemented the stop button for the desktop UI, bringing it to parity with mobile.
+- **Model Selector Fix**: Added the 'Smart' group to the desktop model selector, making Smart Mode a selectable option.
+- **Conversation Search (Mobile)**: Added a search bar to the conversation history tab on the mobile UI.
+- **Announcement System Overhaul**:
+  - Implemented permanent dismissal and a Remind me later option.
+  - Added a View Dismissed Announcements section in the desktop settings modal.
+  - Added click tracking to announcements with links.
+  - Improved the dismiss UI on desktop to be more user-friendly.
+  - Fixed multiple layout and disappearing bugs with the mobile announcement banner.
+- **PWA Install App Prompt**: Added a persistent banner on both desktop and mobile to encourage users to install the PWA.
+- **Homepage & Navigation**:
+  - Added links to the main homepage from the mobile UI.
+  - Added a Back to Chat banner on the homepage for logged-in users.
+  - Hid Sign In / Get Started buttons on the homepage for authenticated users.
+- **Remember This Feature**: Implemented backend logic to detect when a user asks to remember something and automatically saves it to their long-term memory, confirming the action in the chat.
+- **Memory UI Improvement**: The memories tab on desktop now loads memories automatically by default.
+- **Profile Customization**:
+  - Users can now edit their Display Name in settings on both desktop and mobile.
+  - Users can set a Custom Greeting in settings, which is used for new conversations.
+- **Age Verification**: Added a mandatory I confirm I am 13 or older checkbox to the sign-up flow.
+- **Intent Detection Fix**: Refined the backend logic to prevent non-image-generation prompts (like task lists) from incorrectly triggering the image generation flow.
+- **Content Updates**: Updated marketing text to mark SMS, calendar/email management, and read-aloud features as coming soon.
+- **Bug Fixes**:
+  - Resolved a critical syntax error in  that was breaking the chat page for admins.
+  - Fixed an issue in the chat stream where the wrong MongoDB collection was being referenced ( instead of ).
 
 **Earlier issues found/mentioned but not fixed**
 -   Issue 1: Monolithic API ()
-     - **Description**: The primary backend file is a massive monolith that grew even larger this session with the addition of beta code and gradual assessment logic. It is a major source of technical debt.
-     - **Why to solve this issue and what will be achieved with this?**: Refactoring is critical for stability, maintainability, and preventing regressions.
-     - **Should Test frontend/backend/both after fix**: both (Extensive regression testing required).
-     - **Is recurring issue?** Y
--   Issue 2: Dead code in 
-     - **Description**: The  file still contains dead code from obsolete features.
-     - **Why to solve this issue and what will be achieved with this?**: Code cleanup would reduce complexity.
-     - **Should Test frontend/backend/both after fix**: backend
-     - **Is recurring issue?** N
+    - **Description**: This file has grown even more complex with the addition of Remember This logic and other features. It is a critical source of technical debt and a high-risk area for regressions.
+    - **Why to solve this issue and what will be achieved with this?**: Refactoring is essential for stability, maintainability, and preventing future bugs.
+    - **Should Test frontend/backend/both after fix**: both (Extensive regression testing required).
+    - **Is recurring issue?** Y
+-   Issue 2: Monolithic Frontend ()
+    - **Description**: This file is now responsible for even more features and state management, making it extremely difficult to maintain. The agent had to fix multiple syntax errors it introduced in this file.
+    - **Why to solve this issue and what will be achieved with this?**: Refactoring would dramatically improve maintainability and developer velocity.
+    - **Should Test frontend/backend/both after fix**: frontend (Extensive regression testing required).
+    - **Is recurring issue?** Y
+-   Issue 3: Desktop Conversation Search
+    - **Description**: User reported this is not working. The agent inspected the code but did not verify the bug or implement a fix.
+    - **Why to solve this issue and what will be achieved with this?**: Fixes a core feature for desktop users.
+    - **Should Test frontend/backend/both after fix**: frontend.
+    - **Is recurring issue?** N
 
 **Known issue recurrence from previous fork**
-- None.
+- The stability of the mobile announcement banner has been a recurring problem throughout this session, requiring multiple fixes for layout and visibility issues. This indicates a fragile implementation that may need a more robust solution.
 
 **Code Architecture**
 -   **Framework**: Next.js 14 (App Router)
 -   **Frontend**: React/Tailwind/shadcn.
-    -   : The main chat interface. Has become critically large, containing logic for chat, the entire multi-tab settings modal, gradual assessment prompts, and sidebar management.
-    -   : The admin dashboard. Was significantly updated with a new, complex  component.
--   **Backend**: A single monolithic API file at  handles almost all API logic, including auth, chat, beta codes, assessments, privacy, etc. It is now thousands of lines long.
--   **Database**: MongoDB. New collections  and  were implicitly added. User documents were updated to track gradual assessment progress.
+    -   : **(CRITICAL MONOLITH)** Further expanded with logic for the desktop Stop button, announcement dismiss options, PWA install prompt, microphone error handling, profile setting modals, and custom greetings.
+    -   : **(HEAVILY MODIFIED)** Updated with conversation search, a redesigned announcement banner system, PWA install prompt, and profile editing functionality.
+    -   : Modified to include the age verification checkbox and logic.
+    -   : Modified to conditionally render a Back to Chat banner and hide auth buttons for logged-in users.
+-   **Backend**: A single monolithic API file at  handles almost all API logic. It was modified to add Remember This intent detection, announcement management endpoints, PWA status endpoints, and profile customization fields.
+-   **Database**: MongoDB.
 
 **Key Technical Concepts**
--   **Gradual Assessment**: A system for progressively building a user's profile over time by injecting assessment questions into the chat flow. Managed via new API endpoints and frontend state.
--   **Complex Admin UI**: The new Beta Codes tab in the admin panel is a complex, stateful React component with modals, data fetching, and multiple sub-views for managing codes and groups.
--   **Dynamic Textarea**: Use of  to create a user-friendly, auto-expanding chat input.
--   **On-Hover UI Elements**: Displaying contextual actions (copy, edit) on messages using CSS .
--   **Robust ZIP Parsing**: Using  to recursively search within an uploaded ZIP file to find the target , making the import feature more resilient.
--   **Safe Area Padding**: Using Tailwind's  to account for mobile device UI notches and home bars.
+-   **Intent Detection Refinement**: Improved the regex and logic in the chat stream handler to more accurately differentiate between a user mentioning a keyword (e.g., image) and explicitly requesting an action (e.g., generate an image).
+-   **Conditional UI in Auth Flow**: Logic added to  to show the age verification checkbox only when in 'signup' mode and disable submission buttons until it's checked.
+-   **Profile Customization**: Added  and editable  to the user profile flow, updating the backend API, database interactions, and frontend settings modals.
+-   **State Management for Dismissals**: Implemented a multi-tiered dismissal system for announcements and PWA prompts, tracking status (, , ) in the database to control UI visibility across sessions.
+-   **Dynamic Content on Static Pages**: The main landing page () now fetches user session status to conditionally render UI elements (e.g., showing a Back to Chat button instead of Sign In).
 
 **key DB schema**
--   **users**: { ..., assessmentProgress: { answeredQuestions: [String], totalQuestions: Number } }
--   **beta_codes**: { code, groupId, label, uses, maxUses, expiresAt, isSingleUse, redeemedBy: [{userId, redeemedAt}] }
--   **beta_code_groups**: { name, description }
+-   **users**: Added  (String),  (Date).
+-   **soul_profiles**: Added  (String). The  field is now actively updated by the user.
+-   **announcements**: Added  (Number).
+-   **dismissed_announcements**: The  field was added to support 'temporary' vs 'permanent' dismissals.
 
 **changes in tech stack**
--   **react-textarea-autosize**: Added for the auto-resizing chat input.
--   **jszip**: Utilized for improving the chat import functionality.
+- No new dependencies were added.
 
 **All files of reference**
--   : **Critically Modified.** Added extensive logic for the new beta code management system (groups, codes, validation) and the gradual assessment system. Also fixed email notification logic.
--   : **Critically Modified.** Added the assessment choice modal, gradual assessment prompt and progress bar, collapsible sidebar logic, auto-resizing textarea, message interaction tools (copy/edit), updated the model selector, and fixed multiple UI bugs.
--   : **Heavily Modified.** Added a new Beta Codes tab with a full management UI, including modals for code generation.
--   : Modified to add a specific function for sending admin notifications for new users, fixing a delivery issue.
--   : Modified to add  and safe area padding classes.
--   : All favicon and PWA icon files (, , ) were overwritten multiple times with new user-provided designs.
--   : Updated to reference the newly generated PWA icons.
+-   : **Critically Modified.** Added endpoints for announcements (all, restore, click), PWA prompts, and updated profile update logic. Enhanced chat stream with Remember This intent detection.
+-   : **Critically Modified.** Added desktop stop button, improved announcement banner UI, added PWA install banner, added settings tab for announcements, and implemented profile/greeting customization UI.
+-   : **Heavily Modified.** Added conversation search, a new announcement banner implementation, PWA install banner, and profile editing sheet.
+-   : **Modified.** Added age verification checkbox and associated logic.
+-   : **Modified.** Added logic to show a Back to Chat banner and hide auth buttons for logged-in users.
+-   : **Under Investigation.** This is the target file for the next task.
 
 **Areas that need refactoring**:
--   **Monolithic API ()**: **(CRITICAL)** This is the top refactoring priority. The file's size and complexity are now extreme, making it unstable and difficult to maintain.
--   **Monolithic Frontend ()**: **(CRITICAL)** This component is unmanageably large. The upcoming PWA redesign is the perfect opportunity to break it down into smaller, focused components (e.g., , , ).
+-   **Monolithic API ()**: **(CRITICAL)** This is the top refactoring priority. Its complexity is a major risk to the project's stability.
+-   **Monolithic Frontend ()**: **(CRITICAL)** This file is unmanageable. The agent introduced and then had to fix syntax errors in this file, highlighting its fragility.
 
 **key api endpoints**
--   : Creates a new beta code group.
--   : Retrieves all beta codes and their usage stats.
--   : Generates one or more new beta codes.
--   : Gets the user's current progress in the gradual assessment.
--   : Fetches the next unanswered question for the user.
--   : Submits an answer for a gradual assessment question.
--   : Edits the content of a user's previous message.
+-   : Tracks a click on an announcement link.
+-   : Updated to handle .
+-   : Fetches all announcements, including dismissed ones.
+-   : Restores a permanently dismissed announcement.
+-   : Checks if the user has interacted with the PWA prompt.
+-   : Updates the user's PWA prompt status (e.g., installed, remind later, dismissed).
+-   : Updated to handle  and  fields.
 
 **Critical Info for New Agent**
--   **Your immediate task is to begin the PWA redesign.** You must start planning and implementing the new mobile-first UI discussed with the user. This is a major frontend task.
--   **MONOLITH WARNING:** Be extremely cautious. The backend () and primary frontend () files are massive and fragile. The highest priority technical debt is refactoring these two files. The PWA redesign should be done with this refactoring in mind.
--   **Blocked Issues:** Do not attempt to fix the Kimi API key or iOS PWA icon issues with code. They are blocked on user action in their production environment. Remind the user of this if it comes up.
+-   **Your immediate task is to implement Smart Mode for the Telegram integration.** You need to investigate , find where it handles text messages, and inject the Smart Mode routing logic, similar to how it's done in the main chat API.
+-   **MONOLITH WARNING**: You will be working in extremely large and fragile files, especially  and . Be extremely careful. The agent in the last session introduced syntax errors that broke the application. Lint and test frequently.
+-   **Unverified Fixes**: The user has reported several issues (desktop search, mobile announcements, desktop microphone) that the previous agent attempted to fix. You should assume these fixes may not be complete and may require further verification or work.
+-   **Privacy-Friendly Imports**: Be aware that when users import ChatGPT history, the application extracts memories and insights but discards the raw conversation data. This is the intended behavior.
 
 **documents created in this job**
-- None
+- /app/test_result.md: Updated multiple times to reflect new features and testing status.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User ()**: Agreed with the agent's proposed AI Companion design philosophy for the new mobile-first PWA. **(In Progress - Implementation Pending)**
-2.  **User ()**: Provided choices and feedback on the direction for the new mobile PWA UI/UX. **(Addressed)**
-3.  **User ()**: Requested a completely different, mobile-friendly UX/UI for the PWA. **(In Progress - Planning Started)**
-4.  **User ()**: Reported a bug where a user's ChatGPT import showed no messages to import. **(Completed)**
-5.  **User ()**: Provided a new, final image to use for the app icons and favicon. **(Completed)**
-6.  **User ()**: Provided a different image to use for the app icon. **(Completed)**
-7.  **User ()**: Requested to change the favicon/homescreen icon to an orange logo on a black background. **(Completed)**
-8.  **User ()**: Reported a bug where the PWA sidebar is cut off on mobile. **(Completed)**
-9.  **User ()**: Reported a bug where the chat input loses focus after sending a message. **(Completed)**
-10. **User ()**: Requested to change the default LLM back to GPT-4o and make newer models Coming Soon. **(Completed)**
+1.  **User ()**: Can we make Smart Mode available to users when they are chatting in Telegram? **(In Progress)**
+2.  **User ()**: Requested customizable chat greetings and for the app to recognize display name changes. **(Completed)**
+3.  **User ()**: Requested several content updates to mark features as coming soon. **(Completed)**
+4.  **User ()**: Reported a bug where creating a task list incorrectly triggers image generation. **(Completed)**
+5.  **User ()**: Reported the new age verification checkbox wasn't visible. **(Resolved)** - Agent explained it only shows in Sign Up mode.
+6.  **User ()**: Confirmed the plan for implementing age verification. **(Addressed)**
+7.  **User ()**: Asked for the best way to add age verification (13+) to the onboarding flow. **(Completed)**
+8.  **User ()**: Asked where the announcements went on mobile after a recent fix. **(Resolved)** - Agent found they were dismissed and restored them.
+9.  **User ()**: Reported that mobile announcements were cut off and non-interactive. **(Completed)**
+10. **User ()**: Requested a remind me later option for announcements and a way to view dismissed ones in settings. **(Completed)**
 
 **Project Health Check:**
 -   **Broken**:
-    -   The structural integrity of the project is at high risk due to the massive monolithic files (, ). While not broken in function, they are a major liability for future development.
+    -   The project's architecture is at high risk due to the two massive monolithic files ( and ). The repeated introduction of syntax errors by the agent is a symptom of this.
 -   **Mocked**:
     -   None.
 -   **In Progress**:
-    -   Mobile-First PWA Redesign (planning phase).
--   **Blocked**:
-    -   Kimi K2 API Key (Awaiting user action on production environment variables).
-    -   PWA Icon on iOS (Awaiting user deployment/cache clearing).
+    -   Smart Mode implementation for Telegram.
+-   **Needs Verification**:
+    -   Desktop conversation search functionality.
+    -   Desktop microphone functionality.
+    -   Stability of mobile announcement banner.
 
 **3rd Party Integrations**
--   **OpenAI, Anthropic, Google Gemini, Perplexity, Kimi**: LLM providers, require API keys.
--   **Kie.ai**: Video & Image generation, requires API key.
--   **Firebase Auth**: User authentication, requires Firebase project config.
--   **Resend**: Transactional emails, requires API key and verified domain.
--   **Telegram**: Bot integration, requires bot token.
--   **Tavily, Brave Search**: Web search for AI, require API keys.
--   **Google Places**: Location lookup, requires API key.
+-   **OpenAI, Anthropic, Google Gemini, Perplexity, Kimi**: LLM providers.
+-   **Kie.ai**: Video & Image generation.
+-   **Firebase Auth**: User authentication.
+-   **Resend**: Transactional emails.
+-   **Telegram**: Bot integration.
+-   **Tavily, Brave Search**: Web search for AI.
+-   **Google Places**: Location lookup.
 -   **MongoDB**: Primary database.
 
 **Testing status**
--   **Testing agent used after significant changes**: NO
+-   **Testing agent used after significant changes**: YES. The backend testing agent was used and found/fixed a bug related to a collection name mismatch in the chat stream.
 -   **Troubleshoot agent used after agent stuck in loop**: NO
 -   **Test files created**: None.
--   **Known regressions**: None.
+-   **Known regressions**: None confirmed, but the mobile announcement banner has been unstable, and the desktop search feature is reportedly not working.
 
 **Credentials to test flow:**
--   Login with  and the password  to access all features, including the  role. (The password was reset during this session).
--   Firebase and Resend credentials are in the  file.
+-   Login with  and password  to access the  role.
 
 **What agent forgot to execute**
--   The agent has consistently deferred the critical task of refactoring the monolithic API route () and the monolithic frontend component (). Despite these being identified as major liabilities, the agent continued to add significant amounts of new code to them, making the technical debt substantially worse.
+- The agent never fully verified the fix for the desktop search feature after the user reported it was broken. It looked at the code and assumed it was correct.
+- The root cause of the mobile announcements disappearing and needing to be restored from the database was not conclusively identified, even though a layout fix was applied. The  flag was removed, which might have unintended performance consequences.
+
 </analysis>

@@ -9,7 +9,7 @@ import io
 import base64
 import time
 
-BASE_URL = "https://smart-routing-ui.preview.emergentagent.com/api"
+BASE_URL = "https://ai-telegram-hub-1.preview.emergentagent.com/api"
 EMAIL = "test@soulprint.com"
 PASSWORD = "test123"
 
