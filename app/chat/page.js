@@ -5033,28 +5033,22 @@ export default function ChatPage() {
                     </a>
                   )}
                 </div>
-                <div className="relative group/dismiss">
-                  <button 
-                    className="text-gray-600 hover:text-white transition-colors p-1"
-                    title="Dismiss options"
+                {/* Dismiss buttons - always visible */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => dismissAnnouncement(ann.id, false)}
+                    className="px-2 py-1 text-[10px] text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors"
+                    title="Hide for 24 hours"
+                  >
+                    Later
+                  </button>
+                  <button
+                    onClick={() => dismissAnnouncement(ann.id, true)}
+                    className="p-1 text-gray-600 hover:text-white hover:bg-white/5 rounded transition-colors"
+                    title="Don't show again"
                   >
                     <X className="w-4 h-4" />
                   </button>
-                  {/* Dismiss dropdown */}
-                  <div className="absolute right-0 top-full mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[140px] z-50 hidden group-hover/dismiss:block">
-                    <button
-                      onClick={() => dismissAnnouncement(ann.id, false)}
-                      className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
-                    >
-                      Dismiss for 24h
-                    </button>
-                    <button
-                      onClick={() => dismissAnnouncement(ann.id, true)}
-                      className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-white/5 hover:text-white transition-colors border-t border-white/5"
-                    >
-                      Don't show again
-                    </button>
-                  </div>
                 </div>
               </div>
             ))}

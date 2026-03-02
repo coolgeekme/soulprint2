@@ -1202,6 +1202,8 @@ export default function MobileChat({
   // Edit display name state
   const [showEditNameSheet, setShowEditNameSheet] = useState(false);
   const [editingDisplayName, setEditingDisplayName] = useState('');
+  // Prevent re-fetching announcements
+  const [announcementsLoaded, setAnnouncementsLoaded] = useState(false);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -1304,16 +1306,18 @@ export default function MobileChat({
 
   // Load announcements (unread list which respects 24h dismiss)
   useEffect(() => {
-    if (!token) return;
+    if (!token || announcementsLoaded) return;
     fetch('/api/announcements', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
         // API returns { announcements: [...], unread: [...] }
         // Use unread for display (respects 24h dismiss)
-        setAnnouncements(Array.isArray(data.unread) ? data.unread : []);
+        const unreadList = Array.isArray(data.unread) ? data.unread : [];
+        setAnnouncements(unreadList);
+        setAnnouncementsLoaded(true);
       })
       .catch(console.error);
-  }, [token]);
+  }, [token, announcementsLoaded]);
 
   // Load conversation messages
   useEffect(() => {
@@ -1921,7 +1925,7 @@ export default function MobileChat({
           
           {/* Announcements Banner - Sticky top banner on chat screen */}
           {announcements.length > 0 && (
-            <div className="fixed top-16 left-0 right-0 z-30 px-3 py-2 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-white/5">
+            <div className="fixed top-16 left-0 right-0 z-30 px-3 py-2 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-white/5" style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}>
               {announcements.slice(0, 1).map(ann => (
                 <div 
                   key={ann.id}

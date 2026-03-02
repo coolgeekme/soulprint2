@@ -178,11 +178,11 @@ export default function LandingPage() {
     <div className="min-h-screen bg-[#0a0a0a]">
       {/* Back to Chat Banner - shown when logged in */}
       {isLoggedIn && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-orange-500 to-amber-500 py-2.5 px-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-orange-500 to-amber-500 py-2.5 px-4 safe-area-top">
+          <div className="max-w-7xl mx-auto flex items-center justify-between pt-[env(safe-area-inset-top)]">
             <div className="flex items-center gap-3">
               <SoulPrintLogo size={20} className="opacity-80" />
-              <span className="text-white text-sm font-medium">Welcome back! You're logged in.</span>
+              <span className="text-white text-sm font-medium">Welcome back!</span>
             </div>
             <Link 
               href="/chat" 
@@ -209,8 +209,16 @@ export default function LandingPage() {
             <span className="font-condensed text-lg font-bold tracking-widest text-white uppercase">SoulPrint</span>
           </div>
           <div className="flex items-center gap-6">
-            <Link href="/auth" className="text-sm text-gray-400 hover:text-white transition-colors">Sign In</Link>
-            <Link href="/auth" className="btn-orange px-5 py-2 rounded-lg text-sm">Get Started</Link>
+            {isLoggedIn ? (
+              <Link href="/chat" className="btn-orange px-5 py-2 rounded-lg text-sm flex items-center gap-2">
+                Open Chat <ArrowRight className="w-4 h-4" />
+              </Link>
+            ) : (
+              <>
+                <Link href="/auth" className="text-sm text-gray-400 hover:text-white transition-colors">Sign In</Link>
+                <Link href="/auth" className="btn-orange px-5 py-2 rounded-lg text-sm">Get Started</Link>
+              </>
+            )}
           </div>
         </nav>
 
@@ -227,9 +235,15 @@ export default function LandingPage() {
                 Chat, organize, reflect, and plan with an AI that remembers your tone, your tempo, and your life.
               </p>
               <div className="flex items-center gap-4">
-                <Link href="/auth" className="btn-orange px-7 py-3 rounded-xl text-sm inline-flex items-center gap-2">
-                  Get your SoulPrint
-                </Link>
+                {isLoggedIn ? (
+                  <Link href="/chat" className="btn-orange px-7 py-3 rounded-xl text-sm inline-flex items-center gap-2">
+                    Go to Chat <ArrowRight className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <Link href="/auth" className="btn-orange px-7 py-3 rounded-xl text-sm inline-flex items-center gap-2">
+                    Get your SoulPrint
+                  </Link>
+                )}
                 <Link href="#features" className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors">
                   Explore <ChevronRight className="w-4 h-4" />
                 </Link>
