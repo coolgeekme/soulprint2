@@ -4508,6 +4508,10 @@ async function handleAdminCreateAnnouncement(request) {
     created_by: user.id,
     created_at: new Date(),
     updated_at: new Date(),
+    // Analytics tracking
+    view_count: 0,
+    click_count: 0,
+    dismiss_count: 0,
   };
 
   await db.collection('announcements').insertOne(announcement);
@@ -4573,7 +4577,7 @@ async function handleAdminDeleteAnnouncement(request, announcementId) {
   return ok({ success: true });
 }
 
-// USER - Get published announcements
+// USER - Get published announcements (with 24-hour dismiss support)
 async function handleGetAnnouncements(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -4587,13 +4591,35 @@ async function handleGetAnnouncements(request) {
     .limit(10)
     .toArray();
 
-  // Get user's dismissed announcements
+  // Get user's dismissed announcements with timestamps
   const userDismissed = await db.collection('user_dismissed_announcements')
     .findOne({ user_id: user.id });
-  const dismissedIds = userDismissed?.announcement_ids || [];
+  
+  // dismissed_announcements is now an array of {announcement_id, dismissed_at}
+  const dismissedMap = new Map();
+  if (userDismissed?.dismissed_announcements) {
+    userDismissed.dismissed_announcements.forEach(d => {
+      dismissedMap.set(d.announcement_id, new Date(d.dismissed_at));
+    });
+  }
+  // Legacy support for old format
+  if (userDismissed?.announcement_ids) {
+    userDismissed.announcement_ids.forEach(id => {
+      if (!dismissedMap.has(id)) {
+        dismissedMap.set(id, new Date(0)); // Treat legacy as permanently dismissed
+      }
+    });
+  }
 
-  // Filter out dismissed ones for the "unread" list
-  const unread = announcements.filter(a => !dismissedIds.includes(a.id));
+  const now = new Date();
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  // Filter out only recently dismissed ones (within 24 hours)
+  const unread = announcements.filter(a => {
+    const dismissedAt = dismissedMap.get(a.id);
+    if (!dismissedAt) return true; // Never dismissed
+    return dismissedAt < twentyFourHoursAgo; // Dismissed more than 24h ago, show again
+  });
 
   return ok({ 
     announcements: announcements.map(a => ({
@@ -4615,7 +4641,7 @@ async function handleGetAnnouncements(request) {
   });
 }
 
-// USER - Dismiss announcement
+// USER - Dismiss announcement (with timestamp for 24-hour reset)
 async function handleDismissAnnouncement(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -4626,10 +4652,54 @@ async function handleDismissAnnouncement(request) {
   if (!announcementId) return err('announcementId required', 400);
 
   const db = await getDb();
+  
+  // First, increment the dismiss count on the announcement
+  await db.collection('announcements').updateOne(
+    { id: announcementId },
+    { $inc: { dismiss_count: 1 } }
+  );
+
+  // Store dismiss with timestamp (upsert to update if already exists)
+  // Remove old entry first, then add new one with current timestamp
   await db.collection('user_dismissed_announcements').updateOne(
     { user_id: user.id },
-    { $addToSet: { announcement_ids: announcementId } },
+    { 
+      $pull: { dismissed_announcements: { announcement_id: announcementId } }
+    }
+  );
+  
+  await db.collection('user_dismissed_announcements').updateOne(
+    { user_id: user.id },
+    { 
+      $push: { 
+        dismissed_announcements: { 
+          announcement_id: announcementId, 
+          dismissed_at: new Date() 
+        } 
+      }
+    },
     { upsert: true }
+  );
+
+  return ok({ success: true });
+}
+
+// USER - Track announcement click
+async function handleAnnouncementClick(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { announcementId } = body;
+
+  if (!announcementId) return err('announcementId required', 400);
+
+  const db = await getDb();
+  
+  // Increment click count
+  await db.collection('announcements').updateOne(
+    { id: announcementId },
+    { $inc: { click_count: 1 } }
   );
 
   return ok({ success: true });
