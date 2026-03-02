@@ -675,33 +675,101 @@ const MoreOptionsSheet = ({ isOpen, onClose, onImageGen, onVideoGen, onSettings,
   );
 };
 
-// Attachment Options Sheet
-const AttachmentSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect }) => {
+// Attachment/Create Options Sheet (+ button menu)
+const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onImageGen, onVideoGen, onCompare, onGallery }) => {
   if (!isOpen) return null;
   
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
-      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
+      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
-        <h3 className="text-white font-semibold text-lg mb-4">Add Attachment</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <h3 className="text-white font-semibold text-lg mb-4">Create</h3>
+        <div className="space-y-2">
+          {/* Generate Image */}
+          <button 
+            onClick={() => { onImageGen?.(); onClose(); }}
+            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+              <ImageIcon className="w-5 h-5 text-purple-400" />
+            </div>
+            <div>
+              <span className="text-white font-medium">Generate Image</span>
+              <p className="text-gray-500 text-xs">Create AI-generated images</p>
+            </div>
+          </button>
+          
+          {/* Generate Video */}
+          <button 
+            onClick={() => { onVideoGen?.(); onClose(); }}
+            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">
+              <Video className="w-5 h-5 text-pink-400" />
+            </div>
+            <div>
+              <span className="text-white font-medium">Generate Video</span>
+              <p className="text-gray-500 text-xs">Create AI-generated videos</p>
+            </div>
+          </button>
+          
+          {/* Compare Models */}
+          <button 
+            onClick={() => { onCompare?.(); onClose(); }}
+            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <span className="text-white font-medium">Compare Models</span>
+              <p className="text-gray-500 text-xs">Compare responses from multiple AI models</p>
+            </div>
+          </button>
+          
+          {/* Media Gallery */}
+          <button 
+            onClick={() => { onGallery?.(); onClose(); }}
+            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+              <ImageIcon className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <span className="text-white font-medium">Media Gallery</span>
+              <p className="text-gray-500 text-xs">View your generated images and videos</p>
+            </div>
+          </button>
+          
+          {/* Divider */}
+          <div className="border-t border-white/10 my-3"></div>
+          
+          {/* Attach File */}
           <button 
             onClick={() => { onFileSelect?.(); onClose(); }}
-            className="p-4 rounded-2xl bg-white/5 flex flex-col items-center gap-2"
+            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
           >
-            <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
-              <Paperclip className="w-6 h-6 text-blue-400" />
+            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+              <Paperclip className="w-5 h-5 text-blue-400" />
             </div>
-            <span className="text-white text-sm">File</span>
+            <div>
+              <span className="text-white font-medium">Attach File</span>
+              <p className="text-gray-500 text-xs">Upload documents and files</p>
+            </div>
           </button>
+          
+          {/* Take Photo */}
           <button 
             onClick={() => { onCameraSelect?.(); onClose(); }}
-            className="p-4 rounded-2xl bg-white/5 flex flex-col items-center gap-2"
+            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
           >
-            <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-              <ImageIcon className="w-6 h-6 text-green-400" />
+            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+              <ImageIcon className="w-5 h-5 text-green-400" />
             </div>
-            <span className="text-white text-sm">Photo</span>
+            <div>
+              <span className="text-white font-medium">Take Photo</span>
+              <p className="text-gray-500 text-xs">Capture with camera</p>
+            </div>
           </button>
         </div>
         <button onClick={onClose} className="w-full mt-4 p-4 text-gray-500 text-sm">
