@@ -548,6 +548,359 @@ const AttachmentSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect }) => {
   );
 };
 
+// Image Generation Sheet
+const ImageGenSheet = ({ 
+  isOpen, onClose, models, selectedModel, onModelChange, 
+  aspectRatios, selectedAspect, onAspectChange,
+  prompt, onPromptChange, onGenerate, isGenerating 
+}) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
+      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
+        <h3 className="text-white font-semibold text-lg mb-4">🎨 Generate Image</h3>
+        
+        {/* Prompt */}
+        <div className="mb-4">
+          <label className="text-gray-400 text-xs mb-2 block">Describe your image</label>
+          <textarea
+            value={prompt}
+            onChange={(e) => onPromptChange(e.target.value)}
+            placeholder="A serene mountain landscape at sunset..."
+            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 resize-none h-24 focus:outline-none focus:border-orange-500/50"
+          />
+        </div>
+
+        {/* Model Selection */}
+        <div className="mb-4">
+          <label className="text-gray-400 text-xs mb-2 block">Model</label>
+          <div className="grid grid-cols-2 gap-2">
+            {models.map(model => (
+              <button
+                key={model.value}
+                onClick={() => onModelChange(model.value)}
+                className={`p-3 rounded-xl text-left transition-colors ${
+                  selectedModel === model.value
+                    ? 'bg-purple-500/20 border border-purple-500/50'
+                    : 'bg-white/5 border border-transparent'
+                }`}
+              >
+                <span className="text-white text-sm font-medium block">{model.label}</span>
+                <span className="text-gray-500 text-xs">{model.cost} • {model.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Aspect Ratio */}
+        <div className="mb-6">
+          <label className="text-gray-400 text-xs mb-2 block">Aspect Ratio</label>
+          <div className="flex gap-2">
+            {aspectRatios.map(ar => (
+              <button
+                key={ar.value}
+                onClick={() => onAspectChange(ar.value)}
+                className={`flex-1 p-2 rounded-xl text-center text-sm transition-colors ${
+                  selectedAspect === ar.value
+                    ? 'bg-orange-500/20 border border-orange-500/50 text-orange-400'
+                    : 'bg-white/5 border border-transparent text-gray-400'
+                }`}
+              >
+                {ar.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Generate Button */}
+        <button
+          onClick={() => onGenerate('image')}
+          disabled={!prompt.trim() || isGenerating}
+          className={`w-full p-4 rounded-xl font-medium transition-all ${
+            prompt.trim() && !isGenerating
+              ? 'bg-purple-500 text-white'
+              : 'bg-white/10 text-gray-500'
+          }`}
+        >
+          {isGenerating ? 'Generating...' : '✨ Generate Image'}
+        </button>
+        
+        <button onClick={onClose} className="w-full mt-3 p-3 text-gray-500 text-sm">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Video Generation Sheet
+const VideoGenSheet = ({ 
+  isOpen, onClose, models, selectedModel, onModelChange, 
+  prompt, onPromptChange, onGenerate, isGenerating 
+}) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
+      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
+        <h3 className="text-white font-semibold text-lg mb-4">🎬 Generate Video</h3>
+        
+        {/* Prompt */}
+        <div className="mb-4">
+          <label className="text-gray-400 text-xs mb-2 block">Describe your video</label>
+          <textarea
+            value={prompt}
+            onChange={(e) => onPromptChange(e.target.value)}
+            placeholder="A butterfly landing on a flower in slow motion..."
+            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 resize-none h-24 focus:outline-none focus:border-pink-500/50"
+          />
+        </div>
+
+        {/* Model Selection */}
+        <div className="mb-6">
+          <label className="text-gray-400 text-xs mb-2 block">Model</label>
+          <div className="space-y-2">
+            {models.map(model => (
+              <button
+                key={model.value}
+                onClick={() => onModelChange(model.value)}
+                className={`w-full p-3 rounded-xl text-left transition-colors ${
+                  selectedModel === model.value
+                    ? 'bg-pink-500/20 border border-pink-500/50'
+                    : 'bg-white/5 border border-transparent'
+                }`}
+              >
+                <span className="text-white text-sm font-medium">{model.label}</span>
+                <span className="text-gray-500 text-xs ml-2">{model.cost} • {model.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Generate Button */}
+        <button
+          onClick={() => onGenerate('video')}
+          disabled={!prompt.trim() || isGenerating}
+          className={`w-full p-4 rounded-xl font-medium transition-all ${
+            prompt.trim() && !isGenerating
+              ? 'bg-pink-500 text-white'
+              : 'bg-white/10 text-gray-500'
+          }`}
+        >
+          {isGenerating ? 'Generating...' : '🎬 Generate Video'}
+        </button>
+        
+        <button onClick={onClose} className="w-full mt-3 p-3 text-gray-500 text-sm">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Rename Conversation Modal
+const RenameModal = ({ isOpen, onClose, title, onTitleChange, onSave }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="w-full max-w-sm bg-[#111] rounded-2xl p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-white font-semibold text-lg mb-4">Rename Conversation</h3>
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          placeholder="Enter new title..."
+          className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/50 mb-4"
+          autoFocus
+        />
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 p-3 rounded-xl bg-white/5 text-gray-400">
+            Cancel
+          </button>
+          <button onClick={onSave} className="flex-1 p-3 rounded-xl bg-orange-500 text-white font-medium">
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Media Gallery View
+const GalleryView = ({ isOpen, onClose, items, onItemClick }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-[#0a0a0a] z-[60]">
+      <div className="safe-area-top bg-[#0a0a0a] p-4 flex items-center gap-3 border-b border-white/10">
+        <button onClick={onClose} className="p-2 text-gray-400">
+          <X className="w-6 h-6" />
+        </button>
+        <h3 className="text-white font-semibold text-lg">Media Gallery</h3>
+      </div>
+      
+      <div className="p-4 overflow-y-auto" style={{ height: 'calc(100vh - 60px)' }}>
+        {items.length === 0 ? (
+          <div className="text-center py-12">
+            <ImageIcon className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+            <p className="text-gray-500">No generated media yet</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {items.map((item, idx) => (
+              <button
+                key={idx}
+                onClick={() => onItemClick?.(item)}
+                className="aspect-square rounded-xl overflow-hidden bg-white/5"
+              >
+                {item.type === 'image' ? (
+                  <img src={item.url} alt={item.prompt} className="w-full h-full object-cover" />
+                ) : (
+                  <video src={item.url} className="w-full h-full object-cover" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Compare Mode Sheet
+const CompareModeSheet = ({ 
+  isOpen, onClose, models, selectedModels, onToggleModel, onCompare 
+}) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
+      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
+        <h3 className="text-white font-semibold text-lg mb-2">Compare Models</h3>
+        <p className="text-gray-500 text-sm mb-4">Select 2+ models to compare their responses</p>
+        
+        <div className="space-y-2 mb-6">
+          {models.filter(m => !m.comingSoon).map(model => (
+            <button
+              key={model.value}
+              onClick={() => onToggleModel(model.value)}
+              className={`w-full p-3 rounded-xl text-left flex items-center justify-between transition-colors ${
+                selectedModels.includes(model.value)
+                  ? 'bg-blue-500/20 border border-blue-500/50'
+                  : 'bg-white/5 border border-transparent'
+              }`}
+            >
+              <div>
+                <span className="text-white text-sm font-medium">{model.label}</span>
+                <span className="text-gray-500 text-xs ml-2">{model.group}</span>
+              </div>
+              {selectedModels.includes(model.value) && (
+                <Check className="w-5 h-5 text-blue-400" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={onCompare}
+          disabled={selectedModels.length < 2}
+          className={`w-full p-4 rounded-xl font-medium transition-all ${
+            selectedModels.length >= 2
+              ? 'bg-blue-500 text-white'
+              : 'bg-white/10 text-gray-500'
+          }`}
+        >
+          Compare {selectedModels.length} Models
+        </button>
+        
+        <button onClick={onClose} className="w-full mt-3 p-3 text-gray-500 text-sm">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Compare Results View
+const CompareResultsView = ({ responses, onSelect, onClose }) => {
+  if (!responses) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-[#0a0a0a] z-[60] overflow-y-auto">
+      <div className="safe-area-top bg-[#0a0a0a] p-4 flex items-center gap-3 border-b border-white/10 sticky top-0">
+        <button onClick={onClose} className="p-2 text-gray-400">
+          <X className="w-6 h-6" />
+        </button>
+        <h3 className="text-white font-semibold text-lg">Compare Results</h3>
+      </div>
+      
+      <div className="p-4 space-y-4 pb-20">
+        {responses.map((resp, idx) => (
+          <div key={idx} className="bg-white/5 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-orange-400 font-medium text-sm">{resp.model}</span>
+              <button
+                onClick={() => onSelect(resp)}
+                className="px-3 py-1 bg-orange-500 text-white text-xs rounded-full"
+              >
+                Use This
+              </button>
+            </div>
+            <p className="text-gray-300 text-sm leading-relaxed">{resp.content}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// Cloud Import Sheet
+const ImportSheet = ({ isOpen, onClose, onImport }) => {
+  const fileRef = useRef(null);
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
+      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
+        <h3 className="text-white font-semibold text-lg mb-2">Import Conversations</h3>
+        <p className="text-gray-500 text-sm mb-4">Import your chat history from other platforms</p>
+        
+        <input
+          type="file"
+          ref={fileRef}
+          accept=".zip,.json"
+          onChange={(e) => onImport(e.target.files?.[0])}
+          className="hidden"
+        />
+        
+        <button 
+          onClick={() => fileRef.current?.click()}
+          className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3 mb-2"
+        >
+          <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+            <Paperclip className="w-5 h-5 text-green-400" />
+          </div>
+          <div>
+            <span className="text-white font-medium">ChatGPT Export</span>
+            <p className="text-gray-500 text-xs">Upload conversations.json or ZIP file</p>
+          </div>
+        </button>
+        
+        <button onClick={onClose} className="w-full mt-4 p-4 text-gray-500 text-sm">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // Main Mobile Chat Component
 export default function MobileChat({ 
   token, 
