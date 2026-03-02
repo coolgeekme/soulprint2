@@ -1715,7 +1715,7 @@ export default function MobileChat({
 
       {/* Profile Tab */}
       {activeTab === 'profile' && (
-        <SoulView 
+        <ProfileView 
           profile={{ 
             ...profile, 
             display_name: profile?.display_name || user?.profile?.display_name || user?.email?.split('@')[0],
