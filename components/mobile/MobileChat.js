@@ -1912,7 +1912,40 @@ export default function MobileChat({
           <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
             <h3 className="text-white font-semibold text-lg mb-4">Select Model</h3>
-            {Object.entries(groupedModels).map(([group, models]) => (
+            
+            {/* Smart Mode - Featured at top */}
+            <div className="mb-4">
+              <button
+                onClick={() => { 
+                  setSelectedModel('smart'); 
+                  setShowModelPicker(false); 
+                }}
+                className={`w-full p-4 rounded-xl text-left transition-colors ${
+                  selectedModel === 'smart'
+                    ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/50'
+                    : 'bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 hover:border-purple-500/40'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className={`font-semibold text-sm flex items-center gap-2 ${selectedModel === 'smart' ? 'text-purple-400' : 'text-white'}`}>
+                      🧠 Smart Mode
+                      {selectedModel === 'smart' && <span className="text-[10px] bg-purple-500 text-white px-1.5 py-0.5 rounded-full">Active</span>}
+                    </span>
+                    <p className="text-gray-400 text-xs mt-1">AI automatically picks the best model for your query</p>
+                  </div>
+                </div>
+                {lastSmartSelection && selectedModel === 'smart' && (
+                  <div className="mt-2 text-[10px] text-gray-500">
+                    Last used: {lastSmartSelection.model}
+                  </div>
+                )}
+              </button>
+            </div>
+            
+            <div className="border-t border-white/10 my-4"></div>
+            
+            {Object.entries(groupedModels).filter(([group]) => group !== 'Smart').map(([group, models]) => (
               <div key={group} className="mb-4">
                 <h4 className="text-gray-500 text-xs uppercase tracking-wider mb-2 px-2">{group}</h4>
                 <div className="space-y-1">
