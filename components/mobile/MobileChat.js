@@ -710,7 +710,7 @@ const VideoGenSheet = ({
                 }`}
               >
                 <span className="text-white text-sm font-medium">{model.label}</span>
-                <span className="text-gray-500 text-xs ml-2">{model.cost} • {model.description}</span>
+                <span className="text-gray-500 text-xs ml-2">{model.description}</span>
               </button>
             ))}
           </div>
