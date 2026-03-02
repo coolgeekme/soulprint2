@@ -37,6 +37,8 @@ const VIDEO_MODELS = [
 ];
 
 const MODELS = [
+  // Smart Mode - AI auto-selects best model
+  { value: 'smart', label: '🧠 Smart Mode', provider: 'auto', group: 'Smart', isSmartMode: true, description: 'AI picks the best model for your query' },
   // OpenAI
   { value: 'gpt-4o',       label: 'GPT-4o',             provider: 'openai',      group: 'OpenAI' },
   { value: 'gpt-4o-mini',  label: 'GPT-4o Mini',        provider: 'openai',      group: 'OpenAI' },
