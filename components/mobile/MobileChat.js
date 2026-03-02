@@ -1271,6 +1271,9 @@ export default function MobileChat({
   const sendMessage = async () => {
     if ((!input.trim() && !attachments.length) || loading) return;
     
+    // Create abort controller for this request
+    abortControllerRef.current = new AbortController();
+    
     const content = input.trim();
     const userMessage = { 
       id: `u-${Date.now()}`, 
@@ -1298,6 +1301,7 @@ export default function MobileChat({
           attachments: userMessage.attachments,
           enableWebSearch: webSearchEnabled,
         }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!res.ok) {
