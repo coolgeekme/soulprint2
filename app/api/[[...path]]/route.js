@@ -2885,6 +2885,47 @@ async function handleChatStream(request) {
     role: 'user', content: storedContent, created_at: new Date(), model_used: model,
   });
 
+  // Check if user is explicitly asking to remember something
+  let memoryToSave = null;
+  if (content) {
+    const contentLower = content.toLowerCase();
+    const rememberPatterns = [
+      /^(?:please\s+)?remember\s+(?:that\s+)?(.+)/i,
+      /^(?:please\s+)?don'?t\s+forget\s+(?:that\s+)?(.+)/i,
+      /^(?:please\s+)?save\s+(?:this\s+)?(?:to\s+)?(?:my\s+)?(?:memory|memories)[:\s]*(.+)/i,
+      /^(?:please\s+)?keep\s+(?:this\s+)?in\s+mind[:\s]*(.+)/i,
+      /^(?:please\s+)?note\s+(?:that\s+)?(.+)/i,
+      /^(?:please\s+)?add\s+(?:this\s+)?(?:to\s+)?(?:my\s+)?(?:memory|memories)[:\s]*(.+)/i,
+      /^(?:please\s+)?memorize\s+(?:that\s+)?(.+)/i,
+    ];
+    
+    for (const pattern of rememberPatterns) {
+      const match = content.match(pattern);
+      if (match && match[1]) {
+        memoryToSave = match[1].trim();
+        break;
+      }
+    }
+    
+    // Save the memory immediately if detected
+    if (memoryToSave && memoryToSave.length > 10) {  // Increased from 3 to 10 for more meaningful memories
+      const memoryId = uuidv4();
+      await db.collection('user_memories').insertOne({
+        id: memoryId,
+        user_id: user.id,
+        content: memoryToSave,
+        category: 'other',
+        source: 'user_explicit',
+        importance: 'high',
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+      
+      // Invalidate system prompt cache since memories changed
+      invalidateSystemPromptCache(user.id);
+    }
+  }
+
   // Get recent messages for context (best practice: use smart token-aware trimming)
   const recentMessages = await db.collection('messages')
     .find({ conversation_id: convId, id: { $ne: userMsgId } })
@@ -2982,8 +3023,14 @@ async function handleChatStream(request) {
             selectedModel: model,
             modelReason: smartModeInfo.reason,
             confidence: smartModeInfo.confidence
-          })
+          }),
+          ...(memoryToSave && { memorySaved: true, memoryContent: memoryToSave })
         });
+
+        // Send memory confirmation if we saved one
+        if (memoryToSave) {
+          send({ type: 'delta', content: '✅ **Saved to your memories:** "' + memoryToSave + '"\n\n---\n\n' });
+        }
 
         // ── Handle image generation ───────────────────────────────────────
         if (mediaIntent === 'image' && attachments.length === 0) {

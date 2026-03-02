@@ -2245,6 +2245,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   // Memories state
   const [memories, setMemories] = useState([]);
   const [memoriesLoading, setMemoriesLoading] = useState(false);
+  const [memoriesLoaded, setMemoriesLoaded] = useState(false);
   const [newMemory, setNewMemory] = useState('');
   const [newMemoryCategory, setNewMemoryCategory] = useState('other');
   const memoryCategories = ['health', 'preferences', 'personal', 'work', 'relationships', 'goals', 'other'];
@@ -2255,6 +2256,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
       const res = await fetch('/api/memories', { headers: { Authorization: `Bearer ${token}` } });
       const d = await res.json();
       setMemories(d.memories || []);
+      setMemoriesLoaded(true);
     } catch (e) {}
     setMemoriesLoading(false);
   };
@@ -3159,6 +3161,9 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                 <p className="text-gray-500 text-xs">
                   Important facts about you that the AI remembers across ALL conversations. Memories are auto-extracted from chats and can also be added manually.
                 </p>
+                <p className="text-gray-500 text-[10px] mt-2">
+                  💡 <span className="text-blue-400">Tip:</span> Say "Remember that..." in chat to instantly save to memory
+                </p>
               </div>
 
               {/* Add Memory Form */}
@@ -3187,10 +3192,33 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                 </select>
               </div>
 
-              {/* Load Memories Button */}
-              <button onClick={loadMemories} className="w-full py-2 bg-white/5 border border-white/10 rounded-lg text-gray-500 hover:text-white text-xs transition-colors">
-                {memoriesLoading ? 'Loading...' : 'Load Memories'}
-              </button>
+              {/* Auto-load memories on tab switch, or show prominent button */}
+              {!memoriesLoaded ? (
+                <button 
+                  onClick={loadMemories} 
+                  className="w-full py-4 bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-xl text-blue-400 hover:text-white text-sm font-medium transition-all hover:from-blue-500/30 hover:to-purple-500/30 flex items-center justify-center gap-2"
+                >
+                  {memoriesLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading your memories...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="w-5 h-5" />
+                      View Your Memories
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button 
+                  onClick={loadMemories} 
+                  className="w-full py-2 bg-white/5 border border-white/10 rounded-lg text-gray-500 hover:text-white text-xs transition-colors flex items-center justify-center gap-2"
+                >
+                  {memoriesLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  Refresh Memories
+                </button>
+              )}
 
               {/* Memories List */}
               {memories.length > 0 ? (

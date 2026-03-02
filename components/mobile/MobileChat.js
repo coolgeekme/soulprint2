@@ -6,7 +6,7 @@ import {
   Mic, Plus, Settings, X, Check, Loader2, Globe,
   Image as ImageIcon, MoreHorizontal, ArrowLeft, Paperclip,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
-  Video, Search, ChevronRight, Square, Download
+  Video, Search, ChevronRight, Square, Download, Home, ExternalLink
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
@@ -162,8 +162,17 @@ const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
   const tabs = [
     { id: 'chat', icon: null, useLogo: true, label: assistantName || 'Chat' },
     { id: 'history', icon: MessageSquare, label: 'History', badge: unreadCount },
+    { id: 'home', icon: Home, label: 'Website', isExternal: true },
     { id: 'profile', icon: User, label: 'Profile' },
   ];
+
+  const handleTabClick = (tab) => {
+    if (tab.isExternal) {
+      window.location.href = '/';
+    } else {
+      onTabChange(tab.id);
+    }
+  };
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a]/95 backdrop-blur-xl border-t border-white/10 safe-area-bottom z-50">
@@ -174,8 +183,8 @@ const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
           return (
             <button
               key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={`flex flex-col items-center py-2 px-6 rounded-2xl transition-all duration-300 ${
+              onClick={() => handleTabClick(tab)}
+              className={`flex flex-col items-center py-2 px-4 rounded-2xl transition-all duration-300 ${
                 isActive ? 'bg-orange-500/15' : 'hover:bg-white/5'
               }`}
             >
@@ -189,6 +198,9 @@ const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {tab.badge > 9 ? '9+' : tab.badge}
                   </span>
+                )}
+                {tab.isExternal && (
+                  <ExternalLink className="absolute -top-1 -right-1 w-3 h-3 text-gray-500" />
                 )}
               </div>
               <span className={`text-[10px] mt-1 font-medium transition-colors ${isActive ? 'text-orange-400' : 'text-gray-600'}`}>
@@ -466,6 +478,23 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClic
       </div>
     )}
 
+    {/* Visit Website Button */}
+    <button 
+      onClick={() => window.location.href = '/'}
+      className="w-full bg-gradient-to-r from-orange-500/10 to-amber-500/10 hover:from-orange-500/20 hover:to-amber-500/20 border border-orange-500/20 rounded-2xl p-4 flex items-center justify-between transition-colors mb-3"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+          <Home className="w-4 h-4 text-orange-400" />
+        </div>
+        <div className="text-left">
+          <span className="text-white text-sm block">Visit Website</span>
+          <span className="text-gray-500 text-xs">Updates, features & more</span>
+        </div>
+      </div>
+      <ExternalLink className="w-4 h-4 text-orange-400" />
+    </button>
+
     {/* Announcements Section */}
     <button 
       onClick={onAnnouncementsClick}
@@ -618,6 +647,18 @@ const MoreOptionsSheet = ({ isOpen, onClose, onSettings, onImport }) => {
             <div>
               <span className="text-white font-medium">Import Chats</span>
               <p className="text-gray-500 text-xs">Import from ChatGPT and other platforms</p>
+            </div>
+          </button>
+          <button 
+            onClick={() => { window.location.href = '/'; onClose(); }}
+            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+              <Home className="w-5 h-5 text-orange-400" />
+            </div>
+            <div>
+              <span className="text-white font-medium">Visit Website</span>
+              <p className="text-gray-500 text-xs">Check out new features and updates</p>
             </div>
           </button>
           <button 

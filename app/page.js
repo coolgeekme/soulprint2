@@ -159,10 +159,44 @@ function FAQItem({ q, a }) {
 }
 
 export default function LandingPage() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  // Check if user is logged in
+  useEffect(() => {
+    const token = localStorage.getItem('sp_token');
+    if (token) {
+      // Verify token is still valid
+      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => {
+          if (r.ok) setIsLoggedIn(true);
+        })
+        .catch(() => {});
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
+      {/* Back to Chat Banner - shown when logged in */}
+      {isLoggedIn && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-orange-500 to-amber-500 py-2.5 px-4">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <SoulPrintLogo size={20} className="opacity-80" />
+              <span className="text-white text-sm font-medium">Welcome back! You're logged in.</span>
+            </div>
+            <Link 
+              href="/chat" 
+              className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-1.5 rounded-full text-sm font-medium transition-colors"
+            >
+              <ArrowRight className="w-4 h-4" />
+              Back to Chat
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* HERO SECTION */}
-      <section className="relative overflow-hidden" style={{ minHeight: '100vh' }}>
+      <section className={`relative overflow-hidden ${isLoggedIn ? 'pt-12' : ''}`} style={{ minHeight: '100vh' }}>
         {/* Grid background */}
         <div className="absolute inset-0 grid-bg opacity-100" />
         {/* Orange glow from center top */}
