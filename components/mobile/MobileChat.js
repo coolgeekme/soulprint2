@@ -1154,6 +1154,17 @@ export default function MobileChat({
       .catch(console.error);
   }, [token]);
 
+  // Load announcements
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/announcements', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        setAnnouncements(Array.isArray(data) ? data : []);
+      })
+      .catch(console.error);
+  }, [token]);
+
   // Load conversation messages
   useEffect(() => {
     if (!token || !conversationId) {
