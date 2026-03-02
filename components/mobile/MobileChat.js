@@ -575,7 +575,7 @@ export default function MobileChat({
     if (!token) return;
     fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => setConversations(data.conversations || []))
+      .then(data => setConversations(Array.isArray(data) ? data : []))
       .catch(console.error);
   }, [token]);
 
