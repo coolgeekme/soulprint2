@@ -503,6 +503,59 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClic
   </div>
 );
 
+// Announcements View
+const AnnouncementsView = ({ isOpen, onClose, announcements }) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-[#0a0a0a] z-[60]">
+      <div className="safe-area-top bg-[#0a0a0a] p-4 flex items-center gap-3 border-b border-white/10">
+        <button onClick={onClose} className="p-2 text-gray-400">
+          <X className="w-6 h-6" />
+        </button>
+        <h3 className="text-white font-semibold text-lg">Announcements</h3>
+      </div>
+      
+      <div className="p-4 overflow-y-auto pb-20" style={{ height: 'calc(100vh - 60px)' }}>
+        {announcements?.length === 0 ? (
+          <div className="text-center py-12">
+            <MessageSquare className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+            <p className="text-gray-500">No announcements yet</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {announcements?.map((announcement, idx) => (
+              <div key={idx} className="bg-white/5 rounded-2xl p-4 border border-white/10">
+                <div className="flex items-start justify-between mb-2">
+                  <h4 className="text-white font-medium text-sm">{announcement.title}</h4>
+                  {announcement.type && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                      announcement.type === 'update' ? 'bg-blue-500/20 text-blue-400' :
+                      announcement.type === 'feature' ? 'bg-green-500/20 text-green-400' :
+                      announcement.type === 'alert' ? 'bg-red-500/20 text-red-400' :
+                      'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      {announcement.type}
+                    </span>
+                  )}
+                </div>
+                <p className="text-gray-400 text-sm leading-relaxed">{announcement.content}</p>
+                {announcement.created_at && (
+                  <p className="text-gray-600 text-xs mt-3">
+                    {new Date(announcement.created_at).toLocaleDateString('en-US', { 
+                      month: 'short', day: 'numeric', year: 'numeric' 
+                    })}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // Attachment Preview
 const AttachmentPreview = ({ attachments, onRemove }) => {
   if (!attachments.length) return null;
