@@ -354,8 +354,16 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
             </div>
           )}
         </div>
+        {/* Model info - show Smart Mode badge if applicable */}
         {message.model_used && (
-          <span className="text-[10px] text-gray-600 ml-2 mt-1 block">{message.model_used}</span>
+          <div className="ml-2 mt-1 flex items-center gap-2">
+            {message.smart_mode && (
+              <span className="text-[10px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded-full">
+                🧠 Smart
+              </span>
+            )}
+            <span className="text-[10px] text-gray-600">{message.model_used}</span>
+          </div>
         )}
       </div>
     </div>
