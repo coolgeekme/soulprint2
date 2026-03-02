@@ -1968,6 +1968,30 @@ export default function MobileChat({
             </button>
           </div>
           
+          {/* Search bar for conversations */}
+          {conversations.length > 0 && (
+            <div className="px-4 pb-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  value={conversationSearch}
+                  onChange={(e) => setConversationSearch(e.target.value)}
+                  placeholder="Search conversations..."
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-9 py-2.5 text-sm text-white placeholder-gray-500 focus:border-orange-500/40 outline-none"
+                />
+                {conversationSearch && (
+                  <button
+                    onClick={() => setConversationSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          
           <div className="mt-2">
             {conversations.length === 0 ? (
               <div className="text-center py-12 px-4">
@@ -1981,16 +2005,37 @@ export default function MobileChat({
                 </button>
               </div>
             ) : (
-              conversations.map(conv => (
-                <ConversationItem
-                  key={conv.id}
-                  conversation={conv}
-                  isActive={conv.id === conversationId}
-                  onClick={() => loadConversation(conv.id)}
-                  onDelete={deleteConversation}
-                  onRename={openRenameModal}
-                />
-              ))
+              (() => {
+                const filteredConversations = conversationSearch.trim()
+                  ? conversations.filter(c => 
+                      (c.title || 'Conversation').toLowerCase().includes(conversationSearch.toLowerCase())
+                    )
+                  : conversations;
+                
+                return filteredConversations.length === 0 ? (
+                  <div className="text-center py-12 px-4">
+                    <Search className="w-10 h-10 text-gray-700 mx-auto mb-3" />
+                    <p className="text-gray-500 text-sm">No matching conversations</p>
+                    <button 
+                      onClick={() => setConversationSearch('')}
+                      className="mt-4 text-orange-400 text-sm font-medium"
+                    >
+                      Clear search
+                    </button>
+                  </div>
+                ) : (
+                  filteredConversations.map(conv => (
+                    <ConversationItem
+                      key={conv.id}
+                      conversation={conv}
+                      isActive={conv.id === conversationId}
+                      onClick={() => loadConversation(conv.id)}
+                      onDelete={deleteConversation}
+                      onRename={openRenameModal}
+                    />
+                  ))
+                );
+              })()
             )}
           </div>
         </div>
