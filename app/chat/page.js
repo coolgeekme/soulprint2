@@ -3670,6 +3670,7 @@ export default function ChatPage() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const abortControllerRef = useRef(null); // For stopping requests
   const [interimText, setInterimText] = useState('');
 
   // Keep refs in sync with state
