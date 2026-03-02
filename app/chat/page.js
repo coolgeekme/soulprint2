@@ -4490,13 +4490,16 @@ export default function ChatPage() {
   // Render mobile interface on mobile devices
   if (isMobile && token && user) {
     return (
-      <MobileChat
-        token={token}
-        user={user}
-        assistantName={assistantName}
-        onOpenSettings={() => setShowSettings(true)}
-        initialConversationId={conversationId}
-      />
+      <>
+        <MobileChat
+          token={token}
+          user={user}
+          assistantName={assistantName}
+          onOpenSettings={() => setShowSettings(true)}
+          initialConversationId={conversationId}
+        />
+        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} token={token} />}
+      </>
     );
   }
 
