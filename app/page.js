@@ -128,17 +128,17 @@ const FEATURE_IMAGES = [
 ];
 
 const FEATURES = [
-  { tag: 'CHANNELS', title: 'Lives in Telegram & SMS', desc: 'No new apps to install. Just message your SoulPrint in Telegram or text via SMS — the same tools you already use every day.', img: FEATURE_IMAGES[0] },
-  { tag: 'ACTIONS', title: 'It can actually do things', desc: 'Browse the web, generate images, manage your calendar, send emails, look things up — not just chat. It takes action for you.', img: FEATURE_IMAGES[1] },
-  { tag: 'VOICE', title: 'Talks and listens', desc: 'Send voice messages or talk hands-free. Your SoulPrint can listen, understand photos you send, and even reply out loud on your phone.', img: FEATURE_IMAGES[2] },
+  { tag: 'CHANNELS', title: 'Lives in Telegram & SMS (coming soon)', desc: 'No new apps to install. Just message your SoulPrint in Telegram or text via SMS — the same tools you already use every day.', img: FEATURE_IMAGES[0] },
+  { tag: 'ACTIONS', title: 'It can actually do things', desc: 'Browse the web, generate images, look things up — not just chat. It takes action for you. Calendar and email integration coming soon.', img: FEATURE_IMAGES[1] },
+  { tag: 'VOICE', title: 'Talks and listens', desc: 'Send voice messages or talk hands-free. Your SoulPrint can listen and understand photos you send. Voice replies coming soon.', img: FEATURE_IMAGES[2] },
   { tag: 'PRIVACY', title: 'Your data stays yours', desc: 'Your conversations are private and encrypted. We never use your data to train AI models. What you say stays between you and your SoulPrint.', img: FEATURE_IMAGES[3] },
 ];
 
 const FAQS = [
-  { q: 'What is SoulPrint?', a: 'SoulPrint is your personal AI companion that lives in your Telegram and SMS. It learns how you think, how you talk, and what matters to you — so every conversation feels like talking to someone who actually knows you.' },
-  { q: 'What can it actually do?', a: 'SoulPrint can research topics, draft emails, manage your schedule, answer questions, help with creative projects, and take real actions on your behalf — all through a simple chat interface.' },
+  { q: 'What is SoulPrint?', a: 'SoulPrint is your personal AI companion that lives in your Telegram (SMS coming soon). It learns how you think, how you talk, and what matters to you — so every conversation feels like talking to someone who actually knows you.' },
+  { q: 'What can it actually do?', a: 'SoulPrint can research topics, draft messages, answer questions, help with creative projects, and take real actions on your behalf — all through a simple chat interface. Calendar and email integration coming soon.' },
   { q: 'How is this different from ChatGPT?', a: 'ChatGPT is a general AI that forgets you after every conversation. SoulPrint builds a persistent profile of who you are, how you communicate, and what you need — so it gets smarter about you over time, not just about general knowledge.' },
-  { q: 'Does it work with voice?', a: 'Yes. You can send voice messages and SoulPrint will understand and respond. On supported platforms, it can even reply back with audio.' },
+  { q: 'Does it work with voice?', a: 'Yes. You can send voice messages and SoulPrint will understand and respond. Voice replies are coming soon.' },
   { q: 'Is my data private?', a: 'Absolutely. Your conversations are encrypted and never used to train AI models. Your data belongs to you, and you can delete it at any time.' },
   { q: 'How do I get started?', a: 'Click "Get your SoulPrint" above, complete a short onboarding and our 36-question assessment, and your personal AI will be ready. The whole process takes about 10 minutes.' },
 ];
@@ -267,7 +267,7 @@ export default function LandingPage() {
             YOUR AI BEST FRIEND, RIGHT IN YOUR CHAT.
           </h2>
           <p className="text-gray-600 text-center mb-16 text-sm max-w-lg mx-auto">
-            SoulPrint lives in your Telegram and SMS — no new apps to download. Just message it like you'd message a friend.
+            SoulPrint lives in your Telegram (SMS coming soon) — no new apps to download. Just message it like you'd message a friend.
           </p>
 
           <div className="grid grid-cols-4 gap-4">
