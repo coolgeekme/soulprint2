@@ -584,64 +584,16 @@ const AttachmentPreview = ({ attachments, onRemove }) => {
   );
 };
 
-// More Options Menu (bottom sheet)
-const MoreOptionsSheet = ({ isOpen, onClose, onImageGen, onVideoGen, onSettings, onGallery, onCompare, onImport }) => {
+// More Options Menu (bottom sheet) - now only has Import and Settings
+const MoreOptionsSheet = ({ isOpen, onClose, onSettings, onImport }) => {
   if (!isOpen) return null;
   
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
-      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         <h3 className="text-white font-semibold text-lg mb-4">Options</h3>
         <div className="space-y-2">
-          <button 
-            onClick={() => { onImageGen?.(); onClose(); }}
-            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
-              <ImageIcon className="w-5 h-5 text-purple-400" />
-            </div>
-            <div>
-              <span className="text-white font-medium">Generate Image</span>
-              <p className="text-gray-500 text-xs">Create AI-generated images</p>
-            </div>
-          </button>
-          <button 
-            onClick={() => { onVideoGen?.(); onClose(); }}
-            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">
-              <Video className="w-5 h-5 text-pink-400" />
-            </div>
-            <div>
-              <span className="text-white font-medium">Generate Video</span>
-              <p className="text-gray-500 text-xs">Create AI-generated videos</p>
-            </div>
-          </button>
-          <button 
-            onClick={() => { onCompare?.(); onClose(); }}
-            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-blue-400" />
-            </div>
-            <div>
-              <span className="text-white font-medium">Compare Models</span>
-              <p className="text-gray-500 text-xs">Compare responses from multiple AI models</p>
-            </div>
-          </button>
-          <button 
-            onClick={() => { onGallery?.(); onClose(); }}
-            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-              <ImageIcon className="w-5 h-5 text-amber-400" />
-            </div>
-            <div>
-              <span className="text-white font-medium">Media Gallery</span>
-              <p className="text-gray-500 text-xs">View your generated images and videos</p>
-            </div>
-          </button>
           <button 
             onClick={() => { onImport?.(); onClose(); }}
             className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
