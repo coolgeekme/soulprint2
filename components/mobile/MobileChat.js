@@ -849,6 +849,271 @@ export default function MobileChat({
     setActiveTab('chat');
   };
 
+  // Rename conversation
+  const renameConversation = async () => {
+    if (!renamingConversation || !renameTitle.trim()) return;
+    try {
+      await fetch(`/api/conversations/${renamingConversation.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: renameTitle.trim() }),
+      });
+      setConversations(prev => prev.map(c => 
+        c.id === renamingConversation.id ? { ...c, title: renameTitle.trim() } : c
+      ));
+    } catch (err) {
+      console.error('Rename error:', err);
+    }
+    setShowRenameModal(false);
+    setRenamingConversation(null);
+    setRenameTitle('');
+  };
+
+  // Open rename modal
+  const openRenameModal = (conv) => {
+    setRenamingConversation(conv);
+    setRenameTitle(conv.title || '');
+    setShowRenameModal(true);
+  };
+
+  // Handle media generation (image/video)
+  const handleMediaGenerate = async (type) => {
+    if (!mediaPrompt.trim()) return;
+    setIsGeneratingMedia(true);
+    
+    const model = type === 'image' ? selectedImageModel : selectedVideoModel;
+    const placeholderMsg = {
+      id: `gen-${Date.now()}`,
+      role: 'assistant',
+      content: `🎨 Generating ${type}...\n\n**Prompt:** ${mediaPrompt}\n**Model:** ${model}${type === 'image' ? `\n**Aspect:** ${selectedAspectRatio}` : ''}`,
+      created_at: new Date().toISOString(),
+      is_generating: true,
+    };
+    setMessages(prev => [...prev, placeholderMsg]);
+    setShowImageGenSheet(false);
+    setShowVideoGenSheet(false);
+    setActiveTab('chat');
+
+    try {
+      const res = await fetch('/api/media/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ 
+          type, 
+          model, 
+          prompt: mediaPrompt, 
+          aspectRatio: selectedAspectRatio, 
+          conversationId 
+        }),
+      });
+
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setMessages(prev => prev.map(m => 
+          m.id === placeholderMsg.id 
+            ? { ...m, content: `❌ Generation failed: ${data.error || 'Unknown error'}`, is_generating: false }
+            : m
+        ));
+      } else if (data.taskId && !data.url) {
+        // Video task - poll for completion
+        pollMediaTask(data.taskId, placeholderMsg.id, type, mediaPrompt, model);
+      } else if (data.url) {
+        // Immediate result (image)
+        setMessages(prev => prev.map(m => 
+          m.id === placeholderMsg.id 
+            ? {
+                ...m,
+                content: `✨ ${type === 'image' ? 'Image' : 'Video'} generated!\n\n**Prompt:** ${mediaPrompt}`,
+                is_generating: false,
+                image_url: type === 'image' ? data.url : undefined,
+                video_url: type === 'video' ? data.url : undefined,
+                model_used: model,
+              }
+            : m
+        ));
+        loadGallery();
+      }
+    } catch (err) {
+      setMessages(prev => prev.map(m => 
+        m.id === placeholderMsg.id 
+          ? { ...m, content: `❌ Connection error: ${err.message}`, is_generating: false }
+          : m
+      ));
+    } finally {
+      setIsGeneratingMedia(false);
+      setMediaPrompt('');
+    }
+  };
+
+  // Poll for video task completion
+  const pollMediaTask = async (taskId, msgId, type, prompt, model) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/media/status/${taskId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        
+        if (data.status === 'completed' && data.url) {
+          clearInterval(pollInterval);
+          setMessages(prev => prev.map(m => 
+            m.id === msgId 
+              ? {
+                  ...m,
+                  content: `✨ ${type === 'image' ? 'Image' : 'Video'} generated!\n\n**Prompt:** ${prompt}`,
+                  is_generating: false,
+                  video_url: data.url,
+                  model_used: model,
+                }
+              : m
+          ));
+          loadGallery();
+        } else if (data.status === 'failed') {
+          clearInterval(pollInterval);
+          setMessages(prev => prev.map(m => 
+            m.id === msgId 
+              ? { ...m, content: `❌ Generation failed: ${data.error || 'Unknown error'}`, is_generating: false }
+              : m
+          ));
+        }
+      } catch (err) {
+        clearInterval(pollInterval);
+      }
+    }, 3000);
+    
+    // Stop polling after 5 minutes
+    setTimeout(() => clearInterval(pollInterval), 300000);
+  };
+
+  // Load gallery items
+  const loadGallery = async () => {
+    try {
+      const res = await fetch('/api/media/gallery', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setGalleryItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Gallery load error:', err);
+    }
+  };
+
+  // Handle compare mode
+  const handleCompare = async () => {
+    if (!input.trim() || compareModels.length < 2) return;
+    setLoading(true);
+    setShowCompareMode(false);
+    
+    const userMessage = { id: `u-${Date.now()}`, role: 'user', content: input.trim() };
+    setMessages(prev => [...prev, userMessage]);
+    const prompt = input.trim();
+    setInput('');
+
+    try {
+      const responses = await Promise.all(
+        compareModels.map(async (model) => {
+          const modelInfo = MODELS.find(m => m.value === model) || { provider: 'openai' };
+          const res = await fetch('/api/chat/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              conversationId,
+              content: prompt,
+              model,
+              provider: modelInfo.provider,
+              enableWebSearch: webSearchEnabled,
+            }),
+          });
+          
+          const reader = res.body?.getReader();
+          const decoder = new TextDecoder();
+          let fullContent = '';
+          let buffer = '';
+          
+          while (reader) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const data = JSON.parse(line);
+                if (data.type === 'delta') fullContent += data.content;
+              } catch {}
+            }
+          }
+          return { model, content: fullContent };
+        })
+      );
+      
+      setCompareResponses(responses);
+    } catch (err) {
+      console.error('Compare error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Select compare response
+  const selectCompareResponse = (response) => {
+    setMessages(prev => [...prev, {
+      id: `a-${Date.now()}`,
+      role: 'assistant',
+      content: response.content,
+      model_used: response.model,
+    }]);
+    setCompareResponses(null);
+  };
+
+  // Handle cloud import
+  const handleImport = async (file) => {
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/import/chatgpt', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.imported > 0) {
+        alert(`Successfully imported ${data.imported} conversations!`);
+        // Refresh conversations
+        fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.json())
+          .then(data => setConversations(Array.isArray(data) ? data : []));
+      } else {
+        alert('No conversations found to import.');
+      }
+    } catch (err) {
+      alert('Import failed: ' + err.message);
+    }
+    setShowImportSheet(false);
+  };
+
+  // Edit message
+  const handleEditMessage = async (message, newContent) => {
+    if (!newContent.trim()) return;
+    try {
+      await fetch('/api/chat/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message_id: message.id, content: newContent.trim() }),
+      });
+      setMessages(prev => prev.map(m => 
+        m.id === message.id ? { ...m, content: newContent.trim() } : m
+      ));
+    } catch (err) {
+      console.error('Edit error:', err);
+    }
+    setEditingMessage(null);
+  };
+
   // Group models by provider
   const groupedModels = MODELS.reduce((acc, model) => {
     if (!acc[model.group]) acc[model.group] = [];
