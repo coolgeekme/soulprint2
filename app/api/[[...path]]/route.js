@@ -2972,8 +2972,18 @@ async function handleChatStream(request) {
       const send = (obj) => controller.enqueue(enc.encode(JSON.stringify(obj) + '\n'));
 
       try {
-        // Send meta first
-        send({ type: 'meta', conversationId: convId, messageId: assistantMsgId });
+        // Send meta first (include smart mode info if applicable)
+        send({ 
+          type: 'meta', 
+          conversationId: convId, 
+          messageId: assistantMsgId,
+          ...(smartModeInfo && { 
+            smartMode: true, 
+            selectedModel: model,
+            modelReason: smartModeInfo.reason,
+            confidence: smartModeInfo.confidence
+          })
+        });
 
         // ── Handle image generation ───────────────────────────────────────
         if (mediaIntent === 'image' && attachments.length === 0) {
