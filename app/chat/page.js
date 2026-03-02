@@ -3995,6 +3995,8 @@ export default function ChatPage() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let actualModelUsed = selectedModel;
+      let smartModeReason = null;
 
       while (true) {
         const { done, value } = await reader.read();
