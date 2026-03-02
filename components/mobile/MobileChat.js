@@ -1202,8 +1202,6 @@ export default function MobileChat({
   // Edit display name state
   const [showEditNameSheet, setShowEditNameSheet] = useState(false);
   const [editingDisplayName, setEditingDisplayName] = useState('');
-  // Prevent re-fetching announcements
-  const [announcementsLoaded, setAnnouncementsLoaded] = useState(false);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -1306,7 +1304,7 @@ export default function MobileChat({
 
   // Load announcements (unread list which respects 24h dismiss)
   useEffect(() => {
-    if (!token || announcementsLoaded) return;
+    if (!token) return;
     fetch('/api/announcements', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
@@ -1314,10 +1312,9 @@ export default function MobileChat({
         // Use unread for display (respects 24h dismiss)
         const unreadList = Array.isArray(data.unread) ? data.unread : [];
         setAnnouncements(unreadList);
-        setAnnouncementsLoaded(true);
       })
       .catch(console.error);
-  }, [token, announcementsLoaded]);
+  }, [token]);
 
   // Load conversation messages
   useEffect(() => {
