@@ -566,6 +566,136 @@ function err(msg, status = 400) {
 }
 
 // ============================================================
+// SMART MODE - AI MODEL ROUTER
+// ============================================================
+
+// Model capabilities and use cases
+const SMART_MODE_MODELS = {
+  // Real-time information
+  'sonar-pro': { 
+    triggers: ['news', 'today', 'current', 'latest', 'price', 'weather', 'stock', 'live', 'happening now', 'right now'],
+    capabilities: ['real-time', 'web-search', 'current-events'],
+    provider: 'perplexity'
+  },
+  // Creative writing
+  'claude-sonnet-4-5-20250929': {
+    triggers: ['write', 'story', 'poem', 'creative', 'essay', 'blog', 'article', 'content', 'script', 'novel'],
+    capabilities: ['creative-writing', 'long-form', 'nuanced'],
+    provider: 'anthropic'
+  },
+  // Code and technical
+  'gpt-4o': {
+    triggers: ['code', 'debug', 'programming', 'function', 'api', 'bug', 'error', 'implement', 'build', 'develop'],
+    capabilities: ['coding', 'technical', 'problem-solving'],
+    provider: 'openai'
+  },
+  // Deep reasoning and analysis
+  'claude-opus-4-5-20251101': {
+    triggers: ['analyze', 'explain in detail', 'comprehensive', 'research', 'deep dive', 'thorough', 'complex'],
+    capabilities: ['deep-reasoning', 'analysis', 'research'],
+    provider: 'anthropic'
+  },
+  // Quick simple queries (cost-effective)
+  'gpt-4o-mini': {
+    triggers: ['simple', 'quick', 'basic', 'short', 'brief'],
+    capabilities: ['fast', 'cheap', 'simple-queries'],
+    provider: 'openai'
+  },
+  // Math and logic
+  'gemini-2.5-pro': {
+    triggers: ['math', 'calculate', 'equation', 'formula', 'logic', 'proof', 'solve'],
+    capabilities: ['math', 'logic', 'reasoning'],
+    provider: 'gemini'
+  },
+};
+
+// Classify query and determine best model
+async function classifyQueryForSmartMode(content, conversationHistory = []) {
+  const lowerContent = content.toLowerCase();
+  
+  // First, check for explicit triggers (fast path)
+  for (const [model, config] of Object.entries(SMART_MODE_MODELS)) {
+    for (const trigger of config.triggers) {
+      if (lowerContent.includes(trigger)) {
+        return { 
+          model, 
+          provider: config.provider, 
+          reason: `Detected "${trigger}" - using ${model} for ${config.capabilities[0]}`,
+          confidence: 'high'
+        };
+      }
+    }
+  }
+  
+  // Check for image/vision content
+  if (lowerContent.includes('image') || lowerContent.includes('picture') || lowerContent.includes('photo') || lowerContent.includes('look at')) {
+    return { model: 'gpt-4o', provider: 'openai', reason: 'Vision capabilities needed', confidence: 'high' };
+  }
+  
+  // Check for image generation intent
+  if (lowerContent.includes('generate') && (lowerContent.includes('image') || lowerContent.includes('picture'))) {
+    return { model: 'gpt-4o', provider: 'openai', reason: 'Will route to image generation', confidence: 'high' };
+  }
+  
+  // Check for video generation intent
+  if (lowerContent.includes('generate') && lowerContent.includes('video')) {
+    return { model: 'gpt-4o', provider: 'openai', reason: 'Will route to video generation', confidence: 'high' };
+  }
+  
+  // For longer queries, use AI classification (slower but more accurate)
+  if (content.length > 100) {
+    try {
+      const { getProvider } = await import('@/lib/llm/providers');
+      const classifier = getProvider('openai', 'gpt-4o-mini');
+      
+      const classificationPrompt = `Classify this user query and determine the best AI model to use.
+
+Query: "${content.slice(0, 500)}"
+
+Available models and their strengths:
+1. sonar-pro (Perplexity) - Real-time web search, current events, live data, prices
+2. claude-sonnet-4-5-20250929 (Anthropic) - Creative writing, stories, essays, nuanced content
+3. gpt-4o (OpenAI) - Code, debugging, technical tasks, general excellence
+4. claude-opus-4-5-20251101 (Anthropic) - Deep analysis, research, complex reasoning
+5. gpt-4o-mini (OpenAI) - Quick simple queries, basic tasks
+6. gemini-2.5-pro (Google) - Math, calculations, logical reasoning
+
+Respond with ONLY a JSON object:
+{"model": "model-name", "reason": "brief reason"}`;
+
+      const result = await classifier.generateChatCompletion({
+        systemPrompt: 'You are a model router. Respond only with valid JSON.',
+        messages: [{ role: 'user', content: classificationPrompt }],
+        model: 'gpt-4o-mini',
+        temperature: 0.1,
+      });
+      
+      const parsed = JSON.parse(result.replace(/```json\n?|\n?```/g, '').trim());
+      const modelConfig = SMART_MODE_MODELS[parsed.model];
+      
+      if (modelConfig) {
+        return { 
+          model: parsed.model, 
+          provider: modelConfig.provider, 
+          reason: parsed.reason,
+          confidence: 'ai-classified'
+        };
+      }
+    } catch (e) {
+      console.log('Smart mode AI classification failed, using default:', e.message);
+    }
+  }
+  
+  // Default to GPT-4o for general queries
+  return { 
+    model: 'gpt-4o', 
+    provider: 'openai', 
+    reason: 'General query - using GPT-4o',
+    confidence: 'default'
+  };
+}
+
+// ============================================================
 // LONG-TERM MEMORY SYSTEM
 // ============================================================
 
