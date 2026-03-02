@@ -685,33 +685,39 @@ export default function MobileChat({
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to send message');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to send message');
+      }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
       let fullContent = '';
       let newConvId = conversationId;
+      let buffer = '';
 
       while (reader) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.content) {
-                fullContent += parsed.content;
-                setStreamingContent(fullContent);
-              }
-              if (parsed.conversation_id) newConvId = parsed.conversation_id;
-            } catch {}
-          }
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line);
+            if (data.type === 'meta') {
+              newConvId = data.conversationId;
+              setConversationId(data.conversationId);
+            } else if (data.type === 'delta') {
+              fullContent += data.content;
+              setStreamingContent(fullContent);
+            } else if (data.type === 'done') {
+              // Message complete
+            }
+          } catch {}
         }
       }
 
