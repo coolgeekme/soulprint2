@@ -158,7 +158,7 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
 // Bottom Tab Bar
 const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
   const tabs = [
-    { id: 'chat', icon: Sparkles, label: assistantName || 'Chat' },
+    { id: 'chat', icon: null, useLogo: true, label: assistantName || 'Chat' },
     { id: 'history', icon: MessageSquare, label: 'History', badge: unreadCount },
     { id: 'profile', icon: User, label: 'Profile' },
   ];
@@ -178,7 +178,11 @@ const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
               }`}
             >
               <div className="relative">
-                <Icon className={`w-6 h-6 transition-colors ${isActive ? 'text-orange-400' : 'text-gray-500'}`} />
+                {tab.useLogo ? (
+                  <SoulPrintLogo size={24} className={`transition-opacity ${isActive ? 'opacity-100' : 'opacity-50'}`} />
+                ) : (
+                  <Icon className={`w-6 h-6 transition-colors ${isActive ? 'text-orange-400' : 'text-gray-500'}`} />
+                )}
                 {tab.badge > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {tab.badge > 9 ? '9+' : tab.badge}
