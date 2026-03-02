@@ -669,15 +669,19 @@ export default function MobileChat({
     setLoading(true);
     
     try {
-      const res = await fetch('/api/chat', {
+      // Get current model provider
+      const currentModel = MODELS.find(m => m.value === selectedModel) || { provider: 'openai' };
+      
+      const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
+          conversationId: conversationId,
           content: content,
-          conversation_id: conversationId,
           model: selectedModel,
-          web_search: webSearchEnabled,
+          provider: currentModel.provider,
           attachments: userMessage.attachments,
+          enableWebSearch: webSearchEnabled,
         }),
       });
 
