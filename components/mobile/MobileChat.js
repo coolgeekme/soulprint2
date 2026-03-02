@@ -1761,6 +1761,11 @@ export default function MobileChat({
         isOpen={showMoreOptions}
         onClose={() => setShowMoreOptions(false)}
         onSettings={onOpenSettings}
+        onImageGen={() => setShowImageGenSheet(true)}
+        onVideoGen={() => setShowVideoGenSheet(true)}
+        onGallery={() => { loadGallery(); setShowGallery(true); }}
+        onCompare={() => setShowCompareMode(true)}
+        onImport={() => setShowImportSheet(true)}
       />
 
       {/* Attachment Sheet */}
@@ -1777,6 +1782,81 @@ export default function MobileChat({
           cameraInput.onchange = handleFileSelect;
           cameraInput.click();
         }}
+      />
+
+      {/* Image Generation Sheet */}
+      <ImageGenSheet
+        isOpen={showImageGenSheet}
+        onClose={() => setShowImageGenSheet(false)}
+        models={IMAGE_MODELS}
+        selectedModel={selectedImageModel}
+        onModelChange={setSelectedImageModel}
+        aspectRatios={ASPECT_RATIOS}
+        selectedAspect={selectedAspectRatio}
+        onAspectChange={setSelectedAspectRatio}
+        prompt={mediaPrompt}
+        onPromptChange={setMediaPrompt}
+        onGenerate={handleMediaGenerate}
+        isGenerating={isGeneratingMedia}
+      />
+
+      {/* Video Generation Sheet */}
+      <VideoGenSheet
+        isOpen={showVideoGenSheet}
+        onClose={() => setShowVideoGenSheet(false)}
+        models={VIDEO_MODELS}
+        selectedModel={selectedVideoModel}
+        onModelChange={setSelectedVideoModel}
+        prompt={mediaPrompt}
+        onPromptChange={setMediaPrompt}
+        onGenerate={handleMediaGenerate}
+        isGenerating={isGeneratingMedia}
+      />
+
+      {/* Rename Modal */}
+      <RenameModal
+        isOpen={showRenameModal}
+        onClose={() => { setShowRenameModal(false); setRenamingConversation(null); }}
+        title={renameTitle}
+        onTitleChange={setRenameTitle}
+        onSave={renameConversation}
+      />
+
+      {/* Gallery View */}
+      <GalleryView
+        isOpen={showGallery}
+        onClose={() => setShowGallery(false)}
+        items={galleryItems}
+      />
+
+      {/* Compare Mode Sheet */}
+      <CompareModeSheet
+        isOpen={showCompareMode}
+        onClose={() => setShowCompareMode(false)}
+        models={MODELS}
+        selectedModels={compareModels}
+        onToggleModel={(model) => {
+          setCompareModels(prev => 
+            prev.includes(model) 
+              ? prev.filter(m => m !== model)
+              : [...prev, model]
+          );
+        }}
+        onCompare={handleCompare}
+      />
+
+      {/* Compare Results View */}
+      <CompareResultsView
+        responses={compareResponses}
+        onSelect={selectCompareResponse}
+        onClose={() => setCompareResponses(null)}
+      />
+
+      {/* Import Sheet */}
+      <ImportSheet
+        isOpen={showImportSheet}
+        onClose={() => setShowImportSheet(false)}
+        onImport={handleImport}
       />
 
       <style jsx global>{`
