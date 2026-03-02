@@ -5339,20 +5339,31 @@ export default function ChatPage() {
                 />
               </div>
 
-              <button onClick={() => {
-                sendMessage();
-                // Reset textarea height and refocus after sending
-                if (inputRef.current) {
-                  inputRef.current.style.height = 'auto';
-                  setTimeout(() => inputRef.current?.focus(), 50);
-                }
-              }}
-                disabled={(!input.trim() && attachments.length === 0 && !speech.isListening) || loading || compareLoading || (compareMode && compareModels.length === 0)}
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
-                  compareMode ? 'bg-gradient-to-r from-orange-500 to-blue-500 hover:from-orange-600 hover:to-purple-600' : 'bg-orange-500 hover:bg-orange-600'
-                }`}>
-                {loading || compareLoading ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-spin" /> : compareMode ? <GitCompare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" /> : <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />}
-              </button>
+              {/* Show Stop button when loading (not in compare mode), otherwise show Send button */}
+              {loading && !compareLoading ? (
+                <button 
+                  onClick={stopRequest}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-600 transition-colors flex-shrink-0 animate-pulse"
+                  title="Stop generating"
+                >
+                  <Square className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                </button>
+              ) : (
+                <button onClick={() => {
+                  sendMessage();
+                  // Reset textarea height and refocus after sending
+                  if (inputRef.current) {
+                    inputRef.current.style.height = 'auto';
+                    setTimeout(() => inputRef.current?.focus(), 50);
+                  }
+                }}
+                  disabled={(!input.trim() && attachments.length === 0 && !speech.isListening) || loading || compareLoading || (compareMode && compareModels.length === 0)}
+                  className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
+                    compareMode ? 'bg-gradient-to-r from-orange-500 to-blue-500 hover:from-orange-600 hover:to-purple-600' : 'bg-orange-500 hover:bg-orange-600'
+                  }`}>
+                  {compareLoading ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-spin" /> : compareMode ? <GitCompare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" /> : <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />}
+                </button>
+              )}
             </div>
             <p className="text-center text-[9px] sm:text-[10px] text-gray-700 mt-1.5 sm:mt-2 px-2">
               {speech.isListening
