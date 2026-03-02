@@ -1839,8 +1839,19 @@ export default function MobileChat({
             ...soulPrint
           }}
           onSettingsClick={onOpenSettings}
+          isAdmin={user?.role === 'admin' || user?.role === 'superadmin'}
+          onAdminClick={() => window.location.href = '/admin'}
+          announcements={announcements}
+          onAnnouncementsClick={() => setShowAnnouncements(true)}
         />
       )}
+
+      {/* Announcements View */}
+      <AnnouncementsView
+        isOpen={showAnnouncements}
+        onClose={() => setShowAnnouncements(false)}
+        announcements={announcements}
+      />
 
       {/* Tab Bar */}
       <TabBar 
