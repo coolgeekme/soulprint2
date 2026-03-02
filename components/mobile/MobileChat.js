@@ -574,6 +574,24 @@ export default function MobileChat({
   const [interimText, setInterimText] = useState('');
   const [editingMessage, setEditingMessage] = useState(null);
   
+  // New state for additional features
+  const [showImageGenSheet, setShowImageGenSheet] = useState(false);
+  const [showVideoGenSheet, setShowVideoGenSheet] = useState(false);
+  const [selectedImageModel, setSelectedImageModel] = useState('seedream-5-lite');
+  const [selectedVideoModel, setSelectedVideoModel] = useState('kling-3-720p');
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState('1:1');
+  const [mediaPrompt, setMediaPrompt] = useState('');
+  const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renamingConversation, setRenamingConversation] = useState(null);
+  const [renameTitle, setRenameTitle] = useState('');
+  const [showGallery, setShowGallery] = useState(false);
+  const [galleryItems, setGalleryItems] = useState([]);
+  const [showCompareMode, setShowCompareMode] = useState(false);
+  const [compareModels, setCompareModels] = useState(['gpt-4o', 'claude-sonnet-4-5-20250929']);
+  const [compareResponses, setCompareResponses] = useState(null);
+  const [showImportSheet, setShowImportSheet] = useState(false);
+  
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
