@@ -1108,6 +1108,8 @@ export default function MobileChat({
   const [compareModels, setCompareModels] = useState(['gpt-4o', 'claude-sonnet-4-5-20250929']);
   const [compareResponses, setCompareResponses] = useState(null);
   const [showImportSheet, setShowImportSheet] = useState(false);
+  const [announcements, setAnnouncements] = useState([]);
+  const [showAnnouncements, setShowAnnouncements] = useState(false);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
