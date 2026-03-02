@@ -872,7 +872,7 @@ export default function MobileChat({
           />
 
           {/* Input Area */}
-          <div className="fixed bottom-16 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8 safe-area-bottom">
+          <div className="fixed bottom-20 left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8">
             {/* Interim speech text */}
             {interimText && (
               <div className="text-gray-500 text-sm mb-2 px-2 italic">{interimText}</div>
