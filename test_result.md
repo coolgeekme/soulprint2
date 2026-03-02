@@ -891,6 +891,42 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Communication profile endpoint working perfectly! Requires authentication (401 without token). Returns comprehensive response with hasProfile boolean, complete profile object with 9 fields (directness, emotional_warmth, information_density, proactivity, modality, feedback_style, decision_support, stress_response, confidence), generated adaptations summary (253 chars), and updated_at timestamp. Profile creation confirmed working through layered assessment completion. Properly handles users without profiles (hasProfile: false)."
 
+  - task: "Announcement Click Tracking (POST /api/announcements/click)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: NEW FEATURE - Announcement click tracking working perfectly! POST /api/announcements/click accepts {announcementId} payload and successfully increments click_count on announcements. Requires authentication. Tested click count increment from 0 to 1. Analytics properly stored for admin review. Validation works correctly (400 error for missing announcementId). Click tracking enables admin to monitor engagement metrics."
+
+  - task: "24-Hour Announcement Dismiss Logic (POST /api/announcements/dismiss UPDATED)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: UPDATED FEATURE - 24-hour dismiss logic working perfectly! POST /api/announcements/dismiss now stores timestamps in user_dismissed_announcements collection with {announcement_id, dismissed_at} structure. GET /api/announcements correctly filters announcements dismissed within 24 hours from 'unread' array. Announcements reappear after 24 hours until admin deletes them. Dismiss count properly incremented from 0 to 1. Both legacy format support and new timestamp format working correctly."
+
+  - task: "Announcement Analytics Fields (view_count, click_count, dismiss_count)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: NEW FEATURE - Announcement analytics fields working perfectly! All announcements now include view_count, click_count, dismiss_count fields initialized to 0. GET /api/admin/announcements returns announcements with analytics data. Click tracking increments click_count, dismiss action increments dismiss_count. Admin can monitor engagement metrics: 5 announcements found with proper analytics fields. Analytics enable data-driven announcement management."
+
 frontend:
   - task: "Landing Page (/)"
     implemented: true
@@ -1100,3 +1136,5 @@ agent_communication:
     message: "🛑✅ STOP GENERATION BUTTON TEST COMPLETE! New feature working perfectly! All 6 test criteria passed (100% success rate): (1) ✅ Authentication: Successfully logged into /chat page using test@soulprint.com/test123 credentials. (2) ✅ Chat Interface: Found chat input textarea and sent long message request (500-word essay about computer history). (3) ✅ Stop Button Appearance: Stop button appeared correctly during streaming with exact expected implementation - red background (bg-red-500), pulsing animation (animate-pulse), Square icon, proper sizing (w-8 h-8 sm:w-9 sm:h-9), and replaced Send button as expected. Button classes: 'w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-600 transition-colors flex-shrink-0 animate-pulse'. (4) ✅ Stop Functionality: Successfully clicked Stop button during streaming, AbortController working correctly. (5) ✅ UI State Management: Send button returned after stopping, UI restored to normal state. (6) ✅ Input Re-enabled: Input field functional after stop, confirmed by typing 'Test after stop' message. Stop Generation button feature is production ready and matches both desktop and mobile implementations perfectly!"
   - agent: "main"
     message: "MULTIPLE FEATURES IMPLEMENTED: (1) FIXED Smart Mode selection on desktop - Added 'Smart' group to model selector dropdown (was missing before, only had OpenAI, Claude, Gemini, Perplexity, Kimi). (2) Announcements 24-hour dismiss - Modified dismiss logic to store timestamps, announcements reappear after 24 hours until admin deletes them. (3) Announcement click tracking - Added new /api/announcements/click endpoint and click_count field on announcements for admin analytics. (4) Added conversation search on mobile History tab - Search bar filters conversations by title. (5) Added announcements banner on mobile chat screen - Sticky top banner shows first unread announcement with dismiss and click tracking. Test endpoints: (a) POST /api/announcements/click - tracks clicks on announcement links, (b) GET /api/announcements - now returns unread based on 24h dismiss logic, (c) POST /api/announcements/dismiss - now stores timestamp for 24h reset. Auth: test@soulprint.com/test123"
+  - agent: "testing"
+    message: "📢✨ NEW ANNOUNCEMENT FEATURES TESTING COMPLETE! All 3 NEW features working perfectly (100% success rate - 7/7 tests passed): (1) ✅ POST /api/announcements/click: NEW click tracking feature working! Accepts {announcementId} payload, successfully increments click_count from 0→1, requires authentication, proper validation (400 for missing ID). (2) ✅ 24-Hour Dismiss Logic (UPDATED): POST /api/announcements/dismiss now stores timestamps in user_dismissed_announcements collection with {announcement_id, dismissed_at} structure. GET /api/announcements correctly filters announcements dismissed within 24 hours from 'unread' array. Announcements reappear after 24 hours. Dismiss count properly incremented 0→1. (3) ✅ Analytics Fields (NEW): All announcements include view_count, click_count, dismiss_count fields initialized to 0. GET /api/admin/announcements returns 5 announcements with analytics data. Admin can monitor engagement metrics for data-driven announcement management. (4) ✅ Existing Features: Admin CRUD operations still working (create, update, delete). User endpoints working (get published, dismiss). (5) ✅ Validation: Proper error handling for missing fields (400 errors). Created test announcement ID: ca04e113-6580-4db3-b6fd-ffd1f013749f. All NEW announcement features production ready with comprehensive click tracking, 24-hour dismiss reset logic, and admin analytics!"
