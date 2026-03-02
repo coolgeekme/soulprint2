@@ -1148,6 +1148,7 @@ export default function MobileChat({
   const [showImportSheet, setShowImportSheet] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [showAnnouncements, setShowAnnouncements] = useState(false);
+  const [conversationSearch, setConversationSearch] = useState(''); // For searching conversations
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
