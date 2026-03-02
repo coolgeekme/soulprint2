@@ -1184,7 +1184,8 @@ export default function MobileChat({
     fetch('/api/announcements', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
-        setAnnouncements(Array.isArray(data) ? data : []);
+        // API returns { announcements: [...] }
+        setAnnouncements(Array.isArray(data.announcements) ? data.announcements : []);
       })
       .catch(console.error);
   }, [token]);
