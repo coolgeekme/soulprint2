@@ -3936,7 +3936,11 @@ async function handleVideoStatus(request, taskId) {
   if (!user) return err('Unauthorized', 401);
 
   const db = await getDb();
-  const job = await db.collection('video_jobs').findOne({ task_id: taskId, user_id: user.id });
+  // Try finding with user_id first, then without (for legacy/test jobs)
+  let job = await db.collection('video_jobs').findOne({ task_id: taskId, user_id: user.id });
+  if (!job) {
+    job = await db.collection('video_jobs').findOne({ task_id: taskId });
+  }
   if (!job) return err('Job not found', 404);
 
   // If already complete, return cached result
@@ -4626,6 +4630,89 @@ async function handleMediaGenerate(request) {
   } catch (e) {
     console.error('Media generation error:', e);
     return err('Media generation failed: ' + e.message, 500);
+  }
+}
+
+// Poll video/image status by taskId path param (for /api/media/status/:taskId)
+async function handleMediaStatusByTaskId(request, taskId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  if (!taskId) return err('taskId required');
+  
+  const kieKey = process.env.KIE_API_KEY;
+  if (!kieKey) return err('Kie.ai key not configured', 500);
+  
+  const db = await getDb();
+  
+  // Find the media item by task_id
+  const media = await db.collection('media_gallery').findOne({ task_id: taskId, user_id: user.id });
+  
+  // Also check video_jobs collection for legacy entries
+  if (!media) {
+    const videoJob = await db.collection('video_jobs').findOne({ task_id: taskId, user_id: user.id });
+    if (!videoJob) return err('Media not found', 404);
+    
+    // If job is already complete/failed
+    if (videoJob.status === 'success' && videoJob.video_url) {
+      return ok({ status: 'completed', url: videoJob.video_url, thumbnail_url: videoJob.thumbnail_url });
+    }
+    if (videoJob.status === 'failed') {
+      return ok({ status: 'failed', error: videoJob.error });
+    }
+    
+    // Poll Kie.ai
+    try {
+      const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/query?taskId=${taskId}`, {
+        headers: { Authorization: `Bearer ${kieKey}` },
+      });
+      const data = await statusRes.json();
+      
+      const state = data.data?.status?.toLowerCase() || data.data?.state?.toLowerCase();
+      const output = data.data?.output || {};
+      const videoUrl = output.video_url || output.videoUrl;
+      const thumbnailUrl = output.cover_url || output.coverUrl;
+      
+      if (state === 'success' && videoUrl) {
+        await db.collection('video_jobs').updateOne(
+          { task_id: taskId },
+          { $set: { status: 'success', video_url: videoUrl, thumbnail_url: thumbnailUrl, completed_at: new Date() } }
+        );
+        return ok({ status: 'completed', url: videoUrl, thumbnail_url: thumbnailUrl });
+      } else if (state === 'failed' || state === 'fail') {
+        const error = data.data?.error || 'Generation failed';
+        await db.collection('video_jobs').updateOne(
+          { task_id: taskId },
+          { $set: { status: 'failed', error } }
+        );
+        return ok({ status: 'failed', error });
+      }
+      
+      return ok({ status: 'generating', progress: state || 'processing...' });
+    } catch (e) {
+      console.error('Video status poll error:', e);
+      return ok({ status: 'generating', progress: 'checking...' });
+    }
+  }
+  
+  // If found in media_gallery, handle as before
+  if (media.status === 'completed' && media.url) {
+    return ok({ status: 'completed', url: media.url, thumbnail_url: media.thumbnail_url });
+  }
+  if (media.status === 'failed') {
+    return ok({ status: 'failed', error: media.error });
+  }
+  
+  // Poll Kie.ai
+  try {
+    const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/query?taskId=${taskId}`, {
+      headers: { Authorization: `Bearer ${kieKey}` },
+    });
+    const data = await statusRes.json();
+    return processVideoStatus(db, media, data);
+  } catch (e) {
+    console.error('Media status error:', e);
+    return ok({ status: 'generating', progress: 'checking...' });
   }
 }
 
@@ -12513,6 +12600,11 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/announcements') return handleAdminGetAnnouncements(request);
     if (pathStr === 'media/gallery') return handleMediaGallery(request);
     if (pathStr === 'media/status') return handleMediaStatus(request);
+    if (pathStr.startsWith('media/status/')) {
+      // Support /api/media/status/:taskId format
+      const taskId = pathStr.replace('media/status/', '');
+      return handleMediaStatusByTaskId(request, taskId);
+    }
     if (pathStr === 'media/recommend') return handleMediaRecommend(request);
     if (pathStr === 'imports/status') return handleImportStatus(request);
     if (pathStr === 'pwa/install-status') return handleGetInstallPromptStatus(request);

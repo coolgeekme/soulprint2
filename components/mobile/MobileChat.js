@@ -44,6 +44,92 @@ const MODELS = [
 const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.md,.csv,.json,.docx';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+// ── MobileVideoCard: handles video generation with polling ─────────────────
+function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
+  const [status, setStatus] = useState(initialStatus);
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [error, setError] = useState(null);
+  const pollRef = useRef(null);
+
+  useEffect(() => {
+    if (status === 'success' || status === 'failed') return;
+    
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/media/status/${taskId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const d = await res.json();
+        if (d.status === 'completed' && d.url) {
+          setStatus('success');
+          setVideoUrl(d.url);
+          clearInterval(pollRef.current);
+        } else if (d.status === 'failed') {
+          setStatus('failed');
+          setError(d.error || 'Generation failed');
+          clearInterval(pollRef.current);
+        }
+      } catch (e) {}
+    };
+    poll();
+    pollRef.current = setInterval(poll, 6000);
+    return () => clearInterval(pollRef.current);
+  }, [taskId, status, token]);
+
+  if (status === 'success' && videoUrl) {
+    return (
+      <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
+        <video
+          src={videoUrl}
+          controls
+          playsInline
+          className="w-full max-h-80 object-contain"
+        >
+          Your browser does not support the video tag.
+        </video>
+        <div className="p-3 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-green-400 text-xs">
+            <Video className="w-3.5 h-3.5" /> Video ready!
+          </div>
+          <a href={videoUrl} target="_blank" rel="noopener noreferrer" download
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl">
+            <Download className="w-3.5 h-3.5" /> Download
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'failed') {
+    return (
+      <div className="mb-3 rounded-2xl border border-red-500/20 bg-red-500/5 p-3">
+        <p className="text-xs text-red-400 flex items-center gap-1.5">
+          <X className="w-3.5 h-3.5" /> Video generation failed: {error}
+        </p>
+      </div>
+    );
+  }
+
+  // Generating state
+  return (
+    <div className="mb-3 rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-full bg-orange-500/15 flex items-center justify-center">
+          <Video className="w-4 h-4 text-orange-400 animate-pulse" />
+        </div>
+        <div className="flex-1">
+          <p className="text-xs font-semibold text-orange-400 flex items-center gap-2">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Generating video...
+          </p>
+          <p className="text-[10px] text-gray-500 mt-0.5">This takes 1-3 minutes</p>
+        </div>
+      </div>
+      <p className="text-[10px] text-gray-600 mt-2 truncate italic">"{prompt}"</p>
+    </div>
+  );
+}
+
 // Image Generation Models (matching desktop) - no pricing shown
 const IMAGE_MODELS = [
   { value: 'smart', label: '🧠 Dynamic Intelligence', description: 'AI picks best model', isSmartMode: true },
@@ -460,14 +546,34 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           )}
           
           {/* Show generated video */}
-          {message.video_url && (
-            <div className="mb-3 rounded-2xl overflow-hidden">
+          {message.video_url && !message.video_task && (
+            <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
               <video 
                 src={message.video_url} 
                 controls 
+                playsInline
                 className="w-full h-auto max-h-80 bg-black/20"
               />
+              <div className="p-3 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-green-400 text-xs">
+                  <Video className="w-3.5 h-3.5" /> Video ready!
+                </div>
+                <a href={message.video_url} target="_blank" rel="noopener noreferrer" download
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl">
+                  <Download className="w-3.5 h-3.5" /> Download
+                </a>
+              </div>
             </div>
+          )}
+          
+          {/* Show video task with polling */}
+          {message.video_task && (
+            <MobileVideoCard
+              taskId={message.video_task.taskId}
+              prompt={message.video_task.prompt || 'Video generation'}
+              token={token}
+              initialStatus={message.video_task.status}
+            />
           )}
           
           {/* Show loading spinner for generating media */}
