@@ -29,11 +29,11 @@ const IMAGE_MODELS = [
 
 // Video Generation Models (sorted by cost - cheapest first)
 const VIDEO_MODELS = [
-  { value: 'kling-3-720p', label: 'Kling 3.0 (720p)', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: '5s, no audio' },
-  { value: 'sora-2-stable', label: 'Sora 2 Stable', provider: 'kie', cost: 35, costLabel: '$0.18', description: '10s video' },
-  { value: 'kling-2-6', label: 'Kling 2.6', provider: 'kie', cost: 55, costLabel: '$0.28', description: '5s with options' },
+  { value: 'kling-3-720p', label: 'Kling 3.0 (Std)', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: '5s, no audio' },
+  { value: 'sora-2-stable', label: 'Sora 2', provider: 'kie', cost: 30, costLabel: '$0.15/10s', description: '10s video' },
+  { value: 'kling-2-6', label: 'Kling 3.0 (Pro)', provider: 'kie', cost: 55, costLabel: '$0.27/s', description: '5s Pro quality' },
   { value: 'runway', label: 'Runway Gen-3', provider: 'kie', cost: 100, costLabel: '$0.50', description: 'Pro quality' },
-  { value: 'wan-2-6', label: 'Wan 2.6', provider: 'kie', cost: 150, costLabel: '$0.75', description: '15s 1080p' },
+  { value: 'wan-2-6', label: 'Wan 2.6', provider: 'kie', cost: 70, costLabel: '$0.35/5s', description: '5s 720p' },
 ];
 
 const MODELS = [

@@ -3912,11 +3912,11 @@ const KIE_IMAGE_MODELS = {
 };
 
 const KIE_VIDEO_MODELS = {
-  'kling-3-720p': { model: 'kling/v1.6-standard', useJobsApi: true, params: { duration: '5' } },
-  'sora-2-stable': { model: 'openai/sora', useJobsApi: true, params: { duration: '10s' } },
-  'kling-2-6': { model: 'kling/v2.0-standard', useJobsApi: true, params: { duration: '5' } },
+  'kling-3-720p': { model: 'kling-3.0/video', useJobsApi: true, params: { duration: '5', mode: 'std', multi_shots: false, sound: false } },
+  'sora-2-stable': { model: 'sora-2-text-to-video', useJobsApi: true, params: { n_frames: '10', aspect_ratio: 'landscape' } },
+  'kling-2-6': { model: 'kling-3.0/video', useJobsApi: true, params: { duration: '5', mode: 'pro', multi_shots: false, sound: false } },
   'runway': { endpoint: 'runway/generate', statusEndpoint: 'runway/record-detail', useJobsApi: false, params: { duration: 5, quality: '720p' } },
-  'wan-2-6': { model: 'alibaba/wan-2.1', useJobsApi: true, params: { duration: '10s' } },
+  'wan-2-6': { model: 'wan/2-6-text-to-video', useJobsApi: true, params: { duration: '5', resolution: '720p', multi_shots: false } },
 };
 
 // Generate image or video using the unified Kie.ai API
