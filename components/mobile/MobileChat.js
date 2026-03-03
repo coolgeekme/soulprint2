@@ -14,8 +14,8 @@ import { MicrophoneIcon, SendIcon, SparklesIcon, AttachIcon, CloudUploadIcon } f
 
 // Full MODELS list matching desktop
 const MODELS = [
-  // Smart Mode - AI auto-selects best model
-  { value: 'smart', label: '🧠 Smart Mode', provider: 'auto', group: 'Smart', isSmartMode: true, description: 'AI picks the best model for your query' },
+  // Dynamic Intelligence - AI auto-selects best model
+  { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', group: 'Smart', isSmartMode: true, description: 'AI picks the best model for your query' },
   // OpenAI
   { value: 'gpt-4o', label: 'GPT-4o', provider: 'openai', group: 'OpenAI' },
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openai', group: 'OpenAI' },
@@ -532,7 +532,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
             </div>
           )}
         </div>
-        {/* Model info - show Smart Mode badge if applicable */}
+        {/* Model info - show Dynamic Intelligence badge if applicable */}
         {message.model_used && (
           <div className="ml-2 mt-1 flex items-center gap-2">
             {message.smart_mode && (
@@ -1328,7 +1328,7 @@ export default function MobileChat({
   const [streamingSources, setStreamingSources] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [conversationId, setConversationId] = useState(initialConversationId);
-  const [selectedModel, setSelectedModel] = useState('smart'); // Default to Smart Mode
+  const [selectedModel, setSelectedModel] = useState('smart'); // Default to Dynamic Intelligence
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
@@ -1338,7 +1338,7 @@ export default function MobileChat({
   const [attachments, setAttachments] = useState([]);
   const [interimText, setInterimText] = useState('');
   const [editingMessage, setEditingMessage] = useState(null);
-  const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Smart Mode selected
+  const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
   
   // AbortController for stopping requests
   const abortControllerRef = useRef(null);
@@ -1797,7 +1797,7 @@ export default function MobileChat({
       let newConvId = conversationId;
       let buffer = '';
       let actualModelUsed = selectedModel;
-      let smartModeReason = null;
+      let dynamicIntelligenceReason = null;
 
       while (reader) {
         const { done, value } = await reader.read();
@@ -1814,10 +1814,10 @@ export default function MobileChat({
             if (data.type === 'meta') {
               newConvId = data.conversationId;
               setConversationId(data.conversationId);
-              // Capture Smart Mode selection info
+              // Capture Dynamic Intelligence selection info
               if (data.smartMode) {
                 actualModelUsed = data.selectedModel;
-                smartModeReason = data.modelReason;
+                dynamicIntelligenceReason = data.modelReason;
                 setLastSmartSelection({ model: data.selectedModel, reason: data.modelReason });
               }
             } else if (data.type === 'delta') {
@@ -1840,7 +1840,7 @@ export default function MobileChat({
           content: fullContent,
           model_used: actualModelUsed,
           smart_mode: selectedModel === 'smart',
-          smart_reason: smartModeReason,
+          smart_reason: dynamicIntelligenceReason,
           sources: streamingSources.length > 0 ? [...streamingSources] : undefined,
         }]);
       }
@@ -2867,7 +2867,7 @@ export default function MobileChat({
             <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
             <h3 className="text-white font-semibold text-lg mb-4">Select Model</h3>
             
-            {/* Smart Mode - Featured at top */}
+            {/* Dynamic Intelligence - Featured at top */}
             <div className="mb-4">
               <button
                 onClick={() => { 
@@ -2883,7 +2883,7 @@ export default function MobileChat({
                 <div className="flex items-center justify-between">
                   <div>
                     <span className={`font-semibold text-sm flex items-center gap-2 ${selectedModel === 'smart' ? 'text-purple-400' : 'text-white'}`}>
-                      🧠 Smart Mode
+                      🧠 Dynamic Intelligence
                       {selectedModel === 'smart' && <span className="text-[10px] bg-purple-500 text-white px-1.5 py-0.5 rounded-full">Active</span>}
                     </span>
                     <p className="text-gray-400 text-xs mt-1">AI automatically picks the best model for your query</p>

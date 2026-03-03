@@ -38,8 +38,8 @@ const VIDEO_MODELS = [
 ];
 
 const MODELS = [
-  // Smart Mode - AI auto-selects best model
-  { value: 'smart', label: '🧠 Smart Mode', provider: 'auto', group: 'Smart', isSmartMode: true, description: 'AI picks the best model for your query' },
+  // Dynamic Intelligence - AI auto-selects best model
+  { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', group: 'Smart', isSmartMode: true, description: 'AI picks the best model for your query' },
   // OpenAI
   { value: 'gpt-4o',       label: 'GPT-4o',             provider: 'openai',      group: 'OpenAI' },
   { value: 'gpt-4o-mini',  label: 'GPT-4o Mini',        provider: 'openai',      group: 'OpenAI' },
@@ -4076,7 +4076,7 @@ export default function ChatPage() {
   const [assistantName, setAssistantName] = useState('SoulPrint');
   const [token, setToken] = useState('');
   const [attachments, setAttachments] = useState([]); // [{type, base64/text, name, mimeType}]
-  const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Smart Mode selected
+  const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
   const [fileError, setFileError] = useState('');
   // Location state
   const [userLocation, setUserLocation] = useState(null);
@@ -4677,7 +4677,7 @@ export default function ChatPage() {
       const decoder = new TextDecoder();
       let buffer = '';
       let actualModelUsed = selectedModel;
-      let smartModeReason = null;
+      let dynamicIntelligenceReason = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -4693,10 +4693,10 @@ export default function ChatPage() {
             if (data.type === 'meta') {
               newConvId = data.conversationId;
               setConversationId(data.conversationId);
-              // Capture Smart Mode selection info
+              // Capture Dynamic Intelligence selection info
               if (data.smartMode) {
                 actualModelUsed = data.selectedModel;
-                smartModeReason = data.modelReason;
+                dynamicIntelligenceReason = data.modelReason;
                 setLastSmartSelection({ model: data.selectedModel, reason: data.modelReason });
               }
             } else if (data.type === 'search') {
@@ -4728,7 +4728,7 @@ export default function ChatPage() {
                 created_at: new Date().toISOString(),
                 model_used: actualModelUsed || selectedModel,
                 smart_mode: selectedModel === 'smart',
-                smart_reason: smartModeReason,
+                smart_reason: dynamicIntelligenceReason,
                 image_url: streamingImageUrlRef.current || undefined,
                 video_task: streamingVideoTaskRef.current || undefined,
                 sources: streamingSourcesRef.current?.length > 0 ? streamingSourcesRef.current : undefined,
