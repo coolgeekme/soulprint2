@@ -1347,7 +1347,7 @@ export default function MobileChat({
   const [showImageGenSheet, setShowImageGenSheet] = useState(false);
   const [showVideoGenSheet, setShowVideoGenSheet] = useState(false);
   const [selectedImageModel, setSelectedImageModel] = useState('seedream-5-lite');
-  const [selectedVideoModel, setSelectedVideoModel] = useState('kling-3-720p');
+  const [selectedVideoModel, setSelectedVideoModel] = useState('kling-3');
   const [selectedAspectRatio, setSelectedAspectRatio] = useState('1:1');
   const [mediaPrompt, setMediaPrompt] = useState('');
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
