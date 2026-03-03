@@ -303,7 +303,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
 
   if (status === 'success' && videoUrl) {
     return (
-      <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#111]">
+      <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
         {/* Embedded Video Player */}
         <div className="relative bg-black">
           <video
@@ -369,7 +369,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
 function ImageCard({ url, revisedPrompt }) {
   const [loaded, setLoaded] = useState(false);
   return (
-    <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#111]">
+    <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
       <div className="relative">
         {!loaded && (
           <div className="w-full h-48 flex items-center justify-center bg-white/3">
@@ -578,7 +578,7 @@ function CompareModePicker({ selectedModels, setSelectedModels, maxModels = 3 })
       )}
       
       {isOpen && (
-        <div className="absolute bottom-full mb-2 left-0 bg-[#111] border border-white/10 rounded-xl p-2 shadow-2xl min-w-[280px] z-20 max-h-80 overflow-y-auto">
+        <div className="absolute bottom-full mb-2 left-0 bg-[#141a21] border border-white/10 rounded-xl p-2 shadow-2xl min-w-[280px] z-20 max-h-80 overflow-y-auto">
           <p className="text-[10px] text-gray-600 px-2 mb-2">
             Select up to {maxModels} models to compare • {maxModels - selectedModels.length} remaining
           </p>
@@ -674,10 +674,10 @@ function CreateMenu({ onGenerate, isGenerating }) {
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-full mb-2 right-0 bg-[#111] border border-white/10 rounded-2xl shadow-2xl w-[calc(100vw-2rem)] sm:w-80 max-w-80 overflow-hidden z-50 max-h-[70vh] overflow-y-auto"
+        <div className="absolute bottom-full mb-2 right-0 bg-[#141a21] border border-white/10 rounded-2xl shadow-2xl w-[calc(100vw-2rem)] sm:w-80 max-w-80 overflow-hidden z-50 max-h-[70vh] overflow-y-auto"
              style={{ maxHeight: 'calc(100vh - 120px)' }}>
           {/* Tabs */}
-          <div className="flex border-b border-white/10 sticky top-0 bg-[#111] z-10">
+          <div className="flex border-b border-white/10 sticky top-0 bg-[#141a21] z-10">
             <button
               onClick={() => setActiveTab('image')}
               className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
@@ -1211,8 +1211,8 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-white/10 sticky top-0 bg-[#111] z-10">
+      <div className="bg-[#141a21] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-5 border-b border-white/10 sticky top-0 bg-[#141a21] z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
               <Zap className="w-5 h-5 text-white" />
@@ -2417,7 +2417,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 safe-area-all">
-      <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] sm:max-h-[85vh] overflow-hidden flex flex-col">
+      <div className="bg-[#141a21] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] sm:max-h-[85vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 sm:p-5 border-b border-white/10">
           <h2 className="text-white font-semibold text-sm sm:text-base">Settings</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
@@ -2449,7 +2449,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   </div>
                   <ChevronDown className="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform" />
                 </summary>
-                <div className="mt-3 p-4 bg-[#0a0a0a] rounded-xl border border-white/5 space-y-4">
+                <div className="mt-3 p-4 bg-sp-black rounded-xl border border-white/5 space-y-4">
                   <p className="text-gray-300 text-sm leading-relaxed">
                     A SoulPrint is your <span className="text-orange-400 font-medium">persistent AI identity layer</span>. Not a chatbot. Not a prompt wrapper. Not a memory plugin.
                   </p>
@@ -3068,7 +3068,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                     <div className="flex gap-2">
                       <input value={linkCode} onChange={e => setLinkCode(e.target.value.toUpperCase())}
                         placeholder="e.g. A1B2C3D4" maxLength={8}
-                        className="flex-1 bg-[#0a0a0a] border border-white/10 text-white text-sm px-4 py-2.5 rounded-xl font-mono tracking-widest focus:border-orange-500/40 transition-colors" />
+                        className="flex-1 bg-sp-black border border-white/10 text-white text-sm px-4 py-2.5 rounded-xl font-mono tracking-widest focus:border-orange-500/40 transition-colors" />
                       <button onClick={linkTelegramFn} disabled={linking || !linkCode.trim()}
                         className="btn-orange px-4 rounded-xl text-sm disabled:opacity-50">
                         {linking ? '...' : 'Link'}
@@ -3135,7 +3135,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                       value={newSchedule.name}
                       onChange={e => setNewSchedule(p => ({ ...p, name: e.target.value }))}
                       placeholder="AI News Digest"
-                      className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm px-3 py-2 rounded-lg focus:border-orange-500/40 transition-colors"
+                      className="w-full bg-sp-black border border-white/10 text-white text-sm px-3 py-2 rounded-lg focus:border-orange-500/40 transition-colors"
                     />
                   </div>
 
@@ -3147,7 +3147,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                       onChange={e => setNewSchedule(p => ({ ...p, prompt: e.target.value }))}
                       placeholder="Summarize the top 5 AI news stories..."
                       rows={3}
-                      className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm px-3 py-2 rounded-lg focus:border-orange-500/40 transition-colors resize-none"
+                      className="w-full bg-sp-black border border-white/10 text-white text-sm px-3 py-2 rounded-lg focus:border-orange-500/40 transition-colors resize-none"
                     />
                   </div>
 
@@ -3158,7 +3158,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                       <select
                         value={newSchedule.local_hour}
                         onChange={e => setNewSchedule(p => ({ ...p, local_hour: parseInt(e.target.value) }))}
-                        className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm px-2 py-2 rounded-lg"
+                        className="w-full bg-sp-black border border-white/10 text-white text-sm px-2 py-2 rounded-lg"
                       >
                         {Array.from({ length: 24 }, (_, i) => (
                           <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
@@ -3173,7 +3173,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                           const tz = TIMEZONES.find(t => t.label === e.target.value);
                           setNewSchedule(p => ({ ...p, timezone_label: e.target.value, timezone_offset: tz?.offset || 0 }));
                         }}
-                        className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm px-2 py-2 rounded-lg"
+                        className="w-full bg-sp-black border border-white/10 text-white text-sm px-2 py-2 rounded-lg"
                       >
                         {TIMEZONES.map(tz => (
                           <option key={tz.label} value={tz.label}>{tz.label}</option>
@@ -3185,7 +3185,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                       <select
                         value={newSchedule.schedule_type}
                         onChange={e => setNewSchedule(p => ({ ...p, schedule_type: e.target.value }))}
-                        className="w-full bg-[#0a0a0a] border border-white/10 text-white text-sm px-2 py-2 rounded-lg"
+                        className="w-full bg-sp-black border border-white/10 text-white text-sm px-2 py-2 rounded-lg"
                       >
                         <option value="daily">Daily</option>
                         <option value="weekdays">Weekdays</option>
@@ -3704,7 +3704,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
               {/* Assessment Choice Modal */}
               {showAssessmentChoice && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-                  <div className="bg-[#111] border border-white/10 rounded-2xl p-6 max-w-md w-full">
+                  <div className="bg-[#141a21] border border-white/10 rounded-2xl p-6 max-w-md w-full">
                     <h2 className="text-white font-semibold text-lg mb-2">Choose Assessment Type</h2>
                     <p className="text-gray-500 text-sm mb-6">Your previous answers will be archived. Select which assessment you'd like to take:</p>
                     
@@ -3839,7 +3839,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   value={feedbackText}
                   onChange={(e) => setFeedbackText(e.target.value)}
                   placeholder={feedbackType === 'issue' ? "Describe the issue you encountered..." : feedbackType === 'idea' ? "Tell us your idea..." : "Share your thoughts..."}
-                  className="w-full h-28 bg-[#0a0a0a] border border-white/10 rounded-xl p-3 text-sm text-white placeholder-gray-600 resize-none focus:border-orange-500/40 focus:outline-none"
+                  className="w-full h-28 bg-sp-black border border-white/10 rounded-xl p-3 text-sm text-white placeholder-gray-600 resize-none focus:border-orange-500/40 focus:outline-none"
                 />
               </div>
 
@@ -4987,11 +4987,11 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] overflow-hidden safe-area-all">
+    <div className="flex h-screen bg-sp-black overflow-hidden safe-area-all">
       {showSidebar && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowSidebar(false)} />}
 
       {/* Sidebar */}
-      <div className={`fixed lg:relative z-50 h-full bg-[#0f0f0f] border-r border-white/5 flex flex-col transform transition-all duration-300 ${
+      <div className={`fixed lg:relative z-50 h-full bg-[#111820] border-r border-white/5 flex flex-col transform transition-all duration-300 ${
         sidebarCollapsed 
           ? 'w-16 lg:w-16' 
           : 'w-64'
@@ -5214,7 +5214,7 @@ export default function ChatPage() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar - with safe area padding for PWA */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 flex-shrink-0 pwa-header bg-[#0a0a0a]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 flex-shrink-0 pwa-header bg-sp-black">
           <div className="flex items-center gap-3">
             {/* Mobile sidebar toggle */}
             <button onClick={() => setShowSidebar(!showSidebar)} className="text-gray-500 hover:text-white transition-colors lg:hidden">
@@ -5429,7 +5429,7 @@ export default function ChatPage() {
                         )}
                         {/* Saved video - direct URL from database */}
                         {msg.video_url && !msg.video_task && (
-                          <div className="mt-2 rounded-xl overflow-hidden border border-white/10 bg-[#111]">
+                          <div className="mt-2 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
                             <video
                               src={msg.video_url}
                               controls
@@ -5453,7 +5453,7 @@ export default function ChatPage() {
                               p: ({children}) => <p className="mb-2 last:mb-0 break-words">{children}</p>,
                               code: ({inline, children}) => inline 
                                 ? <code className="bg-white/10 px-1 rounded text-orange-300 text-[11px] sm:text-xs break-all">{children}</code> 
-                                : <pre className="bg-[#0a0a0a] p-2 sm:p-3 rounded-lg mt-2 overflow-x-auto text-[11px] sm:text-xs whitespace-pre-wrap break-words"><code>{children}</code></pre>,
+                                : <pre className="bg-sp-black p-2 sm:p-3 rounded-lg mt-2 overflow-x-auto text-[11px] sm:text-xs whitespace-pre-wrap break-words"><code>{children}</code></pre>,
                               ul: ({children}) => <ul className="list-disc pl-4 space-y-1 mb-2">{children}</ul>,
                               ol: ({children}) => <ol className="list-decimal pl-4 space-y-1 mb-2">{children}</ol>,
                               strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
@@ -5507,7 +5507,7 @@ export default function ChatPage() {
                           <textarea
                             value={editingContent}
                             onChange={(e) => setEditingContent(e.target.value)}
-                            className="w-full bg-[#0a0a0a] border border-orange-500/30 rounded-lg p-2 text-white text-[13px] sm:text-sm focus:outline-none focus:border-orange-500/50 resize-none"
+                            className="w-full bg-sp-black border border-orange-500/30 rounded-lg p-2 text-white text-[13px] sm:text-sm focus:outline-none focus:border-orange-500/50 resize-none"
                             rows={3}
                             autoFocus
                           />
@@ -5609,7 +5609,7 @@ export default function ChatPage() {
                           a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline break-all">{children}</a>,
                           code: ({inline, children}) => inline 
                             ? <code className="bg-white/10 px-1 rounded text-orange-300 text-[11px] sm:text-xs break-all">{children}</code> 
-                            : <pre className="bg-[#0a0a0a] p-2 sm:p-3 rounded-lg mt-2 overflow-x-auto text-[11px] sm:text-xs whitespace-pre-wrap break-words"><code>{children}</code></pre>,
+                            : <pre className="bg-sp-black p-2 sm:p-3 rounded-lg mt-2 overflow-x-auto text-[11px] sm:text-xs whitespace-pre-wrap break-words"><code>{children}</code></pre>,
                         }}>
                         {streamingContent}
                       </ReactMarkdown>
@@ -5774,7 +5774,7 @@ export default function ChatPage() {
                     <ChevronDown className="w-3 h-3" />
                   </button>
                   {showModelPicker && (
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#111] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[240px] z-10 max-h-72 overflow-y-auto">
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#141a21] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[240px] z-10 max-h-72 overflow-y-auto">
                       {['Smart', 'OpenAI', 'Claude', 'Gemini', 'Perplexity', 'Kimi'].map(group => {
                         const groupModels = MODELS.filter(m => m.group === group);
                         if (!groupModels.length) return null;
@@ -5832,7 +5832,7 @@ export default function ChatPage() {
             {fileError && <p className="text-red-400 text-xs mb-1 px-1">{fileError}</p>}
 
             {/* Input bar */}
-            <div className={`flex items-center gap-1.5 sm:gap-2 bg-[#111] border rounded-2xl px-2 sm:px-3 py-2 transition-colors ${speech.isListening ? 'border-orange-500/60 shadow-[0_0_20px_rgba(249,115,22,0.15)]' : 'border-white/10 focus-within:border-orange-500/30'}`}>
+            <div className={`flex items-center gap-1.5 sm:gap-2 bg-[#141a21] border rounded-2xl px-2 sm:px-3 py-2 transition-colors ${speech.isListening ? 'border-orange-500/60 shadow-[0_0_20px_rgba(249,115,22,0.15)]' : 'border-white/10 focus-within:border-orange-500/30'}`}>
               {/* File attach button */}
               <button onClick={() => fileInputRef.current?.click()}
                 className="text-gray-600 hover:text-orange-400 transition-colors flex-shrink-0" title="Attach file or image">
@@ -5943,9 +5943,9 @@ export default function ChatPage() {
       {/* Onboarding Modal - What is a SoulPrint? */}
       {showOnboarding && (
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#111820] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="sticky top-0 bg-[#0f0f0f] border-b border-white/10 p-6 text-center">
+            <div className="sticky top-0 bg-[#111820] border-b border-white/10 p-6 text-center">
               <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mb-4 border border-orange-500/30">
                 <span className="text-3xl">🧬</span>
               </div>
@@ -5989,7 +5989,7 @@ export default function ChatPage() {
                 </div>
               </div>
               
-              <div className="flex items-center gap-4 p-4 bg-[#0a0a0a] rounded-xl">
+              <div className="flex items-center gap-4 p-4 bg-sp-black rounded-xl">
                 <div className="flex-1">
                   <p className="text-gray-500 text-xs mb-1">🔄 Most AI</p>
                   <p className="text-gray-400 text-sm">Resets every session</p>
@@ -6010,7 +6010,7 @@ export default function ChatPage() {
             </div>
             
             {/* Footer */}
-            <div className="sticky bottom-0 bg-[#0f0f0f] border-t border-white/10 p-6">
+            <div className="sticky bottom-0 bg-[#111820] border-t border-white/10 p-6">
               <button
                 onClick={() => {
                   localStorage.setItem('sp_onboarding_seen', 'true');
@@ -6094,7 +6094,7 @@ export default function ChatPage() {
       {/* Gradual Assessment Prompt */}
       {showGradualPrompt && gradualQuestion && (
         <div className="fixed bottom-24 right-4 z-40 max-w-sm w-full animate-in slide-in-from-right-5 duration-300">
-          <div className="bg-[#111] border border-orange-500/30 rounded-2xl p-4 shadow-2xl shadow-orange-500/10">
+          <div className="bg-[#141a21] border border-orange-500/30 rounded-2xl p-4 shadow-2xl shadow-orange-500/10">
             {/* Header */}
             <div className="flex items-start gap-3 mb-3">
               <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -6130,7 +6130,7 @@ export default function ChatPage() {
               value={gradualAnswer}
               onChange={(e) => setGradualAnswer(e.target.value)}
               placeholder="Share your thoughts..."
-              className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl p-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-orange-500/50 resize-none"
+              className="w-full bg-sp-black border border-white/10 rounded-xl p-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-orange-500/50 resize-none"
               rows={3}
             />
             

@@ -175,10 +175,10 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
+    <div className="min-h-screen bg-sp-black">
       {/* Back to Chat Banner - shown when logged in */}
       {isLoggedIn && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-orange-500 to-amber-500 py-2.5 px-4 safe-area-top">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-sp-orange to-orange-600 py-2.5 px-4 safe-area-top">
           <div className="max-w-7xl mx-auto flex items-center justify-between pt-[env(safe-area-inset-top)]">
             <div className="flex items-center gap-3">
               <SoulPrintLogo size={20} className="opacity-80" />
@@ -200,7 +200,7 @@ export default function LandingPage() {
         {/* Grid background */}
         <div className="absolute inset-0 grid-bg opacity-100" />
         {/* Orange glow from center top */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.15)_0%,transparent_70%)]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(246,64,0,0.15)_0%,transparent_70%)]" />
         
         {/* Large muted SoulPrint logo in background */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
@@ -293,7 +293,7 @@ export default function LandingPage() {
       </section>
 
       {/* WHAT IS A SOULPRINT SECTION */}
-      <section className="bg-[#0a0a0a] grid-bg py-24 px-8">
+      <section className="bg-sp-black grid-bg py-24 px-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
@@ -363,7 +363,7 @@ export default function LandingPage() {
       </section>
 
       {/* ARE YOU BUILT FOR THIS SECTION */}
-      <section className="bg-[#0a0a0a] grid-bg pt-24 pb-8 px-8">
+      <section className="bg-sp-black grid-bg pt-24 pb-8 px-8">
         <div className="max-w-2xl mx-auto text-center mb-8">
           <h2 className="font-condensed font-black text-white text-3xl md:text-4xl uppercase tracking-wide">
             Are You Built For This?
@@ -375,7 +375,7 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ SECTION */}
-      <section className="bg-[#0a0a0a] grid-bg pb-24 px-8">
+      <section className="bg-sp-black grid-bg pb-24 px-8">
         <div className="max-w-2xl mx-auto">
           {FAQS.map((faq, i) => (
             <FAQItem key={i} q={faq.q} a={faq.a} />
@@ -384,7 +384,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA SECTION */}
-      <section className="bg-[#0a0a0a] py-16 px-8">
+      <section className="bg-sp-black py-16 px-8">
         <div className="max-w-5xl mx-auto">
           <div className="rounded-2xl p-12 flex items-center justify-between gap-8"
                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>

@@ -238,7 +238,7 @@ const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0a]/95 backdrop-blur-xl border-t border-white/10 safe-area-bottom z-50">
+    <div className="fixed bottom-0 left-0 right-0 bg-sp-black/95 backdrop-blur-xl border-t border-white/10 safe-area-bottom z-50">
       <div className="flex items-center justify-around py-2 px-4">
         {tabs.map(tab => {
           const Icon = tab.icon;
@@ -529,7 +529,7 @@ const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename 
 
 // Profile View
 const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClick, announcements, onAnnouncementsClick, onEditName }) => (
-  <div className="min-h-screen bg-[#0a0a0a] pt-16 pb-24 px-4">
+  <div className="min-h-screen bg-sp-black pt-16 pb-24 px-4">
     <div className="text-center mb-8">
       <div className="w-24 h-24 mx-auto bg-gradient-to-br from-orange-500/20 to-amber-500/20 rounded-full flex items-center justify-center mb-4">
         <SoulPrintLogo size={48} />
@@ -648,8 +648,8 @@ const AnnouncementsView = ({ isOpen, onClose, announcements }) => {
   if (!isOpen) return null;
   
   return (
-    <div className="fixed inset-0 bg-[#0a0a0a] z-[60]">
-      <div className="safe-area-top bg-[#0a0a0a] p-4 flex items-center gap-3 border-b border-white/10">
+    <div className="fixed inset-0 bg-sp-black z-[60]">
+      <div className="safe-area-top bg-sp-black p-4 flex items-center gap-3 border-b border-white/10">
         <button onClick={onClose} className="p-2 text-gray-400">
           <X className="w-6 h-6" />
         </button>
@@ -730,7 +730,7 @@ const MoreOptionsSheet = ({ isOpen, onClose, onSettings, onImport }) => {
   
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
-      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
+      <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         <h3 className="text-white font-semibold text-lg mb-4">Options</h3>
         <div className="space-y-2">
@@ -785,7 +785,7 @@ const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onI
   
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
-      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         <h3 className="text-white font-semibold text-lg mb-4">Create</h3>
         <div className="space-y-2">
@@ -894,7 +894,7 @@ const ImageGenSheet = ({
   
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
-      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         <h3 className="text-white font-semibold text-lg mb-4">🎨 Generate Image</h3>
         
@@ -980,7 +980,7 @@ const VideoGenSheet = ({
   
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
-      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         <h3 className="text-white font-semibold text-lg mb-4">🎬 Generate Video</h3>
         
@@ -1043,7 +1043,7 @@ const RenameModal = ({ isOpen, onClose, title, onTitleChange, onSave }) => {
   
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-sm bg-[#111] rounded-2xl p-6" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-sm bg-[#141a21] rounded-2xl p-6" onClick={e => e.stopPropagation()}>
         <h3 className="text-white font-semibold text-lg mb-4">Rename Conversation</h3>
         <input
           type="text"
@@ -1071,8 +1071,8 @@ const GalleryView = ({ isOpen, onClose, items, onItemClick }) => {
   if (!isOpen) return null;
   
   return (
-    <div className="fixed inset-0 bg-[#0a0a0a] z-[60]">
-      <div className="safe-area-top bg-[#0a0a0a] p-4 flex items-center gap-3 border-b border-white/10">
+    <div className="fixed inset-0 bg-sp-black z-[60]">
+      <div className="safe-area-top bg-sp-black p-4 flex items-center gap-3 border-b border-white/10">
         <button onClick={onClose} className="p-2 text-gray-400">
           <X className="w-6 h-6" />
         </button>
@@ -1115,7 +1115,7 @@ const CompareModeSheet = ({
   
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
-      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         <h3 className="text-white font-semibold text-lg mb-2">Compare Models</h3>
         <p className="text-gray-500 text-sm mb-4">Select 2+ models to compare their responses</p>
@@ -1167,8 +1167,8 @@ const CompareResultsView = ({ responses, onSelect, onClose }) => {
   if (!responses) return null;
   
   return (
-    <div className="fixed inset-0 bg-[#0a0a0a] z-[60] overflow-y-auto">
-      <div className="safe-area-top bg-[#0a0a0a] p-4 flex items-center gap-3 border-b border-white/10 sticky top-0">
+    <div className="fixed inset-0 bg-sp-black z-[60] overflow-y-auto">
+      <div className="safe-area-top bg-sp-black p-4 flex items-center gap-3 border-b border-white/10 sticky top-0">
         <button onClick={onClose} className="p-2 text-gray-400">
           <X className="w-6 h-6" />
         </button>
@@ -1203,7 +1203,7 @@ const ImportSheet = ({ isOpen, onClose, onImport }) => {
   
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
-      <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
+      <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         <h3 className="text-white font-semibold text-lg mb-2">Import Conversations</h3>
         <p className="text-gray-500 text-sm mb-4">Import your chat history from other platforms</p>
@@ -2020,7 +2020,7 @@ export default function MobileChat({
   }, {});
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-sp-black text-white">
       {/* Hidden file input */}
       <input
         type="file"
@@ -2375,7 +2375,7 @@ export default function MobileChat({
       {/* Edit Display Name Sheet */}
       {showEditNameSheet && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={() => setShowEditNameSheet(false)}>
-          <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
+          <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
             <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
             <h3 className="text-white font-semibold text-lg mb-2">Edit Your Name</h3>
             <p className="text-gray-500 text-sm mb-4">This is how the AI will address you</p>
@@ -2423,7 +2423,7 @@ export default function MobileChat({
       {/* Model Picker Modal */}
       {showModelPicker && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={() => setShowModelPicker(false)}>
-          <div className="w-full bg-[#111] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
             <h3 className="text-white font-semibold text-lg mb-4">Select Model</h3>
             
@@ -2608,9 +2608,9 @@ export default function MobileChat({
       {/* Onboarding Modal - What is a SoulPrint? */}
       {showOnboarding && (
         <div className="fixed inset-0 bg-black/95 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#111820] border border-white/10 rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="sticky top-0 bg-[#0f0f0f] border-b border-white/10 p-5 text-center">
+            <div className="sticky top-0 bg-[#111820] border-b border-white/10 p-5 text-center">
               <div className="w-14 h-14 mx-auto bg-gradient-to-br from-orange-500/20 to-purple-500/20 rounded-xl flex items-center justify-center mb-3 border border-orange-500/30">
                 <span className="text-2xl">🧬</span>
               </div>
@@ -2648,7 +2648,7 @@ export default function MobileChat({
                 </div>
               </div>
               
-              <div className="flex items-center gap-2 p-3 bg-[#0a0a0a] rounded-xl text-xs">
+              <div className="flex items-center gap-2 p-3 bg-sp-black rounded-xl text-xs">
                 <span className="text-gray-500">🔄 Most AI resets</span>
                 <ChevronRight className="w-3 h-3 text-gray-600" />
                 <span className="text-orange-400">✨ SoulPrint builds forever</span>
@@ -2661,7 +2661,7 @@ export default function MobileChat({
             </div>
             
             {/* Footer */}
-            <div className="sticky bottom-0 bg-[#0f0f0f] border-t border-white/10 p-4">
+            <div className="sticky bottom-0 bg-[#111820] border-t border-white/10 p-4">
               <button
                 onClick={() => {
                   localStorage.setItem('sp_onboarding_seen', 'true');
