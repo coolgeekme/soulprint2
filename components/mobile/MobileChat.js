@@ -440,12 +440,17 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
         >
           {/* Show generated image */}
           {message.image_url && (
-            <div className="mb-3 rounded-2xl overflow-hidden">
+            <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
               <img 
                 src={message.image_url} 
                 alt="Generated" 
                 className="w-full h-auto max-h-80 object-contain bg-black/20"
               />
+              {message.model_label && (
+                <div className="px-3 py-2 text-xs text-orange-400 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5" /> Generated with {message.model_label}
+                </div>
+              )}
             </div>
           )}
           
@@ -1693,6 +1698,7 @@ export default function MobileChat({
           role: 'assistant',
           content: `🎨 Image generated with ${modelLabel}!\n\n**Prompt:** ${content}`,
           image_url: data.url,
+          model_label: modelLabel,
         };
         setMessages(prev => [...prev, assistantMsg]);
         

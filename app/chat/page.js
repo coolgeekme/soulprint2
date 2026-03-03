@@ -448,7 +448,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
 }
 
 // ── ImageCard: renders a generated image with download option ─────────────────
-function ImageCard({ url, revisedPrompt }) {
+function ImageCard({ url, revisedPrompt, modelLabel }) {
   const [loaded, setLoaded] = useState(false);
   return (
     <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
@@ -468,7 +468,7 @@ function ImageCard({ url, revisedPrompt }) {
       <div className="p-3 flex items-center justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-orange-400 flex items-center gap-1.5">
-            <ImageIcon className="w-3.5 h-3.5" /> Generated with DALL-E 3
+            <ImageIcon className="w-3.5 h-3.5" /> Generated with {modelLabel || 'AI'}
           </p>
           {revisedPrompt && <p className="text-[10px] text-gray-600 mt-0.5 truncate">{revisedPrompt}</p>}
         </div>
@@ -4495,6 +4495,7 @@ export default function ChatPage() {
           role: 'assistant',
           content: `🎨 Image generated with ${modelLabel}!\n\n**Prompt:** ${content}`,
           image_url: data.url,
+          model_label: modelLabel,
         };
         setMessages(prev => [...prev, assistantMsg]);
         
@@ -5643,7 +5644,7 @@ export default function ChatPage() {
                       <>
                         {/* Image card */}
                         {msg.image_url && (
-                          <ImageCard url={msg.image_url} revisedPrompt={msg.content?.match(/\*Prompt used: (.+)\*/)?.[1] || ''} />
+                          <ImageCard url={msg.image_url} revisedPrompt={msg.content?.match(/\*Prompt used: (.+)\*/)?.[1] || ''} modelLabel={msg.model_label} />
                         )}
                         {/* Video card - for polling state */}
                         {msg.video_task && (
