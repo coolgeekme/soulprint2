@@ -6,7 +6,7 @@ import {
   Mic, Plus, Settings, X, Check, Loader2, Globe,
   Image as ImageIcon, MoreHorizontal, ArrowLeft, Paperclip,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
-  Video, Search, ChevronRight, Square, Download, Home, ExternalLink
+  Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
@@ -2445,17 +2445,49 @@ export default function MobileChat({
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Attachment Preview */}
-          <AttachmentPreview 
-            attachments={attachments} 
-            onRemove={(idx) => setAttachments(prev => prev.filter((_, i) => i !== idx))}
-          />
-
           {/* Input Area */}
           <div 
             ref={inputContainerRef}
             className={`mobile-input-area ${keyboardVisible ? 'keyboard-visible' : ''}`}
           >
+            {/* Attachment Preview - show uploaded files */}
+            {attachments.length > 0 && (
+              <div className="mb-3 px-1">
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {attachments.map((att, idx) => (
+                    <div key={idx} className="relative flex-shrink-0 group">
+                      {att.type === 'image' ? (
+                        <div className="relative">
+                          <img 
+                            src={`data:${att.mimeType};base64,${att.base64}`} 
+                            alt={att.name} 
+                            className="w-20 h-20 object-cover rounded-xl border border-white/20" 
+                          />
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 rounded-b-xl px-1 py-0.5">
+                            <span className="text-[9px] text-white truncate block">{att.name}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-20 h-20 bg-white/10 border border-white/20 rounded-xl flex flex-col items-center justify-center p-2">
+                          <FileText className="w-6 h-6 text-orange-400" />
+                          <span className="text-[9px] text-gray-400 truncate w-full text-center mt-1">{att.name}</span>
+                        </div>
+                      )}
+                      <button 
+                        onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-lg"
+                      >
+                        <X className="w-3.5 h-3.5 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  {attachments.length} file{attachments.length > 1 ? 's' : ''} attached • Tap × to remove
+                </p>
+              </div>
+            )}
+
             {/* Media Intent Detection Banner */}
             {detectedMediaIntent && showMediaOptions && (
               <div className="mb-3 media-intent-banner">
