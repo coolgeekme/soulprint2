@@ -201,6 +201,13 @@ export default function LandingPage() {
         <div className="absolute inset-0 grid-bg opacity-100" />
         {/* Orange glow from center top */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.15)_0%,transparent_70%)]" />
+        
+        {/* Large muted SoulPrint logo in background */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
+          <div className="absolute right-[-5%] top-1/2 -translate-y-1/2 opacity-[0.06]">
+            <SoulPrintLogo size={900} />
+          </div>
+        </div>
 
         {/* Nav */}
         <nav className="relative z-10 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
