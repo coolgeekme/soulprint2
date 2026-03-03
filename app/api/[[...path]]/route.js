@@ -4066,11 +4066,14 @@ const KIE_VIDEO_MODELS = {
     useJobsApi: true, 
     credits: 20,
     formatInput: (prompt, aspectRatio, duration) => ({
-      prompt,
+      prompt: prompt,
       duration: duration || '5',
+      aspect_ratio: aspectRatio || '16:9',
       mode: 'std',
       sound: false,
       multi_shots: false,
+      multi_prompt: [],
+      kling_elements: [],
     })
   },
   'kling-3-pro': { 
@@ -4078,37 +4081,42 @@ const KIE_VIDEO_MODELS = {
     useJobsApi: true, 
     credits: 27,
     formatInput: (prompt, aspectRatio, duration) => ({
-      prompt,
+      prompt: prompt,
       duration: duration || '5',
+      aspect_ratio: aspectRatio || '16:9',
       mode: 'pro',
       sound: false,
       multi_shots: false,
+      multi_prompt: [],
+      kling_elements: [],
     })
   },
   'kling-2-6': { 
-    model: 'kling-2.6/video', 
+    model: 'kling-2.6/text-to-video', 
     useJobsApi: true, 
     credits: 55,
     formatInput: (prompt, aspectRatio, duration) => ({
-      prompt,
+      prompt: prompt,
       duration: duration || '5',
+      aspect_ratio: aspectRatio || '16:9',
+      sound: false,
     })
   },
   'wan-2-6': { 
-    model: 'wan-2.6/video', 
+    model: 'wan-2.6/text-to-video', 
     useJobsApi: true, 
     credits: 70,
     formatInput: (prompt, aspectRatio, duration) => ({
-      prompt,
+      prompt: prompt,
       duration: duration || '5',
     })
   },
   'seedance-1-5': { 
-    model: 'seedance-1.5-pro/video', 
+    model: 'bytedance/seedance-1.5-pro', 
     useJobsApi: true, 
     credits: 50,
     formatInput: (prompt, aspectRatio, duration) => ({
-      prompt,
+      prompt: prompt,
       duration: duration || '5',
     })
   },
@@ -4313,17 +4321,21 @@ async function handleMediaGenerate(request) {
 
       if (modelConfig.useJobsApi) {
         // Use unified Jobs API for video generation
+        const inputData = modelConfig.formatInput 
+          ? modelConfig.formatInput(prompt, aspectRatioForVideo, '5')
+          : { prompt, duration: '5' };
+        
+        const requestBody = {
+          model: modelConfig.model,
+          input: inputData,
+        };
+        
+        console.log('Kie.ai video request body:', JSON.stringify(requestBody));
+        
         const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
-          body: JSON.stringify({
-            model: modelConfig.model,
-            input: {
-              prompt,
-              aspect_ratio: aspectRatioForVideo,
-              ...modelConfig.params,
-            },
-          }),
+          body: JSON.stringify(requestBody),
         });
         const data = await res.json();
         
