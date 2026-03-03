@@ -3973,23 +3973,119 @@ async function handleVideoStatus(request, taskId) {
 // ============================================================
 
 // Model endpoint mappings for Kie.ai (using unified jobs API)
+// Model names follow the format: provider/model-name 
 // Costs are in Kie.ai credits (1 credit = $0.005)
+// Each model has its own input parameter format
 const KIE_IMAGE_MODELS = {
-  'seedream-5-lite': { model: 'bytedance/seedream', useJobsApi: true, credits: 5.5 },
-  'nano-banana': { endpoint: 'nano-banana/generate', statusEndpoint: 'nano-banana/record-info', useJobsApi: false, credits: 10 },
-  'gpt4o-image': { endpoint: 'gpt4o-image/generate', statusEndpoint: 'gpt4o-image/record-info', useJobsApi: false, credits: 20 },
-  'flux-pro': { model: 'black-forest-labs/flux-pro', useJobsApi: true, credits: 25 },
-  'midjourney-v7': { model: 'midjourney/v7', useJobsApi: true, credits: 40 },
-  'gpt-image-1-5': { endpoint: 'gpt-image-1-5/generate', statusEndpoint: 'gpt-image-1-5/record-info', useJobsApi: false, credits: 50 },
+  'seedream-5-lite': { 
+    model: 'bytedance/seedream', 
+    useJobsApi: true, 
+    credits: 5.5,
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      image_size: { '1:1': 'square_hd', '16:9': 'landscape_16_9', '9:16': 'portrait_9_16' }[aspectRatio] || 'square_hd',
+      guidance_scale: 2.5,
+      enable_safety_checker: true,
+    })
+  },
+  'nano-banana': { 
+    model: 'google/nano-banana', 
+    useJobsApi: true, 
+    credits: 10,
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      image_size: aspectRatio || '1:1', // Uses ratio format like "1:1", "16:9"
+      output_format: 'png',
+    })
+  },
+  'gpt4o-image': { 
+    model: 'openai/gpt-4o-image', 
+    useJobsApi: true, 
+    credits: 20,
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      size: { '1:1': '1024x1024', '16:9': '1792x1024', '9:16': '1024x1792' }[aspectRatio] || '1024x1024',
+    })
+  },
+  'flux-pro': { 
+    model: 'black-forest-labs/flux-1.1-pro', 
+    useJobsApi: true, 
+    credits: 25,
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      image_size: { '1:1': 'square_hd', '16:9': 'landscape_16_9', '9:16': 'portrait_9_16' }[aspectRatio] || 'square_hd',
+    })
+  },
+  'midjourney-v7': { 
+    model: 'midjourney/v7-imagine', 
+    useJobsApi: true, 
+    credits: 40,
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      aspect_ratio: aspectRatio || '1:1',
+    })
+  },
+  'gpt-image-1-5': { 
+    model: 'openai/gpt-image-1.5', 
+    useJobsApi: true, 
+    credits: 50,
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      size: { '1:1': '1024x1024', '16:9': '1792x1024', '9:16': '1024x1792' }[aspectRatio] || '1024x1024',
+    })
+  },
 };
 
 // Video costs - base credits per video (duration affects some models)
 const KIE_VIDEO_MODELS = {
-  'kling-3-720p': { model: 'kling-3.0/video', useJobsApi: true, params: { duration: '5', mode: 'std', multi_shots: false, sound: false }, credits: 20 },
-  'sora-2-stable': { model: 'sora-2-text-to-video', useJobsApi: true, params: { n_frames: '10', aspect_ratio: 'landscape' }, credits: 30 },
-  'kling-2-6': { model: 'kling-3.0/video', useJobsApi: true, params: { duration: '5', mode: 'pro', multi_shots: false, sound: false }, credits: 55 },
-  'runway': { endpoint: 'runway/generate', statusEndpoint: 'runway/record-detail', useJobsApi: false, params: { duration: 5, quality: '720p' }, credits: 100 },
-  'wan-2-6': { model: 'wan/2-6-text-to-video', useJobsApi: true, params: { duration: '5', resolution: '720p', multi_shots: false }, credits: 70 },
+  'kling-3-720p': { 
+    model: 'kling/v3-std-text-to-video', 
+    useJobsApi: true, 
+    credits: 20,
+    formatInput: (prompt, aspectRatio, duration) => ({
+      prompt,
+      duration: duration || '5',
+      aspect_ratio: aspectRatio || '16:9',
+    })
+  },
+  'sora-2-stable': { 
+    model: 'openai/sora-2-pro-text-to-video', 
+    useJobsApi: true, 
+    credits: 30,
+    formatInput: (prompt, aspectRatio, duration) => ({
+      prompt,
+      duration: duration || '10',
+      aspect_ratio: aspectRatio || '16:9',
+    })
+  },
+  'kling-2-6': { 
+    model: 'kling/v2.5-pro-text-to-video', 
+    useJobsApi: true, 
+    credits: 55,
+    formatInput: (prompt, aspectRatio, duration) => ({
+      prompt,
+      duration: duration || '5',
+      aspect_ratio: aspectRatio || '16:9',
+    })
+  },
+  'runway': { 
+    model: 'runway/gen-3-turbo-text-to-video', 
+    useJobsApi: true, 
+    credits: 100,
+    formatInput: (prompt, aspectRatio, duration) => ({
+      prompt,
+      duration: parseInt(duration) || 5,
+    })
+  },
+  'wan-2-6': { 
+    model: 'wan/2.6-720p-text-to-video', 
+    useJobsApi: true, 
+    credits: 70,
+    formatInput: (prompt, aspectRatio, duration) => ({
+      prompt,
+      duration: duration || '5',
+    })
+  },
 };
 
 // Kie.ai credit to USD conversion (1 credit = $0.005)
@@ -4028,21 +4124,24 @@ async function handleMediaGenerate(request) {
       let taskId, imageUrl;
 
       if (modelConfig.useJobsApi) {
-        // Use unified Jobs API
+        // Use unified Jobs API with model-specific input format
+        const inputParams = modelConfig.formatInput ? 
+          modelConfig.formatInput(prompt, aspectRatio) : 
+          { prompt, image_size: imageSizeMap[aspectRatio] || 'square_hd' };
+        
+        const requestBody = {
+          model: modelConfig.model,
+          input: inputParams,
+        };
+        console.log('Kie.ai request:', JSON.stringify(requestBody, null, 2));
+        
         const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
-          body: JSON.stringify({
-            model: modelConfig.model,
-            input: {
-              prompt,
-              image_size: imageSizeMap[aspectRatio] || 'square_hd',
-              guidance_scale: 2.5,
-              enable_safety_checker: true,
-            },
-          }),
+          body: JSON.stringify(requestBody),
         });
         const data = await res.json();
+        console.log('Kie.ai response:', JSON.stringify(data, null, 2));
         
         if (data.code !== 200) {
           console.error('Kie.ai Jobs API error:', data);
