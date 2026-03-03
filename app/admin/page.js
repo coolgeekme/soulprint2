@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Users, BarChart2, MessageSquare, Upload, Settings, Shield,
+  Users, User, BarChart2, MessageSquare, Upload, Settings, Shield,
   Search, ChevronLeft, Check, X, RefreshCw, TrendingUp,
   UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
@@ -2763,7 +2763,7 @@ export default function AdminPage() {
                   <select
                     value={dateRange}
                     onChange={e => setDateRange(e.target.value)}
-                    className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-orange-500/50 outline-none"
+                    className="bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-orange-500/50 outline-none cursor-pointer [&>option]:bg-[#1a1a1a] [&>option]:text-white"
                   >
                     <option value="7d">Last 7 days</option>
                     <option value="30d">Last 30 days</option>
@@ -2845,41 +2845,113 @@ export default function AdminPage() {
                     <h3 className="text-sm font-bold text-white tracking-wide">LLM Cost Estimates</h3>
                     <span className="text-[10px] text-gray-600 bg-white/5 border border-white/8 px-2 py-0.5 rounded-full">mid-2025 pricing</span>
                   </div>
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                    <MetricCard
-                      label="Est. Cost / User / Month"
-                      value={metrics.est_cost_per_user_month != null ? `$${metrics.est_cost_per_user_month.toFixed(4)}` : '—'}
-                      sub="Based on last 30d usage"
-                      icon={DollarSign}
-                      color="green"
-                    />
-                    <MetricCard
-                      label="Est. Monthly Total"
-                      value={metrics.est_projected_monthly_cost != null ? `$${metrics.est_projected_monthly_cost.toFixed(3)}` : '—'}
-                      sub={`Across ${metrics.accepted_users || 0} active users`}
-                      icon={TrendingUp}
-                      color="orange"
-                    />
-                    <MetricCard
-                      label="Total Est. Cost (All-time)"
-                      value={metrics.est_total_cost != null ? `$${metrics.est_total_cost.toFixed(3)}` : '—'}
-                      sub={`From ${metrics.total_messages || 0} total messages`}
-                      icon={Zap}
-                      color="purple"
-                    />
+                  
+                  {/* Last 30 Days Section */}
+                  <div className="mb-6">
+                    <p className="text-[10px] font-bold text-green-400 tracking-widest uppercase mb-3">📅 Last 30 Days</p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                      <MetricCard
+                        label="Total Cost (30d)"
+                        value={metrics.est_total_cost_30d != null ? `$${metrics.est_total_cost_30d.toFixed(2)}` : '—'}
+                        sub={`${metrics.total_messages_30d || 0} messages`}
+                        icon={DollarSign}
+                        color="green"
+                      />
+                      <MetricCard
+                        label="Cost / Active User"
+                        value={metrics.est_cost_per_active_user_30d != null ? `$${metrics.est_cost_per_active_user_30d.toFixed(2)}` : '—'}
+                        sub={`${metrics.active_users_30d || 0} active users`}
+                        icon={User}
+                        color="blue"
+                      />
+                      <MetricCard
+                        label="Msgs / Active User"
+                        value={metrics.messages_per_active_user_30d || '—'}
+                        sub="Last 30 days"
+                        icon={MessageSquare}
+                        color="purple"
+                      />
+                      <MetricCard
+                        label="Avg Cost / Message"
+                        value={metrics.avg_cost_per_message_30d != null ? `$${metrics.avg_cost_per_message_30d.toFixed(4)}` : '—'}
+                        sub="Last 30 days"
+                        icon={TrendingUp}
+                        color="orange"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* All Time Section */}
+                  <div className="mb-6">
+                    <p className="text-[10px] font-bold text-purple-400 tracking-widest uppercase mb-3">⏳ All Time</p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <MetricCard
+                        label="Total Cost (All-time)"
+                        value={metrics.est_total_cost != null ? `$${metrics.est_total_cost.toFixed(2)}` : '—'}
+                        sub={`${metrics.total_messages || 0} total messages`}
+                        icon={Zap}
+                        color="purple"
+                      />
+                      <MetricCard
+                        label="Cost / User (All-time)"
+                        value={metrics.est_cost_per_user_all_time != null ? `$${metrics.est_cost_per_user_all_time.toFixed(2)}` : '—'}
+                        sub={`${metrics.accepted_users || 0} total users`}
+                        icon={Users}
+                        color="blue"
+                      />
+                      <MetricCard
+                        label="Msgs / User (All-time)"
+                        value={metrics.messages_per_user_all_time || '—'}
+                        sub="Average per user"
+                        icon={MessageSquare}
+                        color="green"
+                      />
+                      <MetricCard
+                        label="Avg Cost / Message"
+                        value={metrics.avg_cost_per_message != null ? `$${metrics.avg_cost_per_message.toFixed(4)}` : '—'}
+                        sub="All time average"
+                        icon={TrendingUp}
+                        color="orange"
+                      />
+                    </div>
                   </div>
 
-                  {/* Cost by model breakdown */}
+                  {/* Cost by model breakdown - Last 30 Days */}
+                  {metrics.cost_by_model_30d && Object.keys(metrics.cost_by_model_30d).length > 0 && (
+                    <div className="bg-[#111] border border-white/8 rounded-xl p-4 mb-4">
+                      <p className="text-[10px] font-bold text-green-400 tracking-widest uppercase mb-3">Cost by Model (Last 30 Days)</p>
+                      <div className="space-y-2">
+                        {Object.entries(metrics.cost_by_model_30d)
+                          .sort((a, b) => b[1].cost - a[1].cost)
+                          .map(([modelName, data]) => {
+                            const maxCost = Object.values(metrics.cost_by_model_30d).reduce((max, d) => Math.max(max, d.cost), 1);
+                            const pct = Math.round((data.cost / maxCost) * 100);
+                            return (
+                              <div key={modelName} className="flex items-center gap-3">
+                                <span className="text-xs text-gray-400 w-48 truncate flex-shrink-0">{modelName || 'unknown'}</span>
+                                <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                                  <div className="h-full bg-green-500/60 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="text-xs text-green-400 w-16 text-right flex-shrink-0">${data.cost.toFixed(4)}</span>
+                                <span className="text-[10px] text-gray-600 w-16 text-right flex-shrink-0">{data.messages} msgs</span>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cost by model breakdown - All Time */}
                   {costByModelEntries.length > 0 && (
                     <div className="bg-[#111] border border-white/8 rounded-xl p-4">
-                      <p className="text-[10px] font-bold text-gray-600 tracking-widest uppercase mb-3">Cost Breakdown by Model</p>
+                      <p className="text-[10px] font-bold text-purple-400 tracking-widest uppercase mb-3">Cost by Model (All Time)</p>
                       <div className="space-y-2">
                         {costByModelEntries.map(([modelName, data]) => {
                           const maxCost = costByModelEntries[0][1].cost || 1;
                           const pct = Math.round((data.cost / maxCost) * 100);
                           return (
                             <div key={modelName} className="flex items-center gap-3">
-                              <span className="text-xs text-gray-400 w-48 truncate flex-shrink-0">{modelName}</span>
+                              <span className="text-xs text-gray-400 w-48 truncate flex-shrink-0">{modelName || 'unknown'}</span>
                               <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
                                 <div className="h-full bg-orange-500/60 rounded-full transition-all" style={{ width: `${pct}%` }} />
                               </div>

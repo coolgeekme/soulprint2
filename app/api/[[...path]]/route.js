@@ -5717,16 +5717,79 @@ async function handleAdminGetMetrics(request) {
     created_at: { $gte: thirtyDaysAgo },
   });
   const acceptedUsers = await db.collection('users').countDocuments({ accepted: true });
+  
+  // Get active users in last 30 days (users who have sent messages)
+  const activeUsersLast30d = await db.collection('users').countDocuments({
+    accepted: true,
+    last_active_at: { $gte: thirtyDaysAgo }
+  });
+  
+  // Calculate cost for last 30 days only (more accurate monthly projection)
+  const tokensLast30d = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', est_input_tokens: { $exists: true }, created_at: { $gte: thirtyDaysAgo } } },
+    {
+      $group: {
+        _id: '$model_used',
+        total_input: { $sum: '$est_input_tokens' },
+        total_output: { $sum: '$est_output_tokens' },
+        count: { $sum: 1 },
+      },
+    },
+  ]).toArray();
+  
+  const untrackedLast30d = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', est_input_tokens: { $exists: false }, created_at: { $gte: thirtyDaysAgo } } },
+    {
+      $group: {
+        _id: '$model_used',
+        total_content_len: { $sum: { $strLenCP: '$content' } },
+        count: { $sum: 1 },
+      },
+    },
+  ]).toArray();
+  
+  // Calculate last 30d cost by model
+  const costByModelLast30d = {};
+  let totalCostLast30d = 0;
+  
+  for (const row of tokensLast30d) {
+    const p = MODEL_PRICING[row._id] || DEFAULT_PRICING;
+    const cost = (row.total_input / 1_000_000) * p.input + (row.total_output / 1_000_000) * p.output;
+    costByModelLast30d[row._id] = { cost: parseFloat(cost.toFixed(4)), messages: row.count };
+    totalCostLast30d += cost;
+  }
+  for (const row of untrackedLast30d) {
+    const p = MODEL_PRICING[row._id] || DEFAULT_PRICING;
+    const estInput = row.count * 500;
+    const estOutput = Math.round(row.total_content_len / 4);
+    const cost = (estInput / 1_000_000) * p.input + (estOutput / 1_000_000) * p.output;
+    if (costByModelLast30d[row._id]) {
+      costByModelLast30d[row._id].cost += parseFloat(cost.toFixed(4));
+      costByModelLast30d[row._id].messages += row.count;
+    } else {
+      costByModelLast30d[row._id] = { cost: parseFloat(cost.toFixed(4)), messages: row.count };
+    }
+    totalCostLast30d += cost;
+  }
+  
+  // Calculate various cost per user metrics
   const avgCostPerMsg = totalMessages > 0 ? totalEstCost / totalMessages : 0;
-  const projectedMonthlyCost = totalMessagesLast30d * avgCostPerMsg;
-  const costPerUserPerMonth = acceptedUsers > 0
-    ? parseFloat((projectedMonthlyCost / acceptedUsers).toFixed(4))
-    : 0;
+  const avgCostPerMsgLast30d = totalMessagesLast30d > 0 ? totalCostLast30d / totalMessagesLast30d : 0;
+  
+  // Cost per user calculations
+  const costPerUserAllTime = acceptedUsers > 0 ? parseFloat((totalEstCost / acceptedUsers).toFixed(4)) : 0;
+  const costPerActiveUserLast30d = activeUsersLast30d > 0 ? parseFloat((totalCostLast30d / activeUsersLast30d).toFixed(4)) : 0;
+  const costPerAcceptedUserLast30d = acceptedUsers > 0 ? parseFloat((totalCostLast30d / acceptedUsers).toFixed(4)) : 0;
+  
+  // Messages per user
+  const messagesPerUserAllTime = acceptedUsers > 0 ? parseFloat((totalMessages / acceptedUsers).toFixed(1)) : 0;
+  const messagesPerActiveUserLast30d = activeUsersLast30d > 0 ? parseFloat((totalMessagesLast30d / activeUsersLast30d).toFixed(1)) : 0;
 
   return ok({
     wau: wauUsers,
     total_users: totalUsers,
     accepted_users: acceptedUsers,
+    active_users_30d: activeUsersLast30d,
     waitlist_count: waitlistCount,
     multi_session_rate: totalUsers > 0 ? Math.round((multiSessionCount / totalUsers) * 100) : 0,
     day7_retention: day7Retention,
@@ -5737,13 +5800,25 @@ async function handleAdminGetMetrics(request) {
     csat,
     recent_signups_30d: recentSignups,
     total_messages: totalMessages,
+    total_messages_30d: totalMessagesLast30d,
     thumbs_up: thumbsUp,
     thumbs_down: thumbsDown,
-    // Cost metrics
+    // Cost metrics - All Time
     est_total_cost: parseFloat(totalEstCost.toFixed(4)),
-    est_cost_per_user_month: costPerUserPerMonth,
-    est_projected_monthly_cost: parseFloat(projectedMonthlyCost.toFixed(4)),
+    est_cost_per_user_all_time: costPerUserAllTime,
+    avg_cost_per_message: parseFloat(avgCostPerMsg.toFixed(6)),
     cost_by_model: costByModel,
+    messages_per_user_all_time: messagesPerUserAllTime,
+    // Cost metrics - Last 30 Days
+    est_total_cost_30d: parseFloat(totalCostLast30d.toFixed(4)),
+    est_cost_per_active_user_30d: costPerActiveUserLast30d,
+    est_cost_per_user_30d: costPerAcceptedUserLast30d,
+    avg_cost_per_message_30d: parseFloat(avgCostPerMsgLast30d.toFixed(6)),
+    cost_by_model_30d: costByModelLast30d,
+    messages_per_active_user_30d: messagesPerActiveUserLast30d,
+    // Legacy (for backwards compatibility)
+    est_cost_per_user_month: costPerAcceptedUserLast30d,
+    est_projected_monthly_cost: parseFloat(totalCostLast30d.toFixed(4)),
   });
 }
 
