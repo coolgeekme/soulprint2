@@ -5678,8 +5678,8 @@ export default function ChatPage() {
                         {msg.image_url && (
                           <ImageCard url={msg.image_url} revisedPrompt={msg.content?.match(/\*Prompt used: (.+)\*/)?.[1] || ''} modelLabel={msg.model_label} />
                         )}
-                        {/* Video card - for polling state */}
-                        {msg.video_task && (
+                        {/* Video card - for polling state (only if no video_url yet) */}
+                        {msg.video_task && !msg.video_url && (
                           <VideoCard
                             taskId={msg.video_task.taskId}
                             prompt={msg.video_task.prompt}
@@ -5688,7 +5688,7 @@ export default function ChatPage() {
                           />
                         )}
                         {/* Saved video - direct URL from database */}
-                        {msg.video_url && !msg.video_task && (
+                        {msg.video_url && (
                           <div className="mt-2 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
                             <video
                               src={msg.video_url}
