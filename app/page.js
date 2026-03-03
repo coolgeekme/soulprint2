@@ -121,10 +121,10 @@ function BlogPreview() {
 
 const HERO_IMAGE = "https://images.unsplash.com/photo-1453396450673-3fe83d2db2c4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwzfHxkYXJrJTIwcG9ydHJhaXR8ZW58MHx8fGJsYWNrX2FuZF93aGl0ZXwxNzcxOTcxNzQ3fDA&ixlib=rb-4.1.0&q=85";
 const FEATURE_IMAGES = [
-  "https://images.unsplash.com/photo-1618532507553-60610e5cf869?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzJ8MHwxfHNlYXJjaHwyfHxub3RlY2FyZCUyMHBhcGVyfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MTk3MTc1Mnww&ixlib=rb-4.1.0&q=85",
-  "https://images.unsplash.com/photo-1506787497326-c2736dde1bef?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwxfHxwZW9wbGUlMjB3YWxraW5nfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MTk3MTc1N3ww&ixlib=rb-4.1.0&q=85",
-  "https://images.unsplash.com/photo-1545732868-0d48f805c440?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2OTF8MHwxfHNlYXJjaHwxfHxwZXJzb24lMjBzcGVha2luZ3xlbnwwfHx8YmxhY2tfYW5kX3doaXRlfDE3NzE5NzE3NjF8MA&ixlib=rb-4.1.0&q=85",
-  "https://images.unsplash.com/photo-1591280071859-a595098efa8a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwzfHxtaW5pbWFsJTIwc3BhY2V8ZW58MHx8fGJsYWNrX2FuZF93aGl0ZXwxNzcxOTcxNzY2fDA&ixlib=rb-4.1.0&q=85",
+  "https://images.unsplash.com/photo-1610715945878-f567a10e6bb4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwzfHxzbWFydHBob25lJTIwbWVzc2FnaW5nfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MjU0NTM2NHww&ixlib=rb-4.1.0&q=85",
+  "https://images.unsplash.com/photo-1604525241109-c3b7eecf4add?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwzfHx3b3JraW5nJTIwbGFwdG9wfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MjU0NTM3MHww&ixlib=rb-4.1.0&q=85",
+  "https://images.unsplash.com/photo-1615821430614-3d7d2685e2f2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHwzfHx2b2ljZSUyMHNwZWFraW5nfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MjU0NTM3NHww&ixlib=rb-4.1.0&q=85",
+  "https://images.unsplash.com/photo-1503792243040-7ce7f5f06085?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHw0fHxsb2NrJTIwc2VjdXJpdHl8ZW58MHx8fGJsYWNrX2FuZF93aGl0ZXwxNzcyNTQ1MzgyfDA&ixlib=rb-4.1.0&q=85",
 ];
 
 const FEATURES = [
