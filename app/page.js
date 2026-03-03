@@ -135,9 +135,9 @@ const FEATURES = [
 ];
 
 const FAQS = [
-  { q: 'What is SoulPrint?', a: 'SoulPrint is your personal AI companion that lives in your Telegram (SMS coming soon). It learns how you think, how you talk, and what matters to you — so every conversation feels like talking to someone who actually knows you.' },
+  { q: 'What is a SoulPrint?', a: 'A SoulPrint is your persistent AI identity layer. Not a chatbot. Not a prompt wrapper. Not a memory plugin. It\'s a mapped, structured imprint of how you think, decide, react, prioritize, trust, and communicate — embedded into an AI system so the interaction reflects you, not generic model behavior. Most AI resets every session. A SoulPrint doesn\'t. It builds continuity, reference, and resonance across conversations so the system responds with your logic, your tone, your structure — consistently. In short: A SoulPrint is the operating system of you — running on AI.' },
   { q: 'What can it actually do?', a: 'SoulPrint can research topics, draft messages, answer questions, help with creative projects, and take real actions on your behalf — all through a simple chat interface. Calendar and email integration coming soon.' },
-  { q: 'How is this different from ChatGPT?', a: 'ChatGPT is a general AI that forgets you after every conversation. SoulPrint builds a persistent profile of who you are, how you communicate, and what you need — so it gets smarter about you over time, not just about general knowledge.' },
+  { q: 'How is this different from ChatGPT?', a: 'ChatGPT is a general AI that forgets you after every conversation. SoulPrint captures your decision style, conflict response, boundary thresholds, communication cadence, emotional weighting, and pattern recognition over time — so it gets smarter about you, not just about general knowledge.' },
   { q: 'Does it work with voice?', a: 'Yes. You can send voice messages and SoulPrint will understand and respond. Voice replies are coming soon.' },
   { q: 'Is my data private?', a: 'Absolutely. Your conversations are encrypted and never used to train AI models. Your data belongs to you, and you can delete it at any time.' },
   { q: 'How do I get started?', a: 'Click "Get your SoulPrint" above, complete a short onboarding and our 36-question assessment, and your personal AI will be ready. The whole process takes about 10 minutes.' },
@@ -281,6 +281,76 @@ export default function LandingPage() {
                 <p className="text-xs text-gray-600 leading-relaxed">{f.desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* WHAT IS A SOULPRINT SECTION */}
+      <section className="bg-[#0a0a0a] grid-bg py-24 px-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
+              THE PHILOSOPHY
+            </p>
+            <h2 className="font-condensed font-black text-white text-3xl md:text-5xl uppercase tracking-wide mb-6">
+              What Is A SoulPrint?
+            </h2>
+          </div>
+          
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-8 md:p-12">
+            <p className="text-xl md:text-2xl text-white font-light leading-relaxed mb-8">
+              A SoulPrint is your <span className="text-orange-400 font-medium">persistent AI identity layer</span>.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+              <div className="bg-white/5 rounded-xl p-4 text-center">
+                <p className="text-gray-500 line-through text-sm">Not a chatbot</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-4 text-center">
+                <p className="text-gray-500 line-through text-sm">Not a prompt wrapper</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-4 text-center">
+                <p className="text-gray-500 line-through text-sm">Not a memory plugin</p>
+              </div>
+            </div>
+            
+            <p className="text-gray-300 leading-relaxed mb-8">
+              It's a mapped, structured imprint of how you <span className="text-white">think</span>, <span className="text-white">decide</span>, <span className="text-white">react</span>, <span className="text-white">prioritize</span>, <span className="text-white">trust</span>, and <span className="text-white">communicate</span> — embedded into an AI system so the interaction reflects <em>you</em>, not generic model behavior.
+            </p>
+            
+            <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-6 mb-8">
+              <p className="text-orange-300 font-medium mb-3">It captures:</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {['Decision style', 'Conflict response', 'Boundary thresholds', 'Communication cadence', 'Emotional weighting', 'Pattern recognition'].map((item, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>
+                    <span className="text-gray-300 text-sm">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-4 mb-8">
+              <div className="flex-1 bg-white/5 rounded-xl p-4">
+                <p className="text-gray-500 text-sm mb-1">Most AI</p>
+                <p className="text-gray-400">Resets every session</p>
+              </div>
+              <div className="text-gray-600 text-2xl pt-4">→</div>
+              <div className="flex-1 bg-orange-500/10 rounded-xl p-4 border border-orange-500/20">
+                <p className="text-orange-400 text-sm mb-1">Your SoulPrint</p>
+                <p className="text-white">Builds continuity forever</p>
+              </div>
+            </div>
+            
+            <p className="text-gray-300 leading-relaxed mb-8">
+              It builds <span className="text-white">continuity</span>, <span className="text-white">reference</span>, and <span className="text-white">resonance</span> across conversations so the system responds with <em>your</em> logic, <em>your</em> tone, <em>your</em> structure — consistently.
+            </p>
+            
+            <div className="text-center pt-4 border-t border-white/10">
+              <p className="text-xl md:text-2xl text-white font-light">
+                <span className="text-orange-400">In short:</span> A SoulPrint is the <span className="font-bold">operating system of you</span> — running on AI.
+              </p>
+            </div>
           </div>
         </div>
       </section>

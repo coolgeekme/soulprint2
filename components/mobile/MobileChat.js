@@ -1202,6 +1202,8 @@ export default function MobileChat({
   // Edit display name state
   const [showEditNameSheet, setShowEditNameSheet] = useState(false);
   const [editingDisplayName, setEditingDisplayName] = useState('');
+  // Onboarding modal state
+  const [showOnboarding, setShowOnboarding] = useState(false);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -1298,6 +1300,11 @@ export default function MobileChat({
       .then(r => r.json())
       .then(data => {
         if (data.profile) setProfile(data.profile);
+        // Check if new user (show onboarding if they haven't seen it)
+        const hasSeenOnboarding = localStorage.getItem('sp_onboarding_seen');
+        if (!hasSeenOnboarding && !data.profile?.onboarding_completed) {
+          setShowOnboarding(true);
+        }
       })
       .catch(console.error);
   }, [token]);
@@ -2497,6 +2504,77 @@ export default function MobileChat({
         onClose={() => setShowImportSheet(false)}
         onImport={handleImport}
       />
+
+      {/* Onboarding Modal - What is a SoulPrint? */}
+      {showOnboarding && (
+        <div className="fixed inset-0 bg-black/95 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-[#0f0f0f] border-b border-white/10 p-5 text-center">
+              <div className="w-14 h-14 mx-auto bg-gradient-to-br from-orange-500/20 to-purple-500/20 rounded-xl flex items-center justify-center mb-3 border border-orange-500/30">
+                <span className="text-2xl">🧬</span>
+              </div>
+              <h2 className="text-xl font-bold text-white mb-1">Welcome to SoulPrint</h2>
+              <p className="text-gray-500 text-xs">Your persistent AI identity layer</p>
+            </div>
+            
+            {/* Content */}
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-300 leading-relaxed text-center">
+                A SoulPrint is your <span className="text-orange-400 font-semibold">persistent AI identity layer</span>.
+              </p>
+              
+              <div className="flex gap-2 justify-center">
+                {['Not a chatbot', 'Not a wrapper', 'Not a plugin'].map((text, i) => (
+                  <span key={i} className="bg-white/5 rounded-lg px-2 py-1 text-[10px] text-gray-500 line-through border border-white/5">
+                    {text}
+                  </span>
+                ))}
+              </div>
+              
+              <p className="text-gray-400 text-xs leading-relaxed">
+                It's a mapped imprint of how you <span className="text-white">think</span>, <span className="text-white">decide</span>, <span className="text-white">react</span>, and <span className="text-white">communicate</span> — embedded into AI so it reflects <em>you</em>.
+              </p>
+              
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3">
+                <p className="text-orange-300 font-medium mb-2 text-xs">Your SoulPrint captures:</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {['Decision style', 'Conflict response', 'Communication cadence', 'Pattern recognition'].map((item, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <span className="w-1 h-1 bg-orange-500 rounded-full"></span>
+                      <span className="text-gray-300 text-[10px]">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2 p-3 bg-[#0a0a0a] rounded-xl text-xs">
+                <span className="text-gray-500">🔄 Most AI resets</span>
+                <ChevronRight className="w-3 h-3 text-gray-600" />
+                <span className="text-orange-400">✨ SoulPrint builds forever</span>
+              </div>
+              
+              <p className="text-center text-xs text-gray-400 pt-2 border-t border-white/10">
+                <span className="text-orange-400">In short:</span> The{' '}
+                <span className="text-white font-medium">operating system of you</span> — running on AI.
+              </p>
+            </div>
+            
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-[#0f0f0f] border-t border-white/10 p-4">
+              <button
+                onClick={() => {
+                  localStorage.setItem('sp_onboarding_seen', 'true');
+                  setShowOnboarding(false);
+                }}
+                className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold rounded-xl transition-all text-sm"
+              >
+                Get Started
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         @keyframes slide-up {

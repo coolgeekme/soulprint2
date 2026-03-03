@@ -1077,6 +1077,22 @@ async function buildSystemPrompt(db, userId) {
 
   return `You are **${assistantName}**, a personal AI companion for **${displayName}**.
 
+# What is a SoulPrint?
+
+A SoulPrint is ${displayName}'s persistent AI identity layer. Not a chatbot. Not a prompt wrapper. Not a memory plugin. It's a mapped, structured imprint of how they think, decide, react, prioritize, trust, and communicate — embedded into you so the interaction reflects them, not generic model behavior.
+
+You capture their:
+• Decision style
+• Conflict response
+• Boundary thresholds
+• Communication cadence
+• Emotional weighting
+• Pattern recognition over time
+
+Most AI resets every session. You don't. You build continuity, reference, and resonance across conversations so you respond with ${displayName}'s logic, their tone, their structure — consistently.
+
+In short: You are the operating system of ${displayName} — running on AI.
+
 # User Profile
 
 ## Basic Info
@@ -1100,7 +1116,7 @@ Based on ${displayName}'s profile, follow these guidelines:
 5. **Directness**: ${commProfile?.directness > 70 ? 'Be very direct - they value straight talk' : commProfile?.directness < 40 ? 'Be diplomatic and gentle with feedback' : 'Be direct and insightful - they value substance over fluff'}
 6. **Brevity**: ${commProfile?.information_density < 50 ? 'Keep responses concise and scannable' : commProfile?.information_density > 70 ? 'Feel free to provide depth and detail' : 'Keep responses concise unless depth is specifically needed or requested'}
 
-You are ${displayName}'s intelligent companion - be genuinely helpful, remember what matters to them, and adapt your communication to feel natural and personalized.`;
+You are ${displayName}'s intelligent companion - be genuinely helpful, remember what matters to them, and adapt your communication to feel natural and personalized. If they ask "what is a SoulPrint?" or similar, explain the philosophy naturally using the context above.`;
 }
 
 // Generate user profile as structured markdown (for export/viewing)
@@ -8540,7 +8556,24 @@ async function handleTelegramWebhook(request) {
       `*⏰ Scheduled Tasks*\n/schedule — Create or manage scheduled tasks\n/schedule list — View your schedules\n/schedule delete [id] — Remove a schedule\n\n` +
       `*🌐 Web Search*\n/search [query] — Force a real-time web search\nOr just ask about current events naturally!\n\n` +
       `*🤖 AI Models*\n/model — See & switch AI model\n/model sonar — Switch to Perplexity (online AI)\n\n` +
+      `*🧬 About*\n/soulprint — Learn what a SoulPrint is\n\n` +
       `*Misc*\n/start — Link your account\n/help — This menu`
+    );
+    return ok({ ok: true });
+  }
+
+  // ── /soulprint command ─────────────────────────────────────────────────────
+  if (text === '/soulprint') {
+    await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
+      `🧬 *What Is A SoulPrint?*\n\n` +
+      `A SoulPrint is your *persistent AI identity layer*.\n\n` +
+      `❌ Not a chatbot\n❌ Not a prompt wrapper\n❌ Not a memory plugin\n\n` +
+      `It's a mapped, structured imprint of how you *think*, *decide*, *react*, *prioritize*, *trust*, and *communicate* — embedded into an AI system so the interaction reflects _you_, not generic model behavior.\n\n` +
+      `*It captures:*\n` +
+      `• Decision style\n• Conflict response\n• Boundary thresholds\n• Communication cadence\n• Emotional weighting\n• Pattern recognition over time\n\n` +
+      `🔄 Most AI resets every session.\n✨ *A SoulPrint doesn't.*\n\n` +
+      `It builds continuity, reference, and resonance across conversations so the system responds with _your_ logic, _your_ tone, _your_ structure — consistently.\n\n` +
+      `*In short:*\nA SoulPrint is the _operating system of you_ — running on AI.`
     );
     return ok({ ok: true });
   }

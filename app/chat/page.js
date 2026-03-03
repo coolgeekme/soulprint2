@@ -2401,6 +2401,46 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           {/* SOULPRINT TAB */}
           {activeTab === 'soulprint' && (
             <div className="space-y-5">
+              {/* What is a SoulPrint? - Collapsible Section */}
+              <details className="group">
+                <summary className="flex items-center justify-between cursor-pointer p-4 bg-gradient-to-r from-orange-500/5 to-purple-500/5 border border-orange-500/20 rounded-xl hover:border-orange-500/40 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">🧬</span>
+                    <div>
+                      <p className="text-white text-sm font-semibold">What is a SoulPrint?</p>
+                      <p className="text-gray-500 text-[10px]">The philosophy behind your AI identity</p>
+                    </div>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="mt-3 p-4 bg-[#0a0a0a] rounded-xl border border-white/5 space-y-4">
+                  <p className="text-gray-300 text-sm leading-relaxed">
+                    A SoulPrint is your <span className="text-orange-400 font-medium">persistent AI identity layer</span>. Not a chatbot. Not a prompt wrapper. Not a memory plugin.
+                  </p>
+                  <p className="text-gray-400 text-sm leading-relaxed">
+                    It's a mapped, structured imprint of how you <span className="text-white">think</span>, <span className="text-white">decide</span>, <span className="text-white">react</span>, <span className="text-white">prioritize</span>, <span className="text-white">trust</span>, and <span className="text-white">communicate</span> — embedded into an AI system so the interaction reflects <em>you</em>, not generic model behavior.
+                  </p>
+                  <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
+                    <p className="text-orange-300 text-xs font-medium mb-2">It captures:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['Decision style', 'Conflict response', 'Boundary thresholds', 'Communication cadence', 'Emotional weighting', 'Pattern recognition'].map((item, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="w-1 h-1 bg-orange-500 rounded-full"></span>
+                          <span className="text-gray-400 text-[10px]">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-gray-500">🔄 Most AI resets every session.</span>
+                    <span className="text-orange-400 font-medium">✨ Your SoulPrint doesn't.</span>
+                  </div>
+                  <p className="text-gray-400 text-xs italic border-t border-white/5 pt-3">
+                    In short: A SoulPrint is the <span className="text-white font-medium">operating system of you</span> — running on AI.
+                  </p>
+                </div>
+              </details>
+
               {soulPrintLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
@@ -3934,6 +3974,8 @@ export default function ChatPage() {
   // PWA Install prompt state
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
+  // Onboarding modal state
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -4025,6 +4067,12 @@ export default function ChatPage() {
         const greet = d.profile?.display_name || 'there';
         const botName = d.profile?.assistant_name || 'SoulPrint';
         const customGreeting = d.profile?.custom_greeting;
+        
+        // Check if new user (show onboarding if they haven't seen it)
+        const hasSeenOnboarding = localStorage.getItem('sp_onboarding_seen');
+        if (!hasSeenOnboarding && !d.profile?.onboarding_completed) {
+          setShowOnboarding(true);
+        }
         
         // Use custom greeting if set, otherwise use default
         const greetingContent = customGreeting 
@@ -5784,6 +5832,94 @@ export default function ChatPage() {
       
       {/* Feedback Modal */}
       {showFeedbackModal && <FeedbackModal onClose={() => setShowFeedbackModal(false)} token={token} />}
+      
+      {/* Onboarding Modal - What is a SoulPrint? */}
+      {showOnboarding && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-[#0f0f0f] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-[#0f0f0f] border-b border-white/10 p-6 text-center">
+              <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mb-4 border border-orange-500/30">
+                <span className="text-3xl">🧬</span>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Welcome to SoulPrint</h2>
+              <p className="text-gray-500 text-sm">Your persistent AI identity layer</p>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              <div className="text-center">
+                <p className="text-lg text-gray-300 leading-relaxed">
+                  A SoulPrint is your <span className="text-orange-400 font-semibold">persistent AI identity layer</span>.
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-white/5 rounded-xl p-3 text-center border border-white/5">
+                  <p className="text-gray-500 line-through text-xs">Not a chatbot</p>
+                </div>
+                <div className="bg-white/5 rounded-xl p-3 text-center border border-white/5">
+                  <p className="text-gray-500 line-through text-xs">Not a prompt wrapper</p>
+                </div>
+                <div className="bg-white/5 rounded-xl p-3 text-center border border-white/5">
+                  <p className="text-gray-500 line-through text-xs">Not a memory plugin</p>
+                </div>
+              </div>
+              
+              <p className="text-gray-400 text-sm leading-relaxed">
+                It's a mapped, structured imprint of how you <span className="text-white">think</span>, <span className="text-white">decide</span>, <span className="text-white">react</span>, <span className="text-white">prioritize</span>, <span className="text-white">trust</span>, and <span className="text-white">communicate</span> — embedded into an AI system so the interaction reflects <em>you</em>, not generic model behavior.
+              </p>
+              
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
+                <p className="text-orange-300 font-medium mb-3 text-sm">Your SoulPrint captures:</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {['Decision style', 'Conflict response', 'Boundary thresholds', 'Communication cadence', 'Emotional weighting', 'Pattern recognition'].map((item, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>
+                      <span className="text-gray-300 text-xs">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4 p-4 bg-[#0a0a0a] rounded-xl">
+                <div className="flex-1">
+                  <p className="text-gray-500 text-xs mb-1">🔄 Most AI</p>
+                  <p className="text-gray-400 text-sm">Resets every session</p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-gray-600" />
+                <div className="flex-1">
+                  <p className="text-orange-400 text-xs mb-1">✨ Your SoulPrint</p>
+                  <p className="text-white text-sm">Builds continuity forever</p>
+                </div>
+              </div>
+              
+              <div className="text-center pt-4 border-t border-white/10">
+                <p className="text-lg text-gray-300">
+                  <span className="text-orange-400">In short:</span> A SoulPrint is the{' '}
+                  <span className="text-white font-semibold">operating system of you</span> — running on AI.
+                </p>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-[#0f0f0f] border-t border-white/10 p-6">
+              <button
+                onClick={() => {
+                  localStorage.setItem('sp_onboarding_seen', 'true');
+                  setShowOnboarding(false);
+                }}
+                className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold rounded-xl transition-all"
+              >
+                Get Started with My SoulPrint
+              </button>
+              <p className="text-center text-gray-600 text-xs mt-3">
+                You can always revisit this in Settings → SoulPrint tab
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Gallery Modal */}
       {showGallery && (
