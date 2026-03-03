@@ -76,31 +76,84 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const [isListening, setIsListening] = useState(false);
+  const isListeningRef = useRef(false);
   const [mode, setMode] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
 
   const hasNativeSpeech = typeof window !== 'undefined' &&
     !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
-  function startLive() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const rec = new SR();
-    rec.continuous = false;
-    rec.interimResults = true;
-    rec.lang = 'en-US';
+  async function startLive() {
+    try {
+      // Request microphone permission first
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const rec = new SR();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
 
-    rec.onresult = (e) => {
-      const interim = Array.from(e.results).map(r => r[0].transcript).join('');
-      const final = Array.from(e.results).filter(r => r.isFinal).map(r => r[0].transcript).join('');
-      if (final) onTranscript(final);
-      else onInterim(interim);
-    };
-    rec.onerror = () => setIsListening(false);
-    rec.onend = () => setIsListening(false);
+      rec.onresult = (e) => {
+        let interim = '';
+        let final = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const transcript = e.results[i][0].transcript;
+          if (e.results[i].isFinal) {
+            final += transcript;
+          } else {
+            interim += transcript;
+          }
+        }
+        if (final) onTranscript(final);
+        if (interim) onInterim(interim);
+      };
+      
+      rec.onerror = (e) => {
+        console.error('Speech error:', e.error);
+        if (e.error === 'not-allowed') {
+          setError('Microphone access denied');
+        } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          setError(`Speech error: ${e.error}`);
+        }
+        if (e.error !== 'no-speech') {
+          setIsListening(false);
+          isListeningRef.current = false;
+        }
+      };
+      
+      rec.onend = () => {
+        if (isListeningRef.current && recognitionRef.current) {
+          setTimeout(() => {
+            if (isListeningRef.current && recognitionRef.current) {
+              try {
+                recognitionRef.current.start();
+              } catch (e) {
+                setIsListening(false);
+                isListeningRef.current = false;
+              }
+            }
+          }, 100);
+        }
+      };
 
-    recognitionRef.current = rec;
-    rec.start();
-    setIsListening(true);
-    setMode('live');
+      recognitionRef.current = rec;
+      rec.start();
+      setIsListening(true);
+      isListeningRef.current = true;
+      setMode('live');
+      setError(null);
+    } catch (err) {
+      console.error('Mic permission error:', err);
+      setError('Microphone access denied');
+      setIsListening(false);
+      isListeningRef.current = false;
+    }
   }
 
   async function startWhisper() {
@@ -124,29 +177,39 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
           if (data.text) onTranscript(data.text.trim());
         } catch (err) { console.error('Whisper error', err); }
         setIsListening(false);
+        isListeningRef.current = false;
       };
       mediaRecorderRef.current = mr;
       mr.start();
       setIsListening(true);
+      isListeningRef.current = true;
       setMode('whisper');
+      setError(null);
     } catch (err) {
       console.error('Mic access denied', err);
+      setError('Microphone access denied');
       setIsListening(false);
+      isListeningRef.current = false;
     }
   }
 
   function start() {
+    setError(null);
     if (hasNativeSpeech) startLive();
     else startWhisper();
   }
 
   function stop() {
     if (mode === 'live' && recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionRef.current = null;
     } else if (mode === 'whisper' && mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
     setIsListening(false);
+    isListeningRef.current = false;
   }
 
   function toggle() {
@@ -154,7 +217,7 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
     else start();
   }
 
-  return { isListening, toggle, mode };
+  return { isListening, toggle, mode, error };
 }
 
 // Bottom Tab Bar
@@ -2162,10 +2225,13 @@ export default function MobileChat({
                 {/* Voice input button */}
                 <button 
                   onClick={speech.toggle}
+                  title={speech.error || (speech.isListening ? 'Stop recording' : 'Voice input')}
                   className={`p-2 rounded-full transition-all ${
                     speech.isListening 
                       ? 'bg-red-500 text-white animate-pulse' 
-                      : 'text-gray-500 hover:text-orange-400'
+                      : speech.error 
+                        ? 'text-red-400 hover:text-red-300'
+                        : 'text-gray-500 hover:text-orange-400'
                   }`}
                 >
                   <Mic className="w-5 h-5" />

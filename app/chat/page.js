@@ -77,8 +77,14 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const [isListening, setIsListening] = useState(false);
+  const isListeningRef = useRef(false); // Ref to track listening state for callbacks
   const [mode, setMode] = useState(null); // 'live' | 'whisper'
   const [error, setError] = useState(null);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
 
   const hasNativeSpeech = typeof window !== 'undefined' &&
     !!(window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -86,7 +92,9 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
   async function startLive() {
     try {
       // First request microphone permission
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Stop the stream immediately - we just needed permission
+      stream.getTracks().forEach(t => t.stop());
       
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       const rec = new SR();
@@ -110,18 +118,35 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
       };
       
       rec.onerror = (e) => { 
-        console.error('Speech error', e.error); 
-        setError(e.error === 'not-allowed' ? 'Microphone access denied' : 'Speech recognition error');
-        setIsListening(false); 
+        console.error('Speech recognition error:', e.error); 
+        if (e.error === 'not-allowed') {
+          setError('Microphone access denied');
+        } else if (e.error === 'no-speech') {
+          // This is normal - just means no speech detected yet
+          return;
+        } else if (e.error === 'aborted') {
+          // User stopped, this is fine
+          return;
+        } else {
+          setError(`Speech error: ${e.error}`);
+        }
+        setIsListening(false);
+        isListeningRef.current = false;
       };
       
       rec.onend = () => {
         // Auto-restart if still supposed to be listening (for continuous mode)
-        if (isListening && recognitionRef.current) {
+        if (isListeningRef.current && recognitionRef.current) {
           try {
-            recognitionRef.current.start();
+            setTimeout(() => {
+              if (isListeningRef.current && recognitionRef.current) {
+                recognitionRef.current.start();
+              }
+            }, 100);
           } catch (e) {
+            console.error('Failed to restart recognition:', e);
             setIsListening(false);
+            isListeningRef.current = false;
           }
         }
       };
@@ -129,12 +154,14 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
       recognitionRef.current = rec;
       rec.start();
       setIsListening(true);
+      isListeningRef.current = true;
       setMode('live');
       setError(null);
     } catch (err) {
       console.error('Mic permission error:', err);
-      setError('Microphone access denied. Please allow microphone access.');
+      setError('Microphone access denied. Please allow microphone access in your browser settings.');
       setIsListening(false);
+      isListeningRef.current = false;
     }
   }
 
@@ -159,16 +186,19 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
           if (data.text) onTranscript(data.text.trim());
         } catch (err) { console.error('Whisper error', err); }
         setIsListening(false);
+        isListeningRef.current = false;
       };
       mediaRecorderRef.current = mr;
       mr.start();
       setIsListening(true);
+      isListeningRef.current = true;
       setMode('whisper');
       setError(null);
     } catch (err) {
       console.error('Mic access denied', err);
-      setError('Microphone access denied. Please allow microphone access.');
+      setError('Microphone access denied. Please allow microphone access in your browser settings.');
       setIsListening(false);
+      isListeningRef.current = false;
     }
   }
 
@@ -180,12 +210,17 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
 
   function stop() {
     if (mode === 'live' && recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.error('Error stopping recognition:', e);
+      }
       recognitionRef.current = null;
     } else if (mode === 'whisper' && mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
     setIsListening(false);
+    isListeningRef.current = false;
   }
 
   function toggle() {
