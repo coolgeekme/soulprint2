@@ -270,11 +270,11 @@ textarea:focus, input:focus {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: 70px; /* Above the bottom navigation bar */
   padding: 1rem;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
   background: linear-gradient(to top, #0a0a0a 85%, transparent);
-  z-index: 50;
+  z-index: 40;
   transition: transform 0.3s ease-out;
 }
 
@@ -282,13 +282,13 @@ textarea:focus, input:focus {
 @supports (-webkit-touch-callout: none) {
   .mobile-input-area {
     /* iOS Safari uses visual viewport */
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
   }
   
   .mobile-input-area.keyboard-visible {
-    /* Adjust when keyboard is shown */
-    position: fixed;
+    /* When keyboard is shown, move to bottom since nav bar hides */
     bottom: 0;
+    position: fixed;
   }
 }
 
