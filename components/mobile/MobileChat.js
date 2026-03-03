@@ -1600,13 +1600,14 @@ export default function MobileChat({
     
     try {
       if (detectedMediaIntent === 'image') {
-        // Generate image
+        // Generate image using selected model
+        const modelToUse = selectedImageModel || IMAGE_MODELS[0].value;
         const res = await fetch('/api/media/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             type: 'image',
-            model: mediaOptionsExpanded ? selectedImageModel : 'dall-e-3',
+            model: modelToUse,
             prompt: content,
             aspectRatio: quickAspectRatio,
             quality: 'standard',
@@ -1617,22 +1618,24 @@ export default function MobileChat({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Image generation failed');
         
+        const modelLabel = IMAGE_MODELS.find(m => m.value === modelToUse)?.label || modelToUse;
         const assistantMsg = {
           id: `a-${Date.now()}`,
           role: 'assistant',
-          content: `🎨 Image generated!\n\n**Prompt:** ${content}`,
+          content: `🎨 Image generated with ${modelLabel}!\n\n**Prompt:** ${content}`,
           image_url: data.url,
         };
         setMessages(prev => [...prev, assistantMsg]);
         
       } else if (detectedMediaIntent === 'video') {
-        // Generate video
+        // Generate video using selected model
+        const modelToUse = selectedVideoModel || VIDEO_MODELS[0].value;
         const res = await fetch('/api/media/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             type: 'video',
-            model: mediaOptionsExpanded ? selectedVideoModel : 'runway',
+            model: modelToUse,
             prompt: content,
             aspectRatio: quickAspectRatio === '1:1' ? '16:9' : quickAspectRatio,
             duration: parseInt(quickVideoLength) || 5,
@@ -1642,10 +1645,11 @@ export default function MobileChat({
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Video generation failed');
         
+        const modelLabel = VIDEO_MODELS.find(m => m.value === modelToUse)?.label || modelToUse;
         const assistantMsg = {
           id: `a-${Date.now()}`,
           role: 'assistant',
-          content: `🎬 Video generation started!\n\n**Prompt:** ${content}\n\nYour video is being generated (1-3 min)...`,
+          content: `🎬 Video generation started with ${modelLabel}!\n\n**Prompt:** ${content}\n\nYour video is being generated (1-3 min)...`,
           video_task: { taskId: data.taskId, status: 'generating', prompt: content },
         };
         setMessages(prev => [...prev, assistantMsg]);

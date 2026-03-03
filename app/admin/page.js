@@ -2971,6 +2971,82 @@ export default function AdminPage() {
                       Cost breakdown will appear here after users start chatting
                     </div>
                   )}
+
+                  {/* Media Generation Costs Section */}
+                  <div className="mt-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Image className="w-4 h-4 text-purple-400" />
+                      <h3 className="text-sm font-bold text-white tracking-wide">Media Generation Costs (Kie.ai)</h3>
+                    </div>
+
+                    {/* Grand Total Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                      <MetricCard
+                        label="Total Media Cost"
+                        value={metrics.media_cost_total != null ? `$${metrics.media_cost_total.toFixed(2)}` : '—'}
+                        sub={`${metrics.media_count_total || 0} generations`}
+                        icon={DollarSign}
+                        color="purple"
+                      />
+                      <MetricCard
+                        label="Media Cost (30d)"
+                        value={metrics.media_cost_30d != null ? `$${metrics.media_cost_30d.toFixed(2)}` : '—'}
+                        sub={`${metrics.media_count_30d || 0} generations`}
+                        icon={TrendingUp}
+                        color="blue"
+                      />
+                      <MetricCard
+                        label="Grand Total (LLM+Media)"
+                        value={metrics.grand_total_cost != null ? `$${metrics.grand_total_cost.toFixed(2)}` : '—'}
+                        sub="All-time combined"
+                        icon={Zap}
+                        color="orange"
+                      />
+                      <MetricCard
+                        label="Grand Total (30d)"
+                        value={metrics.grand_total_cost_30d != null ? `$${metrics.grand_total_cost_30d.toFixed(2)}` : '—'}
+                        sub="Combined monthly"
+                        icon={Sparkles}
+                        color="green"
+                      />
+                    </div>
+
+                    {/* Media cost breakdown by model */}
+                    {metrics.media_cost_by_model && Object.keys(metrics.media_cost_by_model).length > 0 && (
+                      <div className="bg-[#111] border border-white/8 rounded-xl p-4">
+                        <p className="text-[10px] font-bold text-purple-400 tracking-widest uppercase mb-3">Media Cost by Model</p>
+                        <div className="space-y-2">
+                          {Object.entries(metrics.media_cost_by_model)
+                            .sort((a, b) => b[1].cost - a[1].cost)
+                            .map(([key, data]) => {
+                              const maxCost = Object.values(metrics.media_cost_by_model).reduce((max, d) => Math.max(max, d.cost), 0.01);
+                              const pct = Math.round((data.cost / maxCost) * 100);
+                              const typeIcon = data.type === 'image' ? '🖼️' : '🎬';
+                              return (
+                                <div key={key} className="flex items-center gap-3">
+                                  <span className="text-xs text-gray-400 w-48 truncate flex-shrink-0">
+                                    {typeIcon} {data.model || 'unknown'}
+                                  </span>
+                                  <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                                    <div className="h-full bg-purple-500/60 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="text-xs text-purple-400 w-16 text-right flex-shrink-0">${data.cost.toFixed(4)}</span>
+                                  <span className="text-[10px] text-gray-600 w-20 text-right flex-shrink-0">{data.count} / {data.credits}cr</span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                        <p className="text-[10px] text-gray-700 mt-3 pt-3 border-t border-white/5">
+                          Kie.ai: 1 credit ≈ $0.005. Images: 5-50 credits. Videos: 20-100 credits.
+                        </p>
+                      </div>
+                    )}
+                    {(!metrics.media_cost_by_model || Object.keys(metrics.media_cost_by_model).length === 0) && (
+                      <div className="bg-[#111] border border-white/8 rounded-xl p-5 text-center text-gray-600 text-xs">
+                        Media costs will appear here after users generate images/videos
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

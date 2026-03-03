@@ -4019,8 +4019,8 @@ export default function ChatPage() {
   const [mediaOptionsExpanded, setMediaOptionsExpanded] = useState(false);
   const [quickAspectRatio, setQuickAspectRatio] = useState('1:1');
   const [quickVideoLength, setQuickVideoLength] = useState('5');
-  const [selectedImageModel, setSelectedImageModel] = useState('dall-e-3');
-  const [selectedVideoModel, setSelectedVideoModel] = useState('runway');
+  const [selectedImageModel, setSelectedImageModel] = useState('seedream-5-lite');
+  const [selectedVideoModel, setSelectedVideoModel] = useState('kling-3-720p');
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const streamingSourcesRef = useRef([]);
@@ -4389,13 +4389,14 @@ export default function ChatPage() {
     
     try {
       if (detectedMediaIntent === 'image') {
-        // Generate image using existing IMAGE_MODELS
+        // Generate image using selected model (or default to first in list)
+        const modelToUse = selectedImageModel || IMAGE_MODELS[0].value;
         const res = await fetch('/api/media/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             type: 'image',
-            model: mediaOptionsExpanded ? (selectedImageModel || 'dall-e-3') : 'dall-e-3',
+            model: modelToUse,
             prompt: content,
             aspectRatio: quickAspectRatio,
             quality: 'standard',
@@ -4406,22 +4407,24 @@ export default function ChatPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Image generation failed');
         
+        const modelLabel = IMAGE_MODELS.find(m => m.value === modelToUse)?.label || modelToUse;
         const assistantMsg = {
           id: `a-${Date.now()}`,
           role: 'assistant',
-          content: `🎨 Image generated!\n\n**Prompt:** ${content}`,
+          content: `🎨 Image generated with ${modelLabel}!\n\n**Prompt:** ${content}`,
           image_url: data.url,
         };
         setMessages(prev => [...prev, assistantMsg]);
         
       } else if (detectedMediaIntent === 'video') {
-        // Generate video using existing VIDEO_MODELS
+        // Generate video using selected model (or default to first in list)
+        const modelToUse = selectedVideoModel || VIDEO_MODELS[0].value;
         const res = await fetch('/api/media/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             type: 'video',
-            model: mediaOptionsExpanded ? (selectedVideoModel || 'runway') : 'runway',
+            model: modelToUse,
             prompt: content,
             aspectRatio: quickAspectRatio === '1:1' ? '16:9' : quickAspectRatio,
             duration: parseInt(quickVideoLength) || 5,
@@ -4431,10 +4434,11 @@ export default function ChatPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Video generation failed');
         
+        const modelLabel = VIDEO_MODELS.find(m => m.value === modelToUse)?.label || modelToUse;
         const assistantMsg = {
           id: `a-${Date.now()}`,
           role: 'assistant',
-          content: `🎬 Video generation started!\n\n**Prompt:** ${content}\n\nYour video is being generated and will appear when ready (1-3 min)...`,
+          content: `🎬 Video generation started with ${modelLabel}!\n\n**Prompt:** ${content}\n\nYour video is being generated and will appear when ready (1-3 min)...`,
           video_task: { taskId: data.taskId, status: 'generating', prompt: content },
         };
         setMessages(prev => [...prev, assistantMsg]);

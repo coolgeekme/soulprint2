@@ -3973,22 +3973,27 @@ async function handleVideoStatus(request, taskId) {
 // ============================================================
 
 // Model endpoint mappings for Kie.ai (using unified jobs API)
+// Costs are in Kie.ai credits (1 credit = $0.005)
 const KIE_IMAGE_MODELS = {
-  'seedream-5-lite': { model: 'bytedance/seedream', useJobsApi: true },
-  'nano-banana': { endpoint: 'nano-banana/generate', statusEndpoint: 'nano-banana/record-info', useJobsApi: false },
-  'gpt4o-image': { endpoint: 'gpt4o-image/generate', statusEndpoint: 'gpt4o-image/record-info', useJobsApi: false },
-  'flux-pro': { model: 'black-forest-labs/flux-pro', useJobsApi: true },
-  'midjourney-v7': { model: 'midjourney/v7', useJobsApi: true },
-  'gpt-image-1-5': { endpoint: 'gpt-image-1-5/generate', statusEndpoint: 'gpt-image-1-5/record-info', useJobsApi: false },
+  'seedream-5-lite': { model: 'bytedance/seedream', useJobsApi: true, credits: 5.5 },
+  'nano-banana': { endpoint: 'nano-banana/generate', statusEndpoint: 'nano-banana/record-info', useJobsApi: false, credits: 10 },
+  'gpt4o-image': { endpoint: 'gpt4o-image/generate', statusEndpoint: 'gpt4o-image/record-info', useJobsApi: false, credits: 20 },
+  'flux-pro': { model: 'black-forest-labs/flux-pro', useJobsApi: true, credits: 25 },
+  'midjourney-v7': { model: 'midjourney/v7', useJobsApi: true, credits: 40 },
+  'gpt-image-1-5': { endpoint: 'gpt-image-1-5/generate', statusEndpoint: 'gpt-image-1-5/record-info', useJobsApi: false, credits: 50 },
 };
 
+// Video costs - base credits per video (duration affects some models)
 const KIE_VIDEO_MODELS = {
-  'kling-3-720p': { model: 'kling-3.0/video', useJobsApi: true, params: { duration: '5', mode: 'std', multi_shots: false, sound: false } },
-  'sora-2-stable': { model: 'sora-2-text-to-video', useJobsApi: true, params: { n_frames: '10', aspect_ratio: 'landscape' } },
-  'kling-2-6': { model: 'kling-3.0/video', useJobsApi: true, params: { duration: '5', mode: 'pro', multi_shots: false, sound: false } },
-  'runway': { endpoint: 'runway/generate', statusEndpoint: 'runway/record-detail', useJobsApi: false, params: { duration: 5, quality: '720p' } },
-  'wan-2-6': { model: 'wan/2-6-text-to-video', useJobsApi: true, params: { duration: '5', resolution: '720p', multi_shots: false } },
+  'kling-3-720p': { model: 'kling-3.0/video', useJobsApi: true, params: { duration: '5', mode: 'std', multi_shots: false, sound: false }, credits: 20 },
+  'sora-2-stable': { model: 'sora-2-text-to-video', useJobsApi: true, params: { n_frames: '10', aspect_ratio: 'landscape' }, credits: 30 },
+  'kling-2-6': { model: 'kling-3.0/video', useJobsApi: true, params: { duration: '5', mode: 'pro', multi_shots: false, sound: false }, credits: 55 },
+  'runway': { endpoint: 'runway/generate', statusEndpoint: 'runway/record-detail', useJobsApi: false, params: { duration: 5, quality: '720p' }, credits: 100 },
+  'wan-2-6': { model: 'wan/2-6-text-to-video', useJobsApi: true, params: { duration: '5', resolution: '720p', multi_shots: false }, credits: 70 },
 };
+
+// Kie.ai credit to USD conversion (1 credit = $0.005)
+const KIE_CREDIT_TO_USD = 0.005;
 
 // Generate image or video using the unified Kie.ai API
 async function handleMediaGenerate(request) {
@@ -4142,7 +4147,7 @@ async function handleMediaGenerate(request) {
 
       if (!imageUrl) return err('Image generation timed out', 500);
 
-      // Save to gallery
+      // Save to gallery with cost tracking
       const mediaId = uuidv4();
       const modelLabels = {
         'seedream-5-lite': 'Seedream 5.0 Lite',
@@ -4152,6 +4157,9 @@ async function handleMediaGenerate(request) {
         'midjourney-v7': 'Midjourney V7',
         'gpt-image-1-5': 'GPT Image 1.5',
       };
+
+      const credits = modelConfig.credits || 10;
+      const costUsd = parseFloat((credits * KIE_CREDIT_TO_USD).toFixed(4));
 
       await db.collection('media_gallery').insertOne({
         id: mediaId,
@@ -4163,6 +4171,8 @@ async function handleMediaGenerate(request) {
         url: imageUrl,
         aspect_ratio: aspectRatio,
         conversation_id: conversationId || null,
+        credits_used: credits,
+        cost_usd: costUsd,
         created_at: new Date(),
         expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       });
@@ -4237,6 +4247,9 @@ async function handleMediaGenerate(request) {
         'wan-2-6': 'Wan 2.6',
       };
 
+      const credits = modelConfig.credits || 50;
+      const costUsd = parseFloat((credits * KIE_CREDIT_TO_USD).toFixed(4));
+
       await db.collection('media_gallery').insertOne({
         id: mediaId,
         user_id: user.id,
@@ -4249,6 +4262,8 @@ async function handleMediaGenerate(request) {
         status: 'generating',
         aspect_ratio: aspectRatioForVideo,
         conversation_id: conversationId || null,
+        credits_used: credits,
+        cost_usd: costUsd,
         created_at: new Date(),
         expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         use_jobs_api: modelConfig.useJobsApi || false, // Track which API to use for status
@@ -5785,6 +5800,68 @@ async function handleAdminGetMetrics(request) {
   const messagesPerUserAllTime = acceptedUsers > 0 ? parseFloat((totalMessages / acceptedUsers).toFixed(1)) : 0;
   const messagesPerActiveUserLast30d = activeUsersLast30d > 0 ? parseFloat((totalMessagesLast30d / activeUsersLast30d).toFixed(1)) : 0;
 
+  // ── Media Generation Costs (Kie.ai) ─────────────────────────────────────────
+  const mediaCostsByModel = await db.collection('media_gallery').aggregate([
+    { $match: { cost_usd: { $exists: true } } },
+    {
+      $group: {
+        _id: { type: '$type', model: '$model' },
+        total_cost: { $sum: '$cost_usd' },
+        total_credits: { $sum: '$credits_used' },
+        count: { $sum: 1 },
+      },
+    },
+  ]).toArray();
+
+  const mediaCostsLast30d = await db.collection('media_gallery').aggregate([
+    { $match: { cost_usd: { $exists: true }, created_at: { $gte: thirtyDaysAgo } } },
+    {
+      $group: {
+        _id: { type: '$type', model: '$model' },
+        total_cost: { $sum: '$cost_usd' },
+        total_credits: { $sum: '$credits_used' },
+        count: { $sum: 1 },
+      },
+    },
+  ]).toArray();
+
+  // Aggregate media costs
+  const mediaCostByModel = {};
+  let totalMediaCost = 0;
+  let totalMediaCount = 0;
+  for (const row of mediaCostsByModel) {
+    const key = `${row._id.type}:${row._id.model}`;
+    mediaCostByModel[key] = {
+      type: row._id.type,
+      model: row._id.model,
+      cost: parseFloat(row.total_cost.toFixed(4)),
+      credits: row.total_credits,
+      count: row.count,
+    };
+    totalMediaCost += row.total_cost;
+    totalMediaCount += row.count;
+  }
+
+  const mediaCostByModelLast30d = {};
+  let totalMediaCostLast30d = 0;
+  let totalMediaCountLast30d = 0;
+  for (const row of mediaCostsLast30d) {
+    const key = `${row._id.type}:${row._id.model}`;
+    mediaCostByModelLast30d[key] = {
+      type: row._id.type,
+      model: row._id.model,
+      cost: parseFloat(row.total_cost.toFixed(4)),
+      credits: row.total_credits,
+      count: row.count,
+    };
+    totalMediaCostLast30d += row.total_cost;
+    totalMediaCountLast30d += row.count;
+  }
+
+  // Combined totals (LLM + Media)
+  const grandTotalCost = totalEstCost + totalMediaCost;
+  const grandTotalCostLast30d = totalCostLast30d + totalMediaCostLast30d;
+
   return ok({
     wau: wauUsers,
     total_users: totalUsers,
@@ -5816,6 +5893,16 @@ async function handleAdminGetMetrics(request) {
     avg_cost_per_message_30d: parseFloat(avgCostPerMsgLast30d.toFixed(6)),
     cost_by_model_30d: costByModelLast30d,
     messages_per_active_user_30d: messagesPerActiveUserLast30d,
+    // Media generation costs (Kie.ai)
+    media_cost_total: parseFloat(totalMediaCost.toFixed(4)),
+    media_cost_30d: parseFloat(totalMediaCostLast30d.toFixed(4)),
+    media_count_total: totalMediaCount,
+    media_count_30d: totalMediaCountLast30d,
+    media_cost_by_model: mediaCostByModel,
+    media_cost_by_model_30d: mediaCostByModelLast30d,
+    // Grand totals (LLM + Media)
+    grand_total_cost: parseFloat(grandTotalCost.toFixed(4)),
+    grand_total_cost_30d: parseFloat(grandTotalCostLast30d.toFixed(4)),
     // Legacy (for backwards compatibility)
     est_cost_per_user_month: costPerAcceptedUserLast30d,
     est_projected_monthly_cost: parseFloat(totalCostLast30d.toFixed(4)),
