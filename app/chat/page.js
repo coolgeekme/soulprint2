@@ -33,10 +33,12 @@ const IMAGE_MODELS = [
 const VIDEO_MODELS = [
   { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', cost: 0, costLabel: 'Auto', description: 'AI picks best model', isSmartMode: true },
   { value: 'kling-3', label: 'Kling 3.0 (Std)', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: '5s, std quality' },
-  { value: 'kling-3-pro', label: 'Kling 3.0 (Pro)', provider: 'kie', cost: 27, costLabel: '$0.135/s', description: '5s Pro quality' },
+  { value: 'kling-3-pro', label: 'Kling 3.0 (Pro)', provider: 'kie', cost: 27, costLabel: '$0.14/s', description: '5s Pro quality' },
+  { value: 'sora-2', label: 'Sora 2', provider: 'openai', cost: 30, costLabel: '$0.15/10s', description: 'OpenAI, 10s HD' },
+  { value: 'seedance-1-5', label: 'Seedance 1.5 Pro', provider: 'bytedance', cost: 50, costLabel: '$0.25/s', description: 'Cinematic, audio' },
   { value: 'kling-2-6', label: 'Kling 2.6', provider: 'kie', cost: 55, costLabel: '$0.27/s', description: '5s, audio support' },
-  { value: 'wan-2-6', label: 'Wan 2.6', provider: 'kie', cost: 70, costLabel: '$0.35/5s', description: '5s 720p, lip sync' },
-  { value: 'seedance-1-5', label: 'Seedance 1.5 Pro', provider: 'kie', cost: 50, costLabel: '$0.25/s', description: 'Cinematic, audio' },
+  { value: 'wan-2-6', label: 'Wan 2.6', provider: 'alibaba', cost: 70, costLabel: '$0.35/5s', description: '5s 720p, lip sync' },
+  { value: 'sora-2-pro', label: 'Sora 2 Pro (HD)', provider: 'openai', cost: 100, costLabel: '$0.50/10s', description: 'OpenAI, 1080p HD' },
 ];
 
 const MODELS = [

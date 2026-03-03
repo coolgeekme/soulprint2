@@ -60,9 +60,11 @@ const VIDEO_MODELS = [
   { value: 'smart', label: '🧠 Dynamic Intelligence', description: 'AI picks best model', isSmartMode: true },
   { value: 'kling-3', label: 'Kling 3.0 (Std)', description: '5s std quality' },
   { value: 'kling-3-pro', label: 'Kling 3.0 (Pro)', description: '5s Pro quality' },
+  { value: 'sora-2', label: 'Sora 2', description: 'OpenAI, 10s HD' },
+  { value: 'seedance-1-5', label: 'Seedance 1.5', description: 'Cinematic, audio' },
   { value: 'kling-2-6', label: 'Kling 2.6', description: '5s, audio support' },
   { value: 'wan-2-6', label: 'Wan 2.6', description: '5s 720p, lip sync' },
-  { value: 'seedance-1-5', label: 'Seedance 1.5', description: 'Cinematic, audio' },
+  { value: 'sora-2-pro', label: 'Sora 2 Pro (HD)', description: 'OpenAI, 1080p HD' },
 ];
 
 // Aspect ratios for image generation

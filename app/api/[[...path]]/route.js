@@ -4094,6 +4094,29 @@ const KIE_VIDEO_MODELS = {
       kling_elements: [],
     })
   },
+  'sora-2': { 
+    model: 'openai/sora-2-text-to-video', 
+    useJobsApi: true, 
+    credits: 30,  // ~$0.15 for 10s
+    formatInput: (prompt, aspectRatio, duration) => ({
+      prompt: prompt,
+      aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape',
+      n_frames: '10',
+      remove_watermark: true,
+      upload_method: 's3',
+    })
+  },
+  'sora-2-pro': { 
+    model: 'openai/sora-2-pro-text-to-video', 
+    useJobsApi: true, 
+    credits: 100,  // ~$0.50 for 10s HD
+    formatInput: (prompt, aspectRatio, duration) => ({
+      prompt: prompt,
+      aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape',
+      n_frames: duration === '15' ? '15' : '10',
+      upload_method: 's3',
+    })
+  },
   'kling-2-6': { 
     model: 'kling-2.6/text-to-video', 
     useJobsApi: true, 
@@ -4204,14 +4227,16 @@ function selectBestVideoModel(prompt) {
   const lowerPrompt = prompt.toLowerCase();
   
   const patterns = {
-    // Cinematic/Storytelling - Kling 3 Pro
-    cinematic: /\b(cinematic|film|movie|story|narrative|scene|dramatic|epic|professional|high quality|4k|hd)\b/i,
+    // Cinematic/Storytelling - Sora 2 Pro or Kling 3 Pro
+    cinematic: /\b(cinematic|film|movie|story|narrative|scene|dramatic|epic|professional|high quality|4k|hd|hollywood|blockbuster)\b/i,
     // Talking/Speech - Wan 2.6
-    talking: /\b(talking|speaking|dialogue|conversation|interview|presentation|lip sync|speech|voice|saying|tell|narrator)\b/i,
+    talking: /\b(talking|speaking|dialogue|conversation|interview|presentation|lip sync|speech|voice|saying|tell|narrator|podcast|vlog)\b/i,
     // Dance/Motion - Seedance
-    dance: /\b(dance|dancing|choreography|movement|motion|action|dynamic|animated|energetic)\b/i,
+    dance: /\b(dance|dancing|choreography|movement|motion|action|dynamic|animated|energetic|music video)\b/i,
+    // OpenAI style - realistic, detailed
+    realistic: /\b(realistic|real|photorealistic|natural|documentary|news|authentic)\b/i,
     // Quick/Simple - Kling 3 Std
-    simple: /\b(simple|quick|short|basic|demo|test|preview|draft)\b/i,
+    simple: /\b(simple|quick|short|basic|demo|test|preview|draft|fast)\b/i,
   };
   
   if (patterns.talking.test(lowerPrompt)) {
@@ -4232,8 +4257,16 @@ function selectBestVideoModel(prompt) {
   
   if (patterns.cinematic.test(lowerPrompt)) {
     return {
-      model: 'kling-3-pro',
-      reason: '🎬 Cinematic quality - Kling 3 Pro for high-end video',
+      model: 'sora-2',
+      reason: '🎬 Cinematic quality - Sora 2 by OpenAI for high-end video',
+      confidence: 'high'
+    };
+  }
+  
+  if (patterns.realistic.test(lowerPrompt)) {
+    return {
+      model: 'sora-2',
+      reason: '📽️ Realistic video - Sora 2 excels at natural scenes',
       confidence: 'high'
     };
   }
@@ -4559,6 +4592,8 @@ async function handleMediaGenerate(request) {
       const modelLabels = {
         'kling-3': 'Kling 3.0 (Std)',
         'kling-3-pro': 'Kling 3.0 (Pro)',
+        'sora-2': 'Sora 2',
+        'sora-2-pro': 'Sora 2 Pro (HD)',
         'kling-2-6': 'Kling 2.6',
         'wan-2-6': 'Wan 2.6',
         'seedance-1-5': 'Seedance 1.5 Pro',
