@@ -3917,6 +3917,7 @@ export default function ChatPage() {
   const [streamingContent, setStreamingContent] = useState('');
   const [searchingWeb, setSearchingWeb] = useState(false);
   const [searchQueries, setSearchQueries] = useState([]);
+  const [streamingSources, setStreamingSources] = useState([]);
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [selectedModel, setSelectedModel] = useState('smart');
@@ -3978,6 +3979,7 @@ export default function ChatPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
+  const streamingSourcesRef = useRef([]);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -3987,6 +3989,7 @@ export default function ChatPage() {
   // Keep refs in sync with state
   useEffect(() => { streamingImageUrlRef.current = streamingImageUrl; }, [streamingImageUrl]);
   useEffect(() => { streamingVideoTaskRef.current = streamingVideoTask; }, [streamingVideoTask]);
+  useEffect(() => { streamingSourcesRef.current = streamingSources; }, [streamingSources]);
 
   // Capture the beforeinstallprompt event for PWA install
   useEffect(() => {
@@ -4407,6 +4410,10 @@ export default function ChatPage() {
             } else if (data.type === 'search') {
               setSearchingWeb(true);
               setSearchQueries(data.queries || []);
+            } else if (data.type === 'sources') {
+              // Received sources from web search
+              setStreamingSources(data.sources || []);
+              streamingSourcesRef.current = data.sources || [];
             } else if (data.type === 'image') {
               // Image generated – store url for rendering
               setStreamingImageUrl(data.url);
@@ -4432,12 +4439,15 @@ export default function ChatPage() {
                 smart_reason: smartModeReason,
                 image_url: streamingImageUrlRef.current || undefined,
                 video_task: streamingVideoTaskRef.current || undefined,
+                sources: streamingSourcesRef.current?.length > 0 ? streamingSourcesRef.current : undefined,
               };
               setMessages(prev => [...prev, finalMsg]);
               setStreamingContent('');
               setStreamingImageUrl(null);
               setStreamingVideoTask(null);
               setSearchQueries([]);
+              setStreamingSources([]);
+              streamingSourcesRef.current = [];
               fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
                 .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : []));
             } else if (data.type === 'error') {
@@ -5421,6 +5431,35 @@ export default function ChatPage() {
                             {msg.content}
                           </ReactMarkdown>
                         )}
+                        
+                        {/* Sources Section - Like Perplexity */}
+                        {msg.sources && msg.sources.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-white/10">
+                            <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-2 flex items-center gap-1.5">
+                              <Globe className="w-3 h-3" /> Sources
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {msg.sources.map((source, idx) => (
+                                <a
+                                  key={idx}
+                                  href={source.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="group flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-orange-500/30 rounded-lg px-2.5 py-1.5 transition-all"
+                                  title={source.snippet || source.title}
+                                >
+                                  <span className="w-4 h-4 rounded bg-orange-500/20 text-orange-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                                    {idx + 1}
+                                  </span>
+                                  <span className="text-[11px] text-gray-400 group-hover:text-white truncate max-w-[150px] transition-colors">
+                                    {source.title}
+                                  </span>
+                                  <ExternalLink className="w-2.5 h-2.5 text-gray-600 group-hover:text-orange-400 flex-shrink-0 transition-colors" />
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </>
                     ) : (
                       // User message - support editing
@@ -5536,6 +5575,35 @@ export default function ChatPage() {
                         {streamingContent}
                       </ReactMarkdown>
                       <span className="inline-block w-0.5 h-4 bg-orange-500 ml-0.5 animate-pulse" />
+                      
+                      {/* Sources during streaming */}
+                      {streamingSources.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-white/10">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-2 flex items-center gap-1.5">
+                            <Globe className="w-3 h-3" /> Sources
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {streamingSources.map((source, idx) => (
+                              <a
+                                key={idx}
+                                href={source.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-orange-500/30 rounded-lg px-2.5 py-1.5 transition-all"
+                                title={source.snippet || source.title}
+                              >
+                                <span className="w-4 h-4 rounded bg-orange-500/20 text-orange-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                                  {idx + 1}
+                                </span>
+                                <span className="text-[11px] text-gray-400 group-hover:text-white truncate max-w-[150px] transition-colors">
+                                  {source.title}
+                                </span>
+                                <ExternalLink className="w-2.5 h-2.5 text-gray-600 group-hover:text-orange-400 flex-shrink-0 transition-colors" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

@@ -1115,6 +1115,7 @@ Based on ${displayName}'s profile, follow these guidelines:
 4. **Long-Term Memory**: ${memories.length > 0 ? `You have ${memories.length} stored memories about ${displayName}. ALWAYS consider these when responding, especially health/safety information.` : 'Build rapport by remembering details they share'}
 5. **Directness**: ${commProfile?.directness > 70 ? 'Be very direct - they value straight talk' : commProfile?.directness < 40 ? 'Be diplomatic and gentle with feedback' : 'Be direct and insightful - they value substance over fluff'}
 6. **Brevity**: ${commProfile?.information_density < 50 ? 'Keep responses concise and scannable' : commProfile?.information_density > 70 ? 'Feel free to provide depth and detail' : 'Keep responses concise unless depth is specifically needed or requested'}
+7. **Links & Sources**: When referencing websites, articles, or resources, ALWAYS include clickable markdown links like [Title](https://url.com). Make URLs actionable so users can explore further.
 
 You are ${displayName}'s intelligent companion - be genuinely helpful, remember what matters to them, and adapt your communication to feel natural and personalized. If they ask "what is a SoulPrint?" or similar, explain the philosophy naturally using the context above.`;
 }
@@ -3259,9 +3260,25 @@ async function handleChatStream(request) {
           enableWebSearch: enableWebSearch && attachments.length === 0, // disable search when analyzing files
         });
 
-        // If search was done, notify client
+        // Extract and format sources from search
+        let sources = [];
         if (didSearch && searchMeta.length > 0) {
-          send({ type: 'search', queries: searchMeta.map(s => s.query) });
+          // Collect all unique sources from search results
+          searchMeta.forEach(search => {
+            if (search.results && Array.isArray(search.results)) {
+              search.results.forEach(result => {
+                if (result.url && !sources.find(s => s.url === result.url)) {
+                  sources.push({
+                    title: result.title || 'Untitled',
+                    url: result.url,
+                    snippet: result.content?.substring(0, 150) || '',
+                  });
+                }
+              });
+            }
+          });
+          // Send sources to client
+          send({ type: 'sources', sources: sources.slice(0, 6) }); // Limit to 6 sources
         }
 
         for await (const chunk of aiStream) {
@@ -3285,6 +3302,7 @@ async function handleChatStream(request) {
           role: 'assistant', content: fullContent, created_at: new Date(),
           model_used: model, provider_used: providerName,
           web_search_used: didSearch,
+          sources: sources.length > 0 ? sources : undefined,
           est_input_tokens: estInputTokens,
           est_output_tokens: estOutputTokens,
         });

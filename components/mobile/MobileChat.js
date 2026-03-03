@@ -341,10 +341,38 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               components={{
                 p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
                 code: ({children}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-orange-300 text-sm">{children}</code>,
+                a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline">{children}</a>,
               }}
             >
               {message.content}
             </ReactMarkdown>
+            
+            {/* Sources Section */}
+            {message.sources && message.sources.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-white/10">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-2 flex items-center gap-1.5">
+                  <Globe className="w-3 h-3" /> Sources
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {message.sources.slice(0, 4).map((source, idx) => (
+                    <a
+                      key={idx}
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-lg px-2 py-1"
+                    >
+                      <span className="w-4 h-4 rounded bg-orange-500/20 text-orange-400 text-[9px] font-bold flex items-center justify-center">
+                        {idx + 1}
+                      </span>
+                      <span className="text-[10px] text-gray-400 truncate max-w-[100px]">
+                        {source.title}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           {showActions && (
             <div className="flex items-center gap-3 mt-2 pt-2 border-t border-white/10">
@@ -1159,6 +1187,7 @@ export default function MobileChat({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [streamingSources, setStreamingSources] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [conversationId, setConversationId] = useState(initialConversationId);
   const [selectedModel, setSelectedModel] = useState('smart'); // Default to Smart Mode
@@ -1468,6 +1497,9 @@ export default function MobileChat({
             } else if (data.type === 'delta') {
               fullContent += data.content;
               setStreamingContent(fullContent);
+            } else if (data.type === 'sources') {
+              // Received sources from web search
+              setStreamingSources(data.sources || []);
             } else if (data.type === 'done') {
               // Message complete
             }
@@ -1483,10 +1515,12 @@ export default function MobileChat({
           model_used: actualModelUsed,
           smart_mode: selectedModel === 'smart',
           smart_reason: smartModeReason,
+          sources: streamingSources.length > 0 ? [...streamingSources] : undefined,
         }]);
       }
 
       setStreamingContent('');
+      setStreamingSources([]);
       if (newConvId && newConvId !== conversationId) {
         setConversationId(newConvId);
         // Refresh conversations list
