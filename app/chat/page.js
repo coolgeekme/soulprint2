@@ -30,11 +30,11 @@ const IMAGE_MODELS = [
 
 // Video Generation Models (sorted by cost - cheapest first)
 const VIDEO_MODELS = [
-  { value: 'kling-3-720p', label: 'Kling 3.0 (Std)', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: '5s, no audio' },
-  { value: 'sora-2-stable', label: 'Sora 2', provider: 'kie', cost: 30, costLabel: '$0.15/10s', description: '10s video' },
-  { value: 'kling-2-6', label: 'Kling 3.0 (Pro)', provider: 'kie', cost: 55, costLabel: '$0.27/s', description: '5s Pro quality' },
-  { value: 'runway', label: 'Runway Gen-3', provider: 'kie', cost: 100, costLabel: '$0.50', description: 'Pro quality' },
-  { value: 'wan-2-6', label: 'Wan 2.6', provider: 'kie', cost: 70, costLabel: '$0.35/5s', description: '5s 720p' },
+  { value: 'kling-3', label: 'Kling 3.0 (Std)', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: '5s, std quality' },
+  { value: 'kling-3-pro', label: 'Kling 3.0 (Pro)', provider: 'kie', cost: 27, costLabel: '$0.135/s', description: '5s Pro quality' },
+  { value: 'kling-2-6', label: 'Kling 2.6', provider: 'kie', cost: 55, costLabel: '$0.27/s', description: '5s, audio support' },
+  { value: 'wan-2-6', label: 'Wan 2.6', provider: 'kie', cost: 70, costLabel: '$0.35/5s', description: '5s 720p, lip sync' },
+  { value: 'seedance-1-5', label: 'Seedance 1.5 Pro', provider: 'kie', cost: 50, costLabel: '$0.25/s', description: 'Cinematic, audio' },
 ];
 
 const MODELS = [
@@ -4130,7 +4130,7 @@ export default function ChatPage() {
   const [quickAspectRatio, setQuickAspectRatio] = useState('1:1');
   const [quickVideoLength, setQuickVideoLength] = useState('5');
   const [selectedImageModel, setSelectedImageModel] = useState('seedream-5-lite');
-  const [selectedVideoModel, setSelectedVideoModel] = useState('kling-3-720p');
+  const [selectedVideoModel, setSelectedVideoModel] = useState('kling-3');
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const streamingSourcesRef = useRef([]);

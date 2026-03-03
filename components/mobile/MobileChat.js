@@ -56,11 +56,11 @@ const IMAGE_MODELS = [
 
 // Video Generation Models (matching desktop) - no pricing shown
 const VIDEO_MODELS = [
-  { value: 'kling-3-720p', label: 'Kling 3.0 (720p)', description: '5s, no audio' },
-  { value: 'sora-2-stable', label: 'Sora 2 Stable', description: '10s video' },
-  { value: 'kling-2-6', label: 'Kling 2.6', description: '5s with options' },
-  { value: 'runway', label: 'Runway Gen-3', description: 'Pro quality' },
-  { value: 'wan-2-6', label: 'Wan 2.6', description: '15s 1080p' },
+  { value: 'kling-3', label: 'Kling 3.0 (Std)', description: '5s std quality' },
+  { value: 'kling-3-pro', label: 'Kling 3.0 (Pro)', description: '5s Pro quality' },
+  { value: 'kling-2-6', label: 'Kling 2.6', description: '5s, audio support' },
+  { value: 'wan-2-6', label: 'Wan 2.6', description: '5s 720p, lip sync' },
+  { value: 'seedance-1-5', label: 'Seedance 1.5', description: 'Cinematic, audio' },
 ];
 
 // Aspect ratios for image generation
