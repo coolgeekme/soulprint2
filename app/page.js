@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Twitter, Linkedin, Instagram, Calendar, User, ArrowRight, Facebook, Youtube } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
+import { ChatIcon, LightbulbIcon, RobotIcon, LockIcon, PersonHeartIcon, NetworkIntelligenceIcon } from '@/components/icons/SoulPrintIcons';
 
 // Blog Preview Component
 function BlogPreview() {
@@ -128,10 +129,10 @@ const FEATURE_IMAGES = [
 ];
 
 const FEATURES = [
-  { tag: 'CHANNELS', title: 'Lives in Telegram & SMS (coming soon)', desc: 'No new apps to install. Just message your SoulPrint in Telegram or text via SMS — the same tools you already use every day.', img: FEATURE_IMAGES[0] },
-  { tag: 'ACTIONS', title: 'It can actually do things', desc: 'Browse the web, generate images, look things up — not just chat. It takes action for you. Calendar and email integration coming soon.', img: FEATURE_IMAGES[1] },
-  { tag: 'VOICE', title: 'Talks and listens', desc: 'Send voice messages or talk hands-free. Your SoulPrint can listen and understand photos you send. Voice replies coming soon.', img: FEATURE_IMAGES[2] },
-  { tag: 'PRIVACY', title: 'Your data stays yours', desc: 'Your conversations are private and encrypted. We never use your data to train AI models. What you say stays between you and your SoulPrint.', img: FEATURE_IMAGES[3] },
+  { tag: 'CHANNELS', title: 'Lives in Telegram & SMS (coming soon)', desc: 'No new apps to install. Just message your SoulPrint in Telegram or text via SMS — the same tools you already use every day.', img: FEATURE_IMAGES[0], Icon: ChatIcon },
+  { tag: 'ACTIONS', title: 'It can actually do things', desc: 'Browse the web, generate images, look things up — not just chat. It takes action for you. Calendar and email integration coming soon.', img: FEATURE_IMAGES[1], Icon: LightbulbIcon },
+  { tag: 'VOICE', title: 'Talks and listens', desc: 'Send voice messages or talk hands-free. Your SoulPrint can listen and understand photos you send. Voice replies coming soon.', img: FEATURE_IMAGES[2], Icon: RobotIcon },
+  { tag: 'PRIVACY', title: 'Your data stays yours', desc: 'Your conversations are private and encrypted. We never use your data to train AI models. What you say stays between you and your SoulPrint.', img: FEATURE_IMAGES[3], Icon: LockIcon },
 ];
 
 const FAQS = [
@@ -277,13 +278,13 @@ export default function LandingPage() {
             SoulPrint lives in your Telegram (SMS coming soon) — no new apps to download. Just message it like you'd message a friend.
           </p>
 
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid md:grid-cols-4 grid-cols-2 gap-6">
             {FEATURES.map((f, i) => (
-              <div key={i} className="flex flex-col">
-                <div className="h-48 rounded-lg overflow-hidden mb-3">
-                  <img src={f.img} alt={f.tag} className="w-full h-full object-cover grayscale" />
+              <div key={i} className="flex flex-col bg-gray-50 rounded-2xl p-6 hover:shadow-lg transition-shadow">
+                <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center mb-4">
+                  <f.Icon className="w-6 h-6" color="#F64000" />
                 </div>
-                <span className="text-xs font-bold text-orange-500 tracking-widest uppercase mb-1">{f.tag}</span>
+                <span className="text-xs font-bold text-orange-500 tracking-widest uppercase mb-2">{f.tag}</span>
                 <h4 className="text-sm font-bold text-black mb-2">{f.title}</h4>
                 <p className="text-xs text-gray-600 leading-relaxed">{f.desc}</p>
               </div>
