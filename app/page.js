@@ -390,13 +390,16 @@ export default function LandingPage() {
                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div className="flex-1">
               <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
-                HELP SOULPRINT UNDERSTAND YOU FASTER
+                GET STARTED
               </p>
-              <h3 className="font-condensed font-black text-white text-2xl md:text-4xl leading-tight mb-6 uppercase">
-                TAKE THE SOULPRINT ASSESSMENT TO PERSONALIZE YOUR AI FROM DAY ONE. ANSWER A FEW QUESTIONS ABOUT YOUR COMMUNICATION STYLE, PREFERENCES, AND GOALS — AND YOUR ASSISTANT ADAPTS TO YOU INSTANTLY.
+              <h3 className="font-condensed font-black text-white text-2xl md:text-4xl leading-tight mb-4 uppercase">
+                TAKE THE SOULPRINT ASSESSMENT
               </h3>
+              <p className="text-gray-400 text-sm mb-6 max-w-md">
+                Answer a few quick questions and your AI adapts to you instantly.
+              </p>
               <Link href="/auth" className="btn-orange px-6 py-2.5 rounded-lg text-sm inline-flex items-center gap-2">
-                Start SoulPrint Assessment →
+                Start Assessment →
               </Link>
               <div className="mt-3">
                 <Link href="/auth" className="text-orange-500 text-xs hover:text-orange-400 transition-colors">
