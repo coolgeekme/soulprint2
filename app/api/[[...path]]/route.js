@@ -3140,9 +3140,12 @@ async function handleChatStream(request) {
                 input: {
                   prompt: content, 
                   duration: '5',
+                  aspect_ratio: '16:9',
                   mode: 'std',
                   sound: false,
                   multi_shots: false,
+                  multi_prompt: [],
+                  kling_elements: [],
                 }
               }),
             });
@@ -4125,17 +4128,193 @@ const KIE_VIDEO_MODELS = {
 // Kie.ai credit to USD conversion (1 credit = $0.005)
 const KIE_CREDIT_TO_USD = 0.005;
 
+// ============================================================
+// DYNAMIC INTELLIGENCE FOR MEDIA GENERATION
+// ============================================================
+
+// Analyze prompt and recommend the best image model
+function selectBestImageModel(prompt) {
+  const lowerPrompt = prompt.toLowerCase();
+  
+  // Keywords and patterns for different use cases
+  const patterns = {
+    // Photorealistic - Nano Banana or Flux
+    photorealistic: /\b(photo|photograph|realistic|real|hd|4k|portrait|headshot|professional|corporate|stock photo|documentary)\b/i,
+    // Text-heavy - Ideogram or Seedream
+    textHeavy: /\b(logo|text|typography|sign|poster|banner|flyer|advertisement|brand|label|t-shirt design|title|headline|letters|words|writing)\b/i,
+    // Artistic/Creative - Midjourney
+    artistic: /\b(art|artistic|fantasy|surreal|dream|magical|ethereal|abstract|painting|illustration|anime|manga|concept art|cinematic|epic|dramatic|vibrant|colorful)\b/i,
+    // Product/Commercial - Flux Pro or GPT Image
+    product: /\b(product|ecommerce|catalog|mockup|packaging|commercial|marketing|advertisement|studio shot|white background)\b/i,
+    // Quick/Simple - Seedream Lite
+    simple: /\b(simple|basic|quick|icon|emoji|avatar|thumbnail|sketch|draft)\b/i,
+  };
+  
+  // Check patterns and return recommendation
+  if (patterns.textHeavy.test(lowerPrompt)) {
+    return {
+      model: 'seedream-5-lite',
+      reason: '📝 Text rendering - Seedream excels at text clarity',
+      confidence: 'high'
+    };
+  }
+  
+  if (patterns.artistic.test(lowerPrompt)) {
+    return {
+      model: 'midjourney-v7',
+      reason: '🎨 Artistic/creative style - Midjourney creates stunning art',
+      confidence: 'high'
+    };
+  }
+  
+  if (patterns.photorealistic.test(lowerPrompt)) {
+    return {
+      model: 'nano-banana',
+      reason: '📷 Photorealistic - Nano Banana for natural imagery',
+      confidence: 'high'
+    };
+  }
+  
+  if (patterns.product.test(lowerPrompt)) {
+    return {
+      model: 'flux-pro',
+      reason: '🛍️ Product/commercial - Flux Pro for clean commercial shots',
+      confidence: 'high'
+    };
+  }
+  
+  if (patterns.simple.test(lowerPrompt)) {
+    return {
+      model: 'seedream-5-lite',
+      reason: '⚡ Quick generation - Seedream Lite is fast and affordable',
+      confidence: 'medium'
+    };
+  }
+  
+  // Default to Nano Banana for general requests
+  return {
+    model: 'nano-banana',
+    reason: '🖼️ General image - Nano Banana for versatile quality',
+    confidence: 'default'
+  };
+}
+
+// Analyze prompt and recommend the best video model
+function selectBestVideoModel(prompt) {
+  const lowerPrompt = prompt.toLowerCase();
+  
+  const patterns = {
+    // Cinematic/Storytelling - Kling 3 Pro
+    cinematic: /\b(cinematic|film|movie|story|narrative|scene|dramatic|epic|professional|high quality|4k|hd)\b/i,
+    // Talking/Speech - Wan 2.6
+    talking: /\b(talking|speaking|dialogue|conversation|interview|presentation|lip sync|speech|voice|saying|tell|narrator)\b/i,
+    // Dance/Motion - Seedance
+    dance: /\b(dance|dancing|choreography|movement|motion|action|dynamic|animated|energetic)\b/i,
+    // Quick/Simple - Kling 3 Std
+    simple: /\b(simple|quick|short|basic|demo|test|preview|draft)\b/i,
+  };
+  
+  if (patterns.talking.test(lowerPrompt)) {
+    return {
+      model: 'wan-2-6',
+      reason: '🎙️ Speech/dialogue - Wan 2.6 has excellent lip sync',
+      confidence: 'high'
+    };
+  }
+  
+  if (patterns.dance.test(lowerPrompt)) {
+    return {
+      model: 'seedance-1-5',
+      reason: '💃 Motion/dance - Seedance specializes in movement',
+      confidence: 'high'
+    };
+  }
+  
+  if (patterns.cinematic.test(lowerPrompt)) {
+    return {
+      model: 'kling-3-pro',
+      reason: '🎬 Cinematic quality - Kling 3 Pro for high-end video',
+      confidence: 'high'
+    };
+  }
+  
+  if (patterns.simple.test(lowerPrompt)) {
+    return {
+      model: 'kling-3',
+      reason: '⚡ Quick generation - Kling 3 Std is fast and affordable',
+      confidence: 'medium'
+    };
+  }
+  
+  // Default to Kling 3 Standard for general requests
+  return {
+    model: 'kling-3',
+    reason: '🎥 General video - Kling 3.0 for versatile quality',
+    confidence: 'default'
+  };
+}
+
+// Unified function to get best media model
+function selectBestMediaModel(type, prompt) {
+  if (type === 'image') {
+    return selectBestImageModel(prompt);
+  } else if (type === 'video') {
+    return selectBestVideoModel(prompt);
+  }
+  return null;
+}
+
+// API endpoint to get smart model recommendation
+async function handleMediaRecommend(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { searchParams } = new URL(request.url);
+  const type = searchParams.get('type'); // 'image' or 'video'
+  const prompt = searchParams.get('prompt');
+
+  if (!type || !['image', 'video'].includes(type)) {
+    return err('type must be "image" or "video"');
+  }
+  if (!prompt) {
+    return err('prompt required');
+  }
+
+  const recommendation = selectBestMediaModel(type, prompt);
+  
+  // Get model details
+  const modelConfig = type === 'image' 
+    ? KIE_IMAGE_MODELS[recommendation.model]
+    : KIE_VIDEO_MODELS[recommendation.model];
+  
+  return ok({
+    type,
+    model: recommendation.model,
+    reason: recommendation.reason,
+    confidence: recommendation.confidence,
+    credits: modelConfig?.credits || null,
+    estimatedCost: modelConfig ? `$${(modelConfig.credits * KIE_CREDIT_TO_USD).toFixed(2)}` : null,
+  });
+}
+
 // Generate image or video using the unified Kie.ai API
 async function handleMediaGenerate(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { type, model, prompt, aspectRatio = '1:1', conversationId } = body;
+  let { type, model, prompt, aspectRatio = '1:1', conversationId } = body;
 
   if (!type || !['image', 'video'].includes(type)) return err('type must be "image" or "video"');
-  if (!model) return err('model required');
   if (!prompt) return err('prompt required');
+
+  // Support "smart" mode - auto-select best model based on prompt
+  let smartSelection = null;
+  if (!model || model === 'smart') {
+    smartSelection = selectBestMediaModel(type, prompt);
+    model = smartSelection.model;
+    console.log(`[Dynamic Intelligence] ${type} generation: Selected ${model} - ${smartSelection.reason}`);
+  }
 
   const kieKey = process.env.KIE_API_KEY;
   if (!kieKey) return err('Kie.ai key not configured', 500);
@@ -4321,16 +4500,17 @@ async function handleMediaGenerate(request) {
 
       if (modelConfig.useJobsApi) {
         // Use unified Jobs API for video generation
+        const safeAspectRatio = aspectRatioForVideo || '16:9';
         const inputData = modelConfig.formatInput 
-          ? modelConfig.formatInput(prompt, aspectRatioForVideo, '5')
-          : { prompt, duration: '5' };
+          ? modelConfig.formatInput(prompt, safeAspectRatio, '5')
+          : { prompt, duration: '5', aspect_ratio: '16:9' };
         
         const requestBody = {
           model: modelConfig.model,
           input: inputData,
         };
         
-        console.log('Kie.ai video request body:', JSON.stringify(requestBody));
+        console.log('Kie.ai video request body:', JSON.stringify(requestBody, null, 2));
         
         const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
           method: 'POST',
@@ -8808,9 +8988,12 @@ async function handleTelegramWebhook(request) {
           input: {
             prompt, 
             duration: '5',
+            aspect_ratio: '16:9',
             mode: 'std',
             sound: false,
             multi_shots: false,
+            multi_prompt: [],
+            kling_elements: [],
           }
         }),
       });
@@ -9465,9 +9648,12 @@ async function handleTelegramWebhook(request) {
             input: {
               prompt, 
               duration: '5',
+              aspect_ratio: '16:9',
               mode: 'std',
               sound: false,
               multi_shots: false,
+              multi_prompt: [],
+              kling_elements: [],
             }
           }),
         });
@@ -12292,6 +12478,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/announcements') return handleAdminGetAnnouncements(request);
     if (pathStr === 'media/gallery') return handleMediaGallery(request);
     if (pathStr === 'media/status') return handleMediaStatus(request);
+    if (pathStr === 'media/recommend') return handleMediaRecommend(request);
     if (pathStr === 'imports/status') return handleImportStatus(request);
     if (pathStr === 'pwa/install-status') return handleGetInstallPromptStatus(request);
 

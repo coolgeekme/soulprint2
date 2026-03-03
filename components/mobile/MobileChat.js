@@ -46,6 +46,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Image Generation Models (matching desktop) - no pricing shown
 const IMAGE_MODELS = [
+  { value: 'smart', label: '🧠 Dynamic Intelligence', description: 'AI picks best model', isSmartMode: true },
   { value: 'seedream-5-lite', label: 'Seedream 5.0 Lite', description: 'Fast & affordable' },
   { value: 'nano-banana', label: 'Nano Banana', description: 'Gemini-powered' },
   { value: 'gpt4o-image', label: 'GPT-4o Image', description: 'High quality text' },
@@ -56,6 +57,7 @@ const IMAGE_MODELS = [
 
 // Video Generation Models (matching desktop) - no pricing shown
 const VIDEO_MODELS = [
+  { value: 'smart', label: '🧠 Dynamic Intelligence', description: 'AI picks best model', isSmartMode: true },
   { value: 'kling-3', label: 'Kling 3.0 (Std)', description: '5s std quality' },
   { value: 'kling-3-pro', label: 'Kling 3.0 (Pro)', description: '5s Pro quality' },
   { value: 'kling-2-6', label: 'Kling 2.6', description: '5s, audio support' },
@@ -1346,8 +1348,8 @@ export default function MobileChat({
   // New state for additional features
   const [showImageGenSheet, setShowImageGenSheet] = useState(false);
   const [showVideoGenSheet, setShowVideoGenSheet] = useState(false);
-  const [selectedImageModel, setSelectedImageModel] = useState('seedream-5-lite');
-  const [selectedVideoModel, setSelectedVideoModel] = useState('kling-3');
+  const [selectedImageModel, setSelectedImageModel] = useState('smart');
+  const [selectedVideoModel, setSelectedVideoModel] = useState('smart');
   const [selectedAspectRatio, setSelectedAspectRatio] = useState('1:1');
   const [mediaPrompt, setMediaPrompt] = useState('');
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);

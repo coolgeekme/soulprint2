@@ -20,6 +20,7 @@ import MobileChat from '@/components/mobile/MobileChat';
 
 // Image Generation Models (sorted by cost - cheapest first)
 const IMAGE_MODELS = [
+  { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', cost: 0, costLabel: 'Auto', description: 'AI picks best model', isSmartMode: true },
   { value: 'seedream-5-lite', label: 'Seedream 5.0 Lite', provider: 'kie', cost: 5.5, costLabel: '$0.03', description: 'Fast & affordable' },
   { value: 'nano-banana', label: 'Nano Banana', provider: 'kie', cost: 10, costLabel: '$0.05', description: 'Gemini-powered' },
   { value: 'gpt4o-image', label: 'GPT-4o Image', provider: 'kie', cost: 20, costLabel: '$0.10', description: 'High quality text' },
@@ -30,6 +31,7 @@ const IMAGE_MODELS = [
 
 // Video Generation Models (sorted by cost - cheapest first)
 const VIDEO_MODELS = [
+  { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', cost: 0, costLabel: 'Auto', description: 'AI picks best model', isSmartMode: true },
   { value: 'kling-3', label: 'Kling 3.0 (Std)', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: '5s, std quality' },
   { value: 'kling-3-pro', label: 'Kling 3.0 (Pro)', provider: 'kie', cost: 27, costLabel: '$0.135/s', description: '5s Pro quality' },
   { value: 'kling-2-6', label: 'Kling 2.6', provider: 'kie', cost: 55, costLabel: '$0.27/s', description: '5s, audio support' },
@@ -4129,8 +4131,8 @@ export default function ChatPage() {
   const [mediaOptionsExpanded, setMediaOptionsExpanded] = useState(false);
   const [quickAspectRatio, setQuickAspectRatio] = useState('1:1');
   const [quickVideoLength, setQuickVideoLength] = useState('5');
-  const [selectedImageModel, setSelectedImageModel] = useState('seedream-5-lite');
-  const [selectedVideoModel, setSelectedVideoModel] = useState('kling-3');
+  const [selectedImageModel, setSelectedImageModel] = useState('smart');
+  const [selectedVideoModel, setSelectedVideoModel] = useState('smart');
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const streamingSourcesRef = useRef([]);
