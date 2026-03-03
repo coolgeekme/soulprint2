@@ -639,9 +639,10 @@ function CreateMenu({ onGenerate, isGenerating }) {
       </button>
 
       {isOpen && (
-        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-0 bg-[#111] border border-white/10 rounded-2xl shadow-2xl w-72 sm:w-80 overflow-hidden z-30">
+        <div className="absolute bottom-full mb-2 right-0 bg-[#111] border border-white/10 rounded-2xl shadow-2xl w-[calc(100vw-2rem)] sm:w-80 max-w-80 overflow-hidden z-50 max-h-[70vh] overflow-y-auto"
+             style={{ maxHeight: 'calc(100vh - 120px)' }}>
           {/* Tabs */}
-          <div className="flex border-b border-white/10">
+          <div className="flex border-b border-white/10 sticky top-0 bg-[#111] z-10">
             <button
               onClick={() => setActiveTab('image')}
               className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
@@ -662,25 +663,25 @@ function CreateMenu({ onGenerate, isGenerating }) {
             </button>
           </div>
 
-          <div className="p-4 space-y-4">
+          <div className="p-3 sm:p-4 space-y-3">
             {/* Model Selector */}
             <div>
-              <label className="text-[10px] uppercase tracking-wider text-gray-600 mb-2 block">
+              <label className="text-[10px] uppercase tracking-wider text-gray-600 mb-1.5 block">
                 {activeTab === 'image' ? 'Image Model' : 'Video Model'}
               </label>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+              <div className="space-y-1 max-h-28 sm:max-h-32 overflow-y-auto">
                 {(activeTab === 'image' ? IMAGE_MODELS : VIDEO_MODELS).map(model => (
                   <button
                     key={model.value}
                     onClick={() => activeTab === 'image' ? setSelectedImageModel(model.value) : setSelectedVideoModel(model.value)}
-                    className={`w-full flex items-center px-3 py-2 rounded-lg text-xs transition-colors ${
+                    className={`w-full flex items-center px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
                       (activeTab === 'image' ? selectedImageModel : selectedVideoModel) === model.value
                         ? 'bg-gradient-to-r from-pink-500/20 to-blue-500/20 border border-pink-500/30 text-white'
                         : 'bg-white/3 border border-white/5 text-gray-400 hover:bg-white/5 hover:text-white'
                     }`}
                   >
                     <div className="flex flex-col items-start">
-                      <span className="font-medium">{model.label}</span>
+                      <span className="font-medium text-[11px]">{model.label}</span>
                       <span className="text-[9px] text-gray-600">{model.description}</span>
                     </div>
                   </button>
@@ -691,8 +692,8 @@ function CreateMenu({ onGenerate, isGenerating }) {
             {/* Aspect Ratio for Images */}
             {activeTab === 'image' && (
               <div>
-                <label className="text-[10px] uppercase tracking-wider text-gray-600 mb-2 block">Aspect Ratio</label>
-                <div className="flex gap-2">
+                <label className="text-[10px] uppercase tracking-wider text-gray-600 mb-1.5 block">Aspect Ratio</label>
+                <div className="flex gap-1.5">
                   {['1:1', '16:9', '9:16', '4:3'].map(ratio => (
                     <button
                       key={ratio}
@@ -712,18 +713,18 @@ function CreateMenu({ onGenerate, isGenerating }) {
 
             {/* Prompt Input */}
             <div>
-              <label className="text-[10px] uppercase tracking-wider text-gray-600 mb-2 block">
-                Describe what you want to create
+              <label className="text-[10px] uppercase tracking-wider text-gray-600 mb-1.5 block">
+                Describe what you want
               </label>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={activeTab === 'image' 
-                  ? "A serene mountain landscape at sunset with golden light..."
-                  : "A cinematic drone shot flying through a futuristic city..."
+                  ? "A serene mountain landscape at sunset..."
+                  : "A cinematic drone shot flying through a city..."
                 }
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-pink-500/50"
-                rows={3}
+                rows={2}
               />
             </div>
 
@@ -731,7 +732,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
             <button
               onClick={handleGenerate}
               disabled={!prompt.trim()}
-              className={`w-full py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+              className={`w-full py-2 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                 prompt.trim()
                   ? 'bg-gradient-to-r from-pink-500 to-blue-500 text-white hover:from-pink-600 hover:to-purple-600'
                   : 'bg-white/5 text-gray-600 cursor-not-allowed'
