@@ -4151,7 +4151,7 @@ const KIE_VIDEO_MODELS = {
     formatInput: (prompt, aspectRatio, duration) => ({
       prompt: prompt,
       aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape',
-      n_frames: '10',
+      n_frames: duration || '10',
       remove_watermark: true,
       upload_method: 's3',
     })
@@ -4163,7 +4163,7 @@ const KIE_VIDEO_MODELS = {
     formatInput: (prompt, aspectRatio, duration) => ({
       prompt: prompt,
       aspect_ratio: aspectRatio === '9:16' ? 'portrait' : 'landscape',
-      n_frames: duration === '15' ? '15' : '10',
+      n_frames: duration || '10',
       upload_method: 's3',
     })
   },
@@ -4386,7 +4386,10 @@ async function handleMediaGenerate(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  let { type, model, prompt, aspectRatio = '1:1', conversationId } = body;
+  let { type, model, prompt, aspectRatio = '1:1', duration = '5', conversationId } = body;
+
+  // Ensure duration is a string
+  duration = String(duration);
 
   if (!type || !['image', 'video'].includes(type)) return err('type must be "image" or "video"');
   if (!prompt) return err('prompt required');
@@ -4584,9 +4587,10 @@ async function handleMediaGenerate(request) {
       if (modelConfig.useJobsApi) {
         // Use unified Jobs API for video generation
         const safeAspectRatio = aspectRatioForVideo || '16:9';
+        const safeDuration = duration || '5';
         const inputData = modelConfig.formatInput 
-          ? modelConfig.formatInput(prompt, safeAspectRatio, '5')
-          : { prompt, duration: '5', aspect_ratio: '16:9' };
+          ? modelConfig.formatInput(prompt, safeAspectRatio, safeDuration)
+          : { prompt, duration: safeDuration, aspect_ratio: '16:9' };
         
         const requestBody = {
           model: modelConfig.model,
@@ -4594,6 +4598,7 @@ async function handleMediaGenerate(request) {
         };
         
         console.log('Kie.ai video request body:', JSON.stringify(requestBody, null, 2));
+        console.log('Video generation params - duration:', safeDuration, 'aspectRatio:', safeAspectRatio);
         
         const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
           method: 'POST',
