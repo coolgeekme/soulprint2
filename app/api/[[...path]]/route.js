@@ -4422,6 +4422,84 @@ async function sendFeedbackNotification(userEmail, feedbackMessage, category) {
   console.log(`[FEEDBACK] From: ${userEmail} | Category: ${category} | Message: ${feedbackMessage.substring(0, 100)}...`);
 }
 
+// CONTACT FORM - Send email to team@archeforge.com
+async function handleContactForm(request) {
+  try {
+    const { name, email, subject, message } = await request.json();
+
+    // Validate required fields
+    if (!name || !email || !subject || !message) {
+      return err('All fields are required', 400);
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return err('Invalid email address', 400);
+    }
+
+    // Send email using Resend
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    if (!RESEND_API_KEY) {
+      console.error('RESEND_API_KEY not configured');
+      return err('Email service not configured', 500);
+    }
+
+    const emailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'SoulPrint Contact <team@soulprintengine.ai>',
+        to: ['team@archeforge.com'],
+        reply_to: email,
+        subject: `[Contact Form] ${subject}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #f97316;">New Contact Form Submission</h2>
+            <hr style="border: 1px solid #eee;" />
+            <p><strong>From:</strong> ${name}</p>
+            <p><strong>Email:</strong> <a href="mailto:${email}">${email}</a></p>
+            <p><strong>Subject:</strong> ${subject}</p>
+            <hr style="border: 1px solid #eee;" />
+            <h3>Message:</h3>
+            <p style="white-space: pre-wrap; background: #f9f9f9; padding: 15px; border-radius: 8px;">${message}</p>
+            <hr style="border: 1px solid #eee;" />
+            <p style="color: #888; font-size: 12px;">
+              This message was sent via the SoulPrint contact form.<br/>
+              Sent at: ${new Date().toISOString()}
+            </p>
+          </div>
+        `,
+      }),
+    });
+
+    if (!emailResponse.ok) {
+      const errorData = await emailResponse.json();
+      console.error('Resend error:', errorData);
+      return err('Failed to send email. Please try again.', 500);
+    }
+
+    // Store in database for records
+    const db = await getDb();
+    await db.collection('contact_submissions').insertOne({
+      id: uuidv4(),
+      name,
+      email,
+      subject,
+      message,
+      created_at: new Date(),
+    });
+
+    return ok({ success: true, message: 'Message sent successfully!' });
+  } catch (error) {
+    console.error('Contact form error:', error);
+    return err('Something went wrong. Please try again.', 500);
+  }
+}
+
 // ADMIN - Get all user feedback
 async function handleAdminGetFeedback(request) {
   const user = await authenticate(request);
@@ -11705,6 +11783,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'data-import/chunked/complete') return handleChunkedUploadComplete(request);
     if (pathStr === 'assessment/reset') return handleResetAssessment(request);
     if (pathStr === 'memories') return handleCreateMemory(request);
+    if (pathStr === 'contact') return handleContactForm(request);
 
     // Admin routes
     if (pathStr === 'admin/questions/seed') return handleAdminSeedQuestions(request);

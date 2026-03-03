@@ -448,9 +448,9 @@ export default function LandingPage() {
               </a>
             </div>
             <div className="flex items-center gap-6">
-              <a href="#" className="text-gray-600 text-xs hover:text-gray-900 transition-colors">Home</a>
-              <a href="#" className="text-gray-600 text-xs hover:text-gray-900 transition-colors">Contact Us</a>
-              <a href="#" className="text-gray-600 text-xs hover:text-gray-900 transition-colors">FAQ</a>
+              <Link href="/" className="text-gray-600 text-xs hover:text-gray-900 transition-colors">Home</Link>
+              <Link href="/contact" className="text-gray-600 text-xs hover:text-gray-900 transition-colors">Contact Us</Link>
+              <a href="#faqs" className="text-gray-600 text-xs hover:text-gray-900 transition-colors">FAQ</a>
             </div>
           </div>
           <div className="flex items-center justify-between border-t border-gray-300 pt-6">
