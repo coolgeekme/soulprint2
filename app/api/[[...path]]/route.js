@@ -4868,6 +4868,31 @@ async function handleMediaGallery(request) {
   return NextResponse.json(items);
 }
 
+// Delete media item from gallery
+async function handleDeleteMedia(request, mediaId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  if (!mediaId) return err('mediaId required');
+
+  const db = await getDb();
+  
+  // Find and verify ownership
+  const item = await db.collection('media_gallery').findOne({ id: mediaId });
+  if (!item) return err('Media not found', 404);
+  if (item.user_id !== user.id) return err('Unauthorized', 403);
+
+  // Delete from media_gallery
+  await db.collection('media_gallery').deleteOne({ id: mediaId });
+
+  // Also delete from video_jobs if it's a video
+  if (item.type === 'video' && item.task_id) {
+    await db.collection('video_jobs').deleteOne({ task_id: item.task_id });
+  }
+
+  return ok({ success: true, deletedId: mediaId });
+}
+
 // FEEDBACK - Submit
 async function handleSubmitFeedback(request) {
   const user = await authenticate(request);
@@ -12824,6 +12849,11 @@ export async function DELETE(request, { params }) {
     if (pathStr === 'admin/beta-code') return handleAdminDeleteBetaCode(request);
     if (pathStr === 'admin/beta-groups') return handleAdminDeleteBetaGroup(request);
     if (pathStr === 'admin/beta-codes') return handleAdminDeleteBetaCodeV2(request);
+    // Media gallery delete: media/:id
+    if (pathStr.startsWith('media/') && pathArr.length === 2) {
+      const mediaId = pathArr[1];
+      return handleDeleteMedia(request, mediaId);
+    }
     return err('Not found', 404);
   } catch (error) {
     console.error('DELETE error:', error);

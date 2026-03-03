@@ -939,10 +939,34 @@ function GalleryItem({ item, onClick }) {
 }
 
 // ── GalleryModal: Full-screen view of a gallery item ─────────────────────────
-function GalleryModal({ item, onClose }) {
+function GalleryModal({ item, onClose, onDelete, token }) {
+  const [deleting, setDeleting] = useState(false);
+  
   if (!item) return null;
   
   const isVideo = item.type === 'video';
+  
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this from your gallery?')) return;
+    
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/media/${item.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        onDelete?.(item.id);
+        onClose();
+      } else {
+        alert('Failed to delete: ' + (data.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Failed to delete: ' + e.message);
+    }
+    setDeleting(false);
+  };
   
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -981,16 +1005,26 @@ function GalleryModal({ item, onClose }) {
             <span className="text-xs text-gray-500">
               {new Date(item.created_at).toLocaleString()}
             </span>
-            <a 
-              href={item.url} 
-              download 
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-lg text-xs text-white hover:bg-white/20 transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Download
-            </a>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/15 border border-red-500/30 rounded-lg text-xs text-red-400 hover:bg-red-500/25 transition-colors disabled:opacity-50"
+              >
+                {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Delete
+              </button>
+              <a 
+                href={item.url} 
+                download 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 rounded-lg text-xs text-white hover:bg-white/20 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -6464,7 +6498,14 @@ export default function ChatPage() {
       
       {/* Gallery Item Detail Modal */}
       {selectedGalleryItem && (
-        <GalleryModal item={selectedGalleryItem} onClose={() => setSelectedGalleryItem(null)} />
+        <GalleryModal 
+          item={selectedGalleryItem} 
+          onClose={() => setSelectedGalleryItem(null)} 
+          token={token}
+          onDelete={(deletedId) => {
+            setGalleryItems(prev => prev.filter(item => item.id !== deletedId));
+          }}
+        />
       )}
       
       {/* Cloud Import Modal */}

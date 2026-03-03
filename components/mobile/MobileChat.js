@@ -1252,8 +1252,33 @@ const RenameModal = ({ isOpen, onClose, title, onTitleChange, onSave }) => {
 };
 
 // Media Gallery View
-const GalleryView = ({ isOpen, onClose, items, onItemClick }) => {
+const GalleryView = ({ isOpen, onClose, items, onItemClick, token, onDeleteItem }) => {
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  
   if (!isOpen) return null;
+  
+  const handleDelete = async (item) => {
+    if (!confirm('Delete this from your gallery?')) return;
+    
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/media/${item.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        onDeleteItem?.(item.id);
+        setSelectedItem(null);
+      } else {
+        alert('Failed to delete');
+      }
+    } catch (e) {
+      alert('Failed to delete: ' + e.message);
+    }
+    setDeleting(false);
+  };
   
   return (
     <div className="fixed inset-0 bg-sp-black z-[60]">
@@ -1275,19 +1300,70 @@ const GalleryView = ({ isOpen, onClose, items, onItemClick }) => {
             {items.map((item, idx) => (
               <button
                 key={idx}
-                onClick={() => onItemClick?.(item)}
-                className="aspect-square rounded-xl overflow-hidden bg-white/5"
+                onClick={() => setSelectedItem(item)}
+                className="aspect-square rounded-xl overflow-hidden bg-white/5 relative"
               >
                 {item.type === 'image' ? (
                   <img src={item.url} alt={item.prompt} className="w-full h-full object-cover" />
                 ) : (
-                  <video src={item.url} className="w-full h-full object-cover" />
+                  <div className="relative w-full h-full">
+                    <video src={item.url} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <Video className="w-8 h-8 text-white/80" />
+                    </div>
+                  </div>
                 )}
               </button>
             ))}
           </div>
         )}
       </div>
+      
+      {/* Item Detail Modal */}
+      {selectedItem && (
+        <div className="fixed inset-0 bg-black/95 z-[70] flex flex-col" onClick={() => setSelectedItem(null)}>
+          <div className="p-4 flex items-center justify-between border-b border-white/10">
+            <span className={`text-xs px-2 py-1 rounded ${selectedItem.type === 'video' ? 'bg-blue-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
+              {selectedItem.type === 'video' ? 'Video' : 'Image'} • {selectedItem.model_label || selectedItem.model}
+            </span>
+            <button onClick={() => setSelectedItem(null)} className="text-gray-400">
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+          
+          <div className="flex-1 flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+            {selectedItem.type === 'video' ? (
+              <video src={selectedItem.url} controls autoPlay playsInline className="max-w-full max-h-[60vh] rounded-xl" />
+            ) : (
+              <img src={selectedItem.url} alt={selectedItem.prompt} className="max-w-full max-h-[60vh] object-contain rounded-xl" />
+            )}
+          </div>
+          
+          <div className="p-4 bg-white/5 safe-area-bottom" onClick={e => e.stopPropagation()}>
+            <p className="text-sm text-gray-300 mb-3 line-clamp-2">{selectedItem.prompt}</p>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => handleDelete(selectedItem)}
+                disabled={deleting}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-500/15 border border-red-500/30 rounded-xl text-red-400 text-sm"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Delete
+              </button>
+              <a 
+                href={selectedItem.url} 
+                download 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-orange-500/15 border border-orange-500/30 rounded-xl text-orange-400 text-sm"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -3123,6 +3199,10 @@ export default function MobileChat({
         isOpen={showGallery}
         onClose={() => setShowGallery(false)}
         items={galleryItems}
+        token={token}
+        onDeleteItem={(deletedId) => {
+          setGalleryItems(prev => prev.filter(item => item.id !== deletedId));
+        }}
       />
 
       {/* Compare Mode Sheet */}
