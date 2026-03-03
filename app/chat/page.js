@@ -86,8 +86,24 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
     isListeningRef.current = isListening;
   }, [isListening]);
 
+  // Check for native Web Speech API support
   const hasNativeSpeech = typeof window !== 'undefined' &&
     !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  // Check for MediaRecorder support (for Whisper fallback)
+  const hasMediaRecorder = typeof window !== 'undefined' && 
+    typeof MediaRecorder !== 'undefined';
+
+  // Detect browser for optimal settings
+  const getBrowserInfo = () => {
+    if (typeof navigator === 'undefined') return { name: 'unknown', supportsWebm: true };
+    const ua = navigator.userAgent;
+    if (ua.includes('Firefox')) return { name: 'firefox', supportsWebm: true };
+    if (ua.includes('Safari') && !ua.includes('Chrome')) return { name: 'safari', supportsWebm: false };
+    if (ua.includes('Chrome')) return { name: 'chrome', supportsWebm: true };
+    if (ua.includes('Edg')) return { name: 'edge', supportsWebm: true };
+    return { name: 'unknown', supportsWebm: true };
+  };
 
   async function startLive() {
     try {
@@ -126,6 +142,12 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
           return;
         } else if (e.error === 'aborted') {
           // User stopped, this is fine
+          return;
+        } else if (e.error === 'network') {
+          // Network error - try Whisper fallback
+          console.log('Network error, falling back to Whisper');
+          stop();
+          startWhisper();
           return;
         } else {
           setError(`Speech error: ${e.error}`);
@@ -166,16 +188,53 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
   }
 
   async function startWhisper() {
+    if (!hasMediaRecorder) {
+      setError('Voice recording not supported in this browser');
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const browser = getBrowserInfo();
+      
+      // Choose appropriate mime type based on browser support
+      let mimeType = 'audio/webm';
+      if (!browser.supportsWebm || !MediaRecorder.isTypeSupported('audio/webm')) {
+        // Safari and some browsers don't support webm
+        if (MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4';
+        } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+          mimeType = 'audio/wav';
+        } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
+          mimeType = 'audio/ogg';
+        } else {
+          // Fallback to default
+          mimeType = '';
+        }
+      }
+      
+      const recorderOptions = mimeType ? { mimeType } : {};
+      const mr = new MediaRecorder(stream, recorderOptions);
       chunksRef.current = [];
-      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      
+      mr.ondataavailable = (e) => { 
+        if (e.data.size > 0) chunksRef.current.push(e.data); 
+      };
+      
       mr.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        const actualMimeType = mr.mimeType || mimeType || 'audio/webm';
+        const blob = new Blob(chunksRef.current, { type: actualMimeType });
+        
+        // Determine file extension based on mime type
+        let extension = 'webm';
+        if (actualMimeType.includes('mp4')) extension = 'mp4';
+        else if (actualMimeType.includes('wav')) extension = 'wav';
+        else if (actualMimeType.includes('ogg')) extension = 'ogg';
+        
         const form = new FormData();
-        form.append('audio', blob, 'recording.webm');
+        form.append('audio', blob, `recording.${extension}`);
+        
         try {
           const res = await fetch('/api/transcribe', {
             method: 'POST',
@@ -183,11 +242,27 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
             body: form,
           });
           const data = await res.json();
-          if (data.text) onTranscript(data.text.trim());
-        } catch (err) { console.error('Whisper error', err); }
+          if (data.text) {
+            onTranscript(data.text.trim());
+          } else if (data.error) {
+            console.error('Transcription error:', data.error);
+            setError('Transcription failed. Please try again.');
+          }
+        } catch (err) { 
+          console.error('Whisper error', err); 
+          setError('Transcription failed. Please try again.');
+        }
         setIsListening(false);
         isListeningRef.current = false;
       };
+      
+      mr.onerror = (e) => {
+        console.error('MediaRecorder error:', e);
+        setError('Recording failed. Please try again.');
+        setIsListening(false);
+        isListeningRef.current = false;
+      };
+      
       mediaRecorderRef.current = mr;
       mr.start();
       setIsListening(true);
@@ -204,8 +279,15 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
 
   function start() {
     setError(null);
-    if (hasNativeSpeech) startLive();
-    else startWhisper();
+    // Use native speech recognition if available (Chrome, Edge, Safari)
+    // Otherwise fall back to Whisper API (Firefox, etc.)
+    if (hasNativeSpeech) {
+      startLive();
+    } else if (hasMediaRecorder) {
+      startWhisper();
+    } else {
+      setError('Voice input not supported in this browser. Please try Chrome, Edge, or Safari.');
+    }
   }
 
   function stop() {
@@ -228,7 +310,7 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
     else start();
   }
 
-  return { isListening, toggle, mode, error };
+  return { isListening, toggle, mode, error, hasNativeSpeech, hasMediaRecorder };
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
