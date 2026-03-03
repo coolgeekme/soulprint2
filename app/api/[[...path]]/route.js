@@ -1893,6 +1893,14 @@ async function handleLogin(request) {
   const valid = await comparePassword(passcode, user.passcode_hash);
   if (!valid) return err('Invalid credentials', 401);
 
+  // Check email verification (skip for admins and existing verified users)
+  // Also skip for users created before email verification was implemented
+  const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+  const isLegacyUser = !user.hasOwnProperty('email_verified'); // Users created before this feature
+  if (!isAdmin && !isLegacyUser && user.email_verified === false) {
+    return err('Please verify your email before signing in. Check your inbox for the verification link.', 403);
+  }
+
   await db.collection('users').updateOne(
     { id: user.id },
     { $set: { last_active_at: new Date() } }
@@ -1923,6 +1931,10 @@ async function handleFirebaseAuth(request) {
   // Verify Firebase ID token by checking its structure
   // In production, you'd use Firebase Admin SDK, but for client-side we trust the token
   // The token was already verified by Firebase on the client
+  let payload;
+  let isGoogleAuth = false;
+  let firebaseEmailVerified = false;
+  
   try {
     // Decode JWT to verify it's valid (basic check)
     const parts = idToken.split('.');
@@ -1930,7 +1942,7 @@ async function handleFirebaseAuth(request) {
       return err('Invalid token format', 401);
     }
     
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+    payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
     
     // Verify token claims
     if (payload.email !== email) {
@@ -1941,6 +1953,10 @@ async function handleFirebaseAuth(request) {
     if (payload.exp && payload.exp * 1000 < Date.now()) {
       return err('Token expired', 401);
     }
+    
+    // Check if this is Google OAuth (sign_in_provider in firebase.identities)
+    isGoogleAuth = payload.firebase?.sign_in_provider === 'google.com';
+    firebaseEmailVerified = payload.email_verified === true;
   } catch (e) {
     console.error('Token verification failed:', e);
     return err('Invalid authentication token', 401);
@@ -1954,18 +1970,24 @@ async function handleFirebaseAuth(request) {
   
   if (user) {
     // Existing user - update Firebase UID and last active
+    // Also update email_verified status if verified via Firebase/Google
+    const updateFields = { 
+      firebase_uid: uid,
+      firebase_photo_url: photoURL || user.firebase_photo_url,
+      last_active_at: now,
+      // Update display name if provided and user doesn't have one
+      ...(displayName && !user.display_name ? { display_name: displayName } : {}),
+      // Mark email as verified if verified via Firebase/Google
+      ...(firebaseEmailVerified || isGoogleAuth ? { email_verified: true } : {})
+    };
+    
     await db.collection('users').updateOne(
       { id: user.id },
-      { 
-        $set: { 
-          firebase_uid: uid,
-          firebase_photo_url: photoURL || user.firebase_photo_url,
-          last_active_at: now,
-          // Update display name if provided and user doesn't have one
-          ...(displayName && !user.display_name ? { display_name: displayName } : {})
-        } 
-      }
+      { $set: updateFields }
     );
+    
+    // Refresh user data to get latest email_verified status
+    user = await db.collection('users').findOne({ id: user.id });
     
     // Update profile display name if not set
     if (displayName) {
@@ -2031,7 +2053,8 @@ async function handleFirebaseAuth(request) {
       access_code_used: accessCode || null,
       beta_code_used: acceptedViaBetaCode ? accessCode : null,
       beta_code_id: usedCodeId,
-      auth_provider: 'firebase',
+      auth_provider: isGoogleAuth ? 'google' : 'firebase',
+      email_verified: firebaseEmailVerified || isGoogleAuth, // Google users are auto-verified
     });
     
     // Record beta code redemption if v2 code was used
@@ -6525,6 +6548,181 @@ async function handleAdminSendBetaCode(request) {
   });
 
   return ok({ success: true, message: `Beta code sent to ${email}` });
+}
+
+// ============================================================
+// CAPTCHA & EMAIL VERIFICATION
+// ============================================================
+
+// Verify Google reCAPTCHA token
+async function handleVerifyCaptcha(request) {
+  try {
+    const { token, action } = await request.json();
+    
+    if (!token) {
+      return err('Captcha token required', 400);
+    }
+
+    const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET_KEY;
+    if (!RECAPTCHA_SECRET) {
+      console.error('RECAPTCHA_SECRET_KEY not configured');
+      return err('Captcha verification not configured', 500);
+    }
+
+    // Verify with Google
+    const verifyRes = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `secret=${RECAPTCHA_SECRET}&response=${token}`,
+    });
+
+    const verifyData = await verifyRes.json();
+
+    if (!verifyData.success) {
+      console.error('reCAPTCHA verification failed:', verifyData);
+      return err('Security verification failed', 400);
+    }
+
+    // Check score (reCAPTCHA v3 returns a score 0.0-1.0)
+    if (verifyData.score !== undefined && verifyData.score < 0.3) {
+      console.warn('Low reCAPTCHA score:', verifyData.score);
+      return err('Security check failed. Please try again.', 400);
+    }
+
+    // Check action matches
+    if (action && verifyData.action !== action) {
+      console.warn('reCAPTCHA action mismatch:', verifyData.action, 'expected:', action);
+      return err('Security verification mismatch', 400);
+    }
+
+    return ok({ success: true, score: verifyData.score });
+  } catch (error) {
+    console.error('Captcha verification error:', error);
+    return err('Captcha verification failed', 500);
+  }
+}
+
+// Send email verification
+async function handleSendVerificationEmail(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) return err('Unauthorized', 401);
+
+    const { email } = await request.json();
+    if (!email) return err('Email required', 400);
+
+    const db = await getDb();
+    
+    // Generate verification token
+    const verificationToken = uuidv4();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Save verification token
+    await db.collection('users').updateOne(
+      { id: user.id },
+      { 
+        $set: { 
+          verification_token: verificationToken,
+          verification_expires: expiresAt,
+          email_verified: false,
+        } 
+      }
+    );
+
+    // Send verification email
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
+    const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://soulprintengine.ai';
+    const verifyUrl = `${BASE_URL}/verify-email?token=${verificationToken}`;
+
+    const emailRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'SoulPrint <team@soulprintengine.ai>',
+        to: [email],
+        subject: 'Verify your SoulPrint account',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0D1217; padding: 40px; border-radius: 12px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #F64000; margin: 0;">SoulPrint</h1>
+              <p style="color: #707176; margin-top: 8px;">Your Personal AI</p>
+            </div>
+            
+            <div style="background: #141a21; border-radius: 8px; padding: 30px; text-align: center;">
+              <h2 style="color: white; margin-top: 0;">Verify Your Email</h2>
+              <p style="color: #D2D3D7; line-height: 1.6;">
+                Thanks for signing up for SoulPrint! Click the button below to verify your email address and activate your account.
+              </p>
+              
+              <a href="${verifyUrl}" 
+                 style="display: inline-block; background: linear-gradient(135deg, #F64000, #d63600); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; margin: 20px 0;">
+                Verify My Email
+              </a>
+              
+              <p style="color: #707176; font-size: 12px; margin-top: 20px;">
+                This link expires in 24 hours. If you didn't create an account, you can ignore this email.
+              </p>
+            </div>
+            
+            <p style="color: #4B5057; font-size: 12px; text-align: center; margin-top: 30px;">
+              © ${new Date().getFullYear()} SoulPrint by ArcheForge
+            </p>
+          </div>
+        `,
+      }),
+    });
+
+    if (!emailRes.ok) {
+      const errorData = await emailRes.json();
+      console.error('Failed to send verification email:', errorData);
+      return err('Failed to send verification email', 500);
+    }
+
+    return ok({ success: true, message: 'Verification email sent' });
+  } catch (error) {
+    console.error('Send verification error:', error);
+    return err('Failed to send verification email', 500);
+  }
+}
+
+// Verify email token (GET endpoint handled separately)
+async function handleVerifyEmail(request) {
+  try {
+    const { token } = await request.json();
+    
+    if (!token) {
+      return err('Verification token required', 400);
+    }
+
+    const db = await getDb();
+    
+    // Find user with this token
+    const user = await db.collection('users').findOne({
+      verification_token: token,
+      verification_expires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return err('Invalid or expired verification link', 400);
+    }
+
+    // Mark email as verified
+    await db.collection('users').updateOne(
+      { id: user.id },
+      { 
+        $set: { email_verified: true },
+        $unset: { verification_token: '', verification_expires: '' },
+      }
+    );
+
+    return ok({ success: true, message: 'Email verified successfully!' });
+  } catch (error) {
+    console.error('Verify email error:', error);
+    return err('Verification failed', 500);
+  }
 }
 
 // ============================================================
@@ -11806,6 +12004,9 @@ export async function POST(request, { params }) {
     if (pathStr === 'auth/firebase') return handleFirebaseAuth(request);
     if (pathStr === 'auth/redeem-code') return handleRedeemBetaCode(request);
     if (pathStr === 'auth/validate-code') return handleValidateBetaCode(request);
+    if (pathStr === 'auth/verify-captcha') return handleVerifyCaptcha(request);
+    if (pathStr === 'auth/send-verification') return handleSendVerificationEmail(request);
+    if (pathStr === 'auth/verify-email') return handleVerifyEmail(request);
     if (pathStr === 'assessment/answer') return handleSubmitAnswer(request);
     if (pathStr === 'assessment/complete') return handleAssessmentComplete(request);
     if (pathStr === 'assessment/layered/answer') return handleSubmitLayeredAnswer(request);

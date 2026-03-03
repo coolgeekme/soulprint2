@@ -7,7 +7,7 @@ import requests
 import json
 import time
 
-BASE_URL = "https://ai-telegram-hub-1.preview.emergentagent.com"
+BASE_URL = "https://verify-email-test.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"

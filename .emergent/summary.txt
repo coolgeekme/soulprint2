@@ -1,122 +1,130 @@
 <analysis>
-
 <original_problem_statement>
-The user's initial request was to complete the Stop Generation button for the desktop UI.
+The user's initial goal was to bring Smart Mode to the Telegram integration. This was followed by a series of bug reports and feature requests:
 
-This was followed by a series of feature requests and bug reports, including:
-- Fixing the conversation search on desktop and adding it to mobile.
-- Making Smart Mode a selectable option in the desktop model dropdown.
-- Improving the announcement system:
-  - Making announcements a persistent banner on the mobile chat screen until dismissed.
-  - Adding click/action tracking for admins.
-  - Allowing users to dismiss forever or be reminded later.
-  - Providing a way to view all dismissed announcements in settings.
-- Fixing the microphone on desktop.
-- Adding a persistent Install App prompt for the PWA.
-- Allowing users to visit the main homepage from within the mobile app and see a Back to Chat button when logged in.
-- Implementing an auto-remember feature where the AI saves facts to memory when explicitly told.
-- Making the memory viewing section more obvious.
-- Allowing users to update their display name.
-- Adding an age verification step (13+) to the signup/onboarding process.
-- Fixing an intent detection bug where creating a task list was misinterpreted as an image generation request.
-- Updating marketing copy for features that are coming soon.
-- Allowing users to customize the chat greeting.
-- Integrating Smart Mode into the Telegram chat flow.
+- **Bug Fixes:**
+  - Video generation failing with an unsupported model error.
+  - A client-side exception on the desktop chat page.
+  - The image/video generation popup on desktop being cut off.
+  - The microphone not working reliably on desktop and mobile.
+  - The sources feature (for web search results) and clickable links not appearing in AI responses.
+
+- **Feature Requests & Enhancements:**
+  - Embed the SoulPrint philosophy/definition throughout the platform (homepage, AI system prompt, settings, new user onboarding).
+  - Update all third-party API keys.
+  - Update social media links in the footer and add YouTube.
+  - Add the SoulPrint logo as a muted background on the hero section.
+  - Replace feature images on the homepage with more relevant ones.
+  - Simplify the Get Started call-to-action text on the homepage.
+  - Create a Contact Us page and form that sends an email.
+  - Add a sources or citations section to AI responses, similar to Perplexity.
+  - When in compare mode, selecting a response should revert the UI to single-chat mode.
+  - Update the site's color palette to match a new brand guide.
+  - Implement a system to prevent fake account registrations.
+
+PRODUCT REQUIREMENTS: The platform should be a persistent AI identity layer (SoulPrint) rather than a simple chatbot. It needs to be robust, user-friendly, and maintain brand consistency. Key features like multi-channel access (Telegram), rich media generation, and transparent sourcing of information are critical. Preventing abuse through fake accounts is a new priority.
 </original_problem_statement>
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application has a dual UI for desktop and mobile, served from . Both interfaces have near feature parity.
+The application is a full-stack Next.js app with a monolithic API backend () and a monolithic frontend ().
 
-Key features implemented include:
-- A Stop Generation button on both desktop and mobile to cancel AI responses.
-- An advanced announcement system with temporary (24hr) and permanent dismissal options, click tracking, and a settings page for admins/users to view all announcements.
-- A Smart Mode for intelligent model selection, which is now a selectable option on desktop.
-- Conversation search on both desktop and mobile.
-- A PWA installation prompt banner.
-- An auto-remember feature that detects user requests like remember this... and saves the information to long-term memory.
-- User profile customization, allowing users to edit their display name and set a custom chat greeting.
-- An age verification checkbox on the signup page.
+**Recently Completed and Integrated Features:**
+- **Smart Mode for Telegram:** Users can now select Smart Mode as their default model for Telegram chats, both from the web UI settings and via a  command in Telegram. The backend correctly routes these queries.
+- **Video Generation Fix:** The incorrect model names for the Kie.ai video generation API have been fixed. The backend now uses the correct paths (e.g., ), and the frontend UI has been updated to reflect the available models.
+- **SoulPrint Philosophy Integration:** The founder's definition of a SoulPrint has been integrated across the platform: a new section on the homepage, a new  command in Telegram, content in the About settings tab, and a new onboarding modal for first-time users.
+- **Branding & UI Updates:**
+    - The entire site's color scheme has been updated to a new brand palette (a specific orange  and black ).
+    - The SoulPrint logo has been added as a muted background to the homepage hero section.
+    - Social media links in the footer have been updated, and a YouTube channel was added.
+    - Feature images and CTA text on the homepage have been improved.
+- **Contact Form:** A new  page with a functional form has been created. Submissions are sent to  via the Resend integration.
+- **API Keys:** All major third-party API keys have been updated in the  file.
+- **Bug Fixes:**
+    - A client-side crash on the chat page caused by a missing component import () has been fixed.
+    - The logic for compare mode has been updated to correctly revert to single-chat mode after a user selects a response.
+    - The speech recognition hook for the microphone was refactored on both desktop and mobile to use  to prevent issues with stale state, which should improve reliability.
+    - The media generation popup on desktop was made more responsive to prevent it from being cut off.
 
 **Last working item**:
-- Last item agent was working: The user requested that Smart Mode be made available for conversations happening via Telegram. The agent was investigating the Telegram webhook handler () to identify the correct location to implement the chat model selection logic.
+- Last item agent was working: Implementing a system to prevent fake account signups. The chosen approach is a combination of **email verification** and **Google reCAPTCHA v3**. The agent was in the middle of this implementation.
 - Status: IN PROGRESS
 - Agent Testing Done: N
-- Which testing method agent to use? backend testing agent. This is a backend change. Testing will likely require a specialized script or manual verification through the Telegram bot interface, as automated testing for bot interactions can be complex.
+- Which testing method agent to use? both. Backend testing agent is needed to verify the new API endpoints for reCAPTCHA and email verification. Frontend testing or manual testing is needed to verify the new UI flow on the signup page, the verification sent screen, and the page for handling the email verification link.
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-- Issue 1: Implement Smart Mode for Telegram. (P0)
-- Issue 2: Verify fix for desktop conversation search. (P1)
-- Issue 3: Verify fix for mobile announcements disappearing. (P2)
-- Issue 4: Verify fix for desktop microphone. (P2)
+- Issue 1: Finish implementation of Email Verification and reCAPTCHA. (P0)
+- Issue 2: Verify that the Sources/Citations feature works correctly. (P1)
+- Issue 3: Verify fix for desktop conversation search. (P2)
+- Issue 4: Verify fix for desktop/mobile microphone. (P2)
 
 Issues Detail:
 - Issue 1:
-  - **Description**: The agent needs to integrate the Smart Mode logic into the Telegram bot's response flow. The current implementation for Telegram seems to use a default model.
-  - **Attempted fixes**: The agent was exploring  to understand the code flow but has not yet made any modifications.
-  - **Next debug checklist**:
-    1.  Continue analyzing .
-    2.  Locate the function responsible for handling incoming text messages and calling the LLM.
-    3.  Import and apply the Smart Mode routing logic from .
-    4.  Ensure the response sent back to Telegram is formatted correctly after passing through the Smart Mode router.
-  - **Why fix this issue and what will be achieved with the fix?**: This will bring feature parity to the Telegram integration, allowing users to benefit from intelligent model selection without being in the web app.
-  - **Status**: IN PROGRESS
-  - **Is recurring issue?** N
-  - **Should Test frontend/backend/both after fix?** backend
-  - **Blocked on other issue**: None
+    - **Description**: The signup process is being modified to require email verification and pass a reCAPTCHA v3 check. This is currently half-implemented and has likely left the authentication flow in a broken state.
+    - **Attempted fixes**: The agent created a new page , added reCAPTCHA keys to , and started editing  (frontend) and  (backend) to add the new logic and API endpoints. The work is incomplete.
+    - **Next debug checklist**:
+        1. Review the changes in . Ensure the reCAPTCHA script is loaded correctly, the token is sent with the signup request, and the UI correctly shows a Verification email sent message.
+        2. Review the new handlers in . Complete the , , and  functions.
+        3. Ensure a  flag and  are added to the user schema and are correctly managed during signup and verification.
+        4. Update the login logic () to prevent users with unverified emails from logging in.
+    - **Why fix this issue and what will be achieved with the fix?**: This will complete the user's request to secure the platform against fake accounts and will fix the currently broken signup/login flow.
+    - **Status**: IN PROGRESS
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on other issue**: None
 
 - Issue 2:
-  - **Description**: The user reported that the conversation search on desktop was not working (nothing comes up). The agent reviewed the code and believed it was correct but did not confirm a fix or provide a reason why it might be failing for the user.
-  - **Attempted fixes**: Agent viewed the code in . No changes were made.
-  - **Next debug checklist**:
-    1.  Reproduce the issue by creating several conversations with distinct titles.
-    2.  Use the search bar on the desktop UI and observe the network requests and console logs.
-    3.  Verify that the  logic in  is working as expected.
-    4.  Check if conversation titles are being saved correctly in the first place.
-  - **Why fix this issue and what will be achieved with the fix?**: It will fix a broken core feature on the desktop UI.
-  - **Status**: NOT STARTED
-  - **Is recurring issue?** N
-  - **Should Test frontend/backend/both after fix?** frontend
-  - **Blocked on other issue**: None
+    - **Description**: The user reported that no sources or clickable links were appearing in AI responses. The agent performed a significant refactor of the provider layer in  to correctly capture search results and citations (especially from Perplexity). This fix has not been tested.
+    - **Attempted fixes**: The agent modified the Gemini, Claude, Kimi, and Perplexity provider functions to correctly format and return  data. It also updated the Telegram handler.
+    - **Next debug checklist**:
+        1. Perform a web search query with a Perplexity model and verify the citations appear below the response.
+        2. Perform a web search query with a Gemini or Claude model (which use ) and verify the sources appear.
+        3. Verify that URLs typed in plain text within an AI response are rendered as clickable links on the frontend.
+        4. Test the same functionality via the Telegram bot.
+    - **Why fix this issue and what will be achieved with the fix?**: This is a critical feature for user trust and utility, allowing them to verify the AI's information. It was explicitly requested by the user.
+    - **Status**: TESTING PENDING
+    - **Is recurring issue?** Y
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on other issue**: None
 
 - Issue 3:
-  - **Description**: The user reported that announcements on mobile would appear and then disappear within seconds. The agent made several attempts to fix this, including layout adjustments and removing a  flag. The root cause is not definitively fixed and may recur.
-  - **Attempted fixes**: The agent adjusted CSS, removed a state flag () intended to prevent re-fetching, and manually restored dismissed announcements from the database.
-  - **Next debug checklist**:
-    1.  Test the mobile UI across tab switches and app reloads to see if announcements behave as expected.
-    2.  Use browser developer tools to monitor the state of the  array in .
-    3.  Verify the API call in 's  is not being called excessively or returning empty data unexpectedly.
-  - **Why fix this issue and what will be achieved with the fix?**: Ensures a critical communication feature is stable and reliable for mobile users.
-  - **Status**: TESTING PENDING
-  - **Is recurring issue?** Y
-  - **Should Test frontend/backend/both after fix?** frontend
-  - **Blocked on other issue**: None
+    - **Description**: The user reported in a previous session that the conversation search on desktop was not working. This issue was noted in the initial handover but was not addressed or investigated in the current session.
+    - **Attempted fixes**: None in this session.
+    - **Next debug checklist**:
+        1. In the desktop UI, create several conversations with unique titles.
+        2. Use the search bar and check the browser console and network requests.
+        3. Debug the  logic in .
+    - **Why fix this issue and what will be achieved with the fix?**: Fixes a core UI feature for desktop users, improving navigation and usability.
+    - **Status**: NOT STARTED
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** frontend
+    - **Blocked on other issue**: None
 
 - Issue 4:
-  - **Description**: User reported the desktop microphone icon turned orange on hover/click but did not pick up sound. The agent added better error handling to the  hook.
-  - **Attempted fixes**: Added  handling to the speech recognition logic and UI feedback for errors in .
-  - **Next debug checklist**:
-    1.  Test the microphone feature on the desktop UI.
-    2.  Check the browser console for any speech recognition errors that are now being caught.
-    3.  Confirm that browser microphone permissions are being requested and granted correctly.
-  - **Why fix this issue and what will be achieved with the fix?**: It will fix a broken core feature on the desktop UI.
-  - **Status**: USER VERIFICATION PENDING
-  - **Is recurring issue?** N
-  - **Should Test frontend/backend/both after fix?** frontend
-  - **Blocked on other issue**: None
+    - **Description**: The user requested to ensure the microphone works. The agent implemented a refactoring of the  hook to prevent stale state issues, which is a plausible fix. However, the user has not confirmed if this solved their problem.
+    - **Attempted fixes**: Refactored speech recognition logic in  and  to use  for the  state.
+    - **Next debug checklist**:
+        1. Manually test the microphone button on the desktop UI.
+        2. Manually test the microphone button on the mobile UI.
+        3. Check browser console for any errors during speech recognition.
+    - **Why fix this issue and what will be achieved with the fix?**: It fixes a primary input method for the application.
+    - **Status**: USER VERIFICATION PENDING
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** frontend
+    - **Blocked on other issue**: None
 
 **In progress Task List**:
-- Task 1: Implement Smart Mode for Telegram (P0)
+- Task 1: Complete Fake Account Prevention implementation (P0)
 
 Task Detail:
 - Task 1:
-  - **Where to resume**: In , analyzing the message handling logic to find the integration point for the Smart Mode router.
-  - **What will be achieved with this?**: Telegram users will have their queries automatically routed to the best AI model for the task.
-  - **Status**: IN PROGRESS
-  - **Should Test frontend/backend/both after fix?**: backend
-  - **Blocked on something**: None
+    - **Where to resume**: The implementation is spread across , , , and the new . The next step is to complete the backend logic in  for handling the verification email link and updating the user's status, then finalizing the frontend logic in .
+    - **What will be achieved with this?**: A more secure registration process that deters bots and fake accounts, and a working signup flow.
+    - **Status**: IN PROGRESS
+    - **Should Test frontend/backend/both after fix?**: both
+    - **Blocked on something**: None
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
@@ -131,158 +139,142 @@ Future Tasks:
 - **Publishable Artifacts (P2)**: Create a feature similar to Claude's artifacts.
 - **Admin Dashboard Enhancements (P2)**: Implement the 'Assessments' and 'Imports' sub-tabs.
 - **Implement Connector Stubs (P2)**: Build out functionality for Discord, WhatsApp connectors.
-- **Light/Dark Mode toggle (P3)**.
-- **Location Services (P3)**.
-- **Cite Sources (P3)**.
 
 **Completed work in this session**
-- **Stop Generation Button (Desktop)**: Successfully implemented the stop button for the desktop UI, bringing it to parity with mobile.
-- **Model Selector Fix**: Added the 'Smart' group to the desktop model selector, making Smart Mode a selectable option.
-- **Conversation Search (Mobile)**: Added a search bar to the conversation history tab on the mobile UI.
-- **Announcement System Overhaul**:
-  - Implemented permanent dismissal and a Remind me later option.
-  - Added a View Dismissed Announcements section in the desktop settings modal.
-  - Added click tracking to announcements with links.
-  - Improved the dismiss UI on desktop to be more user-friendly.
-  - Fixed multiple layout and disappearing bugs with the mobile announcement banner.
-- **PWA Install App Prompt**: Added a persistent banner on both desktop and mobile to encourage users to install the PWA.
-- **Homepage & Navigation**:
-  - Added links to the main homepage from the mobile UI.
-  - Added a Back to Chat banner on the homepage for logged-in users.
-  - Hid Sign In / Get Started buttons on the homepage for authenticated users.
-- **Remember This Feature**: Implemented backend logic to detect when a user asks to remember something and automatically saves it to their long-term memory, confirming the action in the chat.
-- **Memory UI Improvement**: The memories tab on desktop now loads memories automatically by default.
-- **Profile Customization**:
-  - Users can now edit their Display Name in settings on both desktop and mobile.
-  - Users can set a Custom Greeting in settings, which is used for new conversations.
-- **Age Verification**: Added a mandatory I confirm I am 13 or older checkbox to the sign-up flow.
-- **Intent Detection Fix**: Refined the backend logic to prevent non-image-generation prompts (like task lists) from incorrectly triggering the image generation flow.
-- **Content Updates**: Updated marketing text to mark SMS, calendar/email management, and read-aloud features as coming soon.
-- **Bug Fixes**:
-  - Resolved a critical syntax error in  that was breaking the chat page for admins.
-  - Fixed an issue in the chat stream where the wrong MongoDB collection was being referenced ( instead of ).
+- **Core Features & Fixes:**
+  - Implemented Smart Mode for Telegram.
+  - Fixed video generation by updating Kie.ai model names.
+  - Implemented revert to single mode after selection in compare mode.
+  - Refactored microphone/speech recognition logic for improved stability.
+  - Fixed a client-side crash on the chat page.
+  - Fixed responsive styling for the media generation popup.
+- **Branding and Content:**
+  - Integrated the SoulPrint philosophy across the homepage, AI prompt, settings, and a new onboarding modal.
+  - Updated the entire site to a new brand color palette.
+  - Updated footer with new social media links (including YouTube).
+  - Added the SoulPrint logo as a background watermark on the hero section.
+  - Improved homepage content (feature images, CTA text).
+- **New Functionality:**
+  - Created a Contact Us page with a working email form.
+- **Maintenance:**
+  - Updated all third-party API keys.
 
 **Earlier issues found/mentioned but not fixed**
 -   Issue 1: Monolithic API ()
-    - **Description**: This file has grown even more complex with the addition of Remember This logic and other features. It is a critical source of technical debt and a high-risk area for regressions.
-    - **Why to solve this issue and what will be achieved with this?**: Refactoring is essential for stability, maintainability, and preventing future bugs.
-    - **Should Test frontend/backend/both after fix**: both (Extensive regression testing required).
+    - **Why to solve this issue and what will be achieved with this?**: The file has grown even larger and more complex, making it extremely difficult to maintain and a high-risk area for bugs. Refactoring is critical for stability.
+    - **Should Test frontend/backend/both after fix**: both (extensive regression testing)
     - **Is recurring issue?** Y
 -   Issue 2: Monolithic Frontend ()
-    - **Description**: This file is now responsible for even more features and state management, making it extremely difficult to maintain. The agent had to fix multiple syntax errors it introduced in this file.
-    - **Why to solve this issue and what will be achieved with this?**: Refactoring would dramatically improve maintainability and developer velocity.
-    - **Should Test frontend/backend/both after fix**: frontend (Extensive regression testing required).
+    - **Why to solve this issue and what will be achieved with this?**: This file is unmanageable. The agent introduced and fixed a crash in this file within this session, proving its fragility. Refactoring is critical.
+    - **Should Test frontend/backend/both after fix**: frontend (extensive regression testing)
     - **Is recurring issue?** Y
 -   Issue 3: Desktop Conversation Search
-    - **Description**: User reported this is not working. The agent inspected the code but did not verify the bug or implement a fix.
-    - **Why to solve this issue and what will be achieved with this?**: Fixes a core feature for desktop users.
-    - **Should Test frontend/backend/both after fix**: frontend.
+    - **Why to solve this issue and what will be achieved with this?**: This is a core feature for desktop users that was reported as broken and has been ignored.
+    - **Should Test frontend/backend/both after fix**: frontend
     - **Is recurring issue?** N
 
 **Known issue recurrence from previous fork**
-- The stability of the mobile announcement banner has been a recurring problem throughout this session, requiring multiple fixes for layout and visibility issues. This indicates a fragile implementation that may need a more robust solution.
+- The feature for displaying **Sources/Citations** has become a recurring issue. It was implemented, reported as broken by the user, and then underwent a major refactoring that is still pending verification. This indicates a complex and potentially fragile implementation.
 
 **Code Architecture**
--   **Framework**: Next.js 14 (App Router)
--   **Frontend**: React/Tailwind/shadcn.
-    -   : **(CRITICAL MONOLITH)** Further expanded with logic for the desktop Stop button, announcement dismiss options, PWA install prompt, microphone error handling, profile setting modals, and custom greetings.
-    -   : **(HEAVILY MODIFIED)** Updated with conversation search, a redesigned announcement banner system, PWA install prompt, and profile editing functionality.
-    -   : Modified to include the age verification checkbox and logic.
-    -   : Modified to conditionally render a Back to Chat banner and hide auth buttons for logged-in users.
--   **Backend**: A single monolithic API file at  handles almost all API logic. It was modified to add Remember This intent detection, announcement management endpoints, PWA status endpoints, and profile customization fields.
--   **Database**: MongoDB.
+- **Framework**: Next.js 14 (App Router)
+- **Frontend**: React/Tailwind/shadcn.
+    - : **(CRITICAL MONOLITH)** Heavily modified with logic for the onboarding modal, new brand colors, media popup fixes, and microphone fixes.
+    - : **(CRITICAL MONOLITH)** Heavily modified with the new SoulPrint section, updated colors, hero background logo, new feature images, updated CTA, and updated footer links.
+    - : **(IN PROGRESS)** Being modified for reCAPTCHA and email verification flow.
+    - : **(NEW)** A new page for the contact form.
+    - : **(NEW)** A new, incomplete page for handling email verification links.
+    - : Modified with microphone fixes and logic for the new onboarding modal.
+- **Backend**: A single monolithic API file at  handles all API logic.
+    - **(CRITICALLY MODIFIED)** Added handlers for the contact form, Telegram Smart Mode, updated video model names, the  command, and a major refactor of LLM provider functions for sources. Currently being modified to add auth verification endpoints.
+- **Database**: MongoDB.
+- **Styling**:
+    - : Updated to include new brand colors (, ).
+    - : Updated with CSS variables for the new brand colors and style overrides for buttons, backgrounds, etc.
 
 **Key Technical Concepts**
--   **Intent Detection Refinement**: Improved the regex and logic in the chat stream handler to more accurately differentiate between a user mentioning a keyword (e.g., image) and explicitly requesting an action (e.g., generate an image).
--   **Conditional UI in Auth Flow**: Logic added to  to show the age verification checkbox only when in 'signup' mode and disable submission buttons until it's checked.
--   **Profile Customization**: Added  and editable  to the user profile flow, updating the backend API, database interactions, and frontend settings modals.
--   **State Management for Dismissals**: Implemented a multi-tiered dismissal system for announcements and PWA prompts, tracking status (, , ) in the database to control UI visibility across sessions.
--   **Dynamic Content on Static Pages**: The main landing page () now fetches user session status to conditionally render UI elements (e.g., showing a Back to Chat button instead of Sign In).
+- **Email Integration (Resend)**: Used to send emails for the new contact form. This will be reused for email verification.
+- **CAPTCHA Integration (Google reCAPTCHA v3)**: In the process of being added to the signup flow to prevent bots. Involves a frontend script and a backend verification endpoint.
+- **State Management with **: Applied to the speech recognition hook to solve issues with stale state in asynchronous callbacks (), which is a more robust pattern than relying on  alone in such cases.
+- **CSS Theming with Variables**: The app was re-themed by defining CSS variables for brand colors in  and mapping them in , allowing for centralized control over the brand's look and feel.
+- **Complex Stream Processing**: The Perplexity provider logic was updated to parse a stream that contains both text content (chunks) and metadata (citations) as distinct object types, requiring more sophisticated stream handling on the backend.
 
 **key DB schema**
--   **users**: Added  (String),  (Date).
--   **soul_profiles**: Added  (String). The  field is now actively updated by the user.
--   **announcements**: Added  (Number).
--   **dismissed_announcements**: The  field was added to support 'temporary' vs 'permanent' dismissals.
+- **users**: Will require new fields for the auth-flow:  (Boolean, default: false),  (String).
 
 **changes in tech stack**
-- No new dependencies were added.
+- Google reCAPTCHA v3 is being added as a new dependency/integration.
 
 **All files of reference**
--   : **Critically Modified.** Added endpoints for announcements (all, restore, click), PWA prompts, and updated profile update logic. Enhanced chat stream with Remember This intent detection.
--   : **Critically Modified.** Added desktop stop button, improved announcement banner UI, added PWA install banner, added settings tab for announcements, and implemented profile/greeting customization UI.
--   : **Heavily Modified.** Added conversation search, a new announcement banner implementation, PWA install banner, and profile editing sheet.
--   : **Modified.** Added age verification checkbox and associated logic.
--   : **Modified.** Added logic to show a Back to Chat banner and hide auth buttons for logged-in users.
--   : **Under Investigation.** This is the target file for the next task.
+- : **(CRITICALLY MODIFIED, IN PROGRESS)**. The heart of all backend logic. Updated for nearly every feature and bug fix. Currently being edited for auth.
+- : **(CRITICALLY MODIFIED)**. The main desktop UI. Updated for UI fixes, new modals, and branding.
+- : **(CRITICALLY MODIFIED)**. The main landing page. Overhauled with new content, images, and branding.
+- : **(MODIFIED, IN PROGRESS)**. The auth UI. Being changed to add reCAPTCHA.
+-  & : Modified for the new brand color theme.
+- : **(NEW)** Contains the contact us form.
+- : **(NEW, INCOMPLETE)** Stubbed out for the email verification flow.
 
 **Areas that need refactoring**:
--   **Monolithic API ()**: **(CRITICAL)** This is the top refactoring priority. Its complexity is a major risk to the project's stability.
--   **Monolithic Frontend ()**: **(CRITICAL)** This file is unmanageable. The agent introduced and then had to fix syntax errors in this file, highlighting its fragility.
+- **Monolithic API ()**: **(CRITICAL)** This is the top priority. Its ever-increasing size and complexity are unsustainable and a direct cause of bugs and slow development.
+- **Monolithic Frontend ()**: **(CRITICAL)** This file is also unmanageable and fragile.
 
 **key api endpoints**
--   : Tracks a click on an announcement link.
--   : Updated to handle .
--   : Fetches all announcements, including dismissed ones.
--   : Restores a permanently dismissed announcement.
--   : Checks if the user has interacted with the PWA prompt.
--   : Updates the user's PWA prompt status (e.g., installed, remind later, dismissed).
--   : Updated to handle  and  fields.
+- : (NEW) Submits the contact form and sends an email.
+- : (IN PROGRESS) Backend endpoint to verify a reCAPTCHA token.
+- : (IN PROGRESS) Endpoint to resend a verification email.
+- : (IN PROGRESS) Endpoint hit when a user clicks the verification link in their email.
 
 **Critical Info for New Agent**
--   **Your immediate task is to implement Smart Mode for the Telegram integration.** You need to investigate , find where it handles text messages, and inject the Smart Mode routing logic, similar to how it's done in the main chat API.
--   **MONOLITH WARNING**: You will be working in extremely large and fragile files, especially  and . Be extremely careful. The agent in the last session introduced syntax errors that broke the application. Lint and test frequently.
--   **Unverified Fixes**: The user has reported several issues (desktop search, mobile announcements, desktop microphone) that the previous agent attempted to fix. You should assume these fixes may not be complete and may require further verification or work.
--   **Privacy-Friendly Imports**: Be aware that when users import ChatGPT history, the application extracts memories and insights but discards the raw conversation data. This is the intended behavior.
+- **Your immediate task is to finish the Email Verification and reCAPTCHA implementation.** The signup/auth flow is currently broken mid-change. You must complete the work in , , and .
+- **Your second task is to thoroughly test the Sources/Citations feature.** The previous agent did a large, untested refactor to fix this. It was the user's biggest functional complaint. Test with multiple models (Perplexity, Gemini) and via Telegram.
+- **MONOLITH WARNING**: You will be working in extremely large and fragile files (, ). Be extremely careful. Lint and test frequently. The codebase is at high risk for regressions.
+- **Unverified Fixes**: The fixes for the microphone and the media generation popup were implemented but never confirmed by the user. Be prepared to revisit them if issues are reported again. The desktop search feature was never addressed at all.
 
 **documents created in this job**
-- /app/test_result.md: Updated multiple times to reflect new features and testing status.
+- /app/test_result.md: Updated for Telegram Smart Mode testing.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User ()**: Can we make Smart Mode available to users when they are chatting in Telegram? **(In Progress)**
-2.  **User ()**: Requested customizable chat greetings and for the app to recognize display name changes. **(Completed)**
-3.  **User ()**: Requested several content updates to mark features as coming soon. **(Completed)**
-4.  **User ()**: Reported a bug where creating a task list incorrectly triggers image generation. **(Completed)**
-5.  **User ()**: Reported the new age verification checkbox wasn't visible. **(Resolved)** - Agent explained it only shows in Sign Up mode.
-6.  **User ()**: Confirmed the plan for implementing age verification. **(Addressed)**
-7.  **User ()**: Asked for the best way to add age verification (13+) to the onboarding flow. **(Completed)**
-8.  **User ()**: Asked where the announcements went on mobile after a recent fix. **(Resolved)** - Agent found they were dismissed and restored them.
-9.  **User ()**: Reported that mobile announcements were cut off and non-interactive. **(Completed)**
-10. **User ()**: Requested a remind me later option for announcements and a way to view dismissed ones in settings. **(Completed)**
+1.  **User ()**: Provided Google reCAPTCHA keys. **(In Progress)**
+2.  **User ()**: Agreed to the agent's recommendation to implement email verification and CAPTCHA. **(Addressed)**
+3.  **User ()**: Asked for the best way to limit fake accounts. **(Addressed)**
+4.  **User ()**: Reported that clickable links and sources are not appearing in any replies. **(Fix In Progress/Testing Pending)**
+5.  **User ()**: Provided a brand color palette and asked to update the site. **(Completed)**
+6.  **User ()**: Asked to ensure the microphone on desktop and mobile works properly. **(Completed, Verification Pending)**
+7.  **User ()**: Reported the media generation popup on desktop is cut off and unresponsive. **(Completed, Verification Pending)**
+8.  **User ()**: Requested that compare mode revert to single mode after a selection. **(Completed)**
+9.  **User ()**: Requested that AI replies include sources/resources used, similar to Perplexity. **(Initial implementation was faulty, second attempt is pending testing)**
+10. **User ()**: Asked to create a contact form that sends emails to . **(Completed)**
 
 **Project Health Check:**
--   **Broken**:
-    -   The project's architecture is at high risk due to the two massive monolithic files ( and ). The repeated introduction of syntax errors by the agent is a symptom of this.
--   **Mocked**:
-    -   None.
+-   **Broken**: The user authentication flow () is currently broken due to a half-finished implementation of reCAPTCHA and email verification. New user signups will likely fail.
+-   **Mocked**: None.
 -   **In Progress**:
-    -   Smart Mode implementation for Telegram.
+    -   Account registration security (reCAPTCHA + Email Verification).
 -   **Needs Verification**:
-    -   Desktop conversation search functionality.
-    -   Desktop microphone functionality.
-    -   Stability of mobile announcement banner.
+    -   The Sources/Citations feature for AI responses.
+    -   The fix for the microphone on desktop and mobile.
+    -   Desktop conversation search functionality remains unaddressed.
 
 **3rd Party Integrations**
--   **OpenAI, Anthropic, Google Gemini, Perplexity, Kimi**: LLM providers.
--   **Kie.ai**: Video & Image generation.
--   **Firebase Auth**: User authentication.
--   **Resend**: Transactional emails.
--   **Telegram**: Bot integration.
--   **Tavily, Brave Search**: Web search for AI.
--   **Google Places**: Location lookup.
--   **MongoDB**: Primary database.
+- **LLM/AI Providers**: OpenAI, Anthropic (Claude), Google Gemini, Perplexity, Kimi
+- **Media Generation**: Kie.ai
+- **Search**: Tavily, Brave Search
+- **Authentication**: Firebase Auth, **Google reCAPTCHA v3 (In Progress)**
+- **Email**: Resend
+- **Bot**: Telegram
+- **Other**: Google Places
+- **Database**: MongoDB
 
 **Testing status**
--   **Testing agent used after significant changes**: YES. The backend testing agent was used and found/fixed a bug related to a collection name mismatch in the chat stream.
--   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**: None.
--   **Known regressions**: None confirmed, but the mobile announcement banner has been unstable, and the desktop search feature is reportedly not working.
+- **Testing agent used after significant changes**: YES, for the Telegram Smart Mode feature.
+- **Troubleshoot agent used after agent stuck in loop**: NO
+- **Test files created**: None.
+- **Known regressions**: The entire signup flow is likely non-functional due to the in-progress changes.
 
 **Credentials to test flow:**
--   Login with  and password  to access the  role.
+- Login with  and password  to access the  role.
+- New API keys and reCAPTCHA keys have been added to .
 
 **What agent forgot to execute**
-- The agent never fully verified the fix for the desktop search feature after the user reported it was broken. It looked at the code and assumed it was correct.
-- The root cause of the mobile announcements disappearing and needing to be restored from the database was not conclusively identified, even though a layout fix was applied. The  flag was removed, which might have unintended performance consequences.
-
+- The agent never addressed the user's previous report that **desktop conversation search is not working**. This was carried over from the last summary and ignored again.
 </analysis>

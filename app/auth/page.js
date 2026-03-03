@@ -1,10 +1,13 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, EyeOff, Mail, Lock, KeyRound, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, KeyRound, Loader2, CheckCircle } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } from '@/lib/firebase';
+import Script from 'next/script';
+
+const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6Le_c34sAAAAAAEM4XN1qxw3Ropv6KJpjmaynfxT';
 
 export default function AuthPage() {
   const router = useRouter();
@@ -19,10 +22,32 @@ export default function AuthPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
-  const [latency] = useState(() => Math.floor(Math.random() * 30 + 10));
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
+  const [latency, setLatency] = useState(0);
   const buildId = 'v2.5.0';
-  const sessionId = () => Math.random().toString(36).slice(2, 10).toUpperCase();
-  const [sid] = useState(sessionId);
+  const [sid, setSid] = useState('');
+
+  // Initialize random values on client-side only to avoid hydration mismatch
+  useEffect(() => {
+    setLatency(Math.floor(Math.random() * 30 + 10));
+    setSid(Math.random().toString(36).slice(2, 10).toUpperCase());
+  }, []);
+
+  // Get reCAPTCHA token
+  const getRecaptchaToken = useCallback(async (action) => {
+    if (!recaptchaLoaded || !window.grecaptcha) {
+      console.warn('reCAPTCHA not loaded yet');
+      return null;
+    }
+    try {
+      const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action });
+      return token;
+    } catch (err) {
+      console.error('reCAPTCHA error:', err);
+      return null;
+    }
+  }, [recaptchaLoaded]);
 
   // Sync Firebase user with backend
   async function syncWithBackend(firebaseUser, idToken) {
@@ -89,6 +114,24 @@ export default function AuthPage() {
       let result;
       
       if (mode === 'signup') {
+        // Get reCAPTCHA token for signup
+        const recaptchaToken = await getRecaptchaToken('signup');
+        if (!recaptchaToken) {
+          throw new Error('Security verification failed. Please refresh and try again.');
+        }
+
+        // Verify reCAPTCHA on backend first
+        const captchaRes = await fetch('/api/auth/verify-captcha', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: recaptchaToken, action: 'signup' }),
+        });
+        
+        if (!captchaRes.ok) {
+          const captchaData = await captchaRes.json();
+          throw new Error(captchaData.error || 'Security verification failed');
+        }
+
         // For sign up, use Firebase
         result = await signUpWithEmail(email, password);
         
@@ -105,8 +148,23 @@ export default function AuthPage() {
           throw new Error(result.error);
         }
         
+        // Sync with backend and send verification email
         const data = await syncWithBackend(result.user, result.idToken);
-        handlePostAuth(data);
+        
+        // Send verification email
+        await fetch('/api/auth/send-verification', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${data.token}`
+          },
+          body: JSON.stringify({ email }),
+        });
+        
+        // Show verification message
+        setVerificationSent(true);
+        setLoading(false);
+        return;
       } else {
         // For sign in, try Firebase first, then fall back to legacy auth
         result = await signInWithEmail(email, password);
@@ -262,8 +320,59 @@ export default function AuthPage() {
     );
   }
 
+  // Email Verification Sent Screen
+  if (verificationSent) {
+    return (
+      <div className="min-h-screen grid-bg flex items-center justify-center px-4 relative overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(246,64,0,0.2)_0%,transparent_70%)]" />
+        
+        <div className="relative z-10 w-full max-w-md text-center">
+          <div className="flex flex-col items-center mb-6">
+            <div className="w-20 h-20 bg-green-500/10 border border-green-500/30 rounded-full flex items-center justify-center mb-4">
+              <Mail className="w-10 h-10 text-green-500" />
+            </div>
+            <h1 className="font-condensed font-black text-white text-2xl tracking-wide uppercase mb-2">
+              Verify Your Email
+            </h1>
+            <p className="text-gray-400 text-sm">
+              We've sent a verification link to
+            </p>
+            <p className="text-orange-400 font-medium mt-1">{email}</p>
+          </div>
+          
+          <div className="bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
+            <p className="text-gray-300 text-sm leading-relaxed mb-4">
+              Click the link in your email to verify your account. Once verified, you can sign in and start using SoulPrint.
+            </p>
+            <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              Check your spam folder if you don't see it
+            </div>
+          </div>
+          
+          <button
+            onClick={() => {
+              setVerificationSent(false);
+              setMode('signin');
+            }}
+            className="text-orange-500 hover:text-orange-400 text-sm font-medium transition-colors"
+          >
+            ← Back to Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen grid-bg flex items-center justify-center px-4 relative overflow-hidden">
+    <>
+      {/* Google reCAPTCHA v3 Script */}
+      <Script
+        src={`https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`}
+        onLoad={() => setRecaptchaLoaded(true)}
+      />
+      
+      <div className="min-h-screen grid-bg flex items-center justify-center px-4 relative overflow-hidden">
       {/* Orange glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.2)_0%,transparent_70%)]" />
 
@@ -447,5 +556,6 @@ export default function AuthPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
