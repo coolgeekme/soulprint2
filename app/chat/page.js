@@ -4534,6 +4534,9 @@ export default function ChatPage() {
       // Switch to the selected model for future messages
       setSelectedModel(response.model);
       
+      // Exit compare mode and revert to single model mode
+      setCompareMode(false);
+      
       // Clear comparison state after a short delay (to show the selection)
       setTimeout(() => {
         setCompareResponses(null);
