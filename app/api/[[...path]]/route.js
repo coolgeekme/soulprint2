@@ -3263,6 +3263,7 @@ async function handleChatStream(request) {
         // Extract and format sources from search
         let sources = [];
         if (didSearch && searchMeta.length > 0) {
+          console.log('[Sources Debug] searchMeta:', JSON.stringify(searchMeta, null, 2));
           // Collect all unique sources from search results
           searchMeta.forEach(search => {
             if (search.results && Array.isArray(search.results)) {
@@ -3277,15 +3278,28 @@ async function handleChatStream(request) {
               });
             }
           });
+          console.log('[Sources Debug] Extracted sources:', sources.length);
           // Send sources to client
-          send({ type: 'sources', sources: sources.slice(0, 6) }); // Limit to 6 sources
+          if (sources.length > 0) {
+            send({ type: 'sources', sources: sources.slice(0, 6) }); // Limit to 6 sources
+          }
         }
 
         for await (const chunk of aiStream) {
-          // Providers yield plain strings
+          // Handle both plain strings and objects with {delta, citations}
           if (chunk) {
-            fullContent += chunk;
-            send({ type: 'delta', content: chunk });
+            if (typeof chunk === 'string') {
+              fullContent += chunk;
+              send({ type: 'delta', content: chunk });
+            } else if (typeof chunk === 'object' && chunk.delta) {
+              fullContent += chunk.delta;
+              send({ type: 'delta', content: chunk.delta });
+              // Extract Perplexity citations if available
+              if (chunk.citations && chunk.citations.length > 0 && sources.length === 0) {
+                sources = chunk.citations;
+                send({ type: 'sources', sources: sources.slice(0, 6) });
+              }
+            }
           }
         }
 
@@ -9112,15 +9126,42 @@ async function handleTelegramWebhook(request) {
     const provider = gp(preferredProvider, preferredModel);
 
     let aiResponse;
+    let sources = [];
     try {
       // Use streaming and collect the full text (works with all providers)
-      const { stream } = await provider.generateStream({
+      const { stream, searchMeta, didSearch } = await provider.generateStream({
         systemPrompt, messages: historyMessages, model: preferredModel,
-        temperature: 0.7, enableWebSearch: isPerplexity, // perplexity uses its own search
+        temperature: 0.7, enableWebSearch: true, // Enable web search for current events
       });
+      
+      // Extract sources from searchMeta
+      if (didSearch && searchMeta && searchMeta.length > 0) {
+        searchMeta.forEach(search => {
+          if (search.results && Array.isArray(search.results)) {
+            search.results.forEach(result => {
+              if (result.url && !sources.find(s => s.url === result.url)) {
+                sources.push({
+                  title: result.title || 'Source',
+                  url: result.url,
+                });
+              }
+            });
+          }
+        });
+      }
+      
       let collected = '';
       for await (const chunk of stream) {
-        collected += chunk;
+        // Handle both string and object chunks
+        if (typeof chunk === 'string') {
+          collected += chunk;
+        } else if (chunk && chunk.delta) {
+          collected += chunk.delta;
+          // Extract Perplexity citations
+          if (chunk.citations && chunk.citations.length > 0) {
+            sources = chunk.citations;
+          }
+        }
         // Keep sending typing action for long responses
         if (collected.length % 1000 === 0) {
           fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendChatAction`, {
@@ -9142,13 +9183,22 @@ async function handleTelegramWebhook(request) {
       id: uuidv4(), conversation_id: conv.id, user_id: userId,
       role: 'assistant', content: aiResponse, created_at: new Date(), source: 'telegram',
       model_used: preferredModel, provider_used: preferredProvider,
+      sources: sources.length > 0 ? sources : undefined,
     });
     await db.collection('conversations').updateOne({ id: conv.id }, { $set: { updated_at: new Date() } });
+
+    // Build sources section for Telegram
+    let sourcesText = '';
+    if (sources.length > 0) {
+      sourcesText = '\n\n📚 *Sources:*\n' + sources.slice(0, 4).map((s, i) => 
+        `${i + 1}. [${s.title}](${s.url})`
+      ).join('\n');
+    }
 
     // Send reply (split if > 4096 chars) with model indicator
     const smartLabel = smartModeInfo ? ` 🧠 ${smartModeInfo.reason.substring(0, 50)}` : '';
     const modelLabel = `_[${preferredModel}${searchNote}${smartLabel}]_\n\n`;
-    const fullReply = modelLabel + aiResponse;
+    const fullReply = modelLabel + aiResponse + sourcesText;
     const chunks = fullReply.match(/[\s\S]{1,4000}/g) || [fullReply];
     for (const chunk of chunks) {
       await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN, chunk);
