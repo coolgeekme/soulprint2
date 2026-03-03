@@ -263,3 +263,68 @@ textarea:focus, input:focus {
 .admin-table tr:hover td {
   background: rgba(246, 64, 0, 0.05);
 }
+
+
+/* Mobile Input Area - iOS Keyboard Handling */
+.mobile-input-area {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 1rem;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  background: linear-gradient(to top, #0a0a0a 85%, transparent);
+  z-index: 50;
+  transition: transform 0.3s ease-out;
+}
+
+/* When keyboard is visible on iOS */
+@supports (-webkit-touch-callout: none) {
+  .mobile-input-area {
+    /* iOS Safari uses visual viewport */
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+  }
+  
+  .mobile-input-area.keyboard-visible {
+    /* Adjust when keyboard is shown */
+    position: fixed;
+    bottom: 0;
+  }
+}
+
+/* Prevent input from being hidden */
+.mobile-chat-container {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Media intent detection banner */
+.media-intent-banner {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Media options panel */
+.media-options-panel {
+  animation: expandIn 0.2s ease-out;
+}
+
+@keyframes expandIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

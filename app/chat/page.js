@@ -4013,6 +4013,14 @@ export default function ChatPage() {
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   // Onboarding modal state
   const [showOnboarding, setShowOnboarding] = useState(false);
+  // Media intent detection state (for natural language generation requests)
+  const [detectedMediaIntent, setDetectedMediaIntent] = useState(null); // 'image' | 'video' | null
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [mediaOptionsExpanded, setMediaOptionsExpanded] = useState(false);
+  const [quickAspectRatio, setQuickAspectRatio] = useState('1:1');
+  const [quickVideoLength, setQuickVideoLength] = useState('5');
+  const [selectedImageModel, setSelectedImageModel] = useState('dall-e-3');
+  const [selectedVideoModel, setSelectedVideoModel] = useState('runway');
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const streamingSourcesRef = useRef([]);
@@ -4036,6 +4044,43 @@ export default function ChatPage() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
+
+  // Media intent detection function
+  const detectMediaIntent = useCallback((text) => {
+    if (!text || text.length > 500) return null;
+    const lower = text.toLowerCase().trim();
+    
+    // Video patterns - check first (more specific)
+    const videoPatterns = [
+      /\b(generate|create|make|animate)\s+(a\s+)?(video|clip|animation|short film)\b/i,
+      /\bvideo\s+of\b/i,
+      /\banimate\s+(a|an|the|my|this)?\s*\w/i,
+    ];
+    if (videoPatterns.some(p => p.test(lower))) return 'video';
+    
+    // Image patterns
+    const imagePatterns = [
+      /\b(generate|create|make|draw|paint)\s+(an?\s+)?(image|picture|photo|illustration|artwork|painting)\b/i,
+      /\b(show|give)\s+me\s+(an?\s+)?(picture|image|photo)\b/i,
+      /\b(picture|photo|image|illustration)\s+of\b/i,
+      /\bvisualize\b/i,
+      /\bdraw\s+(me\s+)?(a|an|the)?\s*\w/i,
+    ];
+    if (imagePatterns.some(p => p.test(lower))) return 'image';
+    
+    return null;
+  }, []);
+
+  // Watch input for media intent changes
+  useEffect(() => {
+    const intent = detectMediaIntent(input);
+    if (intent !== detectedMediaIntent) {
+      setDetectedMediaIntent(intent);
+      if (intent) {
+        setShowMediaOptions(true);
+      }
+    }
+  }, [input, detectMediaIntent, detectedMediaIntent]);
 
   // Check if we should show the install prompt
   useEffect(() => {
@@ -4323,6 +4368,102 @@ export default function ChatPage() {
     setGradualQuestion(null);
     setGradualAnswer('');
   };
+
+  // Generate media (image or video) with quick options
+  const generateMediaWithOptions = useCallback(async () => {
+    if (!input.trim() || loading || isGeneratingMedia) return;
+    
+    setShowMediaOptions(false);
+    setLoading(true);
+    setIsGeneratingMedia(true);
+    
+    const content = input.trim();
+    const userMessage = { 
+      id: `u-${Date.now()}`, 
+      role: 'user', 
+      content: content,
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setDetectedMediaIntent(null);
+    
+    try {
+      if (detectedMediaIntent === 'image') {
+        // Generate image using existing IMAGE_MODELS
+        const res = await fetch('/api/media/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            type: 'image',
+            model: mediaOptionsExpanded ? (selectedImageModel || 'dall-e-3') : 'dall-e-3',
+            prompt: content,
+            aspectRatio: quickAspectRatio,
+            quality: 'standard',
+            style: 'vivid',
+          }),
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Image generation failed');
+        
+        const assistantMsg = {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          content: `🎨 Image generated!\n\n**Prompt:** ${content}`,
+          image_url: data.url,
+        };
+        setMessages(prev => [...prev, assistantMsg]);
+        
+      } else if (detectedMediaIntent === 'video') {
+        // Generate video using existing VIDEO_MODELS
+        const res = await fetch('/api/media/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            type: 'video',
+            model: mediaOptionsExpanded ? (selectedVideoModel || 'runway') : 'runway',
+            prompt: content,
+            aspectRatio: quickAspectRatio === '1:1' ? '16:9' : quickAspectRatio,
+            duration: parseInt(quickVideoLength) || 5,
+          }),
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Video generation failed');
+        
+        const assistantMsg = {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          content: `🎬 Video generation started!\n\n**Prompt:** ${content}\n\nYour video is being generated and will appear when ready (1-3 min)...`,
+          video_task: { taskId: data.taskId, status: 'generating', prompt: content },
+        };
+        setMessages(prev => [...prev, assistantMsg]);
+      }
+    } catch (error) {
+      console.error('Media generation error:', error);
+      const errorMsg = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: `Sorry, ${detectedMediaIntent} generation failed: ${error.message}`,
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setLoading(false);
+      setIsGeneratingMedia(false);
+    }
+  }, [input, loading, isGeneratingMedia, detectedMediaIntent, token, mediaOptionsExpanded, quickAspectRatio, quickVideoLength]);
+
+  // Send as regular chat (bypass media detection)
+  const sendAsChat = useCallback(() => {
+    setShowMediaOptions(false);
+    setDetectedMediaIntent(null);
+    // Trigger the sendMessage function directly after resetting states
+    setTimeout(() => {
+      if (inputRef.current) {
+        // This will be called when user clicks "Just Chat"
+      }
+    }, 0);
+  }, []);
 
   const sendMessage = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || loading || compareLoading) return;
@@ -5830,6 +5971,136 @@ export default function ChatPage() {
               </div>
             )}
             {fileError && <p className="text-red-400 text-xs mb-1 px-1">{fileError}</p>}
+
+            {/* Media Intent Detection Banner */}
+            {detectedMediaIntent && showMediaOptions && (
+              <div className="mb-3 media-intent-banner">
+                <div className="bg-gradient-to-r from-orange-500/10 to-purple-500/10 border border-orange-500/30 rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {detectedMediaIntent === 'image' ? (
+                        <ImageIcon className="w-5 h-5 text-orange-400" />
+                      ) : (
+                        <Video className="w-5 h-5 text-purple-400" />
+                      )}
+                      <span className="text-white text-sm font-medium">
+                        {detectedMediaIntent === 'image' ? '🎨 Image generation detected' : '🎬 Video generation detected'}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => setShowMediaOptions(false)}
+                      className="text-gray-500 hover:text-white p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  {/* Quick Options */}
+                  <div className="flex flex-wrap items-center gap-4 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 text-sm">Aspect:</span>
+                      <div className="flex gap-1">
+                        {[
+                          { value: '1:1', label: 'Square' },
+                          { value: '16:9', label: 'Landscape' },
+                          { value: '9:16', label: 'Portrait' },
+                        ].map(ratio => (
+                          <button
+                            key={ratio.value}
+                            onClick={() => setQuickAspectRatio(ratio.value)}
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
+                              quickAspectRatio === ratio.value
+                                ? 'bg-orange-500 text-white'
+                                : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                            }`}
+                          >
+                            {ratio.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Video-specific options */}
+                    {detectedMediaIntent === 'video' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400 text-sm">Length:</span>
+                        <div className="flex gap-1">
+                          {['5', '10'].map(len => (
+                            <button
+                              key={len}
+                              onClick={() => setQuickVideoLength(len)}
+                              className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
+                                quickVideoLength === len
+                                  ? 'bg-purple-500 text-white'
+                                  : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                              }`}
+                            >
+                              {len}s
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Advanced toggle */}
+                    <button
+                      onClick={() => setMediaOptionsExpanded(!mediaOptionsExpanded)}
+                      className="text-gray-500 text-xs flex items-center gap-1 hover:text-gray-300"
+                    >
+                      <ChevronRight className={`w-3 h-3 transition-transform ${mediaOptionsExpanded ? 'rotate-90' : ''}`} />
+                      Advanced
+                    </button>
+                  </div>
+                  
+                  {/* Advanced Options Panel */}
+                  {mediaOptionsExpanded && (
+                    <div className="mb-3 p-3 bg-white/5 rounded-xl media-options-panel">
+                      <div className="text-gray-400 text-xs mb-2">Model:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {(detectedMediaIntent === 'image' ? IMAGE_MODELS : VIDEO_MODELS).map(model => (
+                          <button
+                            key={model.value}
+                            onClick={() => detectedMediaIntent === 'image' 
+                              ? setSelectedImageModel(model.value) 
+                              : setSelectedVideoModel(model.value)
+                            }
+                            className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
+                              (detectedMediaIntent === 'image' ? selectedImageModel : selectedVideoModel) === model.value
+                                ? 'bg-orange-500 text-white'
+                                : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                            }`}
+                          >
+                            {model.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={generateMediaWithOptions}
+                      disabled={loading || isGeneratingMedia}
+                      className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-2.5 px-4 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Generate {detectedMediaIntent === 'image' ? 'Image' : 'Video'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowMediaOptions(false);
+                        setDetectedMediaIntent(null);
+                        sendMessage();
+                      }}
+                      className="bg-white/10 hover:bg-white/20 text-gray-300 py-2.5 px-4 rounded-xl text-sm transition-colors"
+                    >
+                      Just Chat
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Input bar */}
             <div className={`flex items-center gap-1.5 sm:gap-2 bg-[#141a21] border rounded-2xl px-2 sm:px-3 py-2 transition-colors ${speech.isListening ? 'border-orange-500/60 shadow-[0_0_20px_rgba(249,115,22,0.15)]' : 'border-white/10 focus-within:border-orange-500/30'}`}>

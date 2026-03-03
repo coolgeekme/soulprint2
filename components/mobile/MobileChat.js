@@ -1297,9 +1297,20 @@ export default function MobileChat({
   // Onboarding modal state
   const [showOnboarding, setShowOnboarding] = useState(false);
   
+  // Media intent detection state
+  const [detectedMediaIntent, setDetectedMediaIntent] = useState(null); // 'image' | 'video' | null
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [mediaOptionsExpanded, setMediaOptionsExpanded] = useState(false); // Advanced options
+  const [quickAspectRatio, setQuickAspectRatio] = useState('1:1');
+  const [quickVideoLength, setQuickVideoLength] = useState('5');
+  
+  // iOS Keyboard handling
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const inputContainerRef = useRef(null);
 
   // Speech recognition
   const speech = useSpeechRecognition({
@@ -1319,6 +1330,90 @@ export default function MobileChat({
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingContent, scrollToBottom]);
+
+  // iOS Keyboard handling - scroll input into view when focused
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const handleFocus = () => {
+      setKeyboardVisible(true);
+      // Scroll the input container into view after keyboard appears
+      setTimeout(() => {
+        inputContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, 300);
+    };
+    
+    const handleBlur = () => {
+      setKeyboardVisible(false);
+    };
+    
+    // Use visualViewport API for better iOS keyboard detection
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        const viewportHeight = window.visualViewport.height;
+        const windowHeight = window.innerHeight;
+        // If viewport is significantly smaller, keyboard is likely visible
+        setKeyboardVisible(windowHeight - viewportHeight > 150);
+      }
+    };
+    
+    const input = inputRef.current;
+    if (input) {
+      input.addEventListener('focus', handleFocus);
+      input.addEventListener('blur', handleBlur);
+    }
+    
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize);
+    }
+    
+    return () => {
+      if (input) {
+        input.removeEventListener('focus', handleFocus);
+        input.removeEventListener('blur', handleBlur);
+      }
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
+      }
+    };
+  }, []);
+
+  // Media intent detection function
+  const detectMediaIntent = useCallback((text) => {
+    if (!text || text.length > 500) return null;
+    const lower = text.toLowerCase().trim();
+    
+    // Video patterns - check first (more specific)
+    const videoPatterns = [
+      /\b(generate|create|make|animate)\s+(a\s+)?(video|clip|animation|short film)\b/i,
+      /\bvideo\s+of\b/i,
+      /\banimate\s+(a|an|the|my|this)?\s*\w/i,
+    ];
+    if (videoPatterns.some(p => p.test(lower))) return 'video';
+    
+    // Image patterns
+    const imagePatterns = [
+      /\b(generate|create|make|draw|paint)\s+(an?\s+)?(image|picture|photo|illustration|artwork|painting)\b/i,
+      /\b(show|give)\s+me\s+(an?\s+)?(picture|image|photo)\b/i,
+      /\b(picture|photo|image|illustration)\s+of\b/i,
+      /\bvisualize\b/i,
+      /\bdraw\s+(me\s+)?(a|an|the)?\s*\w/i,
+    ];
+    if (imagePatterns.some(p => p.test(lower))) return 'image';
+    
+    return null;
+  }, []);
+
+  // Watch input for media intent
+  useEffect(() => {
+    const intent = detectMediaIntent(input);
+    if (intent !== detectedMediaIntent) {
+      setDetectedMediaIntent(intent);
+      if (intent) {
+        setShowMediaOptions(true);
+      }
+    }
+  }, [input, detectMediaIntent, detectedMediaIntent]);
 
   // Capture the beforeinstallprompt event for PWA install
   useEffect(() => {
@@ -1484,6 +1579,94 @@ export default function MobileChat({
       }
     }
     e.target.value = '';
+  };
+
+  // Generate media (image or video) with options
+  const generateMediaWithOptions = async () => {
+    if (!input.trim() || loading) return;
+    
+    setShowMediaOptions(false);
+    setLoading(true);
+    
+    const content = input.trim();
+    const userMessage = { 
+      id: `u-${Date.now()}`, 
+      role: 'user', 
+      content: content,
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setDetectedMediaIntent(null);
+    
+    try {
+      if (detectedMediaIntent === 'image') {
+        // Generate image
+        const res = await fetch('/api/media/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            type: 'image',
+            model: mediaOptionsExpanded ? selectedImageModel : 'dall-e-3',
+            prompt: content,
+            aspectRatio: quickAspectRatio,
+            quality: 'standard',
+            style: 'vivid',
+          }),
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Image generation failed');
+        
+        const assistantMsg = {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          content: `🎨 Image generated!\n\n**Prompt:** ${content}`,
+          image_url: data.url,
+        };
+        setMessages(prev => [...prev, assistantMsg]);
+        
+      } else if (detectedMediaIntent === 'video') {
+        // Generate video
+        const res = await fetch('/api/media/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            type: 'video',
+            model: mediaOptionsExpanded ? selectedVideoModel : 'runway',
+            prompt: content,
+            aspectRatio: quickAspectRatio === '1:1' ? '16:9' : quickAspectRatio,
+            duration: parseInt(quickVideoLength) || 5,
+          }),
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Video generation failed');
+        
+        const assistantMsg = {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          content: `🎬 Video generation started!\n\n**Prompt:** ${content}\n\nYour video is being generated (1-3 min)...`,
+          video_task: { taskId: data.taskId, status: 'generating', prompt: content },
+        };
+        setMessages(prev => [...prev, assistantMsg]);
+      }
+    } catch (error) {
+      const errorMsg = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: `Sorry, ${detectedMediaIntent} generation failed: ${error.message}`,
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Send as regular chat (bypass media detection)
+  const sendAsChat = () => {
+    setShowMediaOptions(false);
+    setDetectedMediaIntent(null);
+    sendMessage();
   };
 
   // Send message
@@ -2144,7 +2327,7 @@ export default function MobileChat({
           )}
           
           {/* Messages */}
-          <div className={`${announcements.length === 0 && !showInstallPrompt ? 'pt-20' : 'pt-4'} pb-44 overflow-y-auto`}>
+          <div className={`${announcements.length === 0 && !showInstallPrompt ? 'pt-20' : 'pt-4'} pb-48 overflow-y-auto mobile-chat-container`}>
             {messages.map((msg, idx) => (
               <MessageBubble 
                 key={msg.id || idx} 
@@ -2190,7 +2373,135 @@ export default function MobileChat({
           />
 
           {/* Input Area */}
-          <div className="fixed left-0 right-0 p-4 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-transparent pt-8 input-area-bottom">
+          <div 
+            ref={inputContainerRef}
+            className={`mobile-input-area ${keyboardVisible ? 'keyboard-visible' : ''}`}
+          >
+            {/* Media Intent Detection Banner */}
+            {detectedMediaIntent && showMediaOptions && (
+              <div className="mb-3 media-intent-banner">
+                <div className="bg-gradient-to-r from-orange-500/20 to-purple-500/20 border border-orange-500/30 rounded-2xl p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {detectedMediaIntent === 'image' ? (
+                        <ImageIcon className="w-5 h-5 text-orange-400" />
+                      ) : (
+                        <Video className="w-5 h-5 text-purple-400" />
+                      )}
+                      <span className="text-white text-sm font-medium">
+                        {detectedMediaIntent === 'image' ? '🎨 Image generation detected' : '🎬 Video generation detected'}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={() => setShowMediaOptions(false)}
+                      className="text-gray-500 hover:text-white p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  
+                  {/* Quick Options */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 text-xs">Aspect:</span>
+                      <div className="flex gap-1 flex-wrap">
+                        {[
+                          { value: '1:1', label: '1:1' },
+                          { value: '16:9', label: '16:9' },
+                          { value: '9:16', label: '9:16' },
+                        ].map(ratio => (
+                          <button
+                            key={ratio.value}
+                            onClick={() => setQuickAspectRatio(ratio.value)}
+                            className={`px-2 py-1 text-xs rounded-lg transition-all ${
+                              quickAspectRatio === ratio.value
+                                ? 'bg-orange-500 text-white'
+                                : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                            }`}
+                          >
+                            {ratio.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Video-specific options */}
+                    {detectedMediaIntent === 'video' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400 text-xs">Length:</span>
+                        <div className="flex gap-1">
+                          {['5', '10'].map(len => (
+                            <button
+                              key={len}
+                              onClick={() => setQuickVideoLength(len)}
+                              className={`px-2 py-1 text-xs rounded-lg transition-all ${
+                                quickVideoLength === len
+                                  ? 'bg-purple-500 text-white'
+                                  : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                              }`}
+                            >
+                              {len}s
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Advanced toggle */}
+                    <button
+                      onClick={() => setMediaOptionsExpanded(!mediaOptionsExpanded)}
+                      className="text-gray-500 text-xs flex items-center gap-1 hover:text-gray-300"
+                    >
+                      <ChevronRight className={`w-3 h-3 transition-transform ${mediaOptionsExpanded ? 'rotate-90' : ''}`} />
+                      Advanced options
+                    </button>
+                    
+                    {/* Advanced Options Panel */}
+                    {mediaOptionsExpanded && (
+                      <div className="mt-2 p-2 bg-white/5 rounded-xl media-options-panel">
+                        <div className="text-gray-400 text-xs mb-2">Model:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {(detectedMediaIntent === 'image' ? IMAGE_MODELS : VIDEO_MODELS).slice(0, 4).map(model => (
+                            <button
+                              key={model.value}
+                              onClick={() => detectedMediaIntent === 'image' 
+                                ? setSelectedImageModel(model.value) 
+                                : setSelectedVideoModel(model.value)
+                              }
+                              className={`px-2 py-1 text-xs rounded-lg transition-all ${
+                                (detectedMediaIntent === 'image' ? selectedImageModel : selectedVideoModel) === model.value
+                                  ? 'bg-orange-500 text-white'
+                                  : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                              }`}
+                            >
+                              {model.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={generateMediaWithOptions}
+                      className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Generate {detectedMediaIntent === 'image' ? 'Image' : 'Video'}
+                    </button>
+                    <button
+                      onClick={sendAsChat}
+                      className="bg-white/10 hover:bg-white/20 text-gray-300 py-2 px-3 rounded-xl text-sm transition-colors"
+                    >
+                      Just Chat
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Interim speech text */}
             {interimText && (
               <div className="text-gray-500 text-sm mb-2 px-2 italic">{interimText}</div>
@@ -2198,35 +2509,46 @@ export default function MobileChat({
             <div className="flex items-end gap-2">
               <button 
                 onClick={() => setShowAttachmentSheet(true)}
-                className="p-3 text-gray-500 hover:text-orange-400 transition-colors"
+                className="p-3 text-gray-500 hover:text-orange-400 transition-colors flex-shrink-0"
               >
                 <Plus className="w-6 h-6" />
               </button>
-              <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-3 flex items-end gap-2">
+              <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-3 flex items-end gap-2 min-w-0">
                 <textarea
                   ref={inputRef}
                   value={input}
                   onChange={(e) => {
                     setInput(e.target.value);
                     e.target.style.height = 'auto';
-                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
-                      sendMessage();
+                      if (detectedMediaIntent && showMediaOptions) {
+                        generateMediaWithOptions();
+                      } else {
+                        sendMessage();
+                      }
                     }
                   }}
+                  onFocus={() => {
+                    // Scroll into view on focus for iOS
+                    setTimeout(() => {
+                      inputContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                    }, 300);
+                  }}
                   placeholder="Message..."
-                  className="flex-1 bg-transparent text-white text-[16px] placeholder-gray-600 focus:outline-none resize-none min-h-[24px] max-h-[120px]"
+                  className="flex-1 bg-transparent text-white text-[16px] placeholder-gray-600 focus:outline-none resize-none min-h-[24px] max-h-[100px] min-w-0"
                   rows={1}
                   disabled={loading}
+                  style={{ fontSize: '16px' }} // Prevent iOS zoom on focus
                 />
                 {/* Voice input button */}
                 <button 
                   onClick={speech.toggle}
                   title={speech.error || (speech.isListening ? 'Stop recording' : 'Voice input')}
-                  className={`p-2 rounded-full transition-all ${
+                  className={`p-2 rounded-full transition-all flex-shrink-0 ${
                     speech.isListening 
                       ? 'bg-red-500 text-white animate-pulse' 
                       : speech.error 
@@ -2240,15 +2562,21 @@ export default function MobileChat({
                 {loading ? (
                   <button 
                     onClick={stopRequest}
-                    className="p-2 rounded-full bg-red-500 text-white transition-all animate-pulse"
+                    className="p-2 rounded-full bg-red-500 text-white transition-all animate-pulse flex-shrink-0"
                   >
                     <Square className="w-5 h-5" />
                   </button>
                 ) : (
                   <button 
-                    onClick={sendMessage}
+                    onClick={() => {
+                      if (detectedMediaIntent && showMediaOptions) {
+                        generateMediaWithOptions();
+                      } else {
+                        sendMessage();
+                      }
+                    }}
                     disabled={!input.trim() && !attachments.length}
-                    className={`p-2 rounded-full transition-all ${
+                    className={`p-2 rounded-full transition-all flex-shrink-0 ${
                       input.trim() || attachments.length
                         ? 'bg-orange-500 text-white'
                         : 'bg-white/5 text-gray-600'
