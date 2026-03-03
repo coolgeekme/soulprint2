@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://verify-email-test.preview.emergentagent.com"
+BASE_URL = "https://icon-ui-refresh.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

@@ -2,14 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
-  Send, MessageSquare, User, Sparkles, ChevronDown, 
-  Mic, Plus, Settings, X, Check, Loader2, Globe,
-  Image as ImageIcon, MoreHorizontal, ArrowLeft, Paperclip,
+  MessageSquare, User, ChevronDown, 
+  Plus, Settings, X, Check, Loader2, Globe,
+  Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
+import { MicrophoneIcon, SendIcon, SparklesIcon, AttachIcon, CloudUploadIcon } from '@/components/icons/SoulPrintIcons';
 
 // Full MODELS list matching desktop
 const MODELS = [
@@ -643,7 +644,7 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClic
     {soulPrint?.communicationStyle && (
       <div className="bg-white/5 rounded-2xl p-5 mb-4">
         <h3 className="text-orange-400 text-sm font-semibold mb-3 flex items-center gap-2">
-          <Sparkles className="w-4 h-4" /> Your Communication Style
+          <SparklesIcon className="w-4 h-4" /> Your Communication Style
         </h3>
         <p className="text-gray-300 text-sm leading-relaxed">{soulPrint.communicationStyle}</p>
       </div>
@@ -782,7 +783,7 @@ const AttachmentPreview = ({ attachments, onRemove }) => {
             <img src={`data:${att.mimeType};base64,${att.base64}`} alt={att.name} className="w-16 h-16 object-cover rounded-xl" />
           ) : (
             <div className="w-16 h-16 bg-white/5 rounded-xl flex flex-col items-center justify-center p-1">
-              <Paperclip className="w-4 h-4 text-gray-400" />
+              <AttachIcon className="w-4 h-4 text-gray-400" />
               <span className="text-[8px] text-gray-500 truncate w-full text-center mt-1">{att.name}</span>
             </div>
           )}
@@ -813,7 +814,7 @@ const MoreOptionsSheet = ({ isOpen, onClose, onSettings, onImport }) => {
             className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
           >
             <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-              <Paperclip className="w-5 h-5 text-green-400" />
+              <CloudUploadIcon className="w-5 h-5 text-green-400" />
             </div>
             <div>
               <span className="text-white font-medium">Import Chats</span>
@@ -897,7 +898,7 @@ const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onI
             className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
           >
             <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-blue-400" />
+              <SparklesIcon className="w-5 h-5 text-blue-400" />
             </div>
             <div>
               <span className="text-white font-medium">Compare Models</span>
@@ -928,7 +929,7 @@ const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onI
             className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
           >
             <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-              <Paperclip className="w-5 h-5 text-blue-400" />
+              <AttachIcon className="w-5 h-5 text-blue-400" />
             </div>
             <div>
               <span className="text-white font-medium">Attach File</span>
@@ -1295,7 +1296,7 @@ const ImportSheet = ({ isOpen, onClose, onImport }) => {
           className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3 mb-2"
         >
           <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-            <Paperclip className="w-5 h-5 text-green-400" />
+            <CloudUploadIcon className="w-5 h-5 text-green-400" />
           </div>
           <div>
             <span className="text-white font-medium">ChatGPT Export</span>
@@ -2326,7 +2327,7 @@ export default function MobileChat({
                       ann.type === 'update' ? 'bg-blue-500/20' :
                       'bg-blue-500/20'
                     }`}>
-                      <Sparkles className={`w-4 h-4 ${
+                      <SparklesIcon className={`w-4 h-4 ${
                         ann.type === 'warning' ? 'text-orange-400' :
                         ann.type === 'success' ? 'text-green-400' :
                         ann.type === 'update' ? 'text-blue-400' :
@@ -2599,7 +2600,7 @@ export default function MobileChat({
                       onClick={generateMediaWithOptions}
                       className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors"
                     >
-                      <Sparkles className="w-4 h-4" />
+                      <SparklesIcon className="w-4 h-4" />
                       Generate {detectedMediaIntent === 'image' ? 'Image' : 'Video'}
                     </button>
                     <button
@@ -2667,7 +2668,7 @@ export default function MobileChat({
                         : 'text-gray-500 hover:text-orange-400'
                   }`}
                 >
-                  <Mic className="w-5 h-5" />
+                  <MicrophoneIcon className="w-5 h-5" />
                 </button>
                 {/* Show Stop button when loading, otherwise show Send button */}
                 {loading ? (
@@ -2693,7 +2694,7 @@ export default function MobileChat({
                         : 'bg-white/5 text-gray-600'
                     }`}
                   >
-                    <Send className="w-5 h-5" />
+                    <SendIcon className="w-5 h-5" />
                   </button>
                 )}
               </div>

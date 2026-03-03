@@ -177,6 +177,105 @@ export function WarningIcon({ className = "w-6 h-6", color = "currentColor" }) {
   );
 }
 
+// Microphone icon - for voice input
+export function MicrophoneIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3m5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15a.998.998 0 0 0-.98-.85c-.61 0-1.09.54-1 1.14c.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08a6.993 6.993 0 0 0 5.91-5.78c.1-.6-.39-1.14-1-1.14"/>
+    </svg>
+  );
+}
+
+// Send/Arrow icon - for sending messages
+export function SendIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M2.01 21L23 12L2.01 3L2 10l15 2l-15 2z"/>
+    </svg>
+  );
+}
+
+// Alternative Send icon - paper plane style
+export function SendPlaneIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M3 20v-6l8-2l-8-2V4l19 8z"/>
+    </svg>
+  );
+}
+
+// Image Plus icon - for image generation
+export function ImagePlusIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M19 10v9H5V5h9V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-9h-2m-4.14 7l-2.72-3.63l-1.94 2.5l-1.38-1.76L5.25 19h12.5l-2.89-3.87M19 3v2h2v2h2V5h2V3h-2V1h-2v2h-2m-4 9.5a.5.5 0 0 1-.5-.5a.5.5 0 0 1 .5-.5a.5.5 0 0 1 .5.5a.5.5 0 0 1-.5.5"/>
+    </svg>
+  );
+}
+
+// Film/Video icon - for video generation
+export function VideoIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4h-4"/>
+    </svg>
+  );
+}
+
+// Sparkles/Magic icon - for AI generation
+export function SparklesIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M12 2L9.19 8.63L2 9.24l5.46 4.73L5.82 21L12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2M9.5 12.87l-2.71 2.35l.83-3.54L5.08 9.5l3.63-.31L12 6l3.29 3.19l3.63.31l-2.54 2.18l.83 3.54l-2.71-2.35"/>
+    </svg>
+  );
+}
+
+// Alternative Sparkles - filled style
+export function MagicIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M7.5 5.6L10 7L8.6 4.5L10 2L7.5 3.4L5 2l1.4 2.5L5 7zm12 9.8L17 14l1.4 2.5L17 19l2.5-1.4L22 19l-1.4-2.5L22 14zM22 2l-2.5 1.4L17 2l1.4 2.5L17 7l2.5-1.4L22 7l-1.4-2.5zm-7.63 5.29a.996.996 0 0 0-1.41 0L1.29 18.96a.996.996 0 0 0 0 1.41l2.34 2.34c.39.39 1.02.39 1.41 0L16.7 11.05a.996.996 0 0 0 0-1.41l-2.33-2.35zM5.21 19.38L4.62 18.79 13.12 10.29 13.71 10.88z"/>
+    </svg>
+  );
+}
+
+// Attach/Paperclip icon
+export function AttachIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+    </svg>
+  );
+}
+
+// Location/Map Pin icon
+export function LocationIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7m0 9.5a2.5 2.5 0 0 1 0-5a2.5 2.5 0 0 1 0 5"/>
+    </svg>
+  );
+}
+
+// Stop/Square icon - for stopping generation
+export function StopIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M6 6h12v12H6z"/>
+    </svg>
+  );
+}
+
+// Plus icon - for creating new items
+export function PlusIcon({ className = "w-6 h-6", color = "currentColor" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill={color}>
+      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+    </svg>
+  );
+}
+
 // Export all icons as a collection for easy importing
 export const SoulPrintIcons = {
   Robot: RobotIcon,
@@ -200,4 +299,15 @@ export const SoulPrintIcons = {
   Desktop: DesktopIcon,
   Mobile: MobileIcon,
   Warning: WarningIcon,
+  Microphone: MicrophoneIcon,
+  Send: SendIcon,
+  SendPlane: SendPlaneIcon,
+  ImagePlus: ImagePlusIcon,
+  Video: VideoIcon,
+  Sparkles: SparklesIcon,
+  Magic: MagicIcon,
+  Attach: AttachIcon,
+  Location: LocationIcon,
+  Stop: StopIcon,
+  Plus: PlusIcon,
 };

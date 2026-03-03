@@ -9,7 +9,7 @@ import json
 import time
 
 # Configuration
-BASE_URL = "https://verify-email-test.preview.emergentagent.com/api"
+BASE_URL = "https://icon-ui-refresh.preview.emergentagent.com/api"
 LOGIN_EMAIL = "test@soulprint.com"
 LOGIN_PASSWORD = "test123"
 

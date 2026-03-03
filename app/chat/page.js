@@ -13,6 +13,7 @@ import {
   Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, ChevronRight, LogOut, Copy, Edit3, Square, ArrowRight
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
+import { CloudUploadIcon, RobotIcon, FeedbackIcon, MicrophoneIcon, SendIcon, SparklesIcon, ImagePlusIcon, VideoIcon, LocationIcon, StopIcon, AttachIcon, PlusIcon } from '@/components/icons/SoulPrintIcons';
 import InstallPrompt from '@/app/components/InstallPrompt';
 import { useIsMobile } from '@/hooks/use-mobile';
 import MobileChat from '@/components/mobile/MobileChat';
@@ -107,8 +108,10 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
 
   async function startLive() {
     try {
+      console.log('startLive: Requesting microphone permission...');
       // First request microphone permission
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('startLive: Microphone permission granted');
       // Stop the stream immediately - we just needed permission
       stream.getTracks().forEach(t => t.stop());
       
@@ -129,23 +132,28 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
             interim += transcript;
           }
         }
-        if (final) onTranscript(final);
+        if (final) {
+          console.log('startLive: Final transcript:', final);
+          onTranscript(final);
+        }
         if (interim) onInterim(interim);
       };
       
       rec.onerror = (e) => { 
-        console.error('Speech recognition error:', e.error); 
+        console.error('Speech recognition error:', e.error, e); 
         if (e.error === 'not-allowed') {
           setError('Microphone access denied');
         } else if (e.error === 'no-speech') {
           // This is normal - just means no speech detected yet
+          console.log('startLive: No speech detected, continuing...');
           return;
         } else if (e.error === 'aborted') {
           // User stopped, this is fine
+          console.log('startLive: Recognition aborted by user');
           return;
         } else if (e.error === 'network') {
           // Network error - try Whisper fallback
-          console.log('Network error, falling back to Whisper');
+          console.log('startLive: Network error, falling back to Whisper');
           stop();
           startWhisper();
           return;
@@ -157,11 +165,13 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
       };
       
       rec.onend = () => {
+        console.log('startLive: Recognition ended, isListeningRef:', isListeningRef.current);
         // Auto-restart if still supposed to be listening (for continuous mode)
         if (isListeningRef.current && recognitionRef.current) {
           try {
             setTimeout(() => {
               if (isListeningRef.current && recognitionRef.current) {
+                console.log('startLive: Auto-restarting recognition');
                 recognitionRef.current.start();
               }
             }, 100);
@@ -174,7 +184,9 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
       };
 
       recognitionRef.current = rec;
+      console.log('startLive: Starting recognition...');
       rec.start();
+      console.log('startLive: Recognition started successfully');
       setIsListening(true);
       isListeningRef.current = true;
       setMode('live');
@@ -194,8 +206,11 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
     }
 
     try {
+      console.log('startWhisper: Requesting microphone...');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('startWhisper: Microphone granted');
       const browser = getBrowserInfo();
+      console.log('startWhisper: Browser info:', browser);
       
       // Choose appropriate mime type based on browser support
       let mimeType = 'audio/webm';
@@ -212,19 +227,25 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
           mimeType = '';
         }
       }
+      console.log('startWhisper: Using mimeType:', mimeType);
       
       const recorderOptions = mimeType ? { mimeType } : {};
       const mr = new MediaRecorder(stream, recorderOptions);
       chunksRef.current = [];
       
       mr.ondataavailable = (e) => { 
-        if (e.data.size > 0) chunksRef.current.push(e.data); 
+        if (e.data.size > 0) {
+          console.log('startWhisper: Received audio chunk, size:', e.data.size);
+          chunksRef.current.push(e.data);
+        }
       };
       
       mr.onstop = async () => {
+        console.log('startWhisper: Recording stopped, processing...');
         stream.getTracks().forEach(t => t.stop());
         const actualMimeType = mr.mimeType || mimeType || 'audio/webm';
         const blob = new Blob(chunksRef.current, { type: actualMimeType });
+        console.log('startWhisper: Created blob, size:', blob.size, 'type:', actualMimeType);
         
         // Determine file extension based on mime type
         let extension = 'webm';
@@ -236,12 +257,14 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
         form.append('audio', blob, `recording.${extension}`);
         
         try {
+          console.log('startWhisper: Sending to transcribe API...');
           const res = await fetch('/api/transcribe', {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
             body: form,
           });
           const data = await res.json();
+          console.log('startWhisper: Transcribe response:', data);
           if (data.text) {
             onTranscript(data.text.trim());
           } else if (data.error) {
@@ -264,7 +287,9 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
       };
       
       mediaRecorderRef.current = mr;
+      console.log('startWhisper: Starting recording...');
       mr.start();
+      console.log('startWhisper: Recording started');
       setIsListening(true);
       isListeningRef.current = true;
       setMode('whisper');
@@ -279,11 +304,14 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
 
   function start() {
     setError(null);
+    console.log('Starting speech recognition...', { hasNativeSpeech, hasMediaRecorder });
     // Use native speech recognition if available (Chrome, Edge, Safari)
     // Otherwise fall back to Whisper API (Firefox, etc.)
     if (hasNativeSpeech) {
+      console.log('Using native Web Speech API');
       startLive();
     } else if (hasMediaRecorder) {
+      console.log('Using Whisper fallback (MediaRecorder)');
       startWhisper();
     } else {
       setError('Voice input not supported in this browser. Please try Chrome, Edge, or Safari.');
@@ -751,7 +779,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
         {isGenerating ? (
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : (
-          <Sparkles className="w-4 h-4" />
+          <SparklesIcon className="w-4 h-4" />
         )}
       </button>
 
@@ -766,7 +794,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
                 activeTab === 'image' ? 'text-pink-400 bg-pink-500/10 border-b-2 border-pink-500' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
-              <ImagePlus className="w-4 h-4" />
+              <ImagePlusIcon className="w-4 h-4" />
               Image
             </button>
             <button
@@ -775,7 +803,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
                 activeTab === 'video' ? 'text-blue-400 bg-blue-500/10 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-300'
               }`}
             >
-              <Film className="w-4 h-4" />
+              <VideoIcon className="w-4 h-4" />
               Video
             </button>
           </div>
@@ -855,7 +883,7 @@ function CreateMenu({ onGenerate, isGenerating }) {
                   : 'bg-white/5 text-gray-600 cursor-not-allowed'
               }`}
             >
-              <Sparkles className="w-4 h-4" />
+              <SparklesIcon className="w-4 h-4" />
               Generate {activeTab === 'image' ? 'Image' : 'Video'}
             </button>
           </div>
@@ -6194,7 +6222,7 @@ export default function ChatPage() {
               {/* File attach button */}
               <button onClick={() => fileInputRef.current?.click()}
                 className="text-gray-600 hover:text-orange-400 transition-colors flex-shrink-0" title="Attach file or image">
-                <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
+                <CloudUploadIcon className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <input ref={fileInputRef} type="file" multiple accept={ACCEPTED_FILE_TYPES} className="hidden" onChange={handleFileSelect} />
 
@@ -6214,7 +6242,7 @@ export default function ChatPage() {
                 title={speech.error || (speech.isListening ? 'Stop recording' : 'Start voice input')}
                 className={`flex-shrink-0 transition-all relative ${speech.isListening ? 'text-orange-500' : speech.error ? 'text-red-400' : 'text-gray-600 hover:text-orange-400'}`}
               >
-                <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
+                <MicrophoneIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                 {speech.isListening && (
                   <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-500 animate-ping" />
                 )}
@@ -6277,7 +6305,7 @@ export default function ChatPage() {
                   className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 ${
                     compareMode ? 'bg-gradient-to-r from-orange-500 to-blue-500 hover:from-orange-600 hover:to-purple-600' : 'bg-orange-500 hover:bg-orange-600'
                   }`}>
-                  {compareLoading ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-spin" /> : compareMode ? <GitCompare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" /> : <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />}
+                  {compareLoading ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-spin" /> : compareMode ? <GitCompare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" /> : <SendIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />}
                 </button>
               )}
             </div>
