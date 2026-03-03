@@ -3940,16 +3940,26 @@ async function handleVideoStatus(request, taskId) {
   if (!user) return err('Unauthorized', 401);
 
   const db = await getDb();
-  // Try finding with user_id first, then without (for legacy/test jobs)
+  // Try finding in video_jobs first (legacy), then in media_gallery (new)
   let job = await db.collection('video_jobs').findOne({ task_id: taskId, user_id: user.id });
   if (!job) {
     job = await db.collection('video_jobs').findOne({ task_id: taskId });
   }
+  if (!job) {
+    // Try media_gallery collection (new flow)
+    job = await db.collection('media_gallery').findOne({ task_id: taskId, user_id: user.id });
+  }
+  if (!job) {
+    job = await db.collection('media_gallery').findOne({ task_id: taskId });
+  }
   if (!job) return err('Job not found', 404);
+  
+  // Determine which collection this job is in
+  const collection = job.type === 'video' ? 'media_gallery' : 'video_jobs';
 
-  // If already complete, return cached result
-  if (job.status === 'success') {
-    return ok({ status: 'success', videoUrl: job.video_url, thumbnailUrl: job.thumbnail_url, prompt: job.prompt });
+  // If already complete, return cached result (handle both 'success' and 'completed' status)
+  if (job.status === 'success' || job.status === 'completed') {
+    return ok({ status: 'success', videoUrl: job.video_url || job.url, thumbnailUrl: job.thumbnail_url, prompt: job.prompt });
   }
   if (job.status === 'failed') {
     return ok({ status: 'failed', error: job.error });
@@ -3958,20 +3968,39 @@ async function handleVideoStatus(request, taskId) {
   // Poll Kie.ai using the Jobs API query endpoint
   const kieKey = process.env.KIE_API_KEY;
   try {
-    const res = await fetch(`https://api.kie.ai/api/v1/jobs/query?taskId=${taskId}`, {
+    const res = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
       headers: { Authorization: `Bearer ${kieKey}` },
     });
     const data = await res.json();
     if (data.code !== 200) return err(data.msg || 'Status check failed', 400);
 
-    const state = data.data?.status?.toLowerCase();
-    const output = data.data?.output || {};
-    const videoUrl = output.video_url || output.videoUrl || null;
-    const thumbnailUrl = output.cover_url || output.imageUrl || null;
+    // Kie.ai uses 'state' field, normalize to lowercase
+    const state = (data.data?.state || data.data?.status || '').toLowerCase();
+    
+    // For successful videos, parse resultJson or get from output
+    let videoUrl = null;
+    let thumbnailUrl = null;
+    
+    if (data.data?.resultJson) {
+      try {
+        const resultJson = JSON.parse(data.data.resultJson);
+        videoUrl = resultJson?.resultUrls?.[0] || resultJson?.videoUrl || resultJson?.video_url;
+        thumbnailUrl = resultJson?.coverUrl || resultJson?.cover_url || resultJson?.thumbnail;
+      } catch (e) {
+        console.error('Failed to parse video resultJson:', e);
+      }
+    }
+    
+    // Fallback to output object if available
+    if (!videoUrl) {
+      const output = data.data?.output || {};
+      videoUrl = output.video_url || output.videoUrl;
+      thumbnailUrl = thumbnailUrl || output.cover_url || output.imageUrl;
+    }
 
     if (state === 'success' && videoUrl) {
-      await db.collection('video_jobs').updateOne({ task_id: taskId }, {
-        $set: { status: 'success', video_url: videoUrl, thumbnail_url: thumbnailUrl, completed_at: new Date() },
+      await db.collection(collection).updateOne({ task_id: taskId }, {
+        $set: { status: 'completed', url: videoUrl, video_url: videoUrl, thumbnail_url: thumbnailUrl, completed_at: new Date() },
       });
       // UPDATE the original message with video_url instead of creating a new one
       if (job.message_id) {
@@ -4002,7 +4031,7 @@ async function handleVideoStatus(request, taskId) {
       return ok({ status: 'success', videoUrl, thumbnailUrl, prompt: job.prompt });
     } else if (state === 'failed' || state === 'fail') {
       const errMsg = data.data?.error || 'Generation failed';
-      await db.collection('video_jobs').updateOne({ task_id: taskId }, {
+      await db.collection(collection).updateOne({ task_id: taskId }, {
         $set: { status: 'failed', error: errMsg },
       });
       return ok({ status: 'failed', error: errMsg });
@@ -4680,7 +4709,7 @@ async function handleMediaStatusByTaskId(request, taskId) {
     
     // Poll Kie.ai
     try {
-      const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/query?taskId=${taskId}`, {
+      const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
         headers: { Authorization: `Bearer ${kieKey}` },
       });
       const data = await statusRes.json();
@@ -4722,7 +4751,7 @@ async function handleMediaStatusByTaskId(request, taskId) {
   
   // Poll Kie.ai
   try {
-    const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/query?taskId=${taskId}`, {
+    const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
       headers: { Authorization: `Bearer ${kieKey}` },
     });
     const data = await statusRes.json();
@@ -4765,7 +4794,7 @@ async function handleMediaStatus(request) {
     let statusRes;
     
     // Use the unified Jobs API query endpoint for all models
-    statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/query?taskId=${taskId}`, {
+    statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
       headers: { Authorization: `Bearer ${kieKey}` },
     });
     
@@ -9172,7 +9201,7 @@ async function handleTelegramWebhook(request) {
       while (attempts < maxAttempts) {
         await new Promise(r => setTimeout(r, 10000)); // wait 10s
         attempts++;
-        const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/query?taskId=${taskId}`, {
+        const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
           headers: { Authorization: `Bearer ${kieKey}` },
         });
         const pollData = await pollRes.json();
@@ -9830,7 +9859,7 @@ async function handleTelegramWebhook(request) {
         while (attempts < 30) {
           await new Promise(r => setTimeout(r, 10000));
           attempts++;
-          const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/query?taskId=${taskId}`, {
+          const pollRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
             headers: { Authorization: `Bearer ${kieKey}` },
           });
           const pollData = await pollRes.json();
