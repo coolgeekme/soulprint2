@@ -2517,7 +2517,7 @@ function SettingsTab({ token }) {
             />
             <div>
               <span className="text-white text-sm">Quick Start Only</span>
-              <p className="text-gray-500 text-xs">10 questions + learns as they chat (~2 min)</p>
+              <p className="text-gray-500 text-xs">12 questions (2 per pillar) + learns as they chat (~3 min)</p>
             </div>
           </label>
           <label className="flex items-center gap-3 p-3 bg-[#111] border border-white/8 rounded-xl cursor-pointer hover:border-white/20 transition-colors">

@@ -73,7 +73,7 @@ export default function AssessmentSelectPage() {
                   <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">RECOMMENDED</span>
                 </div>
                 <p className="text-gray-400 text-sm mb-3">
-                  Answer 10 essential questions now, and I'll learn more as we chat.
+                  Answer 12 essential questions (2 per pillar) now, and I'll learn more as we chat.
                 </p>
                 <div className="flex items-center gap-4 text-xs text-gray-500">
                   <span className="flex items-center gap-1">

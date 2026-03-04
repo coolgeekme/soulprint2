@@ -1380,7 +1380,7 @@ const SEED_QUESTIONS = [
 // ============================================================
 const LAYERED_ASSESSMENT_QUESTIONS = {
   layer1: [
-    // Communication Core (3 questions)
+    // Communication (2 questions)
     {
       id: 'comm_explain',
       category: 'communication',
@@ -1393,28 +1393,17 @@ const LAYERED_ASSESSMENT_QUESTIONS = {
       ]
     },
     {
-      id: 'comm_detail',
+      id: 'comm_feedback',
       category: 'communication',
-      question: 'If I give you too much detail, you\'ll:',
+      question: 'When giving feedback to someone, you tend to be:',
       options: [
-        { value: 'skim', label: 'Skim for what matters' },
-        { value: 'read_all', label: 'Read it all anyway' },
-        { value: 'frustrated', label: 'Get frustrated and disengage' },
-        { value: 'summarize', label: 'Ask me to summarize' }
+        { value: 'direct', label: 'Direct and to the point' },
+        { value: 'diplomatic', label: 'Diplomatic and gentle' },
+        { value: 'sandwich', label: 'Start with positives first' },
+        { value: 'depends', label: 'Depends on the person' }
       ]
     },
-    {
-      id: 'comm_misunderstand',
-      category: 'communication',
-      question: 'When someone misunderstands you, your first move is:',
-      options: [
-        { value: 'reexplain', label: 'Re-explain more clearly' },
-        { value: 'ask', label: 'Ask what they heard' },
-        { value: 'frustrated', label: 'Get frustrated' },
-        { value: 'different_angle', label: 'Try a different angle' }
-      ]
-    },
-    // Emotional Intelligence Core (2 questions)
+    // Emotional Intelligence (2 questions)
     {
       id: 'emotion_stress',
       category: 'emotional_intelligence',
@@ -1437,7 +1426,7 @@ const LAYERED_ASSESSMENT_QUESTIONS = {
         { value: 'talk_through', label: 'Talk through it with someone' }
       ]
     },
-    // Decision-Making Core (2 questions)
+    // Decision Making (2 questions)
     {
       id: 'decision_approach',
       category: 'decision_making',
@@ -1460,9 +1449,9 @@ const LAYERED_ASSESSMENT_QUESTIONS = {
         { value: 'framework', label: 'Framework to decide myself' }
       ]
     },
-    // Work Style Core (1 question)
+    // Work Style (2 questions)
     {
-      id: 'feedback_style',
+      id: 'work_feedback',
       category: 'work_style',
       question: 'Your ideal feedback is:',
       options: [
@@ -1472,24 +1461,62 @@ const LAYERED_ASSESSMENT_QUESTIONS = {
         { value: 'data_driven', label: 'Data-driven with examples' }
       ]
     },
-    // Context Capture (2 questions)
     {
-      id: 'help_with',
-      category: 'context',
-      question: 'What are you hoping I can help you with?',
-      type: 'text',
-      placeholder: 'Tell me about your goals, challenges, or what brings you here...'
+      id: 'work_productivity',
+      category: 'work_style',
+      question: 'You\'re most productive when:',
+      options: [
+        { value: 'solo', label: 'Working independently' },
+        { value: 'collaborative', label: 'Collaborating with others' },
+        { value: 'mix', label: 'Alternating between both' },
+        { value: 'depends', label: 'Depends on the task' }
+      ]
+    },
+    // Values (2 questions)
+    {
+      id: 'values_priority',
+      category: 'values',
+      question: 'In your work, what matters most to you?',
+      options: [
+        { value: 'impact', label: 'Making a meaningful impact' },
+        { value: 'growth', label: 'Personal growth and learning' },
+        { value: 'stability', label: 'Stability and security' },
+        { value: 'freedom', label: 'Freedom and autonomy' }
+      ]
     },
     {
-      id: 'ai_personality',
-      category: 'context',
-      question: 'On a scale, you prefer AI that feels:',
-      type: 'slider',
-      min: 0,
-      max: 100,
-      minLabel: 'Professional Assistant',
-      maxLabel: 'Friendly Companion',
-      defaultValue: 50
+      id: 'values_success',
+      category: 'values',
+      question: 'How do you define success?',
+      options: [
+        { value: 'achievement', label: 'Achieving specific goals' },
+        { value: 'fulfillment', label: 'Feeling fulfilled daily' },
+        { value: 'recognition', label: 'Being recognized for my work' },
+        { value: 'balance', label: 'Having work-life balance' }
+      ]
+    },
+    // Relationships (2 questions)
+    {
+      id: 'relationship_support',
+      category: 'relationships',
+      question: 'When someone you care about is struggling, you:',
+      options: [
+        { value: 'listen', label: 'Listen and let them vent' },
+        { value: 'solve', label: 'Try to help solve the problem' },
+        { value: 'comfort', label: 'Offer comfort and reassurance' },
+        { value: 'ask', label: 'Ask what they need from you' }
+      ]
+    },
+    {
+      id: 'relationship_conflict',
+      category: 'relationships',
+      question: 'In conflicts, you typically:',
+      options: [
+        { value: 'address', label: 'Address it directly and quickly' },
+        { value: 'avoid', label: 'Avoid until things cool down' },
+        { value: 'compromise', label: 'Look for a compromise' },
+        { value: 'reflect', label: 'Reflect before responding' }
+      ]
     }
   ],
   // Layer 2: Smart Follow-ups based on Layer 1 answers
@@ -11350,7 +11377,7 @@ async function handleSubmitLayeredAnswer(request) {
   record[layerKey][question_id] = answer;
   record.updated_at = new Date();
   
-  // Check if Layer 1 is complete (all 10 questions answered)
+  // Check if Layer 1 is complete (all 12 questions answered - 2 per pillar)
   const layer1Questions = LAYERED_ASSESSMENT_QUESTIONS.layer1.map(q => q.id);
   const layer1Answered = Object.keys(record.layer1_answers);
   record.layer1_complete = layer1Questions.every(qid => layer1Answered.includes(qid));
