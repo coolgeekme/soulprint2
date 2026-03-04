@@ -6697,7 +6697,7 @@ export default function ChatPage() {
             {/* Header */}
             <div className="sticky top-0 bg-[#111820] border-b border-white/10 p-6 text-center">
               <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mb-4 border border-orange-500/30">
-                <span className="text-3xl">🧬</span>
+                <SoulPrintLogo size={40} />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">Welcome to SoulPrint</h2>
               <p className="text-gray-500 text-sm">Your persistent AI identity layer</p>
