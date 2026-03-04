@@ -1726,6 +1726,38 @@ function FeedbackModal({ onClose, token }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [attachment, setAttachment] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleAttachmentSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Only allow images up to 5MB
+    if (!file.type.startsWith('image/')) {
+      setError('Only image files are allowed');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File size must be less than 5MB');
+      return;
+    }
+    
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target.result.split(',')[1];
+      setAttachment({
+        name: file.name,
+        mimeType: file.type,
+        base64,
+        preview: ev.target.result,
+      });
+      setError('');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -1738,17 +1770,28 @@ function FeedbackModal({ onClose, token }) {
     setError('');
     
     try {
+      const payload = {
+        message: message.trim(),
+        category,
+        rating: rating > 0 ? rating : null,
+      };
+      
+      // Include attachment if present
+      if (attachment) {
+        payload.attachment = {
+          name: attachment.name,
+          mimeType: attachment.mimeType,
+          base64: attachment.base64,
+        };
+      }
+      
       const res = await fetch('/api/user-feedback', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}` 
         },
-        body: JSON.stringify({
-          message: message.trim(),
-          category,
-          rating: rating > 0 ? rating : null,
-        }),
+        body: JSON.stringify(payload),
       });
       
       const data = await res.json();
@@ -1820,6 +1863,46 @@ function FeedbackModal({ onClose, token }) {
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:border-orange-500/50 outline-none transition-colors min-h-[120px] resize-none"
               required
             />
+          </div>
+
+          {/* Attachment */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Screenshot (optional)</label>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleAttachmentSelect} 
+              accept="image/*" 
+              className="hidden" 
+            />
+            
+            {attachment ? (
+              <div className="relative inline-block">
+                <img 
+                  src={attachment.preview} 
+                  alt="Screenshot preview" 
+                  className="w-32 h-24 object-cover rounded-xl border-2 border-orange-500/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => setAttachment(null)}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <p className="text-xs text-gray-500 mt-1 truncate max-w-[128px]">{attachment.name}</p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-3 bg-white/5 border border-dashed border-white/20 rounded-xl text-gray-400 hover:bg-white/10 hover:border-white/30 transition-all w-full"
+              >
+                <Upload className="w-5 h-5" />
+                <span className="text-sm">Click to attach a screenshot</span>
+              </button>
+            )}
+            <p className="text-xs text-gray-600 mt-1">Max 5MB • PNG, JPG, GIF</p>
           </div>
 
           {/* Rating (optional) */}
@@ -2186,6 +2269,8 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [feedbackAttachment, setFeedbackAttachment] = useState(null);
+  const feedbackFileRef = useRef(null);
 
   useEffect(() => {
     fetch('/api/imports', { headers: { Authorization: `Bearer ${token}` } })
@@ -4103,23 +4188,97 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                 />
               </div>
 
+              {/* Screenshot attachment */}
+              <div>
+                <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2 block">Screenshot (optional)</label>
+                <input 
+                  type="file" 
+                  ref={feedbackFileRef} 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (!file.type.startsWith('image/')) {
+                      alert('Only image files are allowed');
+                      return;
+                    }
+                    if (file.size > 5 * 1024 * 1024) {
+                      alert('File size must be less than 5MB');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const base64 = ev.target.result.split(',')[1];
+                      setFeedbackAttachment({
+                        name: file.name,
+                        mimeType: file.type,
+                        base64,
+                        preview: ev.target.result,
+                      });
+                    };
+                    reader.readAsDataURL(file);
+                    e.target.value = '';
+                  }} 
+                  accept="image/*" 
+                  className="hidden" 
+                />
+                
+                {feedbackAttachment ? (
+                  <div className="relative inline-block">
+                    <img 
+                      src={feedbackAttachment.preview} 
+                      alt="Screenshot" 
+                      className="w-24 h-20 object-cover rounded-xl border-2 border-orange-500/40"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFeedbackAttachment(null)}
+                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <p className="text-[10px] text-gray-500 mt-1 truncate max-w-[96px]">{feedbackAttachment.name}</p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => feedbackFileRef.current?.click()}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-dashed border-white/20 rounded-xl text-gray-400 hover:bg-white/10 hover:border-white/30 transition-all"
+                  >
+                    <Upload className="w-4 h-4" />
+                    <span className="text-xs">Attach screenshot</span>
+                  </button>
+                )}
+              </div>
+
               {/* Submit button */}
               <button
                 onClick={async () => {
                   if (!feedbackText.trim()) return;
                   setFeedbackSubmitting(true);
                   try {
+                    const payload = { 
+                      category: feedbackType === 'issue' ? 'bug' : feedbackType === 'idea' ? 'feature' : 'general',
+                      message: feedbackText,
+                      rating: feedbackType === 'love' ? 5 : feedbackType === 'good' ? 4 : null
+                    };
+                    
+                    // Include attachment if present
+                    if (feedbackAttachment) {
+                      payload.attachment = {
+                        name: feedbackAttachment.name,
+                        mimeType: feedbackAttachment.mimeType,
+                        base64: feedbackAttachment.base64,
+                      };
+                    }
+                    
                     await fetch('/api/user-feedback', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ 
-                        category: feedbackType === 'issue' ? 'bug' : feedbackType === 'idea' ? 'feature' : 'general',
-                        message: feedbackText,
-                        rating: feedbackType === 'love' ? 5 : feedbackType === 'good' ? 4 : null
-                      }),
+                      body: JSON.stringify(payload),
                     });
                     setFeedbackText('');
                     setFeedbackType('');
+                    setFeedbackAttachment(null);
                     setFeedbackSubmitted(true);
                     setTimeout(() => setFeedbackSubmitted(false), 3000);
                   } catch (e) {

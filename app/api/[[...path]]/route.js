@@ -4964,15 +4964,18 @@ async function handleSubmitUserFeedback(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { message, category, rating } = body;
+  const { message, category, rating, attachment } = body;
 
   if (!message || message.trim().length < 5) {
     return err('Please provide feedback message (at least 5 characters)', 400);
   }
 
+  const feedbackId = uuidv4();
   const db = await getDb();
-  await db.collection('user_feedback').insertOne({
-    id: uuidv4(),
+  
+  // Prepare feedback document
+  const feedbackDoc = {
+    id: feedbackId,
     user_id: user.id,
     user_email: user.email,
     message: message.trim(),
@@ -4980,19 +4983,126 @@ async function handleSubmitUserFeedback(request) {
     rating: rating || null, // 1-5 optional rating
     status: 'new', // new, reviewed, resolved
     created_at: new Date(),
-  });
+  };
+  
+  // Handle attachment if provided (base64 image)
+  if (attachment && attachment.base64 && attachment.mimeType) {
+    feedbackDoc.attachment = {
+      name: attachment.name || 'screenshot.png',
+      mimeType: attachment.mimeType,
+      base64: attachment.base64,
+    };
+  }
+  
+  await db.collection('user_feedback').insertOne(feedbackDoc);
 
-  // Send notification email (fire and forget)
-  sendFeedbackNotification(user.email, message.trim(), category).catch(() => {});
+  // Send notification email to reggie@archeforge.com
+  sendFeedbackNotificationEmail(user.email, message.trim(), category, rating, attachment).catch(err => {
+    console.error('Failed to send feedback notification email:', err);
+  });
 
   return ok({ success: true, message: 'Thank you for your feedback!' });
 }
 
-// Helper to send feedback notification (non-blocking)
-async function sendFeedbackNotification(userEmail, feedbackMessage, category) {
-  // This could be expanded to use an email service like SendGrid
-  // For now, just log it
-  console.log(`[FEEDBACK] From: ${userEmail} | Category: ${category} | Message: ${feedbackMessage.substring(0, 100)}...`);
+// Helper to send feedback notification via email
+async function sendFeedbackNotificationEmail(userEmail, feedbackMessage, category, rating, attachment) {
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+  if (!RESEND_API_KEY) {
+    console.log(`[FEEDBACK] Email not sent - no API key. From: ${userEmail} | Category: ${category}`);
+    return;
+  }
+
+  const categoryEmoji = {
+    'general': '💬',
+    'bug': '🐛',
+    'feature': '💡',
+    'other': '📝'
+  }[category] || '💬';
+
+  const ratingDisplay = rating ? `${'⭐'.repeat(rating)} (${rating}/5)` : 'Not provided';
+  
+  // Build HTML email
+  let htmlContent = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 24px; color: white;">
+        <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #f97316;">🔔 New SoulPrint Feedback</h1>
+        <p style="margin: 0; color: #9ca3af; font-size: 14px;">A user has submitted feedback</p>
+      </div>
+      
+      <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-top: 16px;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 120px;">From:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 500;">${userEmail}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Category:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${categoryEmoji} ${category.charAt(0).toUpperCase() + category.slice(1)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Rating:</td>
+            <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${ratingDisplay}</td>
+          </tr>
+        </table>
+      </div>
+      
+      <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-top: 16px;">
+        <h3 style="margin: 0 0 12px 0; color: #374151; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Feedback Message</h3>
+        <p style="margin: 0; color: #1f2937; font-size: 15px; line-height: 1.6; white-space: pre-wrap;">${feedbackMessage}</p>
+      </div>
+      
+      ${attachment ? `
+      <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 12px; padding: 16px; margin-top: 16px;">
+        <p style="margin: 0; color: #92400e; font-size: 14px;">📎 <strong>Attachment included:</strong> ${attachment.name || 'screenshot'}</p>
+        <p style="margin: 8px 0 0 0; color: #92400e; font-size: 12px;">The screenshot/image is attached to this email.</p>
+      </div>
+      ` : ''}
+      
+      <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb;">
+        <p style="margin: 0; color: #9ca3af; font-size: 12px; text-align: center;">
+          SoulPrint Feedback System • ${new Date().toLocaleString()}
+        </p>
+      </div>
+    </div>
+  `;
+
+  // Prepare email payload
+  const emailPayload = {
+    from: 'SoulPrint Feedback <team@soulprintengine.ai>',
+    to: ['reggie@archeforge.com'],
+    subject: `${categoryEmoji} New Feedback: ${category.charAt(0).toUpperCase() + category.slice(1)} from ${userEmail}`,
+    html: htmlContent,
+  };
+
+  // Add attachment if provided
+  if (attachment && attachment.base64) {
+    emailPayload.attachments = [{
+      filename: attachment.name || 'screenshot.png',
+      content: attachment.base64,
+    }];
+  }
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(emailPayload),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      console.error('Resend API error:', result);
+      throw new Error(result.message || 'Failed to send email');
+    }
+    
+    console.log(`[FEEDBACK] Email sent to reggie@archeforge.com - ID: ${result.id}`);
+  } catch (error) {
+    console.error('Failed to send feedback email:', error);
+    throw error;
+  }
 }
 
 // CONTACT FORM - Send email to team@archeforge.com
