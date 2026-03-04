@@ -1647,6 +1647,7 @@ export default function MobileChat({
   const [soulPrint, setSoulPrint] = useState(null);
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
   const [attachments, setAttachments] = useState([]);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [interimText, setInterimText] = useState('');
   const [editingMessage, setEditingMessage] = useState(null);
   const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
@@ -1952,6 +1953,9 @@ export default function MobileChat({
   // Handle file selection
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    
+    setIsProcessingFile(true);
     for (const file of files) {
       if (file.size > MAX_FILE_SIZE) {
         alert(`File ${file.name} is too large. Max size is 10MB.`);
@@ -1962,8 +1966,10 @@ export default function MobileChat({
         setAttachments(prev => [...prev, processed]);
       } catch (err) {
         console.error('Error processing file:', err);
+        alert(`Failed to process ${file.name}. Please try again.`);
       }
     }
+    setIsProcessingFile(false);
     e.target.value = '';
   };
 
@@ -2763,40 +2769,60 @@ export default function MobileChat({
             className={`mobile-input-area ${keyboardVisible ? 'keyboard-visible' : ''}`}
           >
             {/* Attachment Preview - show uploaded files */}
-            {attachments.length > 0 && (
-              <div className="mb-3 px-1">
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {attachments.map((att, idx) => (
-                    <div key={idx} className="relative flex-shrink-0 group">
-                      {att.type === 'image' ? (
-                        <div className="relative">
-                          <img 
-                            src={`data:${att.mimeType};base64,${att.base64}`} 
-                            alt={att.name} 
-                            className="w-20 h-20 object-cover rounded-xl border border-white/20" 
-                          />
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 rounded-b-xl px-1 py-0.5">
-                            <span className="text-[9px] text-white truncate block">{att.name}</span>
-                          </div>
-                        </div>
+            {(attachments.length > 0 || isProcessingFile) && (
+              <div className="mb-3 px-1 animate-in slide-in-from-bottom-2 duration-200">
+                <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/30 rounded-2xl p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center">
+                      {isProcessingFile ? (
+                        <Loader2 className="w-3.5 h-3.5 text-orange-400 animate-spin" />
                       ) : (
-                        <div className="w-20 h-20 bg-white/10 border border-white/20 rounded-xl flex flex-col items-center justify-center p-2">
-                          <FileText className="w-6 h-6 text-orange-400" />
-                          <span className="text-[9px] text-gray-400 truncate w-full text-center mt-1">{att.name}</span>
-                        </div>
+                        <Check className="w-3.5 h-3.5 text-orange-400" />
                       )}
-                      <button 
-                        onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
-                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-lg"
-                      >
-                        <X className="w-3.5 h-3.5 text-white" />
-                      </button>
                     </div>
-                  ))}
+                    <span className="text-orange-400 text-xs font-medium">
+                      {isProcessingFile 
+                        ? 'Processing file...' 
+                        : `${attachments.length} file${attachments.length > 1 ? 's' : ''} attached`}
+                    </span>
+                  </div>
+                  
+                  {attachments.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {attachments.map((att, idx) => (
+                        <div key={idx} className="relative flex-shrink-0 group">
+                          {att.type === 'image' ? (
+                            <div className="relative">
+                              <img 
+                                src={`data:${att.mimeType};base64,${att.base64}`} 
+                                alt={att.name} 
+                                className="w-20 h-20 object-cover rounded-xl border-2 border-orange-500/40 shadow-lg" 
+                              />
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent rounded-b-xl px-1.5 py-1">
+                                <span className="text-[9px] text-white truncate block font-medium">{att.name}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-20 h-20 bg-white/10 border-2 border-orange-500/40 rounded-xl flex flex-col items-center justify-center p-2 shadow-lg">
+                              <FileText className="w-6 h-6 text-orange-400" />
+                              <span className="text-[9px] text-gray-300 truncate w-full text-center mt-1 font-medium">{att.name}</span>
+                            </div>
+                          )}
+                          <button 
+                            onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white/20"
+                          >
+                            <X className="w-3.5 h-3.5 text-white" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <p className="text-[10px] text-orange-300/70 mt-2">
+                    Ready to send with your message • Tap × to remove
+                  </p>
                 </div>
-                <p className="text-[10px] text-gray-500 mt-1">
-                  {attachments.length} file{attachments.length > 1 ? 's' : ''} attached • Tap × to remove
-                </p>
               </div>
             )}
 

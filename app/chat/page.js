@@ -4194,11 +4194,29 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
 function AttachmentPill({ att, onRemove }) {
   const isImage = att.type === 'image';
   return (
-    <div className="flex items-center gap-1.5 bg-white/8 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white max-w-[160px]">
-      {isImage ? <ImageIcon className="w-3 h-3 text-blue-400 flex-shrink-0" /> : <FileText className="w-3 h-3 text-orange-400 flex-shrink-0" />}
-      <span className="truncate">{att.name}</span>
-      <button onClick={onRemove} className="flex-shrink-0 text-gray-500 hover:text-white transition-colors ml-1">
-        <X className="w-3 h-3" />
+    <div className="relative group">
+      {isImage ? (
+        <div className="relative">
+          <img 
+            src={`data:${att.mimeType};base64,${att.base64}`} 
+            alt={att.name} 
+            className="w-16 h-16 object-cover rounded-xl border-2 border-orange-500/40 shadow-lg" 
+          />
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent rounded-b-xl px-1 py-0.5">
+            <span className="text-[8px] text-white truncate block">{att.name}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="w-16 h-16 bg-white/10 border-2 border-orange-500/40 rounded-xl flex flex-col items-center justify-center p-1 shadow-lg">
+          <FileText className="w-5 h-5 text-orange-400" />
+          <span className="text-[8px] text-gray-300 truncate w-full text-center mt-0.5">{att.name}</span>
+        </div>
+      )}
+      <button 
+        onClick={onRemove} 
+        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <X className="w-3 h-3 text-white" />
       </button>
     </div>
   );
@@ -6229,10 +6247,22 @@ export default function ChatPage() {
 
             {/* Attachments preview */}
             {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2 px-1">
-                {attachments.map((att, i) => (
-                  <AttachmentPill key={i} att={att} onRemove={() => setAttachments(prev => prev.filter((_, j) => j !== i))} />
-                ))}
+              <div className="mb-3 px-1 animate-in slide-in-from-bottom-2 duration-200">
+                <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/30 rounded-2xl p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center">
+                      <Check className="w-3.5 h-3.5 text-orange-400" />
+                    </div>
+                    <span className="text-orange-400 text-xs font-medium">
+                      {attachments.length} file{attachments.length > 1 ? 's' : ''} attached — ready to send
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {attachments.map((att, i) => (
+                      <AttachmentPill key={i} att={att} onRemove={() => setAttachments(prev => prev.filter((_, j) => j !== i))} />
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
             {fileError && <p className="text-red-400 text-xs mb-1 px-1">{fileError}</p>}
