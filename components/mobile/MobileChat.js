@@ -2692,7 +2692,7 @@ export default function MobileChat({
             className="flex-1 overflow-y-auto"
             style={{ 
               paddingTop: 'calc(4rem + env(safe-area-inset-top, 0px))',
-              paddingBottom: '1rem'
+              paddingBottom: '6rem'  /* Space for fixed input bar */
             }}
           >
             {/* Announcements Banner */}
@@ -2834,12 +2834,18 @@ export default function MobileChat({
               <div ref={messagesEndRef} />
             </div>
           </div>
-
-          {/* Input Area - above tab bar */}
-          <div 
-            ref={inputContainerRef}
-            className="mobile-input-area bg-sp-black border-t border-white/10 px-3 py-2 flex-shrink-0"
-          >
+        </div>
+      )}
+      
+      {/* Input Area - FIXED above tab bar (only shown on chat tab) */}
+      {activeTab === 'chat' && (
+        <div 
+          ref={inputContainerRef}
+          className="fixed left-0 right-0 bg-sp-black border-t border-white/10 px-3 py-2 z-40"
+          style={{ 
+            bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))'
+          }}
+        >
             {/* Attachment Preview - show uploaded files */}
             {(attachments.length > 0 || isProcessingFile) && (
               <div className="mb-3 px-1 animate-in slide-in-from-bottom-2 duration-200">
@@ -3109,8 +3115,8 @@ export default function MobileChat({
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      
 
       {/* History Tab */}
       {activeTab === 'history' && (
