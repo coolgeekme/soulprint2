@@ -1825,14 +1825,15 @@ async function handleRegister(request) {
     
     if (v2Code && 
         (!v2Code.expires_at || new Date(v2Code.expires_at) >= new Date()) &&
-        (!v2Code.max_uses || v2Code.uses_count < v2Code.max_uses)) {
+        (!v2Code.max_uses || (v2Code.uses || 0) < v2Code.max_uses)) {
       acceptedViaBetaCode = true;
-      usedCodeId = v2Code.id;
+      usedCodeId = v2Code._id || v2Code.id;
       // Increment usage count
       await db.collection('beta_codes_v2').updateOne(
-        { id: v2Code.id },
-        { $inc: { uses_count: 1 } }
+        { code: access_code.toUpperCase().trim() },
+        { $inc: { uses: 1 } }
       );
+      console.log('[Beta Code] Accepted code:', access_code, 'for user:', email);
     } else {
       // Fallback to legacy code
       const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
@@ -1845,6 +1846,9 @@ async function handleRegister(request) {
           { id: 'current' },
           { $inc: { uses: 1 } }
         );
+        console.log('[Beta Code] Accepted legacy code:', access_code, 'for user:', email);
+      } else {
+        console.log('[Beta Code] Invalid code:', access_code, 'for user:', email);
       }
     }
   }
