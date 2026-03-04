@@ -4997,9 +4997,10 @@ async function handleSubmitFeedback(request) {
 }
 
 // USER FEEDBACK - Submit general feedback (not message-specific)
+// Allows both authenticated and anonymous feedback
 async function handleSubmitUserFeedback(request) {
   const user = await authenticate(request);
-  if (!user) return err('Unauthorized', 401);
+  // Note: user can be null for anonymous feedback
 
   const body = await request.json();
   const { message, category, rating, attachment } = body;
@@ -5014,8 +5015,9 @@ async function handleSubmitUserFeedback(request) {
   // Prepare feedback document
   const feedbackDoc = {
     id: feedbackId,
-    user_id: user.id,
-    user_email: user.email,
+    user_id: user?.id || null,
+    user_email: user?.email || 'anonymous',
+    anonymous: !user,
     message: message.trim(),
     category: category || 'general', // general, bug, feature, other
     rating: rating || null, // 1-5 optional rating
@@ -5035,7 +5037,8 @@ async function handleSubmitUserFeedback(request) {
   await db.collection('user_feedback').insertOne(feedbackDoc);
 
   // Send notification email to reggie@archeforge.com
-  sendFeedbackNotificationEmail(user.email, message.trim(), category, rating, attachment).catch(err => {
+  const emailSource = user?.email || 'Anonymous User';
+  sendFeedbackNotificationEmail(emailSource, message.trim(), category, rating, attachment).catch(err => {
     console.error('Failed to send feedback notification email:', err);
   });
 
