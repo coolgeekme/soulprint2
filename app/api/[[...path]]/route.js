@@ -1902,7 +1902,14 @@ async function handleRegister(request) {
     accepted: role === 'superadmin' || acceptedViaBetaCode,
   }).catch(e => console.error('Admin notification email failed:', e));
   
-  return ok({ token, userId, role, accepted: role === 'superadmin' || acceptedViaBetaCode });
+  return ok({ 
+    token, 
+    userId, 
+    role, 
+    accepted: role === 'superadmin' || acceptedViaBetaCode,
+    onboarding_complete: false,
+    assessment_complete: false,
+  });
 }
 
 // AUTH - Login
@@ -6094,11 +6101,25 @@ async function handleAdminDeleteUser(request, userId) {
   // Delete user
   await db.collection('users').deleteOne({ id: userId });
 
-  // Optionally delete related data (conversations, messages, etc.)
+  // Delete ALL related data from all collections
   await db.collection('conversations').deleteMany({ user_id: userId });
   await db.collection('messages').deleteMany({ user_id: userId });
   await db.collection('soul_profiles').deleteMany({ user_id: userId });
   await db.collection('assessment_responses').deleteMany({ user_id: userId });
+  await db.collection('user_memories').deleteMany({ user_id: userId });
+  await db.collection('media_gallery').deleteMany({ user_id: userId });
+  await db.collection('imported_messages').deleteMany({ user_id: userId });
+  await db.collection('imported_data').deleteMany({ user_id: userId });
+  await db.collection('telegram_links').deleteMany({ user_id: userId });
+  await db.collection('user_feedback').deleteMany({ user_id: userId });
+  await db.collection('user_preferences').deleteMany({ user_id: userId });
+  await db.collection('communication_profiles').deleteMany({ user_id: userId });
+  await db.collection('video_jobs').deleteMany({ user_id: userId });
+  await db.collection('scheduled_tasks').deleteMany({ user_id: userId });
+  await db.collection('announcement_dismissals').deleteMany({ user_id: userId });
+  await db.collection('announcement_clicks').deleteMany({ user_id: userId });
+  
+  console.log(`[Admin] Fully deleted user ${userId} (${user.email}) and all associated data`);
 
   // Log action
   await db.collection('admin_audit_log').insertOne({
