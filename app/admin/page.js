@@ -1638,6 +1638,9 @@ function FeedbackTab({ token }) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-lg">{getCategoryIcon(f.category)}</span>
                   <span className="text-white text-sm font-medium">{f.user_email}</span>
+                  {f.anonymous && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">Anonymous</span>
+                  )}
                   <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize ${
                     f.category === 'bug' ? 'bg-red-500/20 text-red-400' :
                     f.category === 'feature' ? 'bg-blue-500/20 text-blue-400' :
@@ -1645,6 +1648,9 @@ function FeedbackTab({ token }) {
                   }`}>{f.category}</span>
                   {f.rating && (
                     <span className="text-orange-400 text-xs">{'★'.repeat(f.rating)}{'☆'.repeat(5 - f.rating)}</span>
+                  )}
+                  {f.attachment && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">📎 Has Screenshot</span>
                   )}
                 </div>
                 <span className="text-gray-600 text-[10px] whitespace-nowrap">{new Date(f.created_at).toLocaleString()}</span>
