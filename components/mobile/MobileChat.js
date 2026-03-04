@@ -1729,60 +1729,47 @@ export default function MobileChat({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
-    let initialViewportHeight = window.innerHeight;
+    const updateInputPosition = () => {
+      if (!inputContainerRef.current) return;
+      
+      if (window.visualViewport) {
+        const viewport = window.visualViewport;
+        const offsetFromBottom = window.innerHeight - viewport.height - viewport.offsetTop;
+        
+        if (offsetFromBottom > 100) {
+          // Keyboard is open
+          setKeyboardVisible(true);
+          setKeyboardHeight(offsetFromBottom);
+          // Position input at the top of keyboard
+          inputContainerRef.current.style.bottom = `${offsetFromBottom}px`;
+          inputContainerRef.current.style.zIndex = '9999';
+        } else {
+          // Keyboard is closed
+          setKeyboardVisible(false);
+          setKeyboardHeight(0);
+          inputContainerRef.current.style.bottom = 'calc(4rem + env(safe-area-inset-bottom, 0px))';
+          inputContainerRef.current.style.zIndex = '40';
+        }
+      }
+    };
     
     const handleFocus = () => {
-      setKeyboardVisible(true);
-      // Give keyboard time to appear, then scroll
-      setTimeout(() => {
-        if (inputContainerRef.current) {
-          inputContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }
-      }, 100);
+      // Small delay to let keyboard animation start
+      setTimeout(updateInputPosition, 100);
+      setTimeout(updateInputPosition, 300);
     };
     
     const handleBlur = () => {
-      // Small delay to check if focus moved to another input
       setTimeout(() => {
         if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
           setKeyboardVisible(false);
           setKeyboardHeight(0);
+          if (inputContainerRef.current) {
+            inputContainerRef.current.style.bottom = 'calc(4rem + env(safe-area-inset-bottom, 0px))';
+            inputContainerRef.current.style.zIndex = '40';
+          }
         }
       }, 100);
-    };
-    
-    // Use visualViewport API for accurate keyboard detection
-    const handleViewportResize = () => {
-      if (window.visualViewport) {
-        const currentHeight = window.visualViewport.height;
-        const heightDiff = initialViewportHeight - currentHeight;
-        
-        // Keyboard is likely visible if viewport shrunk by more than 150px
-        if (heightDiff > 150) {
-          setKeyboardVisible(true);
-          setKeyboardHeight(heightDiff);
-          
-          // Scroll input into view
-          setTimeout(() => {
-            if (inputContainerRef.current) {
-              inputContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            }
-          }, 50);
-        } else {
-          setKeyboardVisible(false);
-          setKeyboardHeight(0);
-        }
-      }
-    };
-    
-    // Also handle scroll event on visualViewport (iOS Safari fix)
-    const handleViewportScroll = () => {
-      if (window.visualViewport && keyboardVisible) {
-        // Force scroll input into view when viewport scrolls
-        if (inputContainerRef.current) {
-          inputContainerRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
-        }
-      }
     };
     
     const input = inputRef.current;
@@ -1792,27 +1779,12 @@ export default function MobileChat({
     }
     
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportResize);
-      window.visualViewport.addEventListener('scroll', handleViewportScroll);
-      // Initialize with current viewport height
-      initialViewportHeight = window.visualViewport.height || window.innerHeight;
+      window.visualViewport.addEventListener('resize', updateInputPosition);
+      window.visualViewport.addEventListener('scroll', updateInputPosition);
     }
     
-    // Fallback for browsers without visualViewport
-    const handleResize = () => {
-      if (!window.visualViewport) {
-        const currentHeight = window.innerHeight;
-        const heightDiff = initialViewportHeight - currentHeight;
-        if (heightDiff > 150) {
-          setKeyboardVisible(true);
-          setKeyboardHeight(heightDiff);
-        } else if (heightDiff < 100) {
-          setKeyboardVisible(false);
-          setKeyboardHeight(0);
-        }
-      }
-    };
-    window.addEventListener('resize', handleResize);
+    // Fallback resize handler
+    window.addEventListener('resize', updateInputPosition);
     
     return () => {
       if (input) {
@@ -1820,12 +1792,12 @@ export default function MobileChat({
         input.removeEventListener('blur', handleBlur);
       }
       if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportResize);
-        window.visualViewport.removeEventListener('scroll', handleViewportScroll);
+        window.visualViewport.removeEventListener('resize', updateInputPosition);
+        window.visualViewport.removeEventListener('scroll', updateInputPosition);
       }
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', updateInputPosition);
     };
-  }, [keyboardVisible]);
+  }, []);
 
   // Media intent detection function
   const detectMediaIntent = useCallback((text) => {
@@ -2847,9 +2819,10 @@ export default function MobileChat({
       {activeTab === 'chat' && (
         <div 
           ref={inputContainerRef}
-          className="fixed left-0 right-0 bg-sp-black border-t border-white/10 px-3 py-2 z-40"
+          className="fixed left-0 right-0 bg-sp-black border-t border-white/10 px-3 py-2"
           style={{ 
-            bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))'
+            bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
+            zIndex: 40,
           }}
         >
             {/* Attachment Preview - show uploaded files */}
