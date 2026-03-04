@@ -6,7 +6,7 @@ import {
   Plus, Settings, X, Check, Loader2, Globe,
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
-  Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText
+  Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
@@ -1252,9 +1252,22 @@ const RenameModal = ({ isOpen, onClose, title, onTitleChange, onSave }) => {
 };
 
 // Media Gallery View
-const GalleryView = ({ isOpen, onClose, items, onItemClick, token, onDeleteItem }) => {
+const GalleryView = ({ isOpen, onClose, items, onItemClick, token, onDeleteItem, onRegenerate }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedPrompt, setEditedPrompt] = useState('');
+  const [regenerating, setRegenerating] = useState(false);
+  const [showFullPrompt, setShowFullPrompt] = useState(false);
+  
+  // Update edited prompt when selected item changes
+  useEffect(() => {
+    if (selectedItem) {
+      setEditedPrompt(selectedItem.prompt || '');
+      setIsEditing(false);
+      setShowFullPrompt(false);
+    }
+  }, [selectedItem]);
   
   if (!isOpen) return null;
   
@@ -1279,6 +1292,45 @@ const GalleryView = ({ isOpen, onClose, items, onItemClick, token, onDeleteItem 
     }
     setDeleting(false);
   };
+  
+  const handleRegenerate = async () => {
+    if (!editedPrompt.trim()) {
+      alert('Please enter a prompt');
+      return;
+    }
+    
+    setRegenerating(true);
+    try {
+      const res = await fetch('/api/media/generate', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          type: selectedItem.type,
+          model: selectedItem.model || 'smart',
+          prompt: editedPrompt,
+          aspectRatio: selectedItem.aspect_ratio || '1:1',
+          duration: selectedItem.duration || '5',
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        alert('Regeneration failed: ' + data.error);
+      } else {
+        onRegenerate?.(data);
+        setSelectedItem(null);
+        onClose();
+        alert(selectedItem.type === 'video' ? 'Video generation started! Check the gallery in a few minutes.' : 'New image generated! Check the gallery.');
+      }
+    } catch (e) {
+      alert('Regeneration failed: ' + e.message);
+    }
+    setRegenerating(false);
+  };
+  
+  const promptIsTruncated = selectedItem?.prompt && selectedItem.prompt.length > 100;
   
   return (
     <div className="fixed inset-0 bg-sp-black z-[60]">
@@ -1319,48 +1371,121 @@ const GalleryView = ({ isOpen, onClose, items, onItemClick, token, onDeleteItem 
         )}
       </div>
       
-      {/* Item Detail Modal */}
+      {/* Item Detail Modal with Edit & Regenerate */}
       {selectedItem && (
-        <div className="fixed inset-0 bg-black/95 z-[70] flex flex-col" onClick={() => setSelectedItem(null)}>
+        <div className="fixed inset-0 bg-black/95 z-[70] flex flex-col" onClick={() => !isEditing && setSelectedItem(null)}>
           <div className="p-4 flex items-center justify-between border-b border-white/10">
-            <span className={`text-xs px-2 py-1 rounded ${selectedItem.type === 'video' ? 'bg-blue-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
-              {selectedItem.type === 'video' ? 'Video' : 'Image'} • {selectedItem.model_label || selectedItem.model}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-1 rounded ${selectedItem.type === 'video' ? 'bg-blue-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
+                {selectedItem.type === 'video' ? 'Video' : 'Image'} • {selectedItem.model_label || selectedItem.model}
+              </span>
+              {selectedItem.duration && selectedItem.type === 'video' && (
+                <span className="text-xs px-2 py-1 rounded bg-white/10 text-gray-400">
+                  {selectedItem.duration}s
+                </span>
+              )}
+            </div>
             <button onClick={() => setSelectedItem(null)} className="text-gray-400">
               <X className="w-6 h-6" />
             </button>
           </div>
           
-          <div className="flex-1 flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+          <div className="flex-1 flex items-center justify-center p-4 overflow-hidden" onClick={e => e.stopPropagation()}>
             {selectedItem.type === 'video' ? (
-              <video src={selectedItem.url} controls autoPlay playsInline className="max-w-full max-h-[60vh] rounded-xl" />
+              <video src={selectedItem.url} controls autoPlay playsInline className="max-w-full max-h-[45vh] rounded-xl" />
             ) : (
-              <img src={selectedItem.url} alt={selectedItem.prompt} className="max-w-full max-h-[60vh] object-contain rounded-xl" />
+              <img src={selectedItem.url} alt={selectedItem.prompt} className="max-w-full max-h-[45vh] object-contain rounded-xl" />
             )}
           </div>
           
-          <div className="p-4 bg-white/5 safe-area-bottom" onClick={e => e.stopPropagation()}>
-            <p className="text-sm text-gray-300 mb-3 line-clamp-2">{selectedItem.prompt}</p>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => handleDelete(selectedItem)}
-                disabled={deleting}
-                className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-500/15 border border-red-500/30 rounded-xl text-red-400 text-sm"
-              >
-                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                Delete
-              </button>
-              <a 
-                href={selectedItem.url} 
-                download 
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 py-3 bg-orange-500/15 border border-orange-500/30 rounded-xl text-orange-400 text-sm"
-              >
-                <Download className="w-4 h-4" />
-                Download
-              </a>
+          {/* Prompt & Actions Section */}
+          <div className="p-4 bg-white/5 safe-area-bottom max-h-[45vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Prompt Section */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-500 font-medium">ORIGINAL PROMPT</span>
+                <button
+                  onClick={() => setIsEditing(!isEditing)}
+                  className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  {isEditing ? 'Cancel' : 'Edit & Regenerate'}
+                </button>
+              </div>
+              
+              {isEditing ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={editedPrompt}
+                    onChange={(e) => setEditedPrompt(e.target.value)}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg p-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 resize-none"
+                    rows={4}
+                    placeholder="Enter your prompt..."
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleRegenerate}
+                    disabled={regenerating || !editedPrompt.trim()}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-orange-500 hover:bg-orange-600 rounded-xl text-sm text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {regenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        Regenerate {selectedItem.type === 'video' ? 'Video' : 'Image'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p className={`text-sm text-gray-300 ${!showFullPrompt && promptIsTruncated ? 'line-clamp-2' : ''}`}>
+                    {selectedItem.prompt || 'No prompt available'}
+                  </p>
+                  {promptIsTruncated && (
+                    <button
+                      onClick={() => setShowFullPrompt(!showFullPrompt)}
+                      className="text-xs text-orange-400 hover:text-orange-300 mt-1"
+                    >
+                      {showFullPrompt ? 'Show less' : 'Show full prompt'}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
+            
+            {/* Date and Action Buttons */}
+            {!isEditing && (
+              <>
+                <div className="text-xs text-gray-500 mb-3">
+                  {new Date(selectedItem.created_at).toLocaleString()}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => handleDelete(selectedItem)}
+                    disabled={deleting}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-red-500/15 border border-red-500/30 rounded-xl text-red-400 text-sm"
+                  >
+                    {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Delete
+                  </button>
+                  <a 
+                    href={selectedItem.url} 
+                    download 
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 py-3 bg-orange-500/15 border border-orange-500/30 rounded-xl text-orange-400 text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </a>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -3202,6 +3327,10 @@ export default function MobileChat({
         token={token}
         onDeleteItem={(deletedId) => {
           setGalleryItems(prev => prev.filter(item => item.id !== deletedId));
+        }}
+        onRegenerate={() => {
+          // Refresh gallery after regeneration
+          setTimeout(() => loadGallery(), 2000);
         }}
       />
 

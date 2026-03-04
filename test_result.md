@@ -1217,7 +1217,7 @@ agent_communication:
   - agent: "main"
     message: "PRIORITY: Test Cloud Import API. Two new endpoints: (1) POST /api/imports/cloud - accepts {url, type, provider} and returns {importId, status: 'pending'}. (2) GET /api/imports/status?importId=xxx - returns job status with progress, message, error. Test with a small publicly accessible ZIP file. Note: Google Drive is blocked for large files. Test expected flow: POST to start import -> returns importId -> poll GET status -> should eventually show completed/failed. Auth required for all endpoints. Test user: test@soulprint.com/test123."
   - agent: "main"
-    message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://icon-ui-refresh.preview.emergentagent.com. Test with fresh user registration first."
+    message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://soulprint-gallery.preview.emergentagent.com. Test with fresh user registration first."
   - agent: "testing"
     message: "🎉 BACKEND TESTING COMPLETE! All critical endpoints tested successfully. Registration, login, assessment flow (36 questions), chat streaming with memory injection, admin APIs, and connector stubs all working perfectly. The SoulPrint Engine backend is fully functional and ready for production use."
   - agent: "main"

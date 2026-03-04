@@ -13,7 +13,7 @@ from datetime import datetime
 import subprocess
 
 # Test Configuration
-BASE_URL = "https://icon-ui-refresh.preview.emergentagent.com/api"
+BASE_URL = "https://soulprint-gallery.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 
