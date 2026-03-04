@@ -44,6 +44,115 @@ function MetricCard({ label, value, sub, icon: Icon, color = 'orange' }) {
   );
 }
 
+// Date Range Filter Component
+function DateRangeFilter({ value, onChange, label = 'Filter by date' }) {
+  const [showCustom, setShowCustom] = useState(false);
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
+  
+  const presets = [
+    { id: 'all', label: 'All Time' },
+    { id: 'today', label: 'Today' },
+    { id: '7d', label: 'Last 7 Days' },
+    { id: '30d', label: 'Last 30 Days' },
+    { id: '90d', label: 'Last 90 Days' },
+    { id: 'custom', label: 'Custom Range' },
+  ];
+  
+  const handlePresetChange = (preset) => {
+    if (preset === 'custom') {
+      setShowCustom(true);
+      return;
+    }
+    setShowCustom(false);
+    
+    const now = new Date();
+    let startDate = null;
+    let endDate = new Date();
+    
+    switch (preset) {
+      case 'today':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case '7d':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90d':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = null;
+        endDate = null;
+    }
+    
+    onChange({ 
+      preset, 
+      startDate: startDate?.toISOString().split('T')[0] || null, 
+      endDate: endDate?.toISOString().split('T')[0] || null 
+    });
+  };
+  
+  const applyCustomRange = () => {
+    if (customStart && customEnd) {
+      onChange({ 
+        preset: 'custom', 
+        startDate: customStart, 
+        endDate: customEnd 
+      });
+    }
+  };
+  
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Calendar className="w-4 h-4 text-gray-500" />
+        <span className="text-xs text-gray-500">{label}:</span>
+        {presets.map(p => (
+          <button
+            key={p.id}
+            onClick={() => handlePresetChange(p.id)}
+            className={`text-[10px] px-2 py-1 rounded-lg transition-all ${
+              value?.preset === p.id 
+                ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40' 
+                : 'bg-white/5 text-gray-500 border border-white/10 hover:bg-white/10'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      
+      {showCustom && (
+        <div className="flex items-center gap-2 mt-2 bg-white/5 rounded-lg p-2">
+          <input
+            type="date"
+            value={customStart}
+            onChange={(e) => setCustomStart(e.target.value)}
+            className="bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
+          />
+          <span className="text-gray-500 text-xs">to</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            className="bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
+          />
+          <button
+            onClick={applyCustomRange}
+            disabled={!customStart || !customEnd}
+            className="px-2 py-1 bg-orange-500 text-white text-xs rounded disabled:opacity-50"
+          >
+            Apply
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Waitlist Tab
 function WaitlistTab({ token, onCountChange }) {
   const [users, setUsers] = useState([]);
@@ -224,6 +333,11 @@ function UsersTab({ token, adminRole }) {
   const [resetUserId, setResetUserId] = useState(null);
   const [newPasscode, setNewPasscode] = useState('');
   
+  // Date filters
+  const [registrationDateFilter, setRegistrationDateFilter] = useState({ preset: 'all' });
+  const [onboardingFilter, setOnboardingFilter] = useState('all'); // all, complete, incomplete
+  const [assessmentFilter, setAssessmentFilter] = useState('all'); // all, complete, incomplete
+  
   // Add/Edit user state
   const [showUserForm, setShowUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -233,7 +347,23 @@ function UsersTab({ token, adminRole }) {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/users?search=${search}&page=${page}`, {
+      let url = `/api/admin/users?search=${search}&page=${page}`;
+      
+      // Add date filter params
+      if (registrationDateFilter.startDate) {
+        url += `&startDate=${registrationDateFilter.startDate}`;
+      }
+      if (registrationDateFilter.endDate) {
+        url += `&endDate=${registrationDateFilter.endDate}`;
+      }
+      if (onboardingFilter !== 'all') {
+        url += `&onboarding=${onboardingFilter}`;
+      }
+      if (assessmentFilter !== 'all') {
+        url += `&assessment=${assessmentFilter}`;
+      }
+      
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const d = await res.json();
@@ -244,7 +374,7 @@ function UsersTab({ token, adminRole }) {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [search, page]);
+  useEffect(() => { load(); }, [search, page, registrationDateFilter, onboardingFilter, assessmentFilter]);
 
   async function toggleAccepted(userId, current) {
     await fetch(`/api/admin/users/${userId}`, {
@@ -492,6 +622,69 @@ function UsersTab({ token, adminRole }) {
       )}
 
       <div className="text-xs text-gray-600">{total} total users</div>
+
+      {/* Filters Section */}
+      <div className="bg-[#111] border border-white/8 rounded-xl p-4 space-y-4">
+        <p className="text-xs text-gray-500 font-bold tracking-widest uppercase">Filters</p>
+        
+        {/* Registration Date Filter */}
+        <DateRangeFilter 
+          value={registrationDateFilter} 
+          onChange={setRegistrationDateFilter}
+          label="Registration Date"
+        />
+        
+        {/* Onboarding & Assessment Status Filters */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Onboarding:</span>
+            {['all', 'complete', 'incomplete'].map(status => (
+              <button
+                key={status}
+                onClick={() => setOnboardingFilter(status)}
+                className={`text-[10px] px-2 py-1 rounded-lg transition-all capitalize ${
+                  onboardingFilter === status 
+                    ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40' 
+                    : 'bg-white/5 text-gray-500 border border-white/10 hover:bg-white/10'
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Assessment:</span>
+            {['all', 'complete', 'incomplete'].map(status => (
+              <button
+                key={status}
+                onClick={() => setAssessmentFilter(status)}
+                className={`text-[10px] px-2 py-1 rounded-lg transition-all capitalize ${
+                  assessmentFilter === status 
+                    ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40' 
+                    : 'bg-white/5 text-gray-500 border border-white/10 hover:bg-white/10'
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {/* Clear Filters */}
+        {(registrationDateFilter.preset !== 'all' || onboardingFilter !== 'all' || assessmentFilter !== 'all') && (
+          <button
+            onClick={() => {
+              setRegistrationDateFilter({ preset: 'all' });
+              setOnboardingFilter('all');
+              setAssessmentFilter('all');
+            }}
+            className="text-[10px] text-orange-400 hover:text-orange-300"
+          >
+            ✕ Clear all filters
+          </button>
+        )}
+      </div>
 
       <div className="overflow-x-auto">
         <table className="w-full admin-table">
@@ -2614,15 +2807,36 @@ export default function AdminPage() {
   // Dashboard sub-tabs and date range
   const [metricsSubTab, setMetricsSubTab] = useState('quick');
   const [dateRange, setDateRange] = useState('30d');
+  const [showCustomDateRange, setShowCustomDateRange] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
-  const loadMetrics = (t) => {
-    fetch('/api/admin/metrics', { headers: { Authorization: `Bearer ${t}` } })
+  const loadMetrics = (t, start = null, end = null) => {
+    let url = '/api/admin/metrics';
+    if (start && end) {
+      url += `?startDate=${start}&endDate=${end}`;
+    } else if (dateRange !== 'all' && dateRange !== 'custom') {
+      const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : dateRange === '90d' ? 90 : null;
+      if (days) {
+        const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const endDate = new Date().toISOString().split('T')[0];
+        url += `?startDate=${startDate}&endDate=${endDate}`;
+      }
+    }
+    
+    fetch(url, { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json())
       .then(d => {
         setMetrics(d);
         setWaitlistCount(d.waitlist_count || 0);
       })
       .catch(() => {});
+  };
+  
+  const applyCustomDateRange = () => {
+    if (customStartDate && customEndDate) {
+      loadMetrics(token, customStartDate, customEndDate);
+    }
   };
 
   useEffect(() => {
@@ -2743,43 +2957,80 @@ export default function AdminPage() {
           </div>
           
           {activeTab === 'metrics' && (
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
-                  {[
-                    { id: 'quick', label: 'Quick Stats' },
-                    { id: 'users', label: 'User Metrics' },
-                    { id: 'engagement', label: 'Engagement' },
-                    { id: 'costs', label: 'Costs' },
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setMetricsSubTab(tab.id)}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                        metricsSubTab === tab.id 
-                          ? 'bg-orange-500 text-white' 
-                          : 'text-gray-500 hover:text-white'
-                      }`}
+              <div className="flex flex-col gap-3 mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
+                    {[
+                      { id: 'quick', label: 'Quick Stats' },
+                      { id: 'users', label: 'User Metrics' },
+                      { id: 'engagement', label: 'Engagement' },
+                      { id: 'costs', label: 'Costs' },
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setMetricsSubTab(tab.id)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                          metricsSubTab === tab.id 
+                            ? 'bg-orange-500 text-white' 
+                            : 'text-gray-500 hover:text-white'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Calendar className="w-4 h-4 text-gray-500" />
+                    <select
+                      value={dateRange}
+                      onChange={e => {
+                        setDateRange(e.target.value);
+                        if (e.target.value === 'custom') {
+                          setShowCustomDateRange(true);
+                        } else {
+                          setShowCustomDateRange(false);
+                          loadMetrics(token);
+                        }
+                      }}
+                      className="bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-orange-500/50 outline-none cursor-pointer [&>option]:bg-[#1a1a1a] [&>option]:text-white"
                     >
-                      {tab.label}
+                      <option value="7d">Last 7 days</option>
+                      <option value="30d">Last 30 days</option>
+                      <option value="90d">Last 90 days</option>
+                      <option value="all">All time</option>
+                      <option value="custom">Custom range</option>
+                    </select>
+                    <button onClick={() => loadMetrics(token)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors px-3 py-1.5 bg-white/3 border border-white/8 rounded-lg">
+                      <RefreshCw className="w-3.5 h-3.5" />
                     </button>
-                  ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-gray-500" />
-                  <select
-                    value={dateRange}
-                    onChange={e => setDateRange(e.target.value)}
-                    className="bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:border-orange-500/50 outline-none cursor-pointer [&>option]:bg-[#1a1a1a] [&>option]:text-white"
-                  >
-                    <option value="7d">Last 7 days</option>
-                    <option value="30d">Last 30 days</option>
-                    <option value="90d">Last 90 days</option>
-                    <option value="all">All time</option>
-                  </select>
-                  <button onClick={() => loadMetrics(token)} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-white transition-colors px-3 py-1.5 bg-white/3 border border-white/8 rounded-lg">
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                
+                {/* Custom Date Range Picker */}
+                {showCustomDateRange && (
+                  <div className="flex items-center gap-2 bg-white/5 rounded-lg p-3 w-fit">
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="bg-white/10 border border-white/20 rounded px-2 py-1.5 text-xs text-white"
+                    />
+                    <span className="text-gray-500 text-xs">to</span>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="bg-white/10 border border-white/20 rounded px-2 py-1.5 text-xs text-white"
+                    />
+                    <button
+                      onClick={applyCustomDateRange}
+                      disabled={!customStartDate || !customEndDate}
+                      className="px-3 py-1.5 bg-orange-500 text-white text-xs rounded disabled:opacity-50"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

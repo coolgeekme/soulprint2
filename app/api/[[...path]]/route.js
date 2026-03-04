@@ -5904,27 +5904,66 @@ async function handleAdminGetUsers(request) {
   const search = searchParams.get('search') || '';
   const page = parseInt(searchParams.get('page') || '1');
   const limit = 20;
+  
+  // Date filters
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
+  const onboardingFilter = searchParams.get('onboarding'); // complete, incomplete
+  const assessmentFilter = searchParams.get('assessment'); // complete, incomplete
 
   const db = await getDb();
-  const query = search
-    ? { email: { $regex: search, $options: 'i' } }
-    : {};
+  
+  // Build query
+  const query = {};
+  
+  if (search) {
+    query.email = { $regex: search, $options: 'i' };
+  }
+  
+  // Date range filter on registration (created_at)
+  if (startDate || endDate) {
+    query.created_at = {};
+    if (startDate) {
+      query.created_at.$gte = new Date(startDate);
+    }
+    if (endDate) {
+      // Add 1 day to include the end date fully
+      const endDatePlusOne = new Date(endDate);
+      endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+      query.created_at.$lt = endDatePlusOne;
+    }
+  }
 
-  const total = await db.collection('users').countDocuments(query);
-  const users = await db.collection('users')
+  // First get all matching users
+  let users = await db.collection('users')
     .find(query)
     .sort({ created_at: -1 })
-    .skip((page - 1) * limit)
-    .limit(limit)
     .toArray();
 
+  // Get profiles for filtering by onboarding/assessment
   const profiles = await db.collection('profiles')
     .find({ user_id: { $in: users.map(u => u.id) } })
     .toArray();
   const profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p]));
 
+  // Apply onboarding/assessment filters
+  if (onboardingFilter === 'complete') {
+    users = users.filter(u => profileMap[u.id]?.onboarding_complete === true);
+  } else if (onboardingFilter === 'incomplete') {
+    users = users.filter(u => !profileMap[u.id]?.onboarding_complete);
+  }
+  
+  if (assessmentFilter === 'complete') {
+    users = users.filter(u => profileMap[u.id]?.assessment_complete === true);
+  } else if (assessmentFilter === 'incomplete') {
+    users = users.filter(u => !profileMap[u.id]?.assessment_complete);
+  }
+
+  const total = users.length;
+  const paginatedUsers = users.slice((page - 1) * limit, page * limit);
+
   return ok({
-    users: users.map(u => ({
+    users: paginatedUsers.map(u => ({
       id: u.id,
       email: u.email,
       role: u.role,
