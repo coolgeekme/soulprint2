@@ -681,7 +681,7 @@ const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename 
               {conversation.title || 'New Conversation'}
             </h3>
             <p className="text-gray-500 text-xs truncate mt-0.5">
-              {conversation.preview || 'No messages yet'}
+              {conversation.preview || ''}
             </p>
           </div>
           <button 
