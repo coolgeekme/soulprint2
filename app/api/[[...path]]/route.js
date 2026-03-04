@@ -12130,10 +12130,13 @@ async function handleGenerateSoulPrint(request) {
     .limit(200)
     .toArray();
   
-  // Get memories
-  const memories = await db.collection('memories')
+  // Get memories from user_memories collection
+  const memories = await db.collection('user_memories')
     .find({ user_id: user.id })
+    .sort({ importance: 1, created_at: -1 })
     .toArray();
+  
+  console.log('[SoulPrint] Found', memories.length, 'memories for user', user.id);
   
   // Build context for AI analysis
   const dataSources = [];
@@ -12183,11 +12186,15 @@ async function handleGenerateSoulPrint(request) {
     contextParts.push(`## Imported Chat History (sample)\n${importedSample}`);
   }
   
-  // Memories
+  // Memories - THESE ARE THE MOST IMPORTANT as they represent verified, current facts
   if (memories.length > 0) {
     dataSources.push('memories');
-    const memoriesText = memories.map(m => `- ${m.content}`).join('\n');
-    contextParts.push(`## Stored Memories\n${memoriesText}`);
+    const memoriesText = memories.map(m => `- [${m.category || 'fact'}] ${m.content}`).join('\n');
+    // Put memories FIRST as they are the most authoritative source
+    contextParts.unshift(`## CURRENT STORED MEMORIES (MOST AUTHORITATIVE - prioritize these over older imported data)
+These are verified facts that the user has confirmed or the system has learned recently. If there are any contradictions with imported chat history, ALWAYS prefer the information in these memories as they represent the user's CURRENT state.
+
+${memoriesText}`);
   }
   
   // Soul profile insights
@@ -12207,7 +12214,13 @@ async function handleGenerateSoulPrint(request) {
   }
   
   // Generate SoulPrint using AI
-  const analysisPrompt = `You are analyzing a user's communication patterns and personality to create their "SoulPrint" - a comprehensive profile of who they are.
+  const analysisPrompt = `You are analyzing a user's communication patterns and personality to create their "SoulPrint" - a comprehensive profile of who they are RIGHT NOW.
+
+IMPORTANT RULES:
+1. If "CURRENT STORED MEMORIES" are provided, ALWAYS prioritize them over imported chat history
+2. Memories represent the user's CURRENT verified state - they override any contradicting info from older data
+3. Imported chat history may contain OUTDATED information (e.g., past relationships, old jobs, etc.)
+4. When in doubt, use present tense and reflect the most recent information
 
 Based on the following data, generate a detailed SoulPrint analysis:
 
@@ -12217,7 +12230,7 @@ ${contextParts.join('\n\n')}
 
 Respond with a JSON object containing:
 {
-  "summary": "A 2-3 sentence overview of who this person is",
+  "summary": "A 2-3 sentence overview of who this person is RIGHT NOW (current state, not historical)",
   "communication_style": {
     "overall": "Brief description of their overall communication style",
     "tone": "warm/professional/casual/formal/mixed",

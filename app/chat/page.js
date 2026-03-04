@@ -2866,7 +2866,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   {/* Header with Generate Button */}
                   <div className="text-center pb-4 border-b border-white/10">
                     <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mb-3 border border-orange-500/30">
-                      <Sparkles className="w-8 h-8 text-orange-400" />
+                      <SoulPrintLogo size={40} />
                     </div>
                     <h3 className="text-white font-semibold">{soulPrintData.displayName}'s SoulPrint</h3>
                     <p className="text-gray-500 text-xs mt-1">Your dynamic communication identity</p>
