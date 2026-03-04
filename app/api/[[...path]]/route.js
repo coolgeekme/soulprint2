@@ -810,7 +810,9 @@ async function getUserMemoriesForPrompt(db, userId) {
 
 // GET /api/memories - Get all user memories
 async function handleGetMemories(request) {
+  console.log('[API] handleGetMemories called');
   const user = await authenticate(request);
+  console.log('[API] handleGetMemories auth result:', user ? `user=${user.id} email=${user.email}` : 'null');
   if (!user) return err('Unauthorized', 401);
   
   const db = await getDb();
@@ -822,11 +824,13 @@ async function handleGetMemories(request) {
     query.category = category;
   }
   
+  console.log('[API] handleGetMemories query:', JSON.stringify(query));
   const memories = await db.collection('user_memories')
     .find(query)
     .sort({ importance: 1, created_at: -1 })
     .toArray();
   
+  console.log('[API] handleGetMemories found:', memories.length, 'memories');
   return ok({
     memories: memories.map(m => ({
       id: m.id,

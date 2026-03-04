@@ -2632,15 +2632,30 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   const memoryCategories = ['health', 'preferences', 'personal', 'work', 'relationships', 'goals', 'other'];
 
   const loadMemories = async () => {
+    console.log('[Memories] Starting load, token exists:', !!token);
     setMemoriesLoading(true);
     try {
       const res = await fetch('/api/memories', { headers: { Authorization: `Bearer ${token}` } });
+      console.log('[Memories] API response status:', res.status);
       const d = await res.json();
+      console.log('[Memories] Loaded:', d.memories?.length || 0, 'memories', d.error ? `Error: ${d.error}` : '');
+      if (d.error) {
+        console.error('[Memories] API Error:', d.error);
+      }
       setMemories(d.memories || []);
       setMemoriesLoaded(true);
-    } catch (e) {}
+    } catch (e) {
+      console.error('[Memories] Failed to load:', e);
+    }
     setMemoriesLoading(false);
   };
+
+  // Auto-load memories when memories tab is opened
+  useEffect(() => {
+    if (activeTab === 'memories' && token && !memoriesLoaded && !memoriesLoading) {
+      loadMemories();
+    }
+  }, [activeTab, token, memoriesLoaded, memoriesLoading]);
 
   const addMemory = async () => {
     if (!newMemory.trim()) return;
@@ -3651,36 +3666,39 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                 </select>
               </div>
 
-              {/* Auto-load memories on tab switch, or show prominent button */}
-              {!memoriesLoaded ? (
-                <button 
-                  onClick={loadMemories} 
-                  className="w-full py-4 bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-xl text-blue-400 hover:text-white text-sm font-medium transition-all hover:from-blue-500/30 hover:to-purple-500/30 flex items-center justify-center gap-2"
-                >
+              {/* Memory Status & Refresh */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
                   {memoriesLoading ? (
-                    <>
+                    <div className="flex items-center gap-2 text-blue-400 text-xs">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Loading your memories...
-                    </>
+                      Loading memories...
+                    </div>
+                  ) : memoriesLoaded ? (
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${memories.length > 0 ? 'bg-green-500' : 'bg-orange-500'}`} />
+                      <span className="text-gray-400 text-xs">
+                        {memories.length > 0 
+                          ? `${memories.length} memories stored` 
+                          : 'No memories yet'}
+                      </span>
+                    </div>
                   ) : (
-                    <>
-                      <Brain className="w-5 h-5" />
-                      View Your Memories
-                    </>
+                    <span className="text-gray-600 text-xs">Click to load memories</span>
                   )}
-                </button>
-              ) : (
+                </div>
                 <button 
                   onClick={loadMemories} 
-                  className="w-full py-2 bg-white/5 border border-white/10 rounded-lg text-gray-500 hover:text-white text-xs transition-colors flex items-center justify-center gap-2"
+                  disabled={memoriesLoading}
+                  className="flex items-center gap-1 px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-gray-500 hover:text-white text-xs transition-colors disabled:opacity-50"
                 >
                   {memoriesLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                  Refresh Memories
+                  Refresh
                 </button>
-              )}
+              </div>
 
               {/* Memories List */}
-              {memories.length > 0 ? (
+              {memoriesLoaded && memories.length > 0 ? (
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {memories.map(mem => (
                     <div key={mem.id} className={`flex items-start gap-3 p-3 rounded-lg border ${
@@ -3712,10 +3730,17 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                     </div>
                   ))}
                 </div>
+              ) : memoriesLoaded ? (
+                <div className="text-center py-6 bg-orange-500/5 border border-orange-500/20 rounded-xl">
+                  <div className="text-3xl mb-2">🧠</div>
+                  <p className="text-gray-400 text-sm mb-1">No memories stored yet</p>
+                  <p className="text-gray-600 text-xs">Chat with the AI and important facts will be automatically remembered, or add them manually above.</p>
+                </div>
               ) : (
-                <p className="text-gray-600 text-xs text-center py-4">
-                  No memories yet. Chat with the AI and important facts will be automatically remembered, or add them manually above.
-                </p>
+                <div className="text-center py-6 bg-white/5 border border-white/10 rounded-xl">
+                  <Loader2 className="w-6 h-6 text-blue-400 animate-spin mx-auto mb-2" />
+                  <p className="text-gray-400 text-sm">Loading your memories...</p>
+                </div>
               )}
             </div>
           )}
