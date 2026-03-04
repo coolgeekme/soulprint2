@@ -7334,21 +7334,62 @@ async function handleRedeemBetaCode(request) {
     return ok({ success: true, message: 'Already accepted' });
   }
 
-  // Find the beta code
-  const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
+  const codeToCheck = code.toUpperCase().trim();
+  let validCode = false;
+  let usedCodeSource = null;
+
+  // First check beta_codes_v2 (admin-created codes)
+  const v2Code = await db.collection('beta_codes_v2').findOne({ 
+    code: codeToCheck,
+    active: true,
+  });
   
-  if (!betaCode || !betaCode.code) {
-    return err('Invalid access code', 400);
+  if (v2Code) {
+    // Check expiration
+    const isExpired = v2Code.expires_at && new Date(v2Code.expires_at) < new Date();
+    if (isExpired) {
+      return err('This access code has expired', 400);
+    }
+    
+    // Check usage limits
+    const currentUses = v2Code.uses_count ?? v2Code.uses ?? 0;
+    const isExhausted = v2Code.max_uses && currentUses >= v2Code.max_uses;
+    if (isExhausted) {
+      return err('This access code has reached its usage limit', 400);
+    }
+    
+    validCode = true;
+    usedCodeSource = 'v2';
+    
+    // Increment usage count
+    await db.collection('beta_codes_v2').updateOne(
+      { code: codeToCheck },
+      { $inc: { uses: 1, uses_count: 1 } }
+    );
+  } else {
+    // Fallback: check legacy beta_codes collection
+    const legacyCode = await db.collection('beta_codes').findOne({ id: 'current' });
+    
+    if (legacyCode && legacyCode.code && legacyCode.code.toUpperCase() === codeToCheck) {
+      // Check if expired
+      if (legacyCode.expires_at && new Date(legacyCode.expires_at) < new Date()) {
+        return err('This access code has expired', 400);
+      }
+      
+      validCode = true;
+      usedCodeSource = 'legacy';
+      
+      // Increment usage count
+      await db.collection('beta_codes').updateOne(
+        { id: 'current' },
+        { $inc: { uses: 1 } }
+      );
+    }
   }
 
-  // Check if code matches
-  if (betaCode.code.toUpperCase() !== code.toUpperCase().trim()) {
+  if (!validCode) {
+    console.log('[Redeem Code] Invalid code attempted:', code, 'by user:', user.email);
     return err('Invalid access code', 400);
-  }
-
-  // Check if expired
-  if (betaCode.expires_at && new Date(betaCode.expires_at) < new Date()) {
-    return err('This access code has expired', 400);
   }
 
   // Accept the user
@@ -7357,12 +7398,7 @@ async function handleRedeemBetaCode(request) {
     { $set: { accepted: true, beta_code_used: code, accepted_at: new Date() } }
   );
 
-  // Increment usage count
-  await db.collection('beta_codes').updateOne(
-    { id: 'current' },
-    { $inc: { uses: 1 } }
-  );
-
+  console.log('[Redeem Code] Code accepted:', code, 'for user:', user.email, 'source:', usedCodeSource);
   return ok({ success: true, message: 'Access granted!' });
 }
 
@@ -7374,23 +7410,42 @@ async function handleValidateBetaCode(request) {
   if (!code) return ok({ valid: false });
 
   const db = await getDb();
-  const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
+  const codeToCheck = code.toUpperCase().trim();
+
+  // First check beta_codes_v2 (admin-created codes)
+  const v2Code = await db.collection('beta_codes_v2').findOne({ 
+    code: codeToCheck,
+    active: true,
+  });
   
-  if (!betaCode || !betaCode.code) {
-    return ok({ valid: false });
+  if (v2Code) {
+    // Check expiration
+    if (v2Code.expires_at && new Date(v2Code.expires_at) < new Date()) {
+      return ok({ valid: false, expired: true });
+    }
+    
+    // Check usage limits
+    const currentUses = v2Code.uses_count ?? v2Code.uses ?? 0;
+    if (v2Code.max_uses && currentUses >= v2Code.max_uses) {
+      return ok({ valid: false, exhausted: true });
+    }
+    
+    return ok({ valid: true });
   }
 
-  // Check if code matches
-  if (betaCode.code.toUpperCase() !== code.toUpperCase().trim()) {
-    return ok({ valid: false });
+  // Fallback: check legacy beta_codes collection
+  const legacyCode = await db.collection('beta_codes').findOne({ id: 'current' });
+  
+  if (legacyCode && legacyCode.code && legacyCode.code.toUpperCase() === codeToCheck) {
+    // Check if expired
+    if (legacyCode.expires_at && new Date(legacyCode.expires_at) < new Date()) {
+      return ok({ valid: false, expired: true });
+    }
+    
+    return ok({ valid: true });
   }
 
-  // Check if expired
-  if (betaCode.expires_at && new Date(betaCode.expires_at) < new Date()) {
-    return ok({ valid: false, expired: true });
-  }
-
-  return ok({ valid: true });
+  return ok({ valid: false });
 }
 
 // Send beta code via email
