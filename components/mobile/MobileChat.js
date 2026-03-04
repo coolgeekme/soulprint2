@@ -1373,21 +1373,27 @@ const GalleryView = ({ isOpen, onClose, items, onItemClick, token, onDeleteItem,
       
       {/* Item Detail Modal with Edit & Regenerate */}
       {selectedItem && (
-        <div className="fixed inset-0 bg-black/95 z-[70] flex flex-col" onClick={() => !isEditing && setSelectedItem(null)}>
-          <div className="p-4 flex items-center justify-between border-b border-white/10">
-            <div className="flex items-center gap-2">
-              <span className={`text-xs px-2 py-1 rounded ${selectedItem.type === 'video' ? 'bg-blue-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
-                {selectedItem.type === 'video' ? 'Video' : 'Image'} • {selectedItem.model_label || selectedItem.model}
-              </span>
-              {selectedItem.duration && selectedItem.type === 'video' && (
-                <span className="text-xs px-2 py-1 rounded bg-white/10 text-gray-400">
-                  {selectedItem.duration}s
+        <div className="fixed inset-0 bg-black z-[70] flex flex-col" onClick={() => !isEditing && setSelectedItem(null)}>
+          {/* Header with safe area for notch */}
+          <div className="bg-black border-b border-white/10" style={{ paddingTop: 'env(safe-area-inset-top, 12px)' }}>
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-2 py-1 rounded ${selectedItem.type === 'video' ? 'bg-blue-500/30 text-purple-300' : 'bg-pink-500/30 text-pink-300'}`}>
+                  {selectedItem.type === 'video' ? 'Video' : 'Image'} • {selectedItem.model_label || selectedItem.model}
                 </span>
-              )}
+                {selectedItem.duration && selectedItem.type === 'video' && (
+                  <span className="text-xs px-2 py-1 rounded bg-white/10 text-gray-400">
+                    {selectedItem.duration}s
+                  </span>
+                )}
+              </div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setSelectedItem(null); }} 
+                className="w-10 h-10 flex items-center justify-center bg-white/10 rounded-full text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
-            <button onClick={() => setSelectedItem(null)} className="text-gray-400">
-              <X className="w-6 h-6" />
-            </button>
           </div>
           
           <div className="flex-1 flex items-center justify-center p-4 overflow-hidden" onClick={e => e.stopPropagation()}>
