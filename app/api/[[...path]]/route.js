@@ -4156,12 +4156,13 @@ const KIE_IMAGE_MODELS = {
     })
   },
   'gpt-image-1-5': { 
-    model: 'openai/gpt-image-1.5', 
+    model: 'gpt-image/1.5-text-to-image', 
     useJobsApi: true, 
     credits: 50,
     formatInput: (prompt, aspectRatio) => ({
       prompt,
-      size: { '1:1': '1024x1024', '16:9': '1792x1024', '9:16': '1024x1792' }[aspectRatio] || '1024x1024',
+      aspect_ratio: aspectRatio || '1:1',
+      quality: 'high',
     })
   },
 };
