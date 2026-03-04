@@ -1823,17 +1823,29 @@ async function handleRegister(request) {
       active: true,
     });
     
-    if (v2Code && 
-        (!v2Code.expires_at || new Date(v2Code.expires_at) >= new Date()) &&
-        (!v2Code.max_uses || (v2Code.uses || 0) < v2Code.max_uses)) {
-      acceptedViaBetaCode = true;
-      usedCodeId = v2Code._id || v2Code.id;
-      // Increment usage count
-      await db.collection('beta_codes_v2').updateOne(
-        { code: access_code.toUpperCase().trim() },
-        { $inc: { uses: 1 } }
-      );
-      console.log('[Beta Code] Accepted code:', access_code, 'for user:', email);
+    console.log('[Beta Code] Checking code:', access_code, 'Found:', v2Code ? 'yes' : 'no');
+    
+    if (v2Code) {
+      // Check expiration
+      const isExpired = v2Code.expires_at && new Date(v2Code.expires_at) < new Date();
+      // Check usage - support both 'uses' and 'uses_count' field names
+      const currentUses = v2Code.uses_count ?? v2Code.uses ?? 0;
+      const isExhausted = v2Code.max_uses && currentUses >= v2Code.max_uses;
+      
+      console.log('[Beta Code] Code details - expired:', isExpired, 'uses:', currentUses, '/', v2Code.max_uses, 'exhausted:', isExhausted);
+      
+      if (!isExpired && !isExhausted) {
+        acceptedViaBetaCode = true;
+        usedCodeId = v2Code._id || v2Code.id;
+        // Increment usage count - update both field names for compatibility
+        await db.collection('beta_codes_v2').updateOne(
+          { code: access_code.toUpperCase().trim() },
+          { $inc: { uses: 1, uses_count: 1 } }
+        );
+        console.log('[Beta Code] Accepted code:', access_code, 'for user:', email);
+      } else {
+        console.log('[Beta Code] Code rejected - expired:', isExpired, 'exhausted:', isExhausted);
+      }
     } else {
       // Fallback to legacy code
       const betaCode = await db.collection('beta_codes').findOne({ id: 'current' });
@@ -7717,7 +7729,8 @@ async function handleAdminGetBetaCodes(request) {
     ...code,
     group_name: code.group_id ? groupMap.get(code.group_id) : 'Ungrouped',
     is_expired: code.expires_at && new Date(code.expires_at) < new Date(),
-    is_exhausted: code.max_uses && code.uses_count >= code.max_uses,
+    is_exhausted: code.max_uses && (code.uses_count ?? code.uses ?? 0) >= code.max_uses,
+    total_uses: code.uses_count ?? code.uses ?? 0,
   }));
 
   return ok({ codes: codesWithDetails });
