@@ -1693,6 +1693,7 @@ export default function MobileChat({
   
   // iOS Keyboard handling
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -1718,29 +1719,63 @@ export default function MobileChat({
     scrollToBottom();
   }, [messages, streamingContent, scrollToBottom]);
 
-  // iOS Keyboard handling - scroll input into view when focused
+  // iOS/Android Keyboard handling - keep input visible above keyboard
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
+    let initialViewportHeight = window.innerHeight;
+    
     const handleFocus = () => {
       setKeyboardVisible(true);
-      // Scroll the input container into view after keyboard appears
+      // Give keyboard time to appear, then scroll
       setTimeout(() => {
-        inputContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      }, 300);
+        if (inputContainerRef.current) {
+          inputContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }, 100);
     };
     
     const handleBlur = () => {
-      setKeyboardVisible(false);
+      // Small delay to check if focus moved to another input
+      setTimeout(() => {
+        if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+          setKeyboardVisible(false);
+          setKeyboardHeight(0);
+        }
+      }, 100);
     };
     
-    // Use visualViewport API for better iOS keyboard detection
+    // Use visualViewport API for accurate keyboard detection
     const handleViewportResize = () => {
       if (window.visualViewport) {
-        const viewportHeight = window.visualViewport.height;
-        const windowHeight = window.innerHeight;
-        // If viewport is significantly smaller, keyboard is likely visible
-        setKeyboardVisible(windowHeight - viewportHeight > 150);
+        const currentHeight = window.visualViewport.height;
+        const heightDiff = initialViewportHeight - currentHeight;
+        
+        // Keyboard is likely visible if viewport shrunk by more than 150px
+        if (heightDiff > 150) {
+          setKeyboardVisible(true);
+          setKeyboardHeight(heightDiff);
+          
+          // Scroll input into view
+          setTimeout(() => {
+            if (inputContainerRef.current) {
+              inputContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+          }, 50);
+        } else {
+          setKeyboardVisible(false);
+          setKeyboardHeight(0);
+        }
+      }
+    };
+    
+    // Also handle scroll event on visualViewport (iOS Safari fix)
+    const handleViewportScroll = () => {
+      if (window.visualViewport && keyboardVisible) {
+        // Force scroll input into view when viewport scrolls
+        if (inputContainerRef.current) {
+          inputContainerRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+        }
       }
     };
     
@@ -1752,7 +1787,26 @@ export default function MobileChat({
     
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportResize);
+      window.visualViewport.addEventListener('scroll', handleViewportScroll);
+      // Initialize with current viewport height
+      initialViewportHeight = window.visualViewport.height || window.innerHeight;
     }
+    
+    // Fallback for browsers without visualViewport
+    const handleResize = () => {
+      if (!window.visualViewport) {
+        const currentHeight = window.innerHeight;
+        const heightDiff = initialViewportHeight - currentHeight;
+        if (heightDiff > 150) {
+          setKeyboardVisible(true);
+          setKeyboardHeight(heightDiff);
+        } else if (heightDiff < 100) {
+          setKeyboardVisible(false);
+          setKeyboardHeight(0);
+        }
+      }
+    };
+    window.addEventListener('resize', handleResize);
     
     return () => {
       if (input) {
@@ -1761,9 +1815,11 @@ export default function MobileChat({
       }
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', handleViewportResize);
+        window.visualViewport.removeEventListener('scroll', handleViewportScroll);
       }
+      window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [keyboardVisible]);
 
   // Media intent detection function
   const detectMediaIntent = useCallback((text) => {
@@ -2724,7 +2780,10 @@ export default function MobileChat({
           )}
           
           {/* Messages */}
-          <div className={`${announcements.length === 0 && !showInstallPrompt ? 'pt-20' : 'pt-4'} pb-48 overflow-y-auto mobile-chat-container`}>
+          <div 
+            className={`${announcements.length === 0 && !showInstallPrompt ? 'pt-20' : 'pt-4'} overflow-y-auto mobile-chat-container`}
+            style={{ paddingBottom: keyboardVisible ? '12rem' : '12rem' }}
+          >
             {messages.map((msg, idx) => (
               <MessageBubble 
                 key={msg.id || idx} 
@@ -2766,7 +2825,17 @@ export default function MobileChat({
           {/* Input Area */}
           <div 
             ref={inputContainerRef}
-            className={`mobile-input-area ${keyboardVisible ? 'keyboard-visible' : ''}`}
+            className="mobile-input-area"
+            style={{
+              position: keyboardVisible ? 'fixed' : 'relative',
+              bottom: keyboardVisible ? '0' : 'auto',
+              left: keyboardVisible ? '0' : 'auto',
+              right: keyboardVisible ? '0' : 'auto',
+              zIndex: keyboardVisible ? 100 : 1,
+              paddingBottom: keyboardVisible ? 'env(safe-area-inset-bottom, 8px)' : 'calc(4.5rem + env(safe-area-inset-bottom, 0px))',
+              backgroundColor: keyboardVisible ? '#0a0a0a' : 'transparent',
+              borderTop: keyboardVisible ? '1px solid rgba(255,255,255,0.1)' : 'none',
+            }}
           >
             {/* Attachment Preview - show uploaded files */}
             {(attachments.length > 0 || isProcessingFile) && (
@@ -3480,6 +3549,28 @@ export default function MobileChat({
         }
         .tab-bar-height {
           height: calc(4rem + env(safe-area-inset-bottom, 0px));
+        }
+        
+        /* Mobile input area base styles */
+        .mobile-input-area {
+          padding: 12px 16px;
+          transition: all 0.2s ease-out;
+        }
+        
+        /* When keyboard is visible - ensure input stays above keyboard */
+        @supports (height: 100dvh) {
+          .mobile-input-area {
+            /* Use dynamic viewport units when available */
+          }
+        }
+        
+        /* iOS specific: handle visual viewport */
+        @supports (-webkit-touch-callout: none) {
+          .mobile-input-area {
+            /* iOS Safari specific adjustments */
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+          }
         }
       `}</style>
     </div>
