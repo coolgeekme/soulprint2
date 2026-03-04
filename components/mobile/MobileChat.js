@@ -2669,7 +2669,14 @@ export default function MobileChat({
 
       {/* Chat Tab */}
       {activeTab === 'chat' && (
-        <div className="fixed inset-0 flex flex-col" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}>
+        <div 
+          className="flex flex-col bg-sp-black"
+          style={{ 
+            height: 'calc(100dvh - 4rem - env(safe-area-inset-bottom, 0px))',
+            minHeight: 'calc(100vh - 4rem - env(safe-area-inset-bottom, 0px))',
+          }}
+        >
+          {/* Header takes its natural height */}
           <ChatHeader 
             assistantName={assistantName}
             model={MODELS.find(m => m.value === selectedModel)?.label || selectedModel}
@@ -2680,9 +2687,15 @@ export default function MobileChat({
             onMoreClick={() => setShowMoreOptions(true)}
           />
           
-          {/* Scrollable Messages Area */}
-          <div className="flex-1 overflow-y-auto pt-16">
-            {/* Announcements Banner - Below header */}
+          {/* Scrollable Messages Area - takes remaining space */}
+          <div 
+            className="flex-1 overflow-y-auto"
+            style={{ 
+              paddingTop: 'calc(4rem + env(safe-area-inset-top, 0px))',
+              paddingBottom: '1rem'
+            }}
+          >
+            {/* Announcements Banner */}
             {announcements.length > 0 && (
               <div className="px-3 pt-2 pb-1">
               {announcements.slice(0, 2).map(ann => (
@@ -2779,53 +2792,53 @@ export default function MobileChat({
                 </button>
               </div>
             </div>
-          )}
+            )}
           
             {/* Messages */}
             <div className="px-2 pb-4">
-            {messages.map((msg, idx) => (
-              <MessageBubble 
-                key={msg.id || idx} 
-                message={msg} 
-                isUser={msg.role === 'user'}
-                assistantName={assistantName}
-                onFeedback={handleFeedback}
-                token={token}
-              />
-            ))}
-            
-            {/* Streaming message */}
-            {streamingContent && (
-              <MessageBubble 
-                message={{ content: streamingContent }}
-                isUser={false}
-                assistantName={assistantName}
-              />
-            )}
-            
-            {/* Loading indicator */}
-            {loading && !streamingContent && (
-              <div className="flex justify-start mb-4 px-4">
-                <div className="bg-white/5 rounded-3xl px-5 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              {messages.map((msg, idx) => (
+                <MessageBubble 
+                  key={msg.id || idx} 
+                  message={msg} 
+                  isUser={msg.role === 'user'}
+                  assistantName={assistantName}
+                  onFeedback={handleFeedback}
+                  token={token}
+                />
+              ))}
+              
+              {/* Streaming message */}
+              {streamingContent && (
+                <MessageBubble 
+                  message={{ content: streamingContent }}
+                  isUser={false}
+                  assistantName={assistantName}
+                />
+              )}
+              
+              {/* Loading indicator */}
+              {loading && !streamingContent && (
+                <div className="flex justify-start mb-4 px-4">
+                  <div className="bg-white/5 rounded-3xl px-5 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-            
-            <div ref={messagesEndRef} />
+              )}
+              
+              <div ref={messagesEndRef} />
             </div>
           </div>
 
-          {/* Input Area - Fixed at bottom of chat container */}
+          {/* Input Area - above tab bar */}
           <div 
             ref={inputContainerRef}
-            className="mobile-input-area bg-sp-black border-t border-white/10 px-3 py-2"
+            className="mobile-input-area bg-sp-black border-t border-white/10 px-3 py-2 flex-shrink-0"
           >
             {/* Attachment Preview - show uploaded files */}
             {(attachments.length > 0 || isProcessingFile) && (
