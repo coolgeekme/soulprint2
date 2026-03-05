@@ -7,7 +7,7 @@ import {
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
-  Folder, FolderPlus, Share2, Users, Link2, UserPlus
+  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
@@ -732,7 +732,7 @@ const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename,
 };
 
 // Profile View
-const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClick, announcements, onAnnouncementsClick, onEditName, inviteData, onInviteClick }) => (
+const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClick, announcements, onAnnouncementsClick, onEditName, inviteData, onInviteClick, onImportClick }) => (
   <div className="min-h-screen bg-sp-black pt-16 pb-24 px-4">
     <div className="text-center mb-8">
       <div className="w-24 h-24 mx-auto bg-gradient-to-br from-orange-500/20 to-amber-500/20 rounded-full flex items-center justify-center mb-4">
@@ -752,6 +752,23 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClic
         </span>
       )}
     </div>
+
+    {/* Import Chat History - Prominent placement */}
+    <button 
+      onClick={onImportClick}
+      className="w-full bg-gradient-to-r from-emerald-500/10 to-green-500/10 hover:from-emerald-500/20 hover:to-green-500/20 border border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between transition-colors mb-4"
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+          <Upload className="w-5 h-5 text-emerald-400" />
+        </div>
+        <div className="text-left">
+          <span className="text-white text-sm font-medium block">Import Chat History</span>
+          <span className="text-emerald-400/70 text-xs">ChatGPT, WhatsApp, iMessage & more</span>
+        </div>
+      </div>
+      <ChevronRight className="w-5 h-5 text-emerald-400" />
+    </button>
 
     {/* Viral Invite Section - Only shown if enabled */}
     {inviteData?.enabled && (
@@ -956,8 +973,8 @@ const AttachmentPreview = ({ attachments, onRemove }) => {
   );
 };
 
-// More Options Menu (bottom sheet) - now only has Import and Settings
-const MoreOptionsSheet = ({ isOpen, onClose, onSettings, onImport }) => {
+// More Options Menu (bottom sheet) - Website and Settings
+const MoreOptionsSheet = ({ isOpen, onClose, onSettings }) => {
   if (!isOpen) return null;
   
   return (
@@ -966,18 +983,6 @@ const MoreOptionsSheet = ({ isOpen, onClose, onSettings, onImport }) => {
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         <h3 className="text-white font-semibold text-lg mb-4">Options</h3>
         <div className="space-y-2">
-          <button 
-            onClick={() => { onImport?.(); onClose(); }}
-            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-              <CloudUploadIcon className="w-5 h-5 text-green-400" />
-            </div>
-            <div>
-              <span className="text-white font-medium">Import Chats</span>
-              <p className="text-gray-500 text-xs">Import from ChatGPT and other platforms</p>
-            </div>
-          </button>
           <button 
             onClick={() => { window.location.href = '/'; onClose(); }}
             className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
@@ -1634,8 +1639,8 @@ const CompareResultsView = ({ responses, onSelect, onClose }) => {
   );
 };
 
-// Cloud Import Sheet
-const ImportSheet = ({ isOpen, onClose, onImport }) => {
+// Chat History Import Sheet - Unified import for all platforms
+const ImportSheet = ({ isOpen, onClose, onImport, isUploading, uploadProgress }) => {
   const fileRef = useRef(null);
   
   if (!isOpen) return null;
@@ -1644,31 +1649,64 @@ const ImportSheet = ({ isOpen, onClose, onImport }) => {
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
       <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
-        <h3 className="text-white font-semibold text-lg mb-2">Import Conversations</h3>
-        <p className="text-gray-500 text-sm mb-4">Import your chat history from other platforms</p>
+        
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 mx-auto bg-emerald-500/20 rounded-full flex items-center justify-center mb-4">
+            <Upload className="w-8 h-8 text-emerald-400" />
+          </div>
+          <h3 className="text-white font-semibold text-lg mb-2">Import Chat History</h3>
+          <p className="text-gray-500 text-sm">Upload your chat exports to enhance your SoulPrint profile</p>
+        </div>
         
         <input
           type="file"
           ref={fileRef}
-          accept=".zip,.json"
+          accept=".zip,.json,.txt"
           onChange={(e) => onImport(e.target.files?.[0])}
           className="hidden"
         />
         
-        <button 
-          onClick={() => fileRef.current?.click()}
-          className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3 mb-2"
-        >
-          <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-            <CloudUploadIcon className="w-5 h-5 text-green-400" />
+        {isUploading ? (
+          <div className="text-center py-6">
+            <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mx-auto mb-3" />
+            <p className="text-white text-sm">{uploadProgress || 'Uploading...'}</p>
           </div>
-          <div>
-            <span className="text-white font-medium">ChatGPT Export</span>
-            <p className="text-gray-500 text-xs">Upload conversations.json or ZIP file</p>
-          </div>
-        </button>
+        ) : (
+          <>
+            <button 
+              onClick={() => fileRef.current?.click()}
+              className="w-full p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-center mb-4 hover:bg-emerald-500/30 transition-colors"
+            >
+              <Upload className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
+              <span className="text-white font-medium block">Choose File</span>
+              <p className="text-emerald-400/70 text-xs mt-1">ZIP or JSON file</p>
+            </button>
+            
+            <div className="bg-white/5 rounded-xl p-4 mb-4">
+              <p className="text-gray-400 text-xs font-medium mb-2">Supported formats:</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Check className="w-3 h-3 text-emerald-400" /> ChatGPT Export
+                </div>
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Check className="w-3 h-3 text-emerald-400" /> WhatsApp Export
+                </div>
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Check className="w-3 h-3 text-emerald-400" /> iMessage Export
+                </div>
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Check className="w-3 h-3 text-emerald-400" /> Facebook Export
+                </div>
+              </div>
+            </div>
+            
+            <p className="text-gray-600 text-[10px] text-center mb-4">
+              🔒 Your data is processed securely. Only insights are saved, raw data is deleted.
+            </p>
+          </>
+        )}
         
-        <button onClick={onClose} className="w-full mt-4 p-4 text-gray-500 text-sm">
+        <button onClick={onClose} className="w-full p-3 text-gray-500 text-sm">
           Cancel
         </button>
       </div>
@@ -1725,6 +1763,8 @@ export default function MobileChat({
   const [compareModels, setCompareModels] = useState(['gpt-4o', 'claude-sonnet-4-5-20250929']);
   const [compareResponses, setCompareResponses] = useState(null);
   const [showImportSheet, setShowImportSheet] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState('');
   const [announcements, setAnnouncements] = useState([]);
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [conversationSearch, setConversationSearch] = useState(''); // For searching conversations
@@ -2824,29 +2864,51 @@ export default function MobileChat({
   // Handle cloud import
   const handleImport = async (file) => {
     if (!file) return;
+    
+    setIsImporting(true);
+    setImportProgress('Preparing upload...');
+    
     const formData = new FormData();
     formData.append('file', file);
 
     try {
+      setImportProgress('Uploading file...');
       const res = await fetch('/api/import/chatgpt', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
+      
+      setImportProgress('Processing...');
       const data = await res.json();
+      
       if (data.imported > 0) {
-        alert(`Successfully imported ${data.imported} conversations!`);
+        setImportProgress(`Imported ${data.imported} conversations!`);
         // Refresh conversations
-        fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
+        const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
+        fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
           .then(r => r.json())
           .then(data => setConversations(Array.isArray(data) ? data : []));
+        
+        setTimeout(() => {
+          setShowImportSheet(false);
+          setIsImporting(false);
+          setImportProgress('');
+        }, 2000);
       } else {
-        alert('No conversations found to import.');
+        setImportProgress('No conversations found in file');
+        setTimeout(() => {
+          setIsImporting(false);
+          setImportProgress('');
+        }, 2000);
       }
     } catch (err) {
-      alert('Import failed: ' + err.message);
+      setImportProgress('Import failed: ' + err.message);
+      setTimeout(() => {
+        setIsImporting(false);
+        setImportProgress('');
+      }, 3000);
     }
-    setShowImportSheet(false);
   };
 
   // Edit message
@@ -3657,6 +3719,7 @@ export default function MobileChat({
           onEditName={openEditNameSheet}
           inviteData={inviteData}
           onInviteClick={() => setShowInviteSheet(true)}
+          onImportClick={() => setShowImportSheet(true)}
         />
       )}
 
@@ -3971,7 +4034,6 @@ export default function MobileChat({
         isOpen={showMoreOptions}
         onClose={() => setShowMoreOptions(false)}
         onSettings={onOpenSettings}
-        onImport={() => setShowImportSheet(true)}
       />
 
       {/* Create Options Sheet (+ button) */}
@@ -4073,8 +4135,10 @@ export default function MobileChat({
       {/* Import Sheet */}
       <ImportSheet
         isOpen={showImportSheet}
-        onClose={() => setShowImportSheet(false)}
+        onClose={() => { setShowImportSheet(false); setIsImporting(false); setImportProgress(''); }}
         onImport={handleImport}
+        isUploading={isImporting}
+        uploadProgress={importProgress}
       />
 
       {/* Project Sheet (Create/Edit/Share) */}
