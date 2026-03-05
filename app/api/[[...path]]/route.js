@@ -2332,11 +2332,49 @@ async function handleGetConversations(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
 
+  const { searchParams } = new URL(request.url);
+  const projectId = searchParams.get('project_id');
+
   const db = await getDb();
+  
+  let query = {};
+  
+  if (projectId === 'general' || projectId === 'uncategorized') {
+    // Get uncategorized conversations
+    query = { 
+      user_id: user.id,
+      $or: [{ project_id: { $exists: false } }, { project_id: null }, { project_id: 'general' }]
+    };
+  } else if (projectId) {
+    // Get conversations for a specific project (need to verify access)
+    const project = await db.collection('projects').findOne({
+      id: projectId,
+      $or: [
+        { owner_id: user.id },
+        { 'shared_with.user_id': user.id }
+      ]
+    });
+    if (!project) return err('Project not found', 404);
+    query = { project_id: projectId };
+  } else {
+    // Get all user's conversations + conversations in shared projects
+    const sharedProjects = await db.collection('projects')
+      .find({ 'shared_with.user_id': user.id, 'shared_with.accepted': true })
+      .toArray();
+    const sharedProjectIds = sharedProjects.map(p => p.id);
+    
+    query = {
+      $or: [
+        { user_id: user.id },
+        { project_id: { $in: sharedProjectIds } }
+      ]
+    };
+  }
+
   const conversations = await db.collection('conversations')
-    .find({ user_id: user.id })
+    .find(query)
     .sort({ updated_at: -1 })
-    .limit(50)
+    .limit(100)
     .toArray();
 
   return ok(conversations.map(c => ({
@@ -2344,7 +2382,10 @@ async function handleGetConversations(request) {
     title: c.title,
     created_at: c.created_at,
     updated_at: c.updated_at,
-    source: c.source || 'web', // Include source to show Telegram badge
+    source: c.source || 'web',
+    project_id: c.project_id || null,
+    tags: c.tags || [],
+    is_mine: c.user_id === user.id,
   })));
 }
 
@@ -2415,7 +2456,457 @@ async function handleDeleteConversation(request, conversationId) {
   return ok({ success: true });
 }
 
-// MESSAGES - Get by conversationId
+// ============================================================
+// PROJECTS & COLLABORATION
+// ============================================================
+
+// Generate a unique share code
+function generateShareCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let code = '';
+  for (let i = 0; i < 10; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// Get all projects for user (owned + shared)
+async function handleGetProjects(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  
+  // Get owned projects
+  const ownedProjects = await db.collection('projects')
+    .find({ owner_id: user.id })
+    .sort({ created_at: -1 })
+    .toArray();
+
+  // Get projects shared with user
+  const sharedProjects = await db.collection('projects')
+    .find({ 'shared_with.user_id': user.id, 'shared_with.accepted': true })
+    .sort({ created_at: -1 })
+    .toArray();
+
+  // Get conversation counts per project
+  const projectIds = [...ownedProjects, ...sharedProjects].map(p => p.id);
+  const convCounts = await db.collection('conversations').aggregate([
+    { $match: { project_id: { $in: projectIds } } },
+    { $group: { _id: '$project_id', count: { $sum: 1 } } }
+  ]).toArray();
+  const countMap = Object.fromEntries(convCounts.map(c => [c._id, c.count]));
+
+  // Get owner info for shared projects
+  const ownerIds = sharedProjects.map(p => p.owner_id);
+  const owners = await db.collection('users').find({ id: { $in: ownerIds } }).toArray();
+  const ownerMap = Object.fromEntries(owners.map(o => [o.id, o.email]));
+
+  // Count uncategorized conversations
+  const uncategorizedCount = await db.collection('conversations').countDocuments({
+    user_id: user.id,
+    $or: [{ project_id: { $exists: false } }, { project_id: null }, { project_id: 'general' }]
+  });
+
+  return ok({
+    owned: ownedProjects.map(p => ({
+      ...p,
+      conversation_count: countMap[p.id] || 0,
+      is_owner: true,
+    })),
+    shared: sharedProjects.map(p => ({
+      ...p,
+      conversation_count: countMap[p.id] || 0,
+      is_owner: false,
+      owner_email: ownerMap[p.owner_id],
+      my_role: p.shared_with.find(s => s.user_id === user.id)?.role || 'viewer',
+    })),
+    uncategorized_count: uncategorizedCount,
+  });
+}
+
+// Create a new project
+async function handleCreateProject(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { name, description, color, icon } = await request.json();
+  if (!name) return err('Project name is required');
+
+  const db = await getDb();
+  const now = new Date();
+
+  const project = {
+    id: uuidv4(),
+    name: name.trim(),
+    description: description || '',
+    color: color || '#6366f1', // Default indigo
+    icon: icon || '📁',
+    owner_id: user.id,
+    shared_with: [],
+    share_link: null,
+    created_at: now,
+    updated_at: now,
+  };
+
+  await db.collection('projects').insertOne(project);
+  return ok(project);
+}
+
+// Update a project
+async function handleUpdateProject(request, projectId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { name, description, color, icon } = await request.json();
+  const db = await getDb();
+
+  // Verify ownership
+  const project = await db.collection('projects').findOne({ id: projectId, owner_id: user.id });
+  if (!project) return err('Project not found or not authorized', 404);
+
+  const updates = { updated_at: new Date() };
+  if (name) updates.name = name.trim();
+  if (description !== undefined) updates.description = description;
+  if (color) updates.color = color;
+  if (icon) updates.icon = icon;
+
+  await db.collection('projects').updateOne({ id: projectId }, { $set: updates });
+  return ok({ success: true });
+}
+
+// Delete a project
+async function handleDeleteProject(request, projectId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+
+  // Verify ownership
+  const project = await db.collection('projects').findOne({ id: projectId, owner_id: user.id });
+  if (!project) return err('Project not found or not authorized', 404);
+
+  // Move all conversations in this project to uncategorized
+  await db.collection('conversations').updateMany(
+    { project_id: projectId },
+    { $set: { project_id: null } }
+  );
+
+  await db.collection('projects').deleteOne({ id: projectId });
+  return ok({ success: true });
+}
+
+// Share project with another user by email
+async function handleShareProject(request, projectId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { email, role } = await request.json();
+  if (!email) return err('Email is required');
+
+  const db = await getDb();
+
+  // Verify ownership
+  const project = await db.collection('projects').findOne({ id: projectId, owner_id: user.id });
+  if (!project) return err('Project not found or not authorized', 404);
+
+  // Find target user
+  const targetUser = await db.collection('users').findOne({ email: email.toLowerCase() });
+  if (!targetUser) return err('User not found with that email', 404);
+  if (targetUser.id === user.id) return err('Cannot share with yourself', 400);
+
+  // Check if already shared
+  const alreadyShared = project.shared_with?.find(s => s.user_id === targetUser.id);
+  if (alreadyShared) return err('Already shared with this user', 400);
+
+  // Add to shared_with
+  const shareEntry = {
+    user_id: targetUser.id,
+    email: targetUser.email,
+    role: role || 'collaborator', // 'viewer' or 'collaborator'
+    invited_at: new Date(),
+    accepted: true, // Auto-accept for now
+  };
+
+  await db.collection('projects').updateOne(
+    { id: projectId },
+    { $push: { shared_with: shareEntry } }
+  );
+
+  return ok({ success: true, shared_with: shareEntry });
+}
+
+// Remove user from project
+async function handleUnshareProject(request, projectId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { user_id } = await request.json();
+  if (!user_id) return err('User ID is required');
+
+  const db = await getDb();
+
+  // Verify ownership
+  const project = await db.collection('projects').findOne({ id: projectId, owner_id: user.id });
+  if (!project) return err('Project not found or not authorized', 404);
+
+  await db.collection('projects').updateOne(
+    { id: projectId },
+    { $pull: { shared_with: { user_id } } }
+  );
+
+  return ok({ success: true });
+}
+
+// Generate/toggle share link for project
+async function handleProjectShareLink(request, projectId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { enabled, role } = await request.json();
+  const db = await getDb();
+
+  // Verify ownership
+  const project = await db.collection('projects').findOne({ id: projectId, owner_id: user.id });
+  if (!project) return err('Project not found or not authorized', 404);
+
+  let shareLink = project.share_link;
+
+  if (enabled) {
+    // Generate or update share link
+    shareLink = {
+      code: shareLink?.code || generateShareCode(),
+      enabled: true,
+      role: role || 'collaborator',
+      created_at: shareLink?.created_at || new Date(),
+    };
+  } else {
+    // Disable share link
+    if (shareLink) {
+      shareLink.enabled = false;
+    }
+  }
+
+  await db.collection('projects').updateOne(
+    { id: projectId },
+    { $set: { share_link: shareLink } }
+  );
+
+  return ok({ share_link: shareLink });
+}
+
+// Join project via share link
+async function handleJoinProject(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { code } = await request.json();
+  if (!code) return err('Share code is required');
+
+  const db = await getDb();
+
+  // Find project with this share code
+  const project = await db.collection('projects').findOne({
+    'share_link.code': code,
+    'share_link.enabled': true,
+  });
+
+  if (!project) return err('Invalid or expired share link', 404);
+  if (project.owner_id === user.id) return err('You already own this project', 400);
+
+  // Check if already a member
+  const alreadyMember = project.shared_with?.find(s => s.user_id === user.id);
+  if (alreadyMember) return err('You are already a member of this project', 400);
+
+  // Add user to project
+  const shareEntry = {
+    user_id: user.id,
+    email: user.email,
+    role: project.share_link.role || 'collaborator',
+    invited_at: new Date(),
+    accepted: true,
+    joined_via: 'link',
+  };
+
+  await db.collection('projects').updateOne(
+    { id: project.id },
+    { $push: { shared_with: shareEntry } }
+  );
+
+  return ok({ success: true, project: { id: project.id, name: project.name } });
+}
+
+// Move conversation to project
+async function handleMoveConversationToProject(request, conversationId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { project_id } = await request.json();
+  const db = await getDb();
+
+  // Verify conversation ownership or collaboration access
+  const conv = await db.collection('conversations').findOne({ id: conversationId });
+  if (!conv) return err('Conversation not found', 404);
+
+  // Check if user owns the conversation or has collaborator access to its current project
+  const hasAccess = conv.user_id === user.id || 
+    (conv.project_id && await db.collection('projects').findOne({
+      id: conv.project_id,
+      $or: [
+        { owner_id: user.id },
+        { 'shared_with.user_id': user.id, 'shared_with.role': 'collaborator' }
+      ]
+    }));
+
+  if (!hasAccess) return err('Not authorized', 403);
+
+  // If moving to a project, verify access to target project
+  if (project_id && project_id !== 'general') {
+    const targetProject = await db.collection('projects').findOne({
+      id: project_id,
+      $or: [
+        { owner_id: user.id },
+        { 'shared_with.user_id': user.id }
+      ]
+    });
+    if (!targetProject) return err('Target project not found or not accessible', 404);
+  }
+
+  await db.collection('conversations').updateOne(
+    { id: conversationId },
+    { $set: { project_id: project_id || null, updated_at: new Date() } }
+  );
+
+  return ok({ success: true });
+}
+
+// Get conversations for a project (with collaboration support)
+async function handleGetProjectConversations(request, projectId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+
+  // Verify access to project
+  const project = await db.collection('projects').findOne({
+    id: projectId,
+    $or: [
+      { owner_id: user.id },
+      { 'shared_with.user_id': user.id }
+    ]
+  });
+
+  if (!project) return err('Project not found or not accessible', 404);
+
+  const conversations = await db.collection('conversations')
+    .find({ project_id: projectId })
+    .sort({ updated_at: -1 })
+    .toArray();
+
+  // Get owner info for each conversation
+  const ownerIds = [...new Set(conversations.map(c => c.user_id))];
+  const owners = await db.collection('users').find({ id: { $in: ownerIds } }).toArray();
+  const ownerMap = Object.fromEntries(owners.map(o => [o.id, o.email]));
+
+  return ok(conversations.map(c => ({
+    id: c.id,
+    title: c.title,
+    created_at: c.created_at,
+    updated_at: c.updated_at,
+    owner_email: ownerMap[c.user_id],
+    is_mine: c.user_id === user.id,
+  })));
+}
+
+// ============================================================
+// TAGS
+// ============================================================
+
+// Get user's tags
+async function handleGetTags(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  const tags = await db.collection('tags')
+    .find({ user_id: user.id })
+    .sort({ name: 1 })
+    .toArray();
+
+  return ok(tags);
+}
+
+// Create a tag
+async function handleCreateTag(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { name, color } = await request.json();
+  if (!name) return err('Tag name is required');
+
+  const db = await getDb();
+
+  // Check for duplicate
+  const existing = await db.collection('tags').findOne({ 
+    user_id: user.id, 
+    name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } 
+  });
+  if (existing) return err('Tag already exists', 400);
+
+  const tag = {
+    id: uuidv4(),
+    user_id: user.id,
+    name: name.trim(),
+    color: color || '#6366f1',
+    created_at: new Date(),
+  };
+
+  await db.collection('tags').insertOne(tag);
+  return ok(tag);
+}
+
+// Delete a tag
+async function handleDeleteTag(request, tagId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+
+  // Verify ownership
+  const tag = await db.collection('tags').findOne({ id: tagId, user_id: user.id });
+  if (!tag) return err('Tag not found', 404);
+
+  // Remove tag from all conversations
+  await db.collection('conversations').updateMany(
+    { user_id: user.id, tags: tagId },
+    { $pull: { tags: tagId } }
+  );
+
+  await db.collection('tags').deleteOne({ id: tagId });
+  return ok({ success: true });
+}
+
+// Update conversation tags
+async function handleUpdateConversationTags(request, conversationId) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const { tags } = await request.json();
+  const db = await getDb();
+
+  // Verify conversation ownership
+  const conv = await db.collection('conversations').findOne({ id: conversationId, user_id: user.id });
+  if (!conv) return err('Conversation not found', 404);
+
+  await db.collection('conversations').updateOne(
+    { id: conversationId },
+    { $set: { tags: tags || [], updated_at: new Date() } }
+  );
+
+  return ok({ success: true });
+}
+
+// MESSAGES - Get by conversationId (updated for collaboration)
 async function handleGetMessages(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -2425,9 +2916,26 @@ async function handleGetMessages(request) {
   if (!conversationId) return err('conversationId required');
 
   const db = await getDb();
-  // Verify conversation belongs to user
-  const conv = await db.collection('conversations').findOne({ id: conversationId, user_id: user.id });
+  
+  // Get conversation
+  const conv = await db.collection('conversations').findOne({ id: conversationId });
   if (!conv) return err('Conversation not found', 404);
+
+  // Check access: own conversation OR conversation is in a shared project
+  let hasAccess = conv.user_id === user.id;
+  
+  if (!hasAccess && conv.project_id) {
+    const project = await db.collection('projects').findOne({
+      id: conv.project_id,
+      $or: [
+        { owner_id: user.id },
+        { 'shared_with.user_id': user.id }
+      ]
+    });
+    hasAccess = !!project;
+  }
+
+  if (!hasAccess) return err('Conversation not found', 404);
 
   const messages = await db.collection('messages')
     .find({ conversation_id: conversationId })
@@ -2440,6 +2948,7 @@ async function handleGetMessages(request) {
     content: m.content,
     created_at: m.created_at,
     model_used: m.model_used,
+    sender_id: m.sender_id, // For collaboration - who sent this message
   })));
 }
 
@@ -14412,6 +14921,19 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/blog/posts') return handleAdminGetBlogPosts(request);
     if (pathStr === 'conversations') return handleGetConversations(request);
     if (pathStr === 'messages') return handleGetMessages(request);
+    
+    // Projects & Tags routes
+    if (pathStr === 'projects') return handleGetProjects(request);
+    if (pathStr.startsWith('projects/') && pathArr[1] === 'conversations') {
+      const projectId = pathArr[0].replace('projects/', '');
+      return handleGetProjectConversations(request, pathArr[1]);
+    }
+    if (pathStr.match(/^projects\/[^\/]+\/conversations$/)) {
+      const projectId = pathArr[1];
+      return handleGetProjectConversations(request, projectId);
+    }
+    if (pathStr === 'tags') return handleGetTags(request);
+    
     if (pathStr === 'imports') return handleGetImports(request);
     if (pathStr === 'models') return handleGetModels(request);
     if (pathStr.startsWith('generate/video/')) {
@@ -14489,6 +15011,32 @@ export async function POST(request, { params }) {
     if (pathStr === 'assessment/layered/complete') return handleCompleteLayeredAssessment(request);
     if (pathStr === 'assessment/validation/submit') return handleLayer3Validation(request);
     if (pathStr === 'conversations') return handleCreateConversation(request);
+    
+    // Projects & Tags POST routes
+    if (pathStr === 'projects') return handleCreateProject(request);
+    if (pathStr === 'projects/join') return handleJoinProject(request);
+    if (pathStr.match(/^projects\/[^\/]+\/share$/)) {
+      const projectId = pathArr[1];
+      return handleShareProject(request, projectId);
+    }
+    if (pathStr.match(/^projects\/[^\/]+\/unshare$/)) {
+      const projectId = pathArr[1];
+      return handleUnshareProject(request, projectId);
+    }
+    if (pathStr.match(/^projects\/[^\/]+\/share-link$/)) {
+      const projectId = pathArr[1];
+      return handleProjectShareLink(request, projectId);
+    }
+    if (pathStr.match(/^conversations\/[^\/]+\/project$/)) {
+      const conversationId = pathArr[1];
+      return handleMoveConversationToProject(request, conversationId);
+    }
+    if (pathStr.match(/^conversations\/[^\/]+\/tags$/)) {
+      const conversationId = pathArr[1];
+      return handleUpdateConversationTags(request, conversationId);
+    }
+    if (pathStr === 'tags') return handleCreateTag(request);
+    
     if (pathStr === 'chat/stream') return handleChatStream(request);
     if (pathStr === 'chat/compare') return handleChatCompare(request);
     if (pathStr === 'chat/compare/select') return handleCompareSelect(request);
@@ -14624,6 +15172,12 @@ export async function PUT(request, { params }) {
       return handleAdminUpdateBlogPost(request, postId);
     }
     if (pathStr === 'admin/beta-codes') return handleAdminUpdateBetaCode(request);
+    
+    // Project update: projects/:id
+    if (pathStr.startsWith('projects/') && pathArr.length === 2) {
+      const projectId = pathArr[1];
+      return handleUpdateProject(request, projectId);
+    }
 
     return err('Not found', 404);
   } catch (error) {
@@ -14670,6 +15224,17 @@ export async function DELETE(request, { params }) {
     if (pathStr === 'admin/beta-groups') return handleAdminDeleteBetaGroup(request);
     if (pathStr === 'admin/beta-codes') return handleAdminDeleteBetaCodeV2(request);
     if (pathStr === 'admin/pricing-features') return handleAdminDeletePricingFeature(request);
+    
+    // Projects & Tags delete routes
+    if (pathStr.startsWith('projects/') && pathArr.length === 2) {
+      const projectId = pathArr[1];
+      return handleDeleteProject(request, projectId);
+    }
+    if (pathStr.startsWith('tags/') && pathArr.length === 2) {
+      const tagId = pathArr[1];
+      return handleDeleteTag(request, tagId);
+    }
+    
     // Media gallery delete: media/:id
     if (pathStr.startsWith('media/') && pathArr.length === 2) {
       const mediaId = pathArr[1];
