@@ -15143,32 +15143,18 @@ async function handleSlackWebhook(request) {
         const cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
         
         if (!cleanText) {
-          await sendSlackMessage(channel, "Hi! I'm the SoulPrint Support Bot. 👋\n\nDescribe any issue you're experiencing with the app and I'll help get it resolved. I'll analyze your message and forward it to the team with context.");
+          await sendSlackMessage(channel, "Hi! I'm the SoulPrint Support Bot. 👋\n\nDescribe any issue you're experiencing with the app and I'll forward it to the team.");
           return ok({ ok: true });
         }
         
-        // Analyze the issue
-        const analysis = analyzeIssue(cleanText);
+        // Send simple thank you to the user
+        await sendSlackMessage(channel, "Thank you for reporting this! 🙏\n\nYour message has been forwarded to the team. Someone will look into it shortly.");
         
-        // Generate AI-powered fix suggestion for the owner
+        // Analyze the issue and send to owner
+        const analysis = analyzeIssue(cleanText);
         const aiSuggestion = await generateFixSuggestion(cleanText, analysis);
         
-        // Send friendly acknowledgment to the user
-        let userResponse = `Thanks for reporting this! 🙏\n\n`;
-        userResponse += `*Your message:*\n>${cleanText}\n\n`;
-        
-        if (analysis.bestMatch) {
-          userResponse += `*Possible issue area:* ${analysis.bestMatch.issue}\n`;
-          userResponse += `*What this might be:* ${analysis.bestMatch.cause}\n\n`;
-        } else if (analysis.isKnownFeature) {
-          userResponse += `*Related to:* ${analysis.features.join(', ')}\n\n`;
-        }
-        
-        userResponse += `I've forwarded this to the team for review. Someone will look into it shortly! 💪`;
-        
-        await sendSlackMessage(channel, userResponse);
-        
-        // Now send detailed analysis to the owner
+        // Automatically escalate to owner with full details
         await sendDetailedAnalysisToOwner(cleanText, channel, user, analysis, aiSuggestion);
         
         return ok({ ok: true });
@@ -15186,16 +15172,21 @@ async function handleSlackWebhook(request) {
 async function sendDetailedAnalysisToOwner(originalMessage, channel, reporterUser, analysis, aiSuggestion) {
   if (!SLACK_ESCALATION_USER_ID) return;
   
-  // Build the Emergent prompt
-  let emergentPrompt = `A team member reported an issue:\n\n`;
+  // Build the Emergent prompt - this is what gets pasted into Emergent
+  let emergentPrompt = `Fix this issue reported by a team member:\n\n`;
   emergentPrompt += `"${originalMessage}"\n\n`;
   
   if (analysis.bestMatch) {
-    emergentPrompt += `The issue appears to be related to: ${analysis.bestMatch.issue}\n`;
-    emergentPrompt += `Likely cause: ${analysis.bestMatch.cause}\n`;
-    emergentPrompt += `Suggested fix: ${analysis.bestMatch.solution}\n`;
-    emergentPrompt += `File to check: ${analysis.bestMatch.file}\n`;
-    emergentPrompt += `Function: ${analysis.bestMatch.function}\n\n`;
+    emergentPrompt += `Analysis:\n`;
+    emergentPrompt += `- Issue type: ${analysis.bestMatch.issue}\n`;
+    emergentPrompt += `- Likely cause: ${analysis.bestMatch.cause}\n`;
+    emergentPrompt += `- Suggested fix: ${analysis.bestMatch.solution}\n`;
+    emergentPrompt += `- Check file: ${analysis.bestMatch.file}\n`;
+    emergentPrompt += `- Function: ${analysis.bestMatch.function}\n\n`;
+  }
+  
+  if (aiSuggestion) {
+    emergentPrompt += `AI Recommendation:\n${aiSuggestion}\n\n`;
   }
   
   emergentPrompt += `Please investigate and fix this issue.`;
@@ -15221,87 +15212,40 @@ async function sendDetailedAnalysisToOwner(originalMessage, channel, reporterUse
     },
     {
       type: 'divider'
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*📋 Paste this into Emergent:*`
+      }
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `\`\`\`${emergentPrompt}\`\`\``
+      }
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '✅ Mark Resolved', emoji: true },
+          style: 'primary',
+          action_id: 'owner_resolved',
+          value: JSON.stringify({ channel, user: reporterUser })
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '💬 Reply to User', emoji: true },
+          action_id: 'owner_reply',
+          value: JSON.stringify({ channel, user: reporterUser })
+        }
+      ]
     }
   ];
-  
-  // Add analysis if available
-  if (analysis.bestMatch) {
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*🔍 Analysis*\n• *Issue Type:* ${analysis.bestMatch.issue}\n• *Likely Cause:* ${analysis.bestMatch.cause}\n• *File:* \`${analysis.bestMatch.file}\`\n• *Function:* \`${analysis.bestMatch.function}\``
-      }
-    });
-    
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*💡 Suggested Solution:*\n${analysis.bestMatch.solution}`
-      }
-    });
-  } else {
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*🔍 Analysis*\nThis issue doesn't match known patterns. May require manual investigation.`
-      }
-    });
-  }
-  
-  // Add AI recommendation if available
-  if (aiSuggestion) {
-    blocks.push({
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: `*🤖 AI Recommendation:*\n${aiSuggestion}`
-      }
-    });
-  }
-  
-  blocks.push({
-    type: 'divider'
-  });
-  
-  // Add Emergent prompt section
-  blocks.push({
-    type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: `*📋 Copy & Paste into Emergent:*`
-    }
-  });
-  
-  blocks.push({
-    type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: `\`\`\`${emergentPrompt}\`\`\``
-    }
-  });
-  
-  // Add action buttons
-  blocks.push({
-    type: 'actions',
-    elements: [
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: '✅ Mark Resolved', emoji: true },
-        style: 'primary',
-        action_id: 'owner_resolved',
-        value: JSON.stringify({ channel, user: reporterUser })
-      },
-      {
-        type: 'button',
-        text: { type: 'plain_text', text: '💬 Reply to User', emoji: true },
-        action_id: 'owner_reply',
-        value: JSON.stringify({ channel, user: reporterUser })
-      }
-    ]
-  });
   
   await sendSlackMessage(SLACK_ESCALATION_USER_ID, `New support request from <@${reporterUser}>`, blocks);
 }
