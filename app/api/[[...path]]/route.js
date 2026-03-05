@@ -15128,6 +15128,12 @@ export async function PUT(request, { params }) {
     if (pathStr === 'profile') return handleProfileUpdate(request);
     if (pathStr === 'telegram/model') return handleTelegramSetModel(request);
     
+    // Conversation project move: conversations/:id/project
+    if (pathStr.match(/^conversations\/[^\/]+\/project$/)) {
+      const conversationId = pathArr[1];
+      return handleMoveConversationToProject(request, conversationId);
+    }
+    
     // Conversation rename: conversations/:id
     if (pathStr.startsWith('conversations/') && pathArr.length === 2) {
       const conversationId = pathArr[1];

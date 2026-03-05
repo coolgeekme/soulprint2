@@ -1,480 +1,527 @@
 #!/usr/bin/env python3
-"""
-Backend Test Suite for Email Verification and reCAPTCHA System
-Testing new endpoints added for fake account prevention
-"""
 
-import requests
+import asyncio
+import aiohttp
 import json
-import time
-import uuid
 import sys
-from datetime import datetime
-import subprocess
+import traceback
 
-# Test Configuration
-BASE_URL = "https://offline-voice-engine.preview.emergentagent.com/api"
-TEST_EMAIL = "test@soulprint.com"
-TEST_PASSWORD = "test123"
+# Configuration
+BASE_URL = "https://chat-organizer-10.preview.emergentagent.com/api"
+LOGIN_EMAIL = "test@soulprint.com"
+LOGIN_PASSWORD = "test123"
 
-# Colors for output
-GREEN = '\033[92m'
-RED = '\033[91m'
-BLUE = '\033[94m'
-YELLOW = '\033[93m'
-ENDC = '\033[0m'
-BOLD = '\033[1m'
-
-def print_test_header(title):
-    print(f"\n{BLUE}{BOLD}{'='*60}{ENDC}")
-    print(f"{BLUE}{BOLD}{title}{ENDC}")
-    print(f"{BLUE}{BOLD}{'='*60}{ENDC}")
-
-def print_success(message):
-    print(f"{GREEN}✅ {message}{ENDC}")
-
-def print_failure(message):
-    print(f"{RED}❌ {message}{ENDC}")
-
-def print_info(message):
-    print(f"{YELLOW}ℹ️  {message}{ENDC}")
-
-def print_step(step, description):
-    print(f"{BOLD}Step {step}: {description}{ENDC}")
-
-class EmailVerificationTester:
+class ProjectCollaborationTester:
     def __init__(self):
-        self.session = requests.Session()
-        self.admin_token = None
-        self.test_users = []
+        self.session = None
+        self.token = None
+        self.user_id = None
+        self.test_project_id = None
+        self.test_conversation_id = None
+        self.share_code = None
         
-    def cleanup_test_users(self):
-        """Clean up test users created during testing"""
-        if not self.admin_token:
-            return
-            
-        print_info("Cleaning up test users...")
-        for user_id in self.test_users:
-            try:
-                response = self.session.delete(
-                    f"{BASE_URL}/admin/users/{user_id}",
-                    headers={"Authorization": f"Bearer {self.admin_token}"}
-                )
-                if response.status_code == 200:
-                    print_info(f"Deleted test user: {user_id}")
-            except Exception as e:
-                print(f"Failed to cleanup user {user_id}: {e}")
-
-    def authenticate_superadmin(self):
-        """Authenticate as superadmin user"""
-        print_step(1, "Authenticate as superadmin")
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+    
+    def get_auth_headers(self):
+        if not self.token:
+            return {}
+        return {"Authorization": f"Bearer {self.token}"}
+    
+    async def make_request(self, method, endpoint, data=None, expect_error=False):
+        """Make HTTP request and return response"""
+        url = f"{BASE_URL}{endpoint}"
+        headers = self.get_auth_headers()
         
         try:
-            response = self.session.post(f"{BASE_URL}/auth/login", json={
-                "email": TEST_EMAIL,
-                "passcode": TEST_PASSWORD
+            if method.upper() == "GET":
+                async with self.session.get(url, headers=headers) as resp:
+                    response_text = await resp.text()
+                    try:
+                        response_data = json.loads(response_text)
+                    except json.JSONDecodeError:
+                        response_data = {"raw_response": response_text}
+                    return resp.status, response_data
+            elif method.upper() == "POST":
+                headers["Content-Type"] = "application/json"
+                async with self.session.post(url, headers=headers, json=data) as resp:
+                    response_text = await resp.text()
+                    try:
+                        response_data = json.loads(response_text)
+                    except json.JSONDecodeError:
+                        response_data = {"raw_response": response_text}
+                    return resp.status, response_data
+            elif method.upper() == "PUT":
+                headers["Content-Type"] = "application/json"
+                async with self.session.put(url, headers=headers, json=data) as resp:
+                    response_text = await resp.text()
+                    try:
+                        response_data = json.loads(response_text)
+                    except json.JSONDecodeError:
+                        response_data = {"raw_response": response_text}
+                    return resp.status, response_data
+            elif method.upper() == "DELETE":
+                async with self.session.delete(url, headers=headers) as resp:
+                    response_text = await resp.text()
+                    try:
+                        response_data = json.loads(response_text)
+                    except json.JSONDecodeError:
+                        response_data = {"raw_response": response_text}
+                    return resp.status, response_data
+        except Exception as e:
+            if expect_error:
+                return 0, {"error": str(e)}
+            print(f"❌ Request failed: {method} {endpoint} - {str(e)}")
+            return 0, {"error": str(e)}
+    
+    async def test_authentication(self):
+        """Test 1: Authenticate with test user"""
+        print("\n=== TEST 1: Authentication ===")
+        try:
+            status, response = await self.make_request("POST", "/auth/login", {
+                "email": LOGIN_EMAIL,
+                "passcode": LOGIN_PASSWORD
             })
             
-            if response.status_code == 200:
-                data = response.json()
-                self.admin_token = data.get('token')
-                role = data.get('role')
-                
-                if role == 'superadmin':
-                    print_success(f"Successfully authenticated as superadmin: {TEST_EMAIL}")
-                    return True
-                else:
-                    print_failure(f"User is not superadmin, role: {role}")
-                    return False
+            if status == 200 and "token" in response:
+                self.token = response["token"]
+                self.user_id = response.get("userId")
+                print(f"✅ Authentication successful")
+                print(f"   - Email: {LOGIN_EMAIL}")
+                print(f"   - Role: {response.get('role', 'Unknown')}")
+                print(f"   - Token: {self.token[:20]}...")
+                return True
             else:
-                print_failure(f"Login failed: {response.status_code} - {response.text}")
+                print(f"❌ Authentication failed: Status {status}")
+                print(f"   Response: {response}")
                 return False
-                
         except Exception as e:
-            print_failure(f"Authentication error: {e}")
+            print(f"❌ Authentication error: {str(e)}")
             return False
-
-    def test_recaptcha_verification(self):
-        """Test reCAPTCHA verification endpoint"""
-        print_test_header("1. Testing reCAPTCHA Verification API")
+    
+    async def test_projects_crud(self):
+        """Test 2: Projects CRUD Operations"""
+        print("\n=== TEST 2: Projects CRUD APIs ===")
         
-        # Test 1: Missing token
-        print_step(1, "Test missing reCAPTCHA token")
         try:
-            response = self.session.post(f"{BASE_URL}/auth/verify-captcha", json={})
-            
-            if response.status_code == 400:
-                data = response.json()
-                if "token" in data.get('error', '').lower():
-                    print_success("Correctly rejected request without token (400)")
-                else:
-                    print_failure(f"Wrong error message: {data}")
+            # Test GET /api/projects (empty list initially)
+            print("\n2.1. GET /api/projects (initial state)")
+            status, response = await self.make_request("GET", "/projects")
+            if status == 200:
+                print(f"✅ GET /api/projects successful")
+                print(f"   - Owned projects: {len(response.get('owned', []))}")
+                print(f"   - Shared projects: {len(response.get('shared', []))}")
+                print(f"   - Uncategorized conversations: {response.get('uncategorized_count', 0)}")
             else:
-                print_failure(f"Expected 400, got {response.status_code}: {response.text}")
-        except Exception as e:
-            print_failure(f"Test failed with exception: {e}")
-        
-        # Test 2: Invalid token
-        print_step(2, "Test invalid reCAPTCHA token")
-        try:
-            response = self.session.post(f"{BASE_URL}/auth/verify-captcha", json={
-                "token": "invalid-recaptcha-token-12345",
-                "action": "login"
-            })
-            
-            if response.status_code == 400:
-                data = response.json()
-                if "security" in data.get('error', '').lower() or "verification" in data.get('error', '').lower():
-                    print_success("Correctly rejected invalid token (400)")
-                else:
-                    print_failure(f"Wrong error message: {data}")
-            elif response.status_code == 500:
-                print_success("Correctly handled invalid token (500 - server configuration)")
-            else:
-                print_failure(f"Expected 400/500, got {response.status_code}: {response.text}")
-        except Exception as e:
-            print_failure(f"Test failed with exception: {e}")
-        
-        # Test 3: Missing RECAPTCHA_SECRET_KEY scenario
-        print_step(3, "Test reCAPTCHA configuration")
-        print_info("Note: Cannot test valid reCAPTCHA token without browser interaction")
-        print_info("Real reCAPTCHA tokens require user interaction and are browser-generated")
-
-    def test_send_verification_email(self):
-        """Test send verification email endpoint"""
-        print_test_header("2. Testing Send Verification Email API")
-        
-        if not self.admin_token:
-            print_failure("No admin token available, skipping verification email tests")
-            return False
-        
-        # Test 1: Without authentication
-        print_step(1, "Test without authentication")
-        try:
-            response = self.session.post(f"{BASE_URL}/auth/send-verification", json={
-                "email": "test@example.com"
-            })
-            
-            if response.status_code == 401:
-                print_success("Correctly rejected unauthenticated request (401)")
-            else:
-                print_failure(f"Expected 401, got {response.status_code}: {response.text}")
-        except Exception as e:
-            print_failure(f"Test failed with exception: {e}")
-        
-        # Test 2: With authentication and valid email
-        print_step(2, "Test with authentication and valid email")
-        try:
-            response = self.session.post(f"{BASE_URL}/auth/send-verification", 
-                headers={"Authorization": f"Bearer {self.admin_token}"},
-                json={"email": TEST_EMAIL}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success') and "verification email sent" in data.get('message', '').lower():
-                    print_success("Successfully sent verification email")
-                    return True
-                else:
-                    print_failure(f"Unexpected response format: {data}")
-            else:
-                print_failure(f"Expected 200, got {response.status_code}: {response.text}")
-        except Exception as e:
-            print_failure(f"Test failed with exception: {e}")
-        
-        # Test 3: Missing email field
-        print_step(3, "Test missing email field")
-        try:
-            response = self.session.post(f"{BASE_URL}/auth/send-verification", 
-                headers={"Authorization": f"Bearer {self.admin_token}"},
-                json={}
-            )
-            
-            if response.status_code == 400:
-                print_success("Correctly rejected request without email (400)")
-            else:
-                print_failure(f"Expected 400, got {response.status_code}: {response.text}")
-        except Exception as e:
-            print_failure(f"Test failed with exception: {e}")
-        
-        return False
-
-    def test_verify_email_token(self):
-        """Test email token verification endpoint"""
-        print_test_header("3. Testing Email Token Verification API")
-        
-        # Test 1: Without token
-        print_step(1, "Test without verification token")
-        try:
-            response = self.session.post(f"{BASE_URL}/auth/verify-email", json={})
-            
-            if response.status_code == 400:
-                data = response.json()
-                if "token" in data.get('error', '').lower():
-                    print_success("Correctly rejected request without token (400)")
-                else:
-                    print_failure(f"Wrong error message: {data}")
-            else:
-                print_failure(f"Expected 400, got {response.status_code}: {response.text}")
-        except Exception as e:
-            print_failure(f"Test failed with exception: {e}")
-        
-        # Test 2: With invalid token
-        print_step(2, "Test with invalid verification token")
-        try:
-            response = self.session.post(f"{BASE_URL}/auth/verify-email", json={
-                "token": "invalid-uuid-token-12345"
-            })
-            
-            if response.status_code == 400:
-                data = response.json()
-                if "invalid" in data.get('error', '').lower() or "expired" in data.get('error', '').lower():
-                    print_success("Correctly rejected invalid token (400)")
-                else:
-                    print_failure(f"Wrong error message: {data}")
-            else:
-                print_failure(f"Expected 400, got {response.status_code}: {response.text}")
-        except Exception as e:
-            print_failure(f"Test failed with exception: {e}")
-        
-        # Test 3: Create test scenario with valid token
-        print_step(3, "Create test user with verification token")
-        if not self.admin_token:
-            print_failure("No admin token available, skipping token verification test")
-            return
-            
-        # Create a test user directly in database simulation
-        test_user_email = f"testverify{int(time.time())}@test.com"
-        verification_token = str(uuid.uuid4())
-        
-        print_info(f"Creating test scenario with email: {test_user_email}")
-        print_info(f"Verification token would be: {verification_token}")
-        print_info("Note: Full test requires direct database access to insert test user with token")
-
-    def create_test_user(self, email, password, email_verified=None):
-        """Create a test user via admin API"""
-        if not self.admin_token:
-            return None
-            
-        user_data = {
-            "email": email,
-            "passcode": password,
-            "display_name": f"Test User {int(time.time())}",
-            "role": "user",
-            "accepted": True
-        }
-        
-        if email_verified is not None:
-            user_data["email_verified"] = email_verified
-        
-        try:
-            response = self.session.post(f"{BASE_URL}/admin/users",
-                headers={"Authorization": f"Bearer {self.admin_token}"},
-                json=user_data
-            )
-            
-            if response.status_code == 200 or response.status_code == 201:
-                data = response.json()
-                user_id = data.get('id') or (data.get('user', {}).get('id') if 'user' in data else None)
-                if user_id:
-                    self.test_users.append(user_id)
-                    print_success(f"Created test user: {email} (ID: {user_id})")
-                    return user_id, data
-                else:
-                    print_failure(f"No user ID in response: {data}")
-            else:
-                print_failure(f"Failed to create user: {response.status_code} - {response.text}")
-        except Exception as e:
-            print_failure(f"Error creating user: {e}")
-        
-        return None, None
-
-    def test_login_email_verification_check(self):
-        """Test login endpoint with email verification checks"""
-        print_test_header("4. Testing Login Email Verification Check")
-        
-        # Test 1: Superadmin login (should bypass check)
-        print_step(1, "Test superadmin login (should bypass email verification)")
-        try:
-            response = self.session.post(f"{BASE_URL}/auth/login", json={
-                "email": TEST_EMAIL,
-                "passcode": TEST_PASSWORD
-            })
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('role') == 'superadmin':
-                    print_success("Superadmin login successful (correctly bypasses email verification)")
-                else:
-                    print_failure(f"User is not superadmin: {data}")
-            else:
-                print_failure(f"Superadmin login failed: {response.status_code} - {response.text}")
-        except Exception as e:
-            print_failure(f"Superadmin login test failed: {e}")
-        
-        # Test 2: Create new user with email_verified=false and try to login
-        print_step(2, "Test login with unverified email (should fail)")
-        test_email_unverified = f"unverified{int(time.time())}@test.com"
-        test_password = "test123"
-        
-        user_id, user_data = self.create_test_user(test_email_unverified, test_password, email_verified=False)
-        
-        if user_id:
-            try:
-                # Try to login with unverified user
-                response = self.session.post(f"{BASE_URL}/auth/login", json={
-                    "email": test_email_unverified,
-                    "passcode": test_password
-                })
-                
-                if response.status_code == 403:
-                    data = response.json()
-                    if "verify" in data.get('error', '').lower():
-                        print_success("Correctly blocked login for unverified email (403)")
-                    else:
-                        print_failure(f"Wrong error message: {data}")
-                elif response.status_code == 200:
-                    print_failure("Login succeeded for unverified user (should have failed)")
-                else:
-                    print_failure(f"Unexpected response: {response.status_code} - {response.text}")
-            except Exception as e:
-                print_failure(f"Unverified login test failed: {e}")
-        else:
-            print_failure("Could not create test user for unverified email test")
-        
-        # Test 3: Create new user with email_verified=true and try to login
-        print_step(3, "Test login with verified email (should succeed)")
-        test_email_verified = f"verified{int(time.time())}@test.com"
-        
-        user_id, user_data = self.create_test_user(test_email_verified, test_password, email_verified=True)
-        
-        if user_id:
-            try:
-                # Try to login with verified user
-                response = self.session.post(f"{BASE_URL}/auth/login", json={
-                    "email": test_email_verified,
-                    "passcode": test_password
-                })
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get('token'):
-                        print_success("Login successful for verified email user")
-                    else:
-                        print_failure(f"No token in response: {data}")
-                else:
-                    print_failure(f"Login failed for verified user: {response.status_code} - {response.text}")
-            except Exception as e:
-                print_failure(f"Verified login test failed: {e}")
-        else:
-            print_failure("Could not create test user for verified email test")
-
-    def test_new_user_registration_flow(self):
-        """Test new user registration flow"""
-        print_test_header("5. Testing New User Registration Flow")
-        
-        # Test 1: Register new user
-        print_step(1, "Register new user via POST /api/auth/register")
-        test_email_reg = f"testverify{int(time.time())}@test.com" 
-        test_password_reg = "test123"
-        
-        try:
-            response = self.session.post(f"{BASE_URL}/auth/register", json={
-                "email": test_email_reg,
-                "passcode": test_password_reg
-            })
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('token') and data.get('userId'):
-                    print_success(f"Successfully registered new user: {test_email_reg}")
-                    user_id = data.get('userId')
-                    if user_id:
-                        self.test_users.append(user_id)
-                    
-                    # Test 2: Try to login immediately after registration
-                    print_step(2, "Test login immediately after registration")
-                    login_response = self.session.post(f"{BASE_URL}/auth/login", json={
-                        "email": test_email_reg,
-                        "passcode": test_password_reg
-                    })
-                    
-                    if login_response.status_code == 200:
-                        login_data = login_response.json()
-                        if login_data.get('token'):
-                            print_success("Login successful after registration (legacy registration without verification requirement)")
-                        else:
-                            print_failure(f"No token in login response: {login_data}")
-                    else:
-                        print_info(f"Login after registration: {login_response.status_code} - {login_response.text}")
-                        if login_response.status_code == 403:
-                            print_success("Login blocked due to email verification requirement")
-                        else:
-                            print_failure("Unexpected login failure")
-                else:
-                    print_failure(f"Missing required fields in registration response: {data}")
-            else:
-                print_failure(f"Registration failed: {response.status_code} - {response.text}")
-        except Exception as e:
-            print_failure(f"Registration test failed: {e}")
-
-    def run_all_tests(self):
-        """Run all email verification and reCAPTCHA tests"""
-        print_test_header("Email Verification and reCAPTCHA System Tests")
-        print_info(f"Base URL: {BASE_URL}")
-        print_info(f"Test user: {TEST_EMAIL} (superadmin)")
-        
-        try:
-            # Authenticate first
-            if not self.authenticate_superadmin():
-                print_failure("Cannot proceed without authentication")
+                print(f"❌ GET /api/projects failed: Status {status}")
                 return False
             
-            # Run all test suites
-            self.test_recaptcha_verification()
-            self.test_send_verification_email()
-            self.test_verify_email_token()
-            self.test_login_email_verification_check()
-            self.test_new_user_registration_flow()
+            # Test POST /api/projects (create new project)
+            print("\n2.2. POST /api/projects (create project)")
+            project_data = {
+                "name": "Test Collaboration Project",
+                "description": "Testing project creation and collaboration features"
+            }
+            status, response = await self.make_request("POST", "/projects", project_data)
+            if status == 200 and "id" in response:
+                self.test_project_id = response["id"]
+                print(f"✅ POST /api/projects successful")
+                print(f"   - Project ID: {self.test_project_id}")
+                print(f"   - Name: {response.get('name')}")
+                print(f"   - Description: {response.get('description')}")
+                print(f"   - Owner ID: {response.get('owner_id')}")
+            else:
+                print(f"❌ POST /api/projects failed: Status {status}")
+                print(f"   Response: {response}")
+                return False
             
-            print_test_header("Test Summary")
-            print_success("All email verification and reCAPTCHA tests completed!")
-            print_info("Key findings:")
-            print_info("• reCAPTCHA verification properly validates tokens and handles errors")
-            print_info("• Email verification API requires authentication and handles validation")
-            print_info("• Email token verification properly validates tokens")
-            print_info("• Login correctly enforces email verification for new users")
-            print_info("• Superadmin users bypass email verification requirements")
-            print_info("• New user registration flow working as expected")
+            # Test PUT /api/projects/:id (update project)
+            print("\n2.3. PUT /api/projects/:id (update project)")
+            update_data = {
+                "name": "Updated Test Project",
+                "description": "Updated description for testing purposes"
+            }
+            status, response = await self.make_request("PUT", f"/projects/{self.test_project_id}", update_data)
+            if status == 200:
+                print(f"✅ PUT /api/projects/{self.test_project_id} successful")
+                print(f"   - Response: {response}")
+            else:
+                print(f"❌ PUT /api/projects/{self.test_project_id} failed: Status {status}")
+                print(f"   Response: {response}")
+                return False
             
             return True
             
         except Exception as e:
-            print_failure(f"Test suite failed with exception: {e}")
+            print(f"❌ Projects CRUD test error: {str(e)}")
+            traceback.print_exc()
             return False
-        finally:
-            # Cleanup
-            self.cleanup_test_users()
-
-def main():
-    """Main test execution"""
-    try:
-        tester = EmailVerificationTester()
-        success = tester.run_all_tests()
+    
+    async def test_project_sharing(self):
+        """Test 3: Project Sharing APIs"""
+        print("\n=== TEST 3: Project Sharing APIs ===")
         
-        if success:
-            print(f"\n{GREEN}{BOLD}🎉 ALL TESTS COMPLETED SUCCESSFULLY!{ENDC}")
-            sys.exit(0)
-        else:
-            print(f"\n{RED}{BOLD}❌ SOME TESTS FAILED{ENDC}")
-            sys.exit(1)
+        if not self.test_project_id:
+            print("❌ No test project ID available")
+            return False
+        
+        try:
+            # Test POST /api/projects/:id/share (share with non-existent user)
+            print("\n3.1. POST /api/projects/:id/share (test validation)")
+            share_data = {
+                "email": "nonexistent@example.com",
+                "role": "collaborator"
+            }
+            status, response = await self.make_request("POST", f"/projects/{self.test_project_id}/share", share_data, expect_error=True)
+            if status == 404:
+                print(f"✅ Share validation working correctly")
+                print(f"   - Expected 404 for non-existent email")
+                print(f"   - Response: {response.get('error', 'User not found')}")
+            else:
+                print(f"⚠️ Unexpected response for non-existent user: Status {status}")
+                print(f"   Response: {response}")
             
-    except KeyboardInterrupt:
-        print(f"\n{YELLOW}Tests interrupted by user{ENDC}")
-        sys.exit(1)
-    except Exception as e:
-        print_failure(f"Test execution failed: {e}")
-        sys.exit(1)
+            # Test POST /api/projects/:id/share-link (generate share link)
+            print("\n3.2. POST /api/projects/:id/share-link (generate share link)")
+            share_link_data = {
+                "enabled": True,
+                "role": "viewer"
+            }
+            status, response = await self.make_request("POST", f"/projects/{self.test_project_id}/share-link", share_link_data)
+            if status == 200 and "share_link" in response:
+                share_link_info = response["share_link"]
+                if "code" in share_link_info:
+                    self.share_code = share_link_info["code"]
+                    print(f"✅ Share link generation successful")
+                    print(f"   - Share code: {self.share_code}")
+                    print(f"   - Enabled: {share_link_info.get('enabled')}")
+                    print(f"   - Role: {share_link_info.get('role')}")
+                else:
+                    print(f"❌ Share link response missing code: {response}")
+                    return False
+            else:
+                print(f"❌ Share link generation failed: Status {status}")
+                print(f"   Response: {response}")
+                return False
+            
+            # Test POST /api/projects/:id/unshare (test with invalid user_id)
+            print("\n3.3. POST /api/projects/:id/unshare (test validation)")
+            unshare_data = {
+                "user_id": "invalid-user-id-12345"
+            }
+            status, response = await self.make_request("POST", f"/projects/{self.test_project_id}/unshare", unshare_data)
+            if status == 200:
+                print(f"✅ Unshare API working (removes non-existent user silently)")
+                print(f"   - Response: {response}")
+            else:
+                print(f"⚠️ Unshare unexpected response: Status {status}")
+                print(f"   Response: {response}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Project sharing test error: {str(e)}")
+            traceback.print_exc()
+            return False
+    
+    async def test_project_join(self):
+        """Test 4: Project Join API"""
+        print("\n=== TEST 4: Project Join via Share Link ===")
+        
+        if not self.share_code:
+            print("❌ No share code available from previous test")
+            return False
+        
+        try:
+            # Test POST /api/projects/join (join with valid share code)
+            print(f"\n4.1. POST /api/projects/join (with code: {self.share_code})")
+            join_data = {
+                "code": self.share_code
+            }
+            status, response = await self.make_request("POST", "/projects/join", join_data)
+            
+            # Since we're joining our own project, this should fail with a validation error
+            if status == 400:
+                print(f"✅ Join validation working correctly")
+                print(f"   - Cannot join own project (expected behavior)")
+                print(f"   - Response: {response}")
+            elif status == 200:
+                print(f"⚠️ Joined project successfully (might be valid if testing with different user)")
+                print(f"   - Response: {response}")
+            else:
+                print(f"❌ Join project unexpected response: Status {status}")
+                print(f"   Response: {response}")
+                return False
+            
+            # Test with invalid share code
+            print("\n4.2. POST /api/projects/join (invalid code)")
+            invalid_join_data = {
+                "code": "invalid-share-code-123"
+            }
+            status, response = await self.make_request("POST", "/projects/join", invalid_join_data, expect_error=True)
+            if status == 404:
+                print(f"✅ Invalid share code handled correctly")
+                print(f"   - Response: {response}")
+            else:
+                print(f"⚠️ Unexpected response for invalid code: Status {status}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Project join test error: {str(e)}")
+            traceback.print_exc()
+            return False
+    
+    async def test_conversation_project_integration(self):
+        """Test 5: Conversation-Project Integration"""
+        print("\n=== TEST 5: Conversation-Project Integration ===")
+        
+        try:
+            # First create a test conversation
+            print("\n5.1. POST /api/conversations (create test conversation)")
+            conv_data = {
+                "title": "Test Conversation for Projects"
+            }
+            status, response = await self.make_request("POST", "/conversations", conv_data)
+            if status == 200 and "id" in response:
+                self.test_conversation_id = response["id"]
+                print(f"✅ Test conversation created")
+                print(f"   - Conversation ID: {self.test_conversation_id}")
+                print(f"   - Title: {response.get('title')}")
+            else:
+                print(f"❌ Failed to create test conversation: Status {status}")
+                print(f"   Response: {response}")
+                return False
+            
+            # Test PUT /api/conversations/:id/project (move conversation to project)
+            print(f"\n5.2. PUT /api/conversations/:id/project (move to project {self.test_project_id})")
+            move_data = {
+                "project_id": self.test_project_id
+            }
+            status, response = await self.make_request("PUT", f"/conversations/{self.test_conversation_id}/project", move_data)
+            if status == 200:
+                print(f"✅ Conversation moved to project successfully")
+                print(f"   - Response: {response}")
+            else:
+                print(f"❌ Failed to move conversation to project: Status {status}")
+                print(f"   Response: {response}")
+                return False
+            
+            # Test GET /api/projects/:id/conversations (get conversations in project)
+            print(f"\n5.3. GET /api/projects/:id/conversations (get project conversations)")
+            status, response = await self.make_request("GET", f"/projects/{self.test_project_id}/conversations")
+            if status == 200:
+                conversations = response if isinstance(response, list) else []
+                print(f"✅ Retrieved project conversations successfully")
+                print(f"   - Found {len(conversations)} conversation(s)")
+                if conversations:
+                    for conv in conversations:
+                        print(f"   - ID: {conv.get('id')}, Title: {conv.get('title')}, Owner: {conv.get('owner_email', 'Unknown')}")
+            else:
+                print(f"❌ Failed to get project conversations: Status {status}")
+                print(f"   Response: {response}")
+                return False
+            
+            # Test GET /api/conversations?project_id=:id (filter conversations by project)
+            print(f"\n5.4. GET /api/conversations?project_id={self.test_project_id} (filter by project)")
+            status, response = await self.make_request("GET", f"/conversations?project_id={self.test_project_id}")
+            if status == 200:
+                conversations = response if isinstance(response, list) else []
+                print(f"✅ Filtered conversations by project successfully")
+                print(f"   - Found {len(conversations)} conversation(s)")
+            else:
+                print(f"❌ Failed to filter conversations by project: Status {status}")
+                print(f"   Response: {response}")
+                return False
+            
+            # Test GET /api/conversations?project_id=general (get uncategorized conversations)
+            print(f"\n5.5. GET /api/conversations?project_id=general (uncategorized)")
+            status, response = await self.make_request("GET", "/conversations?project_id=general")
+            if status == 200:
+                conversations = response if isinstance(response, list) else []
+                print(f"✅ Retrieved uncategorized conversations successfully")
+                print(f"   - Found {len(conversations)} uncategorized conversation(s)")
+            else:
+                print(f"❌ Failed to get uncategorized conversations: Status {status}")
+                print(f"   Response: {response}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Conversation-project integration test error: {str(e)}")
+            traceback.print_exc()
+            return False
+    
+    async def test_auth_requirements(self):
+        """Test 6: Authentication Requirements"""
+        print("\n=== TEST 6: Authentication Requirements ===")
+        
+        try:
+            # Temporarily clear auth token
+            original_token = self.token
+            self.token = None
+            
+            print("\n6.1. Testing endpoints without authentication")
+            
+            # Test various endpoints without auth
+            endpoints_to_test = [
+                ("GET", "/projects"),
+                ("POST", "/projects", {"name": "Test", "description": "Test"}),
+                ("GET", f"/projects/{self.test_project_id or 'test-id'}/conversations"),
+                ("POST", "/projects/join", {"code": "test-code"})
+            ]
+            
+            auth_working = True
+            for method, endpoint, *data in endpoints_to_test:
+                payload = data[0] if data else None
+                status, response = await self.make_request(method, endpoint, payload, expect_error=True)
+                if status == 401:
+                    print(f"   ✅ {method} {endpoint} - Correctly requires auth (401)")
+                else:
+                    print(f"   ❌ {method} {endpoint} - Unexpected status {status} (should be 401)")
+                    auth_working = False
+            
+            # Restore auth token
+            self.token = original_token
+            
+            if auth_working:
+                print(f"✅ All endpoints correctly require authentication")
+            else:
+                print(f"❌ Some endpoints have authentication bypass issues")
+            
+            return auth_working
+            
+        except Exception as e:
+            # Make sure to restore token even on error
+            self.token = original_token
+            print(f"❌ Authentication requirements test error: {str(e)}")
+            traceback.print_exc()
+            return False
+    
+    async def test_project_deletion(self):
+        """Test 7: Project Deletion (Test DELETE last to avoid cleanup issues)"""
+        print("\n=== TEST 7: Project Deletion ===")
+        
+        if not self.test_project_id:
+            print("❌ No test project ID available for deletion")
+            return False
+        
+        try:
+            # Test DELETE /api/projects/:id (delete project)
+            print(f"\n7.1. DELETE /api/projects/{self.test_project_id} (delete project)")
+            status, response = await self.make_request("DELETE", f"/projects/{self.test_project_id}")
+            if status == 200:
+                print(f"✅ Project deleted successfully")
+                print(f"   - Response: {response}")
+                
+                # Verify the conversation is now uncategorized
+                if self.test_conversation_id:
+                    print(f"\n7.2. Verify conversation moved to uncategorized")
+                    status, response = await self.make_request("GET", "/conversations?project_id=general")
+                    if status == 200:
+                        conversations = response if isinstance(response, list) else []
+                        conv_found = any(c.get('id') == self.test_conversation_id for c in conversations)
+                        if conv_found:
+                            print(f"   ✅ Conversation correctly moved to uncategorized")
+                        else:
+                            print(f"   ⚠️ Conversation not found in uncategorized (might have different project_id value)")
+                    else:
+                        print(f"   ❌ Failed to verify uncategorized conversations: Status {status}")
+            else:
+                print(f"❌ Project deletion failed: Status {status}")
+                print(f"   Response: {response}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Project deletion test error: {str(e)}")
+            traceback.print_exc()
+            return False
+    
+    async def run_all_tests(self):
+        """Run all tests in sequence"""
+        print("🚀 Starting Projects & Collaboration Backend API Tests")
+        print(f"📡 Base URL: {BASE_URL}")
+        print(f"👤 Test User: {LOGIN_EMAIL}")
+        
+        test_results = []
+        
+        # Test 1: Authentication
+        auth_success = await self.test_authentication()
+        test_results.append(("Authentication", auth_success))
+        
+        if not auth_success:
+            print("\n❌ Authentication failed - stopping tests")
+            return test_results
+        
+        # Test 2: Projects CRUD
+        crud_success = await self.test_projects_crud()
+        test_results.append(("Projects CRUD APIs", crud_success))
+        
+        # Test 3: Project Sharing
+        sharing_success = await self.test_project_sharing()
+        test_results.append(("Project Sharing APIs", sharing_success))
+        
+        # Test 4: Project Join
+        join_success = await self.test_project_join()
+        test_results.append(("Project Join via Share Link", join_success))
+        
+        # Test 5: Conversation-Project Integration
+        integration_success = await self.test_conversation_project_integration()
+        test_results.append(("Conversation-Project Integration", integration_success))
+        
+        # Test 6: Auth Requirements
+        auth_req_success = await self.test_auth_requirements()
+        test_results.append(("Authentication Requirements", auth_req_success))
+        
+        # Test 7: Project Deletion (last to cleanup)
+        deletion_success = await self.test_project_deletion()
+        test_results.append(("Project Deletion", deletion_success))
+        
+        return test_results
+
+async def main():
+    async with ProjectCollaborationTester() as tester:
+        test_results = await tester.run_all_tests()
+        
+        # Print test summary
+        print("\n" + "="*60)
+        print("📊 TEST SUMMARY")
+        print("="*60)
+        
+        passed = 0
+        total = len(test_results)
+        
+        for test_name, success in test_results:
+            status = "✅ PASSED" if success else "❌ FAILED"
+            print(f"{status} - {test_name}")
+            if success:
+                passed += 1
+        
+        print(f"\n🎯 Results: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+        
+        if passed == total:
+            print("🎉 All Projects & Collaboration Backend APIs working correctly!")
+            return 0
+        else:
+            print("⚠️ Some tests failed - check the detailed output above")
+            return 1
 
 if __name__ == "__main__":
-    main()
+    try:
+        exit_code = asyncio.run(main())
+        sys.exit(exit_code)
+    except KeyboardInterrupt:
+        print("\n⚠️ Tests interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Test runner error: {str(e)}")
+        traceback.print_exc()
+        sys.exit(1)
