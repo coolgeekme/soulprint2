@@ -1021,9 +1021,17 @@ function UsersTab({ token, adminRole }) {
                 </td>
                 <td className="py-3 pr-4">
                   {u.assessment_type === 'full' ? (
-                    <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-[10px] rounded">Full (36)</span>
+                    <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-[10px] rounded" title={`${u.assessment_answer_count} answers`}>
+                      Full ({u.assessment_answer_count})
+                    </span>
                   ) : u.assessment_type === 'quick' ? (
-                    <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] rounded">Quick (12)</span>
+                    <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] rounded" title={`${u.assessment_answer_count} answers`}>
+                      Quick ({u.assessment_answer_count})
+                    </span>
+                  ) : u.assessment_type === 'partial' ? (
+                    <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[10px] rounded" title={`${u.assessment_answer_count} answers`}>
+                      Partial ({u.assessment_answer_count})
+                    </span>
                   ) : (
                     <span className="text-gray-600 text-[10px]">—</span>
                   )}

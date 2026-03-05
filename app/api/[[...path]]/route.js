@@ -5963,6 +5963,22 @@ async function handleAdminGetUsers(request) {
     .toArray();
   const profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p]));
 
+  // Get assessment answer counts per user to determine quick vs full
+  const assessmentCounts = await db.collection('assessment_answers').aggregate([
+    { $match: { user_id: { $in: users.map(u => u.id) } } },
+    { $group: { _id: '$user_id', count: { $sum: 1 } } }
+  ]).toArray();
+  const assessmentCountMap = Object.fromEntries(assessmentCounts.map(a => [a._id, a.count]));
+
+  // Helper to determine assessment type based on answer count
+  const getAssessmentType = (userId) => {
+    const count = assessmentCountMap[userId] || 0;
+    if (count >= 30) return 'full';  // 30+ answers = full assessment (36 questions)
+    if (count >= 10) return 'quick'; // 10-29 answers = quick assessment (12 questions)
+    if (count > 0) return 'partial'; // Some but not complete
+    return 'none';
+  };
+
   // Apply onboarding/assessment filters
   if (onboardingFilter === 'complete') {
     users = users.filter(u => profileMap[u.id]?.onboarding_complete === true);
@@ -5975,29 +5991,32 @@ async function handleAdminGetUsers(request) {
   } else if (assessmentFilter === 'incomplete') {
     users = users.filter(u => !profileMap[u.id]?.assessment_complete);
   } else if (assessmentFilter === 'quick') {
-    users = users.filter(u => profileMap[u.id]?.assessment_complete === true && !profileMap[u.id]?.full_assessment_complete);
+    users = users.filter(u => getAssessmentType(u.id) === 'quick');
   } else if (assessmentFilter === 'full') {
-    users = users.filter(u => profileMap[u.id]?.full_assessment_complete === true);
+    users = users.filter(u => getAssessmentType(u.id) === 'full');
   }
 
   const total = users.length;
   const paginatedUsers = users.slice((page - 1) * limit, page * limit);
 
   return ok({
-    users: paginatedUsers.map(u => ({
-      id: u.id,
-      email: u.email,
-      role: u.role,
-      accepted: u.accepted,
-      created_at: u.created_at,
-      last_active_at: u.last_active_at,
-      display_name: profileMap[u.id]?.display_name || '',
-      assessment_complete: profileMap[u.id]?.assessment_complete || false,
-      full_assessment_complete: profileMap[u.id]?.full_assessment_complete || false,
-      assessment_type: profileMap[u.id]?.full_assessment_complete ? 'full' : 
-                       profileMap[u.id]?.assessment_complete ? 'quick' : 'none',
-      onboarding_complete: profileMap[u.id]?.onboarding_complete || false,
-    })),
+    users: paginatedUsers.map(u => {
+      const answerCount = assessmentCountMap[u.id] || 0;
+      const assessmentType = getAssessmentType(u.id);
+      return {
+        id: u.id,
+        email: u.email,
+        role: u.role,
+        accepted: u.accepted,
+        created_at: u.created_at,
+        last_active_at: u.last_active_at,
+        display_name: profileMap[u.id]?.display_name || '',
+        assessment_complete: profileMap[u.id]?.assessment_complete || false,
+        assessment_answer_count: answerCount,
+        assessment_type: assessmentType,
+        onboarding_complete: profileMap[u.id]?.onboarding_complete || false,
+      };
+    }),
     total,
     page,
     pages: Math.ceil(total / limit),
