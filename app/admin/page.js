@@ -942,17 +942,23 @@ function UsersTab({ token, adminRole }) {
           
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500">Assessment:</span>
-            {['all', 'complete', 'incomplete'].map(status => (
+            {[
+              { value: 'all', label: 'All' },
+              { value: 'quick', label: 'Quick (12)' },
+              { value: 'full', label: 'Full (36)' },
+              { value: 'complete', label: 'Any Complete' },
+              { value: 'incomplete', label: 'None' },
+            ].map(opt => (
               <button
-                key={status}
-                onClick={() => setAssessmentFilter(status)}
-                className={`text-[10px] px-2 py-1 rounded-lg transition-all capitalize ${
-                  assessmentFilter === status 
+                key={opt.value}
+                onClick={() => setAssessmentFilter(opt.value)}
+                className={`text-[10px] px-2 py-1 rounded-lg transition-all ${
+                  assessmentFilter === opt.value 
                     ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40' 
                     : 'bg-white/5 text-gray-500 border border-white/10 hover:bg-white/10'
                 }`}
               >
-                {status}
+                {opt.label}
               </button>
             ))}
           </div>
@@ -1014,9 +1020,13 @@ function UsersTab({ token, adminRole }) {
                   </span>
                 </td>
                 <td className="py-3 pr-4">
-                  <span className={`text-[10px] ${u.assessment_complete ? 'text-green-400' : 'text-gray-600'}`}>
-                    {u.assessment_complete ? '✓' : '—'}
-                  </span>
+                  {u.assessment_type === 'full' ? (
+                    <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-[10px] rounded">Full (36)</span>
+                  ) : u.assessment_type === 'quick' ? (
+                    <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] rounded">Quick (12)</span>
+                  ) : (
+                    <span className="text-gray-600 text-[10px]">—</span>
+                  )}
                 </td>
                 <td className="py-3 pr-4">
                   <span className="text-gray-600 text-[10px]">

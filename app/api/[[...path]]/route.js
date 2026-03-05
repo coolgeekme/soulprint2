@@ -5974,6 +5974,10 @@ async function handleAdminGetUsers(request) {
     users = users.filter(u => profileMap[u.id]?.assessment_complete === true);
   } else if (assessmentFilter === 'incomplete') {
     users = users.filter(u => !profileMap[u.id]?.assessment_complete);
+  } else if (assessmentFilter === 'quick') {
+    users = users.filter(u => profileMap[u.id]?.assessment_complete === true && !profileMap[u.id]?.full_assessment_complete);
+  } else if (assessmentFilter === 'full') {
+    users = users.filter(u => profileMap[u.id]?.full_assessment_complete === true);
   }
 
   const total = users.length;
@@ -5989,6 +5993,9 @@ async function handleAdminGetUsers(request) {
       last_active_at: u.last_active_at,
       display_name: profileMap[u.id]?.display_name || '',
       assessment_complete: profileMap[u.id]?.assessment_complete || false,
+      full_assessment_complete: profileMap[u.id]?.full_assessment_complete || false,
+      assessment_type: profileMap[u.id]?.full_assessment_complete ? 'full' : 
+                       profileMap[u.id]?.assessment_complete ? 'quick' : 'none',
       onboarding_complete: profileMap[u.id]?.onboarding_complete || false,
     })),
     total,
