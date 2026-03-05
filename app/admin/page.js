@@ -7,12 +7,13 @@ import {
   UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
   PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar,
-  KeyRound, Mail, Send
+  KeyRound, Mail, Send, AlertTriangle, Cpu
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 const TABS = [
   { id: 'metrics', label: 'Metrics', icon: BarChart2 },
+  { id: 'insights', label: 'Insights', icon: TrendingUp },
   { id: 'waitlist', label: 'Waitlist', icon: ListChecks },
   { id: 'users', label: 'All Users', icon: Users },
   { id: 'conversations', label: 'Conversations', icon: MessageSquare },
@@ -2453,6 +2454,410 @@ function BetaCodesTab({ token }) {
   );
 }
 
+// Business Insights Tab
+function InsightsTab({ token }) {
+  const [insights, setInsights] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/admin/insights', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          setError(data.error);
+        } else {
+          setInsights(data);
+        }
+        setLoading(false);
+      })
+      .catch(e => {
+        setError(e.message);
+        setLoading(false);
+      });
+  }, [token]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
+        Error loading insights: {error}
+      </div>
+    );
+  }
+
+  if (!insights) return null;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-orange-400" />
+            Business Insights
+          </h2>
+          <p className="text-gray-500 text-xs mt-1">Data-driven insights to help determine pricing tiers</p>
+        </div>
+        <div className="text-[10px] text-gray-600 bg-white/5 px-2 py-1 rounded">
+          Generated: {new Date(insights.generated_at).toLocaleString()}
+        </div>
+      </div>
+
+      {/* User Segmentation */}
+      <div className="bg-gradient-to-r from-purple-500/5 to-transparent border border-purple-500/20 rounded-xl p-4">
+        <h3 className="text-purple-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+          <Users className="w-4 h-4" />
+          User Segmentation by Usage
+        </h3>
+        <p className="text-gray-500 text-xs mb-4">Understanding how users consume your product helps set tier limits</p>
+        
+        <div className="grid grid-cols-5 gap-2">
+          {Object.entries(insights.user_segments).map(([tier, data]) => (
+            <div key={tier} className={`p-3 rounded-lg border ${
+              tier === 'power' ? 'bg-orange-500/10 border-orange-500/30' :
+              tier === 'heavy' ? 'bg-green-500/10 border-green-500/30' :
+              tier === 'moderate' ? 'bg-blue-500/10 border-blue-500/30' :
+              tier === 'light' ? 'bg-gray-500/10 border-gray-500/30' :
+              'bg-red-500/10 border-red-500/30'
+            }`}>
+              <p className="text-white text-lg font-bold">{data.count}</p>
+              <p className="text-gray-400 text-xs capitalize">{tier}</p>
+              <p className="text-gray-600 text-[10px]">{data.percentage}%</p>
+              {data.range && <p className="text-gray-600 text-[10px]">{data.range}</p>}
+            </div>
+          ))}
+        </div>
+        
+        {/* Visual Bar */}
+        <div className="mt-4 h-4 rounded-full overflow-hidden flex">
+          <div style={{width: `${insights.user_segments.inactive?.percentage || 0}%`}} className="bg-red-500/50" title="Inactive" />
+          <div style={{width: `${insights.user_segments.light?.percentage || 0}%`}} className="bg-gray-500/50" title="Light" />
+          <div style={{width: `${insights.user_segments.moderate?.percentage || 0}%`}} className="bg-blue-500/50" title="Moderate" />
+          <div style={{width: `${insights.user_segments.heavy?.percentage || 0}%`}} className="bg-green-500/50" title="Heavy" />
+          <div style={{width: `${insights.user_segments.power?.percentage || 0}%`}} className="bg-orange-500/50" title="Power" />
+        </div>
+        <div className="flex justify-between text-[10px] text-gray-600 mt-1">
+          <span>Inactive</span>
+          <span>Light (1-20)</span>
+          <span>Moderate (21-100)</span>
+          <span>Heavy (101-500)</span>
+          <span>Power (500+)</span>
+        </div>
+      </div>
+
+      {/* Pricing Recommendations */}
+      <div className="bg-gradient-to-r from-green-500/5 to-transparent border border-green-500/20 rounded-xl p-4">
+        <h3 className="text-green-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+          <DollarSign className="w-4 h-4" />
+          Pricing Tier Recommendations
+        </h3>
+        <p className="text-gray-500 text-xs mb-4">Based on actual usage percentiles from your beta users</p>
+        
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Free Tier Limit</p>
+            <p className="text-green-400 text-2xl font-bold">{insights.pricing_recommendations.free_tier_limit}</p>
+            <p className="text-gray-600 text-xs">messages/mo (50th %ile)</p>
+          </div>
+          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Basic Tier Limit</p>
+            <p className="text-blue-400 text-2xl font-bold">{insights.pricing_recommendations.basic_tier_limit}</p>
+            <p className="text-gray-600 text-xs">messages/mo (80th %ile)</p>
+          </div>
+          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Pro Tier Limit</p>
+            <p className="text-purple-400 text-2xl font-bold">{insights.pricing_recommendations.pro_tier_limit}</p>
+            <p className="text-gray-600 text-xs">messages/mo (95th %ile)</p>
+          </div>
+          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Avg Msgs/User</p>
+            <p className="text-orange-400 text-2xl font-bold">{insights.pricing_recommendations.avg_messages_per_user}</p>
+            <p className="text-gray-600 text-xs">median: {insights.pricing_recommendations.median_messages}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Revenue Potential */}
+      <div className="bg-gradient-to-r from-orange-500/5 to-transparent border border-orange-500/20 rounded-xl p-4">
+        <h3 className="text-orange-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+          <TrendingUp className="w-4 h-4" />
+          Revenue Potential Scenarios
+        </h3>
+        <p className="text-gray-500 text-xs mb-4">Estimated MRR based on different pricing strategies</p>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Scenario 1: Free tier at 20 msgs */}
+          <div className="bg-black/30 border border-white/10 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">📊</span>
+              <h4 className="text-white text-sm font-medium">If Free Tier = 20 messages/mo</h4>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-500 text-xs">Paying Users (would exceed limit)</span>
+                <span className="text-white font-medium">{insights.revenue_potential.if_free_tier_20_msgs.paying_users}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 text-xs">Est. MRR @ $10/mo</span>
+                <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_20_msgs.at_10_per_month}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 text-xs">Est. MRR @ $20/mo</span>
+                <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_20_msgs.at_20_per_month}</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Scenario 2: Free tier at 50 msgs */}
+          <div className="bg-black/30 border border-white/10 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">📈</span>
+              <h4 className="text-white text-sm font-medium">If Free Tier = 50 messages/mo</h4>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-gray-500 text-xs">Paying Users (would exceed limit)</span>
+                <span className="text-white font-medium">{insights.revenue_potential.if_free_tier_50_msgs.paying_users}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 text-xs">Est. MRR @ $10/mo</span>
+                <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_50_msgs.at_10_per_month}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 text-xs">Est. MRR @ $20/mo</span>
+                <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_50_msgs.at_20_per_month}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="mt-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🏢</span>
+            <span className="text-orange-400 font-medium">Enterprise Candidates: {insights.revenue_potential.enterprise_candidates}</span>
+            <span className="text-gray-500 text-xs">(500+ messages)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Top Users */}
+      <div className="bg-black/30 border border-white/10 rounded-xl p-4">
+        <h3 className="text-white text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+          <Users className="w-4 h-4 text-orange-400" />
+          Top 20 Power Users
+        </h3>
+        <p className="text-gray-500 text-xs mb-4">Your most engaged users - potential enterprise customers or advocates</p>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-500 border-b border-white/10">
+                <th className="text-left py-2 px-2">#</th>
+                <th className="text-left py-2 px-2">User</th>
+                <th className="text-right py-2 px-2">Messages</th>
+                <th className="text-right py-2 px-2">Media</th>
+                <th className="text-right py-2 px-2">Est. Cost</th>
+                <th className="text-right py-2 px-2">Last Active</th>
+              </tr>
+            </thead>
+            <tbody>
+              {insights.top_users?.slice(0, 10).map((user, idx) => (
+                <tr key={idx} className="border-b border-white/5 hover:bg-white/5">
+                  <td className="py-2 px-2 text-gray-600">{idx + 1}</td>
+                  <td className="py-2 px-2">
+                    <span className="text-white">{user.name}</span>
+                    <span className="text-gray-600 ml-2">{user.email?.substring(0, 20)}...</span>
+                  </td>
+                  <td className="py-2 px-2 text-right text-orange-400 font-medium">{user.messages}</td>
+                  <td className="py-2 px-2 text-right text-purple-400">{user.media_generated}</td>
+                  <td className="py-2 px-2 text-right text-green-400">${user.estimated_cost}</td>
+                  <td className="py-2 px-2 text-right text-gray-500">
+                    {user.last_active ? new Date(user.last_active).toLocaleDateString() : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Model Popularity */}
+      <div className="bg-black/30 border border-white/10 rounded-xl p-4">
+        <h3 className="text-white text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+          <Cpu className="w-4 h-4 text-blue-400" />
+          Model Usage Distribution
+        </h3>
+        <p className="text-gray-500 text-xs mb-4">Which AI models are users preferring? Consider gating premium models behind paid tiers.</p>
+        
+        <div className="space-y-2">
+          {insights.model_popularity?.slice(0, 8).map((model, idx) => (
+            <div key={idx} className="flex items-center gap-3">
+              <span className="text-gray-500 text-xs w-32 truncate">{model.model}</span>
+              <div className="flex-1 h-4 bg-white/5 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full ${
+                    idx === 0 ? 'bg-orange-500' :
+                    idx === 1 ? 'bg-blue-500' :
+                    idx === 2 ? 'bg-green-500' :
+                    'bg-gray-500'
+                  }`}
+                  style={{width: `${model.percentage}%`}}
+                />
+              </div>
+              <span className="text-gray-400 text-xs w-16 text-right">{model.percentage}%</span>
+              <span className="text-gray-600 text-xs w-16 text-right">({model.count})</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Feature Adoption */}
+      <div className="bg-black/30 border border-white/10 rounded-xl p-4">
+        <h3 className="text-white text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+          <Settings className="w-4 h-4 text-green-400" />
+          Feature Adoption Rates
+        </h3>
+        <p className="text-gray-500 text-xs mb-4">Features with low adoption might need better UX; high adoption features justify premium tiers.</p>
+        
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          {Object.entries(insights.feature_adoption).map(([feature, data]) => (
+            <div key={feature} className="bg-white/5 border border-white/10 rounded-lg p-3">
+              <p className="text-gray-400 text-xs capitalize mb-1">{feature.replace(/_/g, ' ')}</p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-white text-lg font-bold">{data.rate}%</span>
+                <span className="text-gray-600 text-xs">({data.users} users)</span>
+              </div>
+              <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full ${
+                    data.rate > 50 ? 'bg-green-500' :
+                    data.rate > 25 ? 'bg-yellow-500' :
+                    'bg-red-500'
+                  }`}
+                  style={{width: `${data.rate}%`}}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Churn Indicators */}
+      <div className="bg-gradient-to-r from-red-500/5 to-transparent border border-red-500/20 rounded-xl p-4">
+        <h3 className="text-red-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" />
+          Churn & Retention Indicators
+        </h3>
+        
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Inactive 30+ Days</p>
+            <p className="text-red-400 text-2xl font-bold">{insights.churn_indicators.inactive_30d}</p>
+            <p className="text-gray-600 text-xs">users</p>
+          </div>
+          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Churn Rate</p>
+            <p className={`text-2xl font-bold ${insights.churn_indicators.churn_rate > 30 ? 'text-red-400' : 'text-yellow-400'}`}>
+              {insights.churn_indicators.churn_rate}%
+            </p>
+            <p className="text-gray-600 text-xs">30-day inactive</p>
+          </div>
+          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Never Engaged</p>
+            <p className="text-orange-400 text-2xl font-bold">{insights.churn_indicators.never_engaged}</p>
+            <p className="text-gray-600 text-xs">0 messages</p>
+          </div>
+          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Drop-off Rate</p>
+            <p className={`text-2xl font-bold ${insights.churn_indicators.drop_off_rate > 30 ? 'text-red-400' : 'text-yellow-400'}`}>
+              {insights.churn_indicators.drop_off_rate}%
+            </p>
+            <p className="text-gray-600 text-xs">signed up, never used</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Weekly Trends */}
+      <div className="bg-black/30 border border-white/10 rounded-xl p-4">
+        <h3 className="text-white text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+          <BarChart2 className="w-4 h-4 text-blue-400" />
+          Weekly Trends (Last 4 Weeks)
+        </h3>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-500 border-b border-white/10">
+                <th className="text-left py-2 px-3">Period</th>
+                <th className="text-right py-2 px-3">Messages</th>
+                <th className="text-right py-2 px-3">Active Users</th>
+                <th className="text-right py-2 px-3">New Users</th>
+              </tr>
+            </thead>
+            <tbody>
+              {insights.weekly_trends?.map((week, idx) => (
+                <tr key={idx} className="border-b border-white/5">
+                  <td className="py-2 px-3 text-white">{week.week} <span className="text-gray-600">({week.start})</span></td>
+                  <td className="py-2 px-3 text-right text-orange-400">{week.messages}</td>
+                  <td className="py-2 px-3 text-right text-blue-400">{week.active_users}</td>
+                  <td className="py-2 px-3 text-right text-green-400">{week.new_users}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Media Insights */}
+      <div className="bg-black/30 border border-white/10 rounded-xl p-4">
+        <h3 className="text-white text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+          <Image className="w-4 h-4 text-purple-400" />
+          Media Generation Insights
+        </h3>
+        <p className="text-gray-500 text-xs mb-4">Media generation is resource-intensive - consider as a premium feature.</p>
+        
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase">Users Using Media</p>
+            <p className="text-purple-400 text-xl font-bold">{insights.media_insights.users_using_media}</p>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase">Adoption Rate</p>
+            <p className="text-purple-400 text-xl font-bold">{insights.media_insights.media_adoption_rate}%</p>
+          </div>
+          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-500 text-[10px] uppercase">Avg Media/User</p>
+            <p className="text-purple-400 text-xl font-bold">{insights.media_insights.avg_media_per_user}</p>
+          </div>
+        </div>
+        
+        {insights.media_insights.by_type?.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-gray-500 text-xs">By Type:</p>
+            {insights.media_insights.by_type.map((item, idx) => (
+              <div key={idx} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+                <span className="text-white capitalize">{item.type || 'Unknown'}</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-gray-400">{item.count} items</span>
+                  <span className="text-green-400">${item.total_cost}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Settings Tab
 function SettingsTab({ token }) {
   const [settings, setSettings] = useState(null);
@@ -3367,6 +3772,10 @@ export default function AdminPage() {
               token={token}
               onCountChange={(count) => setWaitlistCount(count)}
             />
+          )}
+
+          {activeTab === 'insights' && token && (
+            <InsightsTab token={token} />
           )}
 
           {activeTab === 'users' && token && (

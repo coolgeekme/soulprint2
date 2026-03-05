@@ -7189,6 +7189,270 @@ async function handleAdminGrantInvites(request) {
 }
 
 // ============================================================
+// BUSINESS INSIGHTS & PRICING ANALYTICS
+// ============================================================
+
+// Get detailed business insights for pricing decisions
+async function handleAdminGetBusinessInsights(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  const now = new Date();
+  const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+  const ninetyDaysAgo = new Date(now - 90 * 24 * 60 * 60 * 1000);
+
+  // ── USER SEGMENTATION BY USAGE ─────────────────────────────────────────────
+  // Get message counts per user for segmentation
+  const userMessageCounts = await db.collection('messages').aggregate([
+    { $match: { role: 'user' } },
+    { $group: { _id: '$user_id', message_count: { $sum: 1 } } },
+  ]).toArray();
+
+  const userCountMap = {};
+  userMessageCounts.forEach(u => { userCountMap[u._id] = u.message_count; });
+
+  // Define usage tiers
+  const usageSegments = {
+    inactive: { min: 0, max: 0, count: 0, users: [] },      // 0 messages
+    light: { min: 1, max: 20, count: 0, users: [] },        // 1-20 messages
+    moderate: { min: 21, max: 100, count: 0, users: [] },   // 21-100 messages
+    heavy: { min: 101, max: 500, count: 0, users: [] },     // 101-500 messages
+    power: { min: 501, max: Infinity, count: 0, users: [] } // 500+ messages
+  };
+
+  // Get all accepted users
+  const allUsers = await db.collection('users')
+    .find({ accepted: true })
+    .project({ id: 1, email: 1, created_at: 1, last_active_at: 1 })
+    .toArray();
+
+  allUsers.forEach(user => {
+    const msgCount = userCountMap[user.id] || 0;
+    for (const [tier, config] of Object.entries(usageSegments)) {
+      if (msgCount >= config.min && msgCount <= config.max) {
+        config.count++;
+        if (config.users.length < 5) { // Keep top 5 examples per tier
+          config.users.push({ email: user.email, messages: msgCount });
+        }
+        break;
+      }
+    }
+  });
+
+  // Sort users in each segment by message count
+  Object.values(usageSegments).forEach(seg => {
+    seg.users.sort((a, b) => b.messages - a.messages);
+  });
+
+  // ── TOP USERS (POTENTIAL ENTERPRISE) ───────────────────────────────────────
+  const topUsers = await db.collection('messages').aggregate([
+    { $match: { role: 'user' } },
+    { $group: { _id: '$user_id', message_count: { $sum: 1 } } },
+    { $sort: { message_count: -1 } },
+    { $limit: 20 },
+  ]).toArray();
+
+  // Enrich with user data and costs
+  const enrichedTopUsers = [];
+  for (const u of topUsers) {
+    const user = await db.collection('users').findOne({ id: u._id });
+    const profile = await db.collection('profiles').findOne({ user_id: u._id });
+    
+    // Calculate user's cost
+    const userCostAgg = await db.collection('messages').aggregate([
+      { $match: { user_id: u._id, role: 'assistant', est_input_tokens: { $exists: true } } },
+      { $group: { _id: null, input: { $sum: '$est_input_tokens' }, output: { $sum: '$est_output_tokens' } } },
+    ]).toArray();
+    
+    // Estimate cost at $5/1M input, $15/1M output (avg rate)
+    const userCost = userCostAgg.length > 0 
+      ? (userCostAgg[0].input / 1_000_000) * 5 + (userCostAgg[0].output / 1_000_000) * 15
+      : 0;
+
+    // Get media generation count
+    const mediaCount = await db.collection('media_gallery').countDocuments({ user_id: u._id });
+
+    enrichedTopUsers.push({
+      email: user?.email || 'Unknown',
+      name: profile?.display_name || user?.email?.split('@')[0] || 'Unknown',
+      messages: u.message_count,
+      media_generated: mediaCount,
+      estimated_cost: parseFloat(userCost.toFixed(2)),
+      joined: user?.created_at,
+      last_active: user?.last_active_at,
+    });
+  }
+
+  // ── MODEL POPULARITY & COST BREAKDOWN ──────────────────────────────────────
+  const modelUsage = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', model_used: { $exists: true } } },
+    { $group: { _id: '$model_used', count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+  ]).toArray();
+
+  const totalModelMessages = modelUsage.reduce((sum, m) => sum + m.count, 0);
+  const modelPopularity = modelUsage.map(m => ({
+    model: m._id || 'unknown',
+    count: m.count,
+    percentage: totalModelMessages > 0 ? parseFloat(((m.count / totalModelMessages) * 100).toFixed(1)) : 0,
+  }));
+
+  // ── FEATURE ADOPTION RATES ─────────────────────────────────────────────────
+  const totalAccepted = await db.collection('users').countDocuments({ accepted: true });
+  
+  const featureAdoption = {
+    assessment_complete: await db.collection('profiles').countDocuments({ assessment_complete: true }),
+    has_imports: (await db.collection('import_jobs').distinct('user_id')).length,
+    has_media: (await db.collection('media_gallery').distinct('user_id')).length,
+    has_memories: (await db.collection('user_memories').distinct('user_id')).length,
+    has_soulprint: await db.collection('profiles').countDocuments({ soul_profile_summary: { $exists: true, $ne: '' } }),
+    web_search_users: (await db.collection('messages').distinct('user_id', { web_sources: { $exists: true, $ne: [] } })).length,
+  };
+
+  const featureAdoptionRates = {};
+  for (const [feature, count] of Object.entries(featureAdoption)) {
+    featureAdoptionRates[feature] = {
+      users: count,
+      rate: totalAccepted > 0 ? parseFloat(((count / totalAccepted) * 100).toFixed(1)) : 0,
+    };
+  }
+
+  // ── MEDIA GENERATION INSIGHTS ──────────────────────────────────────────────
+  const mediaByType = await db.collection('media_gallery').aggregate([
+    { $group: { _id: '$type', count: { $sum: 1 }, total_cost: { $sum: '$cost_usd' } } },
+  ]).toArray();
+
+  const mediaUsersCount = (await db.collection('media_gallery').distinct('user_id')).length;
+  const avgMediaPerUser = mediaUsersCount > 0 
+    ? (await db.collection('media_gallery').countDocuments()) / mediaUsersCount 
+    : 0;
+
+  // ── ENGAGEMENT TRENDS (Last 30 days by week) ───────────────────────────────
+  const weeklyTrends = [];
+  for (let i = 0; i < 4; i++) {
+    const weekStart = new Date(now - (i + 1) * 7 * 24 * 60 * 60 * 1000);
+    const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+    
+    const weekMessages = await db.collection('messages').countDocuments({
+      created_at: { $gte: weekStart, $lt: weekEnd }
+    });
+    const weekActiveUsers = await db.collection('users').countDocuments({
+      last_active_at: { $gte: weekStart, $lt: weekEnd }
+    });
+    const weekNewUsers = await db.collection('users').countDocuments({
+      created_at: { $gte: weekStart, $lt: weekEnd }
+    });
+
+    weeklyTrends.unshift({
+      week: `Week ${4 - i}`,
+      start: weekStart.toISOString().split('T')[0],
+      messages: weekMessages,
+      active_users: weekActiveUsers,
+      new_users: weekNewUsers,
+    });
+  }
+
+  // ── PRICING RECOMMENDATIONS ────────────────────────────────────────────────
+  // Calculate suggested tier limits based on actual usage
+  const messagePercentiles = await db.collection('messages').aggregate([
+    { $match: { role: 'user' } },
+    { $group: { _id: '$user_id', count: { $sum: 1 } } },
+    { $sort: { count: 1 } },
+  ]).toArray();
+
+  const msgCounts = messagePercentiles.map(u => u.count);
+  const getPercentile = (arr, p) => {
+    const idx = Math.floor(arr.length * p);
+    return arr[idx] || 0;
+  };
+
+  const pricingRecommendations = {
+    free_tier_limit: getPercentile(msgCounts, 0.5), // 50th percentile
+    basic_tier_limit: getPercentile(msgCounts, 0.8), // 80th percentile
+    pro_tier_limit: getPercentile(msgCounts, 0.95), // 95th percentile
+    power_users_above: getPercentile(msgCounts, 0.95),
+    avg_messages_per_user: msgCounts.length > 0 ? Math.round(msgCounts.reduce((a, b) => a + b, 0) / msgCounts.length) : 0,
+    median_messages: getPercentile(msgCounts, 0.5),
+  };
+
+  // ── CHURN INDICATORS ───────────────────────────────────────────────────────
+  const inactiveUsers = await db.collection('users').countDocuments({
+    accepted: true,
+    last_active_at: { $lt: thirtyDaysAgo }
+  });
+  const churnRate = totalAccepted > 0 ? parseFloat(((inactiveUsers / totalAccepted) * 100).toFixed(1)) : 0;
+
+  // Users who signed up but never sent a message
+  const usersWithNoMessages = totalAccepted - userMessageCounts.length;
+  const dropOffRate = totalAccepted > 0 ? parseFloat(((usersWithNoMessages / totalAccepted) * 100).toFixed(1)) : 0;
+
+  // ── REVENUE POTENTIAL ESTIMATES ────────────────────────────────────────────
+  // Based on typical SaaS pricing
+  const revenuePotential = {
+    if_free_tier_20_msgs: {
+      paying_users: usageSegments.moderate.count + usageSegments.heavy.count + usageSegments.power.count,
+      at_10_per_month: (usageSegments.moderate.count + usageSegments.heavy.count + usageSegments.power.count) * 10,
+      at_20_per_month: (usageSegments.moderate.count + usageSegments.heavy.count + usageSegments.power.count) * 20,
+    },
+    if_free_tier_50_msgs: {
+      paying_users: usageSegments.heavy.count + usageSegments.power.count,
+      at_10_per_month: (usageSegments.heavy.count + usageSegments.power.count) * 10,
+      at_20_per_month: (usageSegments.heavy.count + usageSegments.power.count) * 20,
+    },
+    enterprise_candidates: usageSegments.power.count,
+  };
+
+  return ok({
+    generated_at: now.toISOString(),
+    
+    // User Segmentation
+    user_segments: {
+      inactive: { count: usageSegments.inactive.count, percentage: parseFloat(((usageSegments.inactive.count / totalAccepted) * 100).toFixed(1)) },
+      light: { count: usageSegments.light.count, percentage: parseFloat(((usageSegments.light.count / totalAccepted) * 100).toFixed(1)), range: '1-20 msgs' },
+      moderate: { count: usageSegments.moderate.count, percentage: parseFloat(((usageSegments.moderate.count / totalAccepted) * 100).toFixed(1)), range: '21-100 msgs' },
+      heavy: { count: usageSegments.heavy.count, percentage: parseFloat(((usageSegments.heavy.count / totalAccepted) * 100).toFixed(1)), range: '101-500 msgs' },
+      power: { count: usageSegments.power.count, percentage: parseFloat(((usageSegments.power.count / totalAccepted) * 100).toFixed(1)), range: '500+ msgs' },
+    },
+    
+    // Top Users
+    top_users: enrichedTopUsers,
+    
+    // Model Popularity
+    model_popularity: modelPopularity,
+    
+    // Feature Adoption
+    feature_adoption: featureAdoptionRates,
+    
+    // Media Insights
+    media_insights: {
+      by_type: mediaByType.map(m => ({ type: m._id, count: m.count, total_cost: parseFloat((m.total_cost || 0).toFixed(2)) })),
+      users_using_media: mediaUsersCount,
+      avg_media_per_user: parseFloat(avgMediaPerUser.toFixed(1)),
+      media_adoption_rate: totalAccepted > 0 ? parseFloat(((mediaUsersCount / totalAccepted) * 100).toFixed(1)) : 0,
+    },
+    
+    // Weekly Trends
+    weekly_trends: weeklyTrends,
+    
+    // Pricing Recommendations
+    pricing_recommendations: pricingRecommendations,
+    
+    // Churn & Retention
+    churn_indicators: {
+      inactive_30d: inactiveUsers,
+      churn_rate: churnRate,
+      never_engaged: usersWithNoMessages,
+      drop_off_rate: dropOffRate,
+    },
+    
+    // Revenue Potential
+    revenue_potential: revenuePotential,
+  });
+}
+
+// ============================================================
 // PRIVACY & DATA MANAGEMENT
 // ============================================================
 
@@ -13335,6 +13599,7 @@ export async function GET(request, { params }) {
     // Viral invite routes
     if (pathStr === 'invites') return handleGetUserInvites(request);
     if (pathStr === 'admin/invites/stats') return handleAdminGetInviteStats(request);
+    if (pathStr === 'admin/insights') return handleAdminGetBusinessInsights(request);
 
     return err('Not found', 404);
   } catch (error) {
