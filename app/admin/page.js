@@ -2745,6 +2745,14 @@ function InsightsTab({ token }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Pricing Calculator State
+  const [customPricing, setCustomPricing] = useState({
+    free: { price: 0, msgLimit: 25 },
+    basic: { price: 10, msgLimit: 100 },
+    pro: { price: 20, msgLimit: 500 },
+    enterprise: { price: 99, msgLimit: 'unlimited' },
+  });
 
   useEffect(() => {
     fetch('/api/admin/insights', { headers: { Authorization: `Bearer ${token}` } })
@@ -2754,6 +2762,15 @@ function InsightsTab({ token }) {
           setError(data.error);
         } else {
           setInsights(data);
+          // Initialize custom pricing with recommended values
+          if (data.pricing_recommendations?.tiers) {
+            setCustomPricing({
+              free: { price: 0, msgLimit: data.pricing_recommendations.tiers.free?.message_limit || 25 },
+              basic: { price: data.pricing_recommendations.tiers.basic?.recommended_price || 10, msgLimit: data.pricing_recommendations.tiers.basic?.message_limit || 100 },
+              pro: { price: data.pricing_recommendations.tiers.pro?.recommended_price || 20, msgLimit: data.pricing_recommendations.tiers.pro?.message_limit || 500 },
+              enterprise: { price: data.pricing_recommendations.tiers.enterprise?.recommended_price || 99, msgLimit: 'unlimited' },
+            });
+          }
         }
         setLoading(false);
       })
@@ -2762,6 +2779,52 @@ function InsightsTab({ token }) {
         setLoading(false);
       });
   }, [token]);
+  
+  // Calculate margin for a given price and cost
+  const calculateMargin = (price, cost) => {
+    if (price <= 0) return 0;
+    return ((price - cost) / price * 100).toFixed(1);
+  };
+  
+  // Get cost for a tier based on message limit
+  const getTierCost = (msgLimit) => {
+    if (!insights?.pricing_recommendations) return 0;
+    const costPerMsg = insights.pricing_recommendations.cost_per_message || 0;
+    if (msgLimit === 'unlimited') {
+      return insights.pricing_recommendations.tiers?.enterprise?.estimated_cost || 0;
+    }
+    return costPerMsg * msgLimit;
+  };
+  
+  // Calculate estimated MRR based on current user segments
+  const calculateEstimatedMRR = () => {
+    if (!insights?.user_segments) return { mrr: 0, breakdown: {} };
+    
+    const segments = insights.user_segments;
+    const pricing = customPricing;
+    
+    // Estimate which users would be on which tier
+    // Free: inactive + light users
+    // Basic: moderate users  
+    // Pro: heavy users
+    // Enterprise: power users
+    
+    const freeTierUsers = (segments.inactive?.count || 0) + (segments.light?.count || 0);
+    const basicTierUsers = segments.moderate?.count || 0;
+    const proTierUsers = segments.heavy?.count || 0;
+    const enterpriseTierUsers = segments.power?.count || 0;
+    
+    const breakdown = {
+      free: { users: freeTierUsers, revenue: 0 },
+      basic: { users: basicTierUsers, revenue: basicTierUsers * pricing.basic.price },
+      pro: { users: proTierUsers, revenue: proTierUsers * pricing.pro.price },
+      enterprise: { users: enterpriseTierUsers, revenue: enterpriseTierUsers * pricing.enterprise.price },
+    };
+    
+    const totalMRR = breakdown.basic.revenue + breakdown.pro.revenue + breakdown.enterprise.revenue;
+    
+    return { mrr: totalMRR, breakdown };
+  };
 
   if (loading) {
     return (
@@ -3022,6 +3085,287 @@ function InsightsTab({ token }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Interactive Pricing Calculator */}
+      <div className="bg-gradient-to-r from-cyan-500/5 to-transparent border border-cyan-500/20 rounded-xl p-4">
+        <h3 className="text-cyan-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+          <Zap className="w-4 h-4" />
+          Pricing Calculator / Estimator
+        </h3>
+        <p className="text-gray-500 text-xs mb-4">Enter your desired prices to see real-time margin calculations based on your actual costs</p>
+        
+        {/* Calculator Grid */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-500 border-b border-white/10">
+                <th className="text-left py-2 px-2">Tier</th>
+                <th className="text-center py-2 px-2">Your Price</th>
+                <th className="text-center py-2 px-2">Msg Limit</th>
+                <th className="text-right py-2 px-2">Est. Cost</th>
+                <th className="text-right py-2 px-2">Gross Margin</th>
+                <th className="text-right py-2 px-2">Margin Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* Free Tier */}
+              <tr className="border-b border-white/5 bg-gray-500/5">
+                <td className="py-3 px-2 text-gray-400 font-medium">🆓 Free</td>
+                <td className="py-3 px-2 text-center">
+                  <span className="text-gray-500">$0</span>
+                </td>
+                <td className="py-3 px-2 text-center">
+                  <input
+                    type="number"
+                    value={customPricing.free.msgLimit}
+                    onChange={(e) => setCustomPricing({...customPricing, free: {...customPricing.free, msgLimit: parseInt(e.target.value) || 0}})}
+                    className="w-20 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
+                  />
+                </td>
+                <td className="py-3 px-2 text-right text-red-400">
+                  ${getTierCost(customPricing.free.msgLimit).toFixed(2)}
+                </td>
+                <td className="py-3 px-2 text-right text-gray-500">N/A</td>
+                <td className="py-3 px-2 text-right">
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">Acquisition</span>
+                </td>
+              </tr>
+              
+              {/* Basic Tier */}
+              <tr className="border-b border-white/5">
+                <td className="py-3 px-2 text-blue-400 font-medium">⭐ Basic</td>
+                <td className="py-3 px-2 text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="text-gray-500">$</span>
+                    <input
+                      type="number"
+                      value={customPricing.basic.price}
+                      onChange={(e) => setCustomPricing({...customPricing, basic: {...customPricing.basic, price: parseFloat(e.target.value) || 0}})}
+                      className="w-16 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
+                      step="0.01"
+                    />
+                    <span className="text-gray-500">/mo</span>
+                  </div>
+                </td>
+                <td className="py-3 px-2 text-center">
+                  <input
+                    type="number"
+                    value={customPricing.basic.msgLimit}
+                    onChange={(e) => setCustomPricing({...customPricing, basic: {...customPricing.basic, msgLimit: parseInt(e.target.value) || 0}})}
+                    className="w-20 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
+                  />
+                </td>
+                <td className="py-3 px-2 text-right text-red-400">
+                  ${getTierCost(customPricing.basic.msgLimit).toFixed(2)}
+                </td>
+                <td className="py-3 px-2 text-right font-bold">
+                  <span className={calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit)) >= 70 ? 'text-green-400' : calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit)) >= 50 ? 'text-yellow-400' : 'text-red-400'}>
+                    {calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit))}%
+                  </span>
+                </td>
+                <td className="py-3 px-2 text-right">
+                  {calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit)) >= 90 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Excellent</span>
+                  ) : calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit)) >= 70 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Good</span>
+                  ) : calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit)) >= 50 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">Low</span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-400">Too Low</span>
+                  )}
+                </td>
+              </tr>
+              
+              {/* Pro Tier */}
+              <tr className="border-b border-white/5">
+                <td className="py-3 px-2 text-purple-400 font-medium">🚀 Pro</td>
+                <td className="py-3 px-2 text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="text-gray-500">$</span>
+                    <input
+                      type="number"
+                      value={customPricing.pro.price}
+                      onChange={(e) => setCustomPricing({...customPricing, pro: {...customPricing.pro, price: parseFloat(e.target.value) || 0}})}
+                      className="w-16 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
+                      step="0.01"
+                    />
+                    <span className="text-gray-500">/mo</span>
+                  </div>
+                </td>
+                <td className="py-3 px-2 text-center">
+                  <input
+                    type="number"
+                    value={customPricing.pro.msgLimit}
+                    onChange={(e) => setCustomPricing({...customPricing, pro: {...customPricing.pro, msgLimit: parseInt(e.target.value) || 0}})}
+                    className="w-20 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
+                  />
+                </td>
+                <td className="py-3 px-2 text-right text-red-400">
+                  ${getTierCost(customPricing.pro.msgLimit).toFixed(2)}
+                </td>
+                <td className="py-3 px-2 text-right font-bold">
+                  <span className={calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit)) >= 70 ? 'text-green-400' : calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit)) >= 50 ? 'text-yellow-400' : 'text-red-400'}>
+                    {calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit))}%
+                  </span>
+                </td>
+                <td className="py-3 px-2 text-right">
+                  {calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit)) >= 90 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Excellent</span>
+                  ) : calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit)) >= 70 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Good</span>
+                  ) : calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit)) >= 50 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">Low</span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-400">Too Low</span>
+                  )}
+                </td>
+              </tr>
+              
+              {/* Enterprise Tier */}
+              <tr className="border-b border-white/5 bg-orange-500/5">
+                <td className="py-3 px-2 text-orange-400 font-medium">🏢 Enterprise</td>
+                <td className="py-3 px-2 text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="text-gray-500">$</span>
+                    <input
+                      type="number"
+                      value={customPricing.enterprise.price}
+                      onChange={(e) => setCustomPricing({...customPricing, enterprise: {...customPricing.enterprise, price: parseFloat(e.target.value) || 0}})}
+                      className="w-16 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
+                      step="0.01"
+                    />
+                    <span className="text-gray-500">/mo</span>
+                  </div>
+                </td>
+                <td className="py-3 px-2 text-center text-gray-500">Unlimited</td>
+                <td className="py-3 px-2 text-right text-red-400">
+                  ${getTierCost('unlimited').toFixed(2)}
+                </td>
+                <td className="py-3 px-2 text-right font-bold">
+                  <span className={calculateMargin(customPricing.enterprise.price, getTierCost('unlimited')) >= 70 ? 'text-green-400' : calculateMargin(customPricing.enterprise.price, getTierCost('unlimited')) >= 50 ? 'text-yellow-400' : 'text-red-400'}>
+                    {calculateMargin(customPricing.enterprise.price, getTierCost('unlimited'))}%
+                  </span>
+                </td>
+                <td className="py-3 px-2 text-right">
+                  {calculateMargin(customPricing.enterprise.price, getTierCost('unlimited')) >= 90 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Excellent</span>
+                  ) : calculateMargin(customPricing.enterprise.price, getTierCost('unlimited')) >= 70 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Good</span>
+                  ) : calculateMargin(customPricing.enterprise.price, getTierCost('unlimited')) >= 50 ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">Low</span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-400">Too Low</span>
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        {/* MRR Estimator */}
+        <div className="mt-4 bg-black/30 border border-white/10 rounded-lg p-4">
+          <h4 className="text-white text-sm font-medium mb-3 flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-green-400" />
+            Estimated Monthly Recurring Revenue (MRR)
+          </h4>
+          <p className="text-gray-500 text-xs mb-3">Based on your current user segments and custom pricing</p>
+          
+          {(() => {
+            const mrr = calculateEstimatedMRR();
+            return (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                  <div className="bg-white/5 rounded-lg p-3 text-center">
+                    <p className="text-gray-500 text-[10px] mb-1">Free Tier</p>
+                    <p className="text-gray-400 text-lg font-bold">{mrr.breakdown.free?.users || 0}</p>
+                    <p className="text-gray-600 text-xs">$0 MRR</p>
+                  </div>
+                  <div className="bg-blue-500/10 rounded-lg p-3 text-center">
+                    <p className="text-blue-400 text-[10px] mb-1">Basic @ ${customPricing.basic.price}</p>
+                    <p className="text-blue-400 text-lg font-bold">{mrr.breakdown.basic?.users || 0}</p>
+                    <p className="text-blue-300 text-xs">${mrr.breakdown.basic?.revenue || 0} MRR</p>
+                  </div>
+                  <div className="bg-purple-500/10 rounded-lg p-3 text-center">
+                    <p className="text-purple-400 text-[10px] mb-1">Pro @ ${customPricing.pro.price}</p>
+                    <p className="text-purple-400 text-lg font-bold">{mrr.breakdown.pro?.users || 0}</p>
+                    <p className="text-purple-300 text-xs">${mrr.breakdown.pro?.revenue || 0} MRR</p>
+                  </div>
+                  <div className="bg-orange-500/10 rounded-lg p-3 text-center">
+                    <p className="text-orange-400 text-[10px] mb-1">Enterprise @ ${customPricing.enterprise.price}</p>
+                    <p className="text-orange-400 text-lg font-bold">{mrr.breakdown.enterprise?.users || 0}</p>
+                    <p className="text-orange-300 text-xs">${mrr.breakdown.enterprise?.revenue || 0} MRR</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between bg-gradient-to-r from-green-500/20 to-green-500/5 border border-green-500/30 rounded-lg p-4">
+                  <div>
+                    <p className="text-green-400 text-xs font-medium">Total Estimated MRR</p>
+                    <p className="text-gray-500 text-[10px]">If all users convert at their expected tier</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-green-400 text-3xl font-bold">${mrr.mrr.toLocaleString()}</p>
+                    <p className="text-green-300 text-xs">per month</p>
+                  </div>
+                </div>
+                
+                <div className="mt-3 flex items-center gap-2 text-[10px] text-gray-500">
+                  <AlertCircle className="w-3 h-3" />
+                  <span>ARR (Annual): ${(mrr.mrr * 12).toLocaleString()} | Assumes 100% conversion at tier levels</span>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+        
+        {/* Quick Presets */}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="text-gray-500 text-xs py-1">Quick Presets:</span>
+          <button
+            onClick={() => setCustomPricing({
+              free: { price: 0, msgLimit: 25 },
+              basic: { price: 9.99, msgLimit: 100 },
+              pro: { price: 19.99, msgLimit: 500 },
+              enterprise: { price: 49.99, msgLimit: 'unlimited' },
+            })}
+            className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs text-gray-400 hover:text-white transition-colors"
+          >
+            Budget ($10/$20/$50)
+          </button>
+          <button
+            onClick={() => setCustomPricing({
+              free: { price: 0, msgLimit: 50 },
+              basic: { price: 14.99, msgLimit: 200 },
+              pro: { price: 29.99, msgLimit: 1000 },
+              enterprise: { price: 99.99, msgLimit: 'unlimited' },
+            })}
+            className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs text-gray-400 hover:text-white transition-colors"
+          >
+            Competitive ($15/$30/$100)
+          </button>
+          <button
+            onClick={() => setCustomPricing({
+              free: { price: 0, msgLimit: 20 },
+              basic: { price: 19.99, msgLimit: 150 },
+              pro: { price: 39.99, msgLimit: 500 },
+              enterprise: { price: 149.99, msgLimit: 'unlimited' },
+            })}
+            className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs text-gray-400 hover:text-white transition-colors"
+          >
+            Premium ($20/$40/$150)
+          </button>
+          <button
+            onClick={() => setCustomPricing({
+              free: { price: 0, msgLimit: insights?.pricing_recommendations?.tiers?.free?.message_limit || 25 },
+              basic: { price: insights?.pricing_recommendations?.tiers?.basic?.recommended_price || 10, msgLimit: insights?.pricing_recommendations?.tiers?.basic?.message_limit || 100 },
+              pro: { price: insights?.pricing_recommendations?.tiers?.pro?.recommended_price || 20, msgLimit: insights?.pricing_recommendations?.tiers?.pro?.message_limit || 500 },
+              enterprise: { price: insights?.pricing_recommendations?.tiers?.enterprise?.recommended_price || 99, msgLimit: 'unlimited' },
+            })}
+            className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
+          >
+            Reset to Recommended
+          </button>
+        </div>
       </div>
 
       {/* Revenue Potential */}
