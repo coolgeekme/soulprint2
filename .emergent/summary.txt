@@ -1,67 +1,94 @@
 <analysis>
 
 <original_problem_statement>
-The user's initial goal was to enhance the SoulPrint AI application. This session focused on completing pending UI work, fixing critical bugs, and adding significant new features based on user requests during the chat.
+The user's initial goal was to enhance the SoulPrint AI application. This session focused on a wide range of tasks, including fixing critical UI/UX bugs on the mobile PWA, enhancing the feedback and memory systems, overhauling the beta code and user management logic, and addressing user-reported issues and feature requests.
 
-- **Bug Fixes:**
-  - Desktop microphone not working.
-  - Multiple critical failures in video generation (unsupported model, missing API fields, incorrect polling, generated videos not appearing).
-  - Generated video duration not matching the user's selection.
+- **Bug Fixes &amp; UI/UX Enhancements:**
+  - **PWA Keyboard Overlap:** The on-screen keyboard on mobile devices was covering the chat input box.
+  - **PWA Initial View:** Upon opening the PWA, the conversation thread and input box were not visible without scrolling.
+  - **PWA Input Cutoff:** The chat input bar was being cut off by the bottom tab navigation bar.
+  - **Mobile Gallery Exit:** The close button in the mobile media gallery was either missing or obscured by the device's status bar.
+  - **Memory System:** Memories were not being loaded automatically and were not being correctly referenced during SoulPrint summary generation. Outdated information was persisting.
+  - **Beta Code System:** The system for creating and validating beta access codes was broken in multiple places, preventing new users from signing up correctly.
+  - **User Deletion:** Deleting a user from the admin dashboard did not completely remove all their associated data, preventing re-registration with the same email.
+  - **Image Generation Model:** Selecting GPT Image 1.5 resulted in an error due to an incorrect model name.
+  - **Microphone Permissions:** A server-side  header was blocking microphone access.
 
-- **Feature Requests & Enhancements:**
-  - Replace all default UI icons with a custom, consistent set.
-  - Rename the Smart Mode feature to Dynamic Intelligence across the entire application.
-  - Extend Dynamic Intelligence to automatically select or recommend the best image/video generation model based on the user's prompt.
-  - Add support for new video models, specifically Sora 2.
-  - Ensure generated videos and images appear directly within the conversation thread on both desktop and mobile and persist after a page refresh.
-  - Add the ability for users to delete images and videos from their media gallery.
-  - Add the ability to view the original prompt for a generated item in the gallery and have an option to edit/regenerate it.
-  - (Exploratory) Inquire about the possibility of HubSpot integration.
+- **Feature Requests &amp; Enhancements:**
+  - **Feedback System:**
+    - Send an email notification to  when a user submits feedback.
+    - Allow users to attach a screenshot to their feedback submission.
+    - Create a dedicated, shareable link/page for submitting feedback ().
+  - **Admin Dashboard:**
+    - Add date range filtering (including custom dates) for viewing user registration/onboarding data and app metrics.
+  - **Quick Start Assessment:** Increase the number of quick-start questions from 10 to 12.
+  - **UI Polish:**
+    - Replace default icons/emojis with the official app logo in the Settings and Welcome pages.
+    - Remove the no messages yet text from the mobile conversation list.
+  - **Curiosity Question:** Inquire about the feasibility of integrating a specific open-source text-to-speech (TTS) engine.
+  - **Attachment Preview:** When a user takes a picture or attaches a file on mobile, a preview should be clearly visible.
+  - **Gallery Functionality:** Add the ability to see the original prompt and regenerate/edit media from the mobile gallery (matching the existing desktop functionality).
 
-PRODUCT REQUIREMENTS: The platform should provide a seamless and intelligent user experience. This includes abstracting away the complexity of model selection (Dynamic Intelligence), ensuring core features like media generation are reliable, and providing users with control over their generated content (gallery management). Brand consistency (custom icons, feature naming) is also important.
+PRODUCT REQUIREMENTS: The application must provide a robust and seamless experience, especially on mobile PWA. Core user journeys like registration via access codes, providing feedback, and interacting with AI-generated content and memories must be flawless. The admin dashboard should provide powerful tools for user management and analytics. The user experience should be polished and consistent with the app's branding.
 </original_problem_statement>
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a full-stack Next.js app. The UI icon set has been completely replaced with a custom set for a consistent look and feel. The Smart Mode feature has been rebranded to 🧠 Dynamic Intelligence throughout the frontend and backend. This Dynamic Intelligence has been extended to media generation, allowing the application to analyze a user's prompt and automatically select the most appropriate image or video model. The video generation system has undergone a major overhaul to fix numerous critical bugs related to API calls, status polling, and database persistence; it now correctly supports models like Kling 3.0 and the newly added Sora 2. Generated media now correctly appears and persists in the chat conversation thread. A media gallery allows users to view their creations, with a newly added feature to delete items.
+The application is a full-stack Next.js app with a MongoDB backend. Numerous critical bugs have been addressed in this session. The mobile PWA experience has been significantly improved by fixing major layout issues related to the keyboard and initial viewport. The beta code and user registration system has been overhauled to work correctly. The feedback system is now more powerful, with email notifications, attachment support, and a dedicated public page. The admin dashboard features new date-filtering capabilities. The SoulPrint memory system has been debugged to ensure memories are loaded and used correctly. The mobile gallery now has feature parity with the desktop version, allowing prompt viewing and regeneration.
 
 **Last working item**:
-- Last item agent was working: The user requested the ability to view the original prompt and have options to edit/regenerate media directly from the gallery. The agent had started investigating the relevant component () but has not yet implemented the feature.
+- Last item agent was working: The user asked about the feasibility of integrating an open-source text-to-speech library ( from GitHub) to add voice conversations to the app. The agent was about to research and provide an analysis of the difficulty and implications.
 - Status: NOT STARTED
 - Agent Testing Done: N
-- Which testing method agent to use? frontend testing agent. After implementation, the agent should verify that the prompt is visible and that the regenerate button triggers the media generation flow with the correct parameters.
+- Which testing method agent to use? NA. This is an informational request. The agent should perform a web search to understand the library's requirements (e.g., Python backend, resource usage) and explain the pros (e.g., offline, privacy) and cons (e.g., integration complexity, server cost, GPL license) to the user.
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-- Issue 1: Implement prompt view, edit, and regeneration in the Media Gallery. (P0)
+- Issue 1: Provide an analysis of integrating the  TTS library. (P0)
 - Issue 2: Fix the desktop microphone not working. (P1)
+- Issue 3: Verify the numerous PWA layout and functionality fixes with the user. (P0)
 
 Issues Detail:
 - Issue 1: 
-     - **Description**: The user wants to see the prompt used for a generated image/video within the gallery modal. They also want buttons to Edit (modify the prompt) and Regenerate the media.
-     - **Attempted fixes**: None. This is a new feature request.
+     - **Description**: The user is curious about how difficult it would be to integrate  for text-to-speech functionality. This is not a request to implement, but a request for information.
+     - **Attempted fixes**: None.
      - **Next debug checklist**:
-         1. Modify  (desktop) and  (mobile) to display the  field from the media item object.
-         2. Add Edit and Regenerate buttons to the modal UI.
-         3. Implement the  function. This will likely involve closing the gallery modal and populating the main chat input/media generation UI with the selected item's prompt and settings.
-         4. Implement the Edit functionality, which could open a text area to modify the prompt before regenerating.
-     - **Why fix this issue and what will be achieved with the fix?**: This enhances the user's workflow, allowing for easy iteration and refinement of generated media without having to manually copy-paste old prompts.
+         1. Analyze the GitHub repository for . Identify its language (likely Python), dependencies, and how it's run (e.g., as a separate server).
+         2. Formulate an answer for the user that covers:
+            - **What it is**: A local, offline TTS engine.
+            - **Pros**: Privacy (no data sent to third parties), potentially faster response times, no per-character cost.
+            - **Cons/Difficulty**: Requires a separate backend service to run the Python model, which adds complexity and server resource cost (CPU/RAM). The GPL license has implications that should be mentioned. It would be a significant integration effort.
+         3. Ask the user if, based on this analysis, they would like to proceed with a proof-of-concept integration.
      - **Status**:  NOT STARTED
      - **Is recurring issue?** N
-     - **Should Test frontend/backend/both after fix?** frontend
+     - **Should Test frontend/backend/both after fix?** NA
      - **Blocked on other issue**: None
 
 - Issue 2: 
-     - **Description**: The user has consistently reported that the desktop microphone does not work. The agent has already refactored the  hook to include a Whisper API fallback and has now added extensive  statements to trace the execution flow (e.g., Attempting to start native speech recognition, Falling back to Whisper API).
-     - **Attempted fixes**: Added detailed logging to  to diagnose the point of failure.
+     - **Description**: The user has consistently reported that the desktop microphone does not work. A fix was applied to the  file to change the  header from  to .
+     - **Attempted fixes**: Corrected the  HTTP header in .
      - **Next debug checklist**:
          1. **Ask the user to test the microphone on their desktop again.**
-         2. **Crucially, instruct the user to open their browser's developer console (F12 or right-click -> Inspect -> Console) before clicking the microphone button.**
-         3. Ask the user to copy and paste any logs that appear in the console. The new logs will pinpoint whether the native API is failing, if permissions are denied, or if the Whisper fallback is encountering an error.
-     - **Why fix this issue and what will be achieved with the fix?**: This will resolve a long-standing bug with a core input method, improving accessibility and user experience. The added logging is the key to finally diagnosing the root cause.
+         2. If it still fails, instruct the user to open their browser's developer console and provide any error messages.
+     - **Why fix this issue and what will be achieved with the fix?**: This will resolve a long-standing bug with a core input method.
      - **Status**:  USER VERIFICATION PENDING
      - **Is recurring issue?** Y
+     - **Should Test frontend/backend/both after fix?** frontend
+     - **Blocked on other issue**: None
+
+- Issue 3: 
+     - **Description**: A large number of fixes were applied to the PWA layout (keyboard handling, initial view, fixed input bar) and other features (memory loading, beta codes). These need to be confirmed as resolved by the user.
+     - **Attempted fixes**: Multiple code changes across , , and other components.
+     - **Next debug checklist**:
+         1. Ask the user to specifically test the following on their mobile PWA:
+            - Does the input box correctly move above the keyboard when typing?
+            - Is the chat screen, including the input box, fully visible when the app first opens?
+            - Can they scroll the conversation while the input bar remains fixed above the bottom tab bar?
+            - Does the X button work correctly in the full-screen media gallery?
+     - **Why fix this issue and what will be achieved with the fix?**: To confirm that the major UI/UX overhaul for the PWA was successful.
+     - **Status**:  USER VERIFICATION PENDING
+     - **Is recurring issue?** Y (PWA layout issues have been reported multiple times)
      - **Should Test frontend/backend/both after fix?** frontend
      - **Blocked on other issue**: None
 
@@ -70,119 +97,137 @@ Issues Detail:
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
-- **HubSpot Integration (P2)**: The user expressed interest. The next step would be to confirm which specific use case (e.g., contact sync on signup) they want to implement first and request API credentials.
+- **HubSpot Integration (P2)**: Confirm the specific use case and request API credentials.
 
 Future Tasks:
 - **Refactor Monolithic API (CRITICAL, P0)**: The  file continues to be a source of complexity and risk.
-- **Refactor Monolithic Frontend (CRITICAL, P0)**: The  and  files are extremely large and should be broken down.
+- **Refactor Monolithic Frontend (CRITICAL, P0)**:  and  are extremely large.
 - **Stripe Integration &amp; Pricing Table (P2)**: Implement payment processing.
 - **Organize Conversations by Topic (P2)**: Implement a way to categorize or tag conversations.
 - **Start/Share Conversation with another user (P1)**: Allow AI personas to chat with each other.
 
 **Completed work in this session**
-- **UI & Branding:**
-  - **Custom Icon Integration**: Successfully replaced all default Lucide icons in the chat interface (desktop and mobile) with a custom SVG icon set for a consistent brand identity.
-  - **Feature Renaming**: Renamed Smart Mode to 🧠 Dynamic Intelligence across all user-facing components (, ) and backend logic ().
-
-- **Core Feature - Video Generation Overhaul (Critical Fixes):**
-  - **API Modernization**: Migrated from a deprecated Kie.ai Runway endpoint to the modern, unified Jobs API.
-  - **Payload Correction**: Fixed multiple crashes and errors by providing the correct request body to the Kie.ai API, including adding the required  field.
-  - **Parameter Handling**: Corrected a bug where the user-selected  for videos was being ignored and hardcoded to 5 seconds.
-  - **Status Polling Fix**: Corrected the status polling to use the correct API endpoint () and parse the correct response field ( instead of ).
-  - **Database Persistence Fix**: Resolved a critical issue where generated video jobs were not found during status polling by ensuring the polling logic checks the correct database collection ().
-  - **Chat Persistence Fix**: Ensured that in-progress videos persist in the chat thread on page refresh by correctly saving the  object to the message in the database. Also fixed logic to *update* the original message upon completion instead of creating a new one.
-
-- **Core Feature - AI & Media:**
-  - **Dynamic Intelligence for Media**: Implemented a new backend function () and API endpoint () that analyzes a user's prompt to suggest the best image or video model. Integrated this as a smart mode in the media generation UI.
-  - **Sora 2 Integration**: Researched and added support for the Sora 2 video model, integrating it into the backend config, frontend UI, and the Dynamic Intelligence selection logic.
-
-- **User Experience:**
-  - **Media Gallery Delete**: Implemented functionality for users to delete their generated images and videos from the media gallery on both desktop and mobile, including a new backend  endpoint.
-  - **Desktop Search Verification**: Investigated the user's report of a broken desktop search and confirmed via testing that it was working correctly.
+- **Mobile PWA UX/UI (CRITICAL FIXES):**
+  - **Keyboard Overlap Fix:** Reworked the mobile chat input area to use the  API, ensuring the input box dynamically repositions itself above the on-screen keyboard.
+  - **Initial View Fix:** Restructured the layout of  using a proper flexbox container () to ensure the chat history and input box are visible on app launch without needing to scroll.
+  - **Fixed Input Bar:** The chat input bar on mobile is now fixed above the bottom tab navigation, preventing it from being obscured. The message list now has appropriate padding to avoid content being hidden behind the input bar.
+  - **Mobile Gallery Exit Fix:** Added safe area padding () to the header of the mobile gallery view, making the X (close) button accessible and not hidden under the phone's status bar.
+- **Feedback System:**
+  - **Email Notification:** Modified the backend API in  to send an email to  using Resend whenever new feedback is submitted.
+  - **Attachment Support:** Added functionality to both the  and the Settings page feedback form to allow users to upload a screenshot (as a base64 string) with their feedback. The backend was updated to handle the attachment.
+  - **Dedicated Feedback Page:** Created a new page at  that allows for anonymous feedback submission. The backend was adjusted to handle these unauthenticated requests.
+- **Beta Code &amp; User Management:**
+  - **Full User Deletion:** The admin user deletion API () was fixed to delete the user's data from all relevant collections (users, messages, memories, media_gallery, etc.), allowing the email to be re-registered.
+  - **Beta Code Validation Logic:** Overhauled the beta code system by modifying  and  to check both the legacy  and the new admin-created  collections, resolving a major bug that prevented new codes from working.
+  - **Data Consistency:** Standardized the field names used for tracking code usage ( vs. ) between the admin dashboard and the backend API.
+  - **Onboarding Redirect:** Fixed the user registration API to correctly return , ensuring new users are properly redirected to the assessment selection page.
+- **Memory System &amp; SoulPrint:**
+  - **Auto-loading Memories:** Fixed a bug in the desktop settings modal where memories were not loading automatically. An  was added to fetch memories when the tab becomes active.
+  - **Correct SoulPrint Generation:** Modified the  API to fetch from the correct  collection and updated the AI prompt to prioritize recent memories over older imported chat history.
+- **Admin Dashboard:**
+  - **Date Range Filtering:** Implemented a reusable  component and integrated it into the  and  of the admin dashboard () to allow filtering data by specific date ranges.
+- **Feature &amp; UI Polish:**
+  - **Mobile Gallery Parity:** Added the prompt display, edit, and regenerate functionality to the mobile , matching the desktop experience.
+  - **Quick Start Questions:** Updated the  file to contain 12 questions (2 for each of the 6 pillars) for the Quick Start assessment.
+  - **UI Branding:** Replaced a DNA emoji with the  on the welcome screen ().
+  - **Image Generation Fix:** Corrected the model name for  to  in , fixing a generation failure.
+  - **Microphone Permissions:** Corrected the  in  to allow microphone access ().
+  - **Attachment Preview:** Enhanced the UI for displaying file attachments in the chat input area on both mobile and desktop.
 
 **Earlier issues found/mentioned but not fixed**
-   - None in this session.
+   - None. All issues raised during the session were either addressed or are listed in the pending section.
 
 **Known issue recurrence from previous fork**
-  - **Desktop Microphone:** This issue was present in previous forks and remains unresolved, although significant diagnostic logging has been added to facilitate the next debugging step. Status is USER VERIFICATION PENDING.
+  - **Desktop Microphone:** This issue was present previously. A likely fix has been implemented by changing the  header, but it is pending user verification. Status is USER VERIFICATION PENDING.
+  - **PWA Layout Issues:** User has reported various layout problems on the PWA across multiple sessions. The latest set of fixes is the most comprehensive yet but requires verification.
 
 **Code Architecture**
-- **Framework**: Next.js 14 (App Router)
+- **Framework**: Next.js 14 (App Router & Pages Router)
 - **Frontend**: React/Tailwind/shadcn.
-    - : **(CRITICALLY MODIFIED)**. Replaced all icons, renamed Smart Mode, added Dynamic Intelligence for media, fixed video task persistence and rendering logic.
-    - : **(CRITICALLY MODIFIED)**. Replaced all icons, renamed Smart Mode, added Dynamic Intelligence for media, and added mobile gallery delete functionality.
-    - : **(MODIFIED)**. Renders custom icons.
-    - : **(NEW)**. Contains the raw SVG data for the custom icon set.
-    - : **(MODIFIED)**. Added extensive console logging for debugging.
-    - : **(MODIFIED)**. Added delete button and logic.
-    - : **(MODIFIED)**. Added delete functionality for mobile.
-    - : **(MODIFIED)**. Added Sora 2, added smart mode, and corrected video model names.
-- **Backend**: A single monolithic API file at .
-    - **(CRITICALLY MODIFIED)**. Major overhaul of media generation (), status polling (, ), and media deletion (). Added logic for Dynamic Intelligence media recommendation (). Renamed Smart Mode references.
+    - : **(CRITICALLY MODIFIED)**. Major layout refactoring to fix keyboard, initial view, and fixed input bar issues. Added mobile gallery enhancements and attachment preview logic.
+    - : **(CRITICALLY MODIFIED)**. Added date range filtering to Users and Metrics tabs. Fixed beta code creation/display logic.
+    - : **(NEW)**. Created for shareable, anonymous feedback submission.
+    - : **(MODIFIED)**. Added state and UI for screenshot attachments.
+    - : **(MODIFIED)**. Updated settings modal for memory auto-loading and feedback attachments.
+    - : **(MODIFIED)**. Fixed  header for microphone access.
+    - : **(MODIFIED)**. Updated Quick Start questions.
+    - : **(MODIFIED)**. Corrected image generation model name.
+- **Backend**: Monolithic API at .
+    - **(CRITICALLY MODIFIED)**. Major changes to , , ,  (to add email/attachments), and  (to use memories).
 - **Database**: MongoDB.
-    - : Now the primary collection for all media generation tasks. Heavily used for status polling and stores final URLs.
-    - : Now includes a  object to persist the state of in-progress video generation.
+    - : Ensured  is set correctly. Referenced for full deletion.
+    - : Now correctly queried during registration/waitlist redemption.
+    - : Now correctly used for SoulPrint generation.
+    - : Now stores attachments and anonymous submissions.
 
 **Key Technical Concepts**
-- **Backend Prompt Analysis**: A new function  uses keyword matching on a user's prompt to select an appropriate AI model, abstracting model complexity.
-- **Asynchronous Task Persistence**: Solved a major UX issue by saving a  object (containing the ) to the  collection in MongoDB. This allows the frontend to resume polling for video status even after a page refresh.
-- **Stateful API Logic**: The backend  function was refactored to be stateful. Upon video completion, it now updates the original message document and the media gallery document instead of creating new, disconnected entries.
-- **Unified Media Polling**: Refactored status polling logic to query both the legacy  collection and the new  collection to handle old and new video tasks gracefully.
-- **Dynamic API Payloads**: The  functions for  were corrected to dynamically include parameters like  and  from the user's request.
+- **PWA Keyboard Handling**: Using the browser's  API to get the real-time visible area of the screen and dynamically adjust the UI to avoid being overlapped by the software keyboard.
+- **Robust Mobile Layouts**: Using a combination of  (dynamic viewport height), flexbox (, ), and safe area environment variables () to create layouts that adapt correctly to mobile device notches, home bars, and keyboards.
+- **Backend Logic Unification**: Refactoring multiple API handlers (e.g., beta code validation) to query multiple database collections ( and ) to ensure both legacy and new systems function correctly.
+- **Asynchronous Notifications**: Integrating the Resend API into the feedback submission flow to trigger an out-of-band email notification.
+- **File Handling on Frontend**: Converting an uploaded file (screenshot) to a base64 string on the client-side to be sent as part of a JSON payload to the backend.
+- **Next.js Configuration**: Modifying  to control security-related HTTP headers like .
 
 **key DB schema**
-  - **messages**: Documents can now contain a  object for persisting async video generation state.
-  - **media_gallery**: The definitive source for media items. Stores ,  (e.g., 'processing', 'completed', 'failed'), , , , etc.
+  - **beta_codes_v2**: , , . The  field is now the standardized counter.
+  - **feedback**: Can now contain an  (base64) and may have a  or missing  for anonymous submissions.
+  - **user_memories**: The primary source for user memories, used in SoulPrint generation.
 
 **changes in tech stack**
   - No changes to the core tech stack.
 
 **All files of reference**
-- : **(CRITICALLY MODIFIED)**. Contains the entire backend logic for video generation fixes, dynamic intelligence, and gallery deletion.
-- : **(CRITICALLY MODIFIED)**. Desktop chat UI. All icons replaced, video rendering fixed.
-- : **(CRITICALLY MODIFIED)**. Mobile chat UI. All icons replaced, gallery delete added.
-- : **(MODIFIED)**. Enhanced with logging to debug the microphone issue.
-- : **(MODIFIED)**. Updated with delete functionality.
-- : **(NEW)**. Stores the custom icon SVGs.
-- : **(MODIFIED)**. Updated with new video models and the 'smart' option.
+- : **(CRITICAL)** For all PWA layout and UX fixes.
+- : **(CRITICAL)** For fixes to beta codes, user deletion, feedback, and SoulPrint logic.
+- : **(CRITICAL)** For new admin dashboard features (date filtering).
+- : **(NEW)** The new public-facing feedback page.
+- : For the microphone permission fix.
+- : For the updated quick-start questions.
 
 **Areas that need refactoring**:
-- **Monolithic API ()**: **(CRITICAL)**. The complexity of fixing the video generation bugs within this single file underscores the urgent need to break it into smaller, more manageable route handlers.
-- **Monolithic Frontend (, )**: **(CRITICAL)**. These files are exceedingly large and difficult to maintain.
+- **Monolithic API ()**: **(CRITICAL)** The complexity of fixing the beta code logic across multiple functions highlights the urgent need to break this file apart.
+- **Monolithic Frontend ()**: **(CRITICAL)** This file is now over 3000 lines and extremely difficult to maintain. It desperately needs to be broken down into smaller, manageable components.
 
 **key api endpoints**
-- : **(ENHANCED)** Heavily refactored to support smart model selection and pass correct parameters to Kie.ai.
-- : **(ENHANCED)** Now correctly polls from  and handles new API responses.
-- : **(NEW)** Deletes an item from the .
-- : **(NEW)** Returns a recommended media model based on a prompt.
+- : **(ENHANCED)** Now checks both  and  collections.
+- : **(ENHANCED)** Now checks both  and  collections.
+- : **(ENHANCED)** Now handles an optional  field and can be called without authentication. Sends an email notification.
+- : **(ENHANCED)** Now performs a deep deletion of all user-related data across multiple collections.
+- : **(ENHANCED)** Supports , , , etc., for date filtering.
+- : **(ENHANCED)** Now correctly returns  and  status.
 
 **Critical Info for New Agent**
-- **Your immediate task is P0: Enhance the Media Gallery.** The user wants to see the original prompt and have Edit/Regenerate buttons. Start by modifying .
-- **Your second task is P1: Resolve the Microphone Issue.** You MUST ask the user to open their browser's developer console and provide you with the output when they test the microphone. The logging is already in place to diagnose the problem.
-- **Verify Video Generation:** The video generation system has been massively refactored. Ask the user to confirm it is now working as expected (especially regarding the selected duration).
+- **Your immediate task is P0: Answer the User's Curiosity.** The user wants to know about integrating Piper TTS. Your first action should be to provide a comprehensive analysis of the pros, cons, and difficulty, as detailed in the Pending Issues section. Do not start implementing anything.
+- **Your second task is P0: Get User Verification.** After providing the TTS analysis, you MUST ask the user to verify the long list of fixes from this session, especially the PWA layout, microphone, and beta code functionality. Use the checklist in Pending Issues to guide them.
+- **Do not assume fixes are complete.** Many critical, recurring bugs were addressed. It is vital to confirm with the user that the solutions are effective before moving on to new tasks.
+- **The codebase has significant technical debt.** The  and  files are extremely large. Be mindful of this when making changes and continue to recommend refactoring as a future task.
 
 **documents created in this job**
-- None.
+  - /app/pages/feedback.js
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. : (User) Requested gallery should show the original prompt and have edit/regenerate options. **(Not Started)**
- 2. : (User) Reported that video generation doesn't respect user-selected options (e.g., duration). **(Completed)**
- 3. : (User) Reported that generated videos are still not appearing. **(Completed)**
- 4. : (User) Requested the ability to delete any image or video from their gallery. **(Completed)**
- 5. : (User) Asked for confirmation that generated videos will show up in the correct conversation thread. **(Completed)**
- 6. : (User) Asked to ensure generated media appears directly in the app on both desktop and mobile. **(Completed)**
- 7. : (User) Asked why Sora and Veo were not available as video options. **(Completed - Sora added, Veo confirmed unavailable)**
- 8. : (User) Confirmed to proceed with fixing video generation and then implementing Dynamic Intelligence for media. **(Completed)**
- 9. : (User) Asked if Dynamic Intelligence could also apply to image/video generation to suggest models. **(Completed)**
- 10. : (User) Reported video generation failed with This field is required. **(Completed)**
+ 1. : (User) Asked about the difficulty of integrating Piper TTS, clarifying it's a curiosity question. **(Not Started)**
+ 2. : (User) Reported an error when generating an image with GPT Image 1.5. **(Completed)**
+ 3. : (User) Reported an error after entering a newly created beta code. **(Completed)**
+ 4. : (User) Clarified that admins should be able to create beta codes from the admin dashboard. **(Completed)**
+ 5. : (User) Reported that a beta code BETAV1 worked for some users but not others. **(Completed)**
+ 6. : (User) Reported that beta codes were not working after a user completes the assessment. **(Completed)**
+ 7. : (User) Requested the image on the welcome/onboarding screen be changed to the app logo. **(Completed)**
+ 8. : (User) Requested date filtering options in the admin dashboard for user registration and metrics. **(Completed)**
+ 9. : (User) Asked if the new anonymous feedback will be visible in the admin dashboard. **(Completed)**
+ 10. : (User) Asked for a shareable link to the feedback form. **(Completed)**
 
 **Project Health Check:**
 - **Broken**:
-    - Desktop microphone functionality is still reported as not working.
+    - None confirmed, but the microphone issue is pending verification and has been a persistent problem.
 - **Mocked**:
     - None.
 - **Needs Verification**:
-    - The entire video generation flow, including respect for all user parameters (like duration) and successful display in the chat thread.
+    - **PWA Keyboard/Layout**: The core mobile user experience depends on these fixes.
+    - **Desktop Microphone**: A fix was applied but needs to be tested by the user.
+    - **Beta Code Flow**: The entire registration and waitlist flow using admin-created codes needs end-to-end verification.
+    - **SoulPrint Generation**: Needs user to confirm that it now correctly uses recent memories and updates outdated information.
+    - **User Deletion**: An admin should test deleting a user and re-registering with the same email.
 - **In Progress**:
     - None.
 
@@ -198,14 +243,15 @@ Future Tasks:
 **Testing status**
   - Testing agent used after significant changes: NO
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None.
-  - Known regressions: None new. The microphone issue is a persistent one.
+  - Test files created:
+    - 
+  - Known regressions: None new. The microphone and PWA layout issues are persistent problems that have new fixes pending verification.
 
 **Credentials to test flow:**
 - Login with  and password  to access the  role.
 - All necessary API keys are in .
 
 **What agent forgot to execute**
-- The agent did not forget any tasks. The last user request (gallery enhancements) was received at the very end of the session and is correctly queued as the next task.
+- The agent successfully addressed all user requests and issues that arose during this extensive session. The final user query was an informational one that the agent was about to address when the session ended, which is correctly captured as the next pending task.
 
 </analysis>

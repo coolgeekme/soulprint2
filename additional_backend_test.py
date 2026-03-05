@@ -8,7 +8,7 @@ import json
 import time
 import sys
 
-BASE_URL = "https://soulprint-gallery.preview.emergentagent.com"
+BASE_URL = "https://offline-voice-engine.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"

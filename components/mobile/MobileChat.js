@@ -1747,8 +1747,8 @@ export default function MobileChat({
           // Keyboard is closed
           setKeyboardVisible(false);
           setKeyboardHeight(0);
-          inputContainerRef.current.style.bottom = 'calc(4rem + env(safe-area-inset-bottom, 0px))';
-          inputContainerRef.current.style.zIndex = '40';
+          inputContainerRef.current.style.bottom = 'calc(4.5rem + env(safe-area-inset-bottom, 0px))';
+          inputContainerRef.current.style.zIndex = '60';
         }
       }
     };
@@ -1765,8 +1765,8 @@ export default function MobileChat({
           setKeyboardVisible(false);
           setKeyboardHeight(0);
           if (inputContainerRef.current) {
-            inputContainerRef.current.style.bottom = 'calc(4rem + env(safe-area-inset-bottom, 0px))';
-            inputContainerRef.current.style.zIndex = '40';
+            inputContainerRef.current.style.bottom = 'calc(4.5rem + env(safe-area-inset-bottom, 0px))';
+            inputContainerRef.current.style.zIndex = '60';
           }
         }
       }, 100);
@@ -2819,10 +2819,10 @@ export default function MobileChat({
       {activeTab === 'chat' && (
         <div 
           ref={inputContainerRef}
-          className="fixed left-0 right-0 bg-sp-black border-t border-white/10 px-3 py-2"
+          className="fixed left-0 right-0 bg-sp-black border-t border-white/10 px-3 py-3"
           style={{ 
-            bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
-            zIndex: 40,
+            bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))',
+            zIndex: 60,
           }}
         >
             {/* Attachment Preview - show uploaded files */}
@@ -3019,7 +3019,7 @@ export default function MobileChat({
               >
                 <Plus className="w-6 h-6" />
               </button>
-              <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-3 flex items-end gap-2 min-w-0">
+              <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-2.5 flex items-center gap-2 min-w-0">
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -3045,10 +3045,10 @@ export default function MobileChat({
                     }, 300);
                   }}
                   placeholder="Message..."
-                  className="flex-1 bg-transparent text-white text-[16px] placeholder-gray-600 focus:outline-none resize-none min-h-[24px] max-h-[100px] min-w-0"
+                  className="flex-1 bg-transparent text-white text-[16px] placeholder-gray-600 focus:outline-none resize-none min-h-[28px] max-h-[100px] min-w-0 leading-normal"
                   rows={1}
                   disabled={loading}
-                  style={{ fontSize: '16px' }} // Prevent iOS zoom on focus
+                  style={{ fontSize: '16px', lineHeight: '1.4' }} // Prevent iOS zoom on focus
                 />
                 {/* Voice input button */}
                 <button 
@@ -3545,6 +3545,14 @@ export default function MobileChat({
           transition: all 0.2s ease-out;
         }
         
+        /* Ensure textarea text is always visible */
+        .mobile-input-area textarea {
+          -webkit-appearance: none;
+          appearance: none;
+          overflow-y: auto;
+          overflow-x: hidden;
+        }
+        
         /* When keyboard is visible - ensure input stays above keyboard */
         @supports (height: 100dvh) {
           .mobile-input-area {
@@ -3558,6 +3566,14 @@ export default function MobileChat({
             /* iOS Safari specific adjustments */
             -webkit-transform: translateZ(0);
             transform: translateZ(0);
+          }
+        }
+        
+        /* Android Chrome fix for textarea visibility */
+        @media screen and (-webkit-min-device-pixel-ratio: 0) {
+          textarea {
+            -webkit-text-fill-color: white;
+            opacity: 1;
           }
         }
       `}</style>
