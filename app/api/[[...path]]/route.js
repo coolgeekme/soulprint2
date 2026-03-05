@@ -6646,6 +6646,210 @@ async function handleAdminGetQuestions(request) {
   return ok(questions);
 }
 
+// Export users for email campaigns
+async function handleAdminExportUsers(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const url = new URL(request.url);
+  const format = url.searchParams.get('format') || 'json'; // json or csv
+  const filter = url.searchParams.get('filter') || 'all'; // all, beta, invited, organic, google
+  const discovery = url.searchParams.get('discovery') || ''; // specific discovery source
+  const dateFrom = url.searchParams.get('date_from');
+  const dateTo = url.searchParams.get('date_to');
+  const hasMessages = url.searchParams.get('has_messages'); // true/false
+  const onboardingComplete = url.searchParams.get('onboarding_complete'); // true/false
+
+  const db = await getDb();
+  
+  // Build query
+  const query = { accepted: true };
+  
+  // Filter by user type
+  if (filter === 'beta') {
+    query.beta_code_used = { $exists: true, $ne: null };
+  } else if (filter === 'invited') {
+    query.invited_by = { $exists: true, $ne: null };
+  } else if (filter === 'organic') {
+    query.$and = [
+      { $or: [{ beta_code_used: { $exists: false } }, { beta_code_used: null }] },
+      { $or: [{ invited_by: { $exists: false } }, { invited_by: null }] }
+    ];
+  } else if (filter === 'google') {
+    query.auth_provider = 'google';
+  }
+  
+  // Filter by date range
+  if (dateFrom || dateTo) {
+    query.created_at = {};
+    if (dateFrom) query.created_at.$gte = new Date(dateFrom);
+    if (dateTo) query.created_at.$lte = new Date(dateTo + 'T23:59:59.999Z');
+  }
+
+  // Get users
+  const users = await db.collection('users')
+    .find(query)
+    .sort({ created_at: -1 })
+    .toArray();
+
+  // Get profiles for discovery source and onboarding status
+  const userIds = users.map(u => u.id);
+  const profiles = await db.collection('profiles')
+    .find({ user_id: { $in: userIds } })
+    .toArray();
+  const profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p]));
+
+  // Get message counts if filtering by engagement
+  let messageCounts = {};
+  if (hasMessages) {
+    const msgAgg = await db.collection('messages').aggregate([
+      { $match: { user_id: { $in: userIds }, role: 'user' } },
+      { $group: { _id: '$user_id', count: { $sum: 1 } } }
+    ]).toArray();
+    messageCounts = Object.fromEntries(msgAgg.map(m => [m._id, m.count]));
+  }
+
+  // Build export data
+  let exportData = users.map(u => {
+    const profile = profileMap[u.id] || {};
+    const msgCount = messageCounts[u.id] || 0;
+    
+    // Determine acquisition channel
+    let acquisitionChannel = 'unknown';
+    if (u.invited_by) {
+      acquisitionChannel = 'invite';
+    } else if (u.beta_code_used) {
+      acquisitionChannel = 'beta_code';
+    } else if (u.auth_provider === 'google') {
+      acquisitionChannel = 'google_auth';
+    } else if (profile.discovery_source) {
+      acquisitionChannel = profile.discovery_source;
+    } else {
+      acquisitionChannel = 'organic';
+    }
+
+    return {
+      email: u.email,
+      display_name: profile.display_name || '',
+      created_at: u.created_at,
+      last_active_at: u.last_active_at,
+      acquisition_channel: acquisitionChannel,
+      beta_code_used: u.beta_code_used || '',
+      invited_by: u.invited_by ? 'Yes' : 'No',
+      auth_provider: u.auth_provider || 'legacy',
+      discovery_source: profile.discovery_source || '',
+      onboarding_complete: profile.onboarding_complete ? 'Yes' : 'No',
+      assessment_complete: profile.assessment_complete ? 'Yes' : 'No',
+      message_count: msgCount,
+      field: profile.field || '',
+      assistant_name: profile.assistant_name || 'SoulPrint',
+    };
+  });
+
+  // Apply additional filters
+  if (discovery) {
+    exportData = exportData.filter(u => 
+      u.discovery_source.toLowerCase().includes(discovery.toLowerCase()) ||
+      u.acquisition_channel.toLowerCase().includes(discovery.toLowerCase())
+    );
+  }
+  
+  if (hasMessages === 'true') {
+    exportData = exportData.filter(u => u.message_count > 0);
+  } else if (hasMessages === 'false') {
+    exportData = exportData.filter(u => u.message_count === 0);
+  }
+  
+  if (onboardingComplete === 'true') {
+    exportData = exportData.filter(u => u.onboarding_complete === 'Yes');
+  } else if (onboardingComplete === 'false') {
+    exportData = exportData.filter(u => u.onboarding_complete === 'No');
+  }
+
+  // Generate summary stats
+  const stats = {
+    total: exportData.length,
+    by_channel: {},
+    by_discovery: {},
+    engaged: exportData.filter(u => u.message_count > 0).length,
+    onboarded: exportData.filter(u => u.onboarding_complete === 'Yes').length,
+  };
+  
+  exportData.forEach(u => {
+    stats.by_channel[u.acquisition_channel] = (stats.by_channel[u.acquisition_channel] || 0) + 1;
+    if (u.discovery_source) {
+      stats.by_discovery[u.discovery_source] = (stats.by_discovery[u.discovery_source] || 0) + 1;
+    }
+  });
+
+  // Return as CSV or JSON
+  if (format === 'csv') {
+    const headers = ['email', 'display_name', 'created_at', 'last_active_at', 'acquisition_channel', 
+                     'beta_code_used', 'invited_by', 'auth_provider', 'discovery_source', 
+                     'onboarding_complete', 'assessment_complete', 'message_count', 'field', 'assistant_name'];
+    
+    const csvRows = [headers.join(',')];
+    exportData.forEach(row => {
+      const values = headers.map(h => {
+        let val = row[h] || '';
+        if (val instanceof Date) val = val.toISOString();
+        if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n'))) {
+          val = '"' + val.replace(/"/g, '""') + '"';
+        }
+        return val;
+      });
+      csvRows.push(values.join(','));
+    });
+    
+    return new Response(csvRows.join('\n'), {
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': `attachment; filename="soulprint_users_export_${new Date().toISOString().split('T')[0]}.csv"`,
+      },
+    });
+  }
+
+  return ok({
+    stats,
+    users: exportData,
+  });
+}
+
+// Get available filter options for export
+async function handleAdminGetExportFilters(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  
+  // Get unique discovery sources
+  const profiles = await db.collection('profiles').find({}).toArray();
+  const discoverySources = [...new Set(profiles.map(p => p.discovery_source).filter(Boolean))];
+  
+  // Get unique auth providers
+  const users = await db.collection('users').find({ accepted: true }).toArray();
+  const authProviders = [...new Set(users.map(u => u.auth_provider).filter(Boolean))];
+  
+  // Get beta codes used
+  const betaCodes = [...new Set(users.map(u => u.beta_code_used).filter(Boolean))];
+  
+  // Count by acquisition channel
+  const channelCounts = {
+    all: users.length,
+    beta: users.filter(u => u.beta_code_used).length,
+    invited: users.filter(u => u.invited_by).length,
+    google: users.filter(u => u.auth_provider === 'google').length,
+    organic: users.filter(u => !u.beta_code_used && !u.invited_by && u.auth_provider !== 'google').length,
+  };
+
+  return ok({
+    discovery_sources: discoverySources,
+    auth_providers: authProviders,
+    beta_codes: betaCodes,
+    channel_counts: channelCounts,
+  });
+}
+
 async function handleAdminSeedQuestions(request) {
   const admin = await requireAdmin(request);
   if (!admin) return err('Forbidden', 403);
@@ -13716,6 +13920,8 @@ export async function GET(request, { params }) {
 
     // Admin routes
     if (pathStr === 'admin/users') return handleAdminGetUsers(request);
+    if (pathStr === 'admin/users/export') return handleAdminExportUsers(request);
+    if (pathStr === 'admin/users/export/filters') return handleAdminGetExportFilters(request);
     if (pathStr === 'admin/metrics') return handleAdminGetMetrics(request);
     if (pathStr === 'admin/questions') return handleAdminGetQuestions(request);
     if (pathStr === 'admin/conversations') return handleAdminGetConversations(request);

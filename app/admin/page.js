@@ -344,6 +344,20 @@ function UsersTab({ token, adminRole }) {
   const [editingUser, setEditingUser] = useState(null);
   const [userFormData, setUserFormData] = useState({ email: '', passcode: '', display_name: '', role: 'user', accepted: true });
   const [saving, setSaving] = useState(false);
+  
+  // Export state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFilters, setExportFilters] = useState(null);
+  const [exportSettings, setExportSettings] = useState({
+    filter: 'all',
+    discovery: '',
+    dateFrom: '',
+    dateTo: '',
+    hasMessages: '',
+    onboardingComplete: '',
+  });
+  const [exporting, setExporting] = useState(false);
+  const [exportPreview, setExportPreview] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -503,6 +517,81 @@ function UsersTab({ token, adminRole }) {
     setShowUserForm(true);
   }
 
+  // Load export filter options
+  async function loadExportFilters() {
+    try {
+      const res = await fetch('/api/admin/users/export/filters', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setExportFilters(data);
+    } catch (e) {
+      console.error('Failed to load export filters:', e);
+    }
+  }
+
+  // Open export modal
+  function openExportModal() {
+    loadExportFilters();
+    setShowExportModal(true);
+    setExportPreview(null);
+  }
+
+  // Preview export
+  async function previewExport() {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('format', 'json');
+      if (exportSettings.filter !== 'all') params.set('filter', exportSettings.filter);
+      if (exportSettings.discovery) params.set('discovery', exportSettings.discovery);
+      if (exportSettings.dateFrom) params.set('date_from', exportSettings.dateFrom);
+      if (exportSettings.dateTo) params.set('date_to', exportSettings.dateTo);
+      if (exportSettings.hasMessages) params.set('has_messages', exportSettings.hasMessages);
+      if (exportSettings.onboardingComplete) params.set('onboarding_complete', exportSettings.onboardingComplete);
+      
+      const res = await fetch(`/api/admin/users/export?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setExportPreview(data);
+    } catch (e) {
+      console.error('Export preview failed:', e);
+    }
+    setExporting(false);
+  }
+
+  // Download CSV
+  async function downloadCSV() {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('format', 'csv');
+      if (exportSettings.filter !== 'all') params.set('filter', exportSettings.filter);
+      if (exportSettings.discovery) params.set('discovery', exportSettings.discovery);
+      if (exportSettings.dateFrom) params.set('date_from', exportSettings.dateFrom);
+      if (exportSettings.dateTo) params.set('date_to', exportSettings.dateTo);
+      if (exportSettings.hasMessages) params.set('has_messages', exportSettings.hasMessages);
+      if (exportSettings.onboardingComplete) params.set('onboarding_complete', exportSettings.onboardingComplete);
+      
+      const res = await fetch(`/api/admin/users/export?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `soulprint_users_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Download failed:', e);
+    }
+    setExporting(false);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -519,6 +608,9 @@ function UsersTab({ token, adminRole }) {
           <button onClick={load} className="p-2.5 bg-[#111] border border-white/10 rounded-xl text-gray-500 hover:text-white transition-colors">
             <RefreshCw className="w-4 h-4" />
           </button>
+          <button onClick={openExportModal} className="flex items-center gap-1.5 px-4 py-2.5 bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 text-green-400 rounded-xl text-sm font-medium transition-colors">
+            <Upload className="w-4 h-4 rotate-180" /> Export
+          </button>
           {adminRole === 'superadmin' && (
             <button onClick={openCreateForm} className="flex items-center gap-1.5 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors">
               <Plus className="w-4 h-4" /> Add User
@@ -526,6 +618,200 @@ function UsersTab({ token, adminRole }) {
           )}
         </div>
       </div>
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#141a21] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h3 className="text-white font-semibold flex items-center gap-2">
+                <Upload className="w-5 h-5 text-green-400 rotate-180" />
+                Export Users for Email Campaigns
+              </h3>
+              <button onClick={() => setShowExportModal(false)} className="text-gray-500 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Filter Options */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Acquisition Channel */}
+                <div>
+                  <label className="text-gray-400 text-xs font-medium mb-2 block">Acquisition Channel</label>
+                  <select
+                    value={exportSettings.filter}
+                    onChange={(e) => setExportSettings({ ...exportSettings, filter: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-green-500/40 outline-none"
+                  >
+                    <option value="all">All Users ({exportFilters?.channel_counts?.all || 0})</option>
+                    <option value="beta">Beta Code Users ({exportFilters?.channel_counts?.beta || 0})</option>
+                    <option value="invited">Invited Users ({exportFilters?.channel_counts?.invited || 0})</option>
+                    <option value="google">Google Auth ({exportFilters?.channel_counts?.google || 0})</option>
+                    <option value="organic">Organic ({exportFilters?.channel_counts?.organic || 0})</option>
+                  </select>
+                </div>
+                
+                {/* Discovery Source */}
+                <div>
+                  <label className="text-gray-400 text-xs font-medium mb-2 block">Discovery Source</label>
+                  <select
+                    value={exportSettings.discovery}
+                    onChange={(e) => setExportSettings({ ...exportSettings, discovery: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-green-500/40 outline-none"
+                  >
+                    <option value="">All Sources</option>
+                    {exportFilters?.discovery_sources?.map((src) => (
+                      <option key={src} value={src}>{src}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Date From */}
+                <div>
+                  <label className="text-gray-400 text-xs font-medium mb-2 block">Registered After</label>
+                  <input
+                    type="date"
+                    value={exportSettings.dateFrom}
+                    onChange={(e) => setExportSettings({ ...exportSettings, dateFrom: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-green-500/40 outline-none"
+                  />
+                </div>
+                
+                {/* Date To */}
+                <div>
+                  <label className="text-gray-400 text-xs font-medium mb-2 block">Registered Before</label>
+                  <input
+                    type="date"
+                    value={exportSettings.dateTo}
+                    onChange={(e) => setExportSettings({ ...exportSettings, dateTo: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-green-500/40 outline-none"
+                  />
+                </div>
+                
+                {/* Has Messages */}
+                <div>
+                  <label className="text-gray-400 text-xs font-medium mb-2 block">Engagement</label>
+                  <select
+                    value={exportSettings.hasMessages}
+                    onChange={(e) => setExportSettings({ ...exportSettings, hasMessages: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-green-500/40 outline-none"
+                  >
+                    <option value="">All</option>
+                    <option value="true">Engaged (sent messages)</option>
+                    <option value="false">Never engaged (0 messages)</option>
+                  </select>
+                </div>
+                
+                {/* Onboarding Complete */}
+                <div>
+                  <label className="text-gray-400 text-xs font-medium mb-2 block">Onboarding Status</label>
+                  <select
+                    value={exportSettings.onboardingComplete}
+                    onChange={(e) => setExportSettings({ ...exportSettings, onboardingComplete: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-green-500/40 outline-none"
+                  >
+                    <option value="">All</option>
+                    <option value="true">Completed onboarding</option>
+                    <option value="false">Did not complete onboarding</option>
+                  </select>
+                </div>
+              </div>
+              
+              {/* Preview Button */}
+              <button
+                onClick={previewExport}
+                disabled={exporting}
+                className="w-full py-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-500/20 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                Preview Export
+              </button>
+              
+              {/* Preview Results */}
+              {exportPreview && (
+                <div className="bg-black/30 border border-white/10 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-white font-medium">Preview: {exportPreview.stats?.total || 0} users</h4>
+                  </div>
+                  
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white/5 rounded-lg p-2 text-center">
+                      <p className="text-green-400 text-lg font-bold">{exportPreview.stats?.engaged || 0}</p>
+                      <p className="text-gray-500 text-[10px]">Engaged</p>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-2 text-center">
+                      <p className="text-blue-400 text-lg font-bold">{exportPreview.stats?.onboarded || 0}</p>
+                      <p className="text-gray-500 text-[10px]">Onboarded</p>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-2 text-center">
+                      <p className="text-purple-400 text-lg font-bold">{exportPreview.stats?.total - exportPreview.stats?.engaged || 0}</p>
+                      <p className="text-gray-500 text-[10px]">Never Engaged</p>
+                    </div>
+                  </div>
+                  
+                  {/* By Channel */}
+                  {exportPreview.stats?.by_channel && Object.keys(exportPreview.stats.by_channel).length > 0 && (
+                    <div>
+                      <p className="text-gray-400 text-xs mb-2">By Acquisition Channel:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(exportPreview.stats.by_channel).map(([channel, count]) => (
+                          <span key={channel} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs">
+                            <span className="text-gray-400 capitalize">{channel}:</span>
+                            <span className="text-white ml-1 font-medium">{count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Sample Users */}
+                  <div>
+                    <p className="text-gray-400 text-xs mb-2">Sample Users (first 5):</p>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {exportPreview.users?.slice(0, 5).map((user, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs bg-white/5 rounded px-2 py-1">
+                          <span className="text-white">{user.email}</span>
+                          <span className="text-gray-500">{user.acquisition_channel}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* CSV Fields */}
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-2">
+                    <p className="text-green-400 text-xs font-medium mb-1">CSV will include:</p>
+                    <p className="text-gray-400 text-[10px]">
+                      email, display_name, created_at, last_active_at, acquisition_channel, beta_code_used, 
+                      invited_by, auth_provider, discovery_source, onboarding_complete, assessment_complete, 
+                      message_count, field, assistant_name
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-white/10 flex gap-3">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="flex-1 py-2.5 bg-white/5 text-gray-400 rounded-xl text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={downloadCSV}
+                disabled={exporting || !exportPreview}
+                className="flex-1 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 rotate-180" />}
+                Download CSV ({exportPreview?.stats?.total || 0} users)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* User Form Modal */}
       {showUserForm && (
