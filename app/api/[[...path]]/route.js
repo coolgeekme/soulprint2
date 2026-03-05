@@ -12850,13 +12850,24 @@ async function handleGetSoulPrint(request) {
 
 // Helper to get assessment progress
 async function getAssessmentProgress(db, userId, profile) {
+  // Get gradual progress (for in-chat questions)
   const gradualProgress = await db.collection('gradual_assessment_progress').findOne({ user_id: userId });
+  
+  // Also get assessment_answers (from initial full/quick assessment)
+  const assessmentAnswers = await db.collection('assessment_answers')
+    .find({ user_id: userId })
+    .toArray();
+  
   const allQuestions = await db.collection('assessment_questions')
     .find({ active: true })
     .sort({ order_index: 1 })
     .toArray();
   
-  const answeredIds = new Set(gradualProgress?.answered_question_ids || []);
+  // Combine answered question IDs from both sources
+  const answeredIds = new Set([
+    ...(gradualProgress?.answered_question_ids || []),
+    ...assessmentAnswers.map(a => a.question_id)
+  ]);
   
   const pillars = ['communication', 'emotional_intelligence', 'decision_making', 'social_dynamics', 'cognitive_style', 'assertiveness'];
   const pillarProgress = {};
@@ -12871,13 +12882,16 @@ async function getAssessmentProgress(db, userId, profile) {
     };
   }
   
+  const totalAnswered = answeredIds.size;
+  const totalQuestions = Math.max(36, allQuestions.length); // At least 36 or however many exist
+  
   return {
     quickStartComplete: profile?.assessment_complete || false,
-    fullAssessmentComplete: profile?.full_assessment_complete || false,
+    fullAssessmentComplete: profile?.full_assessment_complete || totalAnswered >= 36,
     overall: {
-      answered: answeredIds.size,
-      total: 36,
-      percentage: Math.round((answeredIds.size / 36) * 100)
+      answered: totalAnswered,
+      total: totalQuestions,
+      percentage: Math.round((totalAnswered / totalQuestions) * 100)
     },
     pillars: pillarProgress
   };
