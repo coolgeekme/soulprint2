@@ -2557,32 +2557,185 @@ function InsightsTab({ token }) {
       <div className="bg-gradient-to-r from-green-500/5 to-transparent border border-green-500/20 rounded-xl p-4">
         <h3 className="text-green-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
           <DollarSign className="w-4 h-4" />
-          Pricing Tier Recommendations
+          Pricing Tier Recommendations (70-90% Gross Margin)
         </h3>
-        <p className="text-gray-500 text-xs mb-4">Based on actual usage percentiles from your beta users</p>
+        <p className="text-gray-500 text-xs mb-4">Based on your actual costs and target margins. Market reference: ChatGPT Plus, Claude Pro, Perplexity Pro all charge $20/mo.</p>
         
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Free Tier Limit</p>
-            <p className="text-green-400 text-2xl font-bold">{insights.pricing_recommendations.free_tier_limit}</p>
-            <p className="text-gray-600 text-xs">messages/mo (50th %ile)</p>
+        {/* Cost Analysis */}
+        <div className="bg-black/30 border border-white/10 rounded-lg p-3 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm">💰</span>
+            <span className="text-white text-xs font-medium">Your Cost Structure</span>
           </div>
-          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Basic Tier Limit</p>
-            <p className="text-blue-400 text-2xl font-bold">{insights.pricing_recommendations.basic_tier_limit}</p>
-            <p className="text-gray-600 text-xs">messages/mo (80th %ile)</p>
-          </div>
-          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Pro Tier Limit</p>
-            <p className="text-purple-400 text-2xl font-bold">{insights.pricing_recommendations.pro_tier_limit}</p>
-            <p className="text-gray-600 text-xs">messages/mo (95th %ile)</p>
-          </div>
-          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Avg Msgs/User</p>
-            <p className="text-orange-400 text-2xl font-bold">{insights.pricing_recommendations.avg_messages_per_user}</p>
-            <p className="text-gray-600 text-xs">median: {insights.pricing_recommendations.median_messages}</p>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <p className="text-gray-500 text-[10px]">Cost/Message</p>
+              <p className="text-green-400 font-bold">${insights.pricing_recommendations.cost_per_message?.toFixed(4) || '0.00'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-[10px]">Avg Cost/User</p>
+              <p className="text-green-400 font-bold">${insights.pricing_recommendations.avg_cost_per_user?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-[10px]">Total LLM Cost</p>
+              <p className="text-green-400 font-bold">${insights.pricing_recommendations.total_llm_cost?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-[10px]">Total Media Cost</p>
+              <p className="text-green-400 font-bold">${insights.pricing_recommendations.total_media_cost?.toFixed(2) || '0.00'}</p>
+            </div>
           </div>
         </div>
+
+        {/* Tier Pricing Table */}
+        {insights.pricing_recommendations.tiers && (
+          <div className="overflow-x-auto mb-4">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-500 border-b border-white/10">
+                  <th className="text-left py-2 px-2">Tier</th>
+                  <th className="text-center py-2 px-2">Msg Limit</th>
+                  <th className="text-right py-2 px-2">Est. Cost</th>
+                  <th className="text-right py-2 px-2">@ 70% Margin</th>
+                  <th className="text-right py-2 px-2">@ 80% Margin</th>
+                  <th className="text-right py-2 px-2">@ 90% Margin</th>
+                  <th className="text-right py-2 px-2 text-green-400">Recommended</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-white/5 bg-gray-500/5">
+                  <td className="py-2 px-2 text-gray-400 font-medium">🆓 Free</td>
+                  <td className="py-2 px-2 text-center text-white">{insights.pricing_recommendations.tiers.free?.message_limit || 25}</td>
+                  <td className="py-2 px-2 text-right text-red-400">${insights.pricing_recommendations.tiers.free?.estimated_cost || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-gray-500">-</td>
+                  <td className="py-2 px-2 text-right text-gray-500">-</td>
+                  <td className="py-2 px-2 text-right text-gray-500">-</td>
+                  <td className="py-2 px-2 text-right text-green-400 font-bold">$0</td>
+                </tr>
+                <tr className="border-b border-white/5">
+                  <td className="py-2 px-2 text-blue-400 font-medium">⭐ Basic</td>
+                  <td className="py-2 px-2 text-center text-white">{insights.pricing_recommendations.tiers.basic?.message_limit || 100}</td>
+                  <td className="py-2 px-2 text-right text-red-400">${insights.pricing_recommendations.tiers.basic?.estimated_cost || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.basic?.price_at_70_margin || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.basic?.price_at_80_margin || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.basic?.price_at_90_margin || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-green-400 font-bold">${insights.pricing_recommendations.tiers.basic?.recommended_price || 10}/mo</td>
+                </tr>
+                <tr className="border-b border-white/5">
+                  <td className="py-2 px-2 text-purple-400 font-medium">🚀 Pro</td>
+                  <td className="py-2 px-2 text-center text-white">{insights.pricing_recommendations.tiers.pro?.message_limit || 500}</td>
+                  <td className="py-2 px-2 text-right text-red-400">${insights.pricing_recommendations.tiers.pro?.estimated_cost || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.pro?.price_at_70_margin || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.pro?.price_at_80_margin || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.pro?.price_at_90_margin || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-green-400 font-bold">${insights.pricing_recommendations.tiers.pro?.recommended_price || 20}/mo</td>
+                </tr>
+                <tr className="border-b border-white/5 bg-orange-500/5">
+                  <td className="py-2 px-2 text-orange-400 font-medium">🏢 Enterprise</td>
+                  <td className="py-2 px-2 text-center text-white">Unlimited</td>
+                  <td className="py-2 px-2 text-right text-red-400">${insights.pricing_recommendations.tiers.enterprise?.estimated_cost || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.enterprise?.price_at_70_margin || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.enterprise?.price_at_80_margin || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.enterprise?.price_at_90_margin || '0.00'}</td>
+                  <td className="py-2 px-2 text-right text-green-400 font-bold">${insights.pricing_recommendations.tiers.enterprise?.recommended_price || 99}/mo</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Market Positioning Strategies */}
+        {insights.pricing_recommendations.market_positioning && (
+          <div className="space-y-3">
+            <p className="text-gray-400 text-xs font-medium">💡 Market Positioning Options:</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {/* Budget */}
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm">🎯</span>
+                  <span className="text-blue-400 text-xs font-bold uppercase">Budget</span>
+                </div>
+                <div className="space-y-1 mb-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Basic:</span>
+                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.budget_option?.basic || 10}/mo</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Pro:</span>
+                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.budget_option?.pro || 20}/mo</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Enterprise:</span>
+                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.budget_option?.enterprise || 50}/mo</span>
+                  </div>
+                </div>
+                <p className="text-gray-500 text-[10px]">{insights.pricing_recommendations.market_positioning.budget_option?.strategy}</p>
+              </div>
+              
+              {/* Competitive */}
+              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm">⚖️</span>
+                  <span className="text-green-400 text-xs font-bold uppercase">Competitive</span>
+                  <span className="text-[9px] bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded">Recommended</span>
+                </div>
+                <div className="space-y-1 mb-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Basic:</span>
+                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.competitive?.basic || 15}/mo</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Pro:</span>
+                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.competitive?.pro || 20}/mo</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Enterprise:</span>
+                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.competitive?.enterprise || 99}/mo</span>
+                  </div>
+                </div>
+                <p className="text-gray-500 text-[10px]">{insights.pricing_recommendations.market_positioning.competitive?.strategy}</p>
+              </div>
+              
+              {/* Premium */}
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm">👑</span>
+                  <span className="text-purple-400 text-xs font-bold uppercase">Premium</span>
+                </div>
+                <div className="space-y-1 mb-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Basic:</span>
+                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.premium?.basic || 20}/mo</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Pro:</span>
+                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.premium?.pro || 30}/mo</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Enterprise:</span>
+                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.premium?.enterprise || 149}/mo</span>
+                  </div>
+                </div>
+                <p className="text-gray-500 text-[10px]">{insights.pricing_recommendations.market_positioning.premium?.strategy}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Market Comparison */}
+        {insights.pricing_recommendations.market_comparison && (
+          <div className="mt-4 bg-black/30 border border-white/10 rounded-lg p-3">
+            <p className="text-gray-400 text-xs font-medium mb-2">📊 Market Reference (2025):</p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(insights.pricing_recommendations.market_comparison).map(([key, val]) => (
+                <span key={key} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px]">
+                  <span className="text-gray-500">{val.name}:</span>
+                  <span className="text-white font-medium ml-1">${val.price}/mo</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Revenue Potential */}

@@ -7368,13 +7368,147 @@ async function handleAdminGetBusinessInsights(request) {
     return arr[idx] || 0;
   };
 
+  // Calculate actual costs
+  const totalCostAgg = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', est_input_tokens: { $exists: true } } },
+    { $group: { _id: null, input: { $sum: '$est_input_tokens' }, output: { $sum: '$est_output_tokens' } } },
+  ]).toArray();
+  
+  const totalLLMCost = totalCostAgg.length > 0
+    ? (totalCostAgg[0].input / 1_000_000) * 5 + (totalCostAgg[0].output / 1_000_000) * 15
+    : 0;
+  
+  // Get media costs
+  const mediaCostAgg = await db.collection('media_gallery').aggregate([
+    { $group: { _id: null, total_cost: { $sum: '$cost_usd' } } },
+  ]).toArray();
+  const totalMediaCost = mediaCostAgg[0]?.total_cost || 0;
+  
+  // Calculate per-user costs by tier
+  const activeUserCount = userMessageCounts.length || 1;
+  const avgCostPerActiveUser = (totalLLMCost + totalMediaCost) / activeUserCount;
+  
+  // Cost per message (for tier calculation)
+  const totalMessages = msgCounts.reduce((a, b) => a + b, 0) || 1;
+  const costPerMessage = totalLLMCost / totalMessages;
+  
+  // Market comparison data (2025 pricing)
+  const marketComparison = {
+    chatgpt_plus: { price: 20, name: 'ChatGPT Plus' },
+    claude_pro: { price: 20, name: 'Claude Pro' },
+    perplexity_pro: { price: 20, name: 'Perplexity Pro' },
+    chatgpt_pro: { price: 200, name: 'ChatGPT Pro' },
+    perplexity_max: { price: 200, name: 'Perplexity Max' },
+    chatgpt_team: { price: 30, name: 'ChatGPT Team (per user)' },
+  };
+  
+  // Calculate tier pricing based on 70-90% gross margin targets
+  const tierLimits = {
+    free: getPercentile(msgCounts, 0.5) || 25,
+    basic: getPercentile(msgCounts, 0.8) || 100,
+    pro: getPercentile(msgCounts, 0.95) || 500,
+  };
+  
+  // Estimate cost for each tier based on message limits
+  const tierCosts = {
+    free: tierLimits.free * costPerMessage,
+    basic: tierLimits.basic * costPerMessage,
+    pro: tierLimits.pro * costPerMessage,
+    unlimited: avgCostPerActiveUser * 3, // Power users typically 3x average
+  };
+  
+  // Calculate prices for target margins (70%, 80%, 90%)
+  const calculatePrice = (cost, margin) => {
+    return cost / (1 - margin);
+  };
+  
+  // Generate pricing tiers
+  const pricingTiers = {
+    free: {
+      name: 'Free',
+      message_limit: tierLimits.free,
+      estimated_cost: parseFloat(tierCosts.free.toFixed(2)),
+      price: 0,
+      margin: 'N/A (acquisition)',
+      features: ['Basic chat', 'Limited messages', 'Standard models'],
+    },
+    basic: {
+      name: 'Basic',
+      message_limit: tierLimits.basic,
+      estimated_cost: parseFloat(tierCosts.basic.toFixed(2)),
+      price_at_70_margin: parseFloat(calculatePrice(tierCosts.basic, 0.70).toFixed(2)),
+      price_at_80_margin: parseFloat(calculatePrice(tierCosts.basic, 0.80).toFixed(2)),
+      price_at_90_margin: parseFloat(calculatePrice(tierCosts.basic, 0.90).toFixed(2)),
+      recommended_price: parseFloat(Math.ceil(calculatePrice(tierCosts.basic, 0.80))),
+      features: ['More messages', 'All standard models', 'Import data', 'SoulPrint analysis'],
+    },
+    pro: {
+      name: 'Pro',
+      message_limit: tierLimits.pro,
+      estimated_cost: parseFloat(tierCosts.pro.toFixed(2)),
+      price_at_70_margin: parseFloat(calculatePrice(tierCosts.pro, 0.70).toFixed(2)),
+      price_at_80_margin: parseFloat(calculatePrice(tierCosts.pro, 0.80).toFixed(2)),
+      price_at_90_margin: parseFloat(calculatePrice(tierCosts.pro, 0.90).toFixed(2)),
+      recommended_price: parseFloat(Math.ceil(calculatePrice(tierCosts.pro, 0.80))),
+      features: ['High message limit', 'Premium models', 'Media generation', 'Priority support', 'Advanced analytics'],
+    },
+    enterprise: {
+      name: 'Enterprise',
+      message_limit: 'Unlimited',
+      estimated_cost: parseFloat(tierCosts.unlimited.toFixed(2)),
+      price_at_70_margin: parseFloat(calculatePrice(tierCosts.unlimited, 0.70).toFixed(2)),
+      price_at_80_margin: parseFloat(calculatePrice(tierCosts.unlimited, 0.80).toFixed(2)),
+      price_at_90_margin: parseFloat(calculatePrice(tierCosts.unlimited, 0.90).toFixed(2)),
+      recommended_price: parseFloat(Math.ceil(calculatePrice(tierCosts.unlimited, 0.80))),
+      features: ['Unlimited messages', 'All premium models', 'Unlimited media', 'API access', 'Dedicated support', 'Custom integrations'],
+    },
+  };
+  
+  // Market positioning recommendations
+  const marketPositioning = {
+    budget_option: {
+      basic: Math.min(10, pricingTiers.basic.recommended_price),
+      pro: Math.min(20, pricingTiers.pro.recommended_price),
+      enterprise: Math.min(50, pricingTiers.enterprise.recommended_price),
+      strategy: 'Undercut market leaders to gain market share',
+    },
+    competitive: {
+      basic: Math.min(15, Math.max(pricingTiers.basic.recommended_price, 10)),
+      pro: 20, // Match ChatGPT/Claude
+      enterprise: Math.min(99, Math.max(pricingTiers.enterprise.recommended_price, 50)),
+      strategy: 'Match major competitors while offering differentiated value',
+    },
+    premium: {
+      basic: Math.max(15, pricingTiers.basic.recommended_price),
+      pro: Math.max(25, pricingTiers.pro.recommended_price),
+      enterprise: Math.max(99, pricingTiers.enterprise.recommended_price),
+      strategy: 'Position as premium offering with superior personalization',
+    },
+  };
+
   const pricingRecommendations = {
-    free_tier_limit: getPercentile(msgCounts, 0.5), // 50th percentile
-    basic_tier_limit: getPercentile(msgCounts, 0.8), // 80th percentile
-    pro_tier_limit: getPercentile(msgCounts, 0.95), // 95th percentile
+    // Usage-based limits
+    free_tier_limit: tierLimits.free,
+    basic_tier_limit: tierLimits.basic,
+    pro_tier_limit: tierLimits.pro,
     power_users_above: getPercentile(msgCounts, 0.95),
     avg_messages_per_user: msgCounts.length > 0 ? Math.round(msgCounts.reduce((a, b) => a + b, 0) / msgCounts.length) : 0,
     median_messages: getPercentile(msgCounts, 0.5),
+    
+    // Cost analysis
+    cost_per_message: parseFloat(costPerMessage.toFixed(4)),
+    avg_cost_per_user: parseFloat(avgCostPerActiveUser.toFixed(2)),
+    total_llm_cost: parseFloat(totalLLMCost.toFixed(2)),
+    total_media_cost: parseFloat(totalMediaCost.toFixed(2)),
+    
+    // Detailed tier pricing
+    tiers: pricingTiers,
+    
+    // Market comparison
+    market_comparison: marketComparison,
+    
+    // Positioning strategies
+    market_positioning: marketPositioning,
   };
 
   // ── CHURN INDICATORS ───────────────────────────────────────────────────────
