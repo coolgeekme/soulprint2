@@ -2545,6 +2545,59 @@ function SettingsTab({ token }) {
         </div>
       </div>
 
+      {/* Viral Invite Program */}
+      <div className="p-4 bg-gradient-to-r from-purple-500/5 to-transparent border border-purple-500/20 rounded-xl">
+        <label className="text-purple-400 text-xs font-bold tracking-widest uppercase mb-3 block flex items-center gap-2">
+          <Users className="w-4 h-4" />
+          Viral Invite Program
+        </label>
+        <p className="text-gray-500 text-xs mb-4">
+          Let beta users invite their friends. Each user gets 5 invites to share. New invited users also get 5 invites, creating a viral loop.
+        </p>
+        
+        <div className="flex items-center gap-3 mb-4">
+          <button 
+            onClick={async () => {
+              const newEnabled = !settings.viral_invites_enabled;
+              setSettings(s => ({ ...s, viral_invites_enabled: newEnabled }));
+              try {
+                await fetch('/api/admin/invites/toggle', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ enabled: newEnabled }),
+                });
+              } catch (e) {
+                console.error('Failed to toggle viral invites:', e);
+              }
+            }}
+            className={`w-12 h-6 rounded-full transition-all relative ${settings.viral_invites_enabled ? 'bg-purple-500' : 'bg-white/10'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settings.viral_invites_enabled ? 'right-1' : 'left-1'}`} />
+          </button>
+          <span className="text-gray-400 text-sm">
+            {settings.viral_invites_enabled ? '✅ Invite program is ACTIVE' : '❌ Invite program is OFF'}
+          </span>
+        </div>
+
+        {settings.viral_invites_enabled && (
+          <div className="bg-black/30 border border-white/10 rounded-lg p-3 space-y-3">
+            <p className="text-gray-400 text-xs">
+              <span className="text-white font-medium">How it works:</span> Each user gets a unique invite link. When their friends sign up, both get access and the new user also gets 5 invites.
+            </p>
+            <div className="flex items-center gap-4 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="text-purple-400">🎟️</span>
+                <span className="text-gray-400">5 invites per user</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-purple-400">🏆</span>
+                <span className="text-gray-400">Badges for milestones</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Beta Access Code */}
       {settings.waitlist_enabled && (
         <div className="p-4 bg-gradient-to-r from-orange-500/5 to-transparent border border-orange-500/20 rounded-xl">

@@ -6832,6 +6832,363 @@ async function handleAdminUpdateSettings(request) {
 }
 
 // ============================================================
+// VIRAL INVITE SYSTEM
+// ============================================================
+
+// Generate a unique invite code
+function generateInviteCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars like O, 0, I, 1
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// Check if viral invites are enabled
+async function isViralInvitesEnabled() {
+  const db = await getDb();
+  const settings = await db.collection('settings').findOne({ id: 'global' });
+  return settings?.viral_invites_enabled === true;
+}
+
+// Get user's invite info
+async function handleGetUserInvites(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  
+  // Check if viral invites are enabled
+  const enabled = await isViralInvitesEnabled();
+  if (!enabled) {
+    return ok({ enabled: false });
+  }
+
+  // Get user's invite data
+  const userData = await db.collection('users').findOne({ id: user.id });
+  
+  // Initialize invite code if user doesn't have one
+  let inviteCode = userData?.invite_code;
+  if (!inviteCode) {
+    inviteCode = generateInviteCode();
+    await db.collection('users').updateOne(
+      { id: user.id },
+      { 
+        $set: { 
+          invite_code: inviteCode,
+          invites_remaining: userData?.invites_remaining ?? 5,
+          invites_used: userData?.invites_used ?? 0,
+        } 
+      }
+    );
+  }
+
+  // Get list of people this user has invited
+  const invitedUsers = await db.collection('users')
+    .find({ invited_by: user.id })
+    .project({ id: 1, email: 1, created_at: 1 })
+    .toArray();
+
+  // Get inviter info if this user was invited
+  let invitedBy = null;
+  if (userData?.invited_by) {
+    const inviter = await db.collection('users').findOne({ id: userData.invited_by });
+    if (inviter) {
+      const inviterProfile = await db.collection('profiles').findOne({ user_id: inviter.id });
+      invitedBy = {
+        id: inviter.id,
+        name: inviterProfile?.display_name || inviter.email.split('@')[0],
+      };
+    }
+  }
+
+  // Check for invite badges
+  const badges = userData?.badges || [];
+  const inviteBadges = [
+    { id: 'first_invite', name: 'First Invite', description: 'Invited your first friend', threshold: 1, icon: '🌟' },
+    { id: 'social_butterfly', name: 'Social Butterfly', description: 'Invited 5 friends', threshold: 5, icon: '🦋' },
+    { id: 'community_builder', name: 'Community Builder', description: 'Invited 10 friends', threshold: 10, icon: '🏗️' },
+    { id: 'influencer', name: 'Influencer', description: 'Invited 25 friends', threshold: 25, icon: '⭐' },
+  ];
+
+  const earnedBadges = inviteBadges.filter(b => (userData?.invites_used || 0) >= b.threshold);
+
+  return ok({
+    enabled: true,
+    invite_code: inviteCode,
+    invites_remaining: userData?.invites_remaining ?? 5,
+    invites_used: userData?.invites_used ?? 0,
+    invited_users: invitedUsers.map(u => ({
+      email: u.email.replace(/(.{2})(.*)(@.*)/, '$1***$3'), // Partially mask email
+      joined_at: u.created_at,
+    })),
+    invited_by: invitedBy,
+    badges: earnedBadges,
+    all_badges: inviteBadges,
+  });
+}
+
+// Validate an invite code (public endpoint - no auth required)
+async function handleValidateInviteCode(request) {
+  const { code } = await request.json();
+  if (!code) return err('Invite code required');
+
+  const db = await getDb();
+  
+  // Check if viral invites are enabled
+  const enabled = await isViralInvitesEnabled();
+  if (!enabled) {
+    return err('Invite program is not currently active', 400);
+  }
+
+  // Find user with this invite code
+  const inviter = await db.collection('users').findOne({ 
+    invite_code: code.toUpperCase().trim() 
+  });
+
+  if (!inviter) {
+    return err('Invalid invite code', 404);
+  }
+
+  // Check if inviter has remaining invites
+  if ((inviter.invites_remaining ?? 0) <= 0) {
+    return err('This invite code has no remaining uses', 400);
+  }
+
+  // Get inviter's profile for display
+  const inviterProfile = await db.collection('profiles').findOne({ user_id: inviter.id });
+  
+  return ok({
+    valid: true,
+    inviter_name: inviterProfile?.display_name || inviter.email.split('@')[0],
+    invites_remaining: inviter.invites_remaining,
+  });
+}
+
+// Redeem an invite code during registration
+async function handleRedeemInviteCode(request) {
+  const { code, email, passcode } = await request.json();
+  if (!code || !email || !passcode) return err('Code, email and passcode required');
+
+  const db = await getDb();
+  
+  // Check if viral invites are enabled
+  const enabled = await isViralInvitesEnabled();
+  if (!enabled) {
+    return err('Invite program is not currently active', 400);
+  }
+
+  // Check if email already exists
+  const existing = await db.collection('users').findOne({ email: email.toLowerCase() });
+  if (existing) return err('Email already registered');
+
+  // Find inviter
+  const inviter = await db.collection('users').findOne({ 
+    invite_code: code.toUpperCase().trim() 
+  });
+
+  if (!inviter) {
+    return err('Invalid invite code', 404);
+  }
+
+  if ((inviter.invites_remaining ?? 0) <= 0) {
+    return err('This invite code has no remaining uses', 400);
+  }
+
+  // Create new user
+  const userId = uuidv4();
+  const hashed = await hashPassword(passcode);
+  const now = new Date();
+  const newInviteCode = generateInviteCode();
+
+  await db.collection('users').insertOne({
+    id: userId,
+    email: email.toLowerCase(),
+    passcode_hash: hashed,
+    role: 'user',
+    accepted: true, // Auto-accept invited users
+    created_at: now,
+    last_active_at: now,
+    invited_by: inviter.id,
+    invite_code: newInviteCode,
+    invites_remaining: 5, // New users also get 5 invites
+    invites_used: 0,
+    badges: [],
+    auth_provider: 'invite',
+  });
+
+  // Decrement inviter's remaining invites and increment used count
+  const newInvitesUsed = (inviter.invites_used || 0) + 1;
+  
+  // Check and award badges
+  const badgesToAward = [];
+  if (newInvitesUsed === 1) badgesToAward.push({ id: 'first_invite', awarded_at: now });
+  if (newInvitesUsed === 5) badgesToAward.push({ id: 'social_butterfly', awarded_at: now });
+  if (newInvitesUsed === 10) badgesToAward.push({ id: 'community_builder', awarded_at: now });
+  if (newInvitesUsed === 25) badgesToAward.push({ id: 'influencer', awarded_at: now });
+
+  const updateOps = {
+    $inc: { invites_remaining: -1, invites_used: 1 },
+  };
+  
+  if (badgesToAward.length > 0) {
+    updateOps.$push = { badges: { $each: badgesToAward } };
+  }
+
+  await db.collection('users').updateOne(
+    { id: inviter.id },
+    updateOps
+  );
+
+  // Record the invite redemption
+  await db.collection('invite_redemptions').insertOne({
+    id: uuidv4(),
+    inviter_id: inviter.id,
+    invitee_id: userId,
+    invitee_email: email.toLowerCase(),
+    invite_code: code.toUpperCase().trim(),
+    redeemed_at: now,
+  });
+
+  // Create empty profile for new user
+  await db.collection('profiles').insertOne({
+    user_id: userId,
+    display_name: '',
+    assistant_name: 'SoulPrint',
+    descriptors: [],
+    field: '',
+    help_with: [],
+    discovery_source: 'invite',
+    soul_profile_summary: '',
+    onboarding_complete: false,
+    assessment_complete: false,
+    created_at: now,
+  });
+
+  const token = generateToken(userId);
+
+  // Send welcome email (non-blocking)
+  sendWelcomeEmail(email, null).catch(e => console.error('Welcome email failed:', e));
+
+  return ok({
+    token,
+    userId,
+    role: 'user',
+    accepted: true,
+    onboarding_complete: false,
+    assessment_complete: false,
+    invite_code: newInviteCode, // Their own invite code
+  });
+}
+
+// Admin: Get viral invite stats
+async function handleAdminGetInviteStats(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  
+  const settings = await db.collection('settings').findOne({ id: 'global' });
+  const enabled = settings?.viral_invites_enabled === true;
+
+  // Get aggregate stats
+  const totalInvitesSent = await db.collection('invite_redemptions').countDocuments();
+  const usersWithInvites = await db.collection('users').countDocuments({ invites_remaining: { $gt: 0 } });
+  const totalInvitesAvailable = await db.collection('users').aggregate([
+    { $group: { _id: null, total: { $sum: '$invites_remaining' } } }
+  ]).toArray();
+
+  // Top inviters
+  const topInviters = await db.collection('users')
+    .find({ invites_used: { $gt: 0 } })
+    .sort({ invites_used: -1 })
+    .limit(10)
+    .project({ id: 1, email: 1, invites_used: 1, badges: 1 })
+    .toArray();
+
+  // Recent invite activity
+  const recentInvites = await db.collection('invite_redemptions')
+    .find()
+    .sort({ redeemed_at: -1 })
+    .limit(20)
+    .toArray();
+
+  return ok({
+    enabled,
+    stats: {
+      total_invites_sent: totalInvitesSent,
+      users_with_invites: usersWithInvites,
+      total_invites_available: totalInvitesAvailable[0]?.total || 0,
+    },
+    top_inviters: topInviters.map(u => ({
+      email: u.email,
+      invites_used: u.invites_used,
+      badges: u.badges?.length || 0,
+    })),
+    recent_invites: recentInvites.map(r => ({
+      invitee_email: r.invitee_email?.replace(/(.{2})(.*)(@.*)/, '$1***$3'),
+      redeemed_at: r.redeemed_at,
+    })),
+  });
+}
+
+// Admin: Toggle viral invites on/off
+async function handleAdminToggleViralInvites(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const { enabled } = await request.json();
+  const db = await getDb();
+
+  await db.collection('settings').updateOne(
+    { id: 'global' },
+    { $set: { viral_invites_enabled: enabled === true, updated_at: new Date() } },
+    { upsert: true }
+  );
+
+  // If enabling for the first time, give all existing users their invite codes
+  if (enabled) {
+    const usersWithoutCodes = await db.collection('users')
+      .find({ invite_code: { $exists: false } })
+      .toArray();
+    
+    for (const user of usersWithoutCodes) {
+      await db.collection('users').updateOne(
+        { id: user.id },
+        { 
+          $set: { 
+            invite_code: generateInviteCode(),
+            invites_remaining: 5,
+            invites_used: 0,
+          } 
+        }
+      );
+    }
+  }
+
+  return ok({ success: true, enabled: enabled === true });
+}
+
+// Admin: Grant more invites to a user
+async function handleAdminGrantInvites(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const { user_id, amount } = await request.json();
+  if (!user_id || !amount) return err('User ID and amount required');
+
+  const db = await getDb();
+  
+  await db.collection('users').updateOne(
+    { id: user_id },
+    { $inc: { invites_remaining: parseInt(amount) } }
+  );
+
+  return ok({ success: true });
+}
+
+// ============================================================
 // PRIVACY & DATA MANAGEMENT
 // ============================================================
 
@@ -12974,6 +13331,10 @@ export async function GET(request, { params }) {
     if (pathStr === 'media/recommend') return handleMediaRecommend(request);
     if (pathStr === 'imports/status') return handleImportStatus(request);
     if (pathStr === 'pwa/install-status') return handleGetInstallPromptStatus(request);
+    
+    // Viral invite routes
+    if (pathStr === 'invites') return handleGetUserInvites(request);
+    if (pathStr === 'admin/invites/stats') return handleAdminGetInviteStats(request);
 
     return err('Not found', 404);
   } catch (error) {
@@ -13063,6 +13424,12 @@ export async function POST(request, { params }) {
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
     if (pathStr === 'assessment/gradual/answer') return handleSubmitGradualAnswer(request);
     if (pathStr === 'assessment/gradual/skip') return handleSkipGradualQuestion(request);
+    
+    // Viral invite routes
+    if (pathStr === 'invites/validate') return handleValidateInviteCode(request);
+    if (pathStr === 'invites/redeem') return handleRedeemInviteCode(request);
+    if (pathStr === 'admin/invites/toggle') return handleAdminToggleViralInvites(request);
+    if (pathStr === 'admin/invites/grant') return handleAdminGrantInvites(request);
 
     // Other connector stubs
     if (pathStr === 'connectors/discord/webhook') return handleConnectorStub('discord');

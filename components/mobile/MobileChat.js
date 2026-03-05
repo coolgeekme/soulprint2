@@ -438,7 +438,7 @@ const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
 };
 
 // Chat Header with web search toggle
-const ChatHeader = ({ assistantName, model, onModelClick, isOnline, webSearchEnabled, onToggleWebSearch, onMoreClick }) => (
+const ChatHeader = ({ assistantName, model, onModelClick, isOnline, webSearchEnabled, onToggleWebSearch, onMoreClick, inviteData, onInviteClick }) => (
   <div className="fixed top-0 left-0 right-0 z-40 safe-area-top">
     <div className="bg-gradient-to-b from-[#0a0a0a] via-[#0a0a0a]/95 to-transparent pb-8 pt-2">
       <div className="flex items-center justify-between px-4 py-2">
@@ -458,6 +458,16 @@ const ChatHeader = ({ assistantName, model, onModelClick, isOnline, webSearchEna
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Invite Button - Only shown if viral invites enabled */}
+          {inviteData?.enabled && inviteData?.invites_remaining > 0 && (
+            <button 
+              onClick={onInviteClick}
+              className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 hover:bg-purple-500/30 transition-colors"
+            >
+              <span className="text-sm">🎟️</span>
+              <span>{inviteData.invites_remaining}</span>
+            </button>
+          )}
           {/* Web Search Toggle */}
           <button 
             onClick={onToggleWebSearch}
@@ -713,7 +723,7 @@ const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename 
 };
 
 // Profile View
-const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClick, announcements, onAnnouncementsClick, onEditName }) => (
+const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClick, announcements, onAnnouncementsClick, onEditName, inviteData, onInviteClick }) => (
   <div className="min-h-screen bg-sp-black pt-16 pb-24 px-4">
     <div className="text-center mb-8">
       <div className="w-24 h-24 mx-auto bg-gradient-to-br from-orange-500/20 to-amber-500/20 rounded-full flex items-center justify-center mb-4">
@@ -733,6 +743,34 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClic
         </span>
       )}
     </div>
+
+    {/* Viral Invite Section - Only shown if enabled */}
+    {inviteData?.enabled && (
+      <button 
+        onClick={onInviteClick}
+        className="w-full bg-gradient-to-r from-purple-500/10 to-pink-500/10 hover:from-purple-500/20 hover:to-pink-500/20 border border-purple-500/30 rounded-2xl p-4 flex items-center justify-between transition-colors mb-6"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+            <span className="text-lg">🎟️</span>
+          </div>
+          <div className="text-left">
+            <span className="text-white text-sm font-medium block">Invite Friends</span>
+            <span className="text-purple-400 text-xs">{inviteData.invites_remaining} invites remaining</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {inviteData.badges?.length > 0 && (
+            <div className="flex -space-x-1">
+              {inviteData.badges.slice(0, 3).map((badge, i) => (
+                <span key={i} className="text-sm" title={badge.name}>{badge.icon || '🏆'}</span>
+              ))}
+            </div>
+          )}
+          <ChevronRight className="w-5 h-5 text-purple-400" />
+        </div>
+      </button>
+    )}
 
     {/* Quick Stats */}
     <div className="grid grid-cols-3 gap-3 mb-6">
@@ -1690,6 +1728,11 @@ export default function MobileChat({
   // Onboarding modal state
   const [showOnboarding, setShowOnboarding] = useState(false);
   
+  // Viral invite state
+  const [inviteData, setInviteData] = useState(null);
+  const [showInviteSheet, setShowInviteSheet] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  
   // Media intent detection state
   const [detectedMediaIntent, setDetectedMediaIntent] = useState(null); // 'image' | 'video' | null
   const [showMediaOptions, setShowMediaOptions] = useState(false);
@@ -1927,6 +1970,19 @@ export default function MobileChat({
         // Use unread for display (respects 24h dismiss)
         const unreadList = Array.isArray(data.unread) ? data.unread : [];
         setAnnouncements(unreadList);
+      })
+      .catch(console.error);
+  }, [token]);
+
+  // Load invite data (if viral invites are enabled)
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/invites', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.enabled) {
+          setInviteData(data);
+        }
       })
       .catch(console.error);
   }, [token]);
@@ -2663,6 +2719,8 @@ export default function MobileChat({
             webSearchEnabled={webSearchEnabled}
             onToggleWebSearch={() => setWebSearchEnabled(!webSearchEnabled)}
             onMoreClick={() => setShowMoreOptions(true)}
+            inviteData={inviteData}
+            onInviteClick={() => setShowInviteSheet(true)}
           />
           
           {/* Scrollable Messages Area - takes remaining space */}
@@ -3203,6 +3261,8 @@ export default function MobileChat({
           announcements={announcements}
           onAnnouncementsClick={() => setShowAnnouncements(true)}
           onEditName={openEditNameSheet}
+          inviteData={inviteData}
+          onInviteClick={() => setShowInviteSheet(true)}
         />
       )}
 
@@ -3236,6 +3296,182 @@ export default function MobileChat({
                 Save
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite Friends Sheet */}
+      {showInviteSheet && inviteData?.enabled && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={() => setShowInviteSheet(false)}>
+          <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
+            
+            {/* Header */}
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full flex items-center justify-center mb-4">
+                <span className="text-3xl">🎟️</span>
+              </div>
+              <h3 className="text-white font-semibold text-xl mb-1">Invite Friends</h3>
+              <p className="text-gray-500 text-sm">Share SoulPrint with people you care about</p>
+            </div>
+            
+            {/* Invites Remaining */}
+            <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-2xl p-4 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-gray-400 text-sm">Invites Remaining</span>
+                <span className="text-purple-400 font-bold text-2xl">{inviteData.invites_remaining}</span>
+              </div>
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all"
+                  style={{ width: `${(inviteData.invites_remaining / 5) * 100}%` }}
+                />
+              </div>
+            </div>
+            
+            {/* Invite Link */}
+            <div className="mb-6">
+              <label className="text-gray-400 text-xs font-medium mb-2 block">Your Invite Link</label>
+              <div className="bg-black/30 border border-white/10 rounded-xl p-3 flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${typeof window !== 'undefined' ? window.location.origin : ''}/invite/${inviteData.invite_code}`}
+                  className="flex-1 bg-transparent text-white text-sm truncate outline-none"
+                />
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/invite/${inviteData.invite_code}`);
+                    setInviteCopied(true);
+                    setTimeout(() => setInviteCopied(false), 2000);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    inviteCopied 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-purple-500 hover:bg-purple-600 text-white'
+                  }`}
+                >
+                  {inviteCopied ? '✓ Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+            
+            {/* Invite Code */}
+            <div className="mb-6">
+              <label className="text-gray-400 text-xs font-medium mb-2 block">Or Share Your Code</label>
+              <div className="bg-black/30 border border-white/10 rounded-xl p-4 text-center">
+                <p className="text-white font-mono text-2xl tracking-widest">{inviteData.invite_code}</p>
+              </div>
+            </div>
+            
+            {/* Share Buttons */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <button
+                onClick={() => {
+                  const text = `Join me on SoulPrint - your personal AI companion! Use my invite link: ${window.location.origin}/invite/${inviteData.invite_code}`;
+                  if (navigator.share) {
+                    navigator.share({ text });
+                  } else {
+                    navigator.clipboard.writeText(text);
+                    alert('Link copied to clipboard!');
+                  }
+                }}
+                className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-4 flex flex-col items-center gap-2 transition-colors"
+              >
+                <span className="text-2xl">📤</span>
+                <span className="text-gray-400 text-xs">Share</span>
+              </button>
+              <button
+                onClick={() => {
+                  const text = encodeURIComponent(`Join me on SoulPrint! ${window.location.origin}/invite/${inviteData.invite_code}`);
+                  window.open(`https://wa.me/?text=${text}`, '_blank');
+                }}
+                className="bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 rounded-xl p-4 flex flex-col items-center gap-2 transition-colors"
+              >
+                <span className="text-2xl">💬</span>
+                <span className="text-green-400 text-xs">WhatsApp</span>
+              </button>
+              <button
+                onClick={() => {
+                  const text = encodeURIComponent(`Join me on SoulPrint - your personal AI companion! ${window.location.origin}/invite/${inviteData.invite_code}`);
+                  window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+                }}
+                className="bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-xl p-4 flex flex-col items-center gap-2 transition-colors"
+              >
+                <span className="text-2xl">𝕏</span>
+                <span className="text-blue-400 text-xs">Twitter/X</span>
+              </button>
+            </div>
+            
+            {/* Badges Section */}
+            {inviteData.all_badges?.length > 0 && (
+              <div className="mb-6">
+                <h4 className="text-gray-400 text-xs font-medium mb-3">Invite Badges</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {inviteData.all_badges.map((badge) => {
+                    const earned = inviteData.badges?.some(b => b.id === badge.id);
+                    return (
+                      <div 
+                        key={badge.id}
+                        className={`p-3 rounded-xl border transition-colors ${
+                          earned 
+                            ? 'bg-purple-500/10 border-purple-500/30' 
+                            : 'bg-white/5 border-white/10 opacity-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg">{badge.icon}</span>
+                          <span className={`text-sm font-medium ${earned ? 'text-purple-400' : 'text-gray-500'}`}>
+                            {badge.name}
+                          </span>
+                        </div>
+                        <p className="text-gray-500 text-xs">{badge.description}</p>
+                        {!earned && (
+                          <p className="text-gray-600 text-[10px] mt-1">Invite {badge.threshold} friend{badge.threshold > 1 ? 's' : ''}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            
+            {/* People You've Invited */}
+            {inviteData.invited_users?.length > 0 && (
+              <div className="mb-6">
+                <h4 className="text-gray-400 text-xs font-medium mb-3">People You've Invited ({inviteData.invites_used})</h4>
+                <div className="space-y-2">
+                  {inviteData.invited_users.map((user, idx) => (
+                    <div key={idx} className="bg-white/5 rounded-xl p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                          <Check className="w-4 h-4 text-green-400" />
+                        </div>
+                        <span className="text-white text-sm">{user.email}</span>
+                      </div>
+                      <span className="text-gray-500 text-xs">
+                        {new Date(user.joined_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Invited By */}
+            {inviteData.invited_by && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
+                <p className="text-gray-500 text-xs mb-1">You were invited by</p>
+                <p className="text-white font-medium">{inviteData.invited_by.name}</p>
+              </div>
+            )}
+            
+            <button 
+              onClick={() => setShowInviteSheet(false)}
+              className="w-full mt-6 py-3 bg-white/5 text-gray-400 rounded-xl text-sm"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
