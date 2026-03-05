@@ -3368,6 +3368,241 @@ function InsightsTab({ token }) {
         </div>
       </div>
 
+      {/* Dynamic Tier Recommendations */}
+      {insights.tier_recommendations && (
+        <div className="bg-gradient-to-r from-yellow-500/5 to-transparent border border-yellow-500/20 rounded-xl p-4">
+          <h3 className="text-yellow-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            Dynamic Tier Feature Recommendations
+          </h3>
+          <p className="text-gray-500 text-xs mb-4">Based on actual feature usage patterns across your user segments. Features are recommended for tiers where they show high adoption.</p>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Free Tier */}
+            <div className="bg-gray-500/10 border border-gray-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">🆓</span>
+                <h4 className="text-gray-300 text-sm font-bold">Free Tier</h4>
+              </div>
+              <p className="text-gray-500 text-xs mb-3">{insights.tier_recommendations.free?.description}</p>
+              
+              <div className="space-y-2 mb-4">
+                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Included Features:</p>
+                {insights.tier_recommendations.free?.features?.map((feature, idx) => (
+                  <div key={idx} className="flex items-start gap-2 bg-black/20 rounded p-2">
+                    <Check className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <span className="text-white text-xs">{feature.name}</span>
+                      {feature.reason && <p className="text-gray-500 text-[10px]">{feature.reason}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {insights.tier_recommendations.free?.limits?.length > 0 && (
+                <div className="space-y-1 mb-3">
+                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Suggested Limits:</p>
+                  {insights.tier_recommendations.free.limits.map((limit, idx) => (
+                    <div key={idx} className="flex justify-between text-xs">
+                      <span className="text-gray-500 capitalize">{limit.type}:</span>
+                      <span className="text-yellow-400">{limit.value} {limit.unit || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {insights.tier_recommendations.free?.upsell_triggers?.length > 0 && (
+                <div>
+                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-1">Upsell Triggers:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {insights.tier_recommendations.free.upsell_triggers.map((trigger, idx) => (
+                      <span key={idx} className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] rounded">
+                        {trigger}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Basic Tier */}
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">⭐</span>
+                <h4 className="text-blue-400 text-sm font-bold">Basic Tier</h4>
+              </div>
+              <p className="text-gray-500 text-xs mb-3">{insights.tier_recommendations.basic?.description}</p>
+              
+              <div className="space-y-2 mb-4">
+                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Recommended Features:</p>
+                {insights.tier_recommendations.basic?.features?.map((feature, idx) => (
+                  <div key={idx} className="flex items-start gap-2 bg-black/20 rounded p-2">
+                    <Check className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <span className="text-white text-xs">{feature.name}</span>
+                      {feature.reason && <p className="text-blue-400/70 text-[10px]">{feature.reason}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {insights.tier_recommendations.basic?.limits?.length > 0 && (
+                <div className="space-y-1 mb-3">
+                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Suggested Limits:</p>
+                  {insights.tier_recommendations.basic.limits.map((limit, idx) => (
+                    <div key={idx} className="flex justify-between text-xs">
+                      <span className="text-gray-500 capitalize">{limit.type}:</span>
+                      <span className="text-blue-400">{limit.value} {limit.unit || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {insights.tier_recommendations.basic?.upsell_triggers?.length > 0 && (
+                <div>
+                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-1">Upsell Triggers:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {insights.tier_recommendations.basic.upsell_triggers.map((trigger, idx) => (
+                      <span key={idx} className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] rounded">
+                        {trigger}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Pro Tier */}
+            <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">🚀</span>
+                <h4 className="text-purple-400 text-sm font-bold">Pro Tier</h4>
+              </div>
+              <p className="text-gray-500 text-xs mb-3">{insights.tier_recommendations.pro?.description}</p>
+              
+              <div className="space-y-2 mb-4">
+                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Recommended Features:</p>
+                {insights.tier_recommendations.pro?.features?.map((feature, idx) => (
+                  <div key={idx} className="flex items-start gap-2 bg-black/20 rounded p-2">
+                    <Check className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <span className="text-white text-xs">{feature.name}</span>
+                      {feature.reason && <p className="text-purple-400/70 text-[10px]">{feature.reason}</p>}
+                      {feature.limit && <p className="text-yellow-400/70 text-[10px]">Limit: {feature.limit}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {insights.tier_recommendations.pro?.limits?.length > 0 && (
+                <div className="space-y-1 mb-3">
+                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Suggested Limits:</p>
+                  {insights.tier_recommendations.pro.limits.map((limit, idx) => (
+                    <div key={idx} className="flex justify-between text-xs">
+                      <span className="text-gray-500 capitalize">{limit.type}:</span>
+                      <span className="text-purple-400">{limit.value} {limit.unit || ''}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {insights.tier_recommendations.pro?.upsell_triggers?.length > 0 && (
+                <div>
+                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-1">Upsell Triggers:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {insights.tier_recommendations.pro.upsell_triggers.map((trigger, idx) => (
+                      <span key={idx} className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] rounded">
+                        {trigger}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Enterprise Tier */}
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-lg">🏢</span>
+                <h4 className="text-orange-400 text-sm font-bold">Enterprise Tier</h4>
+              </div>
+              <p className="text-gray-500 text-xs mb-3">{insights.tier_recommendations.enterprise?.description}</p>
+              
+              <div className="space-y-2 mb-4">
+                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">All Features Included:</p>
+                {insights.tier_recommendations.enterprise?.features?.map((feature, idx) => (
+                  <div key={idx} className="flex items-start gap-2 bg-black/20 rounded p-2">
+                    <Check className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <span className="text-white text-xs">{feature.name}</span>
+                      {feature.reason && <p className="text-orange-400/70 text-[10px]">{feature.reason}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="bg-gradient-to-r from-orange-500/20 to-transparent border border-orange-500/20 rounded p-2">
+                <p className="text-orange-400 text-xs font-medium">💡 No limits - full platform access</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Feature Usage by Segment */}
+          {insights.features_by_segment && (
+            <div className="mt-4 bg-black/30 border border-white/10 rounded-lg p-4">
+              <h4 className="text-white text-sm font-medium mb-3">Feature Usage by User Segment</h4>
+              <p className="text-gray-500 text-xs mb-3">Adoption rates that drive these recommendations</p>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="text-gray-500 border-b border-white/10">
+                      <th className="text-left py-2 px-2">Feature</th>
+                      <th className="text-center py-2 px-2">Light (1-20)</th>
+                      <th className="text-center py-2 px-2">Moderate (21-100)</th>
+                      <th className="text-center py-2 px-2">Heavy (101-500)</th>
+                      <th className="text-center py-2 px-2">Power (500+)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {['has_soulprint', 'has_imports', 'has_media', 'has_memories', 'uses_web_search', 'uses_premium_models'].map((feature) => (
+                      <tr key={feature} className="border-b border-white/5">
+                        <td className="py-2 px-2 text-white capitalize">{feature.replace(/_/g, ' ')}</td>
+                        {['light', 'moderate', 'heavy', 'power'].map((segment) => {
+                          const rate = insights.features_by_segment[segment]?.features?.[feature]?.rate || 0;
+                          return (
+                            <td key={segment} className="py-2 px-2 text-center">
+                              <span className={rate > 50 ? 'text-green-400 font-bold' : rate > 25 ? 'text-yellow-400' : 'text-gray-500'}>
+                                {rate}%
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              <div className="mt-3 flex items-center gap-4 text-[10px]">
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-green-400"></span>
+                  <span className="text-gray-500">&gt;50% = High adoption</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                  <span className="text-gray-500">25-50% = Medium</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-gray-500"></span>
+                  <span className="text-gray-500">&lt;25% = Low</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Revenue Potential */}
       <div className="bg-gradient-to-r from-orange-500/5 to-transparent border border-orange-500/20 rounded-xl p-4">
         <h3 className="text-orange-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">

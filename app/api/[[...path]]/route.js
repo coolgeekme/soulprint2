@@ -7523,6 +7523,288 @@ async function handleAdminGetBusinessInsights(request) {
     };
   }
 
+  // ── FEATURE USAGE BY USER SEGMENT ─────────────────────────────────────────────
+  // Analyze which features are used by different user segments to make tier recommendations
+  
+  // Get user IDs by segment
+  const lightUserIds = [];
+  const moderateUserIds = [];
+  const heavyUserIds = [];
+  const powerUserIds = [];
+  
+  userMessageCounts.forEach(u => {
+    if (u.message_count <= 20) lightUserIds.push(u._id);
+    else if (u.message_count <= 100) moderateUserIds.push(u._id);
+    else if (u.message_count <= 500) heavyUserIds.push(u._id);
+    else powerUserIds.push(u._id);
+  });
+
+  // Analyze feature usage per segment
+  const analyzeSegmentFeatures = async (userIds, segmentName) => {
+    if (userIds.length === 0) return { segment: segmentName, count: 0, features: {} };
+    
+    const segmentProfiles = await db.collection('profiles')
+      .find({ user_id: { $in: userIds } })
+      .toArray();
+    
+    const hasImports = await db.collection('import_jobs')
+      .distinct('user_id', { user_id: { $in: userIds } });
+    
+    const hasMedia = await db.collection('media_gallery')
+      .distinct('user_id', { user_id: { $in: userIds } });
+    
+    const hasMemories = await db.collection('user_memories')
+      .distinct('user_id', { user_id: { $in: userIds } });
+    
+    const usesWebSearch = await db.collection('messages')
+      .distinct('user_id', { user_id: { $in: userIds }, web_sources: { $exists: true, $ne: [] } });
+    
+    // Model usage in segment
+    const modelUsageInSegment = await db.collection('messages').aggregate([
+      { $match: { user_id: { $in: userIds }, role: 'assistant', model_used: { $exists: true } } },
+      { $group: { _id: '$model_used', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 },
+    ]).toArray();
+    
+    // Premium model usage (GPT-4, Claude, etc)
+    const premiumModels = ['gpt-4', 'gpt-4o', 'claude-3', 'claude-sonnet', 'o1', 'o3'];
+    const usesPremiumModels = await db.collection('messages')
+      .distinct('user_id', { 
+        user_id: { $in: userIds }, 
+        model_used: { $regex: premiumModels.join('|'), $options: 'i' } 
+      });
+    
+    const total = userIds.length;
+    
+    return {
+      segment: segmentName,
+      count: total,
+      features: {
+        assessment_complete: {
+          count: segmentProfiles.filter(p => p.assessment_complete).length,
+          rate: parseFloat(((segmentProfiles.filter(p => p.assessment_complete).length / total) * 100).toFixed(1)),
+        },
+        has_soulprint: {
+          count: segmentProfiles.filter(p => p.soul_profile_summary).length,
+          rate: parseFloat(((segmentProfiles.filter(p => p.soul_profile_summary).length / total) * 100).toFixed(1)),
+        },
+        has_imports: {
+          count: hasImports.length,
+          rate: parseFloat(((hasImports.length / total) * 100).toFixed(1)),
+        },
+        has_media: {
+          count: hasMedia.length,
+          rate: parseFloat(((hasMedia.length / total) * 100).toFixed(1)),
+        },
+        has_memories: {
+          count: hasMemories.length,
+          rate: parseFloat(((hasMemories.length / total) * 100).toFixed(1)),
+        },
+        uses_web_search: {
+          count: usesWebSearch.length,
+          rate: parseFloat(((usesWebSearch.length / total) * 100).toFixed(1)),
+        },
+        uses_premium_models: {
+          count: usesPremiumModels.length,
+          rate: parseFloat(((usesPremiumModels.length / total) * 100).toFixed(1)),
+        },
+      },
+      top_models: modelUsageInSegment.map(m => m._id),
+    };
+  };
+
+  const featuresBySegment = {
+    light: await analyzeSegmentFeatures(lightUserIds, 'light'),
+    moderate: await analyzeSegmentFeatures(moderateUserIds, 'moderate'),
+    heavy: await analyzeSegmentFeatures(heavyUserIds, 'heavy'),
+    power: await analyzeSegmentFeatures(powerUserIds, 'power'),
+  };
+
+  // Generate dynamic tier recommendations based on actual usage
+  const generateTierRecommendations = () => {
+    const recommendations = {
+      free: {
+        name: 'Free',
+        description: 'For casual users exploring the platform',
+        features: [
+          { name: 'Basic Chat', included: true, reason: 'Core feature for all users' },
+          { name: 'Standard AI Models', included: true, reason: 'GPT-3.5 or equivalent' },
+          { name: 'Quick Assessment', included: true, reason: 'Helps onboard users' },
+        ],
+        limits: [],
+        upsell_triggers: [],
+      },
+      basic: {
+        name: 'Basic',
+        description: 'For regular users who want more features',
+        features: [],
+        limits: [],
+        upsell_triggers: [],
+      },
+      pro: {
+        name: 'Pro',
+        description: 'For power users who rely on SoulPrint daily',
+        features: [],
+        limits: [],
+        upsell_triggers: [],
+      },
+      enterprise: {
+        name: 'Enterprise',
+        description: 'For businesses and super users',
+        features: [],
+        limits: [],
+        upsell_triggers: [],
+      },
+    };
+
+    // Analyze which features to include in each tier based on adoption rates
+    const lightFeatures = featuresBySegment.light?.features || {};
+    const moderateFeatures = featuresBySegment.moderate?.features || {};
+    const heavyFeatures = featuresBySegment.heavy?.features || {};
+    const powerFeatures = featuresBySegment.power?.features || {};
+
+    // BASIC TIER: Features used by moderate users (21-100 messages)
+    if (moderateFeatures.has_soulprint?.rate > 30) {
+      recommendations.basic.features.push({
+        name: 'SoulPrint Analysis',
+        included: true,
+        reason: `${moderateFeatures.has_soulprint.rate}% of moderate users generate SoulPrints`,
+      });
+    }
+    if (moderateFeatures.assessment_complete?.rate > 40) {
+      recommendations.basic.features.push({
+        name: 'Full Assessment',
+        included: true,
+        reason: `${moderateFeatures.assessment_complete.rate}% completion rate in this segment`,
+      });
+    }
+    if (moderateFeatures.has_memories?.rate > 20) {
+      recommendations.basic.features.push({
+        name: 'Memory System',
+        included: true,
+        reason: `${moderateFeatures.has_memories.rate}% use memories feature`,
+      });
+    }
+    recommendations.basic.features.push({
+      name: 'Chat History Export',
+      included: true,
+      reason: 'Standard feature for engaged users',
+    });
+
+    // PRO TIER: Features heavily used by heavy users (101-500 messages)
+    if (heavyFeatures.has_imports?.rate > 15) {
+      recommendations.pro.features.push({
+        name: 'Data Import (ChatGPT, etc)',
+        included: true,
+        reason: `${heavyFeatures.has_imports.rate}% of heavy users import data`,
+      });
+    }
+    if (heavyFeatures.has_media?.rate > 20) {
+      recommendations.pro.features.push({
+        name: 'Media Generation',
+        included: true,
+        reason: `${heavyFeatures.has_media.rate}% generate images/videos`,
+        limit: '50 generations/month suggested',
+      });
+    }
+    if (heavyFeatures.uses_web_search?.rate > 25) {
+      recommendations.pro.features.push({
+        name: 'Web Search Integration',
+        included: true,
+        reason: `${heavyFeatures.uses_web_search.rate}% use web search`,
+      });
+    }
+    if (heavyFeatures.uses_premium_models?.rate > 30) {
+      recommendations.pro.features.push({
+        name: 'Premium AI Models',
+        included: true,
+        reason: `${heavyFeatures.uses_premium_models.rate}% use GPT-4/Claude`,
+      });
+    }
+    recommendations.pro.features.push({
+      name: 'Priority Support',
+      included: true,
+      reason: 'High-value users expect faster responses',
+    });
+
+    // ENTERPRISE TIER: Everything + exclusive features for power users
+    recommendations.enterprise.features.push({
+      name: 'Unlimited Messages',
+      included: true,
+      reason: 'Power users average 500+ messages',
+    });
+    recommendations.enterprise.features.push({
+      name: 'Unlimited Media Generation',
+      included: true,
+      reason: `${powerFeatures.has_media?.rate || 0}% of power users generate media`,
+    });
+    recommendations.enterprise.features.push({
+      name: 'All Premium Models',
+      included: true,
+      reason: `${powerFeatures.uses_premium_models?.rate || 0}% use premium models`,
+    });
+    recommendations.enterprise.features.push({
+      name: 'API Access',
+      included: true,
+      reason: 'For integrations and automation',
+    });
+    recommendations.enterprise.features.push({
+      name: 'Dedicated Support',
+      included: true,
+      reason: 'White-glove service for top customers',
+    });
+    recommendations.enterprise.features.push({
+      name: 'Custom Integrations',
+      included: true,
+      reason: 'Telegram, webhooks, etc.',
+    });
+
+    // Add limits based on usage patterns
+    const avgLightMsgs = lightUserIds.length > 0 ? 
+      userMessageCounts.filter(u => lightUserIds.includes(u._id)).reduce((sum, u) => sum + u.message_count, 0) / lightUserIds.length : 10;
+    const avgModerateMsgs = moderateUserIds.length > 0 ?
+      userMessageCounts.filter(u => moderateUserIds.includes(u._id)).reduce((sum, u) => sum + u.message_count, 0) / moderateUserIds.length : 50;
+    const avgHeavyMsgs = heavyUserIds.length > 0 ?
+      userMessageCounts.filter(u => heavyUserIds.includes(u._id)).reduce((sum, u) => sum + u.message_count, 0) / heavyUserIds.length : 250;
+
+    recommendations.free.limits = [
+      { type: 'messages', value: Math.round(avgLightMsgs * 1.5), unit: 'per month', reason: `Avg light user: ${Math.round(avgLightMsgs)} msgs` },
+      { type: 'models', value: 'Standard only', reason: 'Reserve premium for paid tiers' },
+    ];
+    
+    recommendations.basic.limits = [
+      { type: 'messages', value: Math.round(avgModerateMsgs * 1.2), unit: 'per month', reason: `Avg moderate user: ${Math.round(avgModerateMsgs)} msgs` },
+      { type: 'media', value: 10, unit: 'per month', reason: 'Limited media to encourage Pro upgrade' },
+    ];
+    
+    recommendations.pro.limits = [
+      { type: 'messages', value: Math.round(avgHeavyMsgs * 1.5), unit: 'per month', reason: `Avg heavy user: ${Math.round(avgHeavyMsgs)} msgs` },
+      { type: 'media', value: 50, unit: 'per month', reason: 'Generous but not unlimited' },
+    ];
+
+    // Upsell triggers
+    recommendations.free.upsell_triggers = [
+      'Message limit reached',
+      'Tries to use premium model',
+      'Tries to generate media',
+    ];
+    recommendations.basic.upsell_triggers = [
+      'Media limit reached',
+      'Wants to import data',
+      'Needs priority support',
+    ];
+    recommendations.pro.upsell_triggers = [
+      'Needs unlimited usage',
+      'Wants API access',
+      'Requires dedicated support',
+    ];
+
+    return recommendations;
+  };
+
+  const tierRecommendations = generateTierRecommendations();
+
   // ── MEDIA GENERATION INSIGHTS ──────────────────────────────────────────────
   const mediaByType = await db.collection('media_gallery').aggregate([
     { $group: { _id: '$type', count: { $sum: 1 }, total_cost: { $sum: '$cost_usd' } } },
@@ -7762,6 +8044,12 @@ async function handleAdminGetBusinessInsights(request) {
     
     // Feature Adoption
     feature_adoption: featureAdoptionRates,
+    
+    // Feature usage by segment (for tier recommendations)
+    features_by_segment: featuresBySegment,
+    
+    // Dynamic tier recommendations
+    tier_recommendations: tierRecommendations,
     
     // Media Insights
     media_insights: {
