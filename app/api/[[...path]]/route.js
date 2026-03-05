@@ -14891,6 +14891,384 @@ async function handleAdminDeleteBlogPost(request, postId) {
 }
 
 // ============================================================
+// SLACK BOT INTEGRATION
+// ============================================================
+
+const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN;
+const SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET;
+const SLACK_ESCALATION_USER_ID = process.env.SLACK_ESCALATION_USER_ID;
+
+// Knowledge base for the bot - key issues and solutions
+const SOULPRINT_KNOWLEDGE = {
+  features: [
+    'authentication', 'login', 'register', 'beta codes', 'firebase auth',
+    'chat', 'conversations', 'messages', 'streaming', 'AI models',
+    'projects', 'collaboration', 'sharing', 'folders',
+    'assessment', 'questions', 'profile', 'soulprint',
+    'media generation', 'images', 'videos', 'gallery',
+    'data import', 'chatgpt', 'whatsapp', 'upload',
+    'telegram', 'bot integration',
+    'admin', 'users', 'metrics', 'feedback', 'announcements'
+  ],
+  commonIssues: {
+    'login': {
+      symptoms: ['invalid passcode', 'cant login', 'login failed', 'authentication error'],
+      cause: 'Wrong passcode, user doesn\'t exist, or token expired',
+      solution: 'Check if user exists in DB, verify passcode, or ask user to re-register',
+      file: '/app/app/api/[[...path]]/route.js',
+      function: 'handleLogin'
+    },
+    'chat not working': {
+      symptoms: ['ai not responding', 'no response', 'chat broken', 'streaming not working'],
+      cause: 'Missing API key for selected model or streaming headers blocked',
+      solution: 'Check env vars: OPENAI_API_KEY, ANTHROPIC_API_KEY, etc. Verify next.config.js headers',
+      file: '/app/app/api/[[...path]]/route.js',
+      function: 'handleChatStream'
+    },
+    'messages not loading': {
+      symptoms: ['messages empty', 'conversation empty', 'no messages'],
+      cause: 'Invalid conversation ID or conversation doesn\'t exist',
+      solution: 'Verify conversationId in request, check conversations collection',
+      file: '/app/app/api/[[...path]]/route.js',
+      function: 'handleGetMessages'
+    },
+    'assessment progress': {
+      symptoms: ['progress 0%', 'progress wrong', 'completion not updating'],
+      cause: 'Answers stored in multiple collections not being aggregated',
+      solution: 'Check both assessment_answers AND gradual_assessment_progress collections',
+      file: '/app/app/api/[[...path]]/route.js',
+      function: 'handleGetAssessmentProgress'
+    },
+    'projects': {
+      symptoms: ['cant create project', 'project not showing', 'share not working'],
+      cause: 'Auth token missing or project permissions issue',
+      solution: 'Verify Authorization header, check project ownership in projects collection',
+      file: '/app/app/api/[[...path]]/route.js',
+      function: 'handleGetProjects, handleCreateProject'
+    },
+    'media generation': {
+      symptoms: ['image stuck', 'video not generating', 'generation failed'],
+      cause: 'Kie.ai API issue or missing KIE_API_KEY',
+      solution: 'Check KIE_API_KEY in env, verify API quota, check media_gallery collection',
+      file: '/app/app/api/[[...path]]/route.js',
+      function: 'handleGenerateImage, handleGenerateVideo'
+    },
+    'import': {
+      symptoms: ['upload failed', 'import stuck', 'file not processing'],
+      cause: 'File too large or job stuck in queue',
+      solution: 'Use chunked upload for files >5MB, check import_jobs collection for errors',
+      file: '/app/app/api/[[...path]]/route.js',
+      function: 'handleChunkedUploadInit'
+    },
+    'telegram': {
+      symptoms: ['telegram not connecting', 'bot not responding', 'link failed'],
+      cause: 'Invalid bot token or webhook not set',
+      solution: 'Verify TELEGRAM_BOT_TOKEN, check telegram_links collection',
+      file: '/app/app/api/[[...path]]/route.js',
+      function: 'handleTelegramWebhook'
+    },
+    'ui styling': {
+      symptoms: ['text not visible', 'dropdown broken', 'layout broken', 'css issue'],
+      cause: 'Tailwind class issues or dark mode styling',
+      solution: 'Check element classes, use bg-[#1a1a1a] for dark backgrounds, verify text-white',
+      file: '/app/app/chat/page.js or /app/components/mobile/MobileChat.js',
+      function: 'N/A - CSS fix'
+    },
+    'mobile': {
+      symptoms: ['input hidden', 'keyboard covering', 'android issue', 'ios issue'],
+      cause: 'Safe area or viewport issues on mobile',
+      solution: 'Add safe-area-bottom class, check pb-safe padding',
+      file: '/app/components/mobile/MobileChat.js',
+      function: 'N/A - CSS fix'
+    }
+  }
+};
+
+// Analyze issue and find matching solution
+function analyzeIssue(text) {
+  const lowerText = text.toLowerCase();
+  
+  // Check if it's about a known feature
+  const mentionedFeatures = SOULPRINT_KNOWLEDGE.features.filter(f => lowerText.includes(f));
+  
+  // Find matching issues
+  const matchedIssues = [];
+  for (const [issue, data] of Object.entries(SOULPRINT_KNOWLEDGE.commonIssues)) {
+    const matchScore = data.symptoms.filter(s => lowerText.includes(s)).length;
+    if (matchScore > 0 || lowerText.includes(issue)) {
+      matchedIssues.push({ issue, ...data, score: matchScore + (lowerText.includes(issue) ? 2 : 0) });
+    }
+  }
+  
+  // Sort by match score
+  matchedIssues.sort((a, b) => b.score - a.score);
+  
+  return {
+    isKnownFeature: mentionedFeatures.length > 0,
+    features: mentionedFeatures,
+    matchedIssues,
+    bestMatch: matchedIssues[0] || null
+  };
+}
+
+// Send message to Slack
+async function sendSlackMessage(channel, text, blocks = null) {
+  if (!SLACK_BOT_TOKEN) return;
+  
+  const payload = { channel, text };
+  if (blocks) payload.blocks = blocks;
+  
+  try {
+    await fetch('https://slack.com/api/chat.postMessage', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SLACK_BOT_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.error('Slack send error:', err);
+  }
+}
+
+// Send DM to escalation user
+async function escalateToOwner(originalMessage, channel, reason) {
+  if (!SLACK_ESCALATION_USER_ID) return;
+  
+  const blocks = [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: '🚨 Issue Escalated for Review', emoji: true }
+    },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*Reason:* ${reason}` }
+    },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*Original Message:*\n>${originalMessage}` }
+    },
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: `*Channel:* <#${channel}>` }
+    },
+    {
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: 'View in Channel', emoji: true },
+          url: `slack://channel?team=&id=${channel}`
+        }
+      ]
+    }
+  ];
+  
+  await sendSlackMessage(SLACK_ESCALATION_USER_ID, `Issue escalated: ${reason}`, blocks);
+}
+
+// Generate fix suggestion using AI
+async function generateFixSuggestion(issue, analysis) {
+  // Use OpenAI to generate a detailed fix
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  if (!OPENAI_API_KEY) return null;
+  
+  const systemPrompt = `You are a SoulPrint app support bot. Given an issue report and analysis, provide a concise fix suggestion.
+The app is built with Next.js, React, MongoDB, and uses multiple AI providers (OpenAI, Anthropic, Google).
+Keep responses short and actionable. If you suggest code changes, be specific about file and function.`;
+
+  const userPrompt = `Issue: ${issue}
+
+Analysis found this likely cause:
+- Problem: ${analysis.bestMatch?.cause || 'Unknown'}
+- Typical solution: ${analysis.bestMatch?.solution || 'Needs investigation'}
+- Relevant file: ${analysis.bestMatch?.file || 'Unknown'}
+- Function: ${analysis.bestMatch?.function || 'Unknown'}
+
+Provide a brief, actionable fix suggestion (2-3 sentences max). If it needs code changes, specify what to change.`;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        max_tokens: 300,
+        temperature: 0.3
+      })
+    });
+    
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || null;
+  } catch (err) {
+    console.error('AI suggestion error:', err);
+    return null;
+  }
+}
+
+// Handle incoming Slack messages
+async function handleSlackWebhook(request) {
+  try {
+    const body = await request.json();
+    
+    // Handle URL verification challenge
+    if (body.type === 'url_verification') {
+      return ok({ challenge: body.challenge });
+    }
+    
+    // Handle events
+    if (body.type === 'event_callback') {
+      const event = body.event;
+      
+      // Ignore bot messages to prevent loops
+      if (event.bot_id || event.subtype === 'bot_message') {
+        return ok({ ok: true });
+      }
+      
+      // Handle direct messages and mentions
+      if (event.type === 'message' || event.type === 'app_mention') {
+        const text = event.text || '';
+        const channel = event.channel;
+        const user = event.user;
+        
+        // Remove bot mention from text
+        const cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
+        
+        if (!cleanText) {
+          await sendSlackMessage(channel, "Hi! I'm the SoulPrint Support Bot. Describe an issue and I'll try to help diagnose and fix it.");
+          return ok({ ok: true });
+        }
+        
+        // Analyze the issue
+        const analysis = analyzeIssue(cleanText);
+        
+        // If no known features or issues matched, escalate
+        if (!analysis.isKnownFeature && !analysis.bestMatch) {
+          await sendSlackMessage(channel, "🤔 I'm not sure this relates to a current SoulPrint feature. Let me escalate this to the team for review.");
+          await escalateToOwner(cleanText, channel, 'Issue does not match known features or patterns');
+          return ok({ ok: true });
+        }
+        
+        // Generate AI-powered fix suggestion
+        const aiSuggestion = await generateFixSuggestion(cleanText, analysis);
+        
+        // Build response
+        const blocks = [
+          {
+            type: 'header',
+            text: { type: 'plain_text', text: '🔍 Issue Analysis', emoji: true }
+          }
+        ];
+        
+        if (analysis.bestMatch) {
+          blocks.push({
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `*Likely Issue:* ${analysis.bestMatch.issue}\n*Cause:* ${analysis.bestMatch.cause}`
+            }
+          });
+          
+          blocks.push({
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `*📁 File:* \`${analysis.bestMatch.file}\`\n*🔧 Function:* \`${analysis.bestMatch.function}\``
+            }
+          });
+          
+          blocks.push({
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `*💡 Solution:*\n${analysis.bestMatch.solution}`
+            }
+          });
+        }
+        
+        if (aiSuggestion) {
+          blocks.push({
+            type: 'divider'
+          });
+          blocks.push({
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `*🤖 AI Recommendation:*\n${aiSuggestion}`
+            }
+          });
+        }
+        
+        // Add action buttons
+        blocks.push({
+          type: 'actions',
+          elements: [
+            {
+              type: 'button',
+              text: { type: 'plain_text', text: '✅ This helped', emoji: true },
+              style: 'primary',
+              action_id: 'issue_resolved',
+              value: JSON.stringify({ issue: cleanText.substring(0, 100) })
+            },
+            {
+              type: 'button',
+              text: { type: 'plain_text', text: '🔄 Escalate to Owner', emoji: true },
+              action_id: 'escalate_issue',
+              value: JSON.stringify({ issue: cleanText.substring(0, 100), channel })
+            }
+          ]
+        });
+        
+        await sendSlackMessage(channel, `Analysis for: ${cleanText.substring(0, 50)}...`, blocks);
+        return ok({ ok: true });
+      }
+    }
+    
+    return ok({ ok: true });
+  } catch (error) {
+    console.error('Slack webhook error:', error);
+    return err('Webhook processing failed', 500);
+  }
+}
+
+// Handle Slack interactive actions (button clicks)
+async function handleSlackInteractive(request) {
+  try {
+    const formData = await request.formData();
+    const payload = JSON.parse(formData.get('payload'));
+    
+    if (payload.type === 'block_actions') {
+      const action = payload.actions[0];
+      const channel = payload.channel.id;
+      const user = payload.user.id;
+      
+      if (action.action_id === 'issue_resolved') {
+        await sendSlackMessage(channel, "Great! Glad the suggestion helped. Feel free to ask if you encounter more issues! 🎉");
+      }
+      
+      if (action.action_id === 'escalate_issue') {
+        const value = JSON.parse(action.value || '{}');
+        await escalateToOwner(value.issue || 'Unknown issue', channel, 'User requested manual review');
+        await sendSlackMessage(channel, "I've notified the team. Someone will review this shortly.");
+      }
+    }
+    
+    return ok({ ok: true });
+  } catch (error) {
+    console.error('Slack interactive error:', error);
+    return ok({ ok: true }); // Always return 200 to Slack
+  }
+}
+
+// ============================================================
 // ROUTER
 // ============================================================
 
@@ -14997,6 +15375,10 @@ export async function POST(request, { params }) {
   const pathStr = pathArr.join('/');
 
   try {
+    // Slack webhook endpoints (no auth required)
+    if (pathStr === 'slack/webhook') return handleSlackWebhook(request);
+    if (pathStr === 'slack/interactive') return handleSlackInteractive(request);
+    
     if (pathStr === 'auth/register') return handleRegister(request);
     if (pathStr === 'auth/login') return handleLogin(request);
     if (pathStr === 'auth/firebase') return handleFirebaseAuth(request);
