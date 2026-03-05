@@ -2753,6 +2753,21 @@ function InsightsTab({ token }) {
     pro: { price: 20, msgLimit: 500 },
     enterprise: { price: 99, msgLimit: 'unlimited' },
   });
+  
+  // Feature Management State
+  const [pricingFeatures, setPricingFeatures] = useState([]);
+  const [showFeatureModal, setShowFeatureModal] = useState(false);
+  const [editingFeature, setEditingFeature] = useState(null);
+  const [featureForm, setFeatureForm] = useState({
+    name: '',
+    description: '',
+    tier: 'basic',
+    cost_type: 'per_user',
+    cost_value: 0,
+    status: 'planned',
+    category: 'feature',
+  });
+  const [calculatedPricing, setCalculatedPricing] = useState(null);
 
   useEffect(() => {
     fetch('/api/admin/insights', { headers: { Authorization: `Bearer ${token}` } })
@@ -2778,7 +2793,106 @@ function InsightsTab({ token }) {
         setError(e.message);
         setLoading(false);
       });
+    
+    // Load pricing features
+    loadPricingFeatures();
   }, [token]);
+  
+  // Load pricing features
+  const loadPricingFeatures = async () => {
+    try {
+      const res = await fetch('/api/admin/pricing-features', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setPricingFeatures(data);
+      }
+    } catch (e) {
+      console.error('Failed to load pricing features:', e);
+    }
+  };
+  
+  // Calculate pricing with custom features
+  const calculateWithFeatures = async () => {
+    try {
+      const res = await fetch('/api/admin/pricing-features/calculate', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setCalculatedPricing(data);
+    } catch (e) {
+      console.error('Failed to calculate pricing:', e);
+    }
+  };
+  
+  // Add or update feature
+  const saveFeature = async () => {
+    try {
+      const endpoint = editingFeature 
+        ? '/api/admin/pricing-features/update'
+        : '/api/admin/pricing-features';
+      
+      const body = editingFeature 
+        ? { id: editingFeature.id, ...featureForm }
+        : featureForm;
+      
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify(body),
+      });
+      
+      setShowFeatureModal(false);
+      setEditingFeature(null);
+      setFeatureForm({
+        name: '',
+        description: '',
+        tier: 'basic',
+        cost_type: 'per_user',
+        cost_value: 0,
+        status: 'planned',
+        category: 'feature',
+      });
+      loadPricingFeatures();
+      calculateWithFeatures();
+    } catch (e) {
+      console.error('Failed to save feature:', e);
+    }
+  };
+  
+  // Delete feature
+  const deleteFeature = async (id) => {
+    if (!confirm('Delete this feature?')) return;
+    try {
+      await fetch(`/api/admin/pricing-features?id=${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      loadPricingFeatures();
+      calculateWithFeatures();
+    } catch (e) {
+      console.error('Failed to delete feature:', e);
+    }
+  };
+  
+  // Open edit modal
+  const openEditFeature = (feature) => {
+    setEditingFeature(feature);
+    setFeatureForm({
+      name: feature.name,
+      description: feature.description || '',
+      tier: feature.tier,
+      cost_type: feature.cost_type,
+      cost_value: feature.cost_value,
+      status: feature.status,
+      category: feature.category,
+    });
+    setShowFeatureModal(true);
+  };
   
   // Calculate margin for a given price and cost
   const calculateMargin = (price, cost) => {
@@ -2859,6 +2973,324 @@ function InsightsTab({ token }) {
           Generated: {new Date(insights.generated_at).toLocaleString()}
         </div>
       </div>
+
+      {/* Feature & Cost Management */}
+      <div className="bg-gradient-to-r from-pink-500/5 to-transparent border border-pink-500/20 rounded-xl p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-pink-400 text-xs font-bold tracking-widest uppercase flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Feature & Cost Management
+            </h3>
+            <p className="text-gray-500 text-xs mt-1">Add current and future features with their costs to improve pricing recommendations</p>
+          </div>
+          <button
+            onClick={() => {
+              setEditingFeature(null);
+              setFeatureForm({
+                name: '',
+                description: '',
+                tier: 'basic',
+                cost_type: 'per_user',
+                cost_value: 0,
+                status: 'planned',
+                category: 'feature',
+              });
+              setShowFeatureModal(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-xs font-medium transition-colors"
+          >
+            <Plus className="w-3 h-3" /> Add Feature
+          </button>
+        </div>
+
+        {/* Feature List */}
+        {pricingFeatures.length > 0 ? (
+          <div className="space-y-2 mb-4">
+            <div className="grid grid-cols-7 gap-2 text-[10px] text-gray-500 px-2 font-medium uppercase">
+              <span>Feature</span>
+              <span>Tier</span>
+              <span>Category</span>
+              <span>Cost Type</span>
+              <span className="text-right">Cost</span>
+              <span className="text-center">Status</span>
+              <span className="text-right">Actions</span>
+            </div>
+            {pricingFeatures.map((feature) => (
+              <div key={feature.id} className="grid grid-cols-7 gap-2 items-center bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-xs">
+                <div>
+                  <span className="text-white font-medium">{feature.name}</span>
+                  {feature.description && (
+                    <p className="text-gray-500 text-[10px] truncate">{feature.description}</p>
+                  )}
+                </div>
+                <span className={`capitalize ${
+                  feature.tier === 'enterprise' ? 'text-orange-400' :
+                  feature.tier === 'pro' ? 'text-purple-400' :
+                  feature.tier === 'basic' ? 'text-blue-400' :
+                  feature.tier === 'addon' ? 'text-pink-400' :
+                  'text-gray-400'
+                }`}>
+                  {feature.tier}
+                </span>
+                <span className="text-gray-400 capitalize">{feature.category}</span>
+                <span className="text-gray-400 capitalize">{feature.cost_type.replace('_', ' ')}</span>
+                <span className="text-green-400 text-right">${feature.cost_value}</span>
+                <span className="text-center">
+                  <span className={`px-2 py-0.5 rounded text-[10px] ${
+                    feature.status === 'active' ? 'bg-green-500/20 text-green-400' :
+                    feature.status === 'planned' ? 'bg-blue-500/20 text-blue-400' :
+                    'bg-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {feature.status}
+                  </span>
+                </span>
+                <div className="flex items-center justify-end gap-1">
+                  <button
+                    onClick={() => openEditFeature(feature)}
+                    className="p-1 text-gray-500 hover:text-white transition-colors"
+                  >
+                    <Edit className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => deleteFeature(feature.id)}
+                    className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-6 bg-black/20 rounded-lg mb-4">
+            <p className="text-gray-500 text-sm mb-2">No features added yet</p>
+            <p className="text-gray-600 text-xs">Add features like "WhatsApp Integration", "SMS", "Premium LLMs" with their costs</p>
+          </div>
+        )}
+
+        {/* Quick Add Suggestions */}
+        <div className="mb-4">
+          <p className="text-gray-400 text-xs mb-2">Quick Add Suggestions:</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { name: 'WhatsApp Integration', cost: 5, tier: 'pro', category: 'integration' },
+              { name: 'SMS Notifications', cost: 3, tier: 'pro', category: 'integration' },
+              { name: 'GPT-4o Access', cost: 2, tier: 'basic', category: 'feature' },
+              { name: 'Claude Sonnet', cost: 2.5, tier: 'pro', category: 'feature' },
+              { name: 'Unlimited Media', cost: 10, tier: 'enterprise', category: 'limit' },
+              { name: 'API Access', cost: 15, tier: 'enterprise', category: 'feature' },
+              { name: 'Priority Support', cost: 5, tier: 'pro', category: 'support' },
+              { name: 'Voice Mode', cost: 8, tier: 'pro', category: 'feature' },
+            ].filter(s => !pricingFeatures.find(f => f.name === s.name)).map((suggestion) => (
+              <button
+                key={suggestion.name}
+                onClick={() => {
+                  setFeatureForm({
+                    name: suggestion.name,
+                    description: '',
+                    tier: suggestion.tier,
+                    cost_type: 'per_user',
+                    cost_value: suggestion.cost,
+                    status: 'planned',
+                    category: suggestion.category,
+                  });
+                  setShowFeatureModal(true);
+                }}
+                className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] text-gray-400 hover:text-white transition-colors"
+              >
+                + {suggestion.name} (${suggestion.cost}/user)
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Calculate with Features Button */}
+        <button
+          onClick={calculateWithFeatures}
+          className="w-full py-2 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 text-pink-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+        >
+          <Zap className="w-4 h-4" />
+          Calculate Pricing with All Features
+        </button>
+
+        {/* Calculated Results */}
+        {calculatedPricing && (
+          <div className="mt-4 bg-black/30 border border-white/10 rounded-lg p-4">
+            <h4 className="text-white text-sm font-medium mb-3">Pricing with Custom Features</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-500 border-b border-white/10">
+                    <th className="text-left py-2">Tier</th>
+                    <th className="text-right py-2">Base Cost</th>
+                    <th className="text-right py-2">Feature Cost</th>
+                    <th className="text-right py-2">Total Cost</th>
+                    <th className="text-right py-2">@ 70%</th>
+                    <th className="text-right py-2">@ 80%</th>
+                    <th className="text-right py-2">@ 90%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(calculatedPricing.tier_costs || {}).map(([tier, data]) => (
+                    <tr key={tier} className="border-b border-white/5">
+                      <td className="py-2 text-white capitalize font-medium">{tier}</td>
+                      <td className="py-2 text-right text-gray-400">${data.base_cost}</td>
+                      <td className="py-2 text-right text-pink-400">${data.feature_cost}</td>
+                      <td className="py-2 text-right text-red-400 font-medium">${data.total_cost}</td>
+                      <td className="py-2 text-right text-gray-400">${data.prices?.at_70_margin}</td>
+                      <td className="py-2 text-right text-green-400">${data.prices?.at_80_margin}</td>
+                      <td className="py-2 text-right text-gray-400">${data.prices?.at_90_margin}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            {calculatedPricing.addons?.length > 0 && (
+              <div className="mt-3">
+                <p className="text-gray-400 text-xs mb-2">Add-ons:</p>
+                <div className="flex flex-wrap gap-2">
+                  {calculatedPricing.addons.map((addon) => (
+                    <span key={addon.id} className="px-2 py-1 bg-pink-500/10 border border-pink-500/20 rounded text-[10px]">
+                      <span className="text-white">{addon.name}:</span>
+                      <span className="text-pink-400 ml-1">${addon.recommended_price}/mo</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Feature Modal */}
+      {showFeatureModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#141a21] border border-white/10 rounded-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h3 className="text-white font-semibold">
+                {editingFeature ? 'Edit Feature' : 'Add Feature'}
+              </h3>
+              <button onClick={() => setShowFeatureModal(false)} className="text-gray-500 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Feature Name *</label>
+                <input
+                  type="text"
+                  value={featureForm.name}
+                  onChange={(e) => setFeatureForm({ ...featureForm, name: e.target.value })}
+                  placeholder="e.g., WhatsApp Integration"
+                  className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
+                />
+              </div>
+              
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Description</label>
+                <input
+                  type="text"
+                  value={featureForm.description}
+                  onChange={(e) => setFeatureForm({ ...featureForm, description: e.target.value })}
+                  placeholder="Optional description"
+                  className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Tier *</label>
+                  <select
+                    value={featureForm.tier}
+                    onChange={(e) => setFeatureForm({ ...featureForm, tier: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
+                  >
+                    <option value="free">Free</option>
+                    <option value="basic">Basic</option>
+                    <option value="pro">Pro</option>
+                    <option value="enterprise">Enterprise</option>
+                    <option value="addon">Add-on</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Category</label>
+                  <select
+                    value={featureForm.category}
+                    onChange={(e) => setFeatureForm({ ...featureForm, category: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
+                  >
+                    <option value="feature">Feature</option>
+                    <option value="integration">Integration</option>
+                    <option value="limit">Limit/Quota</option>
+                    <option value="support">Support</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Cost Type</label>
+                  <select
+                    value={featureForm.cost_type}
+                    onChange={(e) => setFeatureForm({ ...featureForm, cost_type: e.target.value })}
+                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
+                  >
+                    <option value="per_user">Per User/Month</option>
+                    <option value="per_message">Per Message</option>
+                    <option value="per_use">Per Use</option>
+                    <option value="fixed">Fixed/Month</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="text-gray-400 text-xs mb-1 block">Cost ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={featureForm.cost_value}
+                    onChange={(e) => setFeatureForm({ ...featureForm, cost_value: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Status</label>
+                <select
+                  value={featureForm.status}
+                  onChange={(e) => setFeatureForm({ ...featureForm, status: e.target.value })}
+                  className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
+                >
+                  <option value="active">Active (Live)</option>
+                  <option value="planned">Planned</option>
+                  <option value="considering">Considering</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-white/10 flex gap-3">
+              <button
+                onClick={() => setShowFeatureModal(false)}
+                className="flex-1 py-2 bg-white/5 text-gray-400 rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveFeature}
+                disabled={!featureForm.name}
+                className="flex-1 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                {editingFeature ? 'Update' : 'Add'} Feature
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* User Segmentation */}
       <div className="bg-gradient-to-r from-purple-500/5 to-transparent border border-purple-500/20 rounded-xl p-4">

@@ -7393,6 +7393,198 @@ async function handleAdminGrantInvites(request) {
 }
 
 // ============================================================
+// PRICING FEATURES MANAGEMENT
+// ============================================================
+
+// Get all pricing features (current and future)
+async function handleAdminGetPricingFeatures(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  const features = await db.collection('pricing_features')
+    .find({})
+    .sort({ tier: 1, order: 1 })
+    .toArray();
+
+  return ok(features);
+}
+
+// Add a new pricing feature
+async function handleAdminAddPricingFeature(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const data = await request.json();
+  const { name, description, tier, cost_type, cost_value, status, category } = data;
+
+  if (!name || !tier) {
+    return err('Name and tier are required');
+  }
+
+  const db = await getDb();
+  const id = uuidv4();
+
+  const feature = {
+    id,
+    name,
+    description: description || '',
+    tier, // 'free', 'basic', 'pro', 'enterprise', 'addon'
+    cost_type: cost_type || 'per_user', // 'per_user', 'per_message', 'per_use', 'fixed', 'percentage'
+    cost_value: parseFloat(cost_value) || 0, // cost in dollars
+    status: status || 'planned', // 'active', 'planned', 'considering'
+    category: category || 'feature', // 'feature', 'integration', 'limit', 'support'
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+
+  await db.collection('pricing_features').insertOne(feature);
+
+  return ok(feature);
+}
+
+// Update a pricing feature
+async function handleAdminUpdatePricingFeature(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const data = await request.json();
+  const { id, ...updates } = data;
+
+  if (!id) return err('Feature ID required');
+
+  const db = await getDb();
+  
+  await db.collection('pricing_features').updateOne(
+    { id },
+    { 
+      $set: { 
+        ...updates,
+        updated_at: new Date() 
+      } 
+    }
+  );
+
+  return ok({ success: true });
+}
+
+// Delete a pricing feature
+async function handleAdminDeletePricingFeature(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const url = new URL(request.url);
+  const id = url.searchParams.get('id');
+
+  if (!id) return err('Feature ID required');
+
+  const db = await getDb();
+  await db.collection('pricing_features').deleteOne({ id });
+
+  return ok({ success: true });
+}
+
+// Calculate pricing with custom features
+async function handleAdminCalculatePricing(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  
+  // Get all features
+  const features = await db.collection('pricing_features')
+    .find({})
+    .toArray();
+
+  // Get base costs from actual usage
+  const totalCostAgg = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', est_input_tokens: { $exists: true } } },
+    { $group: { _id: null, input: { $sum: '$est_input_tokens' }, output: { $sum: '$est_output_tokens' } } },
+  ]).toArray();
+  
+  const userCount = await db.collection('users').countDocuments({ accepted: true }) || 1;
+  const totalLLMCost = totalCostAgg.length > 0
+    ? (totalCostAgg[0].input / 1_000_000) * 5 + (totalCostAgg[0].output / 1_000_000) * 15
+    : 0;
+  const baseCostPerUser = totalLLMCost / userCount;
+
+  // Calculate tier costs including custom features
+  const tierCosts = {
+    free: { base: baseCostPerUser * 0.3, features: [], total: 0 },
+    basic: { base: baseCostPerUser * 0.7, features: [], total: 0 },
+    pro: { base: baseCostPerUser * 1.2, features: [], total: 0 },
+    enterprise: { base: baseCostPerUser * 3, features: [], total: 0 },
+  };
+
+  // Add feature costs to each tier
+  features.forEach(f => {
+    if (f.tier === 'addon') return; // Skip addons for tier calculation
+    
+    const featureCost = f.cost_type === 'per_user' ? f.cost_value : 
+                        f.cost_type === 'fixed' ? f.cost_value / userCount :
+                        f.cost_value * 0.1; // Estimate for per_message/per_use
+
+    if (tierCosts[f.tier]) {
+      tierCosts[f.tier].features.push({
+        name: f.name,
+        cost: featureCost,
+        status: f.status,
+      });
+    }
+    
+    // Features accumulate up the tiers (basic includes free features, etc.)
+    if (f.tier === 'free') {
+      ['basic', 'pro', 'enterprise'].forEach(t => {
+        tierCosts[t].features.push({ name: f.name, cost: featureCost, status: f.status, inherited: true });
+      });
+    } else if (f.tier === 'basic') {
+      ['pro', 'enterprise'].forEach(t => {
+        tierCosts[t].features.push({ name: f.name, cost: featureCost, status: f.status, inherited: true });
+      });
+    } else if (f.tier === 'pro') {
+      tierCosts.enterprise.features.push({ name: f.name, cost: featureCost, status: f.status, inherited: true });
+    }
+  });
+
+  // Calculate totals
+  Object.keys(tierCosts).forEach(tier => {
+    const featureCostSum = tierCosts[tier].features.reduce((sum, f) => sum + f.cost, 0);
+    tierCosts[tier].total = tierCosts[tier].base + featureCostSum;
+  });
+
+  // Calculate recommended prices at different margins
+  const calculatePrice = (cost, margin) => cost / (1 - margin);
+
+  const pricingTable = {};
+  Object.entries(tierCosts).forEach(([tier, data]) => {
+    pricingTable[tier] = {
+      base_cost: parseFloat(data.base.toFixed(2)),
+      feature_cost: parseFloat(data.features.reduce((sum, f) => sum + f.cost, 0).toFixed(2)),
+      total_cost: parseFloat(data.total.toFixed(2)),
+      features: data.features,
+      prices: {
+        at_70_margin: parseFloat(calculatePrice(data.total, 0.70).toFixed(2)),
+        at_80_margin: parseFloat(calculatePrice(data.total, 0.80).toFixed(2)),
+        at_90_margin: parseFloat(calculatePrice(data.total, 0.90).toFixed(2)),
+      },
+    };
+  });
+
+  // Addon pricing
+  const addons = features.filter(f => f.tier === 'addon').map(f => ({
+    ...f,
+    recommended_price: parseFloat((f.cost_value / 0.2).toFixed(2)), // 80% margin on addons
+  }));
+
+  return ok({
+    tier_costs: pricingTable,
+    addons,
+    base_cost_per_user: parseFloat(baseCostPerUser.toFixed(2)),
+    total_users: userCount,
+  });
+}
+
+// ============================================================
 // BUSINESS INSIGHTS & PRICING ANALYTICS
 // ============================================================
 
@@ -14242,6 +14434,8 @@ export async function GET(request, { params }) {
     if (pathStr === 'invites') return handleGetUserInvites(request);
     if (pathStr === 'admin/invites/stats') return handleAdminGetInviteStats(request);
     if (pathStr === 'admin/insights') return handleAdminGetBusinessInsights(request);
+    if (pathStr === 'admin/pricing-features') return handleAdminGetPricingFeatures(request);
+    if (pathStr === 'admin/pricing-features/calculate') return handleAdminCalculatePricing(request);
 
     return err('Not found', 404);
   } catch (error) {
@@ -14337,6 +14531,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'invites/redeem') return handleRedeemInviteCode(request);
     if (pathStr === 'admin/invites/toggle') return handleAdminToggleViralInvites(request);
     if (pathStr === 'admin/invites/grant') return handleAdminGrantInvites(request);
+    if (pathStr === 'admin/pricing-features') return handleAdminAddPricingFeature(request);
+    if (pathStr === 'admin/pricing-features/update') return handleAdminUpdatePricingFeature(request);
 
     // Other connector stubs
     if (pathStr === 'connectors/discord/webhook') return handleConnectorStub('discord');
@@ -14447,6 +14643,7 @@ export async function DELETE(request, { params }) {
     if (pathStr === 'admin/beta-code') return handleAdminDeleteBetaCode(request);
     if (pathStr === 'admin/beta-groups') return handleAdminDeleteBetaGroup(request);
     if (pathStr === 'admin/beta-codes') return handleAdminDeleteBetaCodeV2(request);
+    if (pathStr === 'admin/pricing-features') return handleAdminDeletePricingFeature(request);
     // Media gallery delete: media/:id
     if (pathStr.startsWith('media/') && pathArr.length === 2) {
       const mediaId = pathArr[1];
