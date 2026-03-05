@@ -6,7 +6,8 @@ import {
   Plus, Settings, X, Check, Loader2, Globe,
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
-  Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw
+  Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
+  Folder, FolderPlus, Share2, Users, Link2, UserPlus
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
@@ -669,7 +670,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
 };
 
 // Conversation List Item with actions
-const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename }) => {
+const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename, onMove }) => {
   const [showMenu, setShowMenu] = useState(false);
 
   return (
@@ -710,6 +711,14 @@ const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename 
           >
             <Edit3 className="w-4 h-4" /> Rename
           </button>
+          {onMove && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onMove?.(conversation); setShowMenu(false); }}
+              className="w-full px-4 py-3 text-left text-sm text-purple-400 hover:bg-purple-500/10 flex items-center gap-2"
+            >
+              <Folder className="w-4 h-4" /> Move to Project
+            </button>
+          )}
           <button 
             onClick={(e) => { e.stopPropagation(); onDelete?.(conversation.id); setShowMenu(false); }}
             className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"
@@ -1733,6 +1742,21 @@ export default function MobileChat({
   const [showInviteSheet, setShowInviteSheet] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   
+  // Projects state
+  const [projects, setProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(null); // null = show all, 'general' = uncategorized
+  const [showProjectSheet, setShowProjectSheet] = useState(false);
+  const [projectSheetMode, setProjectSheetMode] = useState('create'); // 'create' | 'edit' | 'share'
+  const [editingProject, setEditingProject] = useState(null);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [shareEmail, setShareEmail] = useState('');
+  const [shareRole, setShareRole] = useState('collaborator');
+  const [projectShareLink, setProjectShareLink] = useState(null);
+  const [showMoveToProjectSheet, setShowMoveToProjectSheet] = useState(false);
+  const [movingConversation, setMovingConversation] = useState(null);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  
   // Media intent detection state
   const [detectedMediaIntent, setDetectedMediaIntent] = useState(null); // 'image' | 'video' | null
   const [showMediaOptions, setShowMediaOptions] = useState(false);
@@ -1938,10 +1962,29 @@ export default function MobileChat({
   // Load conversations
   useEffect(() => {
     if (!token) return;
-    fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
+    const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
+    fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => setConversations(Array.isArray(data) ? data : []))
       .catch(console.error);
+  }, [token, selectedProject]);
+  
+  // Load projects
+  useEffect(() => {
+    if (!token) return;
+    setProjectsLoading(true);
+    fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        // API returns { owned: [], shared: [], uncategorized_count: n }
+        const allProjects = [
+          ...(data.owned || []),
+          ...(data.shared || []).map(p => ({ ...p, is_shared: true }))
+        ];
+        setProjects(allProjects);
+      })
+      .catch(console.error)
+      .finally(() => setProjectsLoading(false));
   }, [token]);
 
   // Load profile
@@ -2396,6 +2439,194 @@ export default function MobileChat({
     setRenamingConversation(conv);
     setRenameTitle(conv.title || '');
     setShowRenameModal(true);
+  };
+
+  // ─────────────────────────────────────────────────────────────────
+  // PROJECT MANAGEMENT FUNCTIONS
+  // ─────────────────────────────────────────────────────────────────
+  
+  // Create a new project
+  const createProject = async () => {
+    if (!newProjectName.trim()) return;
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ 
+          name: newProjectName.trim(), 
+          description: newProjectDescription.trim() 
+        }),
+      });
+      if (res.ok) {
+        const project = await res.json();
+        setProjects(prev => [{ ...project, is_owner: true, conversation_count: 0 }, ...prev]);
+        setShowProjectSheet(false);
+        setNewProjectName('');
+        setNewProjectDescription('');
+      }
+    } catch (err) {
+      console.error('Create project error:', err);
+    }
+  };
+  
+  // Update project
+  const updateProject = async () => {
+    if (!editingProject || !newProjectName.trim()) return;
+    try {
+      const res = await fetch(`/api/projects/${editingProject.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ 
+          name: newProjectName.trim(), 
+          description: newProjectDescription.trim() 
+        }),
+      });
+      if (res.ok) {
+        setProjects(prev => prev.map(p => 
+          p.id === editingProject.id 
+            ? { ...p, name: newProjectName.trim(), description: newProjectDescription.trim() } 
+            : p
+        ));
+        setShowProjectSheet(false);
+        setEditingProject(null);
+        setNewProjectName('');
+        setNewProjectDescription('');
+      }
+    } catch (err) {
+      console.error('Update project error:', err);
+    }
+  };
+  
+  // Delete project
+  const deleteProject = async (projectId) => {
+    if (!confirm('Delete this project? Conversations will be moved to uncategorized.')) return;
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setProjects(prev => prev.filter(p => p.id !== projectId));
+        if (selectedProject === projectId) {
+          setSelectedProject(null);
+        }
+        // Reload conversations since they've been uncategorized
+        fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.json())
+          .then(data => setConversations(Array.isArray(data) ? data : []));
+      }
+    } catch (err) {
+      console.error('Delete project error:', err);
+    }
+  };
+  
+  // Open project edit sheet
+  const openEditProjectSheet = (project) => {
+    setEditingProject(project);
+    setNewProjectName(project.name);
+    setNewProjectDescription(project.description || '');
+    setProjectSheetMode('edit');
+    setShowProjectSheet(true);
+  };
+  
+  // Open project share sheet
+  const openShareProjectSheet = async (project) => {
+    setEditingProject(project);
+    setProjectSheetMode('share');
+    setShareEmail('');
+    setShareRole('collaborator');
+    // Fetch share link if exists
+    try {
+      const res = await fetch(`/api/projects/${project.id}/share-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ enabled: true, role: 'viewer' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProjectShareLink(data.share_link);
+      }
+    } catch (err) {
+      console.error('Error fetching share link:', err);
+    }
+    setShowProjectSheet(true);
+  };
+  
+  // Share project with user by email
+  const shareProjectWithUser = async () => {
+    if (!editingProject || !shareEmail.trim()) return;
+    try {
+      const res = await fetch(`/api/projects/${editingProject.id}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ email: shareEmail.trim(), role: shareRole }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert('Project shared successfully!');
+        setShareEmail('');
+        // Refresh projects to get updated shared_with
+        const projRes = await fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } });
+        const projData = await projRes.json();
+        const allProjects = [
+          ...(projData.owned || []),
+          ...(projData.shared || []).map(p => ({ ...p, is_shared: true }))
+        ];
+        setProjects(allProjects);
+        // Update editing project too
+        const updatedProject = allProjects.find(p => p.id === editingProject.id);
+        if (updatedProject) setEditingProject(updatedProject);
+      } else {
+        alert(data.error || 'Failed to share project');
+      }
+    } catch (err) {
+      console.error('Share project error:', err);
+      alert('Failed to share project');
+    }
+  };
+  
+  // Copy share link
+  const copyShareLink = () => {
+    if (!projectShareLink?.code) return;
+    const link = `${window.location.origin}/join/${projectShareLink.code}`;
+    navigator.clipboard.writeText(link);
+    alert('Share link copied!');
+  };
+  
+  // Move conversation to project
+  const moveConversationToProject = async (convId, projectId) => {
+    try {
+      const res = await fetch(`/api/conversations/${convId}/project`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ project_id: projectId }),
+      });
+      if (res.ok) {
+        // Refresh conversations
+        const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
+        const convRes = await fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await convRes.json();
+        setConversations(Array.isArray(data) ? data : []);
+        // Also refresh projects to update conversation counts
+        const projRes = await fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } });
+        const projData = await projRes.json();
+        const allProjects = [
+          ...(projData.owned || []),
+          ...(projData.shared || []).map(p => ({ ...p, is_shared: true }))
+        ];
+        setProjects(allProjects);
+      }
+    } catch (err) {
+      console.error('Move conversation error:', err);
+    }
+    setShowMoveToProjectSheet(false);
+    setMovingConversation(null);
+  };
+  
+  // Open move to project sheet
+  const openMoveToProjectSheet = (conv) => {
+    setMovingConversation(conv);
+    setShowMoveToProjectSheet(true);
   };
 
   // Handle media generation (image/video)
@@ -3158,84 +3389,247 @@ export default function MobileChat({
       {/* History Tab */}
       {activeTab === 'history' && (
         <div className="pt-4 pb-24">
+          {/* Header */}
           <div className="px-4 py-3 flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-white">Conversations</h1>
-            <button 
-              onClick={newConversation}
-              className="bg-orange-500 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-1"
-            >
-              <Plus className="w-4 h-4" /> New
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedProject && (
+                <button 
+                  onClick={() => setSelectedProject(null)}
+                  className="p-1.5 rounded-lg bg-white/5 text-gray-400 hover:bg-white/10"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              )}
+              <h1 className="text-xl font-semibold text-white">
+                {selectedProject 
+                  ? (selectedProject === 'general' 
+                      ? 'Uncategorized' 
+                      : projects.find(p => p.id === selectedProject)?.name || 'Project')
+                  : 'Projects & Chats'}
+              </h1>
+            </div>
+            <div className="flex items-center gap-2">
+              {!selectedProject && (
+                <button 
+                  onClick={() => {
+                    setProjectSheetMode('create');
+                    setNewProjectName('');
+                    setNewProjectDescription('');
+                    setEditingProject(null);
+                    setShowProjectSheet(true);
+                  }}
+                  className="p-2 rounded-full bg-white/5 text-gray-400 hover:bg-white/10"
+                  title="New Project"
+                >
+                  <FolderPlus className="w-5 h-5" />
+                </button>
+              )}
+              <button 
+                onClick={newConversation}
+                className="bg-orange-500 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" /> New Chat
+              </button>
+            </div>
           </div>
           
-          {/* Search bar for conversations */}
-          {conversations.length > 0 && (
-            <div className="px-4 pb-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                  type="text"
-                  value={conversationSearch}
-                  onChange={(e) => setConversationSearch(e.target.value)}
-                  placeholder="Search conversations..."
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-9 py-2.5 text-sm text-white placeholder-gray-500 focus:border-orange-500/40 outline-none"
-                />
-                {conversationSearch && (
-                  <button
-                    onClick={() => setConversationSearch('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-          
-          <div className="mt-2">
-            {conversations.length === 0 ? (
-              <div className="text-center py-12 px-4">
-                <MessageSquare className="w-12 h-12 text-gray-700 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">No conversations yet</p>
-                <button 
-                  onClick={newConversation}
-                  className="mt-4 text-orange-400 text-sm font-medium"
+          {/* Search bar */}
+          <div className="px-4 pb-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="text"
+                value={conversationSearch}
+                onChange={(e) => setConversationSearch(e.target.value)}
+                placeholder={selectedProject ? "Search conversations..." : "Search projects & chats..."}
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-9 py-2.5 text-sm text-white placeholder-gray-500 focus:border-orange-500/40 outline-none"
+              />
+              {conversationSearch && (
+                <button
+                  onClick={() => setConversationSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
                 >
-                  Start your first chat →
+                  <X className="w-4 h-4" />
                 </button>
-              </div>
-            ) : (
-              (() => {
-                const filteredConversations = conversationSearch.trim()
-                  ? conversations.filter(c => 
-                      (c.title || 'Conversation').toLowerCase().includes(conversationSearch.toLowerCase())
-                    )
-                  : conversations;
+              )}
+            </div>
+          </div>
+          
+          {/* Content */}
+          <div className="mt-2">
+            {!selectedProject ? (
+              // Show Projects List
+              <>
+                {/* Projects */}
+                {projects.length > 0 && (
+                  <div className="mb-4">
+                    <p className="px-4 text-xs text-gray-500 uppercase tracking-wider mb-2">Projects</p>
+                    {projects
+                      .filter(p => !conversationSearch || p.name.toLowerCase().includes(conversationSearch.toLowerCase()))
+                      .map(project => (
+                        <button
+                          key={project.id}
+                          onClick={() => setSelectedProject(project.id)}
+                          className="w-full text-left p-4 border-b border-white/5 hover:bg-white/5 active:bg-white/10 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+                              <Folder className="w-5 h-5 text-purple-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-medium text-sm text-white truncate">{project.name}</h3>
+                                {project.is_shared && (
+                                  <Users className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-gray-500 text-xs truncate mt-0.5">
+                                {project.conversation_count || 0} conversations
+                                {project.description && ` · ${project.description}`}
+                              </p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-gray-600" />
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                )}
                 
-                return filteredConversations.length === 0 ? (
+                {/* Uncategorized */}
+                <button
+                  onClick={() => setSelectedProject('general')}
+                  className="w-full text-left p-4 border-b border-white/5 hover:bg-white/5 active:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-500/20 flex items-center justify-center">
+                      <MessageSquare className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm text-white">Uncategorized</h3>
+                      <p className="text-gray-500 text-xs mt-0.5">
+                        Chats not in any project
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-600" />
+                  </div>
+                </button>
+                
+                {/* Recent Conversations (when no search) */}
+                {!conversationSearch && conversations.length > 0 && (
+                  <div className="mt-4">
+                    <p className="px-4 text-xs text-gray-500 uppercase tracking-wider mb-2">Recent Chats</p>
+                    {conversations.slice(0, 5).map(conv => (
+                      <ConversationItem
+                        key={conv.id}
+                        conversation={conv}
+                        isActive={conv.id === conversationId}
+                        onClick={() => loadConversation(conv.id)}
+                        onDelete={deleteConversation}
+                        onRename={openRenameModal}
+                        onMove={openMoveToProjectSheet}
+                      />
+                    ))}
+                    {conversations.length > 5 && (
+                      <button 
+                        onClick={() => setSelectedProject('general')}
+                        className="w-full p-3 text-center text-orange-400 text-sm hover:bg-white/5"
+                      >
+                        View all {conversations.length} conversations →
+                      </button>
+                    )}
+                  </div>
+                )}
+                
+                {/* Empty state */}
+                {projects.length === 0 && conversations.length === 0 && (
                   <div className="text-center py-12 px-4">
-                    <Search className="w-10 h-10 text-gray-700 mx-auto mb-3" />
-                    <p className="text-gray-500 text-sm">No matching conversations</p>
+                    <Folder className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+                    <p className="text-gray-500 text-sm">No projects or chats yet</p>
                     <button 
-                      onClick={() => setConversationSearch('')}
+                      onClick={newConversation}
                       className="mt-4 text-orange-400 text-sm font-medium"
                     >
-                      Clear search
+                      Start your first chat →
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              // Show Conversations in Selected Project
+              <>
+                {/* Project actions (if viewing a specific project, not general) */}
+                {selectedProject !== 'general' && (
+                  <div className="px-4 pb-3 flex items-center gap-2">
+                    <button
+                      onClick={() => openEditProjectSheet(projects.find(p => p.id === selectedProject))}
+                      className="flex-1 py-2 px-3 rounded-lg bg-white/5 text-gray-300 text-sm flex items-center justify-center gap-2 hover:bg-white/10"
+                    >
+                      <Edit3 className="w-4 h-4" /> Edit
+                    </button>
+                    <button
+                      onClick={() => openShareProjectSheet(projects.find(p => p.id === selectedProject))}
+                      className="flex-1 py-2 px-3 rounded-lg bg-purple-500/20 text-purple-400 text-sm flex items-center justify-center gap-2 hover:bg-purple-500/30"
+                    >
+                      <Share2 className="w-4 h-4" /> Share
+                    </button>
+                    <button
+                      onClick={() => deleteProject(selectedProject)}
+                      className="py-2 px-3 rounded-lg bg-red-500/10 text-red-400 text-sm flex items-center justify-center gap-2 hover:bg-red-500/20"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                
+                {/* Conversations list */}
+                {conversations.length === 0 ? (
+                  <div className="text-center py-12 px-4">
+                    <MessageSquare className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+                    <p className="text-gray-500 text-sm">
+                      {selectedProject === 'general' ? 'No uncategorized chats' : 'No conversations in this project'}
+                    </p>
+                    <button 
+                      onClick={newConversation}
+                      className="mt-4 text-orange-400 text-sm font-medium"
+                    >
+                      Start a new chat →
                     </button>
                   </div>
                 ) : (
-                  filteredConversations.map(conv => (
-                    <ConversationItem
-                      key={conv.id}
-                      conversation={conv}
-                      isActive={conv.id === conversationId}
-                      onClick={() => loadConversation(conv.id)}
-                      onDelete={deleteConversation}
-                      onRename={openRenameModal}
-                    />
-                  ))
-                );
-              })()
+                  (() => {
+                    const filteredConversations = conversationSearch.trim()
+                      ? conversations.filter(c => 
+                          (c.title || 'Conversation').toLowerCase().includes(conversationSearch.toLowerCase())
+                        )
+                      : conversations;
+                    
+                    return filteredConversations.length === 0 ? (
+                      <div className="text-center py-12 px-4">
+                        <Search className="w-10 h-10 text-gray-700 mx-auto mb-3" />
+                        <p className="text-gray-500 text-sm">No matching conversations</p>
+                        <button 
+                          onClick={() => setConversationSearch('')}
+                          className="mt-4 text-orange-400 text-sm font-medium"
+                        >
+                          Clear search
+                        </button>
+                      </div>
+                    ) : (
+                      filteredConversations.map(conv => (
+                        <ConversationItem
+                          key={conv.id}
+                          conversation={conv}
+                          isActive={conv.id === conversationId}
+                          onClick={() => loadConversation(conv.id)}
+                          onDelete={deleteConversation}
+                          onRename={openRenameModal}
+                          onMove={openMoveToProjectSheet}
+                        />
+                      ))
+                    );
+                  })()
+                )}
+              </>
             )}
           </div>
         </div>
@@ -3682,6 +4076,211 @@ export default function MobileChat({
         onClose={() => setShowImportSheet(false)}
         onImport={handleImport}
       />
+
+      {/* Project Sheet (Create/Edit/Share) */}
+      {showProjectSheet && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={() => setShowProjectSheet(false)}>
+          <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
+            
+            {projectSheetMode === 'create' && (
+              <>
+                <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">
+                  <FolderPlus className="w-5 h-5 text-purple-400" /> New Project
+                </h3>
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="Project name"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-purple-500/40 outline-none mb-3"
+                  autoFocus
+                />
+                <textarea
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                  placeholder="Description (optional)"
+                  rows={2}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-purple-500/40 outline-none resize-none mb-4"
+                />
+                <button
+                  onClick={createProject}
+                  disabled={!newProjectName.trim()}
+                  className="w-full bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors"
+                >
+                  Create Project
+                </button>
+              </>
+            )}
+            
+            {projectSheetMode === 'edit' && (
+              <>
+                <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-orange-400" /> Edit Project
+                </h3>
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  placeholder="Project name"
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-orange-500/40 outline-none mb-3"
+                  autoFocus
+                />
+                <textarea
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                  placeholder="Description (optional)"
+                  rows={2}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-orange-500/40 outline-none resize-none mb-4"
+                />
+                <button
+                  onClick={updateProject}
+                  disabled={!newProjectName.trim()}
+                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-gray-600 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors"
+                >
+                  Save Changes
+                </button>
+              </>
+            )}
+            
+            {projectSheetMode === 'share' && (
+              <>
+                <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">
+                  <Share2 className="w-5 h-5 text-purple-400" /> Share "{editingProject?.name}"
+                </h3>
+                
+                {/* Share link */}
+                {projectShareLink?.code && (
+                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 mb-4">
+                    <div className="flex items-center gap-2 text-purple-400 text-sm mb-2">
+                      <Link2 className="w-4 h-4" /> Share Link
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs text-gray-400 truncate">
+                        {window.location.origin}/join/{projectShareLink.code}
+                      </code>
+                      <button
+                        onClick={copyShareLink}
+                        className="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-400 text-sm"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Invite by email */}
+                <p className="text-gray-400 text-sm mb-2">Invite by email</p>
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="email"
+                    value={shareEmail}
+                    onChange={(e) => setShareEmail(e.target.value)}
+                    placeholder="Enter email"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-purple-500/40 outline-none"
+                  />
+                  <select
+                    value={shareRole}
+                    onChange={(e) => setShareRole(e.target.value)}
+                    className="bg-white/5 border border-white/10 rounded-xl px-3 text-white text-sm"
+                  >
+                    <option value="viewer">Viewer</option>
+                    <option value="collaborator">Collaborator</option>
+                  </select>
+                </div>
+                <button
+                  onClick={shareProjectWithUser}
+                  disabled={!shareEmail.trim()}
+                  className="w-full bg-purple-500 hover:bg-purple-600 disabled:bg-gray-600 disabled:opacity-50 text-white font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                  <UserPlus className="w-4 h-4" /> Send Invite
+                </button>
+                
+                {/* Current members */}
+                {editingProject?.shared_with?.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-white/10">
+                    <p className="text-gray-400 text-sm mb-2">Shared with</p>
+                    {editingProject.shared_with.map((member, idx) => (
+                      <div key={idx} className="flex items-center gap-3 py-2">
+                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                          <User className="w-4 h-4 text-gray-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-white text-sm">{member.email || member.user_id}</p>
+                          <p className="text-gray-500 text-xs capitalize">{member.role}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Move to Project Sheet */}
+      {showMoveToProjectSheet && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={() => setShowMoveToProjectSheet(false)}>
+          <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
+            <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">
+              <Folder className="w-5 h-5 text-purple-400" /> Move to Project
+            </h3>
+            <p className="text-gray-400 text-sm mb-4">
+              Moving: "{movingConversation?.title || 'Conversation'}"
+            </p>
+            
+            {/* Project options */}
+            <button
+              onClick={() => moveConversationToProject(movingConversation.id, null)}
+              className="w-full text-left p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors mb-2 flex items-center gap-3"
+            >
+              <MessageSquare className="w-5 h-5 text-gray-400" />
+              <span className="text-white">Uncategorized</span>
+            </button>
+            
+            {projects.map(project => (
+              <button
+                key={project.id}
+                onClick={() => moveConversationToProject(movingConversation.id, project.id)}
+                className={`w-full text-left p-4 rounded-xl transition-colors mb-2 flex items-center gap-3 ${
+                  movingConversation?.project_id === project.id 
+                    ? 'bg-purple-500/20 border border-purple-500/30' 
+                    : 'bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <Folder className="w-5 h-5 text-purple-400" />
+                <div className="flex-1">
+                  <span className="text-white">{project.name}</span>
+                  {project.description && (
+                    <p className="text-gray-500 text-xs mt-0.5">{project.description}</p>
+                  )}
+                </div>
+                {movingConversation?.project_id === project.id && (
+                  <Check className="w-4 h-4 text-purple-400" />
+                )}
+              </button>
+            ))}
+            
+            {projects.length === 0 && (
+              <div className="text-center py-6">
+                <p className="text-gray-500 text-sm mb-3">No projects yet</p>
+                <button
+                  onClick={() => {
+                    setShowMoveToProjectSheet(false);
+                    setProjectSheetMode('create');
+                    setShowProjectSheet(true);
+                  }}
+                  className="text-purple-400 text-sm font-medium"
+                >
+                  Create your first project →
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Onboarding Modal - What is a SoulPrint? */}
       {showOnboarding && (

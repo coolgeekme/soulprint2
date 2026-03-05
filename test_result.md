@@ -1366,11 +1366,23 @@ agent_communication:
 
 test_plan:
   current_focus:
-    - "Projects CRUD APIs (GET/POST/PUT/DELETE /api/projects)"
-    - "Project Sharing APIs (POST /api/projects/:id/share, /unshare, /share-link)"
-    - "Project Join via Share Link (POST /api/projects/join)"
-    - "Move Conversation to Project (PUT /api/conversations/:id/project)"
-    - "Get Project Conversations (GET /api/projects/:id/conversations)"
+    - "Projects Frontend UI"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+  - task: "Projects Frontend UI (History Tab)"
+    implemented: true
+    working: "NA"
+    file: "components/mobile/MobileChat.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented Projects & Collaboration frontend UI in MobileChat.js. Features: (1) Projects list view in History tab showing all projects with conversation counts. (2) Create project sheet with name/description. (3) Edit project sheet. (4) Share project sheet with email invite and share link. (5) Move conversation to project sheet. (6) Filter conversations by project. (7) Uncategorized conversations section."
+
+agent_communication:
+  - agent: "main"
+    message: "FRONTEND IMPLEMENTATION COMPLETE: Projects & Collaboration UI implemented in MobileChat.js. Added: (1) State variables for projects management. (2) API integration for projects CRUD, sharing, and conversation organization. (3) History tab redesigned to show projects as folders with drill-down navigation. (4) Project creation/edit/share bottom sheets. (5) Move to project functionality for conversations. Backend APIs already tested and working (100% pass rate). Frontend needs user verification."
