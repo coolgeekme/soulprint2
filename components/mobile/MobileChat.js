@@ -4182,10 +4182,10 @@ export default function MobileChat({
                   <select
                     value={shareRole}
                     onChange={(e) => setShareRole(e.target.value)}
-                    className="bg-white/5 border border-white/10 rounded-xl px-3 text-white text-sm"
+                    className="bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-3 text-white text-sm cursor-pointer"
                   >
-                    <option value="viewer">Viewer</option>
-                    <option value="collaborator">Collaborator</option>
+                    <option value="viewer" className="bg-[#1a1a1a] text-white">Viewer</option>
+                    <option value="collaborator" className="bg-[#1a1a1a] text-white">Collaborator</option>
                   </select>
                 </div>
                 <button

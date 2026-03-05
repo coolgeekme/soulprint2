@@ -7133,10 +7133,10 @@ export default function ChatPage() {
                     <select
                       value={shareRole}
                       onChange={(e) => setShareRole(e.target.value)}
-                      className="bg-white/5 border border-white/10 rounded-xl px-3 text-sm text-white"
+                      className="bg-[#1a1a1a] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white cursor-pointer"
                     >
-                      <option value="viewer">Viewer</option>
-                      <option value="collaborator">Collaborator</option>
+                      <option value="viewer" className="bg-[#1a1a1a] text-white">Viewer</option>
+                      <option value="collaborator" className="bg-[#1a1a1a] text-white">Collaborator</option>
                     </select>
                   </div>
                   <button
