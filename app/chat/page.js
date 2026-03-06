@@ -4867,36 +4867,51 @@ export default function ChatPage() {
       (error) => {
         setLocationLoading(false);
         
-        // Build helpful error message based on error type
+        // Build helpful error message based on error type and platform
         let errorMsg = '';
-        let showManualInput = true;
+        
+        // Detect platform for better instructions
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+        const isChrome = /Chrome/.test(navigator.userAgent) && !/Edge/.test(navigator.userAgent);
+        const isFirefox = /Firefox/.test(navigator.userAgent);
+        const isSafari = /Safari/.test(navigator.userAgent) && !isChrome;
+        const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
         
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            if (isPwaIOS) {
-              errorMsg = 'Location access denied. For iOS PWA:\n\n1. Open Settings → Privacy & Security → Location Services\n2. Scroll to Safari Websites or your browser\n3. Enable "While Using the App"\n4. Return here and try again\n\nOr enter your location manually below.';
+            if (isIOS && isPWA) {
+              errorMsg = '**Location access denied**\n\nFor iOS PWA:\n1. Open Settings → Privacy & Security → Location Services\n2. Find Safari Websites\n3. Enable "While Using"\n4. Return and try again\n\nOr enter your location manually below.';
+            } else if (isIOS) {
+              errorMsg = '**Location access denied**\n\nOn iOS Safari:\n1. Open Settings → Safari → Location\n2. Set to "Ask" or "Allow"\n3. Refresh this page and try again\n\nOr enter your location manually below.';
+            } else if (isAndroid && isChrome) {
+              errorMsg = '**Location access denied**\n\nOn Android Chrome:\n1. Tap the lock icon in the address bar\n2. Tap "Permissions"\n3. Enable "Location"\n4. Refresh and try again\n\nOr enter your location manually below.';
+            } else if (isChrome) {
+              errorMsg = '**Location access denied**\n\nIn Chrome:\n1. Click the lock/info icon in the address bar\n2. Find "Location" and set to "Allow"\n3. Refresh the page\n\nOr enter your location manually below.';
+            } else if (isFirefox) {
+              errorMsg = '**Location access denied**\n\nIn Firefox:\n1. Click the lock icon in the address bar\n2. Click "Connection secure" → "More Information"\n3. Go to Permissions tab and allow Location\n\nOr enter your location manually below.';
+            } else if (isSafari) {
+              errorMsg = '**Location access denied**\n\nIn Safari:\n1. Go to Safari → Settings for This Website\n2. Set Location to "Allow"\n3. Refresh the page\n\nOr enter your location manually below.';
             } else {
-              errorMsg = 'Location permission denied. Please enable location access in your browser/device settings, or enter your location manually.';
+              errorMsg = '**Location access denied**\n\nPlease enable location access:\n1. Click the lock/site icon in your browser\'s address bar\n2. Find Location permissions and set to "Allow"\n3. Refresh the page and try again\n\nOr enter your location manually below.';
             }
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMsg = 'Could not determine your location. This may be due to poor GPS signal or network issues. Please enter your location manually.';
+            errorMsg = '**Could not determine your location**\n\nThis may be due to:\n- Poor GPS/network signal\n- Location services disabled on your device\n- VPN or network restrictions\n\nPlease enter your location manually below.';
             break;
           case error.TIMEOUT:
-            errorMsg = 'Location request timed out. Please try again or enter your location manually.';
+            errorMsg = '**Location request timed out**\n\nThis can happen with poor signal. Please try again or enter your location manually below.';
             break;
           default:
-            errorMsg = 'An error occurred getting your location. Please enter it manually.';
+            errorMsg = '**Could not get your location**\n\nPlease enter it manually below.';
         }
         
         setLocationError(errorMsg);
-        if (showManualInput) {
-          setShowLocationModal(true);
-        }
+        setShowLocationModal(true);
       },
       { 
         enableHighAccuracy: true, 
-        timeout: isPwaIOS ? 15000 : 10000, // Longer timeout for iOS PWA
+        timeout: (isIOSPwa() || /iPad|iPhone|iPod/.test(navigator.userAgent)) ? 15000 : 10000,
         maximumAge: 300000 // 5 minutes cache
       }
     );

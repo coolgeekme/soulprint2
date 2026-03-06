@@ -2025,23 +2025,35 @@ export default function MobileChat({
       (error) => {
         setLocationLoading(false);
         
+        // Detect platform for better instructions
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+        const isChrome = /Chrome/.test(navigator.userAgent) && !/Edge/.test(navigator.userAgent);
+        const isFirefox = /Firefox/.test(navigator.userAgent);
+        const isSafari = /Safari/.test(navigator.userAgent) && !isChrome;
+        const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        
         let errorMsg = '';
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            if (isPwaIOS) {
-              errorMsg = 'Location access denied.\n\nFor iOS PWA:\n1. Open Settings → Privacy & Security → Location Services\n2. Find Safari or your browser\n3. Enable "While Using"\n4. Try again\n\nOr enter your location manually below.';
+            if (isIOS && isPWA) {
+              errorMsg = 'Location denied.\n\nFor iOS PWA:\n1. Settings → Privacy → Location Services\n2. Find Safari Websites\n3. Enable "While Using"\n\nOr enter location manually.';
+            } else if (isIOS) {
+              errorMsg = 'Location denied.\n\nOn iOS:\n1. Settings → Safari → Location\n2. Set to "Ask" or "Allow"\n3. Refresh and retry\n\nOr enter manually.';
+            } else if (isAndroid) {
+              errorMsg = 'Location denied.\n\nOn Android:\n1. Tap lock icon in address bar\n2. Enable Location permission\n3. Refresh and retry\n\nOr enter manually.';
             } else {
-              errorMsg = 'Location permission denied. Please enable location access in your device settings, or enter manually.';
+              errorMsg = 'Location denied.\n\nEnable in browser settings or enter manually.';
             }
             break;
           case error.POSITION_UNAVAILABLE:
-            errorMsg = 'Could not determine your location. Please enter it manually.';
+            errorMsg = 'Could not detect location.\n\nPoor GPS signal or location services disabled.\n\nEnter location manually.';
             break;
           case error.TIMEOUT:
-            errorMsg = 'Location request timed out. Please try again or enter manually.';
+            errorMsg = 'Location request timed out.\n\nTry again or enter manually.';
             break;
           default:
-            errorMsg = 'Could not get your location. Please enter it manually.';
+            errorMsg = 'Could not get location.\n\nEnter manually.';
         }
         
         setLocationError(errorMsg);
