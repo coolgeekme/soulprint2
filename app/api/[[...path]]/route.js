@@ -9309,6 +9309,17 @@ async function handleRedeemBetaCode(request) {
     return ok({ success: true, message: 'Already accepted' });
   }
 
+  // Check if user has completed required onboarding questions
+  // Required fields: display_name, discovery_source (how did you find us)
+  const profile = await db.collection('profiles').findOne({ user_id: user.id });
+  
+  const hasDisplayName = profile?.display_name || user.profile?.display_name;
+  const hasDiscoverySource = profile?.discovery_source || user.profile?.discovery_source;
+  
+  if (!hasDisplayName || !hasDiscoverySource) {
+    return err('Please complete the onboarding questions before redeeming your access code. Go to the profile setup to answer required questions.', 400);
+  }
+
   const codeToCheck = code.toUpperCase().trim();
   let validCode = false;
   let usedCodeSource = null;

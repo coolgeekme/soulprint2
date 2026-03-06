@@ -82,7 +82,15 @@ export default function OnboardingPage() {
           onboarding_complete: true,
         }),
       });
-      router.push('/assessment/select');
+      // Check if user is accepted or waitlisted
+      const meRes = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+      const meData = await meRes.json();
+      if (meData.accepted) {
+        router.push('/assessment/select');
+      } else {
+        // User is still waitlisted, redirect back to waitlist
+        router.push('/waitlist');
+      }
     } catch (err) {
       alert('Error saving profile. Please try again.');
     } finally {
