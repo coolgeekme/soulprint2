@@ -7,11 +7,12 @@ import {
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
-  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload
+  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { MicrophoneIcon, SendIcon, SparklesIcon, AttachIcon, CloudUploadIcon } from '@/components/icons/SoulPrintIcons';
+import { useTheme } from '@/lib/providers/ThemeProvider';
 
 // Full MODELS list matching desktop
 const MODELS = [
@@ -731,6 +732,35 @@ const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename,
   );
 };
 
+// Theme Toggle Component for Profile
+const ThemeToggle = () => {
+  const { theme, toggleTheme, isDark } = useTheme();
+  
+  return (
+    <button 
+      onClick={toggleTheme}
+      className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-4 flex items-center justify-between transition-colors mb-3"
+    >
+      <div className="flex items-center gap-3">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isDark ? 'bg-indigo-500/20' : 'bg-yellow-500/20'}`}>
+          {isDark ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-yellow-500" />}
+        </div>
+        <div className="text-left">
+          <span className="text-white text-sm block">Appearance</span>
+          <span className="text-gray-500 text-xs">{isDark ? 'Dark mode' : 'Light mode'}</span>
+        </div>
+      </div>
+      <div className={`w-12 h-6 rounded-full relative transition-colors ${isDark ? 'bg-indigo-500/30' : 'bg-yellow-500/30'}`}>
+        <div className={`absolute top-0.5 w-5 h-5 rounded-full transition-all ${
+          isDark 
+            ? 'left-0.5 bg-indigo-500' 
+            : 'right-0.5 bg-yellow-500'
+        }`} />
+      </div>
+    </button>
+  );
+};
+
 // Profile View
 const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClick, announcements, onAnnouncementsClick, onEditName, inviteData, onInviteClick, onImportClick }) => (
   <div className="min-h-screen bg-sp-black pt-16 pb-24 px-4">
@@ -859,6 +889,9 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClic
       </div>
       <ChevronRight className="w-5 h-5 text-gray-500" />
     </button>
+
+    {/* Theme Toggle */}
+    <ThemeToggle />
 
     {/* Settings Button */}
     <button 

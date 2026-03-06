@@ -11,13 +11,14 @@ import {
   MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain,
   GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal,
   Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, ChevronRight, LogOut, Copy, Edit3, Square, ArrowRight,
-  Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft
+  Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { CloudUploadIcon, RobotIcon, FeedbackIcon, MicrophoneIcon, SendIcon, SparklesIcon, ImagePlusIcon, VideoIcon, LocationIcon, StopIcon, AttachIcon, PlusIcon } from '@/components/icons/SoulPrintIcons';
 import InstallPrompt from '@/app/components/InstallPrompt';
 import { useIsMobile } from '@/hooks/use-mobile';
 import MobileChat from '@/components/mobile/MobileChat';
+import { useTheme } from '@/lib/providers/ThemeProvider';
 
 // Image Generation Models (sorted by cost - cheapest first)
 const IMAGE_MODELS = [
@@ -1957,6 +1958,101 @@ function FeedbackModal({ onClose, token }) {
   );
 }
 
+// Appearance Tab Component - Theme toggle
+function AppearanceTab() {
+  const { theme, setTheme, isDark } = useTheme();
+  
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-white text-sm font-semibold mb-1">🎨 Appearance</h3>
+        <p className="text-gray-500 text-xs mb-4">Customize how SoulPrint looks</p>
+      </div>
+
+      {/* Theme Selection */}
+      <div className="space-y-3">
+        <p className="text-gray-500 text-[10px] font-bold tracking-widest uppercase">Theme</p>
+        
+        <div className="grid grid-cols-2 gap-3">
+          {/* Dark Mode */}
+          <button
+            onClick={() => setTheme('dark')}
+            className={`relative p-4 rounded-xl border-2 transition-all ${
+              isDark
+                ? 'border-orange-500 bg-orange-500/10'
+                : 'border-white/10 bg-white/5 hover:border-white/20'
+            }`}
+          >
+            <div className="flex flex-col items-center gap-2">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isDark ? 'bg-[#0D1217]' : 'bg-[#1a1a1a]'}`}>
+                <Moon className="w-6 h-6 text-orange-400" />
+              </div>
+              <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-400'}`}>
+                Dark
+              </span>
+              {isDark && (
+                <div className="absolute top-2 right-2">
+                  <Check className="w-4 h-4 text-orange-500" />
+                </div>
+              )}
+            </div>
+            {/* Preview */}
+            <div className="mt-3 p-2 rounded-lg bg-[#0D1217] border border-white/10">
+              <div className="h-1.5 w-8 bg-orange-500 rounded mb-1.5"></div>
+              <div className="h-1 w-full bg-white/20 rounded mb-1"></div>
+              <div className="h-1 w-3/4 bg-white/10 rounded"></div>
+            </div>
+          </button>
+
+          {/* Light Mode */}
+          <button
+            onClick={() => setTheme('light')}
+            className={`relative p-4 rounded-xl border-2 transition-all ${
+              !isDark
+                ? 'border-orange-500 bg-orange-500/10'
+                : 'border-white/10 bg-white/5 hover:border-white/20'
+            }`}
+          >
+            <div className="flex flex-col items-center gap-2">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${!isDark ? 'bg-white shadow-md' : 'bg-gray-200'}`}>
+                <Sun className="w-6 h-6 text-orange-500" />
+              </div>
+              <span className={`text-sm font-medium ${!isDark ? 'text-white' : 'text-gray-400'}`}>
+                Light
+              </span>
+              {!isDark && (
+                <div className="absolute top-2 right-2">
+                  <Check className="w-4 h-4 text-orange-500" />
+                </div>
+              )}
+            </div>
+            {/* Preview */}
+            <div className="mt-3 p-2 rounded-lg bg-white border border-gray-200">
+              <div className="h-1.5 w-8 bg-orange-500 rounded mb-1.5"></div>
+              <div className="h-1 w-full bg-gray-300 rounded mb-1"></div>
+              <div className="h-1 w-3/4 bg-gray-200 rounded"></div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Info Note */}
+      <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+        <div className="flex items-start gap-3">
+          <Sparkles className="w-5 h-5 text-orange-400 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-white text-sm font-medium">Your preference is saved</p>
+            <p className="text-gray-400 text-xs mt-1">
+              SoulPrint will remember your theme choice across sessions. 
+              The orange brand colors work beautifully in both themes!
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Privacy & Data Management Tab Component
 function PrivacyTab({ token }) {
   const [dataUsage, setDataUsage] = useState(null);
@@ -2682,7 +2778,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     } catch (e) {}
   };
 
-  const tabs = ['soulprint', 'imports', 'telegram', 'schedules', 'memories', 'announcements', 'profile', 'privacy', 'feedback'];
+  const tabs = ['soulprint', 'imports', 'telegram', 'schedules', 'memories', 'announcements', 'profile', 'privacy', 'appearance', 'feedback'];
 
   // SoulPrint data
   const [soulPrintData, setSoulPrintData] = useState(null);
@@ -2788,7 +2884,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
             {tabs.map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className={`px-2 py-2 text-[9px] sm:text-[10px] font-semibold tracking-wide uppercase transition-colors rounded-lg text-center ${activeTab === tab ? 'text-orange-500 bg-orange-500/10 border border-orange-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent'}`}>
-                <span className="block text-sm mb-0.5">{tab === 'soulprint' ? '🪪' : tab === 'imports' ? '📥' : tab === 'telegram' ? '💬' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : '📝'}</span>
+                <span className="block text-sm mb-0.5">{tab === 'soulprint' ? '🪪' : tab === 'imports' ? '📥' : tab === 'telegram' ? '💬' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : tab === 'appearance' ? '🎨' : '📝'}</span>
                 {tab}
               </button>
             ))}
@@ -4158,6 +4254,11 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           {/* PRIVACY TAB */}
           {activeTab === 'privacy' && (
             <PrivacyTab token={token} />
+          )}
+
+          {/* APPEARANCE TAB */}
+          {activeTab === 'appearance' && (
+            <AppearanceTab />
           )}
 
           {/* FEEDBACK TAB */}

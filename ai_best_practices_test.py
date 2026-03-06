@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://chat-organizer-10.preview.emergentagent.com"
+BASE_URL = "https://theme-feature-test.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

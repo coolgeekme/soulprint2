@@ -1,4 +1,5 @@
 import './globals.css'
+import ThemeProvider from '@/lib/providers/ThemeProvider'
 
 export const metadata = {
   title: 'SoulPrint — Your Personal AI',
@@ -21,9 +22,23 @@ export const viewport = {
   interactiveWidget: 'resizes-content',
 }
 
+// Script to set initial theme before React hydration (prevents flash)
+const themeScript = `
+(function() {
+  try {
+    var theme = localStorage.getItem('soulprint-theme') || 'dark';
+    document.documentElement.classList.add(theme);
+    if (theme === 'light') {
+      document.body.style.backgroundColor = '#ffffff';
+      document.body.style.color = '#0f172a';
+    }
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         {/* Google Tag Manager */}
         <script dangerouslySetInnerHTML={{__html:`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -40,8 +55,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="SoulPrint" />
         <script dangerouslySetInnerHTML={{__html:'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);'}} />
+        <script dangerouslySetInnerHTML={{__html: themeScript}} />
       </head>
-      <body className="bg-[#0a0a0a] text-white antialiased">
+      <body className="bg-[#0a0a0a] text-white antialiased" suppressHydrationWarning>
         {/* Google Tag Manager (noscript) */}
         <noscript>
           <iframe 
@@ -52,7 +68,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           />
         </noscript>
         {/* End Google Tag Manager (noscript) */}
-        {children}
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )

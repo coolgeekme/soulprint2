@@ -13,6 +13,7 @@
     --sp-gray: #707176;
     --sp-light: #D2D3D7;
     
+    /* Dark Mode (Default) */
     --background: 214 23% 7%;
     --foreground: 0 0% 95%;
     --card: 214 20% 10%;
@@ -46,6 +47,63 @@
     --sidebar-accent-foreground: 220 5% 80%;
     --sidebar-border: 214 10% 18%;
     --sidebar-ring: 14 100% 48%;
+    
+    /* Theme colors - Dark mode defaults */
+    --theme-bg: #0D1217;
+    --theme-bg-secondary: #111820;
+    --theme-bg-tertiary: #1a1a1a;
+    --theme-bg-card: #141a21;
+    --theme-text: #ffffff;
+    --theme-text-secondary: #9ca3af;
+    --theme-text-muted: #6b7280;
+    --theme-border: rgba(255, 255, 255, 0.1);
+    --theme-border-strong: rgba(255, 255, 255, 0.2);
+  }
+  
+  /* Light Mode */
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 214 23% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 214 23% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 214 23% 7%;
+    --primary: 14 100% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 10% 95%;
+    --secondary-foreground: 214 20% 15%;
+    --muted: 214 10% 96%;
+    --muted-foreground: 214 10% 35%;
+    --accent: 14 100% 48%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 10% 88%;
+    --input: 214 10% 94%;
+    --ring: 14 100% 48%;
+    --sidebar-background: 0 0% 99%;
+    --sidebar-foreground: 214 20% 15%;
+    --sidebar-primary: 14 100% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 10% 96%;
+    --sidebar-accent-foreground: 214 20% 15%;
+    --sidebar-border: 214 10% 90%;
+    --sidebar-ring: 14 100% 48%;
+    
+    /* Theme colors - Light mode with white bg, orange/black brand */
+    --theme-bg: #ffffff;
+    --theme-bg-secondary: #f8fafc;
+    --theme-bg-tertiary: #f1f5f9;
+    --theme-bg-card: #ffffff;
+    --theme-text: #0D1217;
+    --theme-text-secondary: #4B5057;
+    --theme-text-muted: #707176;
+    --theme-border: rgba(13, 18, 23, 0.1);
+    --theme-border-strong: rgba(13, 18, 23, 0.2);
+    
+    /* SoulPrint brand colors for light mode - keep orange prominent */
+    --sp-orange: #F64000;
+    --sp-black: #0D1217;
   }
 }
 
@@ -93,11 +151,19 @@
 
 /* Grid background overlay */
 .grid-bg {
-  background-color: #0D1217;
+  background-color: var(--theme-bg);
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    linear-gradient(var(--theme-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--theme-border) 1px, transparent 1px);
   background-size: 50px 50px;
+}
+
+/* Light mode grid background */
+.light .grid-bg {
+  background-color: var(--theme-bg);
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
 }
 
 /* Orange glow top */
@@ -367,3 +433,220 @@ body {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
+
+/* ========================================
+   LIGHT MODE OVERRIDES
+   ======================================== */
+
+/* Light mode body styles */
+.light body,
+html.light body {
+  background-color: #ffffff !important;
+  color: #0D1217 !important;
+}
+
+/* Light mode dark card override */
+.light .dark-card {
+  background: rgba(13, 18, 23, 0.03);
+  border: 1px solid rgba(13, 18, 23, 0.1);
+}
+
+/* Light mode chip */
+.light .chip {
+  border: 1px solid rgba(13, 18, 23, 0.2);
+  color: rgba(13, 18, 23, 0.8);
+}
+
+.light .chip:hover {
+  border-color: rgba(246, 64, 0, 0.5);
+  color: #0D1217;
+}
+
+.light .chip.selected {
+  background: rgba(246, 64, 0, 0.1);
+  border-color: #F64000;
+  color: #F64000;
+}
+
+/* Light mode pillar card */
+.light .pillar-card {
+  background: rgba(13, 18, 23, 0.02);
+  border: 1px solid rgba(13, 18, 23, 0.1);
+}
+
+.light .pillar-card:hover {
+  border-color: rgba(246, 64, 0, 0.3);
+  background: rgba(246, 64, 0, 0.05);
+}
+
+/* Light mode FAQ */
+.light .faq-item {
+  border-bottom: 1px solid rgba(13, 18, 23, 0.1);
+}
+
+/* Light mode admin table */
+.light .admin-table tr:hover td {
+  background: rgba(246, 64, 0, 0.05);
+}
+
+/* Light mode mobile input area */
+.light .mobile-input-area {
+  background: linear-gradient(to top, #ffffff 85%, transparent);
+}
+
+/* Light mode grid background */
+.light .grid-bg {
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(rgba(13, 18, 23, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(13, 18, 23, 0.05) 1px, transparent 1px);
+}
+
+/* Light mode common background classes */
+.light .bg-sp-black,
+.light .bg-\[\#0a0a0a\],
+.light .bg-\[\#0D1217\],
+.light .bg-\[\#111\],
+.light .bg-\[\#111820\],
+.light .bg-\[\#141a21\] {
+  background-color: #ffffff !important;
+}
+
+/* Light mode secondary backgrounds */
+.light .bg-black\/80,
+.light .bg-black\/70,
+.light .bg-black\/60,
+.light .bg-black\/50 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Light mode text colors */
+.light .text-white {
+  color: #0D1217 !important;
+}
+
+.light .text-gray-100,
+.light .text-gray-200 {
+  color: #1e293b !important;
+}
+
+.light .text-gray-300 {
+  color: #334155 !important;
+}
+
+.light .text-gray-400 {
+  color: #475569 !important;
+}
+
+.light .text-gray-500 {
+  color: #64748b !important;
+}
+
+.light .text-gray-600 {
+  color: #475569 !important;
+}
+
+/* Light mode borders */
+.light .border-white\/10,
+.light .border-white\/5 {
+  border-color: rgba(13, 18, 23, 0.1) !important;
+}
+
+.light .border-white\/20 {
+  border-color: rgba(13, 18, 23, 0.15) !important;
+}
+
+/* Light mode backgrounds with opacity */
+.light .bg-white\/5,
+.light .bg-white\/3 {
+  background-color: rgba(13, 18, 23, 0.03) !important;
+}
+
+.light .bg-white\/10 {
+  background-color: rgba(13, 18, 23, 0.05) !important;
+}
+
+/* Light mode hover states */
+.light .hover\:bg-white\/5:hover {
+  background-color: rgba(13, 18, 23, 0.05) !important;
+}
+
+.light .hover\:bg-white\/10:hover {
+  background-color: rgba(13, 18, 23, 0.08) !important;
+}
+
+/* Light mode tabs scroll indicator */
+.light .tabs-scroll-container::after {
+  background: linear-gradient(to right, transparent, #ffffff);
+}
+
+/* Light mode scrollbar */
+.light::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+.light::-webkit-scrollbar-thumb {
+  background: rgba(246, 64, 0, 0.4);
+}
+
+/* Keep orange accents the same in light mode */
+.light .text-orange-400,
+.light .text-orange-500 {
+  color: #F64000 !important;
+}
+
+.light .bg-orange-500\/10,
+.light .bg-orange-500\/20 {
+  background-color: rgba(246, 64, 0, 0.1) !important;
+}
+
+.light .border-orange-500\/20,
+.light .border-orange-500\/30 {
+  border-color: rgba(246, 64, 0, 0.25) !important;
+}
+
+/* Light mode gradient text stays vibrant */
+.light .from-orange-500,
+.light .to-amber-500 {
+  --tw-gradient-from: #F64000;
+  --tw-gradient-to: #f59e0b;
+}
+
+/* Light mode input fields */
+.light input,
+.light textarea,
+.light select {
+  background-color: #f8fafc !important;
+  border-color: rgba(13, 18, 23, 0.15) !important;
+  color: #0D1217 !important;
+}
+
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Light mode focus rings */
+.light input:focus,
+.light textarea:focus,
+.light select:focus {
+  border-color: #F64000 !important;
+  box-shadow: 0 0 0 2px rgba(246, 64, 0, 0.1) !important;
+}
+
+/* Light mode modals/dialogs */
+.light .bg-\[\#141a21\] {
+  background-color: #ffffff !important;
+  border-color: rgba(13, 18, 23, 0.15) !important;
+}
+
+/* Light mode message bubbles */
+.light .bg-\[\#1a1a1a\] {
+  background-color: #f1f5f9 !important;
+}
+
+/* Ensure links remain readable */
+.light a.text-gray-500:hover {
+  color: #0D1217 !important;
+}
+
