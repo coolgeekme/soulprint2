@@ -6892,6 +6892,29 @@ async function handleAdminGetMetrics(request) {
   const usersWithImports = await db.collection('import_jobs').distinct('user_id');
   const importRate = totalUsers > 0 ? Math.round((usersWithImports.length / totalUsers) * 100) : 0;
 
+  // ── Telegram Metrics ─────────────────────────────────────────────────────────
+  const telegramLinkedUsers = await db.collection('telegram_mappings').countDocuments({ linked: true });
+  const telegramConversations = await db.collection('conversations').countDocuments({ source: 'telegram' });
+  const telegramMessages = await db.collection('messages').countDocuments({ source: 'telegram' });
+  const telegramMessagesLast30d = await db.collection('messages').countDocuments({ 
+    source: 'telegram', 
+    created_at: { $gte: thirtyDaysAgo } 
+  });
+  
+  // Telegram active users (sent message in last 7 days)
+  const telegramActiveUsers7d = await db.collection('messages').aggregate([
+    { $match: { source: 'telegram', role: 'user', created_at: { $gte: sevenDaysAgo } } },
+    { $lookup: { from: 'conversations', localField: 'conversation_id', foreignField: 'id', as: 'conv' } },
+    { $unwind: '$conv' },
+    { $group: { _id: '$conv.user_id' } },
+    { $count: 'total' }
+  ]).toArray();
+  const telegramWAU = telegramActiveUsers7d[0]?.total || 0;
+
+  // Web vs Telegram breakdown
+  const webMessages = totalMessages - telegramMessages;
+  const webMessagesLast30d = totalMessagesLast30d - telegramMessagesLast30d;
+
   // CSAT
   const thumbsUp = await db.collection('feedback').countDocuments({ rating: 'up' });
   const thumbsDown = await db.collection('feedback').countDocuments({ rating: 'down' });
@@ -7162,6 +7185,26 @@ async function handleAdminGetMetrics(request) {
     // Grand totals (LLM + Media)
     grand_total_cost: parseFloat(grandTotalCost.toFixed(4)),
     grand_total_cost_30d: parseFloat(grandTotalCostLast30d.toFixed(4)),
+    // Telegram metrics
+    telegram: {
+      linked_users: telegramLinkedUsers,
+      conversations: telegramConversations,
+      messages_total: telegramMessages,
+      messages_30d: telegramMessagesLast30d,
+      weekly_active_users: telegramWAU,
+      adoption_rate: totalUsers > 0 ? Math.round((telegramLinkedUsers / totalUsers) * 100) : 0,
+    },
+    // Platform breakdown
+    platform_breakdown: {
+      web: {
+        messages_total: webMessages,
+        messages_30d: webMessagesLast30d,
+      },
+      telegram: {
+        messages_total: telegramMessages,
+        messages_30d: telegramMessagesLast30d,
+      },
+    },
     // Legacy (for backwards compatibility)
     est_cost_per_user_month: costPerAcceptedUserLast30d,
     est_projected_monthly_cost: parseFloat(totalCostLast30d.toFixed(4)),

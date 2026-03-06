@@ -5017,6 +5017,74 @@ export default function AdminPage() {
                     <MetricCard label="Import Rate" value={`${metrics.import_adoption_rate}%`} sub="Data imports" icon={Upload} color="green" />
                     <MetricCard label="Multi-Session" value={`${metrics.multi_session_rate}%`} sub="Users with 2+ convos" icon={Database} color="blue" />
                   </div>
+                  
+                  {/* Telegram Metrics */}
+                  {metrics.telegram && (
+                    <>
+                      <p className="text-[10px] font-bold text-blue-400 tracking-widest uppercase mt-6 mb-3">📱 Telegram</p>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                        <MetricCard 
+                          label="Linked Users" 
+                          value={metrics.telegram.linked_users || 0} 
+                          sub={`${metrics.telegram.adoption_rate || 0}% adoption`}
+                          icon={MessageSquare} 
+                          color="blue" 
+                        />
+                        <MetricCard 
+                          label="TG Messages" 
+                          value={metrics.telegram.messages_total || 0} 
+                          sub={`${metrics.telegram.messages_30d || 0} last 30d`}
+                          icon={MessageSquare} 
+                          color="green" 
+                        />
+                        <MetricCard 
+                          label="TG WAU" 
+                          value={metrics.telegram.weekly_active_users || 0} 
+                          sub="Weekly active"
+                          icon={TrendingUp} 
+                          color="purple" 
+                        />
+                        <MetricCard 
+                          label="TG Convos" 
+                          value={metrics.telegram.conversations || 0} 
+                          sub="Total conversations"
+                          icon={Database} 
+                          color="orange" 
+                        />
+                      </div>
+                      
+                      {/* Platform Breakdown */}
+                      <div className="mt-4 p-4 bg-white/3 border border-white/5 rounded-xl">
+                        <p className="text-xs font-medium text-gray-400 mb-3">Platform Message Distribution</p>
+                        <div className="flex gap-4">
+                          <div className="flex-1">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-gray-500">Web App</span>
+                              <span className="text-white">{metrics.platform_breakdown?.web?.messages_total || 0}</span>
+                            </div>
+                            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-orange-500 rounded-full" 
+                                style={{ width: `${metrics.total_messages > 0 ? ((metrics.platform_breakdown?.web?.messages_total || 0) / metrics.total_messages * 100) : 0}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-gray-500">Telegram</span>
+                              <span className="text-white">{metrics.platform_breakdown?.telegram?.messages_total || 0}</span>
+                            </div>
+                            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-blue-500 rounded-full" 
+                                style={{ width: `${metrics.total_messages > 0 ? ((metrics.platform_breakdown?.telegram?.messages_total || 0) / metrics.total_messages * 100) : 0}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 
