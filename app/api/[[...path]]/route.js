@@ -382,8 +382,13 @@ const PLACE_TYPES = {
   museum: 'museum',
   library: 'library',
   movie: 'movie_theater',
+  movies: 'movie_theater',
   cinema: 'movie_theater',
+  cinemas: 'movie_theater',
   theater: 'movie_theater',
+  theaters: 'movie_theater',
+  'movie theater': 'movie_theater',
+  'movie theaters': 'movie_theater',
   parking: 'parking',
   airport: 'airport',
   trainstation: 'train_station',
@@ -3754,10 +3759,11 @@ async function handleChatStream(request) {
         const detectPlacesIntent = (text) => {
           if (!text) return false;
           const lower = text.toLowerCase();
-          return /\b(find|where|what|show me|looking for|recommend|suggest)\s+(me\s+)?(a\s+|some\s+)?(good\s+|best\s+|closest\s+|nearest\s+)?(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|hospitals?|gyms?|banks?|atms?|groceries?|stores?|malls?|parks?|museums?|movies?|theaters?|parking|airports?)\b/i.test(text)
-            || /\b(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|gyms?|banks?|parks?|stores?)\s+(near|in|around|close to)\b/i.test(text)
-            || /\b(what('s| is)|where('s| is|are)).*(near me|nearby|around here|close by)\b/i.test(lower)
-            || /\bnearby\s+(restaurants?|cafes?|bars?|hotels?|stores?|places?)/i.test(lower);
+          return /\b(find|where|what|show me|looking for|recommend|suggest|any|are there|is there)\s+(me\s+)?(a\s+|some\s+)?(good\s+|best\s+|closest\s+|nearest\s+)?(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|hospitals?|gyms?|banks?|atms?|groceries?|stores?|malls?|parks?|museums?|movies?|theaters?|movie\s*theaters?|cinemas?|parking|airports?)\b/i.test(text)
+            || /\b(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|gyms?|banks?|parks?|stores?|movie\s*theaters?|theaters?|cinemas?)\s+(near|in|around|close to)\b/i.test(text)
+            || /\b(what('s| is)|where('s| is|are)|any).*(near me|nearby|around here|close by)\b/i.test(lower)
+            || /\bnearby\s+(restaurants?|cafes?|bars?|hotels?|stores?|places?|theaters?|cinemas?|movie\s*theaters?)/i.test(lower)
+            || /\b(movie\s*theaters?|cinemas?|theaters?)\s*(near|around|close)/i.test(lower);
         };
 
         if (detectPlacesIntent(sanitizedContent) && attachments.length === 0) {
@@ -12062,9 +12068,10 @@ async function handleTelegramWebhook(request) {
     || sanitizedText.match(/\b(twitter|instagram|linkedin|tiktok|facebook|threads)\s+(post|caption|content)\s+(about|for|on)\b/i);
 
   // Auto-detect location/places search intent
-  const isPlacesRequest = /\b(find|where|what|show me|looking for|recommend|suggest)\s+(me\s+)?(a\s+|some\s+)?(good\s+|best\s+|closest\s+|nearest\s+)?(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|hospitals?|gyms?|banks?|atms?|groceries?|stores?|malls?|parks?|museums?|movies?|theaters?|parking|airports?)\b/i.test(sanitizedText)
-    || /\b(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|gyms?|banks?|parks?|stores?)\s+(near|in|around|close to)\b/i.test(sanitizedText)
-    || /\b(what('s| is)|where('s| is|are)).*(near me|nearby|around here|close by)\b/i.test(lowerText);
+  const isPlacesRequest = /\b(find|where|what|show me|looking for|recommend|suggest|any|are there|is there)\s+(me\s+)?(a\s+|some\s+)?(good\s+|best\s+|closest\s+|nearest\s+)?(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|hospitals?|gyms?|banks?|atms?|groceries?|stores?|malls?|parks?|museums?|movies?|theaters?|movie\s*theaters?|cinemas?|parking|airports?)\b/i.test(sanitizedText)
+    || /\b(restaurants?|cafes?|coffee shops?|bars?|hotels?|gas stations?|pharmacies?|gyms?|banks?|parks?|stores?|movie\s*theaters?|theaters?|cinemas?)\s+(near|in|around|close to)\b/i.test(sanitizedText)
+    || /\b(what('s| is)|where('s| is|are)|any).*(near me|nearby|around here|close by)\b/i.test(lowerText)
+    || /\b(movie\s*theaters?|cinemas?|theaters?)\s*(near|around|close)/i.test(lowerText);
 
   if (isImageRequest || isVideoRequest || socialMatch || isPlacesRequest) {
     try {
