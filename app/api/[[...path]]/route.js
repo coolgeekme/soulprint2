@@ -9320,6 +9320,16 @@ async function handleRedeemBetaCode(request) {
     return err('Please complete the onboarding questions before redeeming your access code. Go to the profile setup to answer required questions.', 400);
   }
 
+  // Check if user has completed assessment (Quick Start = 12 questions, Full = 36 questions)
+  const assessmentAnswerCount = await db.collection('assessment_answers').countDocuments({ user_id: user.id });
+  const gradualAnswerCount = await db.collection('gradual_assessment_progress').countDocuments({ user_id: user.id });
+  const totalAnswers = assessmentAnswerCount + gradualAnswerCount;
+  
+  // Require at least 12 answers (Quick Start minimum)
+  if (totalAnswers < 12) {
+    return err(`Please complete the assessment questions before redeeming your access code. You have answered ${totalAnswers}/12 required questions.`, 400);
+  }
+
   const codeToCheck = code.toUpperCase().trim();
   let validCode = false;
   let usedCodeSource = null;

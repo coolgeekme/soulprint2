@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { KeyRound, Loader2, CheckCircle2, XCircle, User } from 'lucide-react';
+import { KeyRound, Loader2, CheckCircle2, XCircle, User, ClipboardList } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 export default function WaitlistPage() {
@@ -12,12 +12,16 @@ export default function WaitlistPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [hasCompletedQuestions, setHasCompletedQuestions] = useState(false);
+  const [hasCompletedProfile, setHasCompletedProfile] = useState(false);
+  const [hasCompletedAssessment, setHasCompletedAssessment] = useState(false);
+  const [assessmentProgress, setAssessmentProgress] = useState(0);
   const [checkingProfile, setCheckingProfile] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('sp_token');
     if (!token) { router.push('/auth'); return; }
+    
+    // Check user status and profile completion
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => {
@@ -25,10 +29,21 @@ export default function WaitlistPage() {
           router.push('/chat');
         }
         if (d.profile?.assistant_name) setBotName(d.profile.assistant_name);
-        // Check if user has completed required questions
+        // Check if user has completed required profile questions
         const hasName = d.profile?.display_name;
         const hasDiscovery = d.profile?.discovery_source;
-        setHasCompletedQuestions(hasName && hasDiscovery);
+        setHasCompletedProfile(hasName && hasDiscovery);
+      })
+      .catch(() => {});
+    
+    // Check assessment progress
+    fetch('/api/assessment/progress', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => {
+        const answered = d.answered || 0;
+        setAssessmentProgress(answered);
+        // Quick Start requires 12 questions minimum
+        setHasCompletedAssessment(answered >= 12);
         setCheckingProfile(false);
       })
       .catch(() => { setCheckingProfile(false); });
@@ -106,20 +121,49 @@ export default function WaitlistPage() {
             <div className="flex items-center justify-center py-4">
               <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
             </div>
-          ) : !hasCompletedQuestions ? (
-            // User needs to complete questions first
+          ) : !hasCompletedProfile ? (
+            // Step 1: User needs to complete profile questions first
             <div className="text-center py-2">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <div className="w-6 h-6 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center font-bold">1</div>
+                <div className="w-16 h-0.5 bg-gray-700"></div>
+                <div className="w-6 h-6 rounded-full bg-gray-700 text-gray-500 text-xs flex items-center justify-center font-bold">2</div>
+              </div>
               <div className="w-10 h-10 mx-auto bg-orange-500/10 rounded-full flex items-center justify-center mb-3">
                 <User className="w-5 h-5 text-orange-400" />
               </div>
               <p className="text-gray-400 text-xs mb-3">
-                Complete your profile questions before redeeming an access code
+                Step 1: Complete your profile questions
               </p>
               <Link 
                 href="/onboarding" 
                 className="inline-block w-full btn-orange py-3 rounded-lg text-sm tracking-widest"
               >
                 COMPLETE PROFILE →
+              </Link>
+            </div>
+          ) : !hasCompletedAssessment ? (
+            // Step 2: User needs to complete assessment
+            <div className="text-center py-2">
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <div className="w-6 h-6 rounded-full bg-green-500 text-white text-xs flex items-center justify-center font-bold">✓</div>
+                <div className="w-16 h-0.5 bg-orange-500"></div>
+                <div className="w-6 h-6 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center font-bold">2</div>
+              </div>
+              <div className="w-10 h-10 mx-auto bg-orange-500/10 rounded-full flex items-center justify-center mb-3">
+                <ClipboardList className="w-5 h-5 text-orange-400" />
+              </div>
+              <p className="text-gray-400 text-xs mb-2">
+                Step 2: Complete the assessment questions
+              </p>
+              <p className="text-orange-400 text-xs mb-3">
+                Progress: {assessmentProgress}/12 questions
+              </p>
+              <Link 
+                href="/assessment/select" 
+                className="inline-block w-full btn-orange py-3 rounded-lg text-sm tracking-widest"
+              >
+                {assessmentProgress > 0 ? 'CONTINUE ASSESSMENT →' : 'START ASSESSMENT →'}
               </Link>
             </div>
           ) : success ? (

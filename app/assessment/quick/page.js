@@ -167,8 +167,18 @@ export default function QuickAssessmentPage() {
           localStorage.removeItem(`layered_answer_${id}`);
         });
         
-        // Redirect to chat after showing summary
-        setTimeout(() => router.push('/chat'), 3000);
+        // Check if user is accepted before redirecting
+        const meRes = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+        const me = await meRes.json();
+        
+        // Redirect based on user status
+        setTimeout(() => {
+          if (me.accepted || me.role === 'admin' || me.role === 'superadmin') {
+            router.push('/chat');
+          } else {
+            router.push('/waitlist');
+          }
+        }, 3000);
       }
     } catch (e) {
       console.error('Failed to complete assessment:', e);
@@ -203,7 +213,7 @@ export default function QuickAssessmentPage() {
           <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <Check className="w-10 h-10 text-green-500" />
           </div>
-          <h1 className="text-2xl font-bold text-white mb-4">You're All Set!</h1>
+          <h1 className="text-2xl font-bold text-white mb-4">Assessment Complete!</h1>
           <p className="text-gray-400 mb-6">
             Based on what you've shared, here's how I'll communicate with you:
           </p>
@@ -235,7 +245,7 @@ export default function QuickAssessmentPage() {
             </div>
           </div>
           
-          <p className="text-gray-500 text-sm mt-6">Redirecting to chat...</p>
+          <p className="text-gray-500 text-sm mt-6">Redirecting...</p>
         </div>
       </div>
     );
