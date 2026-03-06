@@ -7,7 +7,7 @@ import {
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
-  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon
+  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon, MapPin
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
@@ -1841,6 +1841,13 @@ export default function MobileChat({
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   
+  // Location state
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [showLocationSheet, setShowLocationSheet] = useState(false);
+  const [manualLocationInput, setManualLocationInput] = useState('');
+  const [locationError, setLocationError] = useState(null);
+  
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -1964,6 +1971,161 @@ export default function MobileChat({
     
     return null;
   }, []);
+
+  // Check if running as iOS PWA
+  const isIOSPwa = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isStandalone = window.navigator.standalone === true;
+    return isIOS && isStandalone;
+  }, []);
+
+  // Request and save user's browser location
+  const requestLocation = useCallback(async () => {
+    setLocationError(null);
+    
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported. Please enter your location manually.');
+      setShowLocationSheet(true);
+      return;
+    }
+    
+    const isPwaIOS = isIOSPwa();
+    setLocationLoading(true);
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        try {
+          const res = await fetch('/api/user/location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ lat: latitude, lng: longitude }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setUserLocation({ lat: latitude, lng: longitude, address: data.address, accuracy });
+            setLocationError(null);
+            setShowLocationSheet(false);
+            // Show confirmation in chat
+            setMessages(prev => [...prev, {
+              id: `loc-${Date.now()}`, role: 'assistant',
+              content: `📍 **Location saved!**\n\n${data.address}\n\nYou can now ask me things like:\n- "Find restaurants near me"\n- "What coffee shops are nearby?"`,
+              created_at: new Date().toISOString(),
+            }]);
+          } else {
+            setLocationError(data.error || 'Failed to save location');
+          }
+        } catch (err) {
+          console.error('Failed to save location:', err);
+          setLocationError('Failed to save location. Please try again.');
+        }
+        setLocationLoading(false);
+      },
+      (error) => {
+        setLocationLoading(false);
+        
+        let errorMsg = '';
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            if (isPwaIOS) {
+              errorMsg = 'Location access denied.\n\nFor iOS PWA:\n1. Open Settings → Privacy & Security → Location Services\n2. Find Safari or your browser\n3. Enable "While Using"\n4. Try again\n\nOr enter your location manually below.';
+            } else {
+              errorMsg = 'Location permission denied. Please enable location access in your device settings, or enter manually.';
+            }
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMsg = 'Could not determine your location. Please enter it manually.';
+            break;
+          case error.TIMEOUT:
+            errorMsg = 'Location request timed out. Please try again or enter manually.';
+            break;
+          default:
+            errorMsg = 'Could not get your location. Please enter it manually.';
+        }
+        
+        setLocationError(errorMsg);
+        setShowLocationSheet(true);
+      },
+      { 
+        enableHighAccuracy: true, 
+        timeout: isPwaIOS ? 15000 : 10000,
+        maximumAge: 300000
+      }
+    );
+  }, [token, isIOSPwa]);
+
+  // Save manually entered location
+  const saveManualLocation = useCallback(async () => {
+    if (!manualLocationInput.trim()) {
+      setLocationError('Please enter a location');
+      return;
+    }
+    
+    setLocationLoading(true);
+    setLocationError(null);
+    
+    try {
+      // Geocode the address
+      const res = await fetch('/api/places/geocode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ address: manualLocationInput.trim() }),
+      });
+      
+      const data = await res.json();
+      
+      if (res.ok && data.lat && data.lng) {
+        // Save the location
+        const saveRes = await fetch('/api/user/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ lat: data.lat, lng: data.lng }),
+        });
+        
+        const saveData = await saveRes.json();
+        
+        if (saveRes.ok) {
+          setUserLocation({ 
+            lat: data.lat, 
+            lng: data.lng, 
+            address: data.formattedAddress || saveData.address || manualLocationInput,
+            manual: true 
+          });
+          setShowLocationSheet(false);
+          setManualLocationInput('');
+          
+          setMessages(prev => [...prev, {
+            id: `loc-${Date.now()}`, role: 'assistant',
+            content: `📍 **Location saved!**\n\n${data.formattedAddress || manualLocationInput}\n\nYou can now ask for nearby places!`,
+            created_at: new Date().toISOString(),
+          }]);
+        } else {
+          setLocationError(saveData.error || 'Failed to save location');
+        }
+      } else {
+        setLocationError('Could not find that location. Please try a different address.');
+      }
+    } catch (err) {
+      console.error('Failed to geocode:', err);
+      setLocationError('Failed to look up location. Please try again.');
+    }
+    
+    setLocationLoading(false);
+  }, [token, manualLocationInput]);
+
+  // Fetch saved location on mount
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/user/location', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => {
+        if (d.hasLocation) {
+          setUserLocation({ lat: d.lat, lng: d.lng, address: d.address });
+        }
+      })
+      .catch(() => {});
+  }, [token]);
 
   // Watch input for media intent
   useEffect(() => {
@@ -3434,6 +3596,26 @@ export default function MobileChat({
                   disabled={loading}
                   style={{ fontSize: '16px', lineHeight: '1.4' }} // Prevent iOS zoom on focus
                 />
+                {/* Location button */}
+                <button 
+                  onClick={() => {
+                    if (userLocation) {
+                      setShowLocationSheet(true);
+                    } else {
+                      requestLocation();
+                    }
+                  }}
+                  disabled={locationLoading}
+                  title={userLocation ? `📍 ${userLocation.address}` : 'Share location'}
+                  className={`p-2 rounded-full transition-all flex-shrink-0 ${
+                    locationLoading ? 'animate-pulse text-orange-400' :
+                    userLocation ? 'text-green-500 hover:text-green-400' : 
+                    locationError ? 'text-red-400 hover:text-red-300' :
+                    'text-gray-500 hover:text-orange-400'
+                  }`}
+                >
+                  <MapPin className="w-5 h-5" />
+                </button>
                 {/* Voice input button */}
                 <button 
                   onClick={speech.toggle}
@@ -4173,6 +4355,97 @@ export default function MobileChat({
         isUploading={isImporting}
         uploadProgress={importProgress}
       />
+
+      {/* Location Sheet - Manual Input */}
+      {showLocationSheet && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={() => setShowLocationSheet(false)}>
+          <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
+            
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center">
+                <MapPin className="w-5 h-5 text-orange-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Set Your Location</h3>
+                <p className="text-xs text-gray-500">For "near me" searches</p>
+              </div>
+            </div>
+            
+            {/* Error Message */}
+            {locationError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                <p className="text-red-400 text-sm whitespace-pre-line">{locationError}</p>
+              </div>
+            )}
+            
+            {/* Manual Input */}
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={manualLocationInput}
+                onChange={(e) => setManualLocationInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveManualLocation()}
+                placeholder="City, address, or zip code..."
+                className="w-full bg-sp-black border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/40"
+                autoFocus
+              />
+              <p className="text-gray-500 text-xs">Example: "San Francisco, CA" or "90210"</p>
+              
+              {/* Try Again Button */}
+              <button
+                onClick={() => {
+                  setLocationError(null);
+                  requestLocation();
+                }}
+                disabled={locationLoading}
+                className="w-full flex items-center justify-center gap-2 py-2.5 border border-white/10 rounded-xl text-gray-400 hover:text-white hover:border-white/20 transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${locationLoading ? 'animate-spin' : ''}`} />
+                <span className="text-sm">Try automatic location</span>
+              </button>
+            </div>
+            
+            {/* Current Location Display */}
+            {userLocation && (
+              <div className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                <p className="text-gray-400 text-xs mb-1">Current saved location:</p>
+                <p className="text-green-400 text-sm flex items-center gap-2">
+                  <MapPin className="w-4 h-4" /> {userLocation.address}
+                </p>
+              </div>
+            )}
+            
+            {/* Action Buttons */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowLocationSheet(false);
+                  setManualLocationInput('');
+                  setLocationError(null);
+                }}
+                className="flex-1 py-3 border border-white/10 rounded-xl text-gray-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveManualLocation}
+                disabled={locationLoading || !manualLocationInput.trim()}
+                className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {locationLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <span>Save Location</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Project Sheet (Create/Edit/Share) */}
       {showProjectSheet && (
