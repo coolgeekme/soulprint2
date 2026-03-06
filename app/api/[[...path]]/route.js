@@ -15135,6 +15135,103 @@ Provide a brief, actionable fix suggestion (2-3 sentences max). If it needs code
   }
 }
 
+// In-memory store for support conversations (for tracking multi-turn interactions)
+// In production, you'd want this in MongoDB or Redis
+const supportConversations = new Map();
+
+// Conversation states
+const CONV_STATE = {
+  INITIAL: 'initial',
+  GATHERING_DETAILS: 'gathering_details',
+  AWAITING_CONFIRMATION: 'awaiting_confirmation',
+  ESCALATED: 'escalated'
+};
+
+// Follow-up questions to gather more details
+const FOLLOW_UP_QUESTIONS = {
+  general: [
+    "What were you trying to do when this happened?",
+    "What device/browser are you using? (e.g., iPhone Safari, Chrome on Windows)",
+    "Does this happen every time or only sometimes?",
+    "Have you tried any workarounds?"
+  ],
+  error: [
+    "Did you see any error message? If so, what did it say?",
+    "What page/screen were you on when the error occurred?",
+    "What steps led to this error?"
+  ],
+  performance: [
+    "How long does the slow behavior last?",
+    "Is your internet connection stable?",
+    "Does it improve after refreshing the page?"
+  ],
+  feature: [
+    "Can you describe the expected behavior vs what you're seeing?",
+    "Is this a new issue or has it always been this way?",
+    "Are other features working normally?"
+  ]
+};
+
+// Get or create conversation state
+function getConversationState(channelUserId) {
+  return supportConversations.get(channelUserId) || null;
+}
+
+function setConversationState(channelUserId, state) {
+  // Auto-expire after 30 minutes
+  state.expiresAt = Date.now() + (30 * 60 * 1000);
+  supportConversations.set(channelUserId, state);
+  
+  // Clean up expired conversations
+  const now = Date.now();
+  for (const [key, conv] of supportConversations) {
+    if (conv.expiresAt < now) {
+      supportConversations.delete(key);
+    }
+  }
+}
+
+function clearConversationState(channelUserId) {
+  supportConversations.delete(channelUserId);
+}
+
+// Determine issue category for targeted questions
+function categorizeIssue(text, analysis) {
+  const lowerText = text.toLowerCase();
+  
+  if (lowerText.includes('error') || lowerText.includes('crash') || lowerText.includes('broken') || lowerText.includes('fail')) {
+    return 'error';
+  }
+  if (lowerText.includes('slow') || lowerText.includes('loading') || lowerText.includes('stuck') || lowerText.includes('freeze')) {
+    return 'performance';
+  }
+  if (lowerText.includes('feature') || lowerText.includes('button') || lowerText.includes('option') || lowerText.includes('setting')) {
+    return 'feature';
+  }
+  return 'general';
+}
+
+// Generate a restated summary of the issue
+function restateIssue(originalMessage, details = {}) {
+  let restatement = `Let me make sure I understand correctly:\n\n`;
+  restatement += `📝 *You reported:* "${originalMessage}"`;
+  
+  if (details.device) {
+    restatement += `\n📱 *Device/Browser:* ${details.device}`;
+  }
+  if (details.steps) {
+    restatement += `\n🔄 *Steps to reproduce:* ${details.steps}`;
+  }
+  if (details.errorMessage) {
+    restatement += `\n⚠️ *Error message:* ${details.errorMessage}`;
+  }
+  if (details.frequency) {
+    restatement += `\n🔁 *Frequency:* ${details.frequency}`;
+  }
+  
+  return restatement;
+}
+
 // Handle incoming Slack messages
 async function handleSlackWebhook(request) {
   try {
@@ -15159,24 +15256,137 @@ async function handleSlackWebhook(request) {
         const text = event.text || '';
         const channel = event.channel;
         const user = event.user;
+        const channelUserId = `${channel}-${user}`;
         
         // Remove bot mention from text
         const cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
         
+        // Handle empty messages
         if (!cleanText) {
-          await sendSlackMessage(channel, "Hi! I'm the SoulPrint Support Bot. 👋\n\nDescribe any issue you're experiencing with the app and I'll forward it to the team.");
+          await sendSlackMessage(channel, "Hi! I'm the SoulPrint Support Bot. 👋\n\nDescribe any issue you're experiencing with the app and I'll help gather the details to get it resolved quickly.");
           return ok({ ok: true });
         }
         
-        // Send simple thank you to the user
-        await sendSlackMessage(channel, "Thank you for reporting this! 🙏\n\nYour message has been forwarded to the team. Someone will look into it shortly.");
+        // Check for existing conversation
+        let convState = getConversationState(channelUserId);
         
-        // Analyze the issue and send to owner
-        const analysis = analyzeIssue(cleanText);
-        const aiSuggestion = await generateFixSuggestion(cleanText, analysis);
+        // Handle special commands
+        const lowerText = cleanText.toLowerCase();
+        if (lowerText === 'reset' || lowerText === 'start over' || lowerText === 'cancel') {
+          clearConversationState(channelUserId);
+          await sendSlackMessage(channel, "No problem! Let's start fresh. 🔄\n\nWhat issue would you like to report?");
+          return ok({ ok: true });
+        }
         
-        // Automatically escalate to owner with full details
-        await sendDetailedAnalysisToOwner(cleanText, channel, user, analysis, aiSuggestion);
+        if (lowerText === 'done' || lowerText === 'submit' || lowerText === 'send' || lowerText === 'escalate') {
+          if (convState && convState.originalMessage) {
+            // User wants to submit what we have
+            await handleEscalation(channel, user, convState);
+            clearConversationState(channelUserId);
+            return ok({ ok: true });
+          }
+        }
+        
+        // INITIAL STATE - First message
+        if (!convState) {
+          const analysis = analyzeIssue(cleanText);
+          const category = categorizeIssue(cleanText, analysis);
+          
+          // Create new conversation state
+          convState = {
+            state: CONV_STATE.GATHERING_DETAILS,
+            originalMessage: cleanText,
+            analysis,
+            category,
+            details: {},
+            followUpIndex: 0,
+            messages: [cleanText],
+            createdAt: Date.now()
+          };
+          
+          setConversationState(channelUserId, convState);
+          
+          // Acknowledge and ask first follow-up question
+          const restatement = restateIssue(cleanText);
+          const questions = FOLLOW_UP_QUESTIONS[category] || FOLLOW_UP_QUESTIONS.general;
+          const firstQuestion = questions[0];
+          
+          const response = `Thanks for reporting this! 🙏\n\n${restatement}\n\n*To help investigate this faster, I have a few questions:*\n\n❓ ${firstQuestion}\n\n_(Type "done" anytime to submit your report, or "reset" to start over)_`;
+          
+          await sendSlackMessage(channel, response);
+          return ok({ ok: true });
+        }
+        
+        // GATHERING DETAILS STATE - Processing follow-up answers
+        if (convState.state === CONV_STATE.GATHERING_DETAILS) {
+          const category = convState.category;
+          const questions = FOLLOW_UP_QUESTIONS[category] || FOLLOW_UP_QUESTIONS.general;
+          
+          // Store the answer based on question index
+          const questionIndex = convState.followUpIndex;
+          convState.messages.push(cleanText);
+          
+          // Map answers to detail fields
+          if (questionIndex === 0) {
+            convState.details.context = cleanText; // What they were doing
+          } else if (questionIndex === 1) {
+            convState.details.device = cleanText; // Device/browser
+          } else if (questionIndex === 2) {
+            convState.details.frequency = cleanText; // Frequency
+          } else if (questionIndex === 3) {
+            convState.details.workaround = cleanText; // Workarounds tried
+          }
+          
+          // Move to next question
+          convState.followUpIndex++;
+          
+          // Check if we have more questions
+          if (convState.followUpIndex < questions.length) {
+            const nextQuestion = questions[convState.followUpIndex];
+            setConversationState(channelUserId, convState);
+            
+            await sendSlackMessage(channel, `Got it, thanks! 📝\n\n❓ ${nextQuestion}\n\n_(Type "done" to submit your report anytime)_`);
+            return ok({ ok: true });
+          }
+          
+          // All questions answered - move to confirmation
+          convState.state = CONV_STATE.AWAITING_CONFIRMATION;
+          setConversationState(channelUserId, convState);
+          
+          // Show summary and ask for confirmation
+          const summary = generateIssueSummary(convState);
+          
+          const confirmationMsg = `Thanks for all the details! Here's a summary of your report:\n\n${summary}\n\n*Does this look correct?*\n\n• Reply *"yes"* or *"submit"* to send to the team\n• Reply *"no"* or add more details if something's missing\n• Reply *"reset"* to start over`;
+          
+          await sendSlackMessage(channel, confirmationMsg);
+          return ok({ ok: true });
+        }
+        
+        // AWAITING CONFIRMATION STATE
+        if (convState.state === CONV_STATE.AWAITING_CONFIRMATION) {
+          if (lowerText === 'yes' || lowerText === 'correct' || lowerText === 'looks good' || lowerText === 'submit' || lowerText === 'send') {
+            // User confirmed - escalate
+            await handleEscalation(channel, user, convState);
+            clearConversationState(channelUserId);
+            return ok({ ok: true });
+          } else if (lowerText === 'no' || lowerText.startsWith('actually') || lowerText.startsWith('also')) {
+            // User wants to add more info
+            convState.messages.push(cleanText);
+            convState.details.additionalInfo = (convState.details.additionalInfo || '') + '\n' + cleanText;
+            setConversationState(channelUserId, convState);
+            
+            await sendSlackMessage(channel, `Got it, I've added that to your report. 📝\n\nAnything else to add? Reply *"submit"* when ready, or keep adding details.`);
+            return ok({ ok: true });
+          } else {
+            // Treat as additional info
+            convState.messages.push(cleanText);
+            convState.details.additionalInfo = (convState.details.additionalInfo || '') + '\n' + cleanText;
+            setConversationState(channelUserId, convState);
+            
+            await sendSlackMessage(channel, `Added to your report. 📝\n\nReply *"submit"* when ready to send to the team.`);
+            return ok({ ok: true });
+          }
+        }
         
         return ok({ ok: true });
       }
@@ -15189,13 +15399,75 @@ async function handleSlackWebhook(request) {
   }
 }
 
+// Generate a formatted summary of the issue
+function generateIssueSummary(convState) {
+  let summary = `📋 *Issue Summary*\n\n`;
+  summary += `*Problem:* ${convState.originalMessage}\n`;
+  
+  if (convState.details.context) {
+    summary += `*Context:* ${convState.details.context}\n`;
+  }
+  if (convState.details.device) {
+    summary += `*Device/Browser:* ${convState.details.device}\n`;
+  }
+  if (convState.details.frequency) {
+    summary += `*Frequency:* ${convState.details.frequency}\n`;
+  }
+  if (convState.details.workaround) {
+    summary += `*Workarounds tried:* ${convState.details.workaround}\n`;
+  }
+  if (convState.details.additionalInfo) {
+    summary += `*Additional info:* ${convState.details.additionalInfo.trim()}\n`;
+  }
+  
+  if (convState.analysis?.bestMatch) {
+    summary += `\n🔍 *System identified this as:* ${convState.analysis.bestMatch.issue}`;
+  }
+  
+  return summary;
+}
+
+// Handle escalation to owner with all gathered details
+async function handleEscalation(channel, user, convState) {
+  // Send confirmation to user
+  await sendSlackMessage(channel, "✅ Your report has been submitted to the team!\n\nSomeone will look into this and you'll be notified when it's resolved. Thanks for helping make SoulPrint better! 🙏");
+  
+  // Generate AI suggestion with more context
+  const aiSuggestion = await generateFixSuggestion(
+    `${convState.originalMessage}\n\nContext: ${convState.details.context || 'Not provided'}\nDevice: ${convState.details.device || 'Not provided'}\nFrequency: ${convState.details.frequency || 'Not provided'}`,
+    convState.analysis
+  );
+  
+  // Send detailed report to owner
+  await sendDetailedAnalysisToOwner(
+    convState.originalMessage,
+    channel,
+    user,
+    convState.analysis,
+    aiSuggestion,
+    convState.details,
+    convState.messages
+  );
+}
+
 // Send detailed analysis to owner with Emergent-ready prompt
-async function sendDetailedAnalysisToOwner(originalMessage, channel, reporterUser, analysis, aiSuggestion) {
+async function sendDetailedAnalysisToOwner(originalMessage, channel, reporterUser, analysis, aiSuggestion, details = {}, allMessages = []) {
   if (!SLACK_ESCALATION_USER_ID) return;
   
   // Build the Emergent prompt - this is what gets pasted into Emergent
   let emergentPrompt = `Fix this issue reported by a team member:\n\n`;
   emergentPrompt += `"${originalMessage}"\n\n`;
+  
+  // Include gathered details
+  if (details.context || details.device || details.frequency) {
+    emergentPrompt += `Additional context from user:\n`;
+    if (details.context) emergentPrompt += `- What they were doing: ${details.context}\n`;
+    if (details.device) emergentPrompt += `- Device/Browser: ${details.device}\n`;
+    if (details.frequency) emergentPrompt += `- Frequency: ${details.frequency}\n`;
+    if (details.workaround) emergentPrompt += `- Workarounds tried: ${details.workaround}\n`;
+    if (details.additionalInfo) emergentPrompt += `- Additional info: ${details.additionalInfo.trim()}\n`;
+    emergentPrompt += `\n`;
+  }
   
   if (analysis.bestMatch) {
     emergentPrompt += `Analysis:\n`;
@@ -15211,6 +15483,17 @@ async function sendDetailedAnalysisToOwner(originalMessage, channel, reporterUse
   }
   
   emergentPrompt += `Please investigate and fix this issue.`;
+  
+  // Build detail summary for display
+  let detailSummary = '';
+  if (Object.keys(details).length > 0) {
+    detailSummary = `*📋 Gathered Details:*\n`;
+    if (details.context) detailSummary += `• *Context:* ${details.context}\n`;
+    if (details.device) detailSummary += `• *Device:* ${details.device}\n`;
+    if (details.frequency) detailSummary += `• *Frequency:* ${details.frequency}\n`;
+    if (details.workaround) detailSummary += `• *Workarounds:* ${details.workaround}\n`;
+    if (details.additionalInfo) detailSummary += `• *Extra:* ${details.additionalInfo.trim()}\n`;
+  }
   
   const blocks = [
     {
@@ -15230,10 +15513,30 @@ async function sendDetailedAnalysisToOwner(originalMessage, channel, reporterUse
         type: 'mrkdwn', 
         text: `*Original Message:*\n>${originalMessage}` 
       }
-    },
-    {
-      type: 'divider'
-    },
+    }
+  ];
+  
+  // Add detail summary if we have details
+  if (detailSummary) {
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: detailSummary }
+    });
+  }
+  
+  // Add full conversation if available
+  if (allMessages.length > 1) {
+    blocks.push({
+      type: 'section',
+      text: { 
+        type: 'mrkdwn', 
+        text: `*💬 Full Conversation (${allMessages.length} messages):*\n${allMessages.map((m, i) => `${i + 1}. ${m.substring(0, 100)}${m.length > 100 ? '...' : ''}`).join('\n')}` 
+      }
+    });
+  }
+  
+  blocks.push(
+    { type: 'divider' },
     {
       type: 'section',
       text: {
@@ -15266,7 +15569,7 @@ async function sendDetailedAnalysisToOwner(originalMessage, channel, reporterUse
         }
       ]
     }
-  ];
+  );
   
   await sendSlackMessage(SLACK_ESCALATION_USER_ID, `New support request from <@${reporterUser}>`, blocks);
 }
