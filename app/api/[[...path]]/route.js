@@ -498,7 +498,7 @@ function formatPlacesForTelegram(places, locationName) {
     const reviews = p.userRatingsTotal ? `(${p.userRatingsTotal})` : '';
     const price = p.priceLevel ? '💰'.repeat(p.priceLevel) : '';
     const status = p.isOpen === true ? '🟢 Open' : p.isOpen === false ? '🔴 Closed' : '';
-    const mapsLink = `https://www.google.com/maps/place/?q=place_id:${p.placeId}`;
+    const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name + ' ' + p.address)}&query_place_id=${p.placeId}`;
     
     return `*${i + 1}. ${p.name}*\n` +
       `${p.address}\n` +
@@ -3837,7 +3837,7 @@ async function handleChatStream(request) {
                 const reviews = p.userRatingsTotal ? `(${p.userRatingsTotal} reviews)` : '';
                 const price = p.priceLevel ? '💰'.repeat(p.priceLevel) : '';
                 const status = p.isOpen === true ? '🟢 Open now' : p.isOpen === false ? '🔴 Closed' : '';
-                const mapsLink = `https://www.google.com/maps/place/?q=place_id:${p.placeId}`;
+                const mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}&query_place_id=${p.placeId}`;
                 
                 return `### ${i + 1}. ${p.name}\n📍 ${p.address}\n${[rating, reviews, price, status].filter(Boolean).join(' • ')}\n[Open in Google Maps](${mapsLink})`;
               }).join('\n\n');
