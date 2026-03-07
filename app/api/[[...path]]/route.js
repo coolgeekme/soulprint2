@@ -429,6 +429,53 @@ async function geocodeAddress(address) {
   };
 }
 
+// Get location from IP address (automatic, no user action required)
+async function getLocationFromIP(ip) {
+  if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
+    return null; // Skip local/private IPs
+  }
+  
+  try {
+    // Use ip-api.com (free, no API key required, 45 requests/minute)
+    const res = await fetch(`http://ip-api.com/json/${ip}?fields=status,country,regionName,city,lat,lon,timezone`);
+    const data = await res.json();
+    
+    if (data.status === 'success' && data.lat && data.lon) {
+      return {
+        lat: data.lat,
+        lng: data.lon,
+        city: data.city,
+        region: data.regionName,
+        country: data.country,
+        timezone: data.timezone,
+        address: [data.city, data.regionName, data.country].filter(Boolean).join(', '),
+        source: 'ip_auto'
+      };
+    }
+  } catch (e) {
+    console.error('IP geolocation error:', e.message);
+  }
+  return null;
+}
+
+// Get client IP from request headers
+function getClientIP(request) {
+  // Check various headers that might contain the real IP
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    // x-forwarded-for can contain multiple IPs, take the first (client) one
+    return forwardedFor.split(',')[0].trim();
+  }
+  
+  const realIP = request.headers.get('x-real-ip');
+  if (realIP) return realIP;
+  
+  const cfIP = request.headers.get('cf-connecting-ip'); // Cloudflare
+  if (cfIP) return cfIP;
+  
+  return null;
+}
+
 // Search for nearby places
 async function searchNearbyPlaces({ lat, lng, query, type, radius = 1500, maxResults = 5 }) {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
@@ -3507,6 +3554,29 @@ async function handleChatStream(request) {
   if (!content && attachments.length === 0) return err('content required');
 
   const db = await getDb();
+
+  // Auto-detect location from IP if user doesn't have one saved
+  const existingLocation = await db.collection('user_locations').findOne({ user_id: user.id });
+  if (!existingLocation || !existingLocation.lat) {
+    const clientIP = getClientIP(request);
+    if (clientIP) {
+      const ipLocation = await getLocationFromIP(clientIP);
+      if (ipLocation) {
+        await db.collection('user_locations').updateOne(
+          { user_id: user.id },
+          { 
+            $set: { 
+              ...ipLocation,
+              updated_at: new Date()
+            } 
+          },
+          { upsert: true }
+        );
+        // Invalidate cache so the new location is included in the system prompt
+        invalidateSystemPromptCache(user.id);
+      }
+    }
+  }
 
   // Get or create conversation
   let convId = conversationId;
@@ -13516,7 +13586,30 @@ async function handleGetUserLocation(request) {
 
   try {
     const db = await getDb();
-    const location = await db.collection('user_locations').findOne({ user_id: user.id });
+    let location = await db.collection('user_locations').findOne({ user_id: user.id });
+    
+    // If no location saved, try to auto-detect from IP
+    if (!location || !location.lat || !location.lng) {
+      const clientIP = getClientIP(request);
+      if (clientIP) {
+        const ipLocation = await getLocationFromIP(clientIP);
+        if (ipLocation) {
+          await db.collection('user_locations').updateOne(
+            { user_id: user.id },
+            { 
+              $set: { 
+                ...ipLocation,
+                updated_at: new Date()
+              } 
+            },
+            { upsert: true }
+          );
+          location = ipLocation;
+          // Invalidate cache so the new location is included in the system prompt
+          invalidateSystemPromptCache(user.id);
+        }
+      }
+    }
     
     if (!location || !location.lat || !location.lng) {
       return ok({ hasLocation: false });
@@ -13527,6 +13620,11 @@ async function handleGetUserLocation(request) {
       lat: location.lat, 
       lng: location.lng, 
       address: location.address,
+      source: location.source || 'manual', // 'ip_auto', 'web', 'telegram'
+      city: location.city,
+      region: location.region,
+      country: location.country,
+      timezone: location.timezone,
       updated_at: location.updated_at
     });
   } catch (error) {
