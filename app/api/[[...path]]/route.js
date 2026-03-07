@@ -15346,35 +15346,43 @@ const CONV_STATE = {
   ESCALATED: 'escalated'
 };
 
-// Common user errors and their solutions
+// Common user errors and their solutions (written for non-technical users)
 const USER_ERROR_PATTERNS = {
   'not logged in': {
     keywords: ['logged out', 'sign in', 'login', 'session expired', 'unauthorized', 'access denied'],
-    solution: "This sounds like a login/session issue. Here's how to fix it:\n\n1. *Clear your browser cache* or app data\n2. *Log out completely* (if possible) and log back in\n3. If using the PWA, try *removing and re-adding* the app to your home screen\n4. Make sure you're using the *correct email/password*\n\nDid this help resolve your issue?"
+    solution: "Sounds like you got signed out! Here's how to fix it:\n\n1. Close the app completely and reopen it\n2. Try signing in again with your email and password\n3. If you're using it like an app on your phone, try removing it and adding it back\n\nStill having trouble? Just reply and I'll get someone to help! 😊"
   },
   'location not working': {
     keywords: ['location denied', 'can\'t find location', 'gps', 'near me not working', 'location permission'],
-    solution: "Location issues are usually permission-related. Try these steps:\n\n*On iPhone/iOS:*\n1. Go to Settings → Privacy & Security → Location Services\n2. Find Safari (or your browser) and set to \"While Using\"\n3. Return to the app and tap the location icon again\n\n*On Android:*\n1. Tap the lock icon in the browser address bar\n2. Enable Location permission\n3. Refresh the page\n\n*On Desktop:*\n1. Click the lock/info icon in your browser's address bar\n2. Set Location to \"Allow\"\n3. Refresh the page\n\nDid this help?"
+    solution: "I can help with that! Your phone needs permission to share your location.\n\n*On iPhone:*\n1. Open your phone's Settings app\n2. Scroll down and tap Privacy & Security\n3. Tap Location Services\n4. Find your browser (Safari/Chrome) and tap it\n5. Choose \"While Using the App\"\n6. Go back to SoulPrint and try again\n\n*On Android:*\n1. When SoulPrint asks for location, tap \"Allow\"\n2. If you already said no, tap the little lock icon at the top of the screen and turn on Location\n\nDid that work? Let me know! 🗺️"
   },
   'microphone not working': {
     keywords: ['mic', 'microphone', 'voice', 'speech', 'recording', 'can\'t speak', 'audio input'],
-    solution: "Microphone issues are typically permission-related:\n\n1. *Check browser permissions:* Click the lock icon in your address bar and ensure Microphone is set to \"Allow\"\n2. *Check device settings:* Make sure your browser has microphone access in your device's privacy settings\n3. *Try a different browser:* Chrome typically has the best microphone support\n4. *Refresh the page* after granting permissions\n\nIf you're on iOS Safari, note that some voice features work better in Chrome.\n\nDid this resolve the issue?"
+    solution: "Let's get your microphone working!\n\n*On iPhone/iPad:*\n1. Open Settings on your phone\n2. Scroll down to Safari (or Chrome)\n3. Make sure Microphone is turned ON\n\n*On Computer:*\n1. Look for a small lock or camera icon near the website address at the top\n2. Click it\n3. Find \"Microphone\" and change it to \"Allow\"\n4. Refresh the page\n\nTry again and let me know if it works! 🎤"
   },
   'app not loading': {
-    keywords: ['blank page', 'white screen', 'not loading', 'spinning', 'stuck loading', 'won\'t open'],
-    solution: "Try these troubleshooting steps:\n\n1. *Hard refresh:* Press Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n2. *Clear cache:* Clear your browser cache and cookies for this site\n3. *Check internet:* Make sure you have a stable connection\n4. *Try incognito:* Open the app in a private/incognito window\n5. *Disable extensions:* Browser extensions can sometimes interfere\n\nIf using the PWA, try removing and re-adding it to your home screen.\n\nDid any of these help?"
+    keywords: ['blank page', 'white screen', 'not loading', 'spinning', 'stuck loading', 'won\'t open', 'frozen'],
+    solution: "Let's get that fixed! Try these steps:\n\n1. *Refresh the page* - On phone: pull down from the top. On computer: click the circular arrow or press F5\n\n2. *Close and reopen* - Completely close the app/browser and open it again\n\n3. *Check your internet* - Make sure WiFi or data is working (try opening another website)\n\n4. *Clear the app's memory* - On phone: close all your browser tabs and try again\n\nIf none of that works, let me know what device you're using and I'll get more help! 📱"
   },
   'telegram not connecting': {
-    keywords: ['telegram', 'link telegram', 'bot not responding', 'telegram setup'],
-    solution: "To connect Telegram:\n\n1. Go to *Settings* in the SoulPrint app\n2. Find the *Telegram* section\n3. Click *Link Telegram*\n4. Open Telegram and search for *@YourBotName*\n5. Send `/start` to the bot\n6. Follow the linking instructions\n\nIf the bot isn't responding, make sure you're messaging the correct bot and that you've completed the linking process in the app.\n\nIs this helping?"
+    keywords: ['telegram', 'link telegram', 'bot not responding', 'telegram setup', 'telegram not working'],
+    solution: "Let me walk you through connecting Telegram!\n\n1. First, open SoulPrint in your browser\n2. Tap the ⚙️ Settings icon\n3. Look for \"Telegram\" and tap it\n4. You'll see a special code - copy it!\n5. Now open Telegram on your phone\n6. Search for our bot (the name is in the settings)\n7. Send the code to the bot\n8. That's it! You're connected 🎉\n\nIf the bot isn't responding, make sure you're messaging the right bot. Need more help?"
   },
   'import not working': {
-    keywords: ['import', 'upload', 'chatgpt history', 'export', 'file upload'],
-    solution: "For importing chat history:\n\n1. *Export from ChatGPT:* Go to ChatGPT → Settings → Data Controls → Export data\n2. *Wait for email:* You'll receive a download link via email\n3. *Download and extract:* Unzip the downloaded file\n4. *Find conversations.json:* This is the file you need to upload\n5. *Upload in SoulPrint:* Go to Settings → Import → Upload the conversations.json file\n\nMake sure you're uploading the correct file format (JSON).\n\nDoes this help?"
+    keywords: ['import', 'upload', 'chatgpt history', 'export', 'file upload', 'conversations'],
+    solution: "I'll help you import your ChatGPT conversations! Here's an easy guide:\n\n*Step 1: Get your data from ChatGPT*\n1. Go to chat.openai.com and sign in\n2. Click your profile picture (bottom left)\n3. Click \"Settings\"\n4. Click \"Data controls\"\n5. Click \"Export data\" then \"Confirm export\"\n6. Check your email - ChatGPT will send you a download link (might take a few minutes)\n\n*Step 2: Download the file*\n1. Click the link in the email\n2. A file will download to your phone/computer\n3. If it's a .zip file, you'll need to open it first (double-tap on phone, double-click on computer)\n\n*Step 3: Upload to SoulPrint*\n1. Open SoulPrint\n2. Go to Settings → Import\n3. Tap \"Upload\" and find the file called \"conversations\" \n4. Select it and wait for it to finish!\n\nHaving trouble with any step? Just tell me where you're stuck! 📤"
   },
   'notifications': {
     keywords: ['notification', 'alert', 'push notification', 'not getting notifications'],
-    solution: "To enable notifications:\n\n1. *Browser settings:* Make sure notifications are allowed for this site\n2. *Device settings:* Check that your browser can send notifications in system settings\n3. *PWA:* If using as an app, you may need to enable notifications in your device's app settings\n\nNote: Some browsers (especially Safari) have limited notification support.\n\nDid this help?"
+    solution: "Let's turn on notifications!\n\n*On iPhone:*\n1. Open Settings\n2. Scroll down and tap the browser you use (Safari/Chrome)\n3. Tap \"Notifications\"\n4. Turn it ON\n\n*On Android:*\n1. Open Settings\n2. Tap \"Apps\" or \"Applications\"\n3. Find your browser and tap it\n4. Tap \"Notifications\"\n5. Turn them ON\n\n*On Computer:*\n1. Click the lock icon next to the website address\n2. Find Notifications and set to \"Allow\"\n\nNote: Some phones don't allow web notifications - if yours doesn't work, that might be why! Let me know how it goes 🔔"
+  },
+  'password reset': {
+    keywords: ['forgot password', 'reset password', 'can\'t remember', 'password not working', 'wrong password'],
+    solution: "No worries, let's reset your password!\n\n1. Go to the sign-in page\n2. Look for \"Forgot password?\" and tap it\n3. Enter your email address\n4. Check your email for a reset link (check spam folder too!)\n5. Click the link and create a new password\n\nIf you don't get the email within a few minutes, let me know and I'll escalate this! 🔐"
+  },
+  'slow app': {
+    keywords: ['slow', 'taking forever', 'lagging', 'delayed', 'takes too long'],
+    solution: "Let's speed things up!\n\n1. *Check your internet* - Try loading another website to make sure your connection is good\n\n2. *Close other apps* - Having too many apps open can slow things down\n\n3. *Refresh the page* - Sometimes that clears things up\n\n4. *Try a different browser* - Chrome usually works best\n\nIf it's still slow, it might be a temporary issue on our end. Let me know and I can check! ⚡"
   }
 };
 
@@ -15441,17 +15449,23 @@ async function aiTriageIssue(text) {
       messages: [
         {
           role: 'system',
-          content: `You are a support triage bot for SoulPrint, a personal AI assistant app. 
+          content: `You are a friendly support bot for SoulPrint, a personal AI assistant app. 
 Analyze the user's issue and determine if it's:
 1. USER_ERROR - Something the user can fix themselves (permissions, settings, how-to questions)
 2. TECHNICAL_BUG - An actual bug/defect that needs developer attention
+
+IMPORTANT: Write solutions in simple, friendly language that a non-technical person can follow. 
+- Avoid technical jargon (don't say "cache", "JSON", "API", "debug", etc.)
+- Use everyday words and numbered steps
+- Add friendly emojis to make it feel approachable
+- Be encouraging and supportive
 
 Respond ONLY with a JSON object:
 {
   "classification": "USER_ERROR" or "TECHNICAL_BUG",
   "confidence": "high", "medium", or "low",
   "reason": "brief explanation",
-  "userSolution": "if USER_ERROR, provide step-by-step troubleshooting" 
+  "userSolution": "if USER_ERROR, provide simple step-by-step help written for someone who isn't good with technology" 
 }`
         },
         {
@@ -15459,7 +15473,7 @@ Respond ONLY with a JSON object:
           content: `Triage this issue: "${text}"`
         }
       ],
-      max_tokens: 500,
+      max_tokens: 600,
       temperature: 0.3
     });
     
