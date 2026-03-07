@@ -2273,11 +2273,42 @@ async function handleGetProgress(request) {
   if (!user) return err('Unauthorized', 401);
 
   const db = await getDb();
+  
+  // Check traditional assessment answers
   const answers = await db.collection('assessment_answers')
     .find({ user_id: user.id })
     .toArray();
+  
+  // Also check layered assessment answers (Quick Start)
+  const layeredAnswers = await db.collection('layered_assessment_answers').findOne({ user_id: user.id });
+  
+  let totalAnswered = answers.length;
+  let answeredIds = answers.map(a => a.question_id);
+  let layer1Complete = false;
+  let layer2Complete = false;
+  
+  // Add layered answers to count
+  if (layeredAnswers) {
+    const layer1Count = Object.keys(layeredAnswers.layer1_answers || {}).length;
+    const layer2Count = Object.keys(layeredAnswers.layer2_answers || {}).length;
+    totalAnswered += layer1Count + layer2Count;
+    answeredIds = [...answeredIds, ...Object.keys(layeredAnswers.layer1_answers || {}), ...Object.keys(layeredAnswers.layer2_answers || {})];
+    layer1Complete = layeredAnswers.layer1_complete || false;
+    layer2Complete = layeredAnswers.layer2_complete || false;
+  }
+  
+  // Check if user has completed ANY assessment type
+  const hasCompletedAssessment = answers.length >= 36 || // Full assessment
+                                  (layer1Complete) || // Quick Start (layer 1 = 12 questions minimum)
+                                  totalAnswered >= 12; // At least 12 questions answered
 
-  return ok({ answered: answers.map(a => a.question_id), count: answers.length });
+  return ok({ 
+    answered: answeredIds, 
+    count: totalAnswered,
+    layer1_complete: layer1Complete,
+    layer2_complete: layer2Complete,
+    assessment_complete: hasCompletedAssessment
+  });
 }
 
 // ASSESSMENT - Submit Answer

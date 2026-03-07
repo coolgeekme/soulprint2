@@ -40,10 +40,10 @@ export default function WaitlistPage() {
     fetch('/api/assessment/progress', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => {
-        const answered = d.answered || 0;
+        const answered = d.count || 0;
         setAssessmentProgress(answered);
-        // Quick Start requires 12 questions minimum
-        setHasCompletedAssessment(answered >= 12);
+        // Use the backend's assessment_complete flag which checks both assessment types
+        setHasCompletedAssessment(d.assessment_complete || d.layer1_complete || answered >= 12);
         setCheckingProfile(false);
       })
       .catch(() => { setCheckingProfile(false); });
