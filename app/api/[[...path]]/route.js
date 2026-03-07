@@ -15192,10 +15192,150 @@ const supportConversations = new Map();
 // Conversation states
 const CONV_STATE = {
   INITIAL: 'initial',
+  TRIAGE: 'triage', // New state for determining user error vs technical
+  HELPING_USER: 'helping_user', // State when providing user assistance
   GATHERING_DETAILS: 'gathering_details',
   AWAITING_CONFIRMATION: 'awaiting_confirmation',
   ESCALATED: 'escalated'
 };
+
+// Common user errors and their solutions
+const USER_ERROR_PATTERNS = {
+  'not logged in': {
+    keywords: ['logged out', 'sign in', 'login', 'session expired', 'unauthorized', 'access denied'],
+    solution: "This sounds like a login/session issue. Here's how to fix it:\n\n1. *Clear your browser cache* or app data\n2. *Log out completely* (if possible) and log back in\n3. If using the PWA, try *removing and re-adding* the app to your home screen\n4. Make sure you're using the *correct email/password*\n\nDid this help resolve your issue?"
+  },
+  'location not working': {
+    keywords: ['location denied', 'can\'t find location', 'gps', 'near me not working', 'location permission'],
+    solution: "Location issues are usually permission-related. Try these steps:\n\n*On iPhone/iOS:*\n1. Go to Settings → Privacy & Security → Location Services\n2. Find Safari (or your browser) and set to \"While Using\"\n3. Return to the app and tap the location icon again\n\n*On Android:*\n1. Tap the lock icon in the browser address bar\n2. Enable Location permission\n3. Refresh the page\n\n*On Desktop:*\n1. Click the lock/info icon in your browser's address bar\n2. Set Location to \"Allow\"\n3. Refresh the page\n\nDid this help?"
+  },
+  'microphone not working': {
+    keywords: ['mic', 'microphone', 'voice', 'speech', 'recording', 'can\'t speak', 'audio input'],
+    solution: "Microphone issues are typically permission-related:\n\n1. *Check browser permissions:* Click the lock icon in your address bar and ensure Microphone is set to \"Allow\"\n2. *Check device settings:* Make sure your browser has microphone access in your device's privacy settings\n3. *Try a different browser:* Chrome typically has the best microphone support\n4. *Refresh the page* after granting permissions\n\nIf you're on iOS Safari, note that some voice features work better in Chrome.\n\nDid this resolve the issue?"
+  },
+  'app not loading': {
+    keywords: ['blank page', 'white screen', 'not loading', 'spinning', 'stuck loading', 'won\'t open'],
+    solution: "Try these troubleshooting steps:\n\n1. *Hard refresh:* Press Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)\n2. *Clear cache:* Clear your browser cache and cookies for this site\n3. *Check internet:* Make sure you have a stable connection\n4. *Try incognito:* Open the app in a private/incognito window\n5. *Disable extensions:* Browser extensions can sometimes interfere\n\nIf using the PWA, try removing and re-adding it to your home screen.\n\nDid any of these help?"
+  },
+  'telegram not connecting': {
+    keywords: ['telegram', 'link telegram', 'bot not responding', 'telegram setup'],
+    solution: "To connect Telegram:\n\n1. Go to *Settings* in the SoulPrint app\n2. Find the *Telegram* section\n3. Click *Link Telegram*\n4. Open Telegram and search for *@YourBotName*\n5. Send `/start` to the bot\n6. Follow the linking instructions\n\nIf the bot isn't responding, make sure you're messaging the correct bot and that you've completed the linking process in the app.\n\nIs this helping?"
+  },
+  'import not working': {
+    keywords: ['import', 'upload', 'chatgpt history', 'export', 'file upload'],
+    solution: "For importing chat history:\n\n1. *Export from ChatGPT:* Go to ChatGPT → Settings → Data Controls → Export data\n2. *Wait for email:* You'll receive a download link via email\n3. *Download and extract:* Unzip the downloaded file\n4. *Find conversations.json:* This is the file you need to upload\n5. *Upload in SoulPrint:* Go to Settings → Import → Upload the conversations.json file\n\nMake sure you're uploading the correct file format (JSON).\n\nDoes this help?"
+  },
+  'notifications': {
+    keywords: ['notification', 'alert', 'push notification', 'not getting notifications'],
+    solution: "To enable notifications:\n\n1. *Browser settings:* Make sure notifications are allowed for this site\n2. *Device settings:* Check that your browser can send notifications in system settings\n3. *PWA:* If using as an app, you may need to enable notifications in your device's app settings\n\nNote: Some browsers (especially Safari) have limited notification support.\n\nDid this help?"
+  }
+};
+
+// Determine if issue is user error or technical bug
+async function triageIssue(text, analysis) {
+  const lowerText = text.toLowerCase();
+  
+  // Check against user error patterns
+  for (const [errorType, data] of Object.entries(USER_ERROR_PATTERNS)) {
+    const matchCount = data.keywords.filter(k => lowerText.includes(k)).length;
+    if (matchCount >= 1) {
+      return {
+        isUserError: true,
+        errorType,
+        solution: data.solution,
+        confidence: matchCount >= 2 ? 'high' : 'medium'
+      };
+    }
+  }
+  
+  // Check for clear technical indicators
+  const technicalIndicators = [
+    'bug', 'broken', 'crash', 'error message', 'doesn\'t work anymore',
+    'used to work', 'suddenly stopped', 'after update', '500 error', '404',
+    'api error', 'server error', 'database', 'code', 'console error'
+  ];
+  
+  const technicalScore = technicalIndicators.filter(i => lowerText.includes(i)).length;
+  
+  // Use AI for ambiguous cases
+  if (technicalScore === 0 && !analysis.bestMatch) {
+    const aiTriage = await aiTriageIssue(text);
+    if (aiTriage) return aiTriage;
+  }
+  
+  // Default to technical if we have a known issue match
+  if (analysis.bestMatch) {
+    return {
+      isUserError: false,
+      isTechnical: true,
+      matchedIssue: analysis.bestMatch
+    };
+  }
+  
+  // Ambiguous - need more info
+  return {
+    isUserError: false,
+    isTechnical: technicalScore > 0,
+    needsMoreInfo: true
+  };
+}
+
+// Use AI to help triage ambiguous issues
+async function aiTriageIssue(text) {
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  if (!OPENAI_API_KEY) return null;
+  
+  try {
+    const OpenAI = (await import('openai')).default;
+    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+    
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a support triage bot for SoulPrint, a personal AI assistant app. 
+Analyze the user's issue and determine if it's:
+1. USER_ERROR - Something the user can fix themselves (permissions, settings, how-to questions)
+2. TECHNICAL_BUG - An actual bug/defect that needs developer attention
+
+Respond ONLY with a JSON object:
+{
+  "classification": "USER_ERROR" or "TECHNICAL_BUG",
+  "confidence": "high", "medium", or "low",
+  "reason": "brief explanation",
+  "userSolution": "if USER_ERROR, provide step-by-step troubleshooting" 
+}`
+        },
+        {
+          role: 'user',
+          content: `Triage this issue: "${text}"`
+        }
+      ],
+      max_tokens: 500,
+      temperature: 0.3
+    });
+    
+    const content = response.choices[0]?.message?.content;
+    if (!content) return null;
+    
+    // Parse JSON response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        isUserError: parsed.classification === 'USER_ERROR',
+        isTechnical: parsed.classification === 'TECHNICAL_BUG',
+        confidence: parsed.confidence,
+        reason: parsed.reason,
+        solution: parsed.userSolution
+      };
+    }
+  } catch (err) {
+    console.error('AI triage error:', err);
+  }
+  return null;
+}
 
 // Follow-up questions to gather more details
 const FOLLOW_UP_QUESTIONS = {
@@ -15342,12 +15482,37 @@ async function handleSlackWebhook(request) {
           const analysis = analyzeIssue(cleanText);
           const category = categorizeIssue(cleanText, analysis);
           
-          // Create new conversation state
+          // First, triage the issue to determine if it's user error or technical
+          const triage = await triageIssue(cleanText, analysis);
+          
+          // If it's clearly a user error, provide immediate assistance
+          if (triage.isUserError && triage.solution) {
+            // Create conversation state in case user needs follow-up
+            convState = {
+              state: CONV_STATE.HELPING_USER,
+              originalMessage: cleanText,
+              analysis,
+              category,
+              triage,
+              details: {},
+              messages: [cleanText],
+              createdAt: Date.now()
+            };
+            setConversationState(channelUserId, convState);
+            
+            const helpResponse = `I think I can help with this! 🤔\n\n${triage.solution}\n\n---\n_If this doesn't solve your problem, reply *"still not working"* or *"need more help"* and I'll escalate to the dev team._`;
+            
+            await sendSlackMessage(channel, helpResponse);
+            return ok({ ok: true });
+          }
+          
+          // If it's technical or needs more info, start gathering details
           convState = {
             state: CONV_STATE.GATHERING_DETAILS,
             originalMessage: cleanText,
             analysis,
             category,
+            triage,
             details: {},
             followUpIndex: 0,
             messages: [cleanText],
@@ -15356,14 +15521,65 @@ async function handleSlackWebhook(request) {
           
           setConversationState(channelUserId, convState);
           
-          // Acknowledge and ask first follow-up question
-          const restatement = restateIssue(cleanText);
-          const questions = FOLLOW_UP_QUESTIONS[category] || FOLLOW_UP_QUESTIONS.general;
-          const firstQuestion = questions[0];
+          // If clearly technical, acknowledge and start gathering info
+          if (triage.isTechnical) {
+            const restatement = restateIssue(cleanText);
+            const questions = FOLLOW_UP_QUESTIONS[category] || FOLLOW_UP_QUESTIONS.general;
+            const firstQuestion = questions[0];
+            
+            const response = `This looks like a technical issue that may need developer attention. 🔧\n\n${restatement}\n\n*To help the team fix this quickly, I need a few details:*\n\n❓ ${firstQuestion}\n\n_(Type "done" anytime to submit your report, or "reset" to start over)_`;
+            
+            await sendSlackMessage(channel, response);
+          } else {
+            // Ambiguous - ask clarifying question first
+            const response = `Thanks for reaching out! 👋\n\nBefore I can help, I need to understand the issue better:\n\n❓ Is this something that *used to work* and stopped working, or are you *trying to do something for the first time*?\n\nThis helps me know if it's a setup issue I can help with, or a bug that needs the dev team.`;
+            
+            await sendSlackMessage(channel, response);
+          }
           
-          const response = `Thanks for reporting this! 🙏\n\n${restatement}\n\n*To help investigate this faster, I have a few questions:*\n\n❓ ${firstQuestion}\n\n_(Type "done" anytime to submit your report, or "reset" to start over)_`;
+          return ok({ ok: true });
+        }
+        
+        // HELPING_USER STATE - User received troubleshooting help
+        if (convState.state === CONV_STATE.HELPING_USER) {
+          const stillNeedsHelp = lowerText.includes('not working') || 
+                                 lowerText.includes('still') || 
+                                 lowerText.includes('didn\'t help') ||
+                                 lowerText.includes('need more help') ||
+                                 lowerText.includes('doesn\'t work') ||
+                                 lowerText.includes('nope') ||
+                                 lowerText.includes('no luck');
           
-          await sendSlackMessage(channel, response);
+          const resolved = lowerText.includes('thanks') ||
+                          lowerText.includes('worked') ||
+                          lowerText.includes('fixed') ||
+                          lowerText.includes('solved') ||
+                          lowerText.includes('that helped') ||
+                          lowerText === 'yes' ||
+                          lowerText.includes('perfect');
+          
+          if (resolved) {
+            clearConversationState(channelUserId);
+            await sendSlackMessage(channel, "Awesome, glad I could help! 🎉\n\nFeel free to reach out anytime if you have other questions.");
+            return ok({ ok: true });
+          }
+          
+          if (stillNeedsHelp) {
+            // Escalate to technical flow
+            convState.state = CONV_STATE.GATHERING_DETAILS;
+            convState.followUpIndex = 0;
+            convState.triage.escalatedFromUserHelp = true;
+            setConversationState(channelUserId, convState);
+            
+            const questions = FOLLOW_UP_QUESTIONS[convState.category] || FOLLOW_UP_QUESTIONS.general;
+            const firstQuestion = questions[0];
+            
+            await sendSlackMessage(channel, `No worries, let's get this escalated to the dev team. 🔧\n\n*I'll need a few more details to help them investigate:*\n\n❓ ${firstQuestion}\n\n_(Type "done" anytime to submit your report)_`);
+            return ok({ ok: true });
+          }
+          
+          // Ambiguous response - ask for clarification
+          await sendSlackMessage(channel, "Did that solve your issue? Reply *\"yes\"* if it's working now, or *\"still not working\"* if you need more help.");
           return ok({ ok: true });
         }
         
