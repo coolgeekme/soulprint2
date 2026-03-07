@@ -15369,8 +15369,8 @@ const USER_ERROR_PATTERNS = {
     solution: "Let me walk you through connecting Telegram!\n\n1. First, open SoulPrint in your browser\n2. Tap the ⚙️ Settings icon\n3. Look for \"Telegram\" and tap it\n4. You'll see a special code - copy it!\n5. Now open Telegram on your phone\n6. Search for our bot (the name is in the settings)\n7. Send the code to the bot\n8. That's it! You're connected 🎉\n\nIf the bot isn't responding, make sure you're messaging the right bot. Need more help?"
   },
   'import not working': {
-    keywords: ['import', 'upload', 'chatgpt history', 'export', 'file upload', 'conversations'],
-    solution: "I'll help you import your ChatGPT conversations! Here's an easy guide:\n\n*Step 1: Get your data from ChatGPT*\n1. Go to chat.openai.com and sign in\n2. Click your profile picture (bottom left)\n3. Click \"Settings\"\n4. Click \"Data controls\"\n5. Click \"Export data\" then \"Confirm export\"\n6. Check your email - ChatGPT will send you a download link (might take a few minutes)\n\n*Step 2: Download the file*\n1. Click the link in the email\n2. A file will download to your phone/computer\n3. If it's a .zip file, you'll need to open it first (double-tap on phone, double-click on computer)\n\n*Step 3: Upload to SoulPrint*\n1. Open SoulPrint\n2. Go to Settings → Import\n3. Tap \"Upload\" and find the file called \"conversations\" \n4. Select it and wait for it to finish!\n\nHaving trouble with any step? Just tell me where you're stuck! 📤"
+    keywords: ['import', 'upload', 'chatgpt history', 'export', 'file upload', 'conversations', 'bring my data', 'transfer history'],
+    solution: "Great news - importing your ChatGPT history is super easy! 🎉\n\nJust follow these steps:\n\n1. Open SoulPrint\n2. Tap ⚙️ *Settings*\n3. Tap *Imports*\n4. Tap *Smart Import*\n5. Follow the prompts - we'll handle the rest!\n\nThat's it! The Smart Import feature does all the heavy lifting for you. 💪\n\nLet me know if you run into any issues along the way!"
   },
   'notifications': {
     keywords: ['notification', 'alert', 'push notification', 'not getting notifications'],
