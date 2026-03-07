@@ -933,6 +933,7 @@ async function buildSystemPrompt(db, userId) {
   const profile = await db.collection('profiles').findOne({ user_id: userId });
   const soulProfile = await db.collection('soul_profiles').findOne({ user_id: userId });
   const commProfile = await db.collection('communication_profiles').findOne({ user_id: userId });
+  const userLocation = await db.collection('user_locations').findOne({ user_id: userId });
   const answers = await db.collection('assessment_answers')
     .find({ user_id: userId })
     .sort({ created_at: 1 })
@@ -943,6 +944,15 @@ async function buildSystemPrompt(db, userId) {
   const descriptors = profile?.descriptors || [];
   const field = profile?.field || '';
   const helpWith = profile?.help_with || [];
+
+  // Build location context
+  let locationContext = '';
+  if (userLocation && userLocation.address) {
+    locationContext = `- **Location**: ${userLocation.address}`;
+    if (userLocation.lat && userLocation.lng) {
+      locationContext += ` (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
+    }
+  }
 
   // Build assessment context from answers (full 36-question assessment)
   let assessmentContext = '';
@@ -1109,6 +1119,7 @@ In short: You are the operating system of ${displayName} — running on AI.
 - **Role**: ${descriptors.join(', ') || 'Not specified'}
 - **Field**: ${field || 'Not specified'}
 - **Needs help with**: ${helpWith.join(', ') || 'General assistance'}
+${locationContext}
 ${assessmentContext}
 ${commProfileContext}
 ${soulProfileContext}
@@ -1125,6 +1136,7 @@ Based on ${displayName}'s profile, follow these guidelines:
 5. **Directness**: ${commProfile?.directness > 70 ? 'Be very direct - they value straight talk' : commProfile?.directness < 40 ? 'Be diplomatic and gentle with feedback' : 'Be direct and insightful - they value substance over fluff'}
 6. **Brevity**: ${commProfile?.information_density < 50 ? 'Keep responses concise and scannable' : commProfile?.information_density > 70 ? 'Feel free to provide depth and detail' : 'Keep responses concise unless depth is specifically needed or requested'}
 7. **Links & Sources**: When referencing websites, articles, or resources, ALWAYS include clickable markdown links like [Title](https://url.com). Make URLs actionable so users can explore further.
+8. **Location Awareness**: ${userLocation?.address ? `${displayName} is located in ${userLocation.address}. Use this for ANY location-relevant queries including: weather, local news, time zones, local events, recommendations, distances, etc. When they ask about weather, local services, events, or anything location-specific, base your answer on their location.` : 'Ask for location if they need local information like weather or nearby services.'}
 
 You are ${displayName}'s intelligent companion - be genuinely helpful, remember what matters to them, and adapt your communication to feel natural and personalized. If they ask "what is a SoulPrint?" or similar, explain the philosophy naturally using the context above.`;
 }
@@ -11765,6 +11777,9 @@ async function handleTelegramWebhook(request) {
         { $set: { address } }
       );
       
+      // Invalidate system prompt cache so location is included in future queries
+      invalidateSystemPromptCache(userId);
+      
       // Remove the location keyboard
       await removeTelegramKeyboard(chatId, TELEGRAM_BOT_TOKEN, `📍 Got it! Location: *${address}*`);
       
@@ -13484,6 +13499,9 @@ async function handleSaveUserLocation(request) {
       },
       { upsert: true }
     );
+
+    // Invalidate system prompt cache so location is included in future queries
+    invalidateSystemPromptCache(user.id);
 
     return ok({ success: true, address, lat, lng });
   } catch (error) {
