@@ -15346,43 +15346,51 @@ const CONV_STATE = {
   ESCALATED: 'escalated'
 };
 
-// Common user errors and their solutions (written for non-technical users)
+// Common user errors and their solutions (simple, friendly language)
 const USER_ERROR_PATTERNS = {
   'not logged in': {
     keywords: ['logged out', 'sign in', 'login', 'session expired', 'unauthorized', 'access denied'],
-    solution: "Sounds like you got signed out! Here's how to fix it:\n\n1. Close the app completely and reopen it\n2. Try signing in again with your email and password\n3. If you're using it like an app on your phone, try removing it and adding it back\n\nStill having trouble? Just reply and I'll get someone to help! 😊"
+    solution: "Try closing the app completely and reopening it, then sign in again.\n\nStill not working? Let me know and I'll get someone to help! 😊"
   },
   'location not working': {
     keywords: ['location denied', 'can\'t find location', 'gps', 'near me not working', 'location permission'],
-    solution: "I can help with that! Your phone needs permission to share your location.\n\n*On iPhone:*\n1. Open your phone's Settings app\n2. Scroll down and tap Privacy & Security\n3. Tap Location Services\n4. Find your browser (Safari/Chrome) and tap it\n5. Choose \"While Using the App\"\n6. Go back to SoulPrint and try again\n\n*On Android:*\n1. When SoulPrint asks for location, tap \"Allow\"\n2. If you already said no, tap the little lock icon at the top of the screen and turn on Location\n\nDid that work? Let me know! 🗺️"
+    solution: "Your phone needs permission to share your location.\n\n1. Go to your phone's *Settings*\n2. Find *Privacy* or *Location*\n3. Make sure it's turned ON for your browser\n\nTry again after that! Let me know if it works 🗺️"
   },
   'microphone not working': {
     keywords: ['mic', 'microphone', 'voice', 'speech', 'recording', 'can\'t speak', 'audio input'],
-    solution: "Let's get your microphone working!\n\n*On iPhone/iPad:*\n1. Open Settings on your phone\n2. Scroll down to Safari (or Chrome)\n3. Make sure Microphone is turned ON\n\n*On Computer:*\n1. Look for a small lock or camera icon near the website address at the top\n2. Click it\n3. Find \"Microphone\" and change it to \"Allow\"\n4. Refresh the page\n\nTry again and let me know if it works! 🎤"
+    solution: "Your phone needs permission to use the microphone.\n\n1. Go to your phone's *Settings*\n2. Find your browser (Safari or Chrome)\n3. Make sure *Microphone* is turned ON\n\nTry again and let me know! 🎤"
   },
   'app not loading': {
     keywords: ['blank page', 'white screen', 'not loading', 'spinning', 'stuck loading', 'won\'t open', 'frozen'],
-    solution: "Let's get that fixed! Try these steps:\n\n1. *Refresh the page* - On phone: pull down from the top. On computer: click the circular arrow or press F5\n\n2. *Close and reopen* - Completely close the app/browser and open it again\n\n3. *Check your internet* - Make sure WiFi or data is working (try opening another website)\n\n4. *Clear the app's memory* - On phone: close all your browser tabs and try again\n\nIf none of that works, let me know what device you're using and I'll get more help! 📱"
+    solution: "Try these quick fixes:\n\n1. Close the app completely and reopen it\n2. Check that your internet is working\n3. If on phone, try closing other apps first\n\nStill stuck? Let me know what you see and I'll help! 📱"
   },
   'telegram not connecting': {
     keywords: ['telegram', 'link telegram', 'bot not responding', 'telegram setup', 'telegram not working'],
-    solution: "Let me walk you through connecting Telegram!\n\n1. First, open SoulPrint in your browser\n2. Tap the ⚙️ Settings icon\n3. Look for \"Telegram\" and tap it\n4. You'll see a special code - copy it!\n5. Now open Telegram on your phone\n6. Search for our bot (the name is in the settings)\n7. Send the code to the bot\n8. That's it! You're connected 🎉\n\nIf the bot isn't responding, make sure you're messaging the right bot. Need more help?"
+    solution: "To connect Telegram:\n\n1. In SoulPrint, go to *Settings* → *Telegram*\n2. Copy the code shown\n3. Open Telegram and find our bot\n4. Send the code to the bot\n\nThat's it! Let me know if you need help finding the bot 💬"
   },
   'import not working': {
     keywords: ['import', 'upload', 'chatgpt history', 'export', 'file upload', 'conversations', 'bring my data', 'transfer history'],
-    solution: "Great news - importing your ChatGPT history is super easy! 🎉\n\nJust follow these steps:\n\n1. Open SoulPrint\n2. Tap ⚙️ *Settings*\n3. Tap *Imports*\n4. Tap *Smart Import*\n5. Follow the prompts - we'll handle the rest!\n\nThat's it! The Smart Import feature does all the heavy lifting for you. 💪\n\nLet me know if you run into any issues along the way!"
+    solution: "Importing is easy! 🎉\n\n1. Go to *Settings* → *Imports* → *Smart Import*\n2. Follow the prompts - we handle the rest!\n\nLet me know if you run into anything!"
   },
   'notifications': {
     keywords: ['notification', 'alert', 'push notification', 'not getting notifications'],
-    solution: "Let's turn on notifications!\n\n*On iPhone:*\n1. Open Settings\n2. Scroll down and tap the browser you use (Safari/Chrome)\n3. Tap \"Notifications\"\n4. Turn it ON\n\n*On Android:*\n1. Open Settings\n2. Tap \"Apps\" or \"Applications\"\n3. Find your browser and tap it\n4. Tap \"Notifications\"\n5. Turn them ON\n\n*On Computer:*\n1. Click the lock icon next to the website address\n2. Find Notifications and set to \"Allow\"\n\nNote: Some phones don't allow web notifications - if yours doesn't work, that might be why! Let me know how it goes 🔔"
+    solution: "To turn on notifications:\n\n1. Go to your phone's *Settings*\n2. Find your browser app\n3. Tap *Notifications* and turn them ON\n\nLet me know if you can't find it! 🔔"
   },
   'password reset': {
     keywords: ['forgot password', 'reset password', 'can\'t remember', 'password not working', 'wrong password'],
-    solution: "No worries, let's reset your password!\n\n1. Go to the sign-in page\n2. Look for \"Forgot password?\" and tap it\n3. Enter your email address\n4. Check your email for a reset link (check spam folder too!)\n5. Click the link and create a new password\n\nIf you don't get the email within a few minutes, let me know and I'll escalate this! 🔐"
+    solution: "No worries!\n\n1. Go to the sign-in page\n2. Tap *Forgot password?*\n3. Enter your email\n4. Check your email for a reset link\n\nIf you don't get the email, check your spam folder! 🔐"
   },
   'slow app': {
     keywords: ['slow', 'taking forever', 'lagging', 'delayed', 'takes too long'],
-    solution: "Let's speed things up!\n\n1. *Check your internet* - Try loading another website to make sure your connection is good\n\n2. *Close other apps* - Having too many apps open can slow things down\n\n3. *Refresh the page* - Sometimes that clears things up\n\n4. *Try a different browser* - Chrome usually works best\n\nIf it's still slow, it might be a temporary issue on our end. Let me know and I can check! ⚡"
+    solution: "Let's speed things up:\n\n1. Make sure your internet connection is good\n2. Close other apps you're not using\n3. Try refreshing the page\n\nStill slow? Let me know and I'll check if there's an issue on our end ⚡"
+  },
+  'camera not working': {
+    keywords: ['camera', 'photo', 'picture', 'scan', 'can\'t take photo'],
+    solution: "Your phone needs permission to use the camera.\n\n1. Go to your phone's *Settings*\n2. Find your browser app\n3. Make sure *Camera* is turned ON\n\nTry again after that! 📸"
+  },
+  'payment issue': {
+    keywords: ['payment', 'subscription', 'billing', 'charge', 'card declined', 'can\'t pay'],
+    solution: "For payment issues, I'll connect you with our team right away - they can help sort this out quickly! 💳\n\nHang tight, someone will reach out soon."
   }
 };
 
