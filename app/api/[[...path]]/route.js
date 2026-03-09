@@ -3537,6 +3537,7 @@ async function handleChatStream(request) {
     provider: providerNameRaw = null,
     attachments = [],   // [{ type: 'image'|'document', base64: '...', mimeType: '...', name: '...', text: '...' }]
     enableWebSearch = true,
+    projectId = null,   // Optional project to associate new conversations with
   } = body;
   
   // Dynamic Intelligence - automatically select best model
@@ -3588,9 +3589,28 @@ async function handleChatStream(request) {
     convId = uuidv4();
     const now = new Date();
     const title = (content || 'File attachment').slice(0, 50) + ((content?.length > 50) ? '...' : '');
-    await db.collection('conversations').insertOne({
+    
+    // Build conversation object with optional project_id
+    const newConv = {
       id: convId, user_id: user.id, title, created_at: now, updated_at: now,
-    });
+    };
+    
+    // If projectId is provided and valid (not 'general' or null), add it
+    if (projectId && projectId !== 'general') {
+      // Verify user has access to this project
+      const project = await db.collection('projects').findOne({
+        id: projectId,
+        $or: [
+          { owner_id: user.id },
+          { shared_with: user.id }
+        ]
+      });
+      if (project) {
+        newConv.project_id = projectId;
+      }
+    }
+    
+    await db.collection('conversations').insertOne(newConv);
   }
 
   // Save user message (text only for storage)
@@ -4321,6 +4341,7 @@ async function handleChatCompare(request) {
     models = [], // Array of { model, provider } - max 3
     attachments = [],
     enableWebSearch = true,
+    projectId = null,   // Optional project to associate new conversations with
   } = body;
 
   if (!content && attachments.length === 0) return err('content required');
@@ -4344,9 +4365,28 @@ async function handleChatCompare(request) {
     convId = uuidv4();
     const now = new Date();
     const title = (content || 'File attachment').slice(0, 50) + ((content?.length > 50) ? '...' : '');
-    await db.collection('conversations').insertOne({
+    
+    // Build conversation object with optional project_id
+    const newConv = {
       id: convId, user_id: user.id, title, created_at: now, updated_at: now,
-    });
+    };
+    
+    // If projectId is provided and valid (not 'general' or null), add it
+    if (projectId && projectId !== 'general') {
+      // Verify user has access to this project
+      const project = await db.collection('projects').findOne({
+        id: projectId,
+        $or: [
+          { owner_id: user.id },
+          { shared_with: user.id }
+        ]
+      });
+      if (project) {
+        newConv.project_id = projectId;
+      }
+    }
+    
+    await db.collection('conversations').insertOne(newConv);
   }
 
   // Save user message

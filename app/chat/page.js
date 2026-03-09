@@ -5240,6 +5240,7 @@ export default function ChatPage() {
             models: compareModels,
             attachments: currentAttachments,
             enableWebSearch: webSearchEnabled,
+            projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
           }),
         });
 
@@ -5285,6 +5286,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           conversationId: newConvId, content, model: selectedModel,
           provider: currentModel.provider, attachments: currentAttachments, enableWebSearch: webSearchEnabled,
+          projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
         }),
         signal: abortControllerRef.current.signal,
       });

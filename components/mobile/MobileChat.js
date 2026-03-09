@@ -2468,6 +2468,7 @@ export default function MobileChat({
           provider: currentModel.provider,
           attachments: userMessage.attachments,
           enableWebSearch: webSearchEnabled,
+          projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -3012,6 +3013,7 @@ export default function MobileChat({
               model,
               provider: modelInfo.provider,
               enableWebSearch: webSearchEnabled,
+              projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
             }),
           });
           
