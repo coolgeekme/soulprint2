@@ -1684,57 +1684,46 @@ const ImportSheet = ({ isOpen, onClose, onImport, isUploading, uploadProgress })
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         
         <div className="text-center mb-6">
-          <div className="w-16 h-16 mx-auto bg-emerald-500/20 rounded-full flex items-center justify-center mb-4">
-            <Upload className="w-8 h-8 text-emerald-400" />
+          <div className="w-16 h-16 mx-auto bg-orange-500/20 rounded-full flex items-center justify-center mb-4">
+            <Upload className="w-8 h-8 text-orange-400" />
           </div>
-          <h3 className="text-white font-semibold text-lg mb-2">Import Chat History</h3>
-          <p className="text-gray-500 text-sm">Upload your chat exports to enhance your SoulPrint profile</p>
+          <h3 className="text-white font-semibold text-lg mb-2">Import History</h3>
+          <p className="text-gray-500 text-sm">Upload your data export from any platform</p>
         </div>
         
         <input
           type="file"
           ref={fileRef}
-          accept=".zip,.json,.txt"
+          accept=".zip"
           onChange={(e) => onImport(e.target.files?.[0])}
           className="hidden"
         />
         
         {isUploading ? (
           <div className="text-center py-6">
-            <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mx-auto mb-3" />
-            <p className="text-white text-sm">{uploadProgress || 'Uploading...'}</p>
+            <Loader2 className="w-8 h-8 text-orange-400 animate-spin mx-auto mb-3" />
+            <p className="text-white text-sm">{uploadProgress || 'Processing...'}</p>
           </div>
         ) : (
           <>
             <button 
               onClick={() => fileRef.current?.click()}
-              className="w-full p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-center mb-4 hover:bg-emerald-500/30 transition-colors"
+              className="w-full p-4 rounded-2xl bg-orange-500/20 border border-orange-500/30 text-center mb-4 hover:bg-orange-500/30 transition-colors"
             >
-              <Upload className="w-6 h-6 text-emerald-400 mx-auto mb-2" />
-              <span className="text-white font-medium block">Choose File</span>
-              <p className="text-emerald-400/70 text-xs mt-1">ZIP or JSON file</p>
+              <Upload className="w-6 h-6 text-orange-400 mx-auto mb-2" />
+              <span className="text-white font-medium block">Choose ZIP File</span>
+              <p className="text-orange-400/70 text-xs mt-1">We auto-detect the format</p>
             </button>
             
-            <div className="bg-white/5 rounded-xl p-4 mb-4">
-              <p className="text-gray-400 text-xs font-medium mb-2">Supported formats:</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="flex items-center gap-2 text-gray-500">
-                  <Check className="w-3 h-3 text-emerald-400" /> ChatGPT Export
-                </div>
-                <div className="flex items-center gap-2 text-gray-500">
-                  <Check className="w-3 h-3 text-emerald-400" /> WhatsApp Export
-                </div>
-                <div className="flex items-center gap-2 text-gray-500">
-                  <Check className="w-3 h-3 text-emerald-400" /> iMessage Export
-                </div>
-                <div className="flex items-center gap-2 text-gray-500">
-                  <Check className="w-3 h-3 text-emerald-400" /> Facebook Export
-                </div>
-              </div>
+            <div className="flex flex-wrap justify-center gap-2 mb-4">
+              <span className="px-2.5 py-1 bg-green-500/10 text-green-400 text-xs rounded-full">ChatGPT</span>
+              <span className="px-2.5 py-1 bg-blue-500/10 text-blue-400 text-xs rounded-full">Facebook</span>
+              <span className="px-2.5 py-1 bg-orange-500/10 text-orange-300 text-xs rounded-full">Claude</span>
+              <span className="px-2.5 py-1 bg-purple-500/10 text-purple-400 text-xs rounded-full">Google</span>
             </div>
             
             <p className="text-gray-600 text-[10px] text-center mb-4">
-              🔒 Your data is processed securely. Only insights are saved, raw data is deleted.
+              🔒 Files stay on your device. Only insights are saved.
             </p>
           </>
         )}

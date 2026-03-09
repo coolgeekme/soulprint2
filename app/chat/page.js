@@ -1146,15 +1146,15 @@ function GalleryModal({ item, onClose, onDelete, onRegenerate, token }) {
   );
 }
 
-// ── CloudImportModal: Import with client-side ZIP processing ──────────────────
+// ── CloudImportModal: Universal Import with Auto-Detection ──────────────────
 function CloudImportModal({ onClose, token, onImportComplete }) {
-  const [importType, setImportType] = useState('chatgpt');
   const [isImporting, setIsImporting] = useState(false);
   const [importStatus, setImportStatus] = useState(null);
   const [error, setError] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [extractedData, setExtractedData] = useState(null);
+  const [detectedPlatform, setDetectedPlatform] = useState(null);
   const fileInputRef = useRef(null);
 
   const formatFileSize = (bytes) => {
@@ -1166,36 +1166,60 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
   const getTotalSize = () => selectedFiles.reduce((sum, f) => sum + f.size, 0);
 
-  // Extract data from ZIP file client-side
-  const extractFromZip = async (file, type) => {
+  // Auto-detect platform and extract data from ZIP file
+  const extractFromZip = async (file) => {
     const JSZip = (await import('jszip')).default;
     const zip = await JSZip.loadAsync(file);
+    const allFiles = Object.keys(zip.files);
     const messages = [];
     const posts = [];
+    let platform = 'unknown';
 
-    if (type === 'chatgpt') {
-      // Look for conversations.json - could be at root or in a subfolder
-      let conversationsFile = zip.file('conversations.json');
+    // ── Detect ChatGPT ──
+    const hasChatGPT = allFiles.some(f => 
+      f.includes('conversations.json') || 
+      f.includes('chat.html') ||
+      f.includes('model_comparisons')
+    );
+
+    // ── Detect Facebook ──
+    const hasFacebook = allFiles.some(f => 
+      f.includes('messages/inbox/') || 
+      f.includes('your_posts') ||
+      f.includes('profile_information')
+    );
+
+    // ── Detect Claude ──
+    const hasClaude = allFiles.some(f => 
+      f.includes('conversations') && f.endsWith('.json')
+    ) && allFiles.some(f => f.includes('Claude') || f.includes('claude'));
+
+    // ── Detect Google/Gemini ──
+    const hasGoogle = allFiles.some(f => 
+      f.includes('Takeout') || 
+      f.includes('My Activity') ||
+      f.includes('Gemini')
+    );
+
+    // Process based on detected platform
+    if (hasChatGPT) {
+      platform = 'ChatGPT';
       
-      // If not at root, search for it anywhere in the ZIP
+      // Look for conversations.json
+      let conversationsFile = zip.file('conversations.json');
       if (!conversationsFile) {
-        const allFiles = Object.keys(zip.files);
         const convFile = allFiles.find(f => f.endsWith('conversations.json'));
-        if (convFile) {
-          conversationsFile = zip.file(convFile);
-        }
+        if (convFile) conversationsFile = zip.file(convFile);
       }
       
       if (conversationsFile) {
         try {
           const content = await conversationsFile.async('string');
           const conversations = JSON.parse(content);
-          
-          // Handle both array format and object format
           const convArray = Array.isArray(conversations) ? conversations : [conversations];
           
           for (const conv of convArray) {
-            // Standard ChatGPT export format with mapping
+            // Standard ChatGPT format with mapping
             if (conv.mapping) {
               for (const nodeId in conv.mapping) {
                 const node = conv.mapping[nodeId];
@@ -1208,14 +1232,15 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                       content: msgContent.trim(),
                       timestamp: node.message.create_time ? new Date(node.message.create_time * 1000).toISOString() : null,
                       conversation_id: conv.id,
-                      conversation_title: conv.title
+                      conversation_title: conv.title,
+                      source: 'chatgpt'
                     });
                   }
                 }
               }
             }
             
-            // Alternative format - direct messages array (older exports)
+            // Alternative format - direct messages array
             if (conv.messages && Array.isArray(conv.messages)) {
               for (const msg of conv.messages) {
                 if (msg.content && (msg.role === 'user' || msg.role === 'assistant')) {
@@ -1224,115 +1249,148 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                     content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
                     timestamp: msg.timestamp || msg.create_time ? new Date((msg.timestamp || msg.create_time) * 1000).toISOString() : null,
                     conversation_id: conv.id || conv.conversation_id,
-                    conversation_title: conv.title
+                    conversation_title: conv.title,
+                    source: 'chatgpt'
                   });
                 }
               }
             }
           }
         } catch (parseError) {
-          console.error('Error parsing conversations.json:', parseError);
+          console.error('Error parsing ChatGPT conversations:', parseError);
         }
       }
+    }
+    
+    if (hasFacebook) {
+      platform = platform === 'unknown' ? 'Facebook' : platform + ' + Facebook';
       
-      // Also look for chat.html or other ChatGPT formats
-      if (messages.length === 0) {
-        const allFiles = Object.keys(zip.files);
-        
-        // Check for any JSON files that might contain conversations
-        const jsonFiles = allFiles.filter(f => f.endsWith('.json') && !f.includes('__MACOSX'));
-        
-        for (const jsonFile of jsonFiles.slice(0, 10)) { // Check first 10 JSON files
-          try {
-            const content = await zip.file(jsonFile).async('string');
-            const data = JSON.parse(content);
-            
-            // Try to find messages in various formats
-            if (Array.isArray(data)) {
-              for (const item of data) {
-                if (item.mapping || item.messages) {
-                  // This looks like a conversation, process it
-                  if (item.mapping) {
-                    for (const nodeId in item.mapping) {
-                      const node = item.mapping[nodeId];
-                      if (node.message?.content?.parts?.[0]) {
-                        const role = node.message.author?.role;
-                        const msgContent = node.message.content.parts.join('\n');
-                        if (msgContent && msgContent.trim() && (role === 'user' || role === 'assistant')) {
-                          messages.push({
-                            role: role === 'user' ? 'user' : 'assistant',
-                            content: msgContent.trim(),
-                            timestamp: node.message.create_time ? new Date(node.message.create_time * 1000).toISOString() : null,
-                            conversation_id: item.id,
-                            conversation_title: item.title
-                          });
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            // Skip files that can't be parsed
-          }
-        }
-      }
-      
-      console.log(`ChatGPT import: Found ${messages.length} messages`);
-    } else if (type === 'facebook') {
       // Look for messages in inbox folder
-      const messageFiles = Object.keys(zip.files).filter(f => 
-        f.includes('messages/inbox/') && f.endsWith('.json')
+      const messageFiles = allFiles.filter(f => 
+        f.includes('messages/inbox/') && f.endsWith('.json') && !f.includes('__MACOSX')
       );
       
       for (const filePath of messageFiles) {
         try {
           const content = await zip.file(filePath).async('string');
           const data = JSON.parse(content);
-          if (data.messages) {
+          if (data.messages && Array.isArray(data.messages)) {
             for (const msg of data.messages) {
               if (msg.content) {
+                // Decode Facebook's UTF-8 encoding
+                let decodedContent = msg.content;
+                try {
+                  decodedContent = decodeURIComponent(escape(msg.content));
+                } catch (e) {}
+                
                 messages.push({
-                  role: msg.sender_name?.toLowerCase().includes('you') ? 'user' : 'other',
-                  content: msg.content,
+                  role: 'user', // Facebook messages are your side of conversations
+                  content: decodedContent,
                   timestamp: msg.timestamp_ms ? new Date(msg.timestamp_ms).toISOString() : null,
-                  sender: msg.sender_name
+                  sender: msg.sender_name,
+                  source: 'facebook'
                 });
               }
             }
           }
         } catch (e) {
-          console.log('Skipping file:', filePath);
+          // Skip unparseable files
         }
       }
 
       // Look for posts
-      const postFiles = Object.keys(zip.files).filter(f => 
-        f.includes('posts/') && f.endsWith('.json')
+      const postFiles = allFiles.filter(f => 
+        (f.includes('posts/') || f.includes('your_posts')) && f.endsWith('.json')
       );
       
       for (const filePath of postFiles) {
         try {
           const content = await zip.file(filePath).async('string');
           const data = JSON.parse(content);
-          if (Array.isArray(data)) {
-            for (const post of data) {
-              if (post.data?.[0]?.post) {
-                posts.push({
-                  content: post.data[0].post,
-                  timestamp: post.timestamp ? new Date(post.timestamp * 1000).toISOString() : null
-                });
-              }
+          const postArray = Array.isArray(data) ? data : (data.posts || []);
+          
+          for (const post of postArray) {
+            const postContent = post.data?.[0]?.post || post.post || post.message;
+            if (postContent) {
+              posts.push({
+                content: postContent,
+                timestamp: post.timestamp ? new Date(post.timestamp * 1000).toISOString() : null,
+                source: 'facebook'
+              });
             }
           }
         } catch (e) {
-          console.log('Skipping file:', filePath);
+          // Skip unparseable files
         }
       }
     }
 
-    return { messages, posts };
+    if (hasClaude) {
+      platform = platform === 'unknown' ? 'Claude' : platform + ' + Claude';
+      
+      const jsonFiles = allFiles.filter(f => f.endsWith('.json') && !f.includes('__MACOSX'));
+      for (const filePath of jsonFiles) {
+        try {
+          const content = await zip.file(filePath).async('string');
+          const data = JSON.parse(content);
+          
+          // Handle Claude's conversation format
+          if (data.chat_messages || data.messages) {
+            const msgArray = data.chat_messages || data.messages;
+            for (const msg of msgArray) {
+              if (msg.text || msg.content) {
+                messages.push({
+                  role: msg.sender === 'human' ? 'user' : 'assistant',
+                  content: msg.text || msg.content,
+                  timestamp: msg.created_at || msg.timestamp,
+                  source: 'claude'
+                });
+              }
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    // Fallback: Try to find ANY JSON with conversation-like data
+    if (messages.length === 0 && posts.length === 0) {
+      platform = 'Auto-detected';
+      const jsonFiles = allFiles.filter(f => f.endsWith('.json') && !f.includes('__MACOSX'));
+      
+      for (const filePath of jsonFiles.slice(0, 20)) {
+        try {
+          const content = await zip.file(filePath).async('string');
+          const data = JSON.parse(content);
+          
+          // Look for any array of message-like objects
+          const findMessages = (obj, depth = 0) => {
+            if (depth > 3) return;
+            if (Array.isArray(obj)) {
+              for (const item of obj) {
+                if (item.content || item.text || item.message) {
+                  messages.push({
+                    role: item.role || (item.sender === 'user' ? 'user' : 'assistant'),
+                    content: item.content || item.text || item.message,
+                    timestamp: item.timestamp || item.created_at,
+                    source: 'auto'
+                  });
+                }
+                if (typeof item === 'object') findMessages(item, depth + 1);
+              }
+            } else if (typeof obj === 'object' && obj !== null) {
+              for (const key of Object.keys(obj)) {
+                findMessages(obj[key], depth + 1);
+              }
+            }
+          };
+          
+          findMessages(data);
+        } catch (e) {}
+      }
+    }
+
+    console.log(`Import: Detected ${platform}, found ${messages.length} messages, ${posts.length} posts`);
+    return { messages, posts, platform };
   };
 
   const handleFileSelect = async (e) => {
@@ -1348,13 +1406,15 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     setSelectedFiles(files);
     setError('');
     setExtractedData(null);
+    setDetectedPlatform(null);
     
-    // Auto-extract preview
-    setImportStatus({ status: 'extracting', message: 'Reading ZIP file...', progress: 10 });
+    // Auto-extract and detect platform
+    setImportStatus({ status: 'extracting', message: 'Reading your file...', progress: 10 });
     
     try {
       let totalMessages = [];
       let totalPosts = [];
+      let platforms = [];
       
       for (let i = 0; i < files.length; i++) {
         setImportStatus({ 
@@ -1363,14 +1423,17 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           progress: Math.round(((i + 1) / files.length) * 80) 
         });
         
-        const { messages, posts } = await extractFromZip(files[i], importType);
+        const { messages, posts, platform } = await extractFromZip(files[i]);
         totalMessages.push(...messages);
         totalPosts.push(...posts);
+        if (platform && !platforms.includes(platform)) platforms.push(platform);
       }
+      
+      setDetectedPlatform(platforms.join(', ') || 'Unknown');
       
       // If no messages found, show helpful message
       if (totalMessages.length === 0 && totalPosts.length === 0) {
-        setError(`No messages found in your ${importType === 'chatgpt' ? 'ChatGPT' : 'Facebook'} export. This might happen if:\n• The file format has changed\n• The export is empty\n• The file is corrupted\n\nTry re-exporting your data from ${importType === 'chatgpt' ? 'ChatGPT (Settings → Data controls → Export)' : 'Facebook'}.`);
+        setError(`We couldn't find any conversations in this file.\n\nMake sure you're uploading a data export from ChatGPT, Facebook, Claude, or another AI assistant.\n\nNeed help? The support bot can walk you through exporting your data.`);
         setImportStatus(null);
         return;
       }
@@ -1384,7 +1447,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       
     } catch (err) {
       console.error('Extraction error:', err);
-      setError(`Failed to read ZIP file: ${err.message}\n\nMake sure it's a valid ${importType === 'chatgpt' ? 'ChatGPT' : 'Facebook'} export file.`);
+      setError(`Couldn't read the file: ${err.message}\n\nMake sure it's a valid ZIP file from your AI assistant or social media export.`);
       setImportStatus(null);
     }
   };
@@ -1476,12 +1539,12 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       <div className="bg-[#141a21] border border-white/10 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-white/10 sticky top-0 bg-[#141a21] z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center">
+              <Upload className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">Smart Import</h2>
-              <p className="text-xs text-gray-500">Fast • Processes locally • Private</p>
+              <h2 className="text-lg font-semibold text-white">Import History</h2>
+              <p className="text-xs text-gray-500">ChatGPT, Facebook, Claude & more</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white p-1" disabled={isImporting}>
@@ -1490,35 +1553,22 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
         </div>
 
         <div className="p-5 space-y-5">
-          {/* Data Source Selection */}
-          <div>
-            <label className="text-xs uppercase tracking-wider text-gray-500 mb-2 block">Data Source</label>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => { setImportType('chatgpt'); setExtractedData(null); setSelectedFiles([]); }} 
-                disabled={isImporting}
-                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                  importType === 'chatgpt' 
-                    ? 'bg-green-500/20 border border-green-500/40 text-green-400' 
-                    : 'bg-white/5 border border-white/10 text-gray-400 hover:border-white/20'
-                }`}>
-                ChatGPT Export
-              </button>
-              <button 
-                onClick={() => { setImportType('facebook'); setExtractedData(null); setSelectedFiles([]); }} 
-                disabled={isImporting}
-                className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
-                  importType === 'facebook' 
-                    ? 'bg-blue-500/20 border border-blue-500/40 text-blue-400' 
-                    : 'bg-white/5 border border-white/10 text-gray-400 hover:border-white/20'
-                }`}>
-                Facebook Export
-              </button>
+          {/* Instructions - only show before file selected */}
+          {!selectedFiles.length && !extractedData && (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+              <p className="text-sm text-gray-300 mb-3">Upload your data export ZIP file from any of these:</p>
+              <div className="flex flex-wrap gap-2">
+                <span className="px-2.5 py-1 bg-green-500/10 text-green-400 text-xs rounded-full">ChatGPT</span>
+                <span className="px-2.5 py-1 bg-blue-500/10 text-blue-400 text-xs rounded-full">Facebook</span>
+                <span className="px-2.5 py-1 bg-orange-500/10 text-orange-400 text-xs rounded-full">Claude</span>
+                <span className="px-2.5 py-1 bg-purple-500/10 text-purple-400 text-xs rounded-full">Google/Gemini</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-3">We'll automatically detect the format.</p>
             </div>
-          </div>
+          )}
 
           {/* File Selection */}
-          <div className="bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-xl p-4">
+          <div className="bg-gradient-to-br from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-xl p-4">
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -1532,17 +1582,17 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
               <button 
                 onClick={() => fileInputRef.current?.click()} 
                 disabled={isImporting || importStatus?.status === 'extracting'}
-                className="w-full py-8 border-2 border-dashed border-white/20 hover:border-emerald-500/50 rounded-xl flex flex-col items-center justify-center gap-2 transition-all">
+                className="w-full py-8 border-2 border-dashed border-white/20 hover:border-orange-500/50 rounded-xl flex flex-col items-center justify-center gap-2 transition-all">
                 {importStatus?.status === 'extracting' ? (
                   <>
-                    <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
-                    <span className="text-sm text-emerald-400">{importStatus.message}</span>
+                    <Loader2 className="w-10 h-10 text-orange-400 animate-spin" />
+                    <span className="text-sm text-orange-400">{importStatus.message}</span>
                   </>
                 ) : (
                   <>
                     <Upload className="w-10 h-10 text-gray-500" />
-                    <span className="text-sm text-gray-400">Click to select your {importType === 'chatgpt' ? 'ChatGPT' : 'Facebook'} export ZIP</span>
-                    <span className="text-xs text-gray-600">We'll extract just the conversations • Files stay on your device</span>
+                    <span className="text-sm text-gray-400">Click to select your ZIP file</span>
+                    <span className="text-xs text-gray-600">Files stay on your device</span>
                   </>
                 )}
               </button>
@@ -1551,14 +1601,23 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                 {/* Selected File */}
                 <div className="flex items-center justify-between bg-black/30 rounded-lg px-3 py-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <FileArchive className="w-4 h-4 text-emerald-400" />
+                    <FileArchive className="w-4 h-4 text-orange-400" />
                     <span className="text-sm text-gray-300 truncate">{selectedFiles[0]?.name}</span>
                     <span className="text-xs text-gray-500">({formatFileSize(getTotalSize())})</span>
                   </div>
-                  <button onClick={removeFile} disabled={isImporting} className="text-gray-500 hover:text-red-400 p-1">
+                  <button onClick={removeFile} disabled={isImporting} className="text-gray-500 hover:text-red-400">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
+
+                {/* Detected platform */}
+                {detectedPlatform && (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                    <span className="text-xs text-gray-400">Detected:</span>
+                    <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">{detectedPlatform}</span>
+                  </div>
+                )}
                 
                 {/* Extraction Preview */}
                 <div className="bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 rounded-lg p-4">
@@ -3266,8 +3325,8 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
           {activeTab === 'imports' && (
             <div className="space-y-5 sm:space-y-6">
               <div>
-                <h3 className="text-white text-sm font-semibold mb-1">📥 Import Your Data</h3>
-                <p className="text-gray-500 text-xs mb-4">Upload your ChatGPT or Facebook data export (ZIP file). I'll analyze your communication style to personalize your experience.</p>
+                <h3 className="text-white text-sm font-semibold mb-1">📥 Import Your History</h3>
+                <p className="text-gray-500 text-xs mb-4">Upload your conversation history from ChatGPT, Facebook, Claude, or other platforms. We'll automatically detect the format.</p>
                 
                 {uploadProgress && (
                   <div className="mb-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
@@ -3285,74 +3344,37 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 gap-3">
-                  {/* ChatGPT Upload */}
-                  <div className="p-3 sm:p-4 rounded-xl bg-[#1a1a1a] border border-white/5">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-green-500/10 border border-green-500/20 flex items-center justify-center flex-shrink-0">
-                        <span className="text-lg sm:text-xl">💬</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium">ChatGPT Export</p>
-                        <p className="text-gray-600 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Export from Settings → Data controls → Export data</p>
-                        <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-xs hover:bg-green-500/15 transition-colors">
-                          <Upload className="w-3.5 h-3.5" /> 
-                          <span className="hidden sm:inline">Select ZIP File(s)</span>
-                          <span className="sm:hidden">Upload</span>
-                          <input type="file" accept=".zip" multiple className="hidden" onChange={(e) => { handleDataImportUpload(e.target.files, 'chatgpt'); e.target.value = ''; }} disabled={uploading} />
-                        </label>
-                      </div>
+                {/* Single Import Option */}
+                <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/20">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-orange-500/20 to-amber-500/20 border border-orange-500/30 flex items-center justify-center flex-shrink-0">
+                      <Upload className="w-6 h-6 sm:w-7 sm:h-7 text-orange-400" />
                     </div>
-                  </div>
-
-                  {/* Facebook Upload */}
-                  <div className="p-3 sm:p-4 rounded-xl bg-[#1a1a1a] border border-white/5 opacity-60">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
-                        <span className="text-lg sm:text-xl">📘</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-base font-medium">Import History</p>
+                      <p className="text-gray-500 text-xs sm:text-sm mt-1 mb-3">Works with ChatGPT, Facebook, Claude, Google, and more. Just upload your ZIP file.</p>
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <span className="px-2 py-0.5 bg-green-500/10 text-green-400 text-[10px] rounded-full">ChatGPT</span>
+                        <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] rounded-full">Facebook</span>
+                        <span className="px-2 py-0.5 bg-orange-500/10 text-orange-300 text-[10px] rounded-full">Claude</span>
+                        <span className="px-2 py-0.5 bg-purple-500/10 text-purple-400 text-[10px] rounded-full">Google</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-white text-sm font-medium">Facebook Archive</p>
-                          <span className="text-[10px] bg-gray-500/20 text-gray-400 px-2 py-0.5 rounded-full">Coming Soon</span>
-                        </div>
-                        <p className="text-gray-600 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Import your Facebook messages and posts</p>
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-blue-400/50 text-xs cursor-not-allowed">
-                          <Upload className="w-3.5 h-3.5" /> 
-                          <span>Coming Soon</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Cloud Import for Large Files */}
-                  <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-r from-cyan-500/5 to-blue-500/5 border border-cyan-500/20">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center flex-shrink-0">
-                        <Cloud className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium">Large File Import</p>
-                        <p className="text-gray-500 text-[10px] sm:text-xs mt-0.5 mb-2 sm:mb-3">Fast import - processes locally, only uploads conversation data</p>
-                        <button
-                          onClick={() => {
-                            onClose();
-                            // Dispatch custom event to open cloud import modal
-                            window.dispatchEvent(new CustomEvent('openCloudImport'));
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs hover:from-emerald-500/30 hover:to-green-500/30 transition-colors"
-                        >
-                          <Zap className="w-3.5 h-3.5" /> 
-                          <span className="hidden sm:inline">Smart Import</span>
-                          <span className="sm:hidden">Import</span>
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => {
+                          onClose();
+                          window.dispatchEvent(new CustomEvent('openCloudImport'));
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl transition-colors text-sm"
+                      >
+                        <Upload className="w-4 h-4" /> 
+                        <span>Upload ZIP File</span>
+                      </button>
                     </div>
                   </div>
                 </div>
 
                 <p className="text-gray-700 text-[10px] mt-3 text-center">
-                  🔒 Your raw data is analyzed and immediately deleted. Only the insights are saved.
+                  🔒 Your data is processed locally. Only insights are saved, not your raw conversations.
                 </p>
               </div>
 
