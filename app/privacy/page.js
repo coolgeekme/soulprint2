@@ -137,7 +137,26 @@ export default function PrivacyPolicyPage() {
 
           {/* Section 9 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">9. Changes to This Policy</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">9. Feedback & Testimonials</h2>
+            <p className="text-gray-300 leading-relaxed">
+              By submitting feedback, reviews, or testimonials through the Service, you grant us permission to use 
+              such content for marketing and promotional purposes, including but not limited to social media posts, 
+              website testimonials, and promotional materials.
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-3 font-medium text-orange-400">
+              We will never share your personal information (name, email, or any identifying details) in any 
+              public posts or marketing materials without your explicit written consent.
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-3">
+              All publicly shared feedback will be anonymized or attributed only with your prior approval. 
+              If you wish to have your feedback removed from any marketing materials, please contact us at{' '}
+              <a href="mailto:team@archeforge.com" className="text-orange-500 hover:text-orange-400 underline">team@archeforge.com</a>.
+            </p>
+          </section>
+
+          {/* Section 10 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">10. Changes to This Policy</h2>
             <p className="text-gray-300 leading-relaxed">
               We may update this Privacy Policy periodically.
             </p>
