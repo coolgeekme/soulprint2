@@ -1675,11 +1675,54 @@ const CompareResultsView = ({ responses, onSelect, onClose }) => {
 // Chat History Import Sheet - Unified import for all platforms
 const ImportSheet = ({ isOpen, onClose, onImport, isUploading, uploadProgress }) => {
   const fileRef = useRef(null);
+  const wakeLockRef = useRef(null);
+  
+  // Request wake lock to prevent screen from turning off during upload
+  useEffect(() => {
+    const requestWakeLock = async () => {
+      if (isUploading && 'wakeLock' in navigator) {
+        try {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+          console.log('Wake lock acquired for upload');
+        } catch (err) {
+          console.log('Wake lock failed:', err);
+        }
+      }
+    };
+    
+    const releaseWakeLock = () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.log('Wake lock released');
+      }
+    };
+    
+    if (isUploading) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+    
+    // Re-acquire wake lock if page becomes visible again
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isUploading) {
+        requestWakeLock();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      releaseWakeLock();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isUploading]);
   
   if (!isOpen) return null;
   
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={isUploading ? undefined : onClose}>
       <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up" onClick={e => e.stopPropagation()}>
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         
@@ -1702,7 +1745,13 @@ const ImportSheet = ({ isOpen, onClose, onImport, isUploading, uploadProgress })
         {isUploading ? (
           <div className="text-center py-6">
             <Loader2 className="w-8 h-8 text-orange-400 animate-spin mx-auto mb-3" />
-            <p className="text-white text-sm">{uploadProgress || 'Processing...'}</p>
+            <p className="text-white text-sm font-medium">{uploadProgress || 'Processing...'}</p>
+            <p className="text-gray-500 text-xs mt-2">Keep this screen open</p>
+            <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <p className="text-blue-400 text-xs">
+                💡 Screen will stay on during upload
+              </p>
+            </div>
           </div>
         ) : (
           <>
@@ -1728,8 +1777,12 @@ const ImportSheet = ({ isOpen, onClose, onImport, isUploading, uploadProgress })
           </>
         )}
         
-        <button onClick={onClose} className="w-full p-3 text-gray-500 text-sm">
-          Cancel
+        <button 
+          onClick={onClose} 
+          disabled={isUploading}
+          className={`w-full p-3 text-sm ${isUploading ? 'text-gray-700 cursor-not-allowed' : 'text-gray-500'}`}
+        >
+          {isUploading ? 'Please wait...' : 'Cancel'}
         </button>
       </div>
     </div>
@@ -3059,113 +3112,182 @@ export default function MobileChat({
     setCompareResponses(null);
   };
 
-  // Handle cloud import
+  // Handle cloud import with chunked upload for large files
   const handleImport = async (file) => {
     if (!file) return;
     
     setIsImporting(true);
-    setImportProgress('Preparing upload...');
+    const fileSizeMB = file.size / (1024 * 1024);
     
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', 'auto'); // Auto-detect type
-
     try {
-      setImportProgress('Uploading file...');
-      const res = await fetch('/api/imports/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Upload failed');
-      }
-      
-      if (data.jobId) {
-        // New async processing - poll for status
+      // For large files (>10MB), use chunked upload
+      if (fileSizeMB > 10) {
+        setImportProgress(`Preparing ${fileSizeMB.toFixed(1)}MB file...`);
+        
+        const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for mobile
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        
+        // Initialize chunked upload
+        const initRes = await fetch('/api/data-import/chunked/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            filename: file.name,
+            fileSize: file.size,
+            totalChunks,
+            source: 'auto-detect'
+          }),
+        });
+        
+        if (!initRes.ok) {
+          const err = await initRes.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to initialize upload');
+        }
+        
+        const { uploadId } = await initRes.json();
+        
+        // Upload chunks
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+          
+          const progress = Math.round(((i + 1) / totalChunks) * 80);
+          setImportProgress(`Uploading... ${progress}%`);
+          
+          const formData = new FormData();
+          formData.append('chunk', chunk);
+          formData.append('uploadId', uploadId);
+          formData.append('chunkIndex', i.toString());
+          
+          const chunkRes = await fetch('/api/data-import/chunked/chunk', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          });
+          
+          if (!chunkRes.ok) {
+            const err = await chunkRes.json().catch(() => ({}));
+            throw new Error(err.error || `Upload failed at ${progress}%`);
+          }
+        }
+        
+        // Complete and process
         setImportProgress('Processing your data...');
+        const completeRes = await fetch('/api/data-import/chunked/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ uploadId }),
+        });
         
-        // Poll for completion
-        let attempts = 0;
-        const maxAttempts = 60; // 2 minutes max
+        if (!completeRes.ok) {
+          const err = await completeRes.json().catch(() => ({}));
+          throw new Error(err.error || 'Processing failed');
+        }
         
-        const checkStatus = async () => {
-          try {
-            const statusRes = await fetch(`/api/imports/status?jobId=${data.jobId}`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            const statusData = await statusRes.json();
-            
-            if (statusData.status === 'completed') {
-              setImportProgress('Import complete! Analyzing your data...');
-              // Refresh conversations
-              const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
-              fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
-                .then(r => r.json())
-                .then(data => setConversations(Array.isArray(data) ? data : []));
+        const result = await completeRes.json();
+        
+        if (result.success) {
+          setImportProgress('Import complete! ✓');
+          // Refresh conversations
+          const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
+          fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.json())
+            .then(data => setConversations(Array.isArray(data) ? data : []));
+          
+          setTimeout(() => {
+            setShowImportSheet(false);
+            setIsImporting(false);
+            setImportProgress('');
+          }, 2000);
+        } else {
+          throw new Error(result.error || 'Import failed');
+        }
+        
+      } else {
+        // Small files: direct upload
+        setImportProgress('Uploading file...');
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', 'auto');
+        
+        const res = await fetch('/api/imports/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || 'Upload failed');
+        }
+        
+        if (data.jobId) {
+          // Async processing - poll for status
+          setImportProgress('Processing your data...');
+          
+          let attempts = 0;
+          const maxAttempts = 60;
+          
+          const checkStatus = async () => {
+            try {
+              const statusRes = await fetch(`/api/imports/status?jobId=${data.jobId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              const statusData = await statusRes.json();
               
+              if (statusData.status === 'completed') {
+                setImportProgress('Import complete! ✓');
+                const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
+                fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
+                  .then(r => r.json())
+                  .then(data => setConversations(Array.isArray(data) ? data : []));
+                
+                setTimeout(() => {
+                  setShowImportSheet(false);
+                  setIsImporting(false);
+                  setImportProgress('');
+                }, 2000);
+                return;
+              } else if (statusData.status === 'failed') {
+                throw new Error(statusData.error || 'Import processing failed');
+              } else if (attempts < maxAttempts) {
+                attempts++;
+                setImportProgress(`Processing... ${Math.round((attempts/maxAttempts)*100)}%`);
+                setTimeout(checkStatus, 2000);
+              } else {
+                setImportProgress('Processing in background. Check back later!');
+                setTimeout(() => {
+                  setShowImportSheet(false);
+                  setIsImporting(false);
+                  setImportProgress('');
+                }, 3000);
+              }
+            } catch (e) {
+              setImportProgress('Processing in background!');
               setTimeout(() => {
                 setShowImportSheet(false);
                 setIsImporting(false);
                 setImportProgress('');
               }, 2000);
-              return;
-            } else if (statusData.status === 'failed') {
-              throw new Error(statusData.error || 'Import processing failed');
-            } else if (attempts < maxAttempts) {
-              attempts++;
-              setImportProgress(`Processing... (${Math.round((attempts/maxAttempts)*100)}%)`);
-              setTimeout(checkStatus, 2000);
-            } else {
-              setImportProgress('Processing is taking longer than expected. Check back later.');
-              setTimeout(() => {
-                setShowImportSheet(false);
-                setIsImporting(false);
-                setImportProgress('');
-              }, 3000);
             }
-          } catch (e) {
-            console.error('Status check error:', e);
-            setImportProgress('Import submitted! Results will appear shortly.');
-            setTimeout(() => {
-              setShowImportSheet(false);
-              setIsImporting(false);
-              setImportProgress('');
-            }, 2000);
-          }
-        };
-        
-        setTimeout(checkStatus, 2000);
-      } else if (data.imported !== undefined) {
-        // Legacy direct response
-        if (data.imported > 0) {
-          setImportProgress(`Imported ${data.imported} conversations!`);
-          const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
-          fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
-            .then(r => r.json())
-            .then(data => setConversations(Array.isArray(data) ? data : []));
+          };
+          
+          setTimeout(checkStatus, 2000);
         } else {
-          setImportProgress('No conversations found in file');
+          setImportProgress('Upload complete!');
+          setTimeout(() => {
+            setShowImportSheet(false);
+            setIsImporting(false);
+            setImportProgress('');
+          }, 2000);
         }
-        setTimeout(() => {
-          setShowImportSheet(false);
-          setIsImporting(false);
-          setImportProgress('');
-        }, 2000);
-      } else {
-        setImportProgress('Upload successful! Processing in background.');
-        setTimeout(() => {
-          setShowImportSheet(false);
-          setIsImporting(false);
-          setImportProgress('');
-        }, 2000);
       }
     } catch (err) {
       console.error('Import error:', err);
-      setImportProgress('Import failed: ' + err.message);
+      setImportProgress('Error: ' + err.message);
       setTimeout(() => {
         setIsImporting(false);
         setImportProgress('');
