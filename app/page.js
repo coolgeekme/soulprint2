@@ -456,6 +456,7 @@ export default function LandingPage() {
           <div className="flex items-center justify-between border-t border-gray-300 pt-6">
             <p className="text-gray-500 text-xs">Copyright 2026 © SoulPrint™ by ArcheForge LLC. All rights reserved.</p>
             <div className="flex items-center gap-4">
+              <Link href="/security" className="text-gray-500 text-xs hover:text-gray-800 transition-colors">Security</Link>
               <Link href="/privacy" className="text-gray-500 text-xs hover:text-gray-800 transition-colors">Privacy Policy</Link>
               <Link href="/terms" className="text-gray-500 text-xs hover:text-gray-800 transition-colors">Terms of Service</Link>
             </div>
