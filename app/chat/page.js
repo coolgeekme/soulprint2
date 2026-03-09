@@ -1233,12 +1233,13 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
   // Auto-detect platform and extract data from ZIP file
   const extractFromZip = async (file) => {
-    const JSZip = (await import('jszip')).default;
-    const zip = await JSZip.loadAsync(file);
-    const allFiles = Object.keys(zip.files);
-    const messages = [];
-    const posts = [];
-    let platform = 'unknown';
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = await JSZip.loadAsync(file);
+      const allFiles = Object.keys(zip.files);
+      const messages = [];
+      const posts = [];
+      let platform = 'unknown';
 
     // ── Detect ChatGPT ──
     const hasChatGPT = allFiles.some(f => 
@@ -1456,6 +1457,11 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
     console.log(`Import: Detected ${platform}, found ${messages.length} messages, ${posts.length} posts`);
     return { messages, posts, platform };
+    } catch (zipErr) {
+      console.error('ZIP extraction error:', zipErr);
+      // Throw a more descriptive error
+      throw new Error(zipErr.message || 'Failed to read ZIP file');
+    }
   };
 
   const handleFileSelect = async (e) => {
@@ -1605,7 +1611,30 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       
     } catch (err) {
       console.error('Extraction error:', err);
-      setError(`Couldn't read the file: ${err.message}\n\nMake sure it's a valid ZIP file from your AI assistant or social media export.`);
+      
+      // If client-side extraction fails, offer to try server-side processing
+      const fileSizeMB = files[0]?.size / (1024 * 1024) || 0;
+      
+      if (err.message?.includes('permission') || err.message?.includes('could not be read') || err.message?.includes('Failed to read')) {
+        // Offer server-side fallback
+        setError(
+          `Browser couldn't read your file (${fileSizeMB.toFixed(1)}MB).\n\n` +
+          `**Try server-side import instead:**\n` +
+          `Click "Upload to Server" below to process your file on our servers.\n\n` +
+          `This is more reliable for large or complex ZIP files.`
+        );
+        // Enable server upload fallback
+        setSelectedFiles(files);
+        setExtractedData({ 
+          messages: [], 
+          posts: [], 
+          dataSize: 0, 
+          useServerFallback: true,
+          fileName: files[0]?.name 
+        });
+      } else {
+        setError(`Couldn't read the file: ${err.message}\n\nMake sure it's a valid ZIP file from your AI assistant or social media export.`);
+      }
       setImportStatus(null);
     }
   };
@@ -1617,6 +1646,74 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   };
 
   const handleImport = async () => {
+    // Handle server fallback for files that couldn't be read client-side
+    if (extractedData?.useServerFallback && selectedFiles.length > 0) {
+      setIsImporting(true);
+      setError('');
+      setImportStatus({ status: 'uploading', message: 'Uploading file to server...', progress: 10 });
+      
+      try {
+        const formData = new FormData();
+        formData.append('file', selectedFiles[0]);
+        formData.append('type', 'auto');
+        
+        const res = await fetch('/api/imports/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        
+        setImportStatus({ status: 'processing', message: 'Processing your data...', progress: 40 });
+        
+        // Poll for completion
+        if (data.jobId) {
+          const poll = async (polls = 0) => {
+            if (polls > 120) {
+              setImportStatus({ status: 'completed', message: 'Processing in background. Check back later!', progress: 100 });
+              setIsImporting(false);
+              return;
+            }
+            
+            try {
+              const r = await fetch(`/api/imports/status?jobId=${data.jobId}`, { 
+                headers: { Authorization: `Bearer ${token}` } 
+              });
+              const d = await r.json();
+              
+              if (d.status === 'completed') {
+                setImportStatus({ status: 'completed', message: 'Import complete!', progress: 100 });
+                setIsImporting(false);
+                setTimeout(() => onClose(), 2000);
+              } else if (d.status === 'failed') {
+                throw new Error(d.error || 'Processing failed');
+              } else {
+                setImportStatus({ status: 'processing', message: `Processing... ${Math.round(polls * 0.8)}%`, progress: 40 + Math.round(polls * 0.5) });
+                setTimeout(() => poll(polls + 1), 1000);
+              }
+            } catch (e) {
+              setImportStatus({ status: 'completed', message: 'Processing in background!', progress: 100 });
+              setIsImporting(false);
+              setTimeout(() => onClose(), 2000);
+            }
+          };
+          setTimeout(() => poll(0), 1000);
+        } else {
+          setImportStatus({ status: 'completed', message: 'Upload successful!', progress: 100 });
+          setIsImporting(false);
+          setTimeout(() => onClose(), 2000);
+        }
+      } catch (err) {
+        console.error('Server upload error:', err);
+        setError('Upload failed: ' + err.message);
+        setIsImporting(false);
+        setImportStatus(null);
+      }
+      return;
+    }
+    
     if (!extractedData || extractedData.messages.length === 0) {
       setError('No messages found to import');
       return;
@@ -1777,34 +1874,51 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                   </div>
                 )}
                 
-                {/* Extraction Preview */}
-                <div className="bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                    <span className="text-emerald-400 font-medium">Ready to Import</span>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3 mb-3">
-                    <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <div className="text-2xl font-bold text-white">{extractedData.messages.length.toLocaleString()}</div>
-                      <div className="text-xs text-gray-500">Messages Found</div>
+                {/* Server Fallback UI */}
+                {extractedData?.useServerFallback ? (
+                  <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Upload className="w-5 h-5 text-blue-400" />
+                      <span className="text-blue-400 font-medium">Server Upload Available</span>
                     </div>
-                    <div className="bg-black/30 rounded-lg p-3 text-center">
-                      <div className="text-2xl font-bold text-white">{formatFileSize(extractedData.dataSize)}</div>
-                      <div className="text-xs text-gray-500">Data to Upload</div>
+                    <p className="text-sm text-gray-400 mb-3">
+                      Your browser couldn't read this file directly. Click below to upload it to our servers for processing.
+                    </p>
+                    <div className="text-xs text-blue-400/80 flex items-center gap-1">
+                      <Shield className="w-3 h-3" />
+                      <span>Files are processed securely and deleted after import</span>
                     </div>
                   </div>
-                  
-                  <div className="text-xs text-emerald-400/80 flex items-center gap-1">
-                    <Zap className="w-3 h-3" />
-                    <span>
-                      {getTotalSize() > 100 * 1024 * 1024 
-                        ? `${Math.round(getTotalSize() / extractedData.dataSize)}x smaller than original file!` 
-                        : 'Fast upload - only conversation data'
-                      }
-                    </span>
+                ) : (
+                  /* Extraction Preview */
+                  <div className="bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      <span className="text-emerald-400 font-medium">Ready to Import</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="bg-black/30 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-white">{extractedData.messages.length.toLocaleString()}</div>
+                        <div className="text-xs text-gray-500">Messages Found</div>
+                      </div>
+                      <div className="bg-black/30 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-white">{formatFileSize(extractedData.dataSize)}</div>
+                        <div className="text-xs text-gray-500">Data to Upload</div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-xs text-emerald-400/80 flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      <span>
+                        {getTotalSize() > 100 * 1024 * 1024 
+                          ? `${Math.round(getTotalSize() / extractedData.dataSize)}x smaller than original file!` 
+                          : 'Fast upload - only conversation data'
+                        }
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>
@@ -1895,15 +2009,19 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           ) : (
             <button 
               onClick={handleImport} 
-              disabled={!extractedData || extractedData.messages.length === 0 || isImporting}
+              disabled={(!extractedData || (extractedData.messages.length === 0 && !extractedData.useServerFallback)) || isImporting}
               className={`w-full py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all ${
-                extractedData && extractedData.messages.length > 0 && !isImporting
-                  ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white hover:opacity-90' 
+                extractedData && (extractedData.messages.length > 0 || extractedData.useServerFallback) && !isImporting
+                  ? extractedData.useServerFallback 
+                    ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90'
+                    : 'bg-gradient-to-r from-emerald-500 to-green-500 text-white hover:opacity-90' 
                   : 'bg-white/5 text-gray-600 cursor-not-allowed'
               }`}>
               {isImporting 
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Importing...</>
-                : <><Zap className="w-4 h-4" /> Import {extractedData?.messages?.length?.toLocaleString() || 0} Messages</>
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> {extractedData?.useServerFallback ? 'Uploading...' : 'Importing...'}</>
+                : extractedData?.useServerFallback 
+                  ? <><Upload className="w-4 h-4" /> Upload to Server</>
+                  : <><Zap className="w-4 h-4" /> Import {extractedData?.messages?.length?.toLocaleString() || 0} Messages</>
               }
             </button>
           )}
