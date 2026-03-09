@@ -3776,20 +3776,45 @@ async function handleChatStream(request) {
           send({ type: 'delta', content: '🎨 Generating your image with DALL-E 3...\n\n' });
           try {
             const apiKey = process.env.OPENAI_API_KEY;
+            if (!apiKey) {
+              throw new Error('OpenAI API key not configured');
+            }
+            
+            console.log('[Image Generation] Starting DALL-E 3 request for prompt:', content.substring(0, 100));
+            
             const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
               body: JSON.stringify({ model: 'dall-e-3', prompt: content, n: 1, size: '1024x1024', quality: 'standard', style: 'vivid' }),
             });
+            
             const imgData = await imgRes.json();
-            if (imgData.error) throw new Error(imgData.error.message);
+            
+            if (!imgRes.ok) {
+              console.error('[Image Generation] API Error:', imgRes.status, JSON.stringify(imgData));
+              throw new Error(imgData.error?.message || `API returned status ${imgRes.status}`);
+            }
+            
+            if (imgData.error) {
+              console.error('[Image Generation] Response Error:', JSON.stringify(imgData.error));
+              throw new Error(imgData.error.message);
+            }
+            
             const imageUrl = imgData.data?.[0]?.url;
             const revisedPrompt = imgData.data?.[0]?.revised_prompt || content;
+            
+            if (!imageUrl) {
+              console.error('[Image Generation] No URL in response:', JSON.stringify(imgData));
+              throw new Error('No image URL returned from API');
+            }
+            
+            console.log('[Image Generation] Success! URL:', imageUrl.substring(0, 80) + '...');
 
             fullContent = `![Generated Image](${imageUrl})\n\n*Prompt used: ${revisedPrompt}*`;
             send({ type: 'image', url: imageUrl, revised_prompt: revisedPrompt });
             send({ type: 'delta', content: fullContent });
           } catch (imgErr) {
+            console.error('[Image Generation] Exception:', imgErr.message, imgErr.stack);
             fullContent = `Sorry, image generation failed: ${imgErr.message}`;
             send({ type: 'delta', content: fullContent });
           }
@@ -4387,16 +4412,34 @@ async function handleGenerateImage(request) {
   if (!apiKey) return err('OpenAI key not configured', 500);
 
   try {
+    console.log('[handleGenerateImage] Starting DALL-E 3 request:', { prompt: prompt.substring(0, 100), size, quality, style });
+    
     const res = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size, quality, style }),
     });
     const data = await res.json();
-    if (data.error) return err(data.error.message, 400);
+    
+    if (!res.ok) {
+      console.error('[handleGenerateImage] API Error:', res.status, JSON.stringify(data));
+      return err(data.error?.message || `API returned status ${res.status}`, res.status);
+    }
+    
+    if (data.error) {
+      console.error('[handleGenerateImage] Response Error:', JSON.stringify(data.error));
+      return err(data.error.message, 400);
+    }
 
     const imageUrl = data.data?.[0]?.url;
     const revisedPrompt = data.data?.[0]?.revised_prompt || prompt;
+    
+    if (!imageUrl) {
+      console.error('[handleGenerateImage] No URL in response:', JSON.stringify(data));
+      return err('No image URL returned from API', 500);
+    }
+    
+    console.log('[handleGenerateImage] Success! URL:', imageUrl.substring(0, 80) + '...');
 
     // Save as a message in DB if conversationId provided
     const { conversationId } = body;
@@ -4436,6 +4479,8 @@ async function handleGenerateImageKie(request) {
   if (!kieKey) return err('Kie.ai key not configured', 500);
 
   try {
+    console.log('[handleGenerateImageKie] Starting Kie.ai request:', { prompt: prompt.substring(0, 100), aspectRatio, nVariants });
+    
     // Submit generation task (updated endpoint)
     const res = await fetch('https://api.kie.ai/api/v1/gpt4o-image/generate', {
       method: 'POST',
@@ -4447,7 +4492,13 @@ async function handleGenerateImageKie(request) {
       }),
     });
     const data = await res.json();
-    if (data.code !== 200) return err(data.msg || 'Image generation failed', 400);
+    
+    console.log('[handleGenerateImageKie] Initial response:', { status: res.status, code: data.code, msg: data.msg });
+    
+    if (!res.ok || data.code !== 200) {
+      console.error('[handleGenerateImageKie] API Error:', res.status, JSON.stringify(data));
+      return err(data.msg || `API returned status ${res.status}`, 400);
+    }
 
     const taskId = data.data?.taskId;
     if (!taskId) return err('No task ID returned', 500);
