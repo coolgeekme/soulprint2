@@ -149,21 +149,14 @@
   }
 }
 
-/* Grid background overlay */
+/* Background (grid pattern removed per user request) */
 .grid-bg {
   background-color: var(--theme-bg);
-  background-image:
-    linear-gradient(var(--theme-border) 1px, transparent 1px),
-    linear-gradient(90deg, var(--theme-border) 1px, transparent 1px);
-  background-size: 50px 50px;
 }
 
-/* Light mode grid background */
+/* Light mode background */
 .light .grid-bg {
   background-color: var(--theme-bg);
-  background-image:
-    linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
 }
 
 /* Orange glow top */
@@ -494,12 +487,9 @@ html.light body {
   background: linear-gradient(to top, #ffffff 85%, transparent);
 }
 
-/* Light mode grid background */
+/* Light mode background (grid pattern removed per user request) */
 .light .grid-bg {
   background-color: #ffffff;
-  background-image:
-    linear-gradient(rgba(13, 18, 23, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(13, 18, 23, 0.05) 1px, transparent 1px);
 }
 
 /* Light mode common background classes */
