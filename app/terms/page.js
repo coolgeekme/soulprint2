@@ -109,7 +109,32 @@ export default function TermsOfServicePage() {
 
           {/* Section 6 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">6. AI Output Disclaimer</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">6. Feedback & Testimonials</h2>
+            <p className="text-gray-300 leading-relaxed">
+              By submitting feedback, reviews, suggestions, or testimonials through the Service, you grant ArcheForge LLC 
+              a perpetual, worldwide, royalty-free license to use, reproduce, modify, and display such content for 
+              marketing and promotional purposes, including but not limited to:
+            </p>
+            <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
+              <li>Social media posts and advertisements</li>
+              <li>Website testimonials and case studies</li>
+              <li>Promotional and marketing materials</li>
+              <li>Press releases and media communications</li>
+            </ul>
+            <p className="text-gray-300 leading-relaxed mt-3 font-medium text-orange-400">
+              We will never share your personal information (name, email, or any identifying details) in any 
+              public posts or marketing materials without your explicit written consent.
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-3">
+              All publicly shared feedback will be anonymized or attributed only with your prior written approval. 
+              You may request removal of your feedback from marketing materials at any time by contacting{' '}
+              <a href="mailto:team@archeforge.com" className="text-orange-500 hover:text-orange-400 underline">team@archeforge.com</a>.
+            </p>
+          </section>
+
+          {/* Section 7 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">7. AI Output Disclaimer</h2>
             <p className="text-gray-300 leading-relaxed">
               SoulPrint generates responses using artificial intelligence.
             </p>
@@ -124,9 +149,9 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 7 */}
+          {/* Section 8 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">7. Prohibited Uses</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">8. Prohibited Uses</h2>
             <p className="text-gray-300 leading-relaxed">You agree not to:</p>
             <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
               <li>Use the Service for unlawful purposes</li>
@@ -139,9 +164,9 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 8 */}
+          {/* Section 9 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">8. Intellectual Property</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">9. Intellectual Property</h2>
             <p className="text-gray-300 leading-relaxed">
               All platform architecture, design, trademarks, and system features remain the exclusive property of ArcheForge LLC.
             </p>
@@ -153,9 +178,9 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 9 */}
+          {/* Section 10 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">9. Limitation of Liability</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">10. Limitation of Liability</h2>
             <p className="text-gray-300 leading-relaxed">
               To the maximum extent permitted by law, ArcheForge LLC shall not be liable for:
             </p>
@@ -170,9 +195,9 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 10 */}
+          {/* Section 11 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">10. Termination</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">11. Termination</h2>
             <p className="text-gray-300 leading-relaxed">
               We may suspend or terminate access at any time, with or without notice.
             </p>
@@ -181,17 +206,17 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 11 */}
+          {/* Section 12 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">11. Changes to Terms</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">12. Changes to Terms</h2>
             <p className="text-gray-300 leading-relaxed">
               We may update these Terms periodically. Continued use constitutes acceptance of the updated Terms.
             </p>
           </section>
 
-          {/* Section 12 */}
+          {/* Section 13 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">12. Governing Law</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">13. Governing Law</h2>
             <p className="text-gray-300 leading-relaxed">
               These Terms are governed by the laws of the State of Maryland, United States.
             </p>
