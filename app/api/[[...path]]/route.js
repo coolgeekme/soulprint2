@@ -6667,12 +6667,32 @@ async function processImportJob(jobId, userId, importType, filePath, buffer) {
   try {
     let extractedText = '';
     const fileName = filePath.toLowerCase();
+    let detectedType = importType;
 
     if (fileName.endsWith('.zip')) {
       try {
         const AdmZip = (await import('adm-zip')).default;
         const zip = new AdmZip(buffer);
         const entries = zip.getEntries();
+        const entryNames = entries.map(e => e.entryName.toLowerCase());
+        
+        // Auto-detect format from file structure
+        if (importType === 'auto' || !importType) {
+          if (entryNames.some(n => n.includes('conversations.json') || n.includes('model_comparisons'))) {
+            detectedType = 'chatgpt';
+          } else if (entryNames.some(n => n.includes('messages/inbox/') || n.includes('your_posts') || n.includes('message_1.json'))) {
+            detectedType = 'facebook';
+          } else if (entryNames.some(n => n.includes('claude') && n.endsWith('.json'))) {
+            detectedType = 'claude';
+          } else if (entryNames.some(n => n.includes('takeout') || n.includes('my activity') || n.includes('gemini'))) {
+            detectedType = 'google';
+          } else {
+            detectedType = 'auto'; // Will try all formats
+          }
+        }
+        
+        console.log(`[Import] Processing ${jobId}, detected type: ${detectedType}, entries: ${entries.length}`);
+        
         for (const entry of entries) {
           if (!entry.isDirectory) {
             const name = entry.entryName.toLowerCase();
@@ -6681,7 +6701,7 @@ async function processImportJob(jobId, userId, importType, filePath, buffer) {
               if (name.endsWith('.json')) {
                 try {
                   const parsed = JSON.parse(content);
-                  extractedText += extractTextFromJson(parsed, importType) + '\n\n';
+                  extractedText += extractTextFromJson(parsed, detectedType) + '\n\n';
                 } catch { extractedText += content.slice(0, 5000) + '\n\n'; }
               } else {
                 extractedText += content.replace(/<[^>]+>/g, ' ').slice(0, 5000) + '\n\n';
@@ -6773,7 +6793,9 @@ ${extractedText.slice(0, 8000)}`,
 
 function extractTextFromJson(parsed, type) {
   let text = '';
-  if (type === 'chatgpt') {
+  
+  // ChatGPT format
+  if (type === 'chatgpt' || type === 'auto') {
     if (Array.isArray(parsed)) {
       for (const conv of parsed.slice(0, 20)) {
         if (conv.mapping) {
@@ -6788,9 +6810,72 @@ function extractTextFromJson(parsed, type) {
         }
       }
     }
-  } else {
-    text = JSON.stringify(parsed).slice(0, 50000);
   }
+  
+  // Facebook Messenger format
+  if ((type === 'facebook' || type === 'auto') && !text) {
+    // Facebook messages are usually in format: { participants: [], messages: [] }
+    if (parsed.messages && Array.isArray(parsed.messages)) {
+      for (const msg of parsed.messages.slice(0, 100)) {
+        const sender = msg.sender_name || 'Unknown';
+        const content = msg.content || '';
+        if (content.trim()) {
+          text += `[${sender}]: ${content.slice(0, 500)}\n`;
+        }
+      }
+    }
+    // Or it could be an array of message objects
+    if (Array.isArray(parsed) && parsed[0]?.content) {
+      for (const msg of parsed.slice(0, 100)) {
+        const sender = msg.sender_name || msg.sender || 'Unknown';
+        const content = msg.content || msg.text || '';
+        if (content.trim()) {
+          text += `[${sender}]: ${content.slice(0, 500)}\n`;
+        }
+      }
+    }
+  }
+  
+  // Claude format
+  if ((type === 'claude' || type === 'auto') && !text) {
+    if (parsed.chat_messages && Array.isArray(parsed.chat_messages)) {
+      for (const msg of parsed.chat_messages.slice(0, 100)) {
+        const role = msg.sender === 'human' ? 'user' : 'assistant';
+        const content = msg.text || '';
+        if (content.trim()) {
+          text += `[${role}]: ${content.slice(0, 500)}\n`;
+        }
+      }
+    }
+  }
+  
+  // Generic extraction for unknown formats
+  if (!text) {
+    // Try to find any messages array
+    const findMessages = (obj, depth = 0) => {
+      if (depth > 5 || text.length > 30000) return;
+      if (Array.isArray(obj)) {
+        for (const item of obj.slice(0, 50)) {
+          if (item.content || item.text || item.message) {
+            const content = item.content || item.text || item.message;
+            const role = item.role || item.sender || item.sender_name || 'unknown';
+            if (typeof content === 'string' && content.trim()) {
+              text += `[${role}]: ${content.slice(0, 500)}\n`;
+            }
+          }
+          if (typeof item === 'object') findMessages(item, depth + 1);
+        }
+      } else if (obj && typeof obj === 'object') {
+        for (const key of Object.keys(obj)) {
+          if (key === 'messages' || key === 'chat_messages' || key === 'mapping') {
+            findMessages(obj[key], depth + 1);
+          }
+        }
+      }
+    };
+    findMessages(parsed);
+  }
+  
   return text || JSON.stringify(parsed).slice(0, 50000);
 }
 
