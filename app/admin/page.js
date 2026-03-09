@@ -4725,6 +4725,8 @@ export default function AdminPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('metrics');
   const [metrics, setMetrics] = useState(null);
+  const [metricsLoading, setMetricsLoading] = useState(true);
+  const [metricsError, setMetricsError] = useState(null);
   const [token, setToken] = useState('');
   const [adminRole, setAdminRole] = useState('admin');
   const [loading, setLoading] = useState(true);
@@ -4737,7 +4739,10 @@ export default function AdminPage() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
-  const loadMetrics = (t, start = null, end = null) => {
+  const loadMetrics = async (t, start = null, end = null) => {
+    setMetricsLoading(true);
+    setMetricsError(null);
+    
     let url = '/api/admin/metrics';
     if (start && end) {
       url += `?startDate=${start}&endDate=${end}`;
@@ -4750,13 +4755,23 @@ export default function AdminPage() {
       }
     }
     
-    fetch(url, { headers: { Authorization: `Bearer ${t}` } })
-      .then(r => r.json())
-      .then(d => {
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${t}` } });
+      const d = await res.json();
+      
+      if (res.ok && d && !d.error) {
         setMetrics(d);
         setWaitlistCount(d.waitlist_count || 0);
-      })
-      .catch(() => {});
+      } else {
+        console.error('Metrics API error:', d);
+        setMetricsError(d.error || 'Failed to load metrics');
+      }
+    } catch (err) {
+      console.error('Metrics fetch error:', err);
+      setMetricsError('Failed to connect to server');
+    } finally {
+      setMetricsLoading(false);
+    }
   };
   
   const applyCustomDateRange = () => {
@@ -4960,8 +4975,32 @@ export default function AdminPage() {
               </div>
             )}
 
-          {activeTab === 'metrics' && metrics && (
+          {activeTab === 'metrics' && (
             <div className="space-y-4 sm:space-y-6">
+              {/* Loading State */}
+              {metricsLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                  <span className="ml-3 text-gray-400">Loading metrics...</span>
+                </div>
+              )}
+              
+              {/* Error State */}
+              {metricsError && !metricsLoading && (
+                <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-center">
+                  <p className="text-red-400 mb-3">{metricsError}</p>
+                  <button 
+                    onClick={() => loadMetrics(token)}
+                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              
+              {/* Metrics Content */}
+              {metrics && !metricsLoading && !metricsError && (
+                <>
               {/* Quick Stats Sub-tab */}
               {metricsSubTab === 'quick' && (
                 <>
@@ -5299,6 +5338,8 @@ export default function AdminPage() {
                     )}
                   </div>
                 </div>
+              )}
+                </>
               )}
             </div>
           )}

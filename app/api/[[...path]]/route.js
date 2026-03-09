@@ -7030,6 +7030,12 @@ async function handleAdminGetMetrics(request) {
   ]).toArray();
   const telegramWAU = telegramActiveUsers7d[0]?.total || 0;
 
+  // Total messages (moved up so it's available for telegram breakdown)
+  const totalMessages = await db.collection('messages').countDocuments();
+  const totalMessagesLast30d = await db.collection('messages').countDocuments({
+    created_at: { $gte: thirtyDaysAgo }
+  });
+
   // Web vs Telegram breakdown
   const webMessages = totalMessages - telegramMessages;
   const webMessagesLast30d = totalMessagesLast30d - telegramMessagesLast30d;
@@ -7043,9 +7049,6 @@ async function handleAdminGetMetrics(request) {
 
   // Recent signups
   const recentSignups = await db.collection('users').countDocuments({ created_at: { $gte: thirtyDaysAgo } });
-
-  // Total messages
-  const totalMessages = await db.collection('messages').countDocuments();
 
   // ── Cost Estimation ──────────────────────────────────────────────────────
   // Pricing per 1M tokens (USD) — approximate mid-2025 rates
@@ -7128,10 +7131,7 @@ async function handleAdminGetMetrics(request) {
   }
 
   // Monthly cost projection (extrapolate from 30d data)
-  const totalMessagesLast30d = await db.collection('messages').countDocuments({
-    role: 'assistant',
-    created_at: { $gte: thirtyDaysAgo },
-  });
+  // totalMessagesLast30d already calculated above
   const acceptedUsers = await db.collection('users').countDocuments({ accepted: true });
   
   // Get active users in last 30 days (users who have sent messages)
