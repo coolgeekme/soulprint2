@@ -3832,62 +3832,236 @@ async function handleChatStream(request) {
           return;
         }
 
-        // ── Handle video generation ───────────────────────────────────────
-        if (mediaIntent === 'video' && attachments.length === 0) {
-          send({ type: 'delta', content: '🎬 Starting video generation with Kling 3.0 (via Kie.ai)...\n\n' });
-          try {
-            const kieKey = process.env.KIE_API_KEY;
-            // Use Kling 3.0 via the unified Jobs API
-            const vidRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
-              body: JSON.stringify({ 
-                model: 'kling-3.0/video',
-                input: {
-                  prompt: content, 
-                  duration: '5',
-                  aspect_ratio: '16:9',
-                  mode: 'std',
-                  sound: false,
-                  multi_shots: false,
-                  multi_prompt: [],
-                  kling_elements: [],
-                }
-              }),
-            });
-            const vidData = await vidRes.json();
-            console.log('Kie.ai video response:', JSON.stringify(vidData).substring(0, 500));
-            if (vidData.code !== 200) throw new Error(vidData.msg || vidData.error || 'Video generation failed');
-            const taskId = vidData.data?.taskId;
+        // ── Handle video generation (text-to-video OR image-to-video) ───────────────────────────────────────
+        if (mediaIntent === 'video') {
+          // Check if user uploaded an image to animate
+          const imageAttachment = attachments.find(a => a.type === 'image' || a.mime_type?.startsWith('image/'));
+          
+          if (imageAttachment && imageAttachment.base64) {
+            // IMAGE-TO-VIDEO: Animate the uploaded image
+            send({ type: 'delta', content: '🎬 Preparing your image for animation...\n\n' });
+            try {
+              const kieKey = process.env.KIE_API_KEY;
+              if (!kieKey) throw new Error('Video API not configured');
+              
+              console.log('[Image-to-Video] Starting - uploading image first...');
+              
+              // Step 1: Upload the base64 image to Kie.ai to get a URL
+              const fileName = imageAttachment.name || `image-${Date.now()}.${imageAttachment.mimeType?.split('/')[1] || 'jpg'}`;
+              const base64Data = imageAttachment.base64.startsWith('data:') 
+                ? imageAttachment.base64 
+                : `data:${imageAttachment.mimeType || 'image/jpeg'};base64,${imageAttachment.base64}`;
+              
+              const uploadRes = await fetch('https://api.kie.ai/api/file-base64-upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+                body: JSON.stringify({
+                  base64Data: base64Data,
+                  uploadPath: 'soulprint/image-to-video',
+                  fileName: fileName,
+                }),
+              });
+              
+              const uploadData = await uploadRes.json();
+              console.log('[Image-to-Video] Upload response:', JSON.stringify(uploadData).substring(0, 300));
+              
+              if (!uploadData.success || !uploadData.data?.downloadUrl) {
+                throw new Error(uploadData.msg || 'Failed to upload image for video generation');
+              }
+              
+              const imageUrl = uploadData.data.downloadUrl;
+              console.log('[Image-to-Video] Got image URL:', imageUrl.substring(0, 80));
+              
+              send({ type: 'delta', content: '🎬 Animating your image with Kling 3.0...\n\n' });
+              
+              // Step 2: Create video generation task with the uploaded image URL
+              const vidRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+                body: JSON.stringify({ 
+                  model: 'kling-3.0/video',
+                  input: {
+                    prompt: content || 'Animate this image with natural, smooth motion',
+                    image_urls: [imageUrl], // The uploaded image URL
+                    duration: '5',
+                    aspect_ratio: '16:9',
+                    mode: 'std',
+                    sound: false,
+                    multi_shots: false,
+                    multi_prompt: [],
+                    kling_elements: [],
+                  }
+                }),
+              });
+              
+              const vidData = await vidRes.json();
+              console.log('[Image-to-Video] Video task response:', JSON.stringify(vidData).substring(0, 500));
+              
+              if (vidData.code !== 200) throw new Error(vidData.msg || vidData.error || 'Video generation failed');
+              const taskId = vidData.data?.taskId;
 
-            // Save job to DB with message_id reference
-            await db.collection('video_jobs').insertOne({
-              id: uuidv4(), task_id: taskId, user_id: user.id,
-              prompt: content, duration: 5, quality: '720p', aspect_ratio: '16:9',
-              status: 'generating', conversation_id: convId, model: 'kling-3.0',
-              message_id: assistantMsgId, // Link to the message for updates
-              created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-            });
+              // Save job to DB
+              await db.collection('video_jobs').insertOne({
+                id: uuidv4(), task_id: taskId, user_id: user.id,
+                prompt: content, source_image: imageUrl,
+                duration: 5, quality: '720p', aspect_ratio: '16:9',
+                status: 'generating', conversation_id: convId, model: 'kling-3.0',
+                message_id: assistantMsgId, type: 'image-to-video',
+                created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+              });
 
-            fullContent = `🎬 **Video generation started!**\n\nYour video is being generated by Kling 3.0 AI. This usually takes 1-3 minutes.\n\n*The video will appear here when it's ready.*`;
-            send({ type: 'video_task', taskId, status: 'generating', prompt: content });
-            send({ type: 'delta', content: fullContent });
-          } catch (vidErr) {
-            console.error('Video generation error:', vidErr);
-            fullContent = `Sorry, video generation failed: ${vidErr.message}`;
-            send({ type: 'delta', content: fullContent });
+              fullContent = `🎬 **Animating your image!**\n\n![Source Image](${imageUrl})\n\nKling 3.0 is bringing your image to life. This usually takes 1-3 minutes.\n\n*Instructions: ${content || 'Natural animation'}*`;
+              send({ type: 'video_task', taskId, status: 'generating', prompt: content, sourceImage: imageUrl });
+              send({ type: 'delta', content: fullContent });
+              
+              // Save message
+              const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+              const videoTaskData = { taskId, status: 'generating', prompt: content, sourceImage: imageUrl };
+              await db.collection('messages').insertOne({
+                id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                role: 'assistant', content: fullContent, created_at: new Date(),
+                model_used: 'kling-3.0', provider_used: 'kie.ai', content_type: 'video',
+                video_task: videoTaskData, source_image: imageUrl,
+                est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
+              });
+              await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+              
+              send({ type: 'done' });
+              return new Response(stream.readable, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' } });
+            } catch (vidErr) {
+              console.error('[Image-to-Video] Error:', vidErr);
+              fullContent = `Sorry, I couldn't animate your image: ${vidErr.message}`;
+              send({ type: 'delta', content: fullContent });
+            }
+          } else if (imageAttachment && !imageAttachment.base64) {
+            // Image attachment exists but no base64 data - maybe it has a URL?
+            send({ type: 'delta', content: '🎬 Starting video generation with your image...\n\n' });
+            try {
+              const kieKey = process.env.KIE_API_KEY;
+              if (!kieKey) throw new Error('Video API not configured');
+              
+              const imageUrl = imageAttachment.url;
+              if (!imageUrl) throw new Error('Image URL not found');
+              
+              console.log('[Image-to-Video] Using existing image URL:', imageUrl.substring(0, 80));
+              
+              const vidRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+                body: JSON.stringify({ 
+                  model: 'kling-3.0/video',
+                  input: {
+                    prompt: content || 'Animate this image with natural, smooth motion',
+                    image_urls: [imageUrl],
+                    duration: '5',
+                    aspect_ratio: '16:9',
+                    mode: 'std',
+                    sound: false,
+                    multi_shots: false,
+                    multi_prompt: [],
+                    kling_elements: [],
+                  }
+                }),
+              });
+              
+              const vidData = await vidRes.json();
+              if (vidData.code !== 200) throw new Error(vidData.msg || vidData.error || 'Video generation failed');
+              const taskId = vidData.data?.taskId;
+              
+              await db.collection('video_jobs').insertOne({
+                id: uuidv4(), task_id: taskId, user_id: user.id,
+                prompt: content, source_image: imageUrl,
+                duration: 5, quality: '720p', aspect_ratio: '16:9',
+                status: 'generating', conversation_id: convId, model: 'kling-3.0',
+                message_id: assistantMsgId, type: 'image-to-video',
+                created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+              });
+
+              fullContent = `🎬 **Animating your image!**\n\n![Source Image](${imageUrl})\n\nKling 3.0 is bringing your image to life. This usually takes 1-3 minutes.`;
+              send({ type: 'video_task', taskId, status: 'generating', prompt: content, sourceImage: imageUrl });
+              send({ type: 'delta', content: fullContent });
+              
+              const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+              await db.collection('messages').insertOne({
+                id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                role: 'assistant', content: fullContent, created_at: new Date(),
+                model_used: 'kling-3.0', provider_used: 'kie.ai', content_type: 'video',
+                video_task: { taskId, status: 'generating', prompt: content, sourceImage: imageUrl },
+                source_image: imageUrl,
+                est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
+              });
+              await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+              
+              send({ type: 'done' });
+              return new Response(stream.readable, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' } });
+            } catch (vidErr) {
+              console.error('[Image-to-Video] Error:', vidErr);
+              fullContent = `Sorry, I couldn't animate your image: ${vidErr.message}`;
+              send({ type: 'delta', content: fullContent });
+            }
+          } else {
+            // TEXT-TO-VIDEO: Generate video from text prompt
+            send({ type: 'delta', content: '🎬 Starting video generation with Kling 3.0 (via Kie.ai)...\n\n' });
+            try {
+              const kieKey = process.env.KIE_API_KEY;
+              if (!kieKey) throw new Error('Video API not configured');
+              
+              // Use Kling 3.0 via the unified Jobs API
+              const vidRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+                body: JSON.stringify({ 
+                  model: 'kling-3.0/video',
+                  input: {
+                    prompt: content, 
+                    duration: '5',
+                    aspect_ratio: '16:9',
+                    mode: 'std',
+                    sound: false,
+                    multi_shots: false,
+                    multi_prompt: [],
+                    kling_elements: [],
+                  }
+                }),
+              });
+              const vidData = await vidRes.json();
+              console.log('[Text-to-Video] Response:', JSON.stringify(vidData).substring(0, 500));
+              if (vidData.code !== 200) throw new Error(vidData.msg || vidData.error || 'Video generation failed');
+              const taskId = vidData.data?.taskId;
+
+              // Save job to DB with message_id reference
+              await db.collection('video_jobs').insertOne({
+                id: uuidv4(), task_id: taskId, user_id: user.id,
+                prompt: content, duration: 5, quality: '720p', aspect_ratio: '16:9',
+                status: 'generating', conversation_id: convId, model: 'kling-3.0',
+                message_id: assistantMsgId, type: 'text-to-video',
+                created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+              });
+
+              fullContent = `🎬 **Video generation started!**\n\nYour video is being generated by Kling 3.0 AI. This usually takes 1-3 minutes.\n\n*The video will appear here when it's ready.*`;
+              send({ type: 'video_task', taskId, status: 'generating', prompt: content });
+              send({ type: 'delta', content: fullContent });
+              
+              // Save message WITH video_task so it persists on refresh
+              const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+              const videoTaskData = { taskId, status: 'generating', prompt: content };
+              await db.collection('messages').insertOne({
+                id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                role: 'assistant', content: fullContent, created_at: new Date(),
+                model_used: 'kling-3.0', provider_used: 'kie.ai', content_type: 'video',
+                video_task: videoTaskData,
+                est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
+              });
+              await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+              
+              send({ type: 'done' });
+              return new Response(stream.readable, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' } });
+            } catch (vidErr) {
+              console.error('[Text-to-Video] Error:', vidErr);
+              fullContent = `Sorry, video generation failed: ${vidErr.message}`;
+              send({ type: 'delta', content: fullContent });
+            }
           }
-          const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
-          // Save message WITH video_task so it persists on refresh
-          const videoTaskData = vidData?.data?.taskId ? { taskId: vidData.data.taskId, status: 'generating', prompt: content } : null;
-          await db.collection('messages').insertOne({
-            id: assistantMsgId, conversation_id: convId, user_id: user.id,
-            role: 'assistant', content: fullContent, created_at: new Date(),
-            model_used: 'kling-3.0', provider_used: 'kie.ai', content_type: 'video',
-            video_task: videoTaskData, // Save video_task for persistence
-            est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
-          });
-          await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
           send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
           controller.close();
           return;

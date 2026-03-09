@@ -7,7 +7,7 @@ import requests
 import json
 import time
 
-BASE_URL = "https://theme-feature-test.preview.emergentagent.com"
+BASE_URL = "https://image-video-gen-11.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"

@@ -86,7 +86,7 @@ xoxb-1234567890123-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx
 2. Toggle **"Enable Events"** to ON
 3. For **"Request URL"**, you'll enter your webhook URL (I'll provide this after building the bot):
    ```
-   https://theme-feature-test.preview.emergentagent.com/api/slack/webhook
+   https://image-video-gen-11.preview.emergentagent.com/api/slack/webhook
    ```
 4. Under **"Subscribe to bot events"**, click **"Add Bot User Event"** and add:
    - `message.channels` - Messages in public channels
@@ -103,7 +103,7 @@ xoxb-1234567890123-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx
 2. Toggle **"Interactivity"** to ON
 3. For **"Request URL"**, enter:
    ```
-   https://theme-feature-test.preview.emergentagent.com/api/slack/interactive
+   https://image-video-gen-11.preview.emergentagent.com/api/slack/interactive
    ```
 4. Click **"Save Changes"**
 

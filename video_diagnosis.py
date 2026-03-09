@@ -9,7 +9,7 @@ import json
 import time
 
 # Configuration
-BASE_URL = "https://theme-feature-test.preview.emergentagent.com/api"
+BASE_URL = "https://image-video-gen-11.preview.emergentagent.com/api"
 LOGIN_EMAIL = "test@soulprint.com"
 LOGIN_PASSWORD = "test123"
 

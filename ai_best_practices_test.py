@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://theme-feature-test.preview.emergentagent.com"
+BASE_URL = "https://image-video-gen-11.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  
