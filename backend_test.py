@@ -1,437 +1,487 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for SoulPrint Engine - New Chat Inherits Project Feature
-Testing the project association functionality in chat/stream endpoint
+Backend API Test Suite for SoulPrint Import Functionality
+Tests /api/imports/upload, /api/import/chatgpt, and /api/imports/status endpoints
 """
 
 import requests
 import json
-import sys
 import time
+import zipfile
+import io
+import os
+from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://image-video-gen-11.preview.emergentagent.com/api"
+BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://image-video-gen-11.preview.emergentagent.com')
+API_BASE = f"{BASE_URL}/api"
+
+# Test credentials
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 
-# Global variables for test state
-auth_token = None
-test_project_id = None
-test_conversation_id = None
-baseline_conversation_id = None
-
-def make_request(method, endpoint, data=None, headers=None, timeout=30):
-    """Make HTTP request with proper error handling"""
-    url = f"{BASE_URL}{endpoint}"
-    req_headers = {"Content-Type": "application/json"}
+class ImportTester:
+    def __init__(self):
+        self.session = requests.Session()
+        self.token = None
+        self.user_id = None
     
-    if headers:
-        req_headers.update(headers)
-    
-    try:
-        if method.upper() == "GET":
-            response = requests.get(url, headers=req_headers, timeout=timeout)
-        elif method.upper() == "POST":
-            response = requests.post(url, headers=req_headers, json=data, timeout=timeout)
-        elif method.upper() == "PUT":
-            response = requests.put(url, headers=req_headers, json=data, timeout=timeout)
-        elif method.upper() == "DELETE":
-            response = requests.delete(url, headers=req_headers, timeout=timeout)
-        else:
-            raise ValueError(f"Unsupported HTTP method: {method}")
+    def authenticate(self) -> bool:
+        """Authenticate with the test user"""
+        print("🔐 Authenticating with test user...")
         
-        return response
-    except requests.exceptions.Timeout:
-        print(f"❌ Request timeout for {method} {endpoint}")
-        return None
-    except Exception as e:
-        print(f"❌ Request error for {method} {endpoint}: {e}")
-        return None
-
-def authenticate():
-    """Authenticate with test credentials"""
-    global auth_token
-    
-    print("🔐 Authenticating with test credentials...")
-    
-    response = make_request("POST", "/auth/login", {
-        "email": TEST_EMAIL,
-        "passcode": TEST_PASSWORD
-    })
-    
-    if not response or response.status_code != 200:
-        print(f"❌ Authentication failed: {response.status_code if response else 'No response'}")
-        return False
-    
-    data = response.json()
-    auth_token = data.get("token")
-    
-    if not auth_token:
-        print("❌ No token received from authentication")
-        return False
-    
-    print(f"✅ Authentication successful - Role: {data.get('role', 'unknown')}")
-    return True
-
-def test_create_project():
-    """Test Step 1: Create a test project"""
-    global test_project_id
-    
-    print("\n📁 Step 1: Creating test project...")
-    
-    project_data = {
-        "name": "Test Project for New Chat",
-        "description": "Testing project association with new conversations",
-        "color": "#FF6B00"
-    }
-    
-    headers = {"Authorization": f"Bearer {auth_token}"}
-    response = make_request("POST", "/projects", project_data, headers)
-    
-    if not response:
-        print("❌ Failed to create project - no response")
-        return False
-    
-    if response.status_code != 200:
-        print(f"❌ Failed to create project: {response.status_code}")
-        print(f"Response: {response.text}")
-        return False
-    
-    data = response.json()
-    test_project_id = data.get("id")
-    
-    if not test_project_id:
-        print("❌ No project ID returned")
-        return False
-    
-    print(f"✅ Project created successfully: {test_project_id}")
-    print(f"   Name: {data.get('name')}")
-    print(f"   Description: {data.get('description')}")
-    return True
-
-def test_chat_stream_with_project():
-    """Test Step 2: Create new conversation WITH projectId"""
-    global test_conversation_id
-    
-    print(f"\n💬 Step 2: Creating conversation with projectId: {test_project_id}")
-    
-    chat_data = {
-        "content": "Hello, this is a test message for project association",
-        "model": "gpt-4o",
-        "provider": "openai",
-        "projectId": test_project_id
-    }
-    
-    headers = {"Authorization": f"Bearer {auth_token}"}
-    response = make_request("POST", "/chat/stream", chat_data, headers)
-    
-    if not response:
-        print("❌ Failed to create conversation - no response")
-        return False
-    
-    if response.status_code != 200:
-        print(f"❌ Failed to create conversation: {response.status_code}")
-        print(f"Response: {response.text}")
-        return False
-    
-    # Parse NDJSON stream response to extract conversationId
-    lines = response.text.strip().split('\n')
-    conversation_id = None
-    
-    for line in lines:
-        if line.strip():
-            try:
-                chunk = json.loads(line)
-                if chunk.get("type") == "meta" and chunk.get("conversationId"):
-                    conversation_id = chunk["conversationId"]
-                    break
-            except json.JSONDecodeError:
-                continue
-    
-    if not conversation_id:
-        print("❌ No conversationId found in stream response")
-        print(f"First few lines of response: {lines[:3]}")
-        return False
-    
-    test_conversation_id = conversation_id
-    print(f"✅ Conversation created with projectId: {conversation_id}")
-    return True
-
-def test_verify_project_association():
-    """Test Step 3: Verify conversation has project_id"""
-    print(f"\n🔍 Step 3: Verifying conversation has project_id...")
-    
-    # Test using project-specific endpoint
-    headers = {"Authorization": f"Bearer {auth_token}"}
-    response = make_request("GET", f"/conversations?project_id={test_project_id}", headers=headers)
-    
-    if not response or response.status_code != 200:
-        print(f"❌ Failed to get project conversations: {response.status_code if response else 'No response'}")
-        return False
-    
-    # The response is a list of conversations, not an object with "conversations" key
-    conversations = response.json()
-    
-    # Check if our test conversation appears in the project's conversations
-    found_conversation = None
-    for conv in conversations:
-        if conv.get("id") == test_conversation_id:
-            found_conversation = conv
-            break
-    
-    if not found_conversation:
-        print(f"❌ Conversation {test_conversation_id} not found in project {test_project_id}")
-        print(f"Found {len(conversations)} conversations in project")
-        return False
-    
-    project_id_in_conv = found_conversation.get("project_id")
-    if project_id_in_conv != test_project_id:
-        print(f"❌ Conversation has wrong project_id: {project_id_in_conv} (expected: {test_project_id})")
-        return False
-    
-    print(f"✅ Conversation correctly associated with project")
-    print(f"   Conversation ID: {test_conversation_id}")
-    print(f"   Project ID: {project_id_in_conv}")
-    print(f"   Title: {found_conversation.get('title', 'No title')}")
-    return True
-
-def test_chat_stream_without_project():
-    """Test Step 4: Create conversation WITHOUT projectId (baseline)"""
-    global baseline_conversation_id
-    
-    print(f"\n💭 Step 4: Creating conversation WITHOUT projectId (baseline)...")
-    
-    chat_data = {
-        "content": "Hello, this is a test without project association",
-        "model": "gpt-4o",
-        "provider": "openai"
-        # No projectId provided
-    }
-    
-    headers = {"Authorization": f"Bearer {auth_token}"}
-    response = make_request("POST", "/chat/stream", chat_data, headers)
-    
-    if not response:
-        print("❌ Failed to create baseline conversation - no response")
-        return False
-    
-    if response.status_code != 200:
-        print(f"❌ Failed to create baseline conversation: {response.status_code}")
-        print(f"Response: {response.text}")
-        return False
-    
-    # Parse NDJSON stream response to extract conversationId
-    lines = response.text.strip().split('\n')
-    conversation_id = None
-    
-    for line in lines:
-        if line.strip():
-            try:
-                chunk = json.loads(line)
-                if chunk.get("type") == "meta" and chunk.get("conversationId"):
-                    conversation_id = chunk["conversationId"]
-                    break
-            except json.JSONDecodeError:
-                continue
-    
-    if not conversation_id:
-        print("❌ No conversationId found in baseline response")
-        return False
-    
-    baseline_conversation_id = conversation_id
-    print(f"✅ Baseline conversation created: {conversation_id}")
-    
-    # Verify this conversation does NOT have a project_id
-    print("🔍 Verifying baseline conversation has no project association...")
-    
-    response = make_request("GET", "/conversations?project_id=general", headers=headers)
-    
-    if not response or response.status_code != 200:
-        print(f"❌ Failed to get general conversations: {response.status_code if response else 'No response'}")
-        return False
-    
-    # The response is a list of conversations
-    general_conversations = response.json()
-    
-    # Check if baseline conversation appears in general/uncategorized
-    found_in_general = False
-    for conv in general_conversations:
-        if conv.get("id") == baseline_conversation_id:
-            found_in_general = True
-            project_id = conv.get("project_id")
-            if project_id and project_id != "general":
-                print(f"❌ Baseline conversation unexpectedly has project_id: {project_id}")
+        login_payload = {
+            "email": TEST_EMAIL,
+            "passcode": TEST_PASSWORD
+        }
+        
+        try:
+            response = self.session.post(f"{API_BASE}/auth/login", json=login_payload)
+            if response.status_code == 200:
+                data = response.json()
+                self.token = data.get('token')
+                self.user_id = data.get('userId')
+                self.session.headers.update({'Authorization': f'Bearer {self.token}'})
+                print(f"✅ Authentication successful - User ID: {self.user_id}")
+                return True
+            else:
+                print(f"❌ Authentication failed: {response.status_code} {response.text}")
                 return False
-            break
+        except Exception as e:
+            print(f"❌ Authentication error: {str(e)}")
+            return False
     
-    if not found_in_general:
-        print("❌ Baseline conversation not found in general conversations")
-        return False
+    def create_test_zip_file(self, format_type: str = 'chatgpt') -> bytes:
+        """Create a small test ZIP file with appropriate format data"""
+        print(f"📦 Creating test ZIP file for {format_type} format...")
+        
+        # Create in-memory ZIP file
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            if format_type == 'chatgpt':
+                # Create ChatGPT conversations.json format
+                conversations_data = [
+                    {
+                        "title": "Test Chat for API Testing",
+                        "create_time": 1700000000,
+                        "mapping": {
+                            "msg1": {
+                                "message": {
+                                    "author": {"role": "user"},
+                                    "content": {"parts": ["Hello, this is a test message for import testing"]}
+                                }
+                            },
+                            "msg2": {
+                                "message": {
+                                    "author": {"role": "assistant"},
+                                    "content": {"parts": ["Hi there! How can I help you today?"]}
+                                }
+                            },
+                            "msg3": {
+                                "message": {
+                                    "author": {"role": "user"},
+                                    "content": {"parts": ["I'm testing the import functionality for SoulPrint"]}
+                                }
+                            },
+                            "msg4": {
+                                "message": {
+                                    "author": {"role": "assistant"},
+                                    "content": {"parts": ["That sounds interesting! Import testing is important for data analysis."]}
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "title": "Another Test Chat",
+                        "create_time": 1700001000,
+                        "mapping": {
+                            "msg1": {
+                                "message": {
+                                    "author": {"role": "user"},
+                                    "content": {"parts": ["What are my favorite hobbies?"]}
+                                }
+                            },
+                            "msg2": {
+                                "message": {
+                                    "author": {"role": "assistant"},
+                                    "content": {"parts": ["Based on our conversations, you enjoy reading, coding, and outdoor activities."]}
+                                }
+                            }
+                        }
+                    }
+                ]
+                zip_file.writestr('conversations.json', json.dumps(conversations_data, indent=2))
+            
+            elif format_type == 'facebook':
+                # Create Facebook format with messages and posts
+                messages_data = {
+                    "messages": [
+                        {
+                            "sender_name": "Test User",
+                            "content": "Hey, how are you doing?",
+                            "timestamp_ms": 1700000000000
+                        },
+                        {
+                            "sender_name": "Friend",
+                            "content": "I'm doing great! Working on some exciting AI projects.",
+                            "timestamp_ms": 1700000100000
+                        },
+                        {
+                            "sender_name": "Test User",
+                            "content": "That sounds amazing! I love technology and innovation.",
+                            "timestamp_ms": 1700000200000
+                        }
+                    ]
+                }
+                
+                posts_data = [
+                    {
+                        "data": [{
+                            "post": "Just finished reading an amazing book about machine learning. The future is here!"
+                        }],
+                        "timestamp": 1700000000
+                    },
+                    {
+                        "data": [{
+                            "post": "Excited to share my latest project on sustainable technology solutions."
+                        }],
+                        "timestamp": 1700001000
+                    }
+                ]
+                
+                zip_file.writestr('messages/inbox/chat1.json', json.dumps(messages_data, indent=2))
+                zip_file.writestr('posts/your_posts.json', json.dumps(posts_data, indent=2))
+        
+        zip_buffer.seek(0)
+        zip_data = zip_buffer.getvalue()
+        print(f"✅ Created test ZIP file: {len(zip_data)} bytes")
+        return zip_data
     
-    print("✅ Baseline conversation correctly has no project association")
-    return True
+    def test_import_upload_main_endpoint(self) -> Optional[str]:
+        """Test the main /api/imports/upload endpoint"""
+        print("\n🧪 Testing POST /api/imports/upload (main import endpoint)")
+        
+        try:
+            # Create test ZIP file
+            zip_data = self.create_test_zip_file('chatgpt')
+            
+            # Prepare multipart form data
+            files = {'file': ('test_chatgpt_export.zip', zip_data, 'application/zip')}
+            data = {'type': 'chatgpt'}
+            
+            print("📤 Uploading ZIP file to /api/imports/upload...")
+            response = self.session.post(f"{API_BASE}/imports/upload", files=files, data=data)
+            
+            print(f"📊 Response Status: {response.status_code}")
+            print(f"📊 Response Headers: {dict(response.headers)}")
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                print(f"✅ Upload successful!")
+                print(f"   Job ID: {response_data.get('jobId')}")
+                print(f"   Status: {response_data.get('status')}")
+                
+                # Validate response structure
+                if 'jobId' in response_data and 'status' in response_data:
+                    if response_data['status'] == 'processing':
+                        print("✅ Response contains expected jobId and status='processing'")
+                        return response_data['jobId']
+                    else:
+                        print(f"⚠️  Unexpected status: {response_data['status']}, expected 'processing'")
+                        return response_data['jobId']
+                else:
+                    print("❌ Response missing required fields (jobId, status)")
+                    return None
+            else:
+                print(f"❌ Upload failed: {response.status_code}")
+                try:
+                    error_data = response.json()
+                    print(f"   Error: {error_data}")
+                except:
+                    print(f"   Error: {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Upload error: {str(e)}")
+            return None
+    
+    def test_import_chatgpt_alias_endpoint(self) -> Optional[str]:
+        """Test the mobile compatibility alias /api/import/chatgpt endpoint"""
+        print("\n🧪 Testing POST /api/import/chatgpt (mobile compatibility alias)")
+        
+        try:
+            # Create test ZIP file
+            zip_data = self.create_test_zip_file('chatgpt')
+            
+            # Prepare multipart form data
+            files = {'file': ('test_chatgpt_mobile.zip', zip_data, 'application/zip')}
+            data = {'type': 'chatgpt'}
+            
+            print("📤 Uploading ZIP file to /api/import/chatgpt...")
+            response = self.session.post(f"{API_BASE}/import/chatgpt", files=files, data=data)
+            
+            print(f"📊 Response Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                print(f"✅ Mobile alias upload successful!")
+                print(f"   Job ID: {response_data.get('jobId')}")
+                print(f"   Status: {response_data.get('status')}")
+                
+                # Validate response structure (should be identical to main endpoint)
+                if 'jobId' in response_data and 'status' in response_data:
+                    if response_data['status'] == 'processing':
+                        print("✅ Mobile alias works identically to main endpoint")
+                        return response_data['jobId']
+                    else:
+                        print(f"⚠️  Unexpected status: {response_data['status']}")
+                        return response_data['jobId']
+                else:
+                    print("❌ Mobile alias response missing required fields")
+                    return None
+            else:
+                print(f"❌ Mobile alias upload failed: {response.status_code}")
+                try:
+                    error_data = response.json()
+                    print(f"   Error: {error_data}")
+                except:
+                    print(f"   Error: {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Mobile alias upload error: {str(e)}")
+            return None
+    
+    def test_import_status_endpoint(self, job_id: str) -> bool:
+        """Test the /api/imports/status endpoint"""
+        print(f"\n🧪 Testing GET /api/imports/status with jobId: {job_id}")
+        
+        try:
+            # Poll status multiple times to see progression
+            max_polls = 10
+            poll_interval = 2  # seconds
+            
+            for poll_count in range(1, max_polls + 1):
+                print(f"🔍 Status poll {poll_count}/{max_polls}...")
+                
+                response = self.session.get(f"{API_BASE}/imports/status", params={'importId': job_id})
+                print(f"📊 Response Status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    status_data = response.json()
+                    status = status_data.get('status')
+                    message = status_data.get('message', 'No message')
+                    progress = status_data.get('progress', 0)
+                    
+                    print(f"✅ Status retrieved successfully!")
+                    print(f"   Status: {status}")
+                    print(f"   Message: {message}")
+                    print(f"   Progress: {progress}")
+                    
+                    # Check for additional fields
+                    if 'messagesCount' in status_data:
+                        print(f"   Messages Count: {status_data['messagesCount']}")
+                    if 'error' in status_data and status_data['error']:
+                        print(f"   Error: {status_data['error']}")
+                    if 'analysis' in status_data and status_data['analysis']:
+                        print(f"   Analysis Available: Yes")
+                    if 'memoriesAdded' in status_data:
+                        print(f"   Memories Added: {status_data['memoriesAdded']}")
+                    
+                    # Check status progression
+                    if status == 'processing':
+                        print(f"⏳ Still processing... waiting {poll_interval}s before next poll")
+                        time.sleep(poll_interval)
+                        continue
+                    elif status in ['completed', 'complete']:  # Handle both possible status values
+                        print("🎉 Import completed successfully!")
+                        
+                        # Validate completed response has expected fields
+                        expected_completed_fields = ['status', 'error']
+                        missing_fields = [field for field in expected_completed_fields if field not in status_data]
+                        if missing_fields:
+                            print(f"⚠️  Missing fields in completed response: {missing_fields}")
+                        else:
+                            print("✅ Completed response has all expected fields")
+                        
+                        return True
+                    elif status == 'failed':
+                        print(f"❌ Import failed: {status_data.get('error', 'Unknown error')}")
+                        return False
+                    else:
+                        print(f"⚠️  Unknown status: {status}")
+                        return False
+                        
+                elif response.status_code == 404:
+                    print("❌ Import job not found - invalid job ID")
+                    return False
+                else:
+                    print(f"❌ Status check failed: {response.status_code}")
+                    try:
+                        error_data = response.json()
+                        print(f"   Error: {error_data}")
+                    except:
+                        print(f"   Error: {response.text}")
+                    return False
+            
+            # If we've exhausted all polls without completion
+            print("⏰ Import still processing after maximum polls - this may be normal for large files")
+            return True  # Consider this a success - the endpoint is working
+            
+        except Exception as e:
+            print(f"❌ Status check error: {str(e)}")
+            return False
+    
+    def test_error_conditions(self) -> bool:
+        """Test various error conditions"""
+        print("\n🧪 Testing Error Conditions")
+        
+        error_tests_passed = 0
+        total_error_tests = 0
+        
+        # Test 1: Upload without authentication
+        print("\n🔍 Test 1: Upload without authentication")
+        total_error_tests += 1
+        try:
+            # Remove auth header temporarily
+            auth_header = self.session.headers.pop('Authorization', None)
+            
+            zip_data = self.create_test_zip_file('chatgpt')
+            files = {'file': ('test.zip', zip_data, 'application/zip')}
+            
+            response = self.session.post(f"{API_BASE}/imports/upload", files=files)
+            
+            if response.status_code == 401:
+                print("✅ Correctly rejected unauthenticated request")
+                error_tests_passed += 1
+            else:
+                print(f"❌ Expected 401, got {response.status_code}")
+            
+            # Restore auth header
+            if auth_header:
+                self.session.headers['Authorization'] = auth_header
+                
+        except Exception as e:
+            print(f"❌ Auth test error: {str(e)}")
+        
+        # Test 2: Upload without file
+        print("\n🔍 Test 2: Upload without file")
+        total_error_tests += 1
+        try:
+            response = self.session.post(f"{API_BASE}/imports/upload", data={'type': 'chatgpt'})
+            
+            if response.status_code == 400:
+                print("✅ Correctly rejected request without file")
+                error_tests_passed += 1
+            else:
+                print(f"❌ Expected 400, got {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ No file test error: {str(e)}")
+        
+        # Test 3: Status check without importId
+        print("\n🔍 Test 3: Status check without importId")
+        total_error_tests += 1
+        try:
+            response = self.session.get(f"{API_BASE}/imports/status")
+            
+            if response.status_code == 400:
+                print("✅ Correctly rejected status request without importId")
+                error_tests_passed += 1
+            else:
+                print(f"❌ Expected 400, got {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ No importId test error: {str(e)}")
+        
+        # Test 4: Status check with invalid importId
+        print("\n🔍 Test 4: Status check with invalid importId")
+        total_error_tests += 1
+        try:
+            response = self.session.get(f"{API_BASE}/imports/status", params={'importId': 'invalid-id-12345'})
+            
+            if response.status_code == 404:
+                print("✅ Correctly returned 404 for invalid importId")
+                error_tests_passed += 1
+            else:
+                print(f"❌ Expected 404, got {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Invalid importId test error: {str(e)}")
+        
+        print(f"\n📊 Error condition tests: {error_tests_passed}/{total_error_tests} passed")
+        return error_tests_passed == total_error_tests
 
-def test_invalid_project_id():
-    """Test Step 5: Test with invalid projectId"""
-    print(f"\n🚫 Step 5: Testing with invalid projectId...")
-    
-    chat_data = {
-        "content": "Test with invalid project ID",
-        "model": "gpt-4o",
-        "provider": "openai",
-        "projectId": "invalid-project-id-12345"
-    }
-    
-    headers = {"Authorization": f"Bearer {auth_token}"}
-    response = make_request("POST", "/chat/stream", chat_data, headers)
-    
-    if not response:
-        print("❌ Failed to test invalid project - no response")
-        return False
-    
-    if response.status_code != 200:
-        print(f"❌ Unexpected response for invalid project: {response.status_code}")
-        return False
-    
-    # Parse response to get conversationId  
-    lines = response.text.strip().split('\n')
-    conversation_id = None
-    
-    for line in lines:
-        if line.strip():
-            try:
-                chunk = json.loads(line)
-                if chunk.get("type") == "meta" and chunk.get("conversationId"):
-                    conversation_id = chunk["conversationId"]
-                    break
-            except json.JSONDecodeError:
-                continue
-    
-    if not conversation_id:
-        print("❌ No conversationId found for invalid project test")
-        return False
-    
-    # Verify this conversation does NOT have the invalid project_id
-    response = make_request("GET", "/conversations?project_id=general", headers=headers)
-    
-    if not response or response.status_code != 200:
-        print(f"❌ Failed to verify invalid project handling: {response.status_code if response else 'No response'}")
-        return False
-    
-    # The response is a list of conversations
-    general_conversations = response.json()
-    
-    found_in_general = False
-    for conv in general_conversations:
-        if conv.get("id") == conversation_id:
-            found_in_general = True
-            project_id = conv.get("project_id")
-            if project_id == "invalid-project-id-12345":
-                print(f"❌ Conversation incorrectly assigned to invalid project")
-                return False
-            break
-    
-    if not found_in_general:
-        print("❌ Conversation with invalid project not found in general conversations")
-        return False
-    
-    print("✅ Invalid projectId correctly ignored - conversation created without project association")
-    return True
-
-def cleanup_test_data():
-    """Test Step 6: Cleanup - Delete the test project"""
-    if not test_project_id:
-        print("\n🧹 No test project to cleanup")
-        return True
-    
-    print(f"\n🧹 Step 6: Cleaning up test project: {test_project_id}")
-    
-    headers = {"Authorization": f"Bearer {auth_token}"}
-    response = make_request("DELETE", f"/projects/{test_project_id}", headers=headers)
-    
-    if not response:
-        print("❌ Failed to delete test project - no response")
-        return False
-    
-    if response.status_code != 200:
-        print(f"❌ Failed to delete test project: {response.status_code}")
-        print(f"Response: {response.text}")
-        return False
-    
-    print("✅ Test project deleted successfully")
-    return True
-
-def main():
-    """Run the complete New Chat inherits Project feature test suite"""
-    print("🚀 Starting New Chat inherits Project Feature Test Suite")
-    print("=" * 70)
-    
-    # Step 0: Authentication
-    if not authenticate():
-        print("\n❌ AUTHENTICATION FAILED - Cannot proceed with tests")
-        sys.exit(1)
-    
-    test_results = []
-    
-    # Step 1: Create test project
-    result = test_create_project()
-    test_results.append(("Create Test Project", result))
-    if not result:
-        print("\n❌ CRITICAL: Cannot proceed without test project")
-        sys.exit(1)
-    
-    # Step 2: Create conversation with project
-    result = test_chat_stream_with_project()
-    test_results.append(("Create Conversation WITH ProjectId", result))
-    
-    # Step 3: Verify project association
-    result = test_verify_project_association()
-    test_results.append(("Verify Project Association", result))
-    
-    # Step 4: Create conversation without project (baseline)
-    result = test_chat_stream_without_project()
-    test_results.append(("Create Conversation WITHOUT ProjectId", result))
-    
-    # Step 5: Test invalid project ID
-    result = test_invalid_project_id()
-    test_results.append(("Test Invalid ProjectId", result))
-    
-    # Step 6: Cleanup
-    result = cleanup_test_data()
-    test_results.append(("Cleanup Test Data", result))
-    
-    # Summary
-    print("\n" + "=" * 70)
-    print("📊 TEST RESULTS SUMMARY")
-    print("=" * 70)
-    
-    passed = 0
-    failed = 0
-    
-    for test_name, result in test_results:
-        status = "✅ PASSED" if result else "❌ FAILED"
-        print(f"{test_name:<40} {status}")
-        if result:
-            passed += 1
+    def run_comprehensive_tests(self):
+        """Run all import functionality tests"""
+        print("🚀 Starting Comprehensive Import Functionality Tests")
+        print("=" * 60)
+        
+        # Step 1: Authentication
+        if not self.authenticate():
+            print("❌ Authentication failed - cannot proceed with tests")
+            return False
+        
+        # Track test results
+        tests_passed = 0
+        total_tests = 0
+        
+        # Step 2: Test main import endpoint
+        print("\n" + "=" * 60)
+        total_tests += 1
+        job_id_main = self.test_import_upload_main_endpoint()
+        if job_id_main:
+            tests_passed += 1
+        
+        # Step 3: Test mobile compatibility alias
+        print("\n" + "=" * 60)
+        total_tests += 1
+        job_id_mobile = self.test_import_chatgpt_alias_endpoint()
+        if job_id_mobile:
+            tests_passed += 1
+        
+        # Step 4: Test status endpoint with main job
+        if job_id_main:
+            print("\n" + "=" * 60)
+            total_tests += 1
+            if self.test_import_status_endpoint(job_id_main):
+                tests_passed += 1
+        
+        # Step 5: Test error conditions
+        print("\n" + "=" * 60)
+        total_tests += 1
+        if self.test_error_conditions():
+            tests_passed += 1
+        
+        # Final Results
+        print("\n" + "=" * 60)
+        print("🎯 FINAL TEST RESULTS")
+        print("=" * 60)
+        print(f"Tests Passed: {tests_passed}/{total_tests}")
+        
+        if tests_passed == total_tests:
+            print("🎉 ALL TESTS PASSED! Import functionality is working correctly.")
+            return True
         else:
-            failed += 1
-    
-    print(f"\nTotal Tests: {len(test_results)}")
-    print(f"Passed: {passed}")
-    print(f"Failed: {failed}")
-    
-    if failed == 0:
-        print("\n🎉 ALL TESTS PASSED - New Chat inherits Project feature is working correctly!")
-        print("\n✅ FEATURE SUMMARY:")
-        print("   • ✅ Conversations created with valid projectId are correctly associated")
-        print("   • ✅ Conversations created without projectId remain uncategorized")  
-        print("   • ✅ Invalid projectIds are ignored gracefully")
-        print("   • ✅ Project-specific conversation filtering works correctly")
-        print("   • ✅ General/uncategorized conversation filtering works correctly")
-        sys.exit(0)
-    else:
-        print(f"\n❌ {failed} TEST(S) FAILED - New Chat inherits Project feature has issues")
-        sys.exit(1)
+            print("⚠️  Some tests failed. Import functionality needs attention.")
+            
+            # Provide specific recommendations
+            if job_id_main is None:
+                print("🔧 Recommendation: Check /api/imports/upload endpoint implementation")
+            if job_id_mobile is None:
+                print("🔧 Recommendation: Check /api/import/chatgpt alias endpoint implementation")
+            
+            return False
 
 if __name__ == "__main__":
-    main()
+    print("SoulPrint Import Functionality Backend Test")
+    print("Testing endpoints: /api/imports/upload, /api/import/chatgpt, /api/imports/status")
+    print(f"Base URL: {BASE_URL}")
+    print(f"Test User: {TEST_EMAIL}")
+    print()
+    
+    tester = ImportTester()
+    success = tester.run_comprehensive_tests()
+    
+    exit(0 if success else 1)

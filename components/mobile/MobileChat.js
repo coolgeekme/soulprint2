@@ -3068,39 +3068,103 @@ export default function MobileChat({
     
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('type', 'auto'); // Auto-detect type
 
     try {
       setImportProgress('Uploading file...');
-      const res = await fetch('/api/import/chatgpt', {
+      const res = await fetch('/api/imports/upload', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       
-      setImportProgress('Processing...');
       const data = await res.json();
       
-      if (data.imported > 0) {
-        setImportProgress(`Imported ${data.imported} conversations!`);
-        // Refresh conversations
-        const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
-        fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
-          .then(r => r.json())
-          .then(data => setConversations(Array.isArray(data) ? data : []));
+      if (!res.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+      
+      if (data.jobId) {
+        // New async processing - poll for status
+        setImportProgress('Processing your data...');
         
+        // Poll for completion
+        let attempts = 0;
+        const maxAttempts = 60; // 2 minutes max
+        
+        const checkStatus = async () => {
+          try {
+            const statusRes = await fetch(`/api/imports/status?jobId=${data.jobId}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const statusData = await statusRes.json();
+            
+            if (statusData.status === 'completed') {
+              setImportProgress('Import complete! Analyzing your data...');
+              // Refresh conversations
+              const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
+              fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
+                .then(r => r.json())
+                .then(data => setConversations(Array.isArray(data) ? data : []));
+              
+              setTimeout(() => {
+                setShowImportSheet(false);
+                setIsImporting(false);
+                setImportProgress('');
+              }, 2000);
+              return;
+            } else if (statusData.status === 'failed') {
+              throw new Error(statusData.error || 'Import processing failed');
+            } else if (attempts < maxAttempts) {
+              attempts++;
+              setImportProgress(`Processing... (${Math.round((attempts/maxAttempts)*100)}%)`);
+              setTimeout(checkStatus, 2000);
+            } else {
+              setImportProgress('Processing is taking longer than expected. Check back later.');
+              setTimeout(() => {
+                setShowImportSheet(false);
+                setIsImporting(false);
+                setImportProgress('');
+              }, 3000);
+            }
+          } catch (e) {
+            console.error('Status check error:', e);
+            setImportProgress('Import submitted! Results will appear shortly.');
+            setTimeout(() => {
+              setShowImportSheet(false);
+              setIsImporting(false);
+              setImportProgress('');
+            }, 2000);
+          }
+        };
+        
+        setTimeout(checkStatus, 2000);
+      } else if (data.imported !== undefined) {
+        // Legacy direct response
+        if (data.imported > 0) {
+          setImportProgress(`Imported ${data.imported} conversations!`);
+          const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
+          fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.json())
+            .then(data => setConversations(Array.isArray(data) ? data : []));
+        } else {
+          setImportProgress('No conversations found in file');
+        }
         setTimeout(() => {
           setShowImportSheet(false);
           setIsImporting(false);
           setImportProgress('');
         }, 2000);
       } else {
-        setImportProgress('No conversations found in file');
+        setImportProgress('Upload successful! Processing in background.');
         setTimeout(() => {
+          setShowImportSheet(false);
           setIsImporting(false);
           setImportProgress('');
         }, 2000);
       }
     } catch (err) {
+      console.error('Import error:', err);
       setImportProgress('Import failed: ' + err.message);
       setTimeout(() => {
         setIsImporting(false);

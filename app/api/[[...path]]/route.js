@@ -16483,6 +16483,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'generate/video') return handleGenerateVideo(request);
     if (pathStr === 'media/generate') return handleMediaGenerate(request);
     if (pathStr === 'imports/upload') return handleImportUpload(request);
+    if (pathStr === 'import/chatgpt') return handleImportUpload(request); // Alias for mobile compatibility
     if (pathStr === 'imports/cloud') return handleCloudImport(request);
     if (pathStr === 'imports/cloud-batch') return handleCloudBatchImport(request);
     if (pathStr === 'imports/direct') return handleDirectUpload(request);
