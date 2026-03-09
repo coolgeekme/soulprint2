@@ -3846,31 +3846,46 @@ async function handleChatStream(request) {
               
               console.log('[Image-to-Video] Starting - uploading image first...');
               
-              // Step 1: Upload the base64 image to Kie.ai to get a URL
+              // Step 1: Try to upload the base64 image to Kie.ai to get a URL
+              // If upload fails, we'll try using the data URL directly (some providers accept it)
               const fileName = imageAttachment.name || `image-${Date.now()}.${imageAttachment.mimeType?.split('/')[1] || 'jpg'}`;
-              const base64Data = imageAttachment.base64.startsWith('data:') 
+              const dataUrl = imageAttachment.base64.startsWith('data:') 
                 ? imageAttachment.base64 
                 : `data:${imageAttachment.mimeType || 'image/jpeg'};base64,${imageAttachment.base64}`;
               
-              const uploadRes = await fetch('https://api.kie.ai/api/file-base64-upload', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
-                body: JSON.stringify({
-                  base64Data: base64Data,
-                  uploadPath: 'soulprint/image-to-video',
-                  fileName: fileName,
-                }),
-              });
+              let imageUrl = null;
               
-              const uploadData = await uploadRes.json();
-              console.log('[Image-to-Video] Upload response:', JSON.stringify(uploadData).substring(0, 300));
-              
-              if (!uploadData.success || !uploadData.data?.downloadUrl) {
-                throw new Error(uploadData.msg || 'Failed to upload image for video generation');
+              // Try uploading to Kie.ai file upload service
+              try {
+                const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+                  body: JSON.stringify({
+                    fileData: dataUrl, // Correct parameter name per docs
+                    uploadPath: 'soulprint/image-to-video',
+                    fileName: fileName,
+                  }),
+                });
+                
+                if (uploadRes.ok) {
+                  const uploadData = await uploadRes.json();
+                  console.log('[Image-to-Video] Upload response:', JSON.stringify(uploadData).substring(0, 300));
+                  if (uploadData.success && uploadData.data?.downloadUrl) {
+                    imageUrl = uploadData.data.downloadUrl;
+                    console.log('[Image-to-Video] Got uploaded image URL:', imageUrl.substring(0, 80));
+                  }
+                }
+              } catch (uploadErr) {
+                console.log('[Image-to-Video] Upload failed:', uploadErr.message);
               }
               
-              const imageUrl = uploadData.data.downloadUrl;
-              console.log('[Image-to-Video] Got image URL:', imageUrl.substring(0, 80));
+              // If upload failed, try using data URL directly (may not work with all models)
+              if (!imageUrl) {
+                console.log('[Image-to-Video] Using data URL directly (upload failed)');
+                imageUrl = dataUrl;
+              }
+              
+              console.log('[Image-to-Video] Final image URL type:', imageUrl.startsWith('data:') ? 'data URL' : 'http URL');
               
               send({ type: 'delta', content: '🎬 Animating your image with Kling 3.0...\n\n' });
               
