@@ -1541,12 +1541,26 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
         });
         
         try {
+          console.log('Starting client-side extraction for:', file.name, `(${fileSizeMB.toFixed(1)}MB)`);
           const { messages, posts, platform } = await extractFromZip(file);
+          console.log('Extraction result:', { messages: messages.length, posts: posts.length, platform });
           totalMessages = messages;
           totalPosts = posts;
           if (platform) platforms.push(platform);
+          
+          // If we found data, show success and skip server upload
+          if (totalMessages.length > 0 || totalPosts.length > 0) {
+            setDetectedPlatform(platform || 'Unknown');
+            setExtractedData({
+              messages: totalMessages,
+              posts: totalPosts,
+              dataSize: JSON.stringify({ messages: totalMessages, posts: totalPosts }).length
+            });
+            setImportStatus(null);
+            return; // Exit early - we have our data!
+          }
         } catch (clientErr) {
-          console.log('Client-side extraction failed, will try server:', clientErr.message);
+          console.error('Client-side extraction failed:', clientErr);
           // Will fall through to server processing below
         }
       }
@@ -1560,35 +1574,110 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
         });
         
         try {
-          const result = await uploadLargeFileForImport(file, (progress) => {
-            setImportStatus({ 
-              status: 'uploading', 
-              message: `Uploading... ${progress}%`, 
-              progress: 40 + Math.round(progress * 0.5) 
-            });
-          });
-          
-          if (result.success) {
-            setImportStatus({ status: 'complete', message: 'Import complete!', progress: 100 });
-            setDetectedPlatform(result.stats?.source || 'Unknown');
-            setExtractedData({
-              messages: [],
-              posts: [],
-              dataSize: 0,
-              serverProcessed: true,
-              importId: result.importId,
-              stats: result.stats
+          // For files under 50MB, use direct upload (simpler, more reliable)
+          if (fileSizeMB <= 50) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', 'auto');
+            
+            const uploadRes = await fetch('/api/imports/upload', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+              body: formData,
             });
             
-            setTimeout(() => {
-              setShowImportModal(false);
-              setImportStatus(null);
-              fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-                .then(r => r.json())
-                .then(data => { if (data.user) setUser(data.user); })
-                .catch(() => {});
-            }, 2000);
-            return;
+            const uploadData = await uploadRes.json();
+            
+            if (!uploadRes.ok) {
+              throw new Error(uploadData.error || 'Upload failed');
+            }
+            
+            // Poll for completion
+            if (uploadData.jobId || uploadData.importId) {
+              const jobId = uploadData.jobId || uploadData.importId;
+              setImportStatus({ status: 'processing', message: 'Processing your data...', progress: 60 });
+              
+              let attempts = 0;
+              while (attempts < 60) {
+                await new Promise(r => setTimeout(r, 2000));
+                const statusRes = await fetch(`/api/imports/status?importId=${jobId}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+                const statusData = await statusRes.json();
+                
+                if (statusData.status === 'completed' || statusData.status === 'complete') {
+                  setImportStatus({ status: 'complete', message: 'Import complete!', progress: 100 });
+                  setDetectedPlatform(statusData.stats?.source || statusData.source || 'Unknown');
+                  setExtractedData({
+                    messages: [],
+                    posts: [],
+                    dataSize: 0,
+                    serverProcessed: true,
+                    importId: jobId,
+                    stats: statusData.stats
+                  });
+                  
+                  setTimeout(() => {
+                    setShowImportModal(false);
+                    setImportStatus(null);
+                    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+                      .then(r => r.json())
+                      .then(data => { if (data.user) setUser(data.user); })
+                      .catch(() => {});
+                  }, 2000);
+                  return;
+                } else if (statusData.status === 'failed') {
+                  throw new Error(statusData.error || 'Processing failed');
+                }
+                
+                attempts++;
+                setImportStatus({ 
+                  status: 'processing', 
+                  message: `Processing... ${Math.round((attempts / 60) * 100)}%`, 
+                  progress: 60 + Math.round((attempts / 60) * 35) 
+                });
+              }
+              
+              // Still processing after timeout
+              setImportStatus({ status: 'complete', message: 'Processing in background. Check back later!', progress: 100 });
+              setTimeout(() => {
+                setShowImportModal(false);
+                setImportStatus(null);
+              }, 3000);
+              return;
+            }
+          } else {
+            // For larger files, use chunked upload
+            const result = await uploadLargeFileForImport(file, (progress) => {
+              setImportStatus({ 
+                status: 'uploading', 
+                message: `Uploading... ${progress}%`, 
+                progress: 40 + Math.round(progress * 0.5) 
+              });
+            });
+            
+            if (result.success) {
+              setImportStatus({ status: 'complete', message: 'Import complete!', progress: 100 });
+              setDetectedPlatform(result.stats?.source || 'Unknown');
+              setExtractedData({
+                messages: [],
+                posts: [],
+                dataSize: 0,
+                serverProcessed: true,
+                importId: result.importId,
+                stats: result.stats
+              });
+              
+              setTimeout(() => {
+                setShowImportModal(false);
+                setImportStatus(null);
+                fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+                  .then(r => r.json())
+                  .then(data => { if (data.user) setUser(data.user); })
+                  .catch(() => {});
+              }, 2000);
+              return;
+            }
           }
           
           if (result.messages) totalMessages = result.messages;
@@ -1869,15 +1958,35 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
                 {/* Detected platform */}
                 {detectedPlatform && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mb-3">
                     <CheckCircle2 className="w-4 h-4 text-green-400" />
-                    <span className="text-xs text-gray-400">Detected:</span>
-                    <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">{detectedPlatform}</span>
+                    <span className="text-xs text-gray-400">Detected platform:</span>
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${
+                      detectedPlatform.toLowerCase().includes('chatgpt') ? 'bg-green-500/20 text-green-400' :
+                      detectedPlatform.toLowerCase().includes('facebook') ? 'bg-blue-500/20 text-blue-400' :
+                      detectedPlatform.toLowerCase().includes('claude') ? 'bg-orange-500/20 text-orange-400' :
+                      'bg-purple-500/20 text-purple-400'
+                    }`}>{detectedPlatform}</span>
                   </div>
                 )}
                 
-                {/* Server Fallback UI */}
-                {extractedData?.useServerFallback ? (
+                {/* Server Processed Success */}
+                {extractedData?.serverProcessed ? (
+                  <div className="bg-gradient-to-r from-emerald-500/20 to-green-500/20 border border-emerald-500/30 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      <span className="text-emerald-400 font-medium">Import Complete!</span>
+                    </div>
+                    <p className="text-sm text-gray-400">
+                      Your {detectedPlatform || 'chat'} history has been processed and added to your SoulPrint profile.
+                    </p>
+                    {extractedData.stats && (
+                      <div className="mt-3 text-xs text-gray-500">
+                        {extractedData.stats.messageCount && <span>• {extractedData.stats.messageCount} messages analyzed</span>}
+                      </div>
+                    )}
+                  </div>
+                ) : extractedData?.useServerFallback ? (
                   <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Upload className="w-5 h-5 text-blue-400" />
