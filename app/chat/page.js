@@ -1798,7 +1798,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           Authorization: `Bearer ${token}` 
         },
         body: JSON.stringify({
-          type: importType,
+          type: detectedPlatform?.toLowerCase() || 'auto',
           messages: extractedData.messages,
           posts: extractedData.posts
         }),
