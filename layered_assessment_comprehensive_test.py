@@ -15,7 +15,7 @@ import time
 import sys
 
 # Configuration
-BASE_URL = "https://image-video-gen-11.preview.emergentagent.com/api"
+BASE_URL = "https://doc-parser-16.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSCODE = "test123"
 

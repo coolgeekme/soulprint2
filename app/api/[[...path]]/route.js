@@ -9,6 +9,125 @@ import fs from 'fs';
 import { writeFile, mkdir, rm, readFile } from 'fs/promises';
 import yauzl from 'yauzl';
 
+// Document parsing utilities
+async function parseDocumentContent(buffer, mimeType, fileName) {
+  try {
+    // PDF parsing
+    if (mimeType === 'application/pdf' || fileName?.toLowerCase().endsWith('.pdf')) {
+      try {
+        // Try pdf-parse-new first
+        const pdfParseNew = require('pdf-parse-new');
+        const pdfData = await pdfParseNew(buffer);
+        return {
+          success: true,
+          text: pdfData.text?.slice(0, 50000) || '',
+          metadata: {
+            pages: pdfData.numpages,
+            info: pdfData.info
+          }
+        };
+      } catch (newError) {
+        console.error('PDF parse new error:', newError);
+        try {
+          // Fallback to original pdf-parse
+          const pdfParse = require('pdf-parse');
+          const pdfData = await pdfParse(buffer);
+          return {
+            success: true,
+            text: pdfData.text?.slice(0, 50000) || '',
+            metadata: {
+              pages: pdfData.numpages,
+              info: pdfData.info
+            }
+          };
+        } catch (originalError) {
+          console.error('PDF parse original error:', originalError);
+          return {
+            success: false,
+            error: 'PDF parsing failed: ' + originalError.message
+          };
+        }
+      }
+    }
+    
+    // DOCX parsing
+    if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+        fileName?.toLowerCase().endsWith('.docx')) {
+      const mammoth = await import('mammoth');
+      const result = await mammoth.extractRawText({ buffer });
+      return {
+        success: true,
+        text: result.value?.slice(0, 50000) || '',
+        metadata: {}
+      };
+    }
+    
+    // Plain text files
+    if (mimeType?.startsWith('text/') || 
+        ['.txt', '.md', '.csv', '.json', '.js', '.py', '.html', '.css'].some(ext => fileName?.toLowerCase().endsWith(ext))) {
+      return {
+        success: true,
+        text: buffer.toString('utf-8').slice(0, 50000),
+        metadata: {}
+      };
+    }
+    
+    return {
+      success: false,
+      error: `Unsupported file type: ${mimeType || fileName}`
+    };
+  } catch (err) {
+    console.error('Document parsing error:', err);
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+}
+
+// Handler for document parsing endpoint
+async function handleParseDocument(request) {
+  try {
+    // Require authentication
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    let formData;
+    try {
+      formData = await request.formData();
+    } catch (formError) {
+      console.error('FormData parsing error:', formError);
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+    
+    const file = formData.get('file');
+    
+    if (!file) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+    
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const result = await parseDocumentContent(buffer, file.type, file.name);
+    
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    
+    return NextResponse.json({
+      success: true,
+      text: result.text,
+      metadata: result.metadata,
+      fileName: file.name,
+      fileType: file.type
+    });
+  } catch (err) {
+    console.error('Parse document error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 // Configure route for large file uploads (App Router style)
 export const maxDuration = 300; // 5 minutes max for this route (large file processing)
 export const dynamic = 'force-dynamic';
@@ -16585,6 +16704,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'generate/image-kie') return handleGenerateImageKie(request);
     if (pathStr === 'generate/video') return handleGenerateVideo(request);
     if (pathStr === 'media/generate') return handleMediaGenerate(request);
+    if (pathStr === 'parse/document') return handleParseDocument(request);
     if (pathStr === 'imports/upload') return handleImportUpload(request);
     if (pathStr === 'import/chatgpt') return handleImportUpload(request); // Alias for mobile compatibility
     if (pathStr === 'imports/cloud') return handleCloudImport(request);

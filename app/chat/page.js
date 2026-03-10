@@ -361,6 +361,10 @@ function TypingIndicator() {
 // Convert file to processable data
 async function processFile(file) {
   const isImage = file.type.startsWith('image/');
+  const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const isDOCX = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
+                 file.name.toLowerCase().endsWith('.docx');
+  
   if (isImage) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -371,8 +375,44 @@ async function processFile(file) {
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+  } else if (isPDF || isDOCX) {
+    // Parse PDF/DOCX on the server
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/parse/document', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to parse document');
+      }
+      
+      const data = await res.json();
+      return { 
+        type: 'document', 
+        text: data.text || '', 
+        name: file.name, 
+        mimeType: file.type,
+        metadata: data.metadata 
+      };
+    } catch (err) {
+      console.error('Document parse error:', err);
+      // Fallback: return empty text with error indication
+      return { 
+        type: 'document', 
+        text: `[Error reading ${file.name}: ${err.message}]`, 
+        name: file.name, 
+        mimeType: file.type 
+      };
+    }
   } else {
-    // Document — read as text
+    // Text-based documents — read as text
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {

@@ -1,371 +1,475 @@
 #!/usr/bin/env python3
+"""
+Backend API Testing - PDF/DOCX Document Parsing API
+Tests the POST /api/parse/document endpoint as per review request
+"""
 
 import requests
 import json
-import base64
-import zipfile
-import io
 import os
-import time
 import sys
+from pathlib import Path
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from docx import Document
+import io
 
-# Get the base URL from environment variable
-NEXT_PUBLIC_BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://image-video-gen-11.preview.emergentagent.com')
-BASE_URL = f"{NEXT_PUBLIC_BASE_URL}/api"
+# Base URL from environment
+BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://doc-parser-16.preview.emergentagent.com')
+API_BASE = f"{BASE_URL}/api"
 
-class ImportTester:
-    def __init__(self):
-        self.base_url = BASE_URL
-        self.token = None
-        self.user_id = None
+def create_test_pdf():
+    """Create a simple test PDF file for testing."""
+    try:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
         
-    def login(self, email="test@soulprint.com", passcode="test123"):
-        """Login with test credentials"""
-        try:
-            print(f"🔐 Authenticating with {email}...")
-            response = requests.post(f"{self.base_url}/auth/login", json={
-                "email": email,
-                "passcode": passcode
-            })
+        content = []
+        
+        # Add title
+        title = Paragraph("Test PDF Document", styles['Title'])
+        content.append(title)
+        content.append(Spacer(1, 12))
+        
+        # Add paragraphs
+        para1 = Paragraph("This is a test PDF document created for API testing purposes.", styles['Normal'])
+        content.append(para1)
+        content.append(Spacer(1, 12))
+        
+        para2 = Paragraph("It contains multiple paragraphs with different content to test text extraction capabilities.", styles['Normal'])
+        content.append(para2)
+        content.append(Spacer(1, 12))
+        
+        para3 = Paragraph("The PDF parsing should extract all this text correctly and return it in the API response.", styles['Normal'])
+        content.append(para3)
+        content.append(Spacer(1, 12))
+        
+        para4 = Paragraph("This helps verify that the pdf-parse library integration is working properly.", styles['Normal'])
+        content.append(para4)
+        
+        doc.build(content)
+        buffer.seek(0)
+        return buffer.getvalue()
+    except Exception as e:
+        print(f"Error creating PDF: {e}")
+        # Fallback: create minimal PDF with reportlab basic canvas
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer, pagesize=letter)
+        c.drawString(100, 750, "Test PDF Document")
+        c.drawString(100, 730, "This is a simple test PDF for API testing.")
+        c.drawString(100, 710, "It should be parsed correctly by the document parsing API.")
+        c.drawString(100, 690, "The pdf-parse library should extract this text content.")
+        c.save()
+        buffer.seek(0)
+        return buffer.getvalue()
+
+def create_test_docx():
+    """Create a simple test DOCX file for testing."""
+    try:
+        doc = Document()
+        doc.add_heading('Test DOCX Document', 0)
+        
+        doc.add_paragraph('This is a test DOCX document created for API testing purposes.')
+        doc.add_paragraph('It contains multiple paragraphs with different content to test text extraction capabilities.')
+        doc.add_paragraph('The DOCX parsing should extract all this text correctly using the mammoth library.')
+        doc.add_paragraph('This helps verify that the mammoth library integration is working properly for Word documents.')
+        
+        buffer = io.BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        return buffer.getvalue()
+    except Exception as e:
+        print(f"Error creating DOCX: {e}")
+        return None
+
+def create_test_txt():
+    """Create a simple test text file for testing."""
+    content = """This is a test text file for API testing.
+It contains multiple lines of text content.
+The plain text parsing should handle this correctly.
+This helps verify the text file fallback functionality."""
+    return content.encode('utf-8')
+
+def login_and_get_token():
+    """Login with test credentials and get authentication token."""
+    try:
+        print("🔐 STEP 1: Authentication Test")
+        
+        login_url = f"{API_BASE}/auth/login"
+        login_data = {
+            "email": "test@soulprint.com",
+            "passcode": "test123"
+        }
+        
+        print(f"POST {login_url}")
+        print(f"Request body: {json.dumps(login_data, indent=2)}")
+        
+        response = requests.post(login_url, json=login_data)
+        print(f"Status: {response.status_code}")
+        print(f"Response: {json.dumps(response.json(), indent=2)}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            if 'token' in data:
+                print("✅ Authentication successful!")
+                return data['token']
+            else:
+                print("❌ No token in response")
+                return None
+        else:
+            print(f"❌ Authentication failed: {response.text}")
+            return None
             
-            if response.status_code == 200:
-                data = response.json()
-                self.token = data['token']
-                self.user_id = data['userId']
-                print(f"✅ Authentication successful - Role: {data.get('role', 'N/A')}")
+    except Exception as e:
+        print(f"❌ Authentication error: {e}")
+        return None
+
+def test_pdf_parsing(token):
+    """Test PDF document parsing."""
+    try:
+        print("\n📄 STEP 2: PDF Parsing Test")
+        
+        # Create test PDF
+        pdf_content = create_test_pdf()
+        print(f"Created test PDF: {len(pdf_content)} bytes")
+        
+        # Prepare multipart request
+        url = f"{API_BASE}/parse/document"
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        files = {
+            'file': ('test.pdf', pdf_content, 'application/pdf')
+        }
+        
+        print(f"POST {url}")
+        print(f"Headers: Authorization: Bearer {token[:20]}...")
+        print(f"Files: test.pdf ({len(pdf_content)} bytes, application/pdf)")
+        
+        response = requests.post(url, headers=headers, files=files)
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Response: {json.dumps(data, indent=2)}")
+            
+            # Validate response structure
+            if data.get('success') == True:
+                if 'text' in data and 'metadata' in data and 'fileName' in data and 'fileType' in data:
+                    print("✅ PDF parsing successful!")
+                    print(f"✅ Text extracted: {len(data.get('text', ''))} characters")
+                    print(f"✅ Metadata present: {data.get('metadata', {})}")
+                    print(f"✅ File name: {data.get('fileName')}")
+                    print(f"✅ File type: {data.get('fileType')}")
+                    return True
+                else:
+                    print("❌ Missing required response fields")
+                    return False
+            else:
+                print(f"❌ Parsing failed: {data.get('error', 'Unknown error')}")
+                return False
+        else:
+            print(f"❌ Request failed: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ PDF parsing error: {e}")
+        return False
+
+def test_docx_parsing(token):
+    """Test DOCX document parsing."""
+    try:
+        print("\n📝 STEP 3: DOCX Parsing Test")
+        
+        # Create test DOCX
+        docx_content = create_test_docx()
+        if not docx_content:
+            print("❌ Failed to create test DOCX")
+            return False
+            
+        print(f"Created test DOCX: {len(docx_content)} bytes")
+        
+        # Prepare multipart request
+        url = f"{API_BASE}/parse/document"
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        files = {
+            'file': ('test.docx', docx_content, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        }
+        
+        print(f"POST {url}")
+        print(f"Headers: Authorization: Bearer {token[:20]}...")
+        print(f"Files: test.docx ({len(docx_content)} bytes, application/vnd.openxmlformats-officedocument.wordprocessingml.document)")
+        
+        response = requests.post(url, headers=headers, files=files)
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Response: {json.dumps(data, indent=2)}")
+            
+            # Validate response structure
+            if data.get('success') == True:
+                if 'text' in data and 'metadata' in data and 'fileName' in data and 'fileType' in data:
+                    print("✅ DOCX parsing successful!")
+                    print(f"✅ Text extracted: {len(data.get('text', ''))} characters")
+                    print(f"✅ Metadata present: {data.get('metadata', {})}")
+                    print(f"✅ File name: {data.get('fileName')}")
+                    print(f"✅ File type: {data.get('fileType')}")
+                    return True
+                else:
+                    print("❌ Missing required response fields")
+                    return False
+            else:
+                print(f"❌ Parsing failed: {data.get('error', 'Unknown error')}")
+                return False
+        else:
+            print(f"❌ Request failed: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ DOCX parsing error: {e}")
+        return False
+
+def test_txt_parsing(token):
+    """Test plain text file parsing."""
+    try:
+        print("\n📄 STEP 4: Plain Text Parsing Test")
+        
+        # Create test text file
+        txt_content = create_test_txt()
+        print(f"Created test TXT: {len(txt_content)} bytes")
+        
+        # Prepare multipart request
+        url = f"{API_BASE}/parse/document"
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        files = {
+            'file': ('test.txt', txt_content, 'text/plain')
+        }
+        
+        print(f"POST {url}")
+        print(f"Headers: Authorization: Bearer {token[:20]}...")
+        print(f"Files: test.txt ({len(txt_content)} bytes, text/plain)")
+        
+        response = requests.post(url, headers=headers, files=files)
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Response: {json.dumps(data, indent=2)}")
+            
+            # Validate response structure
+            if data.get('success') == True:
+                if 'text' in data and 'metadata' in data and 'fileName' in data and 'fileType' in data:
+                    print("✅ Text parsing successful!")
+                    print(f"✅ Text extracted: {len(data.get('text', ''))} characters")
+                    print(f"✅ Metadata present: {data.get('metadata', {})}")
+                    print(f"✅ File name: {data.get('fileName')}")
+                    print(f"✅ File type: {data.get('fileType')}")
+                    return True
+                else:
+                    print("❌ Missing required response fields")
+                    return False
+            else:
+                print(f"❌ Parsing failed: {data.get('error', 'Unknown error')}")
+                return False
+        else:
+            print(f"❌ Request failed: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Text parsing error: {e}")
+        return False
+
+def test_no_file_error(token):
+    """Test error handling when no file is provided."""
+    try:
+        print("\n⚠️ STEP 5: No File Error Handling Test")
+        
+        # Prepare request without file
+        url = f"{API_BASE}/parse/document"
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'multipart/form-data'
+        }
+        
+        print(f"POST {url}")
+        print(f"Headers: Authorization: Bearer {token[:20]}...")
+        print("Files: (none - testing error handling)")
+        
+        response = requests.post(url, headers=headers)
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code == 400:
+            data = response.json()
+            print(f"Response: {json.dumps(data, indent=2)}")
+            
+            if 'error' in data and 'no file' in data['error'].lower():
+                print("✅ Proper error handling for missing file!")
                 return True
             else:
-                print(f"❌ Login failed: {response.status_code} - {response.text}")
+                print(f"❌ Unexpected error message: {data.get('error')}")
                 return False
-        except Exception as e:
-            print(f"❌ Login error: {str(e)}")
+        else:
+            print(f"❌ Expected 400 status, got {response.status_code}: {response.text}")
             return False
-    
-    def get_headers(self):
-        """Get authenticated headers"""
-        return {
-            'Authorization': f'Bearer {self.token}',
-            'Content-Type': 'application/json'
-        }
-    
-    def get_multipart_headers(self):
-        """Get authenticated headers for multipart requests"""
-        return {
-            'Authorization': f'Bearer {self.token}'
-        }
-    
-    def create_chatgpt_test_file(self):
-        """Create a test ChatGPT format ZIP file"""
-        conversations = [{
-            "title": "AI Discussion Test",
-            "create_time": 1700000000,
-            "mapping": {
-                "msg1": {
-                    "message": {
-                        "author": {"role": "user"},
-                        "content": {"parts": ["What is artificial intelligence and how does it work?"]}
-                    }
-                },
-                "msg2": {
-                    "message": {
-                        "author": {"role": "assistant"},
-                        "content": {"parts": ["AI is a field of computer science..."]}
-                    }
-                },
-                "msg3": {
-                    "message": {
-                        "author": {"role": "user"},
-                        "content": {"parts": ["Can you help me write a Python function for data processing?"]}
-                    }
-                }
-            }
-        }, {
-            "title": "Programming Help",
-            "create_time": 1700001000,
-            "mapping": {
-                "msg4": {
-                    "message": {
-                        "author": {"role": "user"},
-                        "content": {"parts": ["I need help with machine learning algorithms"]}
-                    }
-                }
-            }
-        }]
-        
-        # Create ZIP file in memory
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr('conversations.json', json.dumps(conversations))
-        
-        zip_buffer.seek(0)
-        return zip_buffer.getvalue()
-    
-    def create_facebook_test_file(self):
-        """Create a test Facebook format ZIP file"""
-        # Facebook messages format
-        messages_data = {
-            "participants": [{"name": "John Smith"}],
-            "messages": [
-                {
-                    "sender_name": "John Smith",
-                    "content": "Hey, how are you doing today?",
-                    "timestamp_ms": 1700000000000
-                },
-                {
-                    "sender_name": "Test User",
-                    "content": "I'm doing great! Just working on some interesting machine learning projects.",
-                    "timestamp_ms": 1700000060000
-                },
-                {
-                    "sender_name": "John Smith", 
-                    "content": "That sounds fascinating! Tell me more about it.",
-                    "timestamp_ms": 1700000120000
-                }
-            ]
-        }
-        
-        # Facebook posts format  
-        posts_data = [
-            {
-                "data": [{
-                    "post": "Excited about the future of quantum computing and its applications in AI!"
-                }],
-                "timestamp": 1700000000
-            },
-            {
-                "data": [{
-                    "post": "Just finished reading about sustainable AI development. The future looks promising."
-                }],
-                "timestamp": 1700001000
-            }
-        ]
-        
-        # Create ZIP file in memory
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            zipf.writestr('messages/inbox/friend_name/message_1.json', json.dumps(messages_data))
-            zipf.writestr('posts/your_posts_1.json', json.dumps(posts_data))
-        
-        zip_buffer.seek(0)
-        return zip_buffer.getvalue()
-    
-    def test_chatgpt_import(self):
-        """Test ChatGPT format import"""
-        print("\n🧪 Testing ChatGPT format import...")
-        
-        try:
-            # Create test file
-            zip_data = self.create_chatgpt_test_file()
-            print(f"📁 Created ChatGPT test file ({len(zip_data)} bytes)")
             
-            # Upload file
-            files = {'file': ('conversations_test.zip', zip_data, 'application/zip')}
-            response = requests.post(
-                f"{self.base_url}/imports/upload",
-                headers=self.get_multipart_headers(),
-                files=files
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                job_id = data.get('jobId')
-                print(f"✅ Upload successful - JobId: {job_id}")
-                print(f"📊 Status: {data.get('status', 'N/A')}")
-                
-                if job_id:
-                    return self.poll_import_status(job_id)
-                else:
-                    print("❌ No jobId returned")
-                    return False
-            else:
-                print(f"❌ Upload failed: {response.status_code}")
-                print(f"Response: {response.text}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ ChatGPT import test error: {str(e)}")
-            return False
-    
-    def test_facebook_import(self):
-        """Test Facebook format import"""
-        print("\n🧪 Testing Facebook format import...")
-        
-        try:
-            # Create test file
-            zip_data = self.create_facebook_test_file()
-            print(f"📁 Created Facebook test file ({len(zip_data)} bytes)")
-            
-            # Upload file
-            files = {'file': ('facebook_export_test.zip', zip_data, 'application/zip')}
-            response = requests.post(
-                f"{self.base_url}/imports/upload",
-                headers=self.get_multipart_headers(),
-                files=files
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                job_id = data.get('jobId')
-                print(f"✅ Upload successful - JobId: {job_id}")
-                print(f"📊 Status: {data.get('status', 'N/A')}")
-                
-                if job_id:
-                    return self.poll_import_status(job_id)
-                else:
-                    print("❌ No jobId returned")
-                    return False
-            else:
-                print(f"❌ Upload failed: {response.status_code}")
-                print(f"Response: {response.text}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Facebook import test error: {str(e)}")
-            return False
-    
-    def test_chunked_upload_init(self):
-        """Test chunked upload initialization"""
-        print("\n🧪 Testing chunked upload init...")
-        
-        try:
-            response = requests.post(
-                f"{self.base_url}/data-import/chunked/init",
-                headers=self.get_headers(),
-                json={
-                    "filename": "test_export.zip",
-                    "fileSize": 2048,
-                    "source": "chatgpt",
-                    "totalChunks": 2
-                }
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                upload_id = data.get('uploadId')
-                print(f"✅ Chunked init successful - UploadId: {upload_id}")
-                return upload_id
-            else:
-                print(f"❌ Chunked init failed: {response.status_code}")
-                print(f"Response: {response.text}")
-                return None
-                
-        except Exception as e:
-            print(f"❌ Chunked init test error: {str(e)}")
-            return None
-    
-    def poll_import_status(self, job_id, max_attempts=10):
-        """Poll import status until completion"""
-        print(f"\n🔄 Polling import status for JobId: {job_id}")
-        
-        for attempt in range(max_attempts):
-            try:
-                response = requests.get(
-                    f"{self.base_url}/imports/status?importId={job_id}",
-                    headers=self.get_headers()
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    status = data.get('status', 'unknown')
-                    print(f"📊 Attempt {attempt + 1}: Status = {status}")
-                    
-                    if status in ['completed', 'complete']:
-                        print("✅ Import completed successfully")
-                        self.print_import_results(data)
-                        return True
-                    elif status == 'failed':
-                        print(f"❌ Import failed: {data.get('error', 'Unknown error')}")
-                        return False
-                    elif status == 'processing':
-                        print("⏳ Still processing...")
-                        time.sleep(2)
-                        continue
-                    else:
-                        print(f"⚠️ Unknown status: {status}")
-                        time.sleep(2)
-                        continue
-                        
-                elif response.status_code == 404:
-                    print(f"❌ Import not found: {job_id}")
-                    return False
-                else:
-                    print(f"❌ Status check failed: {response.status_code}")
-                    print(f"Response: {response.text}")
-                    return False
-                    
-            except Exception as e:
-                print(f"❌ Status polling error: {str(e)}")
-                return False
-        
-        print(f"⏰ Timeout after {max_attempts} attempts")
+    except Exception as e:
+        print(f"❌ No file error test failed: {e}")
         return False
-    
-    def print_import_results(self, data):
-        """Print detailed import results"""
-        print("\n📋 Import Results:")
-        print(f"   Status: {data.get('status', 'N/A')}")
+
+def test_unsupported_format(token):
+    """Test error handling for unsupported file formats."""
+    try:
+        print("\n🚫 STEP 6: Unsupported Format Error Handling Test")
         
-        analysis = data.get('analysis')
-        if analysis:
-            print(f"   Analysis Summary: {analysis.get('summary', 'N/A')}")
+        # Create fake image file (unsupported format)
+        fake_image = b"fake_image_content_for_testing"
+        
+        # Prepare multipart request with unsupported format
+        url = f"{API_BASE}/parse/document"
+        headers = {
+            'Authorization': f'Bearer {token}'
+        }
+        files = {
+            'file': ('test.png', fake_image, 'image/png')
+        }
+        
+        print(f"POST {url}")
+        print(f"Headers: Authorization: Bearer {token[:20]}...")
+        print(f"Files: test.png ({len(fake_image)} bytes, image/png)")
+        
+        response = requests.post(url, headers=headers, files=files)
+        print(f"Status: {response.status_code}")
+        
+        if response.status_code == 400:
+            data = response.json()
+            print(f"Response: {json.dumps(data, indent=2)}")
             
-            comm_style = analysis.get('communicationStyle', {})
-            if comm_style:
-                print(f"   Communication Style:")
-                print(f"     - Formality: {comm_style.get('formality', 'N/A')}")
-                print(f"     - Verbosity: {comm_style.get('verbosity', 'N/A')}")  
-                print(f"     - Tone: {comm_style.get('tone', 'N/A')}")
-            
-            interests = analysis.get('interests', [])
-            if interests:
-                print(f"   Interests: {', '.join(interests[:5])}")
-        
-        memories_added = data.get('memoriesAdded', 0)
-        print(f"   Memories Added: {memories_added}")
-    
-    def run_all_tests(self):
-        """Run all import functionality tests"""
-        print("=" * 60)
-        print("🚀 IMPORT FUNCTIONALITY TEST SUITE")
-        print("=" * 60)
-        
-        # Step 1: Login
-        if not self.login():
-            print("💥 Cannot proceed without authentication")
+            if 'error' in data and ('unsupported' in data['error'].lower() or 'not supported' in data['error'].lower()):
+                print("✅ Proper error handling for unsupported format!")
+                return True
+            else:
+                print(f"❌ Unexpected error message: {data.get('error')}")
+                return False
+        else:
+            print(f"❌ Expected 400 status, got {response.status_code}: {response.text}")
             return False
+            
+    except Exception as e:
+        print(f"❌ Unsupported format error test failed: {e}")
+        return False
+
+def test_authentication_required():
+    """Test that authentication is required."""
+    try:
+        print("\n🔒 STEP 7: Authentication Required Test")
         
-        test_results = []
+        # Create simple test file
+        txt_content = create_test_txt()
         
-        # Step 2: Test ChatGPT import
-        chatgpt_result = self.test_chatgpt_import()
-        test_results.append(("ChatGPT Import", chatgpt_result))
+        # Prepare multipart request WITHOUT authentication
+        url = f"{API_BASE}/parse/document"
+        files = {
+            'file': ('test.txt', txt_content, 'text/plain')
+        }
         
-        # Step 3: Test Facebook import  
-        facebook_result = self.test_facebook_import()
-        test_results.append(("Facebook Import", facebook_result))
+        print(f"POST {url}")
+        print("Headers: (no authorization header)")
+        print(f"Files: test.txt ({len(txt_content)} bytes, text/plain)")
         
-        # Step 4: Test chunked upload init
-        upload_id = self.test_chunked_upload_init()
-        chunked_result = upload_id is not None
-        test_results.append(("Chunked Upload Init", chunked_result))
+        response = requests.post(url, files=files)
+        print(f"Status: {response.status_code}")
         
-        # Print summary
-        print("\n" + "=" * 60)
-        print("📊 TEST RESULTS SUMMARY")
-        print("=" * 60)
+        if response.status_code == 401:
+            data = response.json()
+            print(f"Response: {json.dumps(data, indent=2)}")
+            print("✅ Proper authentication requirement!")
+            return True
+        else:
+            print(f"❌ Expected 401 status, got {response.status_code}: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Authentication required test failed: {e}")
+        return False
+
+def main():
+    """Run all PDF/DOCX Document Parsing API tests."""
+    print("🧪 PDF/DOCX Document Parsing API Testing Suite")
+    print("=" * 60)
+    print(f"Base URL: {BASE_URL}")
+    print(f"API Base: {API_BASE}")
+    print("=" * 60)
+    
+    results = {
+        'authentication': False,
+        'pdf_parsing': False,
+        'docx_parsing': False,
+        'txt_parsing': False,
+        'no_file_error': False,
+        'unsupported_format': False,
+        'auth_required': False
+    }
+    
+    try:
+        # Test 1: Authentication
+        token = login_and_get_token()
+        if token:
+            results['authentication'] = True
+            
+            # Test 2-6: Document parsing tests (require authentication)
+            if test_pdf_parsing(token):
+                results['pdf_parsing'] = True
+                
+            if test_docx_parsing(token):
+                results['docx_parsing'] = True
+                
+            if test_txt_parsing(token):
+                results['txt_parsing'] = True
+                
+            if test_no_file_error(token):
+                results['no_file_error'] = True
+                
+            if test_unsupported_format(token):
+                results['unsupported_format'] = True
         
-        all_passed = True
-        for test_name, result in test_results:
-            status = "✅ PASSED" if result else "❌ FAILED"
-            print(f"{test_name}: {status}")
-            if not result:
-                all_passed = False
+        # Test 7: Authentication required (no token)
+        if test_authentication_required():
+            results['auth_required'] = True
         
-        print(f"\n🎯 Overall Result: {'✅ ALL TESTS PASSED' if all_passed else '❌ SOME TESTS FAILED'}")
-        
-        return all_passed
+    except Exception as e:
+        print(f"❌ Testing suite error: {e}")
+    
+    # Print summary
+    print("\n" + "=" * 60)
+    print("🏁 TEST SUMMARY")
+    print("=" * 60)
+    
+    total_tests = len(results)
+    passed_tests = sum(results.values())
+    
+    for test_name, passed in results.items():
+        status = "✅ PASS" if passed else "❌ FAIL"
+        print(f"{test_name.replace('_', ' ').title():<30} {status}")
+    
+    print("-" * 60)
+    print(f"Tests Passed: {passed_tests}/{total_tests}")
+    print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+    
+    if passed_tests == total_tests:
+        print("\n🎉 ALL TESTS PASSED! PDF/DOCX Document Parsing API is working correctly!")
+        return True
+    else:
+        print(f"\n⚠️ {total_tests - passed_tests} test(s) failed. See details above.")
+        return False
 
 if __name__ == "__main__":
-    tester = ImportTester()
-    success = tester.run_all_tests()
+    success = main()
     sys.exit(0 if success else 1)

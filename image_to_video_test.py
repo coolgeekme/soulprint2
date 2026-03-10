@@ -20,7 +20,7 @@ import sys
 from datetime import datetime
 
 # Backend configuration
-BASE_URL = "https://image-video-gen-11.preview.emergentagent.com"
+BASE_URL = "https://doc-parser-16.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 # Test credentials
