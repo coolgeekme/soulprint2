@@ -248,10 +248,13 @@ async function handleGoogleAuthStart(request) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    // Get redirect URI from request origin - REMINDER: DO NOT HARDCODE
-    const url = new URL(request.url);
-    const origin = request.headers.get('origin') || url.origin;
-    const redirectUri = `${origin}/api/auth/google/callback`;
+    // Use NEXT_PUBLIC_BASE_URL for the redirect URI
+    // REMINDER: DO NOT HARDCODE THE URL - use env variable
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      return NextResponse.json({ error: 'Server configuration error: NEXT_PUBLIC_BASE_URL not set' }, { status: 500 });
+    }
+    const redirectUri = `${baseUrl}/api/auth/google/callback`;
     
     // Create state with user ID for security
     const state = Buffer.from(JSON.stringify({ 
@@ -276,12 +279,15 @@ async function handleGoogleAuthCallback(request) {
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     
+    // Use NEXT_PUBLIC_BASE_URL for redirects
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || url.origin;
+    
     if (error) {
-      return NextResponse.redirect(`${url.origin}/integrations?error=${encodeURIComponent(error)}`);
+      return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent(error)}`);
     }
     
     if (!code || !state) {
-      return NextResponse.redirect(`${url.origin}/integrations?error=missing_params`);
+      return NextResponse.redirect(`${baseUrl}/integrations?error=missing_params`);
     }
     
     // Decode and verify state
@@ -289,23 +295,23 @@ async function handleGoogleAuthCallback(request) {
     try {
       stateData = JSON.parse(Buffer.from(state, 'base64').toString());
     } catch {
-      return NextResponse.redirect(`${url.origin}/integrations?error=invalid_state`);
+      return NextResponse.redirect(`${baseUrl}/integrations?error=invalid_state`);
     }
     
     // Check state is not too old (10 min max)
     if (Date.now() - stateData.timestamp > 10 * 60 * 1000) {
-      return NextResponse.redirect(`${url.origin}/integrations?error=state_expired`);
+      return NextResponse.redirect(`${baseUrl}/integrations?error=state_expired`);
     }
     
     const userId = stateData.userId;
     
-    // Exchange code for tokens - REMINDER: DO NOT HARDCODE THE URL
-    const redirectUri = `${url.origin}/api/auth/google/callback`;
+    // Exchange code for tokens - use same baseUrl for redirect URI
+    const redirectUri = `${baseUrl}/api/auth/google/callback`;
     const tokens = await exchangeGoogleCode(code, redirectUri);
     
     if (tokens.error) {
       console.error('Token exchange error:', tokens);
-      return NextResponse.redirect(`${url.origin}/integrations?error=${encodeURIComponent(tokens.error_description || tokens.error)}`);
+      return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent(tokens.error_description || tokens.error)}`);
     }
     
     // Get user info from Google
@@ -333,11 +339,11 @@ async function handleGoogleAuthCallback(request) {
       { upsert: true }
     );
     
-    return NextResponse.redirect(`${url.origin}/integrations?google=connected`);
+    return NextResponse.redirect(`${baseUrl}/integrations?google=connected`);
   } catch (err) {
     console.error('Google callback error:', err);
-    const url = new URL(request.url);
-    return NextResponse.redirect(`${url.origin}/integrations?error=${encodeURIComponent(err.message)}`);
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://soulprint-0e7f9ec5.preview.emergentagent.com';
+    return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent(err.message)}`);
   }
 }
 
