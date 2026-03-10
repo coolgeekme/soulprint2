@@ -1938,7 +1938,10 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                   <>
                     <Upload className="w-10 h-10 text-gray-500" />
                     <span className="text-sm text-gray-400">Click to select your ZIP file</span>
-                    <span className="text-xs text-gray-600">Files stay on your device</span>
+                    <div className="flex items-center gap-1 text-xs text-green-500/80">
+                      <Shield className="w-3 h-3" />
+                      <span>Messages analyzed then deleted — only insights kept</span>
+                    </div>
                   </>
                 )}
               </button>

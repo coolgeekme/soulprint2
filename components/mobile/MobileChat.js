@@ -1771,8 +1771,9 @@ const ImportSheet = ({ isOpen, onClose, onImport, isUploading, uploadProgress })
               <span className="px-2.5 py-1 bg-purple-500/10 text-purple-400 text-xs rounded-full">Google</span>
             </div>
             
-            <p className="text-gray-600 text-[10px] text-center mb-4">
-              🔒 Files stay on your device. Only insights are saved.
+            <p className="text-gray-600 text-[10px] text-center mb-4 flex items-center justify-center gap-1">
+              <Shield className="w-3 h-3 text-green-500" />
+              <span className="text-green-500/80">Messages analyzed then deleted — only insights kept for your SoulPrint</span>
             </p>
           </>
         )}

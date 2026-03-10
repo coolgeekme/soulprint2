@@ -6778,10 +6778,28 @@ ${extractedText.slice(0, 8000)}`,
       );
     }
 
+    // PRIVACY: Delete the raw imported data - we only keep the insights
+    // Delete chunks (which contain raw message text)
+    await db.collection('import_chunks').deleteMany({ import_id: jobId });
+    
+    // Delete any imported messages from this import
+    await db.collection('imported_messages').deleteMany({ 
+      user_id: userId,
+      import_id: jobId 
+    });
+    
+    console.log(`[Import] Deleted raw data for import ${jobId} after processing - only insights retained`);
+
     // Mark job complete
     await db.collection('import_jobs').updateOne(
       { id: jobId },
-      { $set: { status: 'complete', chunk_count: chunks.length, updated_at: new Date() } }
+      { $set: { 
+        status: 'complete', 
+        chunk_count: chunks.length, 
+        updated_at: new Date(),
+        raw_data_deleted: true,
+        message: 'Import complete. Raw messages deleted - only insights retained for your SoulPrint.'
+      } }
     );
   } catch (error) {
     await db.collection('import_jobs').updateOne(

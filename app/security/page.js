@@ -161,6 +161,50 @@ export default function SecurityPage() {
             </div>
           </section>
 
+          {/* Section 3.5: Import Data Privacy */}
+          <section className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-2xl p-8 border border-green-500/20">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="p-3 bg-green-500/20 rounded-xl">
+                <Trash2 className="w-6 h-6 text-green-500" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold mb-2">Import Data Privacy</h2>
+                <p className="text-gray-400">Your chat history is analyzed, not stored</p>
+              </div>
+            </div>
+            <p className="text-gray-300 mb-4">
+              When you import chat history from ChatGPT, Facebook, or other platforms:
+            </p>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg">
+                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-sm">1</div>
+                <div>
+                  <span className="text-white font-medium">We extract insights</span>
+                  <p className="text-gray-400 text-sm">Your messages are analyzed to understand your communication style, interests, and personality.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg">
+                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-sm">2</div>
+                <div>
+                  <span className="text-white font-medium">We update your SoulPrint</span>
+                  <p className="text-gray-400 text-sm">The AI-generated insights are added to your personalized profile.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg">
+                <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-sm">3</div>
+                <div>
+                  <span className="text-white font-medium">We delete all raw messages</span>
+                  <p className="text-gray-400 text-sm">Your original messages are permanently deleted from our servers immediately after analysis.</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+              <p className="text-green-400 text-sm font-medium">
+                ✓ Only insights and summaries are kept — never your actual conversations
+              </p>
+            </div>
+          </section>
+
           {/* Section 4: Not Just ChatGPT */}
           <section className="bg-gradient-to-r from-orange-500/10 to-purple-500/10 rounded-2xl p-8 border border-white/10">
             <div className="flex items-start gap-4 mb-6">
