@@ -1168,8 +1168,9 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
   // Upload large file in chunks for server-side processing
   const uploadLargeFileForImport = async (file, onProgress) => {
-    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for reliability
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const MAX_RETRIES = 5;
     
     // Step 1: Initialize upload session
     const initRes = await fetch('/api/data-import/chunked/init', {
@@ -1190,26 +1191,48 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     
     const { uploadId } = await initRes.json();
     
-    // Step 2: Upload chunks
+    // Step 2: Upload chunks with retry logic
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
       
-      const formData = new FormData();
-      formData.append('chunk', chunk);
-      formData.append('uploadId', uploadId);
-      formData.append('chunkIndex', i.toString());
+      let retries = 0;
+      let success = false;
       
-      const chunkRes = await fetch('/api/data-import/chunked/chunk', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      
-      if (!chunkRes.ok) {
-        const err = await chunkRes.json().catch(() => ({}));
-        throw new Error(err.error || `Chunk ${i + 1} upload failed`);
+      while (retries < MAX_RETRIES && !success) {
+        try {
+          const formData = new FormData();
+          formData.append('chunk', chunk);
+          formData.append('uploadId', uploadId);
+          formData.append('chunkIndex', i.toString());
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+          
+          const chunkRes = await fetch('/api/data-import/chunked/chunk', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+            signal: controller.signal,
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (chunkRes.ok) {
+            success = true;
+          } else {
+            const err = await chunkRes.json().catch(() => ({}));
+            throw new Error(err.error || 'Chunk failed');
+          }
+        } catch (chunkErr) {
+          retries++;
+          if (retries < MAX_RETRIES) {
+            await new Promise(r => setTimeout(r, 2000 * retries)); // Exponential backoff
+          } else {
+            throw new Error(`Upload failed at ${Math.round((i / totalChunks) * 100)}%. Check your connection and try again.`);
+          }
+        }
       }
       
       onProgress(Math.round(((i + 1) / totalChunks) * 90));
@@ -1474,130 +1497,132 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       return;
     }
     
+    // Clear all previous state first
     setSelectedFiles(files);
     setError('');
     setExtractedData(null);
     setDetectedPlatform(null);
+    setImportStatus(null);
+    
+    const file = files[0];
+    const fileSizeMB = file.size / (1024 * 1024);
     
     // Auto-extract and detect platform
-    setImportStatus({ status: 'extracting', message: 'Reading your file...', progress: 10 });
+    setImportStatus({ status: 'extracting', message: `Reading ${file.name} (${fileSizeMB.toFixed(1)}MB)...`, progress: 10 });
     
     try {
+      // For very large files (over 500MB), recommend re-export
+      if (fileSizeMB > 500) {
+        const proceed = window.confirm(
+          `Your file is ${fileSizeMB.toFixed(0)}MB which is very large.\n\n` +
+          `For faster, more reliable imports:\n` +
+          `• Re-export with ONLY messages/conversations selected\n` +
+          `• Exclude photos, videos, and other media\n\n` +
+          `Continue with this file anyway? (may take several minutes)`
+        );
+        
+        if (!proceed) {
+          setImportStatus(null);
+          setSelectedFiles([]);
+          return;
+        }
+      }
+      
       let totalMessages = [];
       let totalPosts = [];
       let platforms = [];
       
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileSizeMB = file.size / (1024 * 1024);
+      // Try client-side extraction first (works for most files under 200MB)
+      if (fileSizeMB <= 200) {
+        setImportStatus({ 
+          status: 'extracting', 
+          message: `Processing ${file.name}...`, 
+          progress: 30 
+        });
         
-        // For very large files (over 500MB), use server-side processing
-        if (fileSizeMB > 500) {
-          setImportStatus({ 
-            status: 'uploading', 
-            message: `Large file detected (${fileSizeMB.toFixed(0)}MB). Uploading for server processing...`, 
-            progress: 20 
+        try {
+          const { messages, posts, platform } = await extractFromZip(file);
+          totalMessages = messages;
+          totalPosts = posts;
+          if (platform) platforms.push(platform);
+        } catch (clientErr) {
+          console.log('Client-side extraction failed, will try server:', clientErr.message);
+          // Will fall through to server processing below
+        }
+      }
+      
+      // If client-side didn't find anything or file is large, use server processing
+      if (totalMessages.length === 0 && totalPosts.length === 0) {
+        setImportStatus({ 
+          status: 'uploading', 
+          message: `Uploading ${file.name} to server...`, 
+          progress: 40 
+        });
+        
+        try {
+          const result = await uploadLargeFileForImport(file, (progress) => {
+            setImportStatus({ 
+              status: 'uploading', 
+              message: `Uploading... ${progress}%`, 
+              progress: 40 + Math.round(progress * 0.5) 
+            });
           });
           
-          try {
-            // Upload file in chunks for server-side processing
-            const result = await uploadLargeFileForImport(file, (progress) => {
-              setImportStatus({ 
-                status: 'uploading', 
-                message: `Uploading ${file.name}... ${progress}%`, 
-                progress: 20 + Math.round(progress * 0.6) 
-              });
+          if (result.success) {
+            setImportStatus({ status: 'complete', message: 'Import complete!', progress: 100 });
+            setDetectedPlatform(result.stats?.source || 'Unknown');
+            setExtractedData({
+              messages: [],
+              posts: [],
+              dataSize: 0,
+              serverProcessed: true,
+              importId: result.importId,
+              stats: result.stats
             });
             
-            // Server-side processing completed successfully
-            if (result.success) {
-              // The server already processed and analyzed the import
-              setImportStatus({ status: 'complete', message: 'Import complete!', progress: 100 });
-              
-              // Show success message
-              setDetectedPlatform(result.stats?.source || 'Facebook');
-              setExtractedData({
-                messages: [], // Already processed on server
-                posts: [],
-                dataSize: 0,
-                serverProcessed: true,
-                importId: result.importId,
-                stats: result.stats
-              });
-              
-              // Notify user
-              setTimeout(() => {
-                setShowImportModal(false);
-                setImportStatus(null);
-                // Refresh user profile to get new insights
-                fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-                  .then(r => r.json())
-                  .then(data => { if (data.user) setUser(data.user); })
-                  .catch(() => {});
-              }, 2000);
-              
-              return; // Exit the loop since processing is done
-            }
-            
-            // Legacy response format with messages array
-            if (result.messages) totalMessages.push(...result.messages);
-            if (result.posts) totalPosts.push(...result.posts);
-            if (result.platform && !platforms.includes(result.platform)) platforms.push(result.platform);
-            
-          } catch (uploadErr) {
-            console.error('Large file upload error:', uploadErr);
-            const errorMessage = uploadErr.message || 'Upload failed';
-            
-            // Provide specific guidance for large Facebook exports
-            if (file.name.toLowerCase().includes('facebook') || fileSizeMB > 1000) {
-              setError(
-                `**Upload Error:** ${errorMessage}\n\n` +
-                `Your Facebook file is ${fileSizeMB.toFixed(0)}MB - Facebook exports include ALL your data (photos, videos, etc.) which makes them very large.\n\n` +
-                `**Recommended Solution:**\n` +
-                `Re-export from Facebook with ONLY "Messages" selected:\n\n` +
-                `1. Go to facebook.com/dyi\n` +
-                `2. Click "Download Your Information"\n` +
-                `3. Click "Request a download" → "Select types of information"\n` +
-                `4. **Deselect everything** except "Messages"\n` +
-                `5. Choose Format: JSON, Media Quality: Low\n` +
-                `6. Click "Create File"\n` +
-                `7. Wait for Facebook to email you (can take hours)\n` +
-                `8. Download and try importing again\n\n` +
-                `This will create a much smaller file (usually under 100MB).`
-              );
-            } else {
-              setError(
-                `**Upload Error:** ${errorMessage}\n\n` +
-                `Your file is ${fileSizeMB.toFixed(0)}MB which may be too large to process.\n\n` +
-                `**Options:**\n` +
-                `• Try exporting a smaller date range\n` +
-                `• For social media exports, select only "Messages" without media\n` +
-                `• Contact support for help with large imports`
-              );
-            }
-            setImportStatus(null);
+            setTimeout(() => {
+              setShowImportModal(false);
+              setImportStatus(null);
+              fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+                .then(r => r.json())
+                .then(data => { if (data.user) setUser(data.user); })
+                .catch(() => {});
+            }, 2000);
             return;
           }
-        } else {
-          // Normal client-side processing for smaller files
-          setImportStatus({ 
-            status: 'extracting', 
-            message: `Processing ${file.name}...`, 
-            progress: Math.round(((i + 1) / files.length) * 80) 
-          });
           
-          const { messages, posts, platform } = await extractFromZip(file);
-          totalMessages.push(...messages);
-          totalPosts.push(...posts);
-          if (platform && !platforms.includes(platform)) platforms.push(platform);
+          if (result.messages) totalMessages = result.messages;
+          if (result.posts) totalPosts = result.posts;
+          if (result.platform) platforms.push(result.platform);
+          
+        } catch (uploadErr) {
+          console.error('Server upload failed:', uploadErr);
+          setError(
+            `**Upload failed:** ${uploadErr.message}\n\n` +
+            `**Troubleshooting tips:**\n` +
+            `• Try a smaller file (under 100MB works best)\n` +
+            `• Use WiFi instead of mobile data\n` +
+            `• Re-export with only messages/conversations\n` +
+            `• For ChatGPT: Export from chatgpt.com/settings → Data controls → Export\n` +
+            `• For Facebook: Go to facebook.com/dyi and select only "Messages"`
+          );
+          setImportStatus(null);
+          return;
         }
       }
       
       setDetectedPlatform(platforms.join(', ') || 'Unknown');
       
-      // If no messages found, show helpful message
       if (totalMessages.length === 0 && totalPosts.length === 0) {
-        setError(`We couldn't find any conversations in this file.\n\nMake sure you're uploading a data export from ChatGPT, Facebook, Claude, or another AI assistant.\n\nNeed help? The support bot can walk you through exporting your data.`);
+        setError(
+          `No conversations found in this file.\n\n` +
+          `**Supported formats:**\n` +
+          `• ChatGPT export (conversations.json)\n` +
+          `• Facebook Messenger export\n` +
+          `• Claude export\n` +
+          `• Google/Gemini export\n\n` +
+          `Make sure you're uploading the correct export file.`
+        );
         setImportStatus(null);
         return;
       }
@@ -1610,31 +1635,8 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       setImportStatus(null);
       
     } catch (err) {
-      console.error('Extraction error:', err);
-      
-      // If client-side extraction fails, offer to try server-side processing
-      const fileSizeMB = files[0]?.size / (1024 * 1024) || 0;
-      
-      if (err.message?.includes('permission') || err.message?.includes('could not be read') || err.message?.includes('Failed to read')) {
-        // Offer server-side fallback
-        setError(
-          `Browser couldn't read your file (${fileSizeMB.toFixed(1)}MB).\n\n` +
-          `**Try server-side import instead:**\n` +
-          `Click "Upload to Server" below to process your file on our servers.\n\n` +
-          `This is more reliable for large or complex ZIP files.`
-        );
-        // Enable server upload fallback
-        setSelectedFiles(files);
-        setExtractedData({ 
-          messages: [], 
-          posts: [], 
-          dataSize: 0, 
-          useServerFallback: true,
-          fileName: files[0]?.name 
-        });
-      } else {
-        setError(`Couldn't read the file: ${err.message}\n\nMake sure it's a valid ZIP file from your AI assistant or social media export.`);
-      }
+      console.error('Import error:', err);
+      setError(`Error: ${err.message}`);
       setImportStatus(null);
     }
   };
