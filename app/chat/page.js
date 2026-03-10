@@ -1507,355 +1507,160 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     const file = files[0];
     const fileSizeMB = file.size / (1024 * 1024);
     
-    // Auto-extract and detect platform
-    setImportStatus({ status: 'extracting', message: `Reading ${file.name} (${fileSizeMB.toFixed(1)}MB)...`, progress: 10 });
+    setImportStatus({ status: 'extracting', message: `Reading ${file.name}...`, progress: 10 });
     
     try {
-      // For very large files (over 500MB), recommend re-export
-      if (fileSizeMB > 500) {
-        const proceed = window.confirm(
-          `Your file is ${fileSizeMB.toFixed(0)}MB which is very large.\n\n` +
-          `For faster, more reliable imports:\n` +
-          `• Re-export with ONLY messages/conversations selected\n` +
-          `• Exclude photos, videos, and other media\n\n` +
-          `Continue with this file anyway? (may take several minutes)`
-        );
+      // === STEP 1: Try client-side extraction (fast, no upload needed) ===
+      const JSZip = (await import('jszip')).default;
+      
+      setImportStatus({ status: 'extracting', message: 'Opening ZIP file...', progress: 20 });
+      const zip = await JSZip.loadAsync(file);
+      const allFiles = Object.keys(zip.files);
+      
+      setImportStatus({ status: 'extracting', message: `Found ${allFiles.length} files, analyzing...`, progress: 30 });
+      
+      let messages = [];
+      let platform = 'Unknown';
+      
+      // Check for ChatGPT format
+      const chatgptFile = allFiles.find(f => f.endsWith('conversations.json'));
+      if (chatgptFile) {
+        platform = 'ChatGPT';
+        setImportStatus({ status: 'extracting', message: 'Detected ChatGPT export, reading...', progress: 40 });
         
-        if (!proceed) {
-          setImportStatus(null);
-          setSelectedFiles([]);
-          return;
+        const content = await zip.file(chatgptFile).async('string');
+        const conversations = JSON.parse(content);
+        const convArray = Array.isArray(conversations) ? conversations : [conversations];
+        
+        setImportStatus({ status: 'extracting', message: `Processing ${convArray.length} conversations...`, progress: 50 });
+        
+        for (const conv of convArray) {
+          if (conv.mapping) {
+            for (const nodeId in conv.mapping) {
+              const node = conv.mapping[nodeId];
+              const msg = node?.message;
+              if (msg?.content?.parts?.[0] && (msg.author?.role === 'user' || msg.author?.role === 'assistant')) {
+                messages.push({
+                  role: msg.author.role,
+                  content: msg.content.parts.join('\n').slice(0, 2000),
+                  timestamp: msg.create_time ? new Date(msg.create_time * 1000) : new Date()
+                });
+              }
+            }
+          }
         }
       }
       
-      let totalMessages = [];
-      let totalPosts = [];
-      let platforms = [];
-      
-      // Try client-side extraction first (works for most files under 200MB)
-      if (fileSizeMB <= 200) {
-        setImportStatus({ 
-          status: 'extracting', 
-          message: `Reading ${file.name}...`, 
-          progress: 20 
-        });
-        
-        try {
-          console.log('Starting client-side extraction for:', file.name, `(${fileSizeMB.toFixed(1)}MB)`);
+      // Check for Facebook format
+      if (messages.length === 0) {
+        const fbFiles = allFiles.filter(f => f.includes('message_') && f.endsWith('.json'));
+        if (fbFiles.length > 0) {
+          platform = 'Facebook';
+          setImportStatus({ status: 'extracting', message: `Detected Facebook export, reading ${fbFiles.length} files...`, progress: 40 });
           
-          // Dynamic import JSZip
-          const JSZip = (await import('jszip')).default;
-          
-          setImportStatus({ 
-            status: 'extracting', 
-            message: `Extracting ZIP contents...`, 
-            progress: 30 
-          });
-          
-          const zip = await JSZip.loadAsync(file);
-          const allFiles = Object.keys(zip.files);
-          
-          console.log('ZIP files found:', allFiles.length, allFiles.slice(0, 5));
-          
-          setImportStatus({ 
-            status: 'extracting', 
-            message: `Processing ${allFiles.length} files...`, 
-            progress: 40 
-          });
-          
-          // Inline extraction logic for better error handling
-          let extractedMessages = [];
-          let extractedPlatform = 'unknown';
-          
-          // Check for ChatGPT
-          const hasChatGPT = allFiles.some(f => 
-            f.includes('conversations.json') || f.includes('chat.html')
-          );
-          
-          // Check for Facebook
-          const hasFacebook = allFiles.some(f => 
-            f.includes('messages/inbox/') || f.includes('message_1.json')
-          );
-          
-          if (hasChatGPT) {
-            extractedPlatform = 'ChatGPT';
-            console.log('Detected ChatGPT export');
-            
-            // Find conversations.json
-            const convFileName = allFiles.find(f => f.endsWith('conversations.json'));
-            if (convFileName) {
-              setImportStatus({ 
-                status: 'extracting', 
-                message: `Reading ChatGPT conversations...`, 
-                progress: 50 
-              });
-              
-              const convFile = zip.file(convFileName);
-              const content = await convFile.async('string');
-              const conversations = JSON.parse(content);
-              const convArray = Array.isArray(conversations) ? conversations : [conversations];
-              
-              console.log('Found', convArray.length, 'conversations');
-              
-              for (const conv of convArray) {
-                if (conv.mapping) {
-                  for (const nodeId in conv.mapping) {
-                    const node = conv.mapping[nodeId];
-                    if (node.message?.content?.parts?.[0]) {
-                      const role = node.message.author?.role;
-                      const msgContent = node.message.content.parts.join('\n');
-                      if (msgContent?.trim() && (role === 'user' || role === 'assistant')) {
-                        extractedMessages.push({
-                          role: role === 'user' ? 'user' : 'assistant',
-                          content: msgContent.slice(0, 2000),
-                          timestamp: node.message.create_time ? new Date(node.message.create_time * 1000) : new Date()
-                        });
-                      }
-                    }
+          for (const fbFile of fbFiles.slice(0, 100)) {
+            try {
+              const content = await zip.file(fbFile).async('string');
+              const data = JSON.parse(content);
+              if (data.messages) {
+                for (const msg of data.messages) {
+                  if (msg.content) {
+                    messages.push({
+                      role: 'user',
+                      content: msg.content.slice(0, 2000),
+                      sender: msg.sender_name,
+                      timestamp: msg.timestamp_ms ? new Date(msg.timestamp_ms) : new Date()
+                    });
                   }
                 }
               }
-              console.log('Extracted', extractedMessages.length, 'messages from ChatGPT');
-            }
-          } else if (hasFacebook) {
-            extractedPlatform = 'Facebook';
-            console.log('Detected Facebook export');
-            
-            // Find message files
-            const msgFiles = allFiles.filter(f => f.includes('message_') && f.endsWith('.json'));
-            console.log('Found', msgFiles.length, 'message files');
-            
-            for (const msgFileName of msgFiles.slice(0, 50)) { // Limit to 50 files
-              try {
-                const msgFile = zip.file(msgFileName);
-                if (msgFile) {
-                  const content = await msgFile.async('string');
-                  const data = JSON.parse(content);
-                  if (data.messages && Array.isArray(data.messages)) {
-                    for (const msg of data.messages) {
-                      if (msg.content) {
-                        extractedMessages.push({
-                          role: 'user',
-                          content: msg.content.slice(0, 2000),
-                          sender: msg.sender_name,
-                          timestamp: msg.timestamp_ms ? new Date(msg.timestamp_ms) : new Date()
-                        });
-                      }
-                    }
-                  }
-                }
-              } catch (e) {
-                console.log('Error reading message file:', msgFileName, e.message);
-              }
-            }
-            console.log('Extracted', extractedMessages.length, 'messages from Facebook');
+            } catch (e) { /* skip bad files */ }
           }
-          
-          if (extractedMessages.length > 0) {
-            setImportStatus({ 
-              status: 'extracting', 
-              message: `Found ${extractedMessages.length} messages!`, 
-              progress: 80 
-            });
-            
-            setDetectedPlatform(extractedPlatform);
-            setExtractedData({
-              messages: extractedMessages,
-              posts: [],
-              dataSize: JSON.stringify(extractedMessages).length
-            });
-            setImportStatus(null);
-            console.log('Client-side extraction successful!');
-            return; // Exit early - we have our data!
-          } else {
-            console.log('No messages extracted from client-side, trying server...');
-          }
-          
-        } catch (clientErr) {
-          console.error('Client-side extraction failed:', clientErr);
-          setImportStatus({ 
-            status: 'extracting', 
-            message: `Client extraction failed, trying server upload...`, 
-            progress: 35 
-          });
-          // Will fall through to server processing below
         }
       }
       
-      // If client-side didn't find anything or file is large, use server processing
-      if (totalMessages.length === 0 && totalPosts.length === 0) {
-        setImportStatus({ 
-          status: 'uploading', 
-          message: `Uploading ${file.name} to server...`, 
-          progress: 40 
+      // === SUCCESS: Found messages client-side ===
+      if (messages.length > 0) {
+        setImportStatus({ status: 'complete', message: `Found ${messages.length} messages from ${platform}!`, progress: 100 });
+        setDetectedPlatform(platform);
+        setExtractedData({
+          messages,
+          posts: [],
+          dataSize: JSON.stringify(messages).length
         });
-        
-        try {
-          // For files under 100MB, use direct upload (simpler, more reliable)
-          if (fileSizeMB <= 100) {
-            setImportStatus({ 
-              status: 'uploading', 
-              message: `Uploading ${fileSizeMB.toFixed(0)}MB file...`, 
-              progress: 45 
-            });
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('type', 'auto');
-            
-            // Add timeout for large files
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
-            
-            const uploadRes = await fetch('/api/imports/upload', {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${token}` },
-              body: formData,
-              signal: controller.signal,
-            });
-            
-            clearTimeout(timeoutId);
-            
-            const uploadData = await uploadRes.json();
-            
-            if (!uploadRes.ok) {
-              throw new Error(uploadData.error || 'Upload failed');
-            }
-            
-            // Poll for completion
-            if (uploadData.jobId || uploadData.importId) {
-              const jobId = uploadData.jobId || uploadData.importId;
-              setImportStatus({ status: 'processing', message: 'Processing your data...', progress: 60 });
-              
-              let attempts = 0;
-              while (attempts < 60) {
-                await new Promise(r => setTimeout(r, 2000));
-                const statusRes = await fetch(`/api/imports/status?importId=${jobId}`, {
-                  headers: { Authorization: `Bearer ${token}` }
-                });
-                const statusData = await statusRes.json();
-                
-                if (statusData.status === 'completed' || statusData.status === 'complete') {
-                  setImportStatus({ status: 'complete', message: 'Import complete!', progress: 100 });
-                  setDetectedPlatform(statusData.stats?.source || statusData.source || 'Unknown');
-                  setExtractedData({
-                    messages: [],
-                    posts: [],
-                    dataSize: 0,
-                    serverProcessed: true,
-                    importId: jobId,
-                    stats: statusData.stats
-                  });
-                  
-                  setTimeout(() => {
-                    setShowImportModal(false);
-                    setImportStatus(null);
-                    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-                      .then(r => r.json())
-                      .then(data => { if (data.user) setUser(data.user); })
-                      .catch(() => {});
-                  }, 2000);
-                  return;
-                } else if (statusData.status === 'failed') {
-                  throw new Error(statusData.error || 'Processing failed');
-                }
-                
-                attempts++;
-                setImportStatus({ 
-                  status: 'processing', 
-                  message: `Processing... ${Math.round((attempts / 60) * 100)}%`, 
-                  progress: 60 + Math.round((attempts / 60) * 35) 
-                });
-              }
-              
-              // Still processing after timeout
-              setImportStatus({ status: 'complete', message: 'Processing in background. Check back later!', progress: 100 });
-              setTimeout(() => {
-                setShowImportModal(false);
-                setImportStatus(null);
-              }, 3000);
-              return;
-            }
-          } else {
-            // For larger files, use chunked upload
-            const result = await uploadLargeFileForImport(file, (progress) => {
-              setImportStatus({ 
-                status: 'uploading', 
-                message: `Uploading... ${progress}%`, 
-                progress: 40 + Math.round(progress * 0.5) 
-              });
-            });
-            
-            if (result.success) {
-              setImportStatus({ status: 'complete', message: 'Import complete!', progress: 100 });
-              setDetectedPlatform(result.stats?.source || 'Unknown');
-              setExtractedData({
-                messages: [],
-                posts: [],
-                dataSize: 0,
-                serverProcessed: true,
-                importId: result.importId,
-                stats: result.stats
-              });
-              
-              setTimeout(() => {
-                setShowImportModal(false);
-                setImportStatus(null);
-                fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-                  .then(r => r.json())
-                  .then(data => { if (data.user) setUser(data.user); })
-                  .catch(() => {});
-              }, 2000);
-              return;
-            }
-          }
-          
-          if (result.messages) totalMessages = result.messages;
-          if (result.posts) totalPosts = result.posts;
-          if (result.platform) platforms.push(result.platform);
-          
-        } catch (uploadErr) {
-          console.error('Server upload failed:', uploadErr);
-          setError(
-            `**Upload failed:** ${uploadErr.message}\n\n` +
-            `**Troubleshooting tips:**\n` +
-            `• Try a smaller file (under 100MB works best)\n` +
-            `• Use WiFi instead of mobile data\n` +
-            `• Re-export with only messages/conversations\n` +
-            `• For ChatGPT: Export from chatgpt.com/settings → Data controls → Export\n` +
-            `• For Facebook: Go to facebook.com/dyi and select only "Messages"`
-          );
-          setImportStatus(null);
-          return;
-        }
-      }
-      
-      setDetectedPlatform(platforms.join(', ') || 'Unknown');
-      
-      if (totalMessages.length === 0 && totalPosts.length === 0) {
-        setError(
-          `No conversations found in this file.\n\n` +
-          `**Supported formats:**\n` +
-          `• ChatGPT export (conversations.json)\n` +
-          `• Facebook Messenger export\n` +
-          `• Claude export\n` +
-          `• Google/Gemini export\n\n` +
-          `Make sure you're uploading the correct export file.`
-        );
-        setImportStatus(null);
         return;
       }
       
-      setExtractedData({
-        messages: totalMessages,
-        posts: totalPosts,
-        dataSize: JSON.stringify({ messages: totalMessages, posts: totalPosts }).length
+      // === STEP 2: No messages found client-side, try server upload ===
+      setImportStatus({ status: 'uploading', message: 'Uploading to server for processing...', progress: 40 });
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', 'auto');
+      
+      const uploadRes = await fetch('/api/imports/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
       });
-      setImportStatus(null);
+      
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Upload failed');
+      }
+      
+      const uploadData = await uploadRes.json();
+      const jobId = uploadData.jobId || uploadData.importId;
+      
+      if (jobId) {
+        setImportStatus({ status: 'processing', message: 'Server is processing your data...', progress: 60 });
+        
+        // Poll for completion
+        for (let i = 0; i < 60; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          
+          const statusRes = await fetch(`/api/imports/status?importId=${jobId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const statusData = await statusRes.json();
+          
+          if (statusData.status === 'completed' || statusData.status === 'complete') {
+            setImportStatus({ status: 'complete', message: 'Import complete!', progress: 100 });
+            setDetectedPlatform(statusData.stats?.source || 'Unknown');
+            setExtractedData({
+              messages: [],
+              posts: [],
+              dataSize: 0,
+              serverProcessed: true,
+              stats: statusData.stats
+            });
+            return;
+          }
+          
+          if (statusData.status === 'failed') {
+            throw new Error(statusData.error || 'Processing failed');
+          }
+          
+          setImportStatus({ 
+            status: 'processing', 
+            message: `Processing... ${Math.round((i / 60) * 100)}%`, 
+            progress: 60 + Math.round((i / 60) * 35) 
+          });
+        }
+        
+        // Timeout but still processing
+        setImportStatus({ status: 'complete', message: 'Still processing, check back soon!', progress: 100 });
+        setExtractedData({ messages: [], posts: [], dataSize: 0, serverProcessed: true });
+        return;
+      }
+      
+      // No job ID means direct success
+      setImportStatus({ status: 'complete', message: 'Upload complete!', progress: 100 });
+      setExtractedData({ messages: [], posts: [], dataSize: 0, serverProcessed: true });
       
     } catch (err) {
       console.error('Import error:', err);
-      setError(`Error: ${err.message}`);
+      setError(`Import failed: ${err.message}`);
       setImportStatus(null);
     }
   };
