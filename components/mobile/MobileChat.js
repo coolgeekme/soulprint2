@@ -3119,13 +3119,29 @@ export default function MobileChat({
     setIsImporting(true);
     const fileSizeMB = file.size / (1024 * 1024);
     
+    // Warn about very large files
+    if (fileSizeMB > 500) {
+      const proceed = window.confirm(
+        `Your file is ${fileSizeMB.toFixed(0)}MB which will take a while to upload.\n\n` +
+        `For faster imports, re-export with ONLY messages selected (no photos/videos).\n\n` +
+        `Continue anyway?`
+      );
+      if (!proceed) {
+        setIsImporting(false);
+        return;
+      }
+    }
+    
     try {
       // For large files (>10MB), use chunked upload
       if (fileSizeMB > 10) {
-        setImportProgress(`Preparing ${fileSizeMB.toFixed(1)}MB file...`);
+        setImportProgress(`Preparing ${fileSizeMB.toFixed(0)}MB file...`);
         
-        const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for mobile
+        // Adaptive chunk size based on file size
+        // Smaller files: 1MB chunks, Larger files: 2MB chunks
+        const CHUNK_SIZE = fileSizeMB > 200 ? 2 * 1024 * 1024 : 1 * 1024 * 1024;
         const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const MAX_RETRIES = 5; // More retries for mobile
         
         // Initialize chunked upload
         const initRes = await fetch('/api/data-import/chunked/init', {
@@ -3146,34 +3162,76 @@ export default function MobileChat({
         
         const { uploadId } = await initRes.json();
         
-        // Upload chunks
+        // Upload chunks with retry logic
+        let successfulChunks = 0;
+        const startTime = Date.now();
+        
         for (let i = 0; i < totalChunks; i++) {
           const start = i * CHUNK_SIZE;
           const end = Math.min(start + CHUNK_SIZE, file.size);
           const chunk = file.slice(start, end);
           
           const progress = Math.round(((i + 1) / totalChunks) * 80);
-          setImportProgress(`Uploading... ${progress}%`);
+          const elapsed = (Date.now() - startTime) / 1000;
+          const rate = successfulChunks > 0 ? (successfulChunks * CHUNK_SIZE) / elapsed / 1024 : 0;
+          const remaining = rate > 0 ? Math.round((totalChunks - i) * CHUNK_SIZE / 1024 / rate) : 0;
           
-          const formData = new FormData();
-          formData.append('chunk', chunk);
-          formData.append('uploadId', uploadId);
-          formData.append('chunkIndex', i.toString());
+          setImportProgress(
+            `Uploading ${progress}%\n` +
+            `${remaining > 60 ? Math.round(remaining/60) + ' min' : remaining + 's'} remaining`
+          );
           
-          const chunkRes = await fetch('/api/data-import/chunked/chunk', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` },
-            body: formData,
-          });
+          let retries = 0;
+          let chunkSuccess = false;
           
-          if (!chunkRes.ok) {
-            const err = await chunkRes.json().catch(() => ({}));
-            throw new Error(err.error || `Upload failed at ${progress}%`);
+          while (retries < MAX_RETRIES && !chunkSuccess) {
+            try {
+              const formData = new FormData();
+              formData.append('chunk', chunk);
+              formData.append('uploadId', uploadId);
+              formData.append('chunkIndex', i.toString());
+              
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+              
+              const chunkRes = await fetch('/api/data-import/chunked/chunk', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData,
+                signal: controller.signal,
+              });
+              
+              clearTimeout(timeoutId);
+              
+              if (chunkRes.ok) {
+                chunkSuccess = true;
+                successfulChunks++;
+              } else {
+                const err = await chunkRes.json().catch(() => ({}));
+                throw new Error(err.error || 'Chunk failed');
+              }
+            } catch (chunkErr) {
+              retries++;
+              if (chunkErr.name === 'AbortError') {
+                setImportProgress(`Slow connection, retrying... (${retries}/${MAX_RETRIES})`);
+              } else {
+                setImportProgress(`Retry ${retries}/${MAX_RETRIES}...`);
+              }
+              
+              if (retries < MAX_RETRIES) {
+                await new Promise(r => setTimeout(r, 2000 * retries)); // Longer backoff
+              } else {
+                throw new Error(
+                  `Upload failed at ${progress}%.\n\n` +
+                  `Try again on WiFi or with a smaller export file.`
+                );
+              }
+            }
           }
         }
         
         // Complete and process
-        setImportProgress('Processing your data...');
+        setImportProgress('Processing your data...\nThis may take a few minutes');
         const completeRes = await fetch('/api/data-import/chunked/complete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
