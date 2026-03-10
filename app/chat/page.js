@@ -381,7 +381,7 @@ async function processFile(file) {
       const formData = new FormData();
       formData.append('file', file);
       
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('sp_token');
       const res = await fetch('/api/parse/document', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
