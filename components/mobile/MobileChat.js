@@ -1731,7 +1731,7 @@ const ImportSheet = ({ isOpen, onClose, onImport, isUploading, uploadProgress })
             <Upload className="w-8 h-8 text-orange-400" />
           </div>
           <h3 className="text-white font-semibold text-lg mb-2">Import History</h3>
-          <p className="text-gray-500 text-sm">Upload your data export from any platform</p>
+          <p className="text-gray-500 text-sm">Currently supports ChatGPT • More platforms coming soon</p>
         </div>
         
         <input

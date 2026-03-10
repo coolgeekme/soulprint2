@@ -1865,7 +1865,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">Import History</h2>
-              <p className="text-xs text-gray-500">ChatGPT, Facebook, Claude & more</p>
+              <p className="text-xs text-gray-500">Currently supports ChatGPT • More platforms coming soon</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white p-1" disabled={isImporting}>
@@ -3691,7 +3691,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
             <div className="space-y-5 sm:space-y-6">
               <div>
                 <h3 className="text-white text-sm font-semibold mb-1">📥 Import Your History</h3>
-                <p className="text-gray-500 text-xs mb-4">Upload your conversation history from ChatGPT, Facebook, Claude, or other platforms. We'll automatically detect the format.</p>
+                <p className="text-gray-500 text-xs mb-4">Upload your ChatGPT conversation history. Support for Facebook, Claude, and other platforms coming soon!</p>
                 
                 {uploadProgress && (
                   <div className="mb-4 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
@@ -3717,7 +3717,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-white text-base font-medium">Import History</p>
-                      <p className="text-gray-500 text-xs sm:text-sm mt-1 mb-3">Works with ChatGPT, Facebook, Claude, Google, and more. Just upload your ZIP file.</p>
+                      <p className="text-gray-500 text-xs sm:text-sm mt-1 mb-3">Currently supports ChatGPT exports. Facebook, Claude, Google coming soon!</p>
                       <div className="flex flex-wrap gap-2 mb-4">
                         <span className="px-2 py-0.5 bg-green-500/10 text-green-400 text-[10px] rounded-full">ChatGPT</span>
                         <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] rounded-full">Facebook</span>
