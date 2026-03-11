@@ -237,6 +237,139 @@ Be extremely detailed in the prompt - the goal is to be able to recreate this ex
   }
 }
 
+// Edit an image using OpenAI's image generation with edit capabilities
+async function handleImageEdit(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const body = await request.json();
+    const { image, mask, prompt } = body;
+    
+    if (!image || !prompt) {
+      return NextResponse.json({ error: 'Image and prompt are required' }, { status: 400 });
+    }
+    
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    }
+    
+    console.log('[ImageEdit] Starting image edit with prompt:', prompt.substring(0, 100));
+    
+    // First, we need to get the original image as base64 if it's a URL
+    let imageBase64 = image.base64;
+    if (!imageBase64 && image.url) {
+      // Fetch the image from URL
+      try {
+        const imgResponse = await fetch(image.url);
+        if (!imgResponse.ok) throw new Error('Failed to fetch image');
+        const imgBuffer = await imgResponse.arrayBuffer();
+        imageBase64 = Buffer.from(imgBuffer).toString('base64');
+      } catch (fetchErr) {
+        console.error('[ImageEdit] Failed to fetch image URL:', fetchErr);
+        return NextResponse.json({ error: 'Failed to fetch original image' }, { status: 400 });
+      }
+    }
+    
+    // Create a detailed edit prompt that maintains consistency
+    const editPrompt = `Edit the following image as described. Keep all other elements exactly the same - maintain consistency in the subject's appearance, style, colors, and composition. Only make the specific change requested.
+
+EDIT REQUEST: ${prompt}
+
+Be precise and maintain the original image's characteristics as much as possible while applying the requested change.`;
+
+    // Use GPT-4o for image editing through a multi-step process:
+    // 1. First, generate a new image based on the original with the edit
+    // We'll use the image-to-text-to-image approach for better consistency
+    
+    // Step 1: Analyze the original image to get a detailed description
+    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { 
+                type: 'text', 
+                text: `Describe this image in extreme detail for image recreation. Include: subject appearance (exact details like hair color, skin tone, facial features, clothing), pose, expression, background, lighting, style, colors, composition. Then describe how it would look with this edit applied: "${prompt}". Output ONLY a single detailed prompt (no explanations) that would recreate the image with the edit applied.` 
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/png;base64,${imageBase64}`,
+                  detail: 'high'
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 1000,
+        temperature: 0.3,
+      }),
+    });
+    
+    if (!analysisResponse.ok) {
+      const err = await analysisResponse.json().catch(() => ({}));
+      console.error('[ImageEdit] Analysis failed:', err);
+      return NextResponse.json({ error: 'Failed to analyze image for editing' }, { status: 500 });
+    }
+    
+    const analysisData = await analysisResponse.json();
+    const editedPrompt = analysisData.choices?.[0]?.message?.content || '';
+    
+    console.log('[ImageEdit] Generated edit prompt:', editedPrompt.substring(0, 200));
+    
+    // Step 2: Generate the edited image using gpt-image-1 (DALL-E 3)
+    const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-image-1',
+        prompt: editedPrompt,
+        n: 1,
+        size: '1024x1024',
+        quality: 'high',
+      }),
+    });
+    
+    if (!generateResponse.ok) {
+      const err = await generateResponse.json().catch(() => ({}));
+      console.error('[ImageEdit] Generation failed:', err);
+      return NextResponse.json({ error: err.error?.message || 'Failed to generate edited image' }, { status: 500 });
+    }
+    
+    const generateData = await generateResponse.json();
+    const editedImageUrl = generateData.data?.[0]?.url;
+    
+    if (!editedImageUrl) {
+      return NextResponse.json({ error: 'No image generated' }, { status: 500 });
+    }
+    
+    console.log('[ImageEdit] Successfully generated edited image');
+    
+    return NextResponse.json({
+      url: editedImageUrl,
+      prompt: editedPrompt,
+      originalPrompt: prompt,
+    });
+  } catch (err) {
+    console.error('[ImageEdit] Error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to edit image' }, { status: 500 });
+  }
+}
+
 
 // ============================================================
 // GOOGLE OAUTH & APIS (Gmail, Calendar, Drive)
@@ -18637,6 +18770,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'media/generate') return handleMediaGenerate(request);
     if (pathStr === 'parse/document') return handleParseDocument(request);
     if (pathStr === 'analyze/image-to-json') return handleImageToJson(request);
+    if (pathStr === 'image/edit') return handleImageEdit(request);
     if (pathStr === 'imports/upload') return handleImportUpload(request);
     if (pathStr === 'import/chatgpt') return handleImportUpload(request); // Alias for mobile compatibility
     if (pathStr === 'imports/cloud') return handleCloudImport(request);

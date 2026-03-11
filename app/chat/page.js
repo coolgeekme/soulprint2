@@ -521,8 +521,296 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
   );
 }
 
+// ── ImageEditor: Canvas-based image editing with mask drawing ─────────────────
+function ImageEditor({ image, onClose, onEdit, isEditing }) {
+  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [brushSize, setBrushSize] = useState(30);
+  const [editPrompt, setEditPrompt] = useState('');
+  const [canvasSize, setCanvasSize] = useState({ width: 512, height: 512 });
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [maskData, setMaskData] = useState(null);
+  const lastPos = useRef({ x: 0, y: 0 });
+  
+  // Load image and set up canvas
+  useEffect(() => {
+    if (!image?.url && !image?.base64) return;
+    
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      // Calculate canvas size (max 512px, maintain aspect ratio)
+      const maxSize = 512;
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > height) {
+        if (width > maxSize) {
+          height = (height / width) * maxSize;
+          width = maxSize;
+        }
+      } else {
+        if (height > maxSize) {
+          width = (width / height) * maxSize;
+          height = maxSize;
+        }
+      }
+      
+      setCanvasSize({ width: Math.round(width), height: Math.round(height) });
+      setImageLoaded(true);
+      
+      // Initialize canvas with transparent overlay
+      setTimeout(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }, 100);
+    };
+    
+    img.src = image.base64 ? `data:image/png;base64,${image.base64}` : image.url;
+  }, [image]);
+  
+  const getPos = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    if (e.touches) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY
+      };
+    }
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    };
+  };
+  
+  const startDrawing = (e) => {
+    e.preventDefault();
+    setIsDrawing(true);
+    const pos = getPos(e);
+    lastPos.current = pos;
+    draw(pos);
+  };
+  
+  const draw = (pos) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(255, 100, 0, 0.5)';
+    ctx.strokeStyle = 'rgba(255, 100, 0, 0.5)';
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    ctx.beginPath();
+    ctx.moveTo(lastPos.current.x, lastPos.current.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    
+    // Also draw a circle at the current position for single clicks
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, brushSize / 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    lastPos.current = pos;
+  };
+  
+  const handleMove = (e) => {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    draw(pos);
+  };
+  
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+  
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+  
+  const getMaskDataUrl = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    
+    // Create a new canvas for the actual mask (white on black)
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = canvas.width;
+    maskCanvas.height = canvas.height;
+    const maskCtx = maskCanvas.getContext('2d');
+    
+    // Fill with black (areas to keep)
+    maskCtx.fillStyle = 'black';
+    maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+    
+    // Get the drawn areas and make them white (areas to edit)
+    const originalCtx = canvas.getContext('2d');
+    const imageData = originalCtx.getImageData(0, 0, canvas.width, canvas.height);
+    const maskImageData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+    
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      // If there's any color drawn (alpha > 0), make it white in the mask
+      if (imageData.data[i + 3] > 0) {
+        maskImageData.data[i] = 255;     // R
+        maskImageData.data[i + 1] = 255; // G
+        maskImageData.data[i + 2] = 255; // B
+        maskImageData.data[i + 3] = 255; // A
+      }
+    }
+    
+    maskCtx.putImageData(maskImageData, 0, 0);
+    return maskCanvas.toDataURL('image/png');
+  };
+  
+  const handleEdit = () => {
+    if (!editPrompt.trim()) return;
+    
+    const maskDataUrl = getMaskDataUrl();
+    onEdit({
+      prompt: editPrompt,
+      maskDataUrl,
+      hasMask: maskDataUrl !== null
+    });
+  };
+  
+  const imgSrc = image?.base64 ? `data:image/png;base64,${image.base64}` : image?.url;
+  
+  return (
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-[#111820] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="p-4 border-b border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+              <Pencil className="w-5 h-5 text-purple-400" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-white">Edit Image</h3>
+              <p className="text-xs text-gray-500">Paint the areas you want to change</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+        
+        {/* Canvas Area */}
+        <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
+          <div 
+            ref={containerRef}
+            className="relative mx-auto rounded-xl overflow-hidden border border-white/20"
+            style={{ width: canvasSize.width, height: canvasSize.height }}
+          >
+            {/* Background Image */}
+            {imgSrc && (
+              <img 
+                src={imgSrc} 
+                alt="Edit" 
+                className="absolute inset-0 w-full h-full object-contain"
+                crossOrigin="anonymous"
+              />
+            )}
+            
+            {/* Drawing Canvas (overlay) */}
+            <canvas
+              ref={canvasRef}
+              width={canvasSize.width}
+              height={canvasSize.height}
+              className="absolute inset-0 cursor-crosshair touch-none"
+              onMouseDown={startDrawing}
+              onMouseMove={handleMove}
+              onMouseUp={stopDrawing}
+              onMouseLeave={stopDrawing}
+              onTouchStart={startDrawing}
+              onTouchMove={handleMove}
+              onTouchEnd={stopDrawing}
+            />
+            
+            {/* Loading overlay */}
+            {isEditing && (
+              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 text-purple-400 animate-spin mx-auto mb-2" />
+                  <p className="text-white text-sm">Editing image...</p>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Brush Controls */}
+          <div className="mt-4 flex items-center justify-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-400 text-xs">Brush:</span>
+              <input
+                type="range"
+                min="5"
+                max="80"
+                value={brushSize}
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+                className="w-24 accent-purple-500"
+              />
+              <span className="text-gray-500 text-xs w-8">{brushSize}px</span>
+            </div>
+            <button
+              onClick={clearCanvas}
+              className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Clear
+            </button>
+          </div>
+          
+          <p className="text-center text-gray-600 text-xs mt-2">
+            Paint over the areas you want to modify (orange highlight shows selection)
+          </p>
+        </div>
+        
+        {/* Edit Prompt & Actions */}
+        <div className="p-4 border-t border-white/10 bg-black/20">
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={editPrompt}
+              onChange={(e) => setEditPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleEdit()}
+              placeholder="Describe the edit (e.g., 'remove the hat', 'change to blue shirt')"
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50"
+              disabled={isEditing}
+            />
+            <button
+              onClick={handleEdit}
+              disabled={!editPrompt.trim() || isEditing}
+              className="px-6 py-3 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium flex items-center gap-2 transition-colors"
+            >
+              {isEditing ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Editing...</>
+              ) : (
+                <><Sparkles className="w-4 h-4" /> Apply Edit</>
+              )}
+            </button>
+          </div>
+          <p className="text-gray-600 text-xs mt-2 text-center">
+            Tip: For best results, paint the specific area and describe the change clearly
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── ImageCard: renders a generated image with download option ─────────────────
-function ImageCard({ url, revisedPrompt, modelLabel, generationParams }) {
+function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit }) {
   const [loaded, setLoaded] = useState(false);
   const [showJson, setShowJson] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
@@ -560,7 +848,7 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams }) {
   
   return (
     <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
-      <div className="relative">
+      <div className="relative group">
         {!loaded && (
           <div className="w-full h-48 flex items-center justify-center bg-white/3">
             <Loader2 className="w-6 h-6 animate-spin text-orange-500/50" />
@@ -572,6 +860,15 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams }) {
           className={`w-full max-h-96 object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0 absolute inset-0'}`}
           onLoad={() => setLoaded(true)}
         />
+        {/* Edit overlay on hover */}
+        {onEdit && loaded && (
+          <button
+            onClick={() => onEdit({ url, source: 'generated' })}
+            className="absolute top-2 right-2 px-3 py-1.5 bg-purple-500/90 hover:bg-purple-600 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1.5 shadow-lg"
+          >
+            <Pencil className="w-3.5 h-3.5" /> Edit
+          </button>
+        )}
       </div>
       <div className="p-3 space-y-2">
         <div className="flex items-center justify-between gap-3">
@@ -5533,6 +5830,11 @@ export default function ChatPage() {
   const [generatingImageJson, setGeneratingImageJson] = useState(false);
   const [imageJsonResult, setImageJsonResult] = useState(null);
   const [showImageJsonModal, setShowImageJsonModal] = useState(false);
+  // Image editing state
+  const [editableImage, setEditableImage] = useState(null); // { url, base64, source: 'upload'|'generated', messageId }
+  const [showImageEditor, setShowImageEditor] = useState(false);
+  const [isEditingImage, setIsEditingImage] = useState(false);
+  const [editPrompt, setEditPrompt] = useState('');
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const streamingSourcesRef = useRef([]);
@@ -6457,6 +6759,70 @@ export default function ChatPage() {
       setGeneratingImageJson(false);
     }
   }, [token]);
+
+  // Set an image as editable (from message or attachment)
+  const setImageForEditing = useCallback((imageData) => {
+    setEditableImage(imageData);
+  }, []);
+
+  // Handle image edit submission
+  const handleImageEdit = useCallback(async ({ prompt, maskDataUrl, hasMask }) => {
+    if (!editableImage || !prompt || !token) return;
+    
+    setIsEditingImage(true);
+    
+    try {
+      const response = await fetch('/api/image/edit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          image: {
+            url: editableImage.url,
+            base64: editableImage.base64,
+          },
+          mask: hasMask ? maskDataUrl : null,
+          prompt,
+          conversationId,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to edit image');
+      }
+      
+      // Add the edited image as a new message
+      const editMsg = {
+        id: `edit-${Date.now()}`,
+        role: 'assistant',
+        content: `✏️ Image edited!\n\n**Edit:** ${prompt}`,
+        created_at: new Date().toISOString(),
+        image_url: data.url,
+        is_edit: true,
+        original_image: editableImage.url || `data:image/png;base64,${editableImage.base64}`,
+      };
+      
+      setMessages(prev => [...prev, editMsg]);
+      
+      // Set the new image as the editable one for chaining edits
+      setEditableImage({
+        url: data.url,
+        source: 'edited',
+        messageId: editMsg.id,
+      });
+      
+      setShowImageEditor(false);
+      setEditPrompt('');
+    } catch (err) {
+      alert('Edit failed: ' + err.message);
+    } finally {
+      setIsEditingImage(false);
+    }
+  }, [editableImage, token, conversationId]);
 
   // Handle selecting a response from comparison
   const handleSelectCompareResponse = useCallback(async (response) => {
@@ -7638,6 +8004,10 @@ export default function ChatPage() {
                             revisedPrompt={msg.content?.match(/\*Prompt used: (.+)\*/)?.[1] || msg.generation_params?.prompt || ''} 
                             modelLabel={msg.model_label || msg.generation_params?.modelLabel} 
                             generationParams={msg.generation_params}
+                            onEdit={(imageData) => {
+                              setEditableImage({ ...imageData, messageId: msg.id });
+                              setShowImageEditor(true);
+                            }}
                           />
                         )}
                         {/* Video card - for polling state (only if no video_url yet) */}
@@ -8257,6 +8627,24 @@ export default function ChatPage() {
               {/* Create (Image/Video) button */}
               <CreateMenu onGenerate={handleMediaGenerate} isGenerating={isGeneratingMedia} />
 
+              {/* Edit Image button - shows when there's an image attachment or editable image */}
+              {(attachments.some(a => a.type === 'image') || editableImage) && (
+                <button
+                  onClick={() => {
+                    // If there's an attached image, use that; otherwise use the editable image from conversation
+                    const imageAtt = attachments.find(a => a.type === 'image');
+                    if (imageAtt) {
+                      setEditableImage({ base64: imageAtt.base64, source: 'upload' });
+                    }
+                    setShowImageEditor(true);
+                  }}
+                  className="flex items-center justify-center w-9 h-9 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-400 hover:bg-purple-500/30 transition-all flex-shrink-0"
+                  title="Edit image with AI"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              )}
+
               <div className="flex-1 relative min-w-0">
                 <textarea
                   ref={inputRef}
@@ -8440,6 +8828,18 @@ export default function ChatPage() {
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Image Editor Modal */}
+      {showImageEditor && editableImage && (
+        <ImageEditor
+          image={editableImage}
+          onClose={() => {
+            setShowImageEditor(false);
+          }}
+          onEdit={handleImageEdit}
+          isEditing={isEditingImage}
+        />
       )}
       
       {/* Location Modal - Manual Input Fallback */}
