@@ -259,6 +259,9 @@ async function handleImageEdit(request) {
     
     console.log('[ImageEdit] Starting image edit with prompt:', prompt.substring(0, 100));
     
+    // Determine the MIME type
+    const mimeType = image.mimeType || 'image/png';
+    
     // First, we need to get the original image as base64 if it's a URL
     let imageBase64 = image.base64;
     if (!imageBase64 && image.url) {
@@ -305,7 +308,7 @@ Be precise and maintain the original image's characteristics as much as possible
               {
                 type: 'image_url',
                 image_url: {
-                  url: `data:image/png;base64,${imageBase64}`,
+                  url: `data:${mimeType};base64,${imageBase64}`,
                   detail: 'high'
                 }
               }
@@ -320,7 +323,8 @@ Be precise and maintain the original image's characteristics as much as possible
     if (!analysisResponse.ok) {
       const err = await analysisResponse.json().catch(() => ({}));
       console.error('[ImageEdit] Analysis failed:', err);
-      return NextResponse.json({ error: 'Failed to analyze image for editing' }, { status: 500 });
+      const errorMsg = err.error?.message || 'Failed to analyze image for editing';
+      return NextResponse.json({ error: errorMsg }, { status: 500 });
     }
     
     const analysisData = await analysisResponse.json();
@@ -328,7 +332,7 @@ Be precise and maintain the original image's characteristics as much as possible
     
     console.log('[ImageEdit] Generated edit prompt:', editedPrompt.substring(0, 200));
     
-    // Step 2: Generate the edited image using gpt-image-1 (DALL-E 3)
+    // Step 2: Generate the edited image using DALL-E 3
     const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: {
@@ -336,11 +340,12 @@ Be precise and maintain the original image's characteristics as much as possible
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-image-1',
+        model: 'dall-e-3',
         prompt: editedPrompt,
         n: 1,
         size: '1024x1024',
-        quality: 'high',
+        quality: 'standard',
+        style: 'vivid',
       }),
     });
     

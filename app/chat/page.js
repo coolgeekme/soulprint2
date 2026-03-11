@@ -6782,6 +6782,7 @@ export default function ChatPage() {
           image: {
             url: editableImage.url,
             base64: editableImage.base64,
+            mimeType: editableImage.mimeType || 'image/png',
           },
           mask: hasMask ? maskDataUrl : null,
           prompt,
@@ -8634,7 +8635,7 @@ export default function ChatPage() {
                     // If there's an attached image, use that; otherwise use the editable image from conversation
                     const imageAtt = attachments.find(a => a.type === 'image');
                     if (imageAtt) {
-                      setEditableImage({ base64: imageAtt.base64, source: 'upload' });
+                      setEditableImage({ base64: imageAtt.base64, mimeType: imageAtt.mimeType, source: 'upload' });
                     }
                     setShowImageEditor(true);
                   }}
