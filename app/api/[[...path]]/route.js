@@ -350,8 +350,11 @@ async function handleGoogleAuthCallback(request) {
     return NextResponse.redirect(`${baseUrl}/integrations?google=connected`);
   } catch (err) {
     console.error('Google callback error:', err);
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://soulprint-0e7f9ec5.preview.emergentagent.com';
-    return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent(err.message)}`);
+    const errorBaseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!errorBaseUrl) {
+      return new NextResponse('Configuration error: NEXT_PUBLIC_BASE_URL not set', { status: 500 });
+    }
+    return NextResponse.redirect(`${errorBaseUrl}/integrations?error=${encodeURIComponent(err.message)}`);
   }
 }
 
