@@ -6475,16 +6475,20 @@ export default function ChatPage() {
           const res = await fetch('/api/user/location', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ lat: latitude, lng: longitude }),
+            body: JSON.stringify({ 
+              lat: latitude, 
+              lng: longitude,
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            }),
           });
           const data = await res.json();
           if (res.ok) {
-            setUserLocation({ lat: latitude, lng: longitude, address: data.address, accuracy });
+            setUserLocation({ lat: latitude, lng: longitude, address: data.address, timezone: data.timezone, accuracy });
             setLocationError(null);
             // Show confirmation in chat
             setMessages(prev => [...prev, {
               id: `loc-${Date.now()}`, role: 'assistant',
-              content: `📍 **Location saved!**\n\n${data.address}\n\nYou can now ask me things like:\n- "Find restaurants near me"\n- "What coffee shops are nearby?"\n- "Show me gas stations close by"`,
+              content: `📍 **Location saved!**\n\n${data.address}${data.timezone ? `\n🕐 Timezone: ${data.timezone}` : ''}\n\nYou can now ask me things like:\n- "Find restaurants near me"\n- "What's on my calendar today?"\n- "Schedule a meeting for tomorrow at 3pm"`,
               created_at: new Date().toISOString(),
             }]);
           } else {
@@ -7399,6 +7403,26 @@ export default function ChatPage() {
     window.addEventListener('openCloudImport', handleOpenCloudImport);
     return () => window.removeEventListener('openCloudImport', handleOpenCloudImport);
   }, []);
+
+  // Auto-save user's timezone on page load (doesn't require location permission)
+  useEffect(() => {
+    if (!token) return;
+    
+    const saveTimezone = async () => {
+      try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        await fetch('/api/user/timezone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ timezone }),
+        });
+      } catch (err) {
+        console.error('Failed to save timezone:', err);
+      }
+    };
+    
+    saveTimezone();
+  }, [token]);
 
   async function loadConversation(convId) {
     setConversationId(convId);

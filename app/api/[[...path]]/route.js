@@ -1277,18 +1277,23 @@ async function handleCalendarCreate(request) {
     const accessToken = await getValidGoogleToken(user.id);
     if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
     
-    const { summary, description, location, start, end, attendees } = await request.json();
+    const { summary, description, location, start, end, attendees, timeZone } = await request.json();
     
     if (!summary || !start || !end) {
       return NextResponse.json({ error: 'Missing required fields: summary, start, end' }, { status: 400 });
     }
     
+    // Get user's timezone from their saved location, or use provided timezone, or default to UTC
+    const db = await getDb();
+    const userLocation = await db.collection('user_locations').findOne({ user_id: user.id });
+    const eventTimezone = timeZone || userLocation?.timezone || 'UTC';
+    
     const event = {
       summary,
       description: description || '',
       location: location || '',
-      start: { dateTime: start, timeZone: 'UTC' },
-      end: { dateTime: end, timeZone: 'UTC' },
+      start: { dateTime: start, timeZone: eventTimezone },
+      end: { dateTime: end, timeZone: eventTimezone },
       attendees: attendees?.map(email => ({ email })) || []
     };
     
@@ -1304,7 +1309,8 @@ async function handleCalendarCreate(request) {
         summary: data.summary,
         htmlLink: data.htmlLink,
         start: data.start?.dateTime || data.start?.date,
-        end: data.end?.dateTime || data.end?.date
+        end: data.end?.dateTime || data.end?.date,
+        timeZone: eventTimezone
       }
     });
   } catch (err) {
@@ -3263,12 +3269,35 @@ async function buildSystemPrompt(db, userId) {
   const field = profile?.field || '';
   const helpWith = profile?.help_with || [];
 
+  // Build date/time context - use user's timezone if available
+  const userTimezone = userLocation?.timezone || 'UTC';
+  const now = new Date();
+  const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: userTimezone,
+  });
+  const currentDateTime = dateTimeFormatter.format(now);
+  
+  const dateTimeContext = `## Current Date & Time
+- **Now**: ${currentDateTime}
+- **Timezone**: ${userTimezone}
+- **Important**: When the user mentions times (like "3pm tomorrow" or "next Monday"), interpret them in their timezone (${userTimezone}). Always confirm the full date and time before creating calendar events.`;
+
   // Build location context
   let locationContext = '';
   if (userLocation && userLocation.address) {
     locationContext = `- **Location**: ${userLocation.address}`;
     if (userLocation.lat && userLocation.lng) {
       locationContext += ` (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
+    }
+    if (userLocation.timezone) {
+      locationContext += `\n- **Timezone**: ${userLocation.timezone}`;
     }
   }
 
@@ -3413,6 +3442,8 @@ async function buildSystemPrompt(db, userId) {
   }
 
   return `You are **${assistantName}**, a personal AI companion for **${displayName}**.
+
+${dateTimeContext}
 
 # What is a SoulPrint?
 
@@ -16282,7 +16313,7 @@ async function handleSaveUserLocation(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { lat, lng } = body;
+  const { lat, lng, timezone } = body;
 
   if (!lat || !lng) return err('lat and lng required');
 
@@ -16299,6 +16330,18 @@ async function handleSaveUserLocation(request) {
       address = geoData.results?.[0]?.formatted_address || 'Your location';
     }
 
+    // Use provided timezone or try to detect from coordinates
+    let userTimezone = timezone;
+    if (!userTimezone && apiKey) {
+      // Use Google Timezone API
+      const timestamp = Math.floor(Date.now() / 1000);
+      const tzRes = await fetch(`https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lng}&timestamp=${timestamp}&key=${apiKey}`);
+      const tzData = await tzRes.json();
+      if (tzData.timeZoneId) {
+        userTimezone = tzData.timeZoneId;
+      }
+    }
+
     await db.collection('user_locations').updateOne(
       { user_id: user.id },
       { 
@@ -16306,6 +16349,7 @@ async function handleSaveUserLocation(request) {
           lat, 
           lng, 
           address,
+          timezone: userTimezone || 'UTC',
           updated_at: new Date(),
           source: 'web'
         } 
@@ -16316,7 +16360,7 @@ async function handleSaveUserLocation(request) {
     // Invalidate system prompt cache so location is included in future queries
     invalidateSystemPromptCache(user.id);
 
-    return ok({ success: true, address, lat, lng });
+    return ok({ success: true, address, lat, lng, timezone: userTimezone || 'UTC' });
   } catch (error) {
     return err(`Failed to save location: ${error.message}`, 500);
   }
@@ -16372,6 +16416,61 @@ async function handleGetUserLocation(request) {
     });
   } catch (error) {
     return err(`Failed to get location: ${error.message}`, 500);
+  }
+}
+
+// USER TIMEZONE - Save timezone (auto-detected from browser)
+async function handleSaveUserTimezone(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const body = await request.json();
+    const { timezone } = body;
+    
+    if (!timezone) return err('timezone required');
+
+    const db = await getDb();
+    
+    await db.collection('user_locations').updateOne(
+      { user_id: user.id },
+      { 
+        $set: { 
+          timezone,
+          timezone_updated_at: new Date(),
+        },
+        $setOnInsert: {
+          user_id: user.id,
+          source: 'auto'
+        }
+      },
+      { upsert: true }
+    );
+
+    // Invalidate system prompt cache
+    invalidateSystemPromptCache(user.id);
+
+    return ok({ success: true, timezone });
+  } catch (error) {
+    return err(`Failed to save timezone: ${error.message}`, 500);
+  }
+}
+
+// USER TIMEZONE - Get timezone
+async function handleGetUserTimezone(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const db = await getDb();
+    const location = await db.collection('user_locations').findOne({ user_id: user.id });
+    
+    return ok({ 
+      timezone: location?.timezone || 'UTC',
+      hasTimezone: !!location?.timezone
+    });
+  } catch (error) {
+    return err(`Failed to get timezone: ${error.message}`, 500);
   }
 }
 
@@ -18857,6 +18956,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/beta-codes') return handleAdminGetBetaCodes(request);
     if (pathStr === 'admin/beta-redemptions') return handleAdminGetBetaRedemptions(request);
     if (pathStr === 'user/location') return handleGetUserLocation(request);
+    if (pathStr === 'user/timezone') return handleGetUserTimezone(request);
     if (pathStr === 'data-imports') return handleGetDataImports(request);
     if (pathStr === 'profile/export') return handleProfileExport(request);
     if (pathStr === 'profile/soul') return handleGetSoulProfile(request);
@@ -18988,6 +19088,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'privacy/revoke-session') return handleRevokeSession(request);
     if (pathStr === 'places/geocode') return handleGeocode(request);
     if (pathStr === 'user/location') return handleSaveUserLocation(request);
+    if (pathStr === 'user/timezone') return handleSaveUserTimezone(request);
     if (pathStr === 'data-import/upload') return handleDataImportUpload(request);
     if (pathStr === 'data-import/chunked/init') return handleChunkedUploadInit(request);
     if (pathStr === 'data-import/chunked/chunk') return handleChunkedUploadChunk(request);
