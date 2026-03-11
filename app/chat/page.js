@@ -5395,7 +5395,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
 }
 
 // Attachment preview pill
-function AttachmentPill({ att, onRemove }) {
+function AttachmentPill({ att, onRemove, onGenerateJson }) {
   const isImage = att.type === 'image';
   return (
     <div className="relative group">
@@ -5409,6 +5409,16 @@ function AttachmentPill({ att, onRemove }) {
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent rounded-b-xl px-1 py-0.5">
             <span className="text-[8px] text-white truncate block">{att.name}</span>
           </div>
+          {/* Generate JSON button for images */}
+          {onGenerateJson && (
+            <button 
+              onClick={() => onGenerateJson(att)}
+              className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-blue-500 rounded-full text-[8px] text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 shadow-lg whitespace-nowrap"
+              title="Generate image config JSON"
+            >
+              <Code className="w-2.5 h-2.5" /> JSON
+            </button>
+          )}
         </div>
       ) : (
         <div className="w-16 h-16 bg-white/10 border-2 border-orange-500/40 rounded-xl flex flex-col items-center justify-center p-1 shadow-lg">
@@ -5519,6 +5529,10 @@ export default function ChatPage() {
   const [quickVideoLength, setQuickVideoLength] = useState('5');
   const [selectedImageModel, setSelectedImageModel] = useState('smart');
   const [selectedVideoModel, setSelectedVideoModel] = useState('smart');
+  // Image-to-JSON generation state
+  const [generatingImageJson, setGeneratingImageJson] = useState(false);
+  const [imageJsonResult, setImageJsonResult] = useState(null);
+  const [showImageJsonModal, setShowImageJsonModal] = useState(false);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const streamingSourcesRef = useRef([]);
@@ -5756,6 +5770,75 @@ export default function ChatPage() {
       }
     }
   }
+
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+
+  // Handle drag and drop for files/images
+  const handleDragEnter = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer?.items?.length > 0) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+    
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (files.length === 0) return;
+    
+    setFileError('');
+    
+    for (const file of files) {
+      // Check if it's an accepted file type
+      const isImage = file.type.startsWith('image/');
+      const isAccepted = ACCEPTED_FILE_TYPES.split(',').some(type => {
+        const cleanType = type.trim();
+        if (cleanType.startsWith('.')) {
+          return file.name.toLowerCase().endsWith(cleanType);
+        }
+        return file.type === cleanType || file.type.startsWith(cleanType.replace('/*', '/'));
+      });
+      
+      if (!isImage && !isAccepted) {
+        setFileError(`${file.name} is not a supported file type`);
+        continue;
+      }
+      
+      if (file.size > MAX_FILE_SIZE) {
+        setFileError(`${file.name} is too large (max 10MB)`);
+        continue;
+      }
+      
+      try {
+        const processed = await processFile(file);
+        setAttachments(prev => [...prev, processed]);
+      } catch (err) {
+        setFileError(`Could not process ${file.name}`);
+      }
+    }
+  }, []);
 
   // Check if running as iOS PWA
   const isIOSPwa = useCallback(() => {
@@ -6337,6 +6420,43 @@ export default function ChatPage() {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [streamingContent, selectedModel]);
+
+  // Generate JSON config from an uploaded image
+  const generateImageJson = useCallback(async (attachment) => {
+    if (!attachment || attachment.type !== 'image' || !token) return;
+    
+    setGeneratingImageJson(true);
+    setShowImageJsonModal(true);
+    setImageJsonResult(null);
+    
+    try {
+      const response = await fetch('/api/analyze/image-to-json', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          image: {
+            base64: attachment.base64,
+            mimeType: attachment.mimeType,
+          },
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze image');
+      }
+      
+      setImageJsonResult(data);
+    } catch (err) {
+      setImageJsonResult({ error: err.message });
+    } finally {
+      setGeneratingImageJson(false);
+    }
+  }, [token]);
 
   // Handle selecting a response from comparison
   const handleSelectCompareResponse = useCallback(async (response) => {
@@ -7834,7 +7954,23 @@ export default function ChatPage() {
         </div>
 
         {/* Composer - with safe area padding at bottom for PWA */}
-        <div className="flex-shrink-0 px-4 pb-6 safe-area-bottom">
+        <div 
+          className={`flex-shrink-0 px-4 pb-6 safe-area-bottom relative transition-all ${isDragging ? 'ring-2 ring-orange-500 ring-inset' : ''}`}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Drag overlay */}
+          {isDragging && (
+            <div className="absolute inset-0 bg-orange-500/10 border-2 border-dashed border-orange-500 rounded-2xl flex items-center justify-center z-50 pointer-events-none">
+              <div className="text-center">
+                <Upload className="w-10 h-10 text-orange-400 mx-auto mb-2" />
+                <p className="text-orange-400 font-medium">Drop files here</p>
+                <p className="text-orange-400/60 text-sm">Images, PDFs, documents</p>
+              </div>
+            </div>
+          )}
           <div className="max-w-4xl mx-auto">
             {/* Mode Toggle & Model selector */}
             <div className="flex flex-col items-center gap-2 mb-3">
@@ -7937,7 +8073,12 @@ export default function ChatPage() {
                   </div>
                   <div className="flex flex-wrap gap-3">
                     {attachments.map((att, i) => (
-                      <AttachmentPill key={i} att={att} onRemove={() => setAttachments(prev => prev.filter((_, j) => j !== i))} />
+                      <AttachmentPill 
+                        key={i} 
+                        att={att} 
+                        onRemove={() => setAttachments(prev => prev.filter((_, j) => j !== i))}
+                        onGenerateJson={att.type === 'image' ? generateImageJson : null}
+                      />
                     ))}
                   </div>
                 </div>
@@ -8191,6 +8332,115 @@ export default function ChatPage() {
       
       {/* Feedback Modal */}
       {showFeedbackModal && <FeedbackModal onClose={() => setShowFeedbackModal(false)} token={token} />}
+      
+      {/* Image JSON Generation Modal */}
+      {showImageJsonModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowImageJsonModal(false)}>
+          <div className="bg-[#111820] border border-white/10 rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                    <Code className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Image Generation Config</h3>
+                    <p className="text-xs text-gray-500">AI-generated parameters to recreate this image</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowImageJsonModal(false)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {generatingImageJson ? (
+                <div className="text-center py-12">
+                  <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-4" />
+                  <p className="text-gray-400">Analyzing image...</p>
+                  <p className="text-gray-600 text-sm mt-1">Detecting style, composition, colors, and subjects</p>
+                </div>
+              ) : imageJsonResult?.error ? (
+                <div className="text-center py-12">
+                  <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                    <X className="w-6 h-6 text-red-400" />
+                  </div>
+                  <p className="text-red-400">{imageJsonResult.error}</p>
+                </div>
+              ) : imageJsonResult ? (
+                <div className="space-y-4">
+                  {/* Suggested Prompt */}
+                  <div>
+                    <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2 block">Suggested Prompt</label>
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                      <p className="text-white text-sm leading-relaxed">{imageJsonResult.prompt}</p>
+                    </div>
+                  </div>
+                  
+                  {/* Quick Actions */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(imageJsonResult.prompt);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white/5 border border-white/10 rounded-xl text-gray-300 hover:bg-white/10 transition-colors text-sm"
+                    >
+                      <Copy className="w-4 h-4" /> Copy Prompt
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInput(imageJsonResult.prompt);
+                        setShowImageJsonModal(false);
+                        setDetectedMediaIntent('image');
+                        setShowMediaOptions(true);
+                        setTimeout(() => inputRef.current?.focus(), 100);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors text-sm"
+                    >
+                      <Sparkles className="w-4 h-4" /> Generate Similar
+                    </button>
+                  </div>
+                  
+                  {/* Full JSON */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase">Full JSON Config</label>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => navigator.clipboard.writeText(JSON.stringify(imageJsonResult, null, 2))}
+                          className="flex items-center gap-1 px-2 py-1 text-[10px] bg-white/5 text-gray-400 hover:bg-white/10 rounded transition-colors"
+                        >
+                          <Copy className="w-3 h-3" /> Copy
+                        </button>
+                        <button
+                          onClick={() => {
+                            const blob = new Blob([JSON.stringify(imageJsonResult, null, 2)], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `image-config-${Date.now()}.json`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 text-[10px] bg-white/5 text-gray-400 hover:bg-white/10 rounded transition-colors"
+                        >
+                          <Download className="w-3 h-3" /> Download
+                        </button>
+                      </div>
+                    </div>
+                    <pre className="bg-[#0d1117] border border-white/10 rounded-xl p-4 text-[11px] text-gray-400 font-mono overflow-x-auto">
+                      {JSON.stringify(imageJsonResult, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Location Modal - Manual Input Fallback */}
       {showLocationModal && (

@@ -128,6 +128,115 @@ async function handleParseDocument(request) {
   }
 }
 
+// Analyze an image and generate JSON config for recreating it
+async function handleImageToJson(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const body = await request.json();
+    const { image } = body;
+    
+    if (!image?.base64 || !image?.mimeType) {
+      return NextResponse.json({ error: 'Image data required' }, { status: 400 });
+    }
+    
+    // Use GPT-4o to analyze the image and generate a prompt
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    }
+    
+    const analysisPrompt = `Analyze this image and generate a detailed JSON configuration that could be used to recreate a similar image using an AI image generator.
+
+Return ONLY valid JSON with the following structure:
+{
+  "prompt": "A detailed, comprehensive prompt that would recreate this image. Include specific details about: subjects, actions, composition, lighting, colors, style, mood, camera angle, and any notable elements.",
+  "negativePrompt": "Elements to avoid in generation",
+  "style": "The artistic style (e.g., photorealistic, illustration, anime, oil painting, digital art, etc.)",
+  "aspectRatio": "Estimated aspect ratio (1:1, 16:9, 9:16, or 4:3)",
+  "colorPalette": ["array", "of", "dominant", "colors"],
+  "mood": "The overall mood/atmosphere",
+  "subjects": ["array", "of", "main", "subjects"],
+  "composition": "Description of the composition (e.g., centered, rule of thirds, close-up, wide shot)",
+  "lighting": "Description of the lighting (e.g., natural, studio, dramatic, soft)",
+  "suggestedModel": "Recommended AI model for best results (gpt-image-1, nano-banana, or kling-image)"
+}
+
+Be extremely detailed in the prompt - the goal is to be able to recreate this exact image.`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: analysisPrompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${image.mimeType};base64,${image.base64}`,
+                  detail: 'high'
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 1500,
+        temperature: 0.3,
+      }),
+    });
+    
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      console.error('OpenAI image analysis error:', err);
+      return NextResponse.json({ error: 'Failed to analyze image' }, { status: 500 });
+    }
+    
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    // Extract JSON from the response
+    let jsonResult;
+    try {
+      // Try to parse the entire response as JSON
+      jsonResult = JSON.parse(content);
+    } catch {
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (jsonMatch) {
+        jsonResult = JSON.parse(jsonMatch[1]);
+      } else {
+        // Try to find JSON object in the text
+        const objectMatch = content.match(/\{[\s\S]*\}/);
+        if (objectMatch) {
+          jsonResult = JSON.parse(objectMatch[0]);
+        } else {
+          throw new Error('No valid JSON found in response');
+        }
+      }
+    }
+    
+    // Add metadata
+    jsonResult.generatedAt = new Date().toISOString();
+    jsonResult.type = 'image';
+    jsonResult.version = '1.0';
+    
+    return NextResponse.json(jsonResult);
+  } catch (err) {
+    console.error('Image-to-JSON error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to analyze image' }, { status: 500 });
+  }
+}
+
 
 // ============================================================
 // GOOGLE OAUTH & APIS (Gmail, Calendar, Drive)
@@ -18527,6 +18636,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'generate/video') return handleGenerateVideo(request);
     if (pathStr === 'media/generate') return handleMediaGenerate(request);
     if (pathStr === 'parse/document') return handleParseDocument(request);
+    if (pathStr === 'analyze/image-to-json') return handleImageToJson(request);
     if (pathStr === 'imports/upload') return handleImportUpload(request);
     if (pathStr === 'import/chatgpt') return handleImportUpload(request); // Alias for mobile compatibility
     if (pathStr === 'imports/cloud') return handleCloudImport(request);
