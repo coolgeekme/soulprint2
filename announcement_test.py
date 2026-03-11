@@ -14,7 +14,7 @@ import sys
 import os
 
 # Configuration
-BASE_URL = "https://chunked-upload-2.preview.emergentagent.com/api"
+BASE_URL = "https://edit-ai-tool-1.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSCODE = "test123"
 

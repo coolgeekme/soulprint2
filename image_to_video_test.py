@@ -20,7 +20,7 @@ import sys
 from datetime import datetime
 
 # Backend configuration
-BASE_URL = "https://chunked-upload-2.preview.emergentagent.com"
+BASE_URL = "https://edit-ai-tool-1.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 # Test credentials

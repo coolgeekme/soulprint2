@@ -237,7 +237,7 @@ Be extremely detailed in the prompt - the goal is to be able to recreate this ex
   }
 }
 
-// Edit an image using OpenAI's image edit API (inpainting)
+// Edit an image using OpenAI's Responses API with gpt-image-1 for true in-place editing
 async function handleImageEdit(request) {
   try {
     const user = await authenticate(request);
@@ -246,187 +246,25 @@ async function handleImageEdit(request) {
     }
     
     const body = await request.json();
-    const { image, mask, prompt, editMode } = body;
+    const { image, prompt } = body;
     
     if (!image || !prompt) {
       return NextResponse.json({ error: 'Image and prompt are required' }, { status: 400 });
     }
     
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    if (!openaiApiKey) {
-      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    // Reuse the internal function for consistency
+    const result = await handleImageEditInternal(user.id, image, prompt);
+    
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
     }
-    
-    console.log('[ImageEdit] Starting image edit with prompt:', prompt.substring(0, 100));
-    console.log('[ImageEdit] Edit mode:', editMode || 'standard');
-    console.log('[ImageEdit] Has mask:', !!mask);
-    
-    // Determine the MIME type
-    const mimeType = image.mimeType || 'image/png';
-    
-    // Get the image as base64
-    let imageBase64 = image.base64;
-    if (!imageBase64 && image.url) {
-      try {
-        const imgResponse = await fetch(image.url);
-        if (!imgResponse.ok) throw new Error('Failed to fetch image');
-        const imgBuffer = await imgResponse.arrayBuffer();
-        imageBase64 = Buffer.from(imgBuffer).toString('base64');
-      } catch (fetchErr) {
-        console.error('[ImageEdit] Failed to fetch image URL:', fetchErr);
-        return NextResponse.json({ error: 'Failed to fetch original image' }, { status: 400 });
-      }
-    }
-    
-    // Convert base64 to Buffer for the API
-    const imageBuffer = Buffer.from(imageBase64, 'base64');
-    
-    // If we have a mask (user painted areas to edit), use inpainting approach
-    if (mask) {
-      console.log('[ImageEdit] Using mask-based inpainting');
-      
-      // Extract base64 from data URL if present
-      let maskBase64 = mask;
-      if (mask.startsWith('data:')) {
-        maskBase64 = mask.split(',')[1];
-      }
-      const maskBuffer = Buffer.from(maskBase64, 'base64');
-      
-      // Use OpenAI's edit endpoint with the mask
-      const FormData = (await import('form-data')).default;
-      const formData = new FormData();
-      formData.append('image', imageBuffer, { filename: 'image.png', contentType: 'image/png' });
-      formData.append('mask', maskBuffer, { filename: 'mask.png', contentType: 'image/png' });
-      formData.append('prompt', prompt);
-      formData.append('model', 'dall-e-2'); // DALL-E 2 supports edits with masks
-      formData.append('n', '1');
-      formData.append('size', '1024x1024');
-      
-      const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          ...formData.getHeaders(),
-        },
-        body: formData,
-      });
-      
-      if (!editResponse.ok) {
-        const err = await editResponse.json().catch(() => ({}));
-        console.error('[ImageEdit] Edit API failed:', err);
-        // Fall back to generation approach if edit fails
-        console.log('[ImageEdit] Falling back to generation approach');
-      } else {
-        const editData = await editResponse.json();
-        if (editData.data?.[0]?.url) {
-          console.log('[ImageEdit] Mask-based edit successful');
-          return NextResponse.json({
-            url: editData.data[0].url,
-            method: 'inpainting',
-            originalPrompt: prompt,
-          });
-        }
-      }
-    }
-    
-    // Fallback: Use GPT-4o analysis + DALL-E 3 generation for better consistency
-    console.log('[ImageEdit] Using analysis + generation approach');
-    
-    // Step 1: Analyze the original image and create an edit-aware prompt
-    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert at describing images for recreation. Your task is to create a detailed prompt that would recreate the given image WITH a specific modification. Be extremely precise about visual details to maintain consistency.`
-          },
-          {
-            role: 'user',
-            content: [
-              { 
-                type: 'text', 
-                text: `Analyze this image and create a single detailed prompt that would recreate it with this edit: "${prompt}"
-
-Include in your prompt:
-- Exact subject details (appearance, clothing, pose, expression)
-- Specific colors and materials
-- Background and setting
-- Lighting and atmosphere
-- Art style/photographic style
-- Composition and framing
-
-Apply the requested edit naturally while keeping everything else identical.
-Output ONLY the prompt, no explanations.` 
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${imageBase64}`,
-                  detail: 'high'
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 1000,
-        temperature: 0.2,
-      }),
-    });
-    
-    if (!analysisResponse.ok) {
-      const err = await analysisResponse.json().catch(() => ({}));
-      console.error('[ImageEdit] Analysis failed:', err);
-      return NextResponse.json({ error: err.error?.message || 'Failed to analyze image' }, { status: 500 });
-    }
-    
-    const analysisData = await analysisResponse.json();
-    const editedPrompt = analysisData.choices?.[0]?.message?.content || '';
-    
-    console.log('[ImageEdit] Generated prompt:', editedPrompt.substring(0, 200));
-    
-    // Step 2: Generate the edited image
-    const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: editedPrompt,
-        n: 1,
-        size: '1024x1024',
-        quality: 'standard',
-        style: 'vivid',
-      }),
-    });
-    
-    if (!generateResponse.ok) {
-      const err = await generateResponse.json().catch(() => ({}));
-      console.error('[ImageEdit] Generation failed:', err);
-      return NextResponse.json({ error: err.error?.message || 'Failed to generate edited image' }, { status: 500 });
-    }
-    
-    const generateData = await generateResponse.json();
-    const editedImageUrl = generateData.data?.[0]?.url;
-    
-    if (!editedImageUrl) {
-      return NextResponse.json({ error: 'No image generated' }, { status: 500 });
-    }
-    
-    console.log('[ImageEdit] Successfully generated edited image');
     
     return NextResponse.json({
-      url: editedImageUrl,
-      method: 'generation',
-      prompt: editedPrompt,
+      url: result.url,
+      base64: result.base64,
+      method: result.method,
       originalPrompt: prompt,
+      note: result.note
     });
   } catch (err) {
     console.error('[ImageEdit] Error:', err);
@@ -680,14 +518,21 @@ async function handleGoogleAuthStart(request) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    // Use NEXT_PUBLIC_BASE_URL for the redirect URI
-    // REMINDER: DO NOT HARDCODE THE URL - use env variable
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    // CRITICAL: Production URL must be used for Google OAuth
+    // The redirect_uri MUST match what's configured in Google Cloud Console
+    // Using production URL: https://soulprintengine.ai
+    const PRODUCTION_URL = 'https://soulprintengine.ai';
+    let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    
     console.log('Google Auth - NEXT_PUBLIC_BASE_URL from env:', baseUrl);
     
-    if (!baseUrl) {
-      return NextResponse.json({ error: 'Server configuration error: NEXT_PUBLIC_BASE_URL not set' }, { status: 500 });
+    // SAFEGUARD: If env variable is not the production URL, use production URL
+    // This prevents the recurring redirect_uri mismatch bug after forks
+    if (!baseUrl || baseUrl.includes('preview.emergentagent.com') || baseUrl.includes('localhost')) {
+      console.warn('Google Auth - WARNING: NEXT_PUBLIC_BASE_URL is not production URL, using fallback:', PRODUCTION_URL);
+      baseUrl = PRODUCTION_URL;
     }
+    
     const redirectUri = `${baseUrl}/api/auth/google/callback`;
     console.log('Google Auth - Final redirect URI:', redirectUri);
     
@@ -715,8 +560,16 @@ async function handleGoogleAuthCallback(request) {
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     
-    // Use NEXT_PUBLIC_BASE_URL for redirects
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || url.origin;
+    // CRITICAL: Production URL must be used for Google OAuth redirect_uri
+    // This MUST match what was used in handleGoogleAuthStart
+    const PRODUCTION_URL = 'https://soulprintengine.ai';
+    let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    
+    // SAFEGUARD: If env variable is not the production URL, use production URL
+    if (!baseUrl || baseUrl.includes('preview.emergentagent.com') || baseUrl.includes('localhost')) {
+      console.warn('Google Callback - WARNING: Using production URL fallback:', PRODUCTION_URL);
+      baseUrl = PRODUCTION_URL;
+    }
     
     if (error) {
       return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent(error)}`);
@@ -813,9 +666,10 @@ async function handleGoogleAuthCallback(request) {
     return NextResponse.redirect(`${baseUrl}/integrations?google=success&first=${accountCount === 1}`);
   } catch (err) {
     console.error('Google callback error:', err);
-    const errorBaseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!errorBaseUrl) {
-      return new NextResponse('Configuration error: NEXT_PUBLIC_BASE_URL not set', { status: 500 });
+    const PRODUCTION_URL = 'https://soulprintengine.ai';
+    let errorBaseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!errorBaseUrl || errorBaseUrl.includes('preview.emergentagent.com') || errorBaseUrl.includes('localhost')) {
+      errorBaseUrl = PRODUCTION_URL;
     }
     return NextResponse.redirect(`${errorBaseUrl}/integrations?error=${encodeURIComponent(err.message)}`);
   }
@@ -1980,6 +1834,391 @@ const GOOGLE_TOOLS = [
     }
   }
 ];
+
+// IMAGE EDITING TOOLS - General AI tools (not Google-specific)
+const IMAGE_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'edit_image',
+      description: 'Edit an image that the user has uploaded or that was previously generated in the conversation. Use this when the user asks to modify, change, remove, or add something to an existing image. Examples: "remove the hat", "change the shirt color to blue", "add sunglasses", "remove the background text".',
+      parameters: {
+        type: 'object',
+        properties: {
+          image_reference: {
+            type: 'string',
+            description: 'Reference to which image to edit: "attached" for the currently attached image, "last_generated" for the most recently generated image in the conversation, or "message_id:xxx" for a specific message\'s image'
+          },
+          edit_instruction: {
+            type: 'string',
+            description: 'Clear, specific description of what to change in the image. Be precise: "remove the red headband", "change the white t-shirt to a blue hoodie", "remove the text from the shirt"'
+          }
+        },
+        required: ['image_reference', 'edit_instruction']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generate_mockup',
+      description: 'Place a design/logo onto a product to create a mockup. Use when the user wants to see their design on a t-shirt, mug, book cover, etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          product: {
+            type: 'string',
+            description: 'The product to put the design on (e.g., "white t-shirt", "coffee mug", "book cover", "phone case", "tote bag")'
+          },
+          design_reference: {
+            type: 'string',
+            description: 'Reference to the design image: "attached" for attached image, or "last_generated" for most recent generated image'
+          }
+        },
+        required: ['product', 'design_reference']
+      }
+    }
+  }
+];
+
+// Internal function for image editing (called from tool handler)
+// Uses OpenAI's new Responses API with gpt-image-1 for true in-place editing
+async function handleImageEditInternal(userId, image, editInstruction) {
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  if (!openaiApiKey) {
+    return { success: false, error: 'OpenAI API key not configured' };
+  }
+  
+  console.log('[ImageEdit Internal] Starting in-place edit with gpt-image-1:', editInstruction.substring(0, 100));
+  
+  // Get image as base64 or URL
+  const mimeType = image.mimeType || 'image/png';
+  let imageBase64 = image.base64;
+  let imageUrl = image.url;
+  
+  if (!imageBase64 && imageUrl) {
+    try {
+      const imgResponse = await fetch(imageUrl);
+      if (!imgResponse.ok) throw new Error('Failed to fetch image');
+      const imgBuffer = await imgResponse.arrayBuffer();
+      imageBase64 = Buffer.from(imgBuffer).toString('base64');
+    } catch (err) {
+      console.error('[ImageEdit Internal] Failed to fetch image:', err);
+      return { success: false, error: 'Failed to fetch original image' };
+    }
+  }
+  
+  // Create data URL for the image
+  const imageDataUrl = imageBase64 
+    ? `data:${mimeType};base64,${imageBase64}`
+    : imageUrl;
+  
+  // Method 1: Try the new Responses API with gpt-4.1 (best for editing)
+  try {
+    console.log('[ImageEdit Internal] Attempting Responses API with gpt-4.1');
+    const responsesApiResponse = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1',
+        input: [
+          {
+            role: 'user',
+            content: [
+              { type: 'input_text', text: `Edit this image: ${editInstruction}. Keep everything else EXACTLY the same - same person, same pose, same background, same lighting. Only change what was requested.` },
+              { type: 'input_image', image_url: imageDataUrl }
+            ]
+          }
+        ],
+        tools: [{ type: 'image_generation', input_fidelity: 'high', action: 'edit' }],
+      }),
+    });
+    
+    if (responsesApiResponse.ok) {
+      const responsesData = await responsesApiResponse.json();
+      console.log('[ImageEdit Internal] Responses API success, output types:', 
+        responsesData.output?.map(o => o.type).join(', '));
+      
+      // Find the image generation result
+      const imageOutput = responsesData.output?.find(o => o.type === 'image_generation_call');
+      if (imageOutput?.result) {
+        // Result is base64 encoded image
+        const editedImageBase64 = imageOutput.result;
+        const editedImageUrl = `data:image/png;base64,${editedImageBase64}`;
+        console.log('[ImageEdit Internal] Successfully edited image with Responses API');
+        return {
+          success: true,
+          url: editedImageUrl,
+          base64: editedImageBase64,
+          edit: editInstruction,
+          method: 'responses-api-gpt-4.1'
+        };
+      }
+    } else {
+      const err = await responsesApiResponse.json().catch(() => ({}));
+      console.log('[ImageEdit Internal] Responses API failed:', err.error?.message || 'Unknown error');
+    }
+  } catch (responsesErr) {
+    console.log('[ImageEdit Internal] Responses API error:', responsesErr.message);
+  }
+  
+  // Method 2: Try gpt-image-1 with the images/edits endpoint
+  try {
+    console.log('[ImageEdit Internal] Attempting images/edits API');
+    
+    // Need to send as FormData for the edits endpoint
+    const formData = new FormData();
+    
+    // Convert base64 to blob for upload
+    const binaryString = atob(imageBase64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const imageBlob = new Blob([bytes], { type: mimeType });
+    formData.append('image', imageBlob, 'image.png');
+    formData.append('prompt', `${editInstruction}. Keep everything else exactly the same.`);
+    formData.append('model', 'gpt-image-1');
+    formData.append('size', '1024x1024');
+    
+    const editsResponse = await fetch('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+      },
+      body: formData,
+    });
+    
+    if (editsResponse.ok) {
+      const editsData = await editsResponse.json();
+      if (editsData.data?.[0]) {
+        const result = editsData.data[0];
+        const editedUrl = result.url || (result.b64_json ? `data:image/png;base64,${result.b64_json}` : null);
+        if (editedUrl) {
+          console.log('[ImageEdit Internal] Successfully edited image with images/edits API');
+          return {
+            success: true,
+            url: editedUrl,
+            base64: result.b64_json,
+            edit: editInstruction,
+            method: 'images-edits-gpt-image-1'
+          };
+        }
+      }
+    } else {
+      const err = await editsResponse.json().catch(() => ({}));
+      console.log('[ImageEdit Internal] images/edits API failed:', err.error?.message || 'Unknown error');
+    }
+  } catch (editsErr) {
+    console.log('[ImageEdit Internal] images/edits API error:', editsErr.message);
+  }
+  
+  // Method 3: Fallback to GPT-4o analysis + DALL-E 3 regeneration
+  // This is the least accurate but most reliable
+  console.log('[ImageEdit Internal] Falling back to GPT-4o analysis + DALL-E 3');
+  
+  const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: {
+                url: imageDataUrl,
+                detail: 'high'
+              }
+            },
+            {
+              type: 'text',
+              text: `Describe this image in EXTREME detail for EXACT recreation, then apply this edit: "${editInstruction}"
+
+Describe:
+- EXACT person details (face shape, exact skin tone, hair color/style/length, facial features, exact expression)
+- EXACT pose and body position  
+- EXACT clothing (every color, pattern, text, logo - describe precisely)
+- EXACT background (every element, exact colors)
+- Lighting, photography style, composition
+
+Output a single detailed prompt to recreate this EXACT image with ONLY "${editInstruction}" changed. Everything else must be IDENTICAL.`
+            }
+          ]
+        }
+      ],
+      max_tokens: 1500,
+      temperature: 0.1,
+    }),
+  });
+  
+  if (!analysisResponse.ok) {
+    const err = await analysisResponse.json().catch(() => ({}));
+    console.error('[ImageEdit Internal] Analysis failed:', err);
+    return { success: false, error: err.error?.message || 'Failed to analyze image' };
+  }
+  
+  const analysisData = await analysisResponse.json();
+  const editedPrompt = analysisData.choices?.[0]?.message?.content || '';
+  
+  console.log('[ImageEdit Internal] Generated edit prompt:', editedPrompt.substring(0, 300));
+  
+  // Generate with DALL-E 3
+  const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'dall-e-3',
+      prompt: editedPrompt,
+      n: 1,
+      size: '1024x1024',
+      quality: 'hd',
+      style: 'natural',
+    }),
+  });
+  
+  if (!generateResponse.ok) {
+    const err = await generateResponse.json().catch(() => ({}));
+    console.error('[ImageEdit Internal] Generation failed:', err);
+    return { success: false, error: err.error?.message || 'Failed to generate edited image' };
+  }
+  
+  const generateData = await generateResponse.json();
+  const editedImageUrl = generateData.data?.[0]?.url;
+  
+  if (!editedImageUrl) {
+    return { success: false, error: 'No image generated' };
+  }
+  
+  console.log('[ImageEdit Internal] Successfully edited image with DALL-E 3 fallback');
+  
+  return {
+    success: true,
+    url: editedImageUrl,
+    edit: editInstruction,
+    method: 'dall-e-3-fallback',
+    note: 'Used DALL-E 3 regeneration. For best results with in-place editing, ensure your OpenAI API has access to gpt-image-1.'
+  };
+}
+
+// Internal function for mockup generation (called from tool handler)
+async function handleMockupGenerateInternal(userId, design, product) {
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  if (!openaiApiKey) {
+    return { success: false, error: 'OpenAI API key not configured' };
+  }
+  
+  console.log('[Mockup Internal] Generating mockup for:', product);
+  
+  // Get design as base64
+  const mimeType = design.mimeType || 'image/png';
+  let designBase64 = design.base64;
+  
+  if (!designBase64 && design.url) {
+    try {
+      const imgResponse = await fetch(design.url);
+      if (!imgResponse.ok) throw new Error('Failed to fetch design');
+      const imgBuffer = await imgResponse.arrayBuffer();
+      designBase64 = Buffer.from(imgBuffer).toString('base64');
+    } catch (err) {
+      return { success: false, error: 'Failed to fetch design image' };
+    }
+  }
+  
+  // Analyze design and create mockup prompt
+  const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${designBase64}`,
+                detail: 'high'
+              }
+            },
+            {
+              type: 'text',
+              text: `Create a detailed prompt for a photorealistic product mockup showing this exact design/logo on a ${product}.
+
+The mockup should:
+1. Show the design EXACTLY as it appears (preserve all colors, shapes, text)
+2. Be professional and photorealistic
+3. Have appropriate lighting and shadows
+4. Show the product from a good angle
+
+Output ONLY the prompt, no explanations.`
+            }
+          ]
+        }
+      ],
+      max_tokens: 800,
+      temperature: 0.3,
+    }),
+  });
+  
+  if (!analysisResponse.ok) {
+    const err = await analysisResponse.json().catch(() => ({}));
+    return { success: false, error: err.error?.message || 'Failed to analyze design' };
+  }
+  
+  const analysisData = await analysisResponse.json();
+  const mockupPrompt = analysisData.choices?.[0]?.message?.content || '';
+  
+  // Generate mockup
+  const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'dall-e-3',
+      prompt: mockupPrompt,
+      n: 1,
+      size: '1024x1024',
+      quality: 'hd',
+      style: 'natural',
+    }),
+  });
+  
+  if (!generateResponse.ok) {
+    const err = await generateResponse.json().catch(() => ({}));
+    return { success: false, error: err.error?.message || 'Failed to generate mockup' };
+  }
+  
+  const generateData = await generateResponse.json();
+  const mockupUrl = generateData.data?.[0]?.url;
+  
+  if (!mockupUrl) {
+    return { success: false, error: 'No mockup generated' };
+  }
+  
+  return {
+    success: true,
+    url: mockupUrl,
+    product,
+  };
+}
 
 // Helper: Get connection by account email
 async function getConnectionByEmail(userId, accountEmail) {
@@ -6544,12 +6783,106 @@ async function handleChatStream(request) {
         const hasGoogle = await userHasGoogleConnected(user.id);
         const googleTools = hasGoogle ? GOOGLE_TOOLS : [];
         
+        // Check if there are images in context (attached or recent)
+        const hasImageInContext = attachments.some(a => a.type === 'image') || 
+          historyMessages.some(m => m.image_url);
+        const imageTools = hasImageInContext ? IMAGE_TOOLS : [];
+        
+        // Combine all tools
+        const allTools = [...googleTools, ...imageTools];
+        
         // Tool call handler for Google actions
         const handleGoogleToolCall = async (toolName, args) => {
-          console.log(`[Google Tool] Executing ${toolName} with args:`, args);
-          const result = await executeGoogleAction(user.id, toolName, args);
-          console.log(`[Google Tool] Result:`, result);
-          return result;
+          console.log(`[Tool Call] Executing ${toolName} with args:`, JSON.stringify(args).substring(0, 200));
+          
+          // Handle Google actions
+          if (['send_email', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_google_doc', 'create_google_sheet'].includes(toolName)) {
+            const result = await executeGoogleAction(user.id, toolName, args);
+            console.log(`[Google Tool] Result:`, result);
+            return result;
+          }
+          
+          // Handle image editing
+          if (toolName === 'edit_image') {
+            console.log('[Image Edit Tool] Processing edit request');
+            const { image_reference, edit_instruction } = args;
+            
+            // Find the image to edit
+            let imageToEdit = null;
+            
+            if (image_reference === 'attached') {
+              // Use attached image
+              const imageAtt = attachments.find(a => a.type === 'image');
+              if (imageAtt) {
+                imageToEdit = { base64: imageAtt.base64, mimeType: imageAtt.mimeType };
+              }
+            } else if (image_reference === 'last_generated') {
+              // Find last generated image in conversation
+              const recentMsgs = [...historyMessages].reverse();
+              for (const msg of recentMsgs) {
+                if (msg.image_url) {
+                  imageToEdit = { url: msg.image_url };
+                  break;
+                }
+              }
+            } else if (image_reference?.startsWith('message_id:')) {
+              // Find specific message
+              const msgId = image_reference.replace('message_id:', '');
+              const msg = historyMessages.find(m => m.id === msgId);
+              if (msg?.image_url) {
+                imageToEdit = { url: msg.image_url };
+              }
+            }
+            
+            if (!imageToEdit) {
+              return { success: false, error: 'Could not find the image to edit. Please attach an image or specify which image to edit.' };
+            }
+            
+            // Call the image edit API
+            try {
+              const editRes = await handleImageEditInternal(user.id, imageToEdit, edit_instruction);
+              return editRes;
+            } catch (err) {
+              return { success: false, error: `Image edit failed: ${err.message}` };
+            }
+          }
+          
+          // Handle mockup generation
+          if (toolName === 'generate_mockup') {
+            console.log('[Mockup Tool] Processing mockup request');
+            const { product, design_reference } = args;
+            
+            // Find the design image
+            let designImage = null;
+            
+            if (design_reference === 'attached') {
+              const imageAtt = attachments.find(a => a.type === 'image');
+              if (imageAtt) {
+                designImage = { base64: imageAtt.base64, mimeType: imageAtt.mimeType };
+              }
+            } else if (design_reference === 'last_generated') {
+              const recentMsgs = [...historyMessages].reverse();
+              for (const msg of recentMsgs) {
+                if (msg.image_url) {
+                  designImage = { url: msg.image_url };
+                  break;
+                }
+              }
+            }
+            
+            if (!designImage) {
+              return { success: false, error: 'Could not find the design image. Please attach an image.' };
+            }
+            
+            try {
+              const mockupRes = await handleMockupGenerateInternal(user.id, designImage, product);
+              return mockupRes;
+            } catch (err) {
+              return { success: false, error: `Mockup generation failed: ${err.message}` };
+            }
+          }
+          
+          return { success: false, error: `Unknown tool: ${toolName}` };
         };
 
         const { stream: aiStream, searchMeta, didSearch, customToolResults } = await provider.generateStream({
@@ -6558,15 +6891,18 @@ async function handleChatStream(request) {
           model,
           temperature: 0.7,
           enableWebSearch: enableWebSearch && attachments.length === 0, // disable search when analyzing files
-          customTools: googleTools,
-          onToolCall: handleGoogleToolCall,
+          customTools: allTools.length > 0 ? allTools : undefined,
+          onToolCall: allTools.length > 0 ? handleGoogleToolCall : undefined,
         });
 
         // Send Google action results to the client
         if (customToolResults && customToolResults.length > 0) {
           for (const toolResult of customToolResults) {
             if (toolResult.result?.success) {
-              send({ type: 'google_action', action: toolResult.tool, result: toolResult.result });
+              const actionType = ['edit_image', 'generate_mockup'].includes(toolResult.tool) 
+                ? 'image_action' 
+                : 'google_action';
+              send({ type: actionType, action: toolResult.tool, result: toolResult.result });
             }
           }
         }

@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://chunked-upload-2.preview.emergentagent.com/api"
+BASE_URL = "https://edit-ai-tool-1.preview.emergentagent.com/api"
 TEST_EMAIL = "reggie@coolgeek.me"
 TEST_PASSCODE = "testpasscode123"
 

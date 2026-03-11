@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://chunked-upload-2.preview.emergentagent.com"
+BASE_URL = "https://edit-ai-tool-1.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  
