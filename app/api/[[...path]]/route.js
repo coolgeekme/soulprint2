@@ -1057,7 +1057,12 @@ function formatGoogleContextForPrompt(googleContext) {
   contextStr += '- delete_calendar_event: Delete events (need event_id)\n';
   contextStr += '- create_document: Create a Google Doc with text content\n';
   contextStr += '- create_spreadsheet: Create a Google Sheets spreadsheet with data\n';
-  contextStr += 'When the user asks you to send an email, schedule a meeting, draft a document, create a spreadsheet, or manage their calendar, USE THESE TOOLS to actually perform the action.\n';
+  contextStr += '\nBE PROACTIVE: When appropriate, offer to take action for the user:\n';
+  contextStr += '- If you draft or write content (letter, proposal, report, notes), ask: "Would you like me to save this as a Google Doc?"\n';
+  contextStr += '- If discussing a meeting, appointment, or event, ask: "Would you like me to add this to your calendar?"\n';
+  contextStr += '- If you create a list, table, or structured data, ask: "Would you like me to create a spreadsheet with this?"\n';
+  contextStr += '- If discussing communication with someone, ask: "Would you like me to draft an email for you?"\n';
+  contextStr += 'When the user confirms, USE THE TOOLS to actually perform the action.\n';
   
   return contextStr;
 }
@@ -5228,7 +5233,12 @@ async function handleChatStream(request) {
       systemPrompt += '- delete_calendar_event: Delete events\n';
       systemPrompt += '- create_document: Create a Google Doc with text content\n';
       systemPrompt += '- create_spreadsheet: Create a Google Sheets spreadsheet with data\n';
-      systemPrompt += 'If the user asks you to send an email, schedule something, draft a document, create a spreadsheet, or manage their calendar, use these tools to help them.\n';
+      systemPrompt += '\nBE PROACTIVE: When appropriate, offer to take action:\n';
+      systemPrompt += '- If you draft/write content, ask: "Would you like me to save this as a Google Doc?"\n';
+      systemPrompt += '- If discussing meetings/appointments, ask: "Would you like me to add this to your calendar?"\n';
+      systemPrompt += '- If you create lists/tables/data, ask: "Would you like me to create a spreadsheet with this?"\n';
+      systemPrompt += '- If discussing communication, ask: "Would you like me to draft an email?"\n';
+      systemPrompt += 'When the user confirms, USE THE TOOLS to perform the action.\n';
     }
   }
   
