@@ -1591,6 +1591,23 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     const file = files[0];
     const fileSizeMB = file.size / (1024 * 1024);
     
+    console.log(`Processing file: ${file.name}, size: ${fileSizeMB.toFixed(1)} MB`);
+    
+    // For very large files (>200MB), skip client-side processing and use server upload
+    if (fileSizeMB > 200) {
+      console.log('Large file detected, using server-side processing');
+      setImportStatus({ status: 'ready', message: `Large file (${fileSizeMB.toFixed(0)} MB) - will upload to server for processing`, progress: 100 });
+      setDetectedPlatform('Large File');
+      setExtractedData({
+        messages: [],
+        posts: [],
+        messageCount: 0,
+        totalSize: fileSizeMB,
+        useServerFallback: true
+      });
+      return;
+    }
+    
     setImportStatus({ status: 'extracting', message: `Reading ${file.name}...`, progress: 10 });
     
     try {
@@ -1598,7 +1615,28 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       const JSZip = (await import('jszip')).default;
       
       setImportStatus({ status: 'extracting', message: 'Opening ZIP file...', progress: 20 });
-      const zip = await JSZip.loadAsync(file);
+      
+      let zip;
+      try {
+        zip = await Promise.race([
+          JSZip.loadAsync(file),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 60000))
+        ]);
+      } catch (loadErr) {
+        console.error('ZIP load failed:', loadErr);
+        // Fallback to server processing
+        setImportStatus({ status: 'ready', message: 'File too complex for browser - will upload to server', progress: 100 });
+        setDetectedPlatform('Server Processing');
+        setExtractedData({
+          messages: [],
+          posts: [],
+          messageCount: 0,
+          totalSize: fileSizeMB,
+          useServerFallback: true
+        });
+        return;
+      }
+      
       const allFiles = Object.keys(zip.files);
       
       setImportStatus({ status: 'extracting', message: `Found ${allFiles.length} files, analyzing...`, progress: 30 });
@@ -1606,31 +1644,43 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       let messages = [];
       let platform = 'Unknown';
       
-      // Check for ChatGPT format
+      // Check for ChatGPT format (single file OR split files)
       const chatgptFile = allFiles.find(f => f.endsWith('conversations.json'));
-      if (chatgptFile) {
+      const splitChatgptFiles = allFiles.filter(f => /conversations-\d+\.json$/.test(f)).sort();
+      
+      if (chatgptFile || splitChatgptFiles.length > 0) {
         platform = 'ChatGPT';
-        setImportStatus({ status: 'extracting', message: 'Detected ChatGPT export, reading...', progress: 40 });
+        const filesToProcess = chatgptFile ? [chatgptFile] : splitChatgptFiles;
+        setImportStatus({ status: 'extracting', message: `Detected ChatGPT export, reading ${filesToProcess.length} file(s)...`, progress: 40 });
         
-        const content = await zip.file(chatgptFile).async('string');
-        const conversations = JSON.parse(content);
-        const convArray = Array.isArray(conversations) ? conversations : [conversations];
-        
-        setImportStatus({ status: 'extracting', message: `Processing ${convArray.length} conversations...`, progress: 50 });
-        
-        for (const conv of convArray) {
-          if (conv.mapping) {
-            for (const nodeId in conv.mapping) {
-              const node = conv.mapping[nodeId];
-              const msg = node?.message;
-              if (msg?.content?.parts?.[0] && (msg.author?.role === 'user' || msg.author?.role === 'assistant')) {
-                messages.push({
-                  role: msg.author.role,
-                  content: msg.content.parts.join('\n').slice(0, 2000),
-                  timestamp: msg.create_time ? new Date(msg.create_time * 1000) : new Date()
-                });
+        let fileIndex = 0;
+        for (const convFile of filesToProcess) {
+          fileIndex++;
+          const progressPct = 40 + Math.floor((fileIndex / filesToProcess.length) * 40);
+          setImportStatus({ status: 'extracting', message: `Processing file ${fileIndex}/${filesToProcess.length}...`, progress: progressPct });
+          
+          try {
+            const content = await zip.file(convFile).async('string');
+            const conversations = JSON.parse(content);
+            const convArray = Array.isArray(conversations) ? conversations : [conversations];
+            
+            for (const conv of convArray) {
+              if (conv.mapping) {
+                for (const nodeId in conv.mapping) {
+                  const node = conv.mapping[nodeId];
+                  const msg = node?.message;
+                  if (msg?.content?.parts?.[0] && (msg.author?.role === 'user' || msg.author?.role === 'assistant')) {
+                    messages.push({
+                      role: msg.author.role,
+                      content: msg.content.parts.join('\n').slice(0, 2000),
+                      timestamp: msg.create_time ? new Date(msg.create_time * 1000) : new Date()
+                    });
+                  }
+                }
               }
             }
+          } catch (parseErr) {
+            console.error(`Error parsing ${convFile}:`, parseErr);
           }
         }
       }
