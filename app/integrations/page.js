@@ -83,19 +83,25 @@ export default function IntegrationsPage() {
   };
 
   const connectGoogle = async () => {
+    console.log('connectGoogle clicked, token exists:', !!token);
     setConnecting(true);
     try {
+      console.log('Making request to /api/auth/google...');
       const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
+      console.log('Response status:', res.status);
       const data = await res.json();
+      console.log('Response data:', data);
       if (data.authUrl) {
+        console.log('Redirecting to:', data.authUrl);
         window.location.href = data.authUrl;
       } else {
         setNotification({ type: 'error', message: 'Failed to get auth URL' });
       }
     } catch (err) {
+      console.error('Connect Google error:', err);
       setNotification({ type: 'error', message: err.message });
     } finally {
       setConnecting(false);
