@@ -237,7 +237,7 @@ Be extremely detailed in the prompt - the goal is to be able to recreate this ex
   }
 }
 
-// Edit an image using OpenAI's image generation with edit capabilities
+// Edit an image using OpenAI's image edit API (inpainting)
 async function handleImageEdit(request) {
   try {
     const user = await authenticate(request);
@@ -246,7 +246,7 @@ async function handleImageEdit(request) {
     }
     
     const body = await request.json();
-    const { image, mask, prompt } = body;
+    const { image, mask, prompt, editMode } = body;
     
     if (!image || !prompt) {
       return NextResponse.json({ error: 'Image and prompt are required' }, { status: 400 });
@@ -258,14 +258,15 @@ async function handleImageEdit(request) {
     }
     
     console.log('[ImageEdit] Starting image edit with prompt:', prompt.substring(0, 100));
+    console.log('[ImageEdit] Edit mode:', editMode || 'standard');
+    console.log('[ImageEdit] Has mask:', !!mask);
     
     // Determine the MIME type
     const mimeType = image.mimeType || 'image/png';
     
-    // First, we need to get the original image as base64 if it's a URL
+    // Get the image as base64
     let imageBase64 = image.base64;
     if (!imageBase64 && image.url) {
-      // Fetch the image from URL
       try {
         const imgResponse = await fetch(image.url);
         if (!imgResponse.ok) throw new Error('Failed to fetch image');
@@ -277,18 +278,61 @@ async function handleImageEdit(request) {
       }
     }
     
-    // Create a detailed edit prompt that maintains consistency
-    const editPrompt = `Edit the following image as described. Keep all other elements exactly the same - maintain consistency in the subject's appearance, style, colors, and composition. Only make the specific change requested.
-
-EDIT REQUEST: ${prompt}
-
-Be precise and maintain the original image's characteristics as much as possible while applying the requested change.`;
-
-    // Use GPT-4o for image editing through a multi-step process:
-    // 1. First, generate a new image based on the original with the edit
-    // We'll use the image-to-text-to-image approach for better consistency
+    // Convert base64 to Buffer for the API
+    const imageBuffer = Buffer.from(imageBase64, 'base64');
     
-    // Step 1: Analyze the original image to get a detailed description
+    // If we have a mask (user painted areas to edit), use inpainting approach
+    if (mask) {
+      console.log('[ImageEdit] Using mask-based inpainting');
+      
+      // Extract base64 from data URL if present
+      let maskBase64 = mask;
+      if (mask.startsWith('data:')) {
+        maskBase64 = mask.split(',')[1];
+      }
+      const maskBuffer = Buffer.from(maskBase64, 'base64');
+      
+      // Use OpenAI's edit endpoint with the mask
+      const FormData = (await import('form-data')).default;
+      const formData = new FormData();
+      formData.append('image', imageBuffer, { filename: 'image.png', contentType: 'image/png' });
+      formData.append('mask', maskBuffer, { filename: 'mask.png', contentType: 'image/png' });
+      formData.append('prompt', prompt);
+      formData.append('model', 'dall-e-2'); // DALL-E 2 supports edits with masks
+      formData.append('n', '1');
+      formData.append('size', '1024x1024');
+      
+      const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          ...formData.getHeaders(),
+        },
+        body: formData,
+      });
+      
+      if (!editResponse.ok) {
+        const err = await editResponse.json().catch(() => ({}));
+        console.error('[ImageEdit] Edit API failed:', err);
+        // Fall back to generation approach if edit fails
+        console.log('[ImageEdit] Falling back to generation approach');
+      } else {
+        const editData = await editResponse.json();
+        if (editData.data?.[0]?.url) {
+          console.log('[ImageEdit] Mask-based edit successful');
+          return NextResponse.json({
+            url: editData.data[0].url,
+            method: 'inpainting',
+            originalPrompt: prompt,
+          });
+        }
+      }
+    }
+    
+    // Fallback: Use GPT-4o analysis + DALL-E 3 generation for better consistency
+    console.log('[ImageEdit] Using analysis + generation approach');
+    
+    // Step 1: Analyze the original image and create an edit-aware prompt
     const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -299,11 +343,26 @@ Be precise and maintain the original image's characteristics as much as possible
         model: 'gpt-4o',
         messages: [
           {
+            role: 'system',
+            content: `You are an expert at describing images for recreation. Your task is to create a detailed prompt that would recreate the given image WITH a specific modification. Be extremely precise about visual details to maintain consistency.`
+          },
+          {
             role: 'user',
             content: [
               { 
                 type: 'text', 
-                text: `Describe this image in extreme detail for image recreation. Include: subject appearance (exact details like hair color, skin tone, facial features, clothing), pose, expression, background, lighting, style, colors, composition. Then describe how it would look with this edit applied: "${prompt}". Output ONLY a single detailed prompt (no explanations) that would recreate the image with the edit applied.` 
+                text: `Analyze this image and create a single detailed prompt that would recreate it with this edit: "${prompt}"
+
+Include in your prompt:
+- Exact subject details (appearance, clothing, pose, expression)
+- Specific colors and materials
+- Background and setting
+- Lighting and atmosphere
+- Art style/photographic style
+- Composition and framing
+
+Apply the requested edit naturally while keeping everything else identical.
+Output ONLY the prompt, no explanations.` 
               },
               {
                 type: 'image_url',
@@ -316,23 +375,22 @@ Be precise and maintain the original image's characteristics as much as possible
           }
         ],
         max_tokens: 1000,
-        temperature: 0.3,
+        temperature: 0.2,
       }),
     });
     
     if (!analysisResponse.ok) {
       const err = await analysisResponse.json().catch(() => ({}));
       console.error('[ImageEdit] Analysis failed:', err);
-      const errorMsg = err.error?.message || 'Failed to analyze image for editing';
-      return NextResponse.json({ error: errorMsg }, { status: 500 });
+      return NextResponse.json({ error: err.error?.message || 'Failed to analyze image' }, { status: 500 });
     }
     
     const analysisData = await analysisResponse.json();
     const editedPrompt = analysisData.choices?.[0]?.message?.content || '';
     
-    console.log('[ImageEdit] Generated edit prompt:', editedPrompt.substring(0, 200));
+    console.log('[ImageEdit] Generated prompt:', editedPrompt.substring(0, 200));
     
-    // Step 2: Generate the edited image using DALL-E 3
+    // Step 2: Generate the edited image
     const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: {
@@ -366,12 +424,135 @@ Be precise and maintain the original image's characteristics as much as possible
     
     return NextResponse.json({
       url: editedImageUrl,
+      method: 'generation',
       prompt: editedPrompt,
       originalPrompt: prompt,
     });
   } catch (err) {
     console.error('[ImageEdit] Error:', err);
     return NextResponse.json({ error: err.message || 'Failed to edit image' }, { status: 500 });
+  }
+}
+
+// Generate product mockup with user's design
+async function handleMockupGenerate(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const body = await request.json();
+    const { design, product, isCustom, position, size } = body;
+    
+    if (!design?.base64 || !product) {
+      return NextResponse.json({ error: 'Design and product are required' }, { status: 400 });
+    }
+    
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    }
+    
+    console.log('[Mockup] Generating mockup for product:', product);
+    
+    const mimeType = design.mimeType || 'image/png';
+    
+    // Analyze the design to understand what it is
+    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an expert at creating product mockup descriptions. Your task is to create a detailed prompt for generating a photorealistic product mockup that displays a given design/logo.`
+          },
+          {
+            role: 'user',
+            content: [
+              { 
+                type: 'text', 
+                text: `Analyze this design/logo and create a detailed prompt for a DALL-E image that shows this exact design placed on a ${product}.
+
+Requirements:
+1. The mockup should be photorealistic and professional
+2. The design should be clearly visible and prominently displayed on the product
+3. Include appropriate lighting, shadows, and product context
+4. The design's colors, shapes, and details must be preserved exactly
+
+Output ONLY the prompt, no explanations. Make it detailed enough to recreate the design accurately on the product.` 
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${design.base64}`,
+                  detail: 'high'
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 800,
+        temperature: 0.3,
+      }),
+    });
+    
+    if (!analysisResponse.ok) {
+      const err = await analysisResponse.json().catch(() => ({}));
+      console.error('[Mockup] Analysis failed:', err);
+      return NextResponse.json({ error: err.error?.message || 'Failed to analyze design' }, { status: 500 });
+    }
+    
+    const analysisData = await analysisResponse.json();
+    const mockupPrompt = analysisData.choices?.[0]?.message?.content || '';
+    
+    console.log('[Mockup] Generated prompt:', mockupPrompt.substring(0, 200));
+    
+    // Generate the mockup image
+    const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: mockupPrompt,
+        n: 1,
+        size: '1024x1024',
+        quality: 'hd',
+        style: 'natural',
+      }),
+    });
+    
+    if (!generateResponse.ok) {
+      const err = await generateResponse.json().catch(() => ({}));
+      console.error('[Mockup] Generation failed:', err);
+      return NextResponse.json({ error: err.error?.message || 'Failed to generate mockup' }, { status: 500 });
+    }
+    
+    const generateData = await generateResponse.json();
+    const mockupUrl = generateData.data?.[0]?.url;
+    
+    if (!mockupUrl) {
+      return NextResponse.json({ error: 'No mockup generated' }, { status: 500 });
+    }
+    
+    console.log('[Mockup] Successfully generated mockup');
+    
+    return NextResponse.json({
+      url: mockupUrl,
+      product,
+      prompt: mockupPrompt,
+    });
+  } catch (err) {
+    console.error('[Mockup] Error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to generate mockup' }, { status: 500 });
   }
 }
 
@@ -18859,6 +19040,9 @@ export async function POST(request, { params }) {
     if (pathStr === 'google/gmail/send') return handleGmailSend(request);
     if (pathStr === 'google/calendar/events') return handleCalendarCreate(request);
     if (pathStr === 'google/drive/search') return handleDriveSearch(request);
+    
+    // Mockup generation
+    if (pathStr === 'mockup/generate') return handleMockupGenerate(request);
 
     return err('Not found', 404);
   } catch (error) {
