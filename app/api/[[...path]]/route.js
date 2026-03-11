@@ -165,6 +165,10 @@ function getGoogleAuthUrl(redirectUri, state) {
 
 // Exchange code for tokens
 async function exchangeGoogleCode(code, redirectUri) {
+  console.log('Token exchange - redirect_uri:', redirectUri);
+  console.log('Token exchange - client_id:', GOOGLE_CLIENT_ID?.substring(0, 20) + '...');
+  console.log('Token exchange - client_secret exists:', !!GOOGLE_CLIENT_SECRET);
+  
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
