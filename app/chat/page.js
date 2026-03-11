@@ -3351,6 +3351,13 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     }
   }, [activeTab, token, memoriesLoaded, memoriesLoading]);
 
+  // Auto-load invites when invites tab is opened
+  useEffect(() => {
+    if (activeTab === 'invites' && token && !invitesData && !invitesLoading) {
+      loadInvitesData();
+    }
+  }, [activeTab, token, invitesData, invitesLoading]);
+
   const addMemory = async () => {
     if (!newMemory.trim()) return;
     try {
@@ -3375,7 +3382,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     } catch (e) {}
   };
 
-  const tabs = ['soulprint', 'imports', 'integrations', 'telegram', 'schedules', 'memories', 'announcements', 'profile', 'privacy', 'appearance', 'feedback'];
+  const tabs = ['soulprint', 'imports', 'integrations', 'telegram', 'schedules', 'memories', 'invites', 'announcements', 'profile', 'privacy', 'appearance', 'feedback'];
 
   // SoulPrint data
   const [soulPrintData, setSoulPrintData] = useState(null);
@@ -3387,6 +3394,31 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
   // All announcements state (for viewing in settings)
   const [allAnnouncements, setAllAnnouncements] = useState([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+
+  // Invites state
+  const [invitesData, setInvitesData] = useState(null);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
+
+  const loadInvitesData = async () => {
+    setInvitesLoading(true);
+    try {
+      const res = await fetch('/api/invites', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setInvitesData(data);
+    } catch (e) {
+      console.error('Failed to load invites:', e);
+    }
+    setInvitesLoading(false);
+  };
+
+  const copyInviteLink = () => {
+    if (!invitesData?.invite_code) return;
+    const link = `${window.location.origin}/invite/${invitesData.invite_code}`;
+    navigator.clipboard.writeText(link);
+    setInviteLinkCopied(true);
+    setTimeout(() => setInviteLinkCopied(false), 2000);
+  };
 
   const loadAllAnnouncements = async () => {
     setAnnouncementsLoading(true);
@@ -3481,7 +3513,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
             {tabs.map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className={`px-2 py-2 text-[9px] sm:text-[10px] font-semibold tracking-wide uppercase transition-colors rounded-lg text-center ${activeTab === tab ? 'text-orange-500 bg-orange-500/10 border border-orange-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent'}`}>
-                <span className="block text-sm mb-0.5">{tab === 'soulprint' ? '🪪' : tab === 'imports' ? '📥' : tab === 'integrations' ? '🔗' : tab === 'telegram' ? '💬' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'announcements' ? '📢' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : tab === 'appearance' ? '🎨' : '📝'}</span>
+                <span className="block text-sm mb-0.5">{tab === 'soulprint' ? '🪪' : tab === 'imports' ? '📥' : tab === 'integrations' ? '🔗' : tab === 'telegram' ? '💬' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'invites' ? '🎁' : tab === 'announcements' ? '📢' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : tab === 'appearance' ? '🎨' : '📝'}</span>
                 {tab}
               </button>
             ))}
@@ -4436,6 +4468,144 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   <Loader2 className="w-6 h-6 text-blue-400 animate-spin mx-auto mb-2" />
                   <p className="text-gray-400 text-sm">Loading your memories...</p>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* INVITES TAB */}
+          {activeTab === 'invites' && (
+            <div className="space-y-5">
+              {invitesLoading ? (
+                <div className="text-center py-8">
+                  <Loader2 className="w-6 h-6 text-orange-400 animate-spin mx-auto mb-2" />
+                  <p className="text-gray-400 text-sm">Loading your invites...</p>
+                </div>
+              ) : !invitesData?.enabled ? (
+                <div className="text-center py-8 bg-white/5 border border-white/10 rounded-xl">
+                  <span className="text-3xl mb-3 block">🔒</span>
+                  <h4 className="text-white text-sm font-medium mb-2">Invites Coming Soon</h4>
+                  <p className="text-gray-500 text-xs">The invite system is not currently active.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Invite Stats */}
+                  <div className="bg-gradient-to-r from-orange-500/10 to-purple-500/10 border border-orange-500/20 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-white text-sm font-medium">🎁 Invite Friends to SoulPrint</h4>
+                      <div className="flex items-center gap-1.5 px-2 py-1 bg-orange-500/20 rounded-lg">
+                        <span className="text-orange-400 text-xs font-bold">{invitesData?.invites_remaining ?? 0}</span>
+                        <span className="text-orange-400/70 text-[10px]">left</span>
+                      </div>
+                    </div>
+                    <p className="text-gray-400 text-xs">
+                      Share your unique invite link with friends. They'll get instant access, and you'll earn badges!
+                    </p>
+                  </div>
+
+                  {/* Invite Code & Link */}
+                  <div className="bg-[#0d1117] border border-white/10 rounded-xl p-4 space-y-3">
+                    <div>
+                      <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2 block">Your Invite Code</label>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-orange-400 font-mono text-lg tracking-wider text-center">
+                          {invitesData?.invite_code || '--------'}
+                        </code>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-2 block">Shareable Link</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={invitesData?.invite_code ? `${window.location.origin}/invite/${invitesData.invite_code}` : ''}
+                          className="flex-1 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-gray-300 text-sm truncate"
+                        />
+                        <button
+                          onClick={copyInviteLink}
+                          className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+                            inviteLinkCopied 
+                              ? 'bg-green-500/20 border border-green-500/30 text-green-400' 
+                              : 'bg-orange-500 hover:bg-orange-600 text-white'
+                          }`}
+                        >
+                          {inviteLinkCopied ? (
+                            <><Check className="w-4 h-4" /> Copied!</>
+                          ) : (
+                            <><Copy className="w-4 h-4" /> Copy</>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Badges */}
+                  {invitesData?.all_badges?.length > 0 && (
+                    <div>
+                      <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-3 block">Invite Badges</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {invitesData.all_badges.map(badge => {
+                          const earned = invitesData.badges?.some(b => b.id === badge.id);
+                          return (
+                            <div 
+                              key={badge.id}
+                              className={`p-3 rounded-xl border ${
+                                earned 
+                                  ? 'bg-orange-500/10 border-orange-500/30' 
+                                  : 'bg-white/3 border-white/10 opacity-50'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-lg">{badge.icon}</span>
+                                <span className={`text-xs font-medium ${earned ? 'text-orange-400' : 'text-gray-500'}`}>
+                                  {badge.name}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-gray-500">{badge.description}</p>
+                              {!earned && (
+                                <p className="text-[9px] text-gray-600 mt-1">Invite {badge.threshold} friend{badge.threshold > 1 ? 's' : ''} to unlock</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Invited Users */}
+                  {invitesData?.invited_users?.length > 0 && (
+                    <div>
+                      <label className="text-gray-500 text-[10px] font-bold tracking-widest uppercase mb-3 block">
+                        Friends You've Invited ({invitesData.invites_used || 0})
+                      </label>
+                      <div className="space-y-2">
+                        {invitesData.invited_users.map((user, idx) => (
+                          <div key={idx} className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
+                            <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                              <Check className="w-4 h-4 text-green-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-sm truncate">{user.email}</p>
+                              <p className="text-gray-500 text-[10px]">
+                                Joined {new Date(user.joined_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Who invited you */}
+                  {invitesData?.invited_by && (
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-4">
+                      <p className="text-purple-400 text-xs">
+                        <span className="text-purple-300 font-medium">{invitesData.invited_by.name}</span> invited you to SoulPrint ✨
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
