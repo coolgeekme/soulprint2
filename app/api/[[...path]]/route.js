@@ -325,12 +325,30 @@ async function handleGoogleAuthCallback(request) {
     // Get user info from Google
     const userInfo = await googleApiCall(tokens.access_token, '/oauth2/v2/userinfo');
     
-    // Store connection in database
+    // Store connection in database - use composite key of user_id + google_id to allow multiple accounts
     const db = await getDb();
+    const connectionId = `${userId}_${userInfo.id}`;
+    
+    // Fetch available calendars for this account
+    let calendars = [];
+    try {
+      const calendarList = await googleApiCall(tokens.access_token, '/calendar/v3/users/me/calendarList');
+      calendars = (calendarList.items || []).map(cal => ({
+        id: cal.id,
+        summary: cal.summary,
+        primary: cal.primary || false,
+        backgroundColor: cal.backgroundColor,
+        selected: cal.primary || false // Default: only primary calendar selected
+      }));
+    } catch (e) {
+      console.error('Failed to fetch calendars:', e);
+    }
+    
     await db.collection('google_connections').updateOne(
-      { user_id: userId },
+      { connection_id: connectionId },
       {
         $set: {
+          connection_id: connectionId,
           user_id: userId,
           google_id: userInfo.id,
           email: userInfo.email,
@@ -340,12 +358,23 @@ async function handleGoogleAuthCallback(request) {
           refresh_token: tokens.refresh_token || null,
           expires_at: new Date(Date.now() + tokens.expires_in * 1000),
           scopes: GOOGLE_SCOPES.split(' '),
+          calendars: calendars,
+          is_default: false, // Will be set to true if this is the first account
           connected_at: new Date(),
           updated_at: new Date()
         }
       },
       { upsert: true }
     );
+    
+    // If this is the first account, make it the default
+    const accountCount = await db.collection('google_connections').countDocuments({ user_id: userId });
+    if (accountCount === 1) {
+      await db.collection('google_connections').updateOne(
+        { connection_id: connectionId },
+        { $set: { is_default: true } }
+      );
+    }
     
     return NextResponse.redirect(`${baseUrl}/integrations?google=connected`);
   } catch (err) {
@@ -358,30 +387,42 @@ async function handleGoogleAuthCallback(request) {
   }
 }
 
-// Handler: Get Google connection status
+// Handler: Get Google connection status (returns all connected accounts)
 async function handleGoogleStatus(request) {
   try {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
     const db = await getDb();
-    const connection = await db.collection('google_connections').findOne({ user_id: user.id });
+    const connections = await db.collection('google_connections').find({ user_id: user.id }).toArray();
     
-    if (!connection) {
-      return NextResponse.json({ connected: false });
+    if (!connections || connections.length === 0) {
+      return NextResponse.json({ connected: false, accounts: [] });
     }
+    
+    const accounts = connections.map(conn => ({
+      connectionId: conn.connection_id,
+      googleId: conn.google_id,
+      email: conn.email,
+      name: conn.name,
+      picture: conn.picture,
+      connectedAt: conn.connected_at,
+      isDefault: conn.is_default || false,
+      calendars: conn.calendars || [],
+      services: {
+        gmail: conn.scopes?.some(s => s.includes('gmail')) || false,
+        calendar: conn.scopes?.some(s => s.includes('calendar')) || false,
+        drive: conn.scopes?.some(s => s.includes('drive')) || false
+      }
+    }));
     
     return NextResponse.json({
       connected: true,
-      email: connection.email,
-      name: connection.name,
-      picture: connection.picture,
-      connectedAt: connection.connected_at,
-      services: {
-        gmail: connection.scopes?.some(s => s.includes('gmail')) || false,
-        calendar: connection.scopes?.some(s => s.includes('calendar')) || false,
-        drive: connection.scopes?.some(s => s.includes('drive')) || false
-      }
+      accounts,
+      // Keep backward compatibility
+      email: accounts.find(a => a.isDefault)?.email || accounts[0]?.email,
+      name: accounts.find(a => a.isDefault)?.name || accounts[0]?.name,
+      picture: accounts.find(a => a.isDefault)?.picture || accounts[0]?.picture
     });
   } catch (err) {
     console.error('Google status error:', err);
@@ -389,31 +430,211 @@ async function handleGoogleStatus(request) {
   }
 }
 
-// Handler: Disconnect Google
+// Handler: Disconnect Google (specific account or all)
 async function handleGoogleDisconnect(request) {
   try {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
+    const { connectionId } = await request.json().catch(() => ({}));
     const db = await getDb();
     
-    // Get connection to revoke token
-    const connection = await db.collection('google_connections').findOne({ user_id: user.id });
-    if (connection?.access_token) {
-      // Revoke token at Google
-      await fetch(`https://oauth2.googleapis.com/revoke?token=${connection.access_token}`, {
-        method: 'POST'
-      }).catch(() => {}); // Ignore revoke errors
+    if (connectionId) {
+      // Disconnect specific account
+      const connection = await db.collection('google_connections').findOne({ 
+        connection_id: connectionId, 
+        user_id: user.id 
+      });
+      
+      if (connection?.access_token) {
+        await fetch(`https://oauth2.googleapis.com/revoke?token=${connection.access_token}`, {
+          method: 'POST'
+        }).catch(() => {});
+      }
+      
+      await db.collection('google_connections').deleteOne({ connection_id: connectionId });
+      
+      // If this was the default, make another account the default
+      if (connection?.is_default) {
+        const remaining = await db.collection('google_connections').findOne({ user_id: user.id });
+        if (remaining) {
+          await db.collection('google_connections').updateOne(
+            { connection_id: remaining.connection_id },
+            { $set: { is_default: true } }
+          );
+        }
+      }
+    } else {
+      // Disconnect all accounts
+      const connections = await db.collection('google_connections').find({ user_id: user.id }).toArray();
+      for (const conn of connections) {
+        if (conn.access_token) {
+          await fetch(`https://oauth2.googleapis.com/revoke?token=${conn.access_token}`, {
+            method: 'POST'
+          }).catch(() => {});
+        }
+      }
+      await db.collection('google_connections').deleteMany({ user_id: user.id });
     }
-    
-    // Delete connection
-    await db.collection('google_connections').deleteOne({ user_id: user.id });
     
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('Google disconnect error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+}
+
+// Handler: Set default Google account
+async function handleGoogleSetDefault(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    const { connectionId } = await request.json();
+    if (!connectionId) return NextResponse.json({ error: 'connectionId required' }, { status: 400 });
+    
+    const db = await getDb();
+    
+    // Remove default from all accounts
+    await db.collection('google_connections').updateMany(
+      { user_id: user.id },
+      { $set: { is_default: false } }
+    );
+    
+    // Set new default
+    await db.collection('google_connections').updateOne(
+      { connection_id: connectionId, user_id: user.id },
+      { $set: { is_default: true } }
+    );
+    
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('Set default error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// Handler: Update calendar selection for an account
+async function handleGoogleUpdateCalendars(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    const { connectionId, calendars } = await request.json();
+    if (!connectionId || !calendars) {
+      return NextResponse.json({ error: 'connectionId and calendars required' }, { status: 400 });
+    }
+    
+    const db = await getDb();
+    
+    // Get current connection
+    const connection = await db.collection('google_connections').findOne({
+      connection_id: connectionId,
+      user_id: user.id
+    });
+    
+    if (!connection) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
+    }
+    
+    // Update the selected status for each calendar
+    const updatedCalendars = connection.calendars.map(cal => ({
+      ...cal,
+      selected: calendars.find(c => c.id === cal.id)?.selected ?? cal.selected
+    }));
+    
+    await db.collection('google_connections').updateOne(
+      { connection_id: connectionId },
+      { $set: { calendars: updatedCalendars, updated_at: new Date() } }
+    );
+    
+    return NextResponse.json({ success: true, calendars: updatedCalendars });
+  } catch (err) {
+    console.error('Update calendars error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// Handler: Refresh calendars list for an account
+async function handleGoogleRefreshCalendars(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    const { connectionId } = await request.json();
+    if (!connectionId) return NextResponse.json({ error: 'connectionId required' }, { status: 400 });
+    
+    const db = await getDb();
+    const connection = await db.collection('google_connections').findOne({
+      connection_id: connectionId,
+      user_id: user.id
+    });
+    
+    if (!connection) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
+    }
+    
+    const accessToken = await getValidGoogleTokenForConnection(connection);
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Failed to get valid token' }, { status: 401 });
+    }
+    
+    const calendarList = await googleApiCall(accessToken, '/calendar/v3/users/me/calendarList');
+    
+    // Preserve existing selection state
+    const existingSelections = {};
+    (connection.calendars || []).forEach(cal => {
+      existingSelections[cal.id] = cal.selected;
+    });
+    
+    const calendars = (calendarList.items || []).map(cal => ({
+      id: cal.id,
+      summary: cal.summary,
+      primary: cal.primary || false,
+      backgroundColor: cal.backgroundColor,
+      selected: existingSelections[cal.id] ?? cal.primary ?? false
+    }));
+    
+    await db.collection('google_connections').updateOne(
+      { connection_id: connectionId },
+      { $set: { calendars, updated_at: new Date() } }
+    );
+    
+    return NextResponse.json({ success: true, calendars });
+  } catch (err) {
+    console.error('Refresh calendars error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// Get valid token for a specific connection
+async function getValidGoogleTokenForConnection(connection) {
+  const isExpired = new Date(connection.expires_at) < new Date(Date.now() + 5 * 60 * 1000);
+  
+  if (isExpired && connection.refresh_token) {
+    try {
+      const tokens = await refreshGoogleToken(connection.refresh_token);
+      if (tokens.access_token) {
+        const db = await getDb();
+        await db.collection('google_connections').updateOne(
+          { connection_id: connection.connection_id },
+          { 
+            $set: { 
+              access_token: tokens.access_token,
+              expires_at: new Date(Date.now() + tokens.expires_in * 1000),
+              updated_at: new Date()
+            }
+          }
+        );
+        return tokens.access_token;
+      }
+    } catch (err) {
+      console.error('Token refresh failed:', err);
+      return null;
+    }
+  }
+  
+  return connection.access_token;
 }
 
 // ============================================================
@@ -869,20 +1090,40 @@ function detectGoogleIntent(query) {
   return intents;
 }
 
-// Fetch Google data based on detected intents
+// Fetch Google data based on detected intents (handles multiple accounts)
 async function fetchGoogleContextForChat(userId, query) {
-  const accessToken = await getValidGoogleToken(userId);
-  if (!accessToken) {
+  const db = await getDb();
+  const connections = await db.collection('google_connections').find({ user_id: userId }).toArray();
+  
+  if (!connections || connections.length === 0) {
     return null; // User hasn't connected Google
   }
   
   const intents = detectGoogleIntent(query);
   const context = {
     hasGoogleConnected: true,
+    accounts: connections.map(c => ({
+      email: c.email,
+      name: c.name,
+      isDefault: c.is_default || false,
+      calendars: (c.calendars || []).filter(cal => cal.selected).map(cal => ({
+        id: cal.id,
+        name: cal.summary,
+        primary: cal.primary
+      }))
+    })),
     gmail: null,
     calendar: null,
     drive: null
   };
+  
+  // Use default account or first account for data fetching
+  const primaryConnection = connections.find(c => c.is_default) || connections[0];
+  const accessToken = await getValidGoogleTokenForConnection(primaryConnection);
+  
+  if (!accessToken) {
+    return context; // Return account info even if token is invalid
+  }
   
   try {
     // Fetch Gmail if relevant
@@ -1007,6 +1248,18 @@ function formatGoogleContextForPrompt(googleContext) {
   let contextStr = '\n\n--- USER\'S GOOGLE DATA (Retrieved just now) ---\n';
   let hasData = false;
   
+  // Always show connected accounts
+  if (googleContext.accounts && googleContext.accounts.length > 0) {
+    contextStr += '\n🔗 CONNECTED GOOGLE ACCOUNTS:\n';
+    googleContext.accounts.forEach((acc, i) => {
+      contextStr += `${i + 1}. ${acc.email}${acc.isDefault ? ' (DEFAULT)' : ''}\n`;
+      if (acc.calendars && acc.calendars.length > 0) {
+        contextStr += `   Calendars: ${acc.calendars.map(c => c.primary ? `${c.name} (Primary)` : c.name).join(', ')}\n`;
+      }
+    });
+    contextStr += '\n';
+  }
+  
   if (googleContext.gmail && googleContext.gmail.length > 0) {
     hasData = true;
     contextStr += '\n📧 RECENT EMAILS:\n';
@@ -1044,25 +1297,30 @@ function formatGoogleContextForPrompt(googleContext) {
     });
   }
   
-  if (!hasData) {
+  // Even if no data was fetched, we have account info
+  if (!hasData && (!googleContext.accounts || googleContext.accounts.length === 0)) {
     return '';
   }
   
   contextStr += '\n--- END GOOGLE DATA ---\n';
   contextStr += 'Use the above Google data to answer the user\'s question. Reference specific emails, events, or files as needed.\n';
-  contextStr += '\nIMPORTANT: You have the ability to take actions on behalf of the user:\n';
-  contextStr += '- send_email: Send emails from the user\'s Gmail\n';
-  contextStr += '- create_calendar_event: Create new calendar events\n';
-  contextStr += '- update_calendar_event: Update existing events (need event_id from the data above)\n';
-  contextStr += '- delete_calendar_event: Delete events (need event_id)\n';
-  contextStr += '- create_document: Create a Google Doc with text content\n';
-  contextStr += '- create_spreadsheet: Create a Google Sheets spreadsheet with data\n';
-  contextStr += '\nBE PROACTIVE: When appropriate, offer to take action for the user:\n';
-  contextStr += '- If you draft or write content (letter, proposal, report, notes), ask: "Would you like me to save this as a Google Doc?"\n';
-  contextStr += '- If discussing a meeting, appointment, or event, ask: "Would you like me to add this to your calendar?"\n';
-  contextStr += '- If you create a list, table, or structured data, ask: "Would you like me to create a spreadsheet with this?"\n';
-  contextStr += '- If discussing communication with someone, ask: "Would you like me to draft an email for you?"\n';
-  contextStr += 'When the user confirms, USE THE TOOLS to actually perform the action.\n';
+  contextStr += '\nIMPORTANT - GOOGLE ACTIONS:\n';
+  contextStr += 'You can perform actions on the user\'s Google accounts:\n';
+  contextStr += '- send_email: Send emails (requires account_email)\n';
+  contextStr += '- create_calendar_event: Create calendar events (requires account_email AND calendar_id)\n';
+  contextStr += '- update_calendar_event: Update existing events\n';
+  contextStr += '- delete_calendar_event: Delete events\n';
+  contextStr += '- create_document: Create a Google Doc (requires account_email)\n';
+  contextStr += '- create_spreadsheet: Create a Google Sheet (requires account_email)\n';
+  contextStr += '\n⚠️ CRITICAL: Before taking ANY Google action, you MUST:\n';
+  contextStr += '1. Ask the user which Google account to use (if they have multiple connected)\n';
+  contextStr += '2. For calendar events, ask which calendar to use (e.g., "Primary", "Work", "Personal")\n';
+  contextStr += '3. Only proceed after the user specifies the account and calendar\n';
+  contextStr += '\nBE PROACTIVE: When appropriate, offer to take action:\n';
+  contextStr += '- If you draft content, ask: "Would you like me to save this as a Google Doc? Which account should I use?"\n';
+  contextStr += '- If discussing a meeting, ask: "Would you like me to add this to your calendar? Which account and calendar?"\n';
+  contextStr += '- If you create data/lists, ask: "Would you like me to create a spreadsheet? Which account?"\n';
+  contextStr += '- If discussing communication, ask: "Would you like me to draft an email? Which account should send it?"\n';
   
   return contextStr;
 }
@@ -1077,10 +1335,14 @@ const GOOGLE_TOOLS = [
     type: 'function',
     function: {
       name: 'send_email',
-      description: 'Send an email using the user\'s connected Gmail account. Use this when the user explicitly asks to send, compose, or write an email to someone.',
+      description: 'Send an email using the user\'s connected Gmail account. ALWAYS ask the user which Google account to use before calling this function.',
       parameters: {
         type: 'object',
         properties: {
+          account_email: {
+            type: 'string',
+            description: 'The email address of the Google account to send from (user must specify which account)'
+          },
           to: {
             type: 'string',
             description: 'Email address of the recipient'
@@ -1094,7 +1356,7 @@ const GOOGLE_TOOLS = [
             description: 'The body/content of the email'
           }
         },
-        required: ['to', 'subject', 'body']
+        required: ['account_email', 'to', 'subject', 'body']
       }
     }
   },
@@ -1102,10 +1364,18 @@ const GOOGLE_TOOLS = [
     type: 'function',
     function: {
       name: 'create_calendar_event',
-      description: 'Create a new event on the user\'s Google Calendar. Use this when the user asks to schedule, create, or add a meeting/event/appointment.',
+      description: 'Create a new event on the user\'s Google Calendar. ALWAYS ask the user which Google account AND which calendar to use before calling this function.',
       parameters: {
         type: 'object',
         properties: {
+          account_email: {
+            type: 'string',
+            description: 'The email address of the Google account to use (user must specify which account)'
+          },
+          calendar_id: {
+            type: 'string',
+            description: 'The calendar ID to create the event on (user must specify which calendar, e.g., "primary" or a specific calendar name/ID)'
+          },
           summary: {
             type: 'string',
             description: 'Title/name of the event'
@@ -1132,7 +1402,7 @@ const GOOGLE_TOOLS = [
             description: 'List of email addresses to invite'
           }
         },
-        required: ['summary', 'start', 'end']
+        required: ['account_email', 'calendar_id', 'summary', 'start', 'end']
       }
     }
   },
@@ -1144,6 +1414,14 @@ const GOOGLE_TOOLS = [
       parameters: {
         type: 'object',
         properties: {
+          account_email: {
+            type: 'string',
+            description: 'The email address of the Google account where the event exists'
+          },
+          calendar_id: {
+            type: 'string',
+            description: 'The calendar ID where the event exists'
+          },
           event_id: {
             type: 'string',
             description: 'The ID of the event to update'
@@ -1169,7 +1447,7 @@ const GOOGLE_TOOLS = [
             description: 'New end date/time in ISO 8601 format (optional)'
           }
         },
-        required: ['event_id']
+        required: ['account_email', 'event_id']
       }
     }
   },
@@ -1181,12 +1459,20 @@ const GOOGLE_TOOLS = [
       parameters: {
         type: 'object',
         properties: {
+          account_email: {
+            type: 'string',
+            description: 'The email address of the Google account where the event exists'
+          },
+          calendar_id: {
+            type: 'string',
+            description: 'The calendar ID where the event exists'
+          },
           event_id: {
             type: 'string',
             description: 'The ID of the event to delete'
           }
         },
-        required: ['event_id']
+        required: ['account_email', 'event_id']
       }
     }
   },
@@ -1194,9 +1480,66 @@ const GOOGLE_TOOLS = [
     type: 'function',
     function: {
       name: 'create_document',
-      description: 'Create a new Google Doc in the user\'s Google Drive. Use this when the user asks to draft, write, or create a document, report, memo, letter, or any text document.',
+      description: 'Create a new Google Doc in the user\'s Google Drive. ALWAYS ask the user which Google account to use before calling this function.',
       parameters: {
         type: 'object',
+        properties: {
+          account_email: {
+            type: 'string',
+            description: 'The email address of the Google account to create the document in'
+          },
+          title: {
+            type: 'string',
+            description: 'Title/name of the document'
+          },
+          content: {
+            type: 'string',
+            description: 'The text content to put in the document. Can include formatting with line breaks.'
+          },
+          folder_name: {
+            type: 'string',
+            description: 'Optional folder name to save the document in. If not specified, saves to root of Drive.'
+          }
+        },
+        required: ['account_email', 'title', 'content']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_spreadsheet',
+      description: 'Create a new Google Sheets spreadsheet. ALWAYS ask the user which Google account to use before calling this function.',
+      parameters: {
+        type: 'object',
+        properties: {
+          account_email: {
+            type: 'string',
+            description: 'The email address of the Google account to create the spreadsheet in'
+          },
+          title: {
+            type: 'string',
+            description: 'Title/name of the spreadsheet'
+          },
+          headers: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Column headers for the spreadsheet'
+          },
+          data: {
+            type: 'array',
+            items: {
+              type: 'array',
+              items: { type: 'string' }
+            },
+            description: 'Rows of data (array of arrays, each inner array is a row)'
+          }
+        },
+        required: ['account_email', 'title']
+      }
+    }
+  }
+];
         properties: {
           title: {
             type: 'string',
@@ -1241,17 +1584,53 @@ const GOOGLE_TOOLS = [
             description: 'Rows of data (array of arrays, each inner array is a row)'
           }
         },
-        required: ['title']
+        required: ['account_email', 'title']
       }
     }
   }
 ];
 
+// Helper: Get connection by account email
+async function getConnectionByEmail(userId, accountEmail) {
+  const db = await getDb();
+  const connection = await db.collection('google_connections').findOne({
+    user_id: userId,
+    email: accountEmail
+  });
+  return connection;
+}
+
+// Helper: Get valid token for a specific account
+async function getTokenForAccount(userId, accountEmail) {
+  const connection = await getConnectionByEmail(userId, accountEmail);
+  if (!connection) return null;
+  return await getValidGoogleTokenForConnection(connection);
+}
+
 // Execute Google action based on tool call
 async function executeGoogleAction(userId, toolName, args) {
-  const accessToken = await getValidGoogleToken(userId);
-  if (!accessToken) {
-    return { success: false, error: 'Google account not connected. Please connect your Google account in Settings > Integrations.' };
+  const { account_email } = args;
+  
+  // If no account email specified, try to get default or first account
+  let accessToken;
+  let connectionEmail;
+  
+  if (account_email) {
+    accessToken = await getTokenForAccount(userId, account_email);
+    connectionEmail = account_email;
+    if (!accessToken) {
+      return { success: false, error: `Google account ${account_email} not connected or token expired.` };
+    }
+  } else {
+    // Fallback: get default or first account
+    const db = await getDb();
+    const connection = await db.collection('google_connections').findOne({ user_id: userId, is_default: true }) 
+      || await db.collection('google_connections').findOne({ user_id: userId });
+    if (!connection) {
+      return { success: false, error: 'No Google account connected. Please connect your Google account in Settings > Integrations.' };
+    }
+    accessToken = await getValidGoogleTokenForConnection(connection);
+    connectionEmail = connection.email;
   }
 
   try {
@@ -1259,14 +1638,9 @@ async function executeGoogleAction(userId, toolName, args) {
       case 'send_email': {
         const { to, subject, body } = args;
         
-        // Get sender email
-        const db = await getDb();
-        const connection = await db.collection('google_connections').findOne({ user_id: userId });
-        const from = connection?.email || '';
-        
         // Create RFC 2822 formatted email
         const email = [
-          `From: ${from}`,
+          `From: ${connectionEmail}`,
           `To: ${to}`,
           `Subject: ${subject}`,
           'Content-Type: text/plain; charset=utf-8',
@@ -1293,7 +1667,10 @@ async function executeGoogleAction(userId, toolName, args) {
       }
 
       case 'create_calendar_event': {
-        const { summary, description, location, start, end, attendees } = args;
+        const { calendar_id, summary, description, location, start, end, attendees } = args;
+        
+        // Use specified calendar or default to 'primary'
+        const calendarId = calendar_id || 'primary';
         
         const event = {
           summary,
@@ -1304,7 +1681,7 @@ async function executeGoogleAction(userId, toolName, args) {
           attendees: attendees?.map(email => ({ email })) || []
         };
         
-        const data = await googleApiCall(accessToken, '/calendar/v3/calendars/primary/events', {
+        const data = await googleApiCall(accessToken, `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events`, {
           method: 'POST',
           body: JSON.stringify(event)
         });
@@ -1315,10 +1692,11 @@ async function executeGoogleAction(userId, toolName, args) {
         
         return { 
           success: true, 
-          message: `✅ Calendar event "${summary}" created successfully`,
+          message: `✅ Calendar event "${summary}" created successfully on ${calendarId === 'primary' ? 'your primary calendar' : calendarId}`,
           details: { 
             eventId: data.id, 
             summary: data.summary,
+            calendar: calendarId,
             start: data.start?.dateTime || data.start?.date,
             htmlLink: data.htmlLink 
           }
@@ -1326,7 +1704,9 @@ async function executeGoogleAction(userId, toolName, args) {
       }
 
       case 'update_calendar_event': {
-        const { event_id, summary, description, location, start, end } = args;
+        const { calendar_id, event_id, summary, description, location, start, end } = args;
+        
+        const calendarId = calendar_id || 'primary';
         
         const updates = {};
         if (summary) updates.summary = summary;
@@ -1335,7 +1715,7 @@ async function executeGoogleAction(userId, toolName, args) {
         if (start) updates.start = { dateTime: start, timeZone: 'UTC' };
         if (end) updates.end = { dateTime: end, timeZone: 'UTC' };
         
-        const data = await googleApiCall(accessToken, `/calendar/v3/calendars/primary/events/${event_id}`, {
+        const data = await googleApiCall(accessToken, `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${event_id}`, {
           method: 'PATCH',
           body: JSON.stringify(updates)
         });
@@ -1352,9 +1732,11 @@ async function executeGoogleAction(userId, toolName, args) {
       }
 
       case 'delete_calendar_event': {
-        const { event_id } = args;
+        const { calendar_id, event_id } = args;
         
-        const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${event_id}`, {
+        const calendarId = calendar_id || 'primary';
+        
+        const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${event_id}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${accessToken}` }
         });
@@ -18227,6 +18609,9 @@ export async function POST(request, { params }) {
     // Google OAuth & API routes
     if (pathStr === 'auth/google') return handleGoogleAuthStart(request);
     if (pathStr === 'google/disconnect') return handleGoogleDisconnect(request);
+    if (pathStr === 'google/set-default') return handleGoogleSetDefault(request);
+    if (pathStr === 'google/update-calendars') return handleGoogleUpdateCalendars(request);
+    if (pathStr === 'google/refresh-calendars') return handleGoogleRefreshCalendars(request);
     if (pathStr === 'google/gmail/send') return handleGmailSend(request);
     if (pathStr === 'google/calendar/events') return handleCalendarCreate(request);
     if (pathStr === 'google/drive/search') return handleDriveSearch(request);
