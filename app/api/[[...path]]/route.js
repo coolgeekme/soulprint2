@@ -1055,7 +1055,9 @@ function formatGoogleContextForPrompt(googleContext) {
   contextStr += '- create_calendar_event: Create new calendar events\n';
   contextStr += '- update_calendar_event: Update existing events (need event_id from the data above)\n';
   contextStr += '- delete_calendar_event: Delete events (need event_id)\n';
-  contextStr += 'When the user asks you to send an email, schedule a meeting, or manage their calendar, USE THESE TOOLS to actually perform the action.\n';
+  contextStr += '- create_document: Create a Google Doc with text content\n';
+  contextStr += '- create_spreadsheet: Create a Google Sheets spreadsheet with data\n';
+  contextStr += 'When the user asks you to send an email, schedule a meeting, draft a document, create a spreadsheet, or manage their calendar, USE THESE TOOLS to actually perform the action.\n';
   
   return contextStr;
 }
@@ -1182,6 +1184,61 @@ const GOOGLE_TOOLS = [
         required: ['event_id']
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_document',
+      description: 'Create a new Google Doc in the user\'s Google Drive. Use this when the user asks to draft, write, or create a document, report, memo, letter, or any text document.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Title/name of the document'
+          },
+          content: {
+            type: 'string',
+            description: 'The text content to put in the document. Can include formatting with line breaks.'
+          },
+          folder_name: {
+            type: 'string',
+            description: 'Optional folder name to save the document in. If not specified, saves to root of Drive.'
+          }
+        },
+        required: ['title', 'content']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_spreadsheet',
+      description: 'Create a new Google Sheets spreadsheet. Use this when the user asks to create a spreadsheet, table, or data sheet.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Title/name of the spreadsheet'
+          },
+          headers: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Column headers for the spreadsheet'
+          },
+          data: {
+            type: 'array',
+            items: {
+              type: 'array',
+              items: { type: 'string' }
+            },
+            description: 'Rows of data (array of arrays, each inner array is a row)'
+          }
+        },
+        required: ['title']
+      }
+    }
   }
 ];
 
@@ -1305,6 +1362,133 @@ async function executeGoogleAction(userId, toolName, args) {
         return { 
           success: true, 
           message: `✅ Calendar event deleted successfully`
+        };
+      }
+
+      case 'create_document': {
+        const { title, content, folder_name } = args;
+        
+        // Create a Google Doc using the Docs API
+        // First, create an empty doc
+        const createResponse = await fetch('https://docs.googleapis.com/v1/documents', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ title })
+        });
+        
+        const docData = await createResponse.json();
+        
+        if (docData.error) {
+          return { success: false, error: docData.error.message || 'Failed to create document' };
+        }
+        
+        const documentId = docData.documentId;
+        
+        // Now insert the content
+        if (content) {
+          const updateResponse = await fetch(`https://docs.googleapis.com/v1/documents/${documentId}:batchUpdate`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              requests: [
+                {
+                  insertText: {
+                    location: { index: 1 },
+                    text: content
+                  }
+                }
+              ]
+            })
+          });
+          
+          const updateData = await updateResponse.json();
+          if (updateData.error) {
+            console.error('Failed to insert content:', updateData.error);
+            // Document was created but content failed - still return success
+          }
+        }
+        
+        const docUrl = `https://docs.google.com/document/d/${documentId}/edit`;
+        
+        return { 
+          success: true, 
+          message: `✅ Document "${title}" created successfully`,
+          details: { 
+            documentId,
+            title,
+            url: docUrl
+          }
+        };
+      }
+
+      case 'create_spreadsheet': {
+        const { title, headers, data } = args;
+        
+        // Create spreadsheet using Sheets API
+        const createResponse = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            properties: { title },
+            sheets: [{
+              properties: { title: 'Sheet1' }
+            }]
+          })
+        });
+        
+        const sheetData = await createResponse.json();
+        
+        if (sheetData.error) {
+          return { success: false, error: sheetData.error.message || 'Failed to create spreadsheet' };
+        }
+        
+        const spreadsheetId = sheetData.spreadsheetId;
+        
+        // Add data if provided
+        if (headers || data) {
+          const values = [];
+          if (headers) values.push(headers);
+          if (data) values.push(...data);
+          
+          if (values.length > 0) {
+            const updateResponse = await fetch(
+              `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A1:append?valueInputOption=RAW`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ values })
+              }
+            );
+            
+            const updateData = await updateResponse.json();
+            if (updateData.error) {
+              console.error('Failed to insert data:', updateData.error);
+            }
+          }
+        }
+        
+        const sheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+        
+        return { 
+          success: true, 
+          message: `✅ Spreadsheet "${title}" created successfully`,
+          details: { 
+            spreadsheetId,
+            title,
+            url: sheetUrl
+          }
         };
       }
 
@@ -5042,7 +5226,9 @@ async function handleChatStream(request) {
       systemPrompt += '- create_calendar_event: Create new calendar events\n';
       systemPrompt += '- update_calendar_event: Update existing events\n';
       systemPrompt += '- delete_calendar_event: Delete events\n';
-      systemPrompt += 'If the user asks you to send an email, schedule something, or manage their calendar, use these tools to help them.\n';
+      systemPrompt += '- create_document: Create a Google Doc with text content\n';
+      systemPrompt += '- create_spreadsheet: Create a Google Sheets spreadsheet with data\n';
+      systemPrompt += 'If the user asks you to send an email, schedule something, draft a document, create a spreadsheet, or manage their calendar, use these tools to help them.\n';
     }
   }
   
