@@ -1592,51 +1592,15 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     const fileSizeMB = file.size / (1024 * 1024);
     
     console.log(`Processing file: ${file.name}, size: ${fileSizeMB.toFixed(1)} MB`);
-    
-    // For very large files (>200MB), skip client-side processing and use server upload
-    if (fileSizeMB > 200) {
-      console.log('Large file detected, using server-side processing');
-      setImportStatus({ status: 'ready', message: `Large file (${fileSizeMB.toFixed(0)} MB) - will upload to server for processing`, progress: 100 });
-      setDetectedPlatform('Large File');
-      setExtractedData({
-        messages: [],
-        posts: [],
-        messageCount: 0,
-        totalSize: fileSizeMB,
-        useServerFallback: true
-      });
-      return;
-    }
-    
     setImportStatus({ status: 'extracting', message: `Reading ${file.name}...`, progress: 10 });
     
     try {
-      // === STEP 1: Try client-side extraction (fast, no upload needed) ===
+      // === Try client-side extraction first (fast, no upload needed) ===
       const JSZip = (await import('jszip')).default;
       
       setImportStatus({ status: 'extracting', message: 'Opening ZIP file...', progress: 20 });
       
-      let zip;
-      try {
-        zip = await Promise.race([
-          JSZip.loadAsync(file),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 60000))
-        ]);
-      } catch (loadErr) {
-        console.error('ZIP load failed:', loadErr);
-        // Fallback to server processing
-        setImportStatus({ status: 'ready', message: 'File too complex for browser - will upload to server', progress: 100 });
-        setDetectedPlatform('Server Processing');
-        setExtractedData({
-          messages: [],
-          posts: [],
-          messageCount: 0,
-          totalSize: fileSizeMB,
-          useServerFallback: true
-        });
-        return;
-      }
-      
+      const zip = await JSZip.loadAsync(file);
       const allFiles = Object.keys(zip.files);
       
       setImportStatus({ status: 'extracting', message: `Found ${allFiles.length} files, analyzing...`, progress: 30 });
@@ -1793,9 +1757,24 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       setExtractedData({ messages: [], posts: [], dataSize: 0, serverProcessed: true });
       
     } catch (err) {
-      console.error('Import error:', err);
-      setError(`Import failed: ${err.message}`);
-      setImportStatus(null);
+      console.error('Client-side extraction error:', err);
+      
+      // Offer server fallback for large/complex files
+      const fileSizeMB = file.size / (1024 * 1024);
+      if (fileSizeMB > 50) {
+        setImportStatus({ status: 'ready', message: `Browser processing failed. Will upload to server instead.`, progress: 100 });
+        setDetectedPlatform('Server Processing');
+        setExtractedData({
+          messages: [],
+          posts: [],
+          messageCount: 0,
+          totalSize: fileSizeMB,
+          useServerFallback: true
+        });
+      } else {
+        setError(`Import failed: ${err.message}`);
+        setImportStatus(null);
+      }
     }
   };
 
