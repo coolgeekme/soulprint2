@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://doc-parser-16.preview.emergentagent.com/api"
+BASE_URL = "https://chunked-upload-2.preview.emergentagent.com/api"
 
 def main():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 Complete Conversation API Test (Rename + Delete)")

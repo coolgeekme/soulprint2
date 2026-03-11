@@ -1207,35 +1207,52 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   const getTotalSize = () => selectedFiles.reduce((sum, f) => sum + f.size, 0);
 
   // Upload large file in chunks for server-side processing
-  const uploadLargeFileForImport = async (file, onProgress) => {
-    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for reliability
+  // Upload large files using disk-based chunked upload (more reliable for GB-sized files)
+  const uploadLargeFileForImport = async (file, onProgress, onStatus) => {
+    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks for faster upload
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const MAX_RETRIES = 5;
+    const MAX_RETRIES = 3;
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
     
-    // Step 1: Initialize upload session
-    const initRes = await fetch('/api/data-import/chunked/init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ 
-        filename: file.name, 
-        fileSize: file.size, 
-        totalChunks,
-        source: 'auto-detect'
-      }),
-    });
+    console.log(`[LargeUpload] Starting upload: ${file.name} (${fileSizeMB} MB, ${totalChunks} chunks)`);
+    onStatus?.(`Preparing upload of ${fileSizeMB} MB file...`);
+    
+    // Step 1: Initialize upload session using disk-based storage
+    let initRes;
+    try {
+      initRes = await fetch('/api/imports/chunked/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ 
+          filename: file.name, 
+          fileSize: file.size, 
+          totalChunks,
+          type: 'chatgpt'
+        }),
+      });
+    } catch (networkErr) {
+      console.error('[LargeUpload] Network error during init:', networkErr);
+      throw new Error('Network error. Please check your internet connection and try again.');
+    }
     
     if (!initRes.ok) {
-      const err = await initRes.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to initialize upload');
+      const errData = await initRes.json().catch(() => ({}));
+      console.error('[LargeUpload] Init failed:', errData);
+      throw new Error(errData.error || 'Failed to start upload. Please try again.');
     }
     
     const { uploadId } = await initRes.json();
+    console.log(`[LargeUpload] Upload session created: ${uploadId}`);
+    onProgress(2);
     
     // Step 2: Upload chunks with retry logic
+    let uploadedBytes = 0;
+    
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
+      const chunkSizeMB = ((end - start) / (1024 * 1024)).toFixed(1);
       
       let retries = 0;
       let success = false;
@@ -1248,9 +1265,9 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           formData.append('chunkIndex', i.toString());
           
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+          const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout for large chunks
           
-          const chunkRes = await fetch('/api/data-import/chunked/chunk', {
+          const chunkRes = await fetch('/api/imports/chunked/chunk', {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
             body: formData,
@@ -1261,37 +1278,59 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           
           if (chunkRes.ok) {
             success = true;
+            uploadedBytes += (end - start);
+            const uploadedMB = (uploadedBytes / (1024 * 1024)).toFixed(1);
+            onStatus?.(`Uploaded ${uploadedMB} MB of ${fileSizeMB} MB...`);
           } else {
-            const err = await chunkRes.json().catch(() => ({}));
-            throw new Error(err.error || 'Chunk failed');
+            const errData = await chunkRes.json().catch(() => ({}));
+            throw new Error(errData.error || `Chunk ${i+1} failed`);
           }
         } catch (chunkErr) {
           retries++;
+          console.warn(`[LargeUpload] Chunk ${i+1}/${totalChunks} failed (attempt ${retries}):`, chunkErr.message);
+          
           if (retries < MAX_RETRIES) {
-            await new Promise(r => setTimeout(r, 2000 * retries)); // Exponential backoff
+            const waitTime = 2000 * retries;
+            onStatus?.(`Upload interrupted, retrying in ${waitTime/1000}s...`);
+            await new Promise(r => setTimeout(r, waitTime));
           } else {
-            throw new Error(`Upload failed at ${Math.round((i / totalChunks) * 100)}%. Check your connection and try again.`);
+            const progressPct = Math.round((i / totalChunks) * 100);
+            throw new Error(`Upload failed at ${progressPct}% (${(uploadedBytes / (1024 * 1024)).toFixed(1)} MB uploaded). ${chunkErr.message || 'Please check your connection and try again.'}`);
           }
         }
       }
       
-      onProgress(Math.round(((i + 1) / totalChunks) * 90));
+      // Progress: chunks take 2-85%, processing takes 85-100%
+      const progressPct = 2 + Math.round(((i + 1) / totalChunks) * 83);
+      onProgress(progressPct);
     }
     
-    // Step 3: Complete and process
-    const completeRes = await fetch('/api/data-import/chunked/complete', {
+    console.log(`[LargeUpload] All ${totalChunks} chunks uploaded successfully`);
+    onStatus?.('Processing your data...');
+    onProgress(87);
+    
+    // Step 3: Process the uploaded file
+    const processRes = await fetch('/api/imports/chunked/process-batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ uploadId }),
+      body: JSON.stringify({ 
+        uploads: [{ uploadId, fileName: file.name }],
+        type: 'chatgpt'
+      }),
     });
     
-    if (!completeRes.ok) {
-      const err = await completeRes.json().catch(() => ({}));
-      throw new Error(err.error || 'Processing failed');
+    if (!processRes.ok) {
+      const errData = await processRes.json().catch(() => ({}));
+      console.error('[LargeUpload] Processing failed:', errData);
+      throw new Error(errData.error || 'Processing failed. Your file was uploaded but could not be processed.');
     }
     
-    onProgress(100);
-    return await completeRes.json();
+    const result = await processRes.json();
+    console.log(`[LargeUpload] Processing started:`, result);
+    onProgress(95);
+    
+    // Return the import job ID for status tracking
+    return result;
   };
 
   // Auto-detect platform and extract data from ZIP file
@@ -1590,12 +1629,38 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     
     const file = files[0];
     const fileSizeMB = file.size / (1024 * 1024);
+    const fileSizeGB = fileSizeMB / 1024;
     
     console.log(`Processing file: ${file.name}, size: ${fileSizeMB.toFixed(1)} MB`);
+    
+    // === LARGE FILE DETECTION ===
+    // For files larger than 100MB, skip client-side processing entirely
+    // Browser memory cannot handle loading large ZIPs with JSZip
+    const LARGE_FILE_THRESHOLD_MB = 100;
+    
+    if (fileSizeMB > LARGE_FILE_THRESHOLD_MB) {
+      console.log(`Large file detected (${fileSizeMB.toFixed(1)} MB > ${LARGE_FILE_THRESHOLD_MB} MB), using server-side processing`);
+      setImportStatus({ 
+        status: 'ready', 
+        message: `Large file (${fileSizeGB >= 1 ? fileSizeGB.toFixed(2) + ' GB' : fileSizeMB.toFixed(0) + ' MB'}) ready for upload. Click Import to begin.`, 
+        progress: 100 
+      });
+      setDetectedPlatform('ChatGPT (Server Processing)');
+      setExtractedData({
+        messages: [],
+        posts: [],
+        messageCount: 0,
+        totalSize: fileSizeMB,
+        useServerFallback: true,
+        isLargeFile: true
+      });
+      return;
+    }
+    
     setImportStatus({ status: 'extracting', message: `Reading ${file.name}...`, progress: 10 });
     
     try {
-      // === Try client-side extraction first (fast, no upload needed) ===
+      // === Try client-side extraction (only for files under 100MB) ===
       const JSZip = (await import('jszip')).default;
       
       setImportStatus({ status: 'extracting', message: 'Opening ZIP file...', progress: 20 });
@@ -1792,93 +1857,96 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       
       const file = selectedFiles[0];
       const fileSizeMB = file.size / (1024 * 1024);
+      const fileSizeDisplay = fileSizeMB >= 1024 
+        ? `${(fileSizeMB / 1024).toFixed(2)} GB` 
+        : `${fileSizeMB.toFixed(0)} MB`;
       
-      // For very large files (>100MB), use chunked upload
-      if (fileSizeMB > 100) {
-        setImportStatus({ status: 'uploading', message: 'Large file detected. Using chunked upload...', progress: 5 });
-        
-        try {
-          const result = await uploadLargeFileForImport(file, (progress) => {
-            setImportStatus({ 
-              status: 'uploading', 
-              message: `Uploading: ${progress}%`, 
-              progress: Math.min(progress, 90) 
-            });
-          });
-          
-          setImportStatus({ status: 'completed', message: 'Upload complete! Processing in background...', progress: 100 });
-          setIsImporting(false);
-          setTimeout(() => {
-            setShowImportModal(false);
-          }, 2000);
-        } catch (err) {
-          console.error('Chunked upload error:', err);
-          setError(`Upload failed: ${err.message}`);
-          setIsImporting(false);
-          setImportStatus(null);
-        }
-        return;
-      }
-      
-      // For smaller files, use single upload
-      setImportStatus({ status: 'uploading', message: 'Uploading file to server...', progress: 10 });
+      // For large files, use chunked upload with disk-based storage
+      setImportStatus({ status: 'uploading', message: `Preparing to upload ${fileSizeDisplay}...`, progress: 1 });
       
       try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('type', 'auto');
+        const result = await uploadLargeFileForImport(
+          file, 
+          (progress) => {
+            // Progress callback
+            setImportStatus(prev => ({ 
+              ...prev, 
+              progress: Math.min(progress, 99) 
+            }));
+          },
+          (statusMessage) => {
+            // Status message callback
+            setImportStatus(prev => ({ 
+              ...prev, 
+              message: statusMessage 
+            }));
+          }
+        );
         
-        const res = await fetch('/api/imports/upload', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
-        
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Upload failed');
-        
-        setImportStatus({ status: 'processing', message: 'Processing your data...', progress: 40 });
-        
-        // Poll for completion
-        if (data.jobId) {
-          const poll = async (polls = 0) => {
-            if (polls > 120) {
-              setImportStatus({ status: 'completed', message: 'Processing in background. Check back later!', progress: 100 });
+        // Check if we got an import job ID to poll
+        if (result.importId) {
+          setImportStatus({ status: 'processing', message: 'Analyzing your conversation history...', progress: 95 });
+          
+          // Poll for import job completion
+          const pollImportStatus = async (attempts = 0) => {
+            if (attempts > 120) { // 4 minutes max
+              setImportStatus({ status: 'complete', message: 'Processing in background. This may take a few minutes for large files.', progress: 100 });
               setIsImporting(false);
+              setTimeout(() => onImportComplete?.(), 2000);
               return;
             }
             
             try {
-              const r = await fetch(`/api/imports/status?jobId=${data.jobId}`, { 
-                headers: { Authorization: `Bearer ${token}` } 
+              const statusRes = await fetch(`/api/imports/status?importId=${result.importId}`, {
+                headers: { Authorization: `Bearer ${token}` }
               });
-              const d = await r.json();
+              const statusData = await statusRes.json();
               
-              if (d.status === 'completed') {
-                setImportStatus({ status: 'completed', message: 'Import complete!', progress: 100 });
+              if (statusData.status === 'completed' || statusData.status === 'complete') {
+                setImportStatus({ 
+                  status: 'complete', 
+                  message: `Import complete! ${statusData.stats?.messagesCount || ''} messages analyzed.`, 
+                  progress: 100 
+                });
                 setIsImporting(false);
-                setTimeout(() => onClose(), 2000);
-              } else if (d.status === 'failed') {
-                throw new Error(d.error || 'Processing failed');
-              } else {
-                setImportStatus({ status: 'processing', message: `Processing... ${Math.round(polls * 0.8)}%`, progress: 40 + Math.round(polls * 0.5) });
-                setTimeout(() => poll(polls + 1), 1000);
+                setTimeout(() => {
+                  onImportComplete?.();
+                  onClose();
+                }, 2000);
+                return;
               }
-            } catch (e) {
-              setImportStatus({ status: 'completed', message: 'Processing in background!', progress: 100 });
-              setIsImporting(false);
-              setTimeout(() => onClose(), 2000);
+              
+              if (statusData.status === 'failed') {
+                throw new Error(statusData.error || 'Processing failed');
+              }
+              
+              // Still processing
+              setImportStatus({ 
+                status: 'processing', 
+                message: statusData.message || 'Processing your data...', 
+                progress: Math.min(95 + attempts * 0.04, 99) 
+              });
+              
+              setTimeout(() => pollImportStatus(attempts + 1), 2000);
+            } catch (pollErr) {
+              console.error('Poll error:', pollErr);
+              setTimeout(() => pollImportStatus(attempts + 1), 3000);
             }
           };
-          setTimeout(() => poll(0), 1000);
+          
+          pollImportStatus();
         } else {
-          setImportStatus({ status: 'completed', message: 'Upload successful!', progress: 100 });
+          // No import ID, assume success
+          setImportStatus({ status: 'complete', message: 'Upload complete! Your data is being processed.', progress: 100 });
           setIsImporting(false);
-          setTimeout(() => onClose(), 2000);
+          setTimeout(() => {
+            onImportComplete?.();
+            onClose();
+          }, 2000);
         }
       } catch (err) {
-        console.error('Server upload error:', err);
-        setError('Upload failed: ' + err.message);
+        console.error('Upload error:', err);
+        setError(err.message || 'Upload failed. Please try again.');
         setIsImporting(false);
         setImportStatus(null);
       }

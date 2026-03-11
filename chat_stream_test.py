@@ -7,7 +7,7 @@ import requests
 import json
 import time
 
-BASE_URL = "https://doc-parser-16.preview.emergentagent.com"
+BASE_URL = "https://chunked-upload-2.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"

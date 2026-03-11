@@ -13,7 +13,7 @@ import os
 from datetime import datetime
 
 # Configuration
-BASE_URL = "https://doc-parser-16.preview.emergentagent.com/api"
+BASE_URL = "https://chunked-upload-2.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSWORD = "test123"
 

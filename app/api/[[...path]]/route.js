@@ -12857,31 +12857,64 @@ async function extractChatGPTMessagesFromFile(filePath) {
     const zip = new AdmZip(filePath);
     const zipEntries = zip.getEntries();
     
-    for (const entry of zipEntries) {
-      if (entry.entryName === 'conversations.json' || entry.entryName.endsWith('/conversations.json')) {
+    // Find conversation files - both single file and split format
+    const conversationFiles = zipEntries.filter(entry => {
+      const name = entry.entryName;
+      // Match conversations.json or conversations-XXX.json (split format)
+      return name === 'conversations.json' || 
+             name.endsWith('/conversations.json') ||
+             /conversations-\d+\.json$/.test(name);
+    }).sort((a, b) => a.entryName.localeCompare(b.entryName));
+    
+    console.log(`[extractChatGPTMessagesFromFile] Found ${conversationFiles.length} conversation file(s)`);
+    
+    for (const entry of conversationFiles) {
+      try {
         const content = entry.getData().toString('utf8');
         const conversations = JSON.parse(content);
+        const convArray = Array.isArray(conversations) ? conversations : [conversations];
         
-        for (const conv of conversations) {
+        for (const conv of convArray) {
           if (conv.mapping) {
             for (const node of Object.values(conv.mapping)) {
               if (node?.message?.content?.parts?.[0]) {
-                const role = node.message.author?.role === 'user' ? 'user' : 'assistant';
+                const authorRole = node.message.author?.role;
+                if (authorRole === 'user' || authorRole === 'assistant') {
+                  const content = node.message.content.parts.join('\n');
+                  if (content && content.trim()) {
+                    messages.push({
+                      content: content.slice(0, 5000), // Limit content size
+                      role: authorRole,
+                      timestamp: node.message.create_time ? new Date(node.message.create_time * 1000) : new Date(),
+                    });
+                  }
+                }
+              }
+            }
+          }
+          
+          // Alternative format: direct messages array
+          if (conv.messages && Array.isArray(conv.messages)) {
+            for (const msg of conv.messages) {
+              if (msg.content && (msg.role === 'user' || msg.role === 'assistant')) {
                 messages.push({
-                  content: node.message.content.parts[0],
-                  role,
-                  timestamp: node.message.create_time ? new Date(node.message.create_time * 1000) : new Date(),
+                  content: typeof msg.content === 'string' ? msg.content.slice(0, 5000) : JSON.stringify(msg.content).slice(0, 5000),
+                  role: msg.role,
+                  timestamp: msg.timestamp ? new Date(msg.timestamp * 1000) : new Date(),
                 });
               }
             }
           }
         }
-        break;
+        console.log(`[extractChatGPTMessagesFromFile] Processed ${entry.entryName}: ${messages.length} total messages so far`);
+      } catch (parseErr) {
+        console.error(`[extractChatGPTMessagesFromFile] Error parsing ${entry.entryName}:`, parseErr.message);
       }
     }
   } catch (e) {
     console.error('[extractChatGPTMessagesFromFile] Error:', e);
   }
+  console.log(`[extractChatGPTMessagesFromFile] Total messages extracted: ${messages.length}`);
   return messages;
 }
 
@@ -15243,8 +15276,8 @@ async function handleChunkedUploadComplete(request) {
 // Helper function to extract messages from ZIP file using yauzl (memory efficient)
 async function extractMessagesFromZip(zipPath, source) {
   const messages = [];
-  const MAX_FILES = 50; // Limit files to process
-  const MAX_MESSAGES = 500; // Stop once we have enough messages
+  const MAX_FILES = 100; // Limit files to process (increased for split files)
+  const MAX_MESSAGES = 1000; // Stop once we have enough messages
   
   return new Promise((resolve, reject) => {
     yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
@@ -15259,6 +15292,7 @@ async function extractMessagesFromZip(zipPath, source) {
       
       zipfile.on('entry', (entry) => {
         const fileName = entry.fileName.toLowerCase();
+        const originalName = entry.fileName;
         
         // Skip if we have enough data
         if (messages.length >= MAX_MESSAGES || filesProcessed >= MAX_FILES) {
@@ -15281,6 +15315,10 @@ async function extractMessagesFromZip(zipPath, source) {
           return;
         }
         
+        // Prioritize conversation files (including split format)
+        const isConversationFile = fileName.includes('conversation') || 
+                                   /conversations-\d+\.json$/.test(originalName);
+        
         filesProcessed++;
         
         zipfile.openReadStream(entry, (err, readStream) => {
@@ -15292,7 +15330,7 @@ async function extractMessagesFromZip(zipPath, source) {
           
           const chunks = [];
           let totalSize = 0;
-          const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB max per file
+          const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB max per file (increased for split files)
           
           readStream.on('data', (chunk) => {
             totalSize += chunk.length;
@@ -15307,7 +15345,7 @@ async function extractMessagesFromZip(zipPath, source) {
               const data = JSON.parse(content);
               
               // Extract messages based on source type
-              if (source === 'chatgpt' || fileName.includes('conversation')) {
+              if (source === 'chatgpt' || isConversationFile) {
                 extractChatGPTMessages(data, messages);
               } else if (source === 'facebook' || fileName.includes('message') || fileName.includes('inbox')) {
                 extractFacebookMessages(data, messages);
@@ -15317,9 +15355,9 @@ async function extractMessagesFromZip(zipPath, source) {
                 extractFacebookMessages(data, messages);
               }
               
-              console.log(`Processed ${fileName}: now have ${messages.length} messages`);
+              console.log(`Processed ${originalName}: now have ${messages.length} messages`);
             } catch (parseErr) {
-              console.log(`Skipping ${fileName}: invalid JSON`);
+              console.log(`Skipping ${originalName}: invalid JSON`);
             }
             
             zipfile.readEntry();
@@ -15337,8 +15375,8 @@ async function extractMessagesFromZip(zipPath, source) {
         
         // Remove duplicates and clean
         const uniqueMessages = [...new Set(messages)]
-          .filter(m => m && m.length > 10 && m.length < 2000)
-          .map(m => m.trim().substring(0, 500));
+          .filter(m => m && m.length > 10 && m.length < 5000)
+          .map(m => m.trim().substring(0, 2000));
         
         resolve(uniqueMessages);
       });

@@ -9,7 +9,7 @@ import io
 import base64
 import time
 
-BASE_URL = "https://doc-parser-16.preview.emergentagent.com/api"
+BASE_URL = "https://chunked-upload-2.preview.emergentagent.com/api"
 EMAIL = "test@soulprint.com"
 PASSWORD = "test123"
 
