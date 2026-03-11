@@ -1297,8 +1297,30 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
   // Auto-detect platform and extract data from ZIP file
   const extractFromZip = async (file) => {
     try {
+      // Check file size - warn for very large files
+      const fileSizeMB = file.size / (1024 * 1024);
+      console.log(`Processing ZIP file: ${fileSizeMB.toFixed(1)} MB`);
+      
+      if (fileSizeMB > 500) {
+        console.warn('Large file detected, processing may take a while...');
+      }
+      
       const JSZip = (await import('jszip')).default;
-      const zip = await JSZip.loadAsync(file);
+      
+      // Load the ZIP with timeout protection
+      let zip;
+      try {
+        zip = await Promise.race([
+          JSZip.loadAsync(file),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('ZIP loading timed out. File may be too large for browser processing.')), 120000)
+          )
+        ]);
+      } catch (loadErr) {
+        console.error('Failed to load ZIP:', loadErr);
+        throw new Error(`Failed to open ZIP file: ${loadErr.message}. Try a smaller export or upload individual JSON files.`);
+      }
+      
       const allFiles = Object.keys(zip.files);
       const messages = [];
       const posts = [];
@@ -1308,7 +1330,8 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     const hasChatGPT = allFiles.some(f => 
       f.includes('conversations.json') || 
       f.includes('chat.html') ||
-      f.includes('model_comparisons')
+      f.includes('model_comparisons') ||
+      /conversations-\d+\.json$/.test(f)
     );
 
     // ── Detect Facebook ──
@@ -1334,16 +1357,37 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     if (hasChatGPT) {
       platform = 'ChatGPT';
       
-      // Look for conversations.json
+      // Look for conversations.json or split files (conversations-000.json, etc.)
+      let conversationFiles = [];
+      
+      // Check for single conversations.json
       let conversationsFile = zip.file('conversations.json');
-      if (!conversationsFile) {
+      if (conversationsFile) {
+        conversationFiles.push(conversationsFile);
+      } else {
+        // Check for nested conversations.json
         const convFile = allFiles.find(f => f.endsWith('conversations.json'));
-        if (convFile) conversationsFile = zip.file(convFile);
+        if (convFile) {
+          conversationFiles.push(zip.file(convFile));
+        }
       }
       
-      if (conversationsFile) {
+      // Check for split conversation files (conversations-000.json, conversations-001.json, etc.)
+      const splitFiles = allFiles.filter(f => /conversations-\d+\.json$/.test(f));
+      if (splitFiles.length > 0) {
+        console.log('Found split conversation files:', splitFiles.length);
+        for (const splitFile of splitFiles.sort()) {
+          const zf = zip.file(splitFile);
+          if (zf) conversationFiles.push(zf);
+        }
+      }
+      
+      console.log('Total conversation files to process:', conversationFiles.length);
+      
+      for (const convFileObj of conversationFiles) {
+        if (!convFileObj) continue;
         try {
-          const content = await conversationsFile.async('string');
+          const content = await convFileObj.async('string');
           const conversations = JSON.parse(content);
           const convArray = Array.isArray(conversations) ? conversations : [conversations];
           
@@ -1386,7 +1430,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
             }
           }
         } catch (parseError) {
-          console.error('Error parsing ChatGPT conversations:', parseError);
+          console.error('Error parsing ChatGPT conversations file:', parseError);
         }
       }
     }
@@ -1716,11 +1760,43 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     if (extractedData?.useServerFallback && selectedFiles.length > 0) {
       setIsImporting(true);
       setError('');
+      
+      const file = selectedFiles[0];
+      const fileSizeMB = file.size / (1024 * 1024);
+      
+      // For very large files (>100MB), use chunked upload
+      if (fileSizeMB > 100) {
+        setImportStatus({ status: 'uploading', message: 'Large file detected. Using chunked upload...', progress: 5 });
+        
+        try {
+          const result = await uploadLargeFileForImport(file, (progress) => {
+            setImportStatus({ 
+              status: 'uploading', 
+              message: `Uploading: ${progress}%`, 
+              progress: Math.min(progress, 90) 
+            });
+          });
+          
+          setImportStatus({ status: 'completed', message: 'Upload complete! Processing in background...', progress: 100 });
+          setIsImporting(false);
+          setTimeout(() => {
+            setShowImportModal(false);
+          }, 2000);
+        } catch (err) {
+          console.error('Chunked upload error:', err);
+          setError(`Upload failed: ${err.message}`);
+          setIsImporting(false);
+          setImportStatus(null);
+        }
+        return;
+      }
+      
+      // For smaller files, use single upload
       setImportStatus({ status: 'uploading', message: 'Uploading file to server...', progress: 10 });
       
       try {
         const formData = new FormData();
-        formData.append('file', selectedFiles[0]);
+        formData.append('file', file);
         formData.append('type', 'auto');
         
         const res = await fetch('/api/imports/upload', {
