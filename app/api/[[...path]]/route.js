@@ -255,10 +255,13 @@ async function handleGoogleAuthStart(request) {
     // Use NEXT_PUBLIC_BASE_URL for the redirect URI
     // REMINDER: DO NOT HARDCODE THE URL - use env variable
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    console.log('Google Auth - NEXT_PUBLIC_BASE_URL from env:', baseUrl);
+    
     if (!baseUrl) {
       return NextResponse.json({ error: 'Server configuration error: NEXT_PUBLIC_BASE_URL not set' }, { status: 500 });
     }
     const redirectUri = `${baseUrl}/api/auth/google/callback`;
+    console.log('Google Auth - Final redirect URI:', redirectUri);
     
     // Create state with user ID for security
     const state = Buffer.from(JSON.stringify({ 
@@ -267,6 +270,7 @@ async function handleGoogleAuthStart(request) {
     })).toString('base64');
     
     const authUrl = getGoogleAuthUrl(redirectUri, state);
+    console.log('Google Auth - Full auth URL generated');
     
     return NextResponse.json({ authUrl });
   } catch (err) {
