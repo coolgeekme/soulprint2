@@ -3351,13 +3351,6 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     }
   }, [activeTab, token, memoriesLoaded, memoriesLoading]);
 
-  // Auto-load invites when invites tab is opened
-  useEffect(() => {
-    if (activeTab === 'invites' && token && !invitesData && !invitesLoading) {
-      loadInvitesData();
-    }
-  }, [activeTab, token, invitesData, invitesLoading]);
-
   const addMemory = async () => {
     if (!newMemory.trim()) return;
     try {
@@ -3419,6 +3412,13 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
     setInviteLinkCopied(true);
     setTimeout(() => setInviteLinkCopied(false), 2000);
   };
+
+  // Auto-load invites when invites tab is opened
+  useEffect(() => {
+    if (activeTab === 'invites' && token && !invitesData && !invitesLoading) {
+      loadInvitesData();
+    }
+  }, [activeTab, token, invitesData, invitesLoading]);
 
   const loadAllAnnouncements = async () => {
     setAnnouncementsLoading(true);
@@ -4519,7 +4519,7 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                         <input
                           type="text"
                           readOnly
-                          value={invitesData?.invite_code ? `${window.location.origin}/invite/${invitesData.invite_code}` : ''}
+                          value={invitesData?.invite_code && typeof window !== 'undefined' ? `${window.location.origin}/invite/${invitesData.invite_code}` : ''}
                           className="flex-1 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-gray-300 text-sm truncate"
                         />
                         <button
