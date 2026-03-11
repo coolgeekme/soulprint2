@@ -7077,6 +7077,47 @@ export default function ChatPage() {
     setShowSidebar(false);
   }
 
+  // Check for Google just connected flag and show welcome message
+  useEffect(() => {
+    const googleJustConnected = localStorage.getItem('google_just_connected');
+    if (googleJustConnected === 'true' && token) {
+      // Remove the flag so it only shows once
+      localStorage.removeItem('google_just_connected');
+      
+      // Add a welcome message about Google integration
+      const googleWelcomeMessage = {
+        id: `google-welcome-${Date.now()}`,
+        role: 'assistant',
+        content: `🎉 **Awesome! Your Google account is now connected!**
+
+Here's what I can help you with:
+
+**📧 Gmail**
+• "Show me my unread emails"
+• "Find emails from [person] about [topic]"
+• "Send an email to [email] saying [message]"
+
+**📅 Calendar**
+• "What's on my calendar today?"
+• "Am I free tomorrow at 3pm?"
+• "Schedule a meeting for Friday at 2pm"
+
+**📁 Google Drive**
+• "Find my recent documents"
+• "Create a new Google Doc called [name]"
+• "Make a spreadsheet for [purpose]"
+
+**💡 Pro tip:** Just ask me naturally - no special commands needed! I'll always ask for confirmation before sending emails or creating events.
+
+Ask me "What can you do with Google?" anytime if you need a reminder!`,
+        created_at: new Date().toISOString(),
+        is_system: true,
+      };
+      
+      setMessages(prev => [...prev, googleWelcomeMessage]);
+    }
+  }, [token]);
+
   // Rename a conversation
   async function renameConversation(convId, newTitle) {
     if (!newTitle.trim()) return;

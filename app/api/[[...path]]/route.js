@@ -621,9 +621,15 @@ async function handleGoogleAuthCallback(request) {
         { connection_id: connectionId },
         { $set: { is_default: true } }
       );
+      
+      // Mark this as the user's first Google connection for welcome message
+      await db.collection('users').updateOne(
+        { id: userId },
+        { $set: { google_just_connected: true, google_connected_at: new Date() } }
+      );
     }
     
-    return NextResponse.redirect(`${baseUrl}/integrations?google=connected`);
+    return NextResponse.redirect(`${baseUrl}/integrations?google=success&first=${accountCount === 1}`);
   } catch (err) {
     console.error('Google callback error:', err);
     const errorBaseUrl = process.env.NEXT_PUBLIC_BASE_URL;

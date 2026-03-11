@@ -42,8 +42,18 @@ export default function IntegrationsPage() {
     // Check for callback params
     const googleParam = searchParams.get('google');
     const errorParam = searchParams.get('error');
+    const isFirstConnection = searchParams.get('first') === 'true';
     
-    if (googleParam === 'connected') {
+    if (googleParam === 'success') {
+      if (isFirstConnection) {
+        // First time connection - set flag for welcome message in chat
+        localStorage.setItem('google_just_connected', 'true');
+        setNotification({ type: 'success', message: '🎉 Google account connected! See below for what you can do.' });
+      } else {
+        setNotification({ type: 'success', message: 'Google account connected successfully!' });
+      }
+      window.history.replaceState({}, '', '/integrations');
+    } else if (googleParam === 'connected') {
       setNotification({ type: 'success', message: 'Google account connected successfully!' });
       window.history.replaceState({}, '', '/integrations');
     } else if (errorParam) {
@@ -412,6 +422,130 @@ export default function IntegrationsPage() {
             <strong>Multiple Accounts:</strong> Connect as many Google accounts as you need. The AI will always ask which account to use before taking any action.
           </p>
         </div>
+
+        {/* What You Can Do Section - Show when connected */}
+        {hasAccounts && (
+          <div className="mt-8 bg-gradient-to-br from-orange-500/10 to-purple-500/10 border border-orange-500/20 rounded-2xl overflow-hidden">
+            <div className="p-6 border-b border-white/10">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <span className="text-2xl">✨</span> What You Can Do Now
+              </h2>
+              <p className="text-gray-400 text-sm mt-1">Just ask your AI assistant in natural language</p>
+            </div>
+            
+            <div className="p-6 grid gap-6 md:grid-cols-2">
+              {/* Gmail */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-blue-400">
+                  <Mail className="w-5 h-5" />
+                  <h3 className="font-semibold">Gmail</h3>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <Search className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Show me my unread emails"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Search className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Find emails from John about the project"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Send className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Send an email to sarah@example.com saying I'll be late"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Send className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Draft a follow-up email to my last conversation with Mike"</span>
+                  </li>
+                </ul>
+              </div>
+              
+              {/* Calendar */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-green-400">
+                  <CalendarDays className="w-5 h-5" />
+                  <h3 className="font-semibold">Calendar</h3>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <Search className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"What's on my calendar today?"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Search className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Am I free tomorrow at 3pm?"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Plus className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Schedule a meeting with the team for Friday at 2pm"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Plus className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Add a reminder for Mom's birthday on March 15th"</span>
+                  </li>
+                </ul>
+              </div>
+              
+              {/* Drive */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-yellow-400">
+                  <FolderOpen className="w-5 h-5" />
+                  <h3 className="font-semibold">Google Drive</h3>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <Search className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Find my recent documents"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Search className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Search for files named 'budget'"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <FileText className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Create a new Google Doc called 'Meeting Notes'"</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <FileText className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                    <span>"Make a spreadsheet to track my expenses"</span>
+                  </li>
+                </ul>
+              </div>
+              
+              {/* Pro Tips */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-purple-400">
+                  <Star className="w-5 h-5" />
+                  <h3 className="font-semibold">Pro Tips</h3>
+                </div>
+                <ul className="space-y-2 text-sm text-gray-300">
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>AI will always ask for confirmation before sending emails or creating events</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>Use natural language - no special commands needed</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>Ask "What can you do with Google?" anytime for a reminder</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="p-4 bg-black/20 border-t border-white/10">
+              <Link 
+                href="/chat" 
+                className="flex items-center justify-center gap-2 w-full py-3 bg-orange-500 hover:bg-orange-600 rounded-xl font-medium transition-colors"
+              >
+                Go to Chat & Try It Out
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Coming Soon */}
         <div className="mt-8">
