@@ -1540,55 +1540,6 @@ const GOOGLE_TOOLS = [
     }
   }
 ];
-        properties: {
-          title: {
-            type: 'string',
-            description: 'Title/name of the document'
-          },
-          content: {
-            type: 'string',
-            description: 'The text content to put in the document. Can include formatting with line breaks.'
-          },
-          folder_name: {
-            type: 'string',
-            description: 'Optional folder name to save the document in. If not specified, saves to root of Drive.'
-          }
-        },
-        required: ['title', 'content']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'create_spreadsheet',
-      description: 'Create a new Google Sheets spreadsheet. Use this when the user asks to create a spreadsheet, table, or data sheet.',
-      parameters: {
-        type: 'object',
-        properties: {
-          title: {
-            type: 'string',
-            description: 'Title/name of the spreadsheet'
-          },
-          headers: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Column headers for the spreadsheet'
-          },
-          data: {
-            type: 'array',
-            items: {
-              type: 'array',
-              items: { type: 'string' }
-            },
-            description: 'Rows of data (array of arrays, each inner array is a row)'
-          }
-        },
-        required: ['account_email', 'title']
-      }
-    }
-  }
-];
 
 // Helper: Get connection by account email
 async function getConnectionByEmail(userId, accountEmail) {
