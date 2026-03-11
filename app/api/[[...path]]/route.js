@@ -820,6 +820,239 @@ async function handleDriveSearch(request) {
   }
 }
 
+// ============================================================
+// GOOGLE CONTEXT FOR CHAT - Fetches relevant Google data based on query
+// ============================================================
+
+// Detect what type of Google data the user is asking about
+function detectGoogleIntent(query) {
+  const lowerQuery = query.toLowerCase();
+  
+  const intents = {
+    gmail: false,
+    calendar: false,
+    drive: false,
+    searchTerms: []
+  };
+  
+  // Gmail keywords
+  const gmailKeywords = ['email', 'emails', 'mail', 'inbox', 'message', 'messages', 'sent', 'unread', 'from', 'gmail'];
+  if (gmailKeywords.some(kw => lowerQuery.includes(kw))) {
+    intents.gmail = true;
+  }
+  
+  // Calendar keywords
+  const calendarKeywords = ['calendar', 'event', 'events', 'meeting', 'meetings', 'schedule', 'appointment', 'appointments', 'agenda', 'busy', 'free', 'available', 'tomorrow', 'next week', 'this week'];
+  if (calendarKeywords.some(kw => lowerQuery.includes(kw))) {
+    intents.calendar = true;
+  }
+  
+  // Drive keywords
+  const driveKeywords = ['file', 'files', 'document', 'documents', 'drive', 'folder', 'spreadsheet', 'presentation', 'doc', 'docs', 'sheet', 'slides'];
+  if (driveKeywords.some(kw => lowerQuery.includes(kw))) {
+    intents.drive = true;
+  }
+  
+  // Extract potential search terms (names, subjects, etc.)
+  // Look for quoted strings or proper nouns
+  const quotedMatches = query.match(/"([^"]+)"/g) || [];
+  intents.searchTerms = quotedMatches.map(m => m.replace(/"/g, ''));
+  
+  // Also extract capitalized words that might be names/companies
+  const words = query.split(/\s+/);
+  words.forEach(word => {
+    if (word.length > 2 && /^[A-Z]/.test(word) && !['I', 'The', 'What', 'When', 'Where', 'How', 'Can', 'Could', 'Would', 'Should', 'Please', 'Find', 'Show', 'Get', 'Check', 'My', 'Any', 'From', 'About'].includes(word)) {
+      intents.searchTerms.push(word);
+    }
+  });
+  
+  return intents;
+}
+
+// Fetch Google data based on detected intents
+async function fetchGoogleContextForChat(userId, query) {
+  const accessToken = await getValidGoogleToken(userId);
+  if (!accessToken) {
+    return null; // User hasn't connected Google
+  }
+  
+  const intents = detectGoogleIntent(query);
+  const context = {
+    hasGoogleConnected: true,
+    gmail: null,
+    calendar: null,
+    drive: null
+  };
+  
+  try {
+    // Fetch Gmail if relevant
+    if (intents.gmail) {
+      const searchQuery = intents.searchTerms.length > 0 
+        ? intents.searchTerms.join(' OR ') 
+        : '';
+      
+      const params = new URLSearchParams({ maxResults: '10' });
+      if (searchQuery) params.append('q', searchQuery);
+      
+      const gmailData = await googleApiCall(accessToken, `/gmail/v1/users/me/messages?${params}`);
+      
+      if (gmailData.messages && gmailData.messages.length > 0) {
+        // Fetch details for each message
+        const detailed = await Promise.all(
+          gmailData.messages.slice(0, 8).map(async (msg) => {
+            try {
+              const detail = await googleApiCall(accessToken, `/gmail/v1/users/me/messages/${msg.id}?format=full`);
+              const headers = detail.payload?.headers || [];
+              
+              // Extract body
+              let body = '';
+              const getBody = (payload) => {
+                if (payload.body?.data) {
+                  return Buffer.from(payload.body.data, 'base64').toString('utf-8');
+                }
+                if (payload.parts) {
+                  for (const part of payload.parts) {
+                    if (part.mimeType === 'text/plain' && part.body?.data) {
+                      return Buffer.from(part.body.data, 'base64').toString('utf-8');
+                    }
+                  }
+                }
+                return '';
+              };
+              body = getBody(detail.payload);
+              
+              return {
+                subject: headers.find(h => h.name === 'Subject')?.value || '(No Subject)',
+                from: headers.find(h => h.name === 'From')?.value || '',
+                date: headers.find(h => h.name === 'Date')?.value || '',
+                snippet: detail.snippet || '',
+                body: body.slice(0, 1000) // Limit body size
+              };
+            } catch (e) {
+              return null;
+            }
+          })
+        );
+        
+        context.gmail = detailed.filter(Boolean);
+      }
+    }
+    
+    // Fetch Calendar if relevant
+    if (intents.calendar) {
+      const now = new Date();
+      const timeMin = now.toISOString();
+      const timeMax = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(); // Next 2 weeks
+      
+      const params = new URLSearchParams({
+        timeMin,
+        timeMax,
+        maxResults: '15',
+        singleEvents: 'true',
+        orderBy: 'startTime'
+      });
+      
+      const calData = await googleApiCall(accessToken, `/calendar/v3/calendars/primary/events?${params}`);
+      
+      if (calData.items && calData.items.length > 0) {
+        context.calendar = calData.items.map(event => ({
+          summary: event.summary || '(No title)',
+          description: event.description || '',
+          location: event.location || '',
+          start: event.start?.dateTime || event.start?.date,
+          end: event.end?.dateTime || event.end?.date,
+          attendees: event.attendees?.map(a => a.email).slice(0, 5) || []
+        }));
+      }
+    }
+    
+    // Fetch Drive files if relevant
+    if (intents.drive) {
+      const searchQuery = intents.searchTerms.length > 0 
+        ? `name contains '${intents.searchTerms[0]}'`
+        : '';
+      
+      const params = new URLSearchParams({
+        pageSize: '10',
+        fields: 'files(id, name, mimeType, modifiedTime, webViewLink)',
+        orderBy: 'modifiedTime desc'
+      });
+      if (searchQuery) params.append('q', searchQuery);
+      
+      const driveData = await googleApiCall(accessToken, `/drive/v3/files?${params}`);
+      
+      if (driveData.files && driveData.files.length > 0) {
+        context.drive = driveData.files.map(file => ({
+          name: file.name,
+          type: file.mimeType,
+          modified: file.modifiedTime,
+          link: file.webViewLink
+        }));
+      }
+    }
+    
+    return context;
+  } catch (err) {
+    console.error('Error fetching Google context:', err);
+    return { hasGoogleConnected: true, error: err.message };
+  }
+}
+
+// Format Google context for inclusion in AI prompt
+function formatGoogleContextForPrompt(googleContext) {
+  if (!googleContext || !googleContext.hasGoogleConnected) {
+    return '';
+  }
+  
+  let contextStr = '\n\n--- USER\'S GOOGLE DATA (Retrieved just now) ---\n';
+  let hasData = false;
+  
+  if (googleContext.gmail && googleContext.gmail.length > 0) {
+    hasData = true;
+    contextStr += '\n📧 RECENT EMAILS:\n';
+    googleContext.gmail.forEach((email, i) => {
+      contextStr += `\n[Email ${i + 1}]\n`;
+      contextStr += `From: ${email.from}\n`;
+      contextStr += `Subject: ${email.subject}\n`;
+      contextStr += `Date: ${email.date}\n`;
+      contextStr += `Preview: ${email.snippet}\n`;
+      if (email.body) {
+        contextStr += `Content: ${email.body.slice(0, 500)}${email.body.length > 500 ? '...' : ''}\n`;
+      }
+    });
+  }
+  
+  if (googleContext.calendar && googleContext.calendar.length > 0) {
+    hasData = true;
+    contextStr += '\n📅 UPCOMING CALENDAR EVENTS:\n';
+    googleContext.calendar.forEach((event, i) => {
+      contextStr += `\n[Event ${i + 1}]\n`;
+      contextStr += `Title: ${event.summary}\n`;
+      contextStr += `When: ${event.start} to ${event.end}\n`;
+      if (event.location) contextStr += `Location: ${event.location}\n`;
+      if (event.description) contextStr += `Description: ${event.description.slice(0, 200)}\n`;
+      if (event.attendees?.length > 0) contextStr += `Attendees: ${event.attendees.join(', ')}\n`;
+    });
+  }
+  
+  if (googleContext.drive && googleContext.drive.length > 0) {
+    hasData = true;
+    contextStr += '\n📁 GOOGLE DRIVE FILES:\n';
+    googleContext.drive.forEach((file, i) => {
+      contextStr += `${i + 1}. ${file.name} (${file.type}) - Modified: ${file.modified}\n`;
+      if (file.link) contextStr += `   Link: ${file.link}\n`;
+    });
+  }
+  
+  if (!hasData) {
+    return '';
+  }
+  
+  contextStr += '\n--- END GOOGLE DATA ---\n';
+  contextStr += 'Use the above Google data to answer the user\'s question. Reference specific emails, events, or files as needed.\n';
+  
+  return contextStr;
+}
 
 
 // Configure route for large file uploads (App Router style)
@@ -4522,7 +4755,18 @@ async function handleChatStream(request) {
   enforceDataRetention(db, user.id).catch(() => {});
 
   // ── Best Practice: Cached System Prompt ──────────────────────────────────────
-  const systemPrompt = await getSystemPrompt(db, user.id);
+  let systemPrompt = await getSystemPrompt(db, user.id);
+  
+  // ── Fetch Google Context if user has connected Google ──────────────────────────
+  const googleContext = await fetchGoogleContextForChat(user.id, content || '');
+  if (googleContext) {
+    const googleContextStr = formatGoogleContextForPrompt(googleContext);
+    if (googleContextStr) {
+      systemPrompt += googleContextStr;
+      console.log('Added Google context to chat - Gmail:', !!googleContext.gmail, 'Calendar:', !!googleContext.calendar, 'Drive:', !!googleContext.drive);
+    }
+  }
+  
   const provider = getProvider(providerName, model);
   const assistantMsgId = uuidv4();
   let fullContent = '';
