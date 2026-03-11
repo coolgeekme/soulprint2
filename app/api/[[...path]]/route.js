@@ -1050,12 +1050,281 @@ function formatGoogleContextForPrompt(googleContext) {
   
   contextStr += '\n--- END GOOGLE DATA ---\n';
   contextStr += 'Use the above Google data to answer the user\'s question. Reference specific emails, events, or files as needed.\n';
+  contextStr += '\nIMPORTANT: You have the ability to take actions on behalf of the user:\n';
+  contextStr += '- send_email: Send emails from the user\'s Gmail\n';
+  contextStr += '- create_calendar_event: Create new calendar events\n';
+  contextStr += '- update_calendar_event: Update existing events (need event_id from the data above)\n';
+  contextStr += '- delete_calendar_event: Delete events (need event_id)\n';
+  contextStr += 'When the user asks you to send an email, schedule a meeting, or manage their calendar, USE THESE TOOLS to actually perform the action.\n';
   
   return contextStr;
 }
 
+// ============================================================
+// GOOGLE ACTION FUNCTIONS FOR AI TOOL CALLING
+// ============================================================
 
-// Configure route for large file uploads (App Router style)
+// Define tools for OpenAI function calling
+const GOOGLE_TOOLS = [
+  {
+    type: 'function',
+    function: {
+      name: 'send_email',
+      description: 'Send an email using the user\'s connected Gmail account. Use this when the user explicitly asks to send, compose, or write an email to someone.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to: {
+            type: 'string',
+            description: 'Email address of the recipient'
+          },
+          subject: {
+            type: 'string',
+            description: 'Subject line of the email'
+          },
+          body: {
+            type: 'string',
+            description: 'The body/content of the email'
+          }
+        },
+        required: ['to', 'subject', 'body']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_calendar_event',
+      description: 'Create a new event on the user\'s Google Calendar. Use this when the user asks to schedule, create, or add a meeting/event/appointment.',
+      parameters: {
+        type: 'object',
+        properties: {
+          summary: {
+            type: 'string',
+            description: 'Title/name of the event'
+          },
+          description: {
+            type: 'string',
+            description: 'Description or notes for the event'
+          },
+          location: {
+            type: 'string',
+            description: 'Location of the event'
+          },
+          start: {
+            type: 'string',
+            description: 'Start date and time in ISO 8601 format (e.g., 2024-03-15T14:00:00)'
+          },
+          end: {
+            type: 'string',
+            description: 'End date and time in ISO 8601 format (e.g., 2024-03-15T15:00:00)'
+          },
+          attendees: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'List of email addresses to invite'
+          }
+        },
+        required: ['summary', 'start', 'end']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_calendar_event',
+      description: 'Update/edit an existing calendar event. Use this when the user wants to change, reschedule, or modify an existing event.',
+      parameters: {
+        type: 'object',
+        properties: {
+          event_id: {
+            type: 'string',
+            description: 'The ID of the event to update'
+          },
+          summary: {
+            type: 'string',
+            description: 'New title/name of the event (optional)'
+          },
+          description: {
+            type: 'string',
+            description: 'New description (optional)'
+          },
+          location: {
+            type: 'string',
+            description: 'New location (optional)'
+          },
+          start: {
+            type: 'string',
+            description: 'New start date/time in ISO 8601 format (optional)'
+          },
+          end: {
+            type: 'string',
+            description: 'New end date/time in ISO 8601 format (optional)'
+          }
+        },
+        required: ['event_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delete_calendar_event',
+      description: 'Delete/cancel a calendar event. Use this when the user wants to remove or cancel an existing event.',
+      parameters: {
+        type: 'object',
+        properties: {
+          event_id: {
+            type: 'string',
+            description: 'The ID of the event to delete'
+          }
+        },
+        required: ['event_id']
+      }
+    }
+  }
+];
+
+// Execute Google action based on tool call
+async function executeGoogleAction(userId, toolName, args) {
+  const accessToken = await getValidGoogleToken(userId);
+  if (!accessToken) {
+    return { success: false, error: 'Google account not connected. Please connect your Google account in Settings > Integrations.' };
+  }
+
+  try {
+    switch (toolName) {
+      case 'send_email': {
+        const { to, subject, body } = args;
+        
+        // Get sender email
+        const db = await getDb();
+        const connection = await db.collection('google_connections').findOne({ user_id: userId });
+        const from = connection?.email || '';
+        
+        // Create RFC 2822 formatted email
+        const email = [
+          `From: ${from}`,
+          `To: ${to}`,
+          `Subject: ${subject}`,
+          'Content-Type: text/plain; charset=utf-8',
+          '',
+          body
+        ].join('\r\n');
+        
+        const encodedEmail = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        
+        const data = await googleApiCall(accessToken, '/gmail/v1/users/me/messages/send', {
+          method: 'POST',
+          body: JSON.stringify({ raw: encodedEmail })
+        });
+        
+        if (data.error) {
+          return { success: false, error: data.error.message || 'Failed to send email' };
+        }
+        
+        return { 
+          success: true, 
+          message: `✅ Email sent successfully to ${to}`,
+          details: { messageId: data.id, to, subject }
+        };
+      }
+
+      case 'create_calendar_event': {
+        const { summary, description, location, start, end, attendees } = args;
+        
+        const event = {
+          summary,
+          description: description || '',
+          location: location || '',
+          start: { dateTime: start, timeZone: 'UTC' },
+          end: { dateTime: end, timeZone: 'UTC' },
+          attendees: attendees?.map(email => ({ email })) || []
+        };
+        
+        const data = await googleApiCall(accessToken, '/calendar/v3/calendars/primary/events', {
+          method: 'POST',
+          body: JSON.stringify(event)
+        });
+        
+        if (data.error) {
+          return { success: false, error: data.error.message || 'Failed to create event' };
+        }
+        
+        return { 
+          success: true, 
+          message: `✅ Calendar event "${summary}" created successfully`,
+          details: { 
+            eventId: data.id, 
+            summary: data.summary,
+            start: data.start?.dateTime || data.start?.date,
+            htmlLink: data.htmlLink 
+          }
+        };
+      }
+
+      case 'update_calendar_event': {
+        const { event_id, summary, description, location, start, end } = args;
+        
+        const updates = {};
+        if (summary) updates.summary = summary;
+        if (description !== undefined) updates.description = description;
+        if (location !== undefined) updates.location = location;
+        if (start) updates.start = { dateTime: start, timeZone: 'UTC' };
+        if (end) updates.end = { dateTime: end, timeZone: 'UTC' };
+        
+        const data = await googleApiCall(accessToken, `/calendar/v3/calendars/primary/events/${event_id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(updates)
+        });
+        
+        if (data.error) {
+          return { success: false, error: data.error.message || 'Failed to update event' };
+        }
+        
+        return { 
+          success: true, 
+          message: `✅ Calendar event updated successfully`,
+          details: { eventId: data.id, summary: data.summary }
+        };
+      }
+
+      case 'delete_calendar_event': {
+        const { event_id } = args;
+        
+        const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${event_id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+        
+        if (!response.ok && response.status !== 204) {
+          const errData = await response.json().catch(() => ({}));
+          return { success: false, error: errData.error?.message || 'Failed to delete event' };
+        }
+        
+        return { 
+          success: true, 
+          message: `✅ Calendar event deleted successfully`
+        };
+      }
+
+      default:
+        return { success: false, error: `Unknown action: ${toolName}` };
+    }
+  } catch (err) {
+    console.error(`Google action error (${toolName}):`, err);
+    return { success: false, error: err.message };
+  }
+}
+
+// Check if user has Google connected (for deciding whether to include tools)
+async function userHasGoogleConnected(userId) {
+  const db = await getDb();
+  const connection = await db.collection('google_connections').findOne({ user_id: userId });
+  return !!connection;
+}
+
+
 export const maxDuration = 300; // 5 minutes max for this route (large file processing)
 export const dynamic = 'force-dynamic';
 
@@ -4764,6 +5033,16 @@ async function handleChatStream(request) {
     if (googleContextStr) {
       systemPrompt += googleContextStr;
       console.log('Added Google context to chat - Gmail:', !!googleContext.gmail, 'Calendar:', !!googleContext.calendar, 'Drive:', !!googleContext.drive);
+    } else if (googleContext.hasGoogleConnected) {
+      // User has Google connected but query didn't trigger data fetch
+      // Still inform AI it has action capabilities
+      systemPrompt += '\n\n--- GOOGLE INTEGRATION ACTIVE ---\n';
+      systemPrompt += 'The user has connected their Google account. You have the ability to:\n';
+      systemPrompt += '- send_email: Send emails from their Gmail\n';
+      systemPrompt += '- create_calendar_event: Create new calendar events\n';
+      systemPrompt += '- update_calendar_event: Update existing events\n';
+      systemPrompt += '- delete_calendar_event: Delete events\n';
+      systemPrompt += 'If the user asks you to send an email, schedule something, or manage their calendar, use these tools to help them.\n';
     }
   }
   
@@ -5267,13 +5546,36 @@ async function handleChatStream(request) {
           return;
         }
 
-        const { stream: aiStream, searchMeta, didSearch } = await provider.generateStream({
+        // Check if user has Google connected for tool calling
+        const hasGoogle = await userHasGoogleConnected(user.id);
+        const googleTools = hasGoogle ? GOOGLE_TOOLS : [];
+        
+        // Tool call handler for Google actions
+        const handleGoogleToolCall = async (toolName, args) => {
+          console.log(`[Google Tool] Executing ${toolName} with args:`, args);
+          const result = await executeGoogleAction(user.id, toolName, args);
+          console.log(`[Google Tool] Result:`, result);
+          return result;
+        };
+
+        const { stream: aiStream, searchMeta, didSearch, customToolResults } = await provider.generateStream({
           systemPrompt,
           messages: historyMessages,
           model,
           temperature: 0.7,
           enableWebSearch: enableWebSearch && attachments.length === 0, // disable search when analyzing files
+          customTools: googleTools,
+          onToolCall: handleGoogleToolCall,
         });
+
+        // Send Google action results to the client
+        if (customToolResults && customToolResults.length > 0) {
+          for (const toolResult of customToolResults) {
+            if (toolResult.result?.success) {
+              send({ type: 'google_action', action: toolResult.tool, result: toolResult.result });
+            }
+          }
+        }
 
         // Extract and format sources from search
         let sources = [];
