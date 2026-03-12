@@ -156,7 +156,7 @@
 - 🔄 Synced with your web conversations
 - 📱 No app download required
 
-**Bot**: @SoulPrintAIBot
+**Bot**: @soulprintengine_bot
 
 ---
 

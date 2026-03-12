@@ -248,7 +248,7 @@ The system can automatically route requests to the optimal model:
 
 ## 📱 Telegram Bot
 
-Access SoulPrint via Telegram: **@SoulPrintAIBot**
+Access SoulPrint via Telegram: **@soulprintengine_bot**
 
 ### Commands
 - `/start` — Connect your SoulPrint account
@@ -288,4 +288,4 @@ Proprietary — All rights reserved © 2025 SoulPrint Engine
 
 - **Production**: https://soulprintengine.ai
 - **Features**: https://soulprintengine.ai/features
-- **Telegram**: https://t.me/SoulPrintAIBot
+- **Telegram**: https://t.me/soulprintengine_bot

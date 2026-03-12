@@ -468,7 +468,7 @@ export default function FeaturesPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-white">SoulPrint Bot</h3>
-                    <p className="text-sm text-gray-400">@SoulPrintAIBot</p>
+                    <p className="text-sm text-gray-400">@soulprintengine_bot</p>
                   </div>
                 </div>
                 

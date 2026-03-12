@@ -4887,11 +4887,15 @@ function SettingsModal({ onClose, token, onAssessmentReset }) {
                   <div className="p-4 rounded-xl bg-white/3 border border-white/8 space-y-2">
                     <p className="text-white text-xs font-semibold">How to connect:</p>
                     <ol className="text-gray-400 text-xs space-y-1.5 list-decimal list-inside">
-                      <li>Open Telegram and find the bot (ask your admin for the bot username)</li>
+                      <li>Open Telegram and search for <code className="bg-white/10 px-1 rounded text-orange-400">@soulprintengine_bot</code></li>
                       <li>Send <code className="bg-white/10 px-1 rounded">/start</code> to the bot</li>
                       <li>The bot will reply with a link code</li>
                       <li>Enter that code below</li>
                     </ol>
+                    <a href="https://t.me/soulprintengine_bot" target="_blank" rel="noopener noreferrer"
+                       className="inline-flex items-center gap-2 text-xs text-[#0088cc] hover:underline mt-2">
+                      💬 Open @soulprintengine_bot in Telegram
+                    </a>
                   </div>
                   <div>
                     <label className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-2 block">Enter Link Code</label>
