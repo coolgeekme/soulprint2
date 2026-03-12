@@ -4,7 +4,7 @@
 
 ## 🎯 **Tagline Options**
 
-1. **"Your AI, Your Way"** - One platform, every AI model, infinite possibilities.
+1. **"Your AI, Your Way"** - One platform, 15+ AI models, infinite possibilities.
 2. **"The AI That Knows You"** - Personalized intelligence that learns who you are.
 3. **"All Your AI in One Place"** - GPT, Claude, Gemini, image gen, video gen — unified.
 4. **"AI Without Limits"** - Switch models. Generate anything. Connect everything.
@@ -14,7 +14,7 @@
 ## 📝 **Hero Section Copy**
 
 ### Option A: Feature-Forward
-> **One Platform. Every AI Model. Unlimited Creation.**
+> **One Platform. 15+ AI Models. Unlimited Creation.**
 >
 > SoulPrint Engine brings together the world's best AI models — GPT-5.2, Claude Opus, Gemini Pro, DALL-E, Kling, and more — into one seamless experience. Chat, create images, generate videos, manage your Google workspace, all personalized to YOU.
 >

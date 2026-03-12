@@ -163,7 +163,7 @@ export default function FeaturesPage() {
           </span>
           <h1 className="font-condensed font-black text-white leading-none mb-6"
               style={{ fontSize: 'clamp(40px, 6vw, 72px)', letterSpacing: '-1px' }}>
-            ONE PLATFORM.<br />EVERY AI MODEL.<br />
+            ONE PLATFORM.<br />15+ AI MODELS.<br />
             <span className="text-orange-500">UNLIMITED CREATION.</span>
           </h1>
           <p className="text-gray-400 text-lg mb-8 max-w-2xl mx-auto">
