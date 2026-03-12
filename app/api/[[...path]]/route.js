@@ -467,9 +467,45 @@ async function refreshGoogleToken(refreshToken) {
 }
 
 // Get valid access token (auto-refresh if needed)
-async function getValidGoogleToken(userId) {
+async function getValidGoogleToken(userId, accountIdentifier = null) {
   const db = await getDb();
-  const connection = await db.collection('google_connections').findOne({ user_id: userId });
+  
+  let connection;
+  
+  if (accountIdentifier) {
+    // Try to find by email or name (case-insensitive partial match)
+    const searchTerm = accountIdentifier.toLowerCase();
+    connection = await db.collection('google_connections').findOne({ 
+      user_id: userId,
+      $or: [
+        { email: { $regex: searchTerm, $options: 'i' } },
+        { name: { $regex: searchTerm, $options: 'i' } }
+      ]
+    });
+    
+    // If not found by name/email, try connection_id
+    if (!connection) {
+      connection = await db.collection('google_connections').findOne({ 
+        user_id: userId,
+        connection_id: accountIdentifier
+      });
+    }
+    
+    console.log('[GoogleToken] Searching for account:', accountIdentifier, '- Found:', connection?.email || 'none');
+  }
+  
+  // Fall back to default account
+  if (!connection) {
+    connection = await db.collection('google_connections').findOne({ 
+      user_id: userId, 
+      is_default: true 
+    });
+  }
+  
+  // If still no connection, try any connection
+  if (!connection) {
+    connection = await db.collection('google_connections').findOne({ user_id: userId });
+  }
   
   if (!connection) return null;
   
@@ -481,7 +517,7 @@ async function getValidGoogleToken(userId) {
       const tokens = await refreshGoogleToken(connection.refresh_token);
       if (tokens.access_token) {
         await db.collection('google_connections').updateOne(
-          { user_id: userId },
+          { connection_id: connection.connection_id },
           { 
             $set: { 
               access_token: tokens.access_token,
@@ -490,7 +526,7 @@ async function getValidGoogleToken(userId) {
             }
           }
         );
-        return tokens.access_token;
+        return { token: tokens.access_token, connection };
       }
     } catch (err) {
       console.error('Token refresh failed:', err);
@@ -498,7 +534,23 @@ async function getValidGoogleToken(userId) {
     }
   }
   
-  return connection.access_token;
+  return { token: connection.access_token, connection };
+}
+
+// Get all Google connections for a user with valid tokens
+async function getAllGoogleConnections(userId) {
+  const db = await getDb();
+  const connections = await db.collection('google_connections').find({ user_id: userId }).toArray();
+  
+  const validConnections = [];
+  for (const conn of connections) {
+    const result = await getValidGoogleToken(userId, conn.connection_id);
+    if (result?.token) {
+      validConnections.push({ ...conn, access_token: result.token });
+    }
+  }
+  
+  return validConnections;
 }
 
 // Google API helper
@@ -937,10 +989,12 @@ async function handleGmailList(request) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const accessToken = await getValidGoogleToken(user.id);
-    if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
-    
     const url = new URL(request.url);
+    const accountName = url.searchParams.get('account');
+    const tokenResult = await getValidGoogleToken(user.id, accountName);
+    if (!tokenResult?.token) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const accessToken = tokenResult.token;
+    
     const query = url.searchParams.get('q') || '';
     const maxResults = url.searchParams.get('maxResults') || '20';
     const pageToken = url.searchParams.get('pageToken') || '';
@@ -983,8 +1037,11 @@ async function handleGmailGet(request, messageId) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const accessToken = await getValidGoogleToken(user.id);
-    if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const url = new URL(request.url);
+    const accountName = url.searchParams.get('account');
+    const tokenResult = await getValidGoogleToken(user.id, accountName);
+    if (!tokenResult?.token) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const accessToken = tokenResult.token;
     
     const data = await googleApiCall(accessToken, `/gmail/v1/users/me/messages/${messageId}?format=full`);
     
@@ -1036,10 +1093,11 @@ async function handleGmailSend(request) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const accessToken = await getValidGoogleToken(user.id);
-    if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const { to, subject, body, threadId, account } = await request.json();
     
-    const { to, subject, body, threadId } = await request.json();
+    const tokenResult = await getValidGoogleToken(user.id, account);
+    if (!tokenResult?.token) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const accessToken = tokenResult.token;
     
     if (!to || !subject || !body) {
       return NextResponse.json({ error: 'Missing required fields: to, subject, body' }, { status: 400 });
@@ -1087,76 +1145,93 @@ async function handleCalendarList(request) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const accessToken = await getValidGoogleToken(user.id);
-    if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
-    
     const url = new URL(request.url);
     const timeMin = url.searchParams.get('timeMin') || new Date().toISOString();
     const timeMax = url.searchParams.get('timeMax') || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const maxResults = url.searchParams.get('maxResults') || '50';
     const calendarId = url.searchParams.get('calendarId'); // Optional: specific calendar
+    const accountName = url.searchParams.get('account'); // Optional: specific Google account
+    const allAccounts = url.searchParams.get('all') === 'true'; // Fetch from all accounts
     
-    // Get user's Google connection to find selected calendars
     const db = await connectDB();
-    const connection = await db.collection('google_connections').findOne({
-      user_id: user.id,
-      is_default: true
-    });
     
-    // Determine which calendars to fetch from
-    let calendarsToFetch = ['primary']; // Default to primary
+    // Determine which accounts to fetch from
+    let accountsToFetch = [];
     
-    if (calendarId) {
-      // If specific calendar requested, use that
-      calendarsToFetch = [calendarId];
-    } else if (connection?.calendars?.length > 0) {
-      // Get all selected calendars
-      const selectedCalendars = connection.calendars.filter(cal => cal.selected);
-      if (selectedCalendars.length > 0) {
-        calendarsToFetch = selectedCalendars.map(cal => cal.id);
+    if (allAccounts) {
+      // Fetch from ALL connected Google accounts
+      accountsToFetch = await getAllGoogleConnections(user.id);
+      console.log('[Calendar List] Fetching from ALL accounts:', accountsToFetch.map(a => a.email));
+    } else {
+      // Fetch from specific or default account
+      const tokenResult = await getValidGoogleToken(user.id, accountName);
+      if (!tokenResult?.token) {
+        return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
       }
+      accountsToFetch = [{ ...tokenResult.connection, access_token: tokenResult.token }];
+      console.log('[Calendar List] Fetching from account:', tokenResult.connection?.email);
     }
     
-    console.log('[Calendar List] Fetching from calendars:', calendarsToFetch);
+    if (accountsToFetch.length === 0) {
+      return NextResponse.json({ error: 'No Google accounts connected' }, { status: 400 });
+    }
     
     const params = new URLSearchParams({
       timeMin,
       timeMax,
-      maxResults: Math.ceil(parseInt(maxResults) / calendarsToFetch.length).toString(), // Distribute maxResults
+      maxResults: Math.ceil(parseInt(maxResults) / Math.max(accountsToFetch.length, 1)).toString(),
       singleEvents: 'true',
       orderBy: 'startTime'
     });
     
-    // Fetch events from all selected calendars in parallel
-    const allEventsPromises = calendarsToFetch.map(async (calId) => {
-      try {
-        const encodedCalId = encodeURIComponent(calId);
-        const data = await googleApiCall(accessToken, `/calendar/v3/calendars/${encodedCalId}/events?${params}`);
-        
-        // Find calendar info for color/name
-        const calInfo = connection?.calendars?.find(c => c.id === calId);
-        
-        return (data.items || []).map(event => ({
-          id: event.id,
-          calendarId: calId,
-          calendarName: calInfo?.name || (calId === 'primary' ? 'Primary' : calId),
-          calendarColor: calInfo?.color || event.colorId || '#4285f4',
-          summary: event.summary || '(No title)',
-          description: event.description || '',
-          location: event.location || '',
-          start: event.start?.dateTime || event.start?.date,
-          end: event.end?.dateTime || event.end?.date,
-          htmlLink: event.htmlLink,
-          attendees: event.attendees?.map(a => ({ email: a.email, name: a.displayName })) || []
-        }));
-      } catch (calErr) {
-        console.error(`[Calendar List] Error fetching calendar ${calId}:`, calErr.message);
-        return []; // Return empty array for failed calendars
-      }
-    });
+    // Fetch events from all accounts and their selected calendars
+    const allEvents = [];
     
-    const allEventsArrays = await Promise.all(allEventsPromises);
-    const allEvents = allEventsArrays.flat();
+    for (const account of accountsToFetch) {
+      // Determine which calendars to fetch from this account
+      let calendarsToFetch = ['primary'];
+      
+      if (calendarId) {
+        calendarsToFetch = [calendarId];
+      } else if (account.calendars?.length > 0) {
+        const selectedCalendars = account.calendars.filter(cal => cal.selected);
+        if (selectedCalendars.length > 0) {
+          calendarsToFetch = selectedCalendars.map(cal => cal.id);
+        }
+      }
+      
+      console.log(`[Calendar List] Account ${account.email}: fetching from calendars:`, calendarsToFetch);
+      
+      // Fetch events from each calendar
+      for (const calId of calendarsToFetch) {
+        try {
+          const encodedCalId = encodeURIComponent(calId);
+          const data = await googleApiCall(account.access_token, `/calendar/v3/calendars/${encodedCalId}/events?${params}`);
+          
+          const calInfo = account.calendars?.find(c => c.id === calId);
+          
+          const events = (data.items || []).map(event => ({
+            id: event.id,
+            calendarId: calId,
+            calendarName: calInfo?.name || (calId === 'primary' ? 'Primary' : calId),
+            calendarColor: calInfo?.color || event.colorId || '#4285f4',
+            accountEmail: account.email,
+            accountName: account.name,
+            summary: event.summary || '(No title)',
+            description: event.description || '',
+            location: event.location || '',
+            start: event.start?.dateTime || event.start?.date,
+            end: event.end?.dateTime || event.end?.date,
+            htmlLink: event.htmlLink,
+            attendees: event.attendees?.map(a => ({ email: a.email, name: a.displayName })) || []
+          }));
+          
+          allEvents.push(...events);
+        } catch (calErr) {
+          console.error(`[Calendar List] Error fetching calendar ${calId} from ${account.email}:`, calErr.message);
+        }
+      }
+    }
     
     // Sort all events by start time
     allEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
@@ -1166,7 +1241,7 @@ async function handleCalendarList(request) {
     
     return NextResponse.json({
       events: limitedEvents,
-      calendarsQueried: calendarsToFetch.length,
+      accountsQueried: accountsToFetch.map(a => a.email),
       totalEvents: allEvents.length
     });
   } catch (err) {
@@ -1181,10 +1256,16 @@ async function handleCalendarCreate(request) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const accessToken = await getValidGoogleToken(user.id);
-    if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const { summary, description, location, start, end, attendees, timeZone, calendarId, account } = await request.json();
     
-    const { summary, description, location, start, end, attendees, timeZone, calendarId } = await request.json();
+    // Get token for specific or default account
+    const tokenResult = await getValidGoogleToken(user.id, account);
+    if (!tokenResult?.token) {
+      return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    }
+    
+    const accessToken = tokenResult.token;
+    const connection = tokenResult.connection;
     
     if (!summary || !start || !end) {
       return NextResponse.json({ error: 'Missing required fields: summary, start, end' }, { status: 400 });
@@ -1208,7 +1289,7 @@ async function handleCalendarCreate(request) {
       attendees: attendees?.map(email => ({ email })) || []
     };
     
-    console.log('[Calendar Create] Creating event in calendar:', targetCalendar);
+    console.log('[Calendar Create] Creating event in calendar:', targetCalendar, 'on account:', connection?.email);
     
     const data = await googleApiCall(accessToken, `/calendar/v3/calendars/${encodedCalendarId}/events`, {
       method: 'POST',
@@ -1238,10 +1319,12 @@ async function handleCalendarUpdate(request, eventId) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const accessToken = await getValidGoogleToken(user.id);
-    if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
-    
     const updates = await request.json();
+    
+    const tokenResult = await getValidGoogleToken(user.id, updates.account);
+    if (!tokenResult?.token) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const accessToken = tokenResult.token;
+    
     const calendarId = updates.calendarId || 'primary';
     const encodedCalendarId = encodeURIComponent(calendarId);
     
@@ -1275,12 +1358,15 @@ async function handleCalendarDelete(request, eventId) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const accessToken = await getValidGoogleToken(user.id);
-    if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
-    
-    // Get calendarId from query params or body
+    // Get calendarId and account from query params
     const url = new URL(request.url);
     const calendarId = url.searchParams.get('calendarId') || 'primary';
+    const accountName = url.searchParams.get('account');
+    
+    const tokenResult = await getValidGoogleToken(user.id, accountName);
+    if (!tokenResult?.token) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const accessToken = tokenResult.token;
+    
     const encodedCalendarId = encodeURIComponent(calendarId);
     
     await googleApiCall(accessToken, `/calendar/v3/calendars/${encodedCalendarId}/events/${eventId}`, {
@@ -1304,10 +1390,12 @@ async function handleDriveList(request) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const accessToken = await getValidGoogleToken(user.id);
-    if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
-    
     const url = new URL(request.url);
+    const accountName = url.searchParams.get('account');
+    const tokenResult = await getValidGoogleToken(user.id, accountName);
+    if (!tokenResult?.token) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const accessToken = tokenResult.token;
+    
     const query = url.searchParams.get('q') || '';
     const pageSize = url.searchParams.get('pageSize') || '20';
     const pageToken = url.searchParams.get('pageToken') || '';
@@ -1347,8 +1435,11 @@ async function handleDriveGet(request, fileId) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const accessToken = await getValidGoogleToken(user.id);
-    if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const url = new URL(request.url);
+    const accountName = url.searchParams.get('account');
+    const tokenResult = await getValidGoogleToken(user.id, accountName);
+    if (!tokenResult?.token) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const accessToken = tokenResult.token;
     
     // Get file metadata
     const metadata = await googleApiCall(accessToken, `/drive/v3/files/${fileId}?fields=id,name,mimeType,size,webViewLink`);
@@ -1383,10 +1474,12 @@ async function handleDriveSearch(request) {
     const user = await authenticate(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     
-    const accessToken = await getValidGoogleToken(user.id);
-    if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const { query, account } = await request.json();
     
-    const { query } = await request.json();
+    const tokenResult = await getValidGoogleToken(user.id, account);
+    if (!tokenResult?.token) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
+    const accessToken = tokenResult.token;
+    
     if (!query) return NextResponse.json({ error: 'Query required' }, { status: 400 });
     
     // Build search query
@@ -1465,6 +1558,20 @@ async function fetchGoogleContextForChat(userId, query) {
   }
   
   const intents = detectGoogleIntent(query);
+  const lowerQuery = query.toLowerCase();
+  
+  // Detect if user mentioned a specific account
+  let targetAccount = null;
+  for (const conn of connections) {
+    const emailName = conn.email?.split('@')[0]?.toLowerCase() || '';
+    const accountName = conn.name?.toLowerCase() || '';
+    if (lowerQuery.includes(emailName) || lowerQuery.includes(accountName)) {
+      targetAccount = conn;
+      console.log('[GoogleContext] Detected specific account:', conn.email);
+      break;
+    }
+  }
+  
   const context = {
     hasGoogleConnected: true,
     accounts: connections.map(c => ({
@@ -1473,7 +1580,7 @@ async function fetchGoogleContextForChat(userId, query) {
       isDefault: c.is_default || false,
       calendars: (c.calendars || []).filter(cal => cal.selected).map(cal => ({
         id: cal.id,
-        name: cal.summary,
+        name: cal.summary || cal.name,
         primary: cal.primary
       }))
     })),
@@ -1482,118 +1589,163 @@ async function fetchGoogleContextForChat(userId, query) {
     drive: null
   };
   
-  // Use default account or first account for data fetching
-  const primaryConnection = connections.find(c => c.is_default) || connections[0];
-  const accessToken = await getValidGoogleTokenForConnection(primaryConnection);
-  
-  if (!accessToken) {
-    return context; // Return account info even if token is invalid
-  }
-  
   try {
     // Fetch Gmail if relevant
     if (intents.gmail) {
-      const searchQuery = intents.searchTerms.length > 0 
-        ? intents.searchTerms.join(' OR ') 
-        : '';
+      // Use specific account if mentioned, otherwise default
+      const gmailAccount = targetAccount || connections.find(c => c.is_default) || connections[0];
+      const tokenResult = await getValidGoogleToken(userId, gmailAccount.connection_id);
       
-      const params = new URLSearchParams({ maxResults: '10' });
-      if (searchQuery) params.append('q', searchQuery);
-      
-      const gmailData = await googleApiCall(accessToken, `/gmail/v1/users/me/messages?${params}`);
-      
-      if (gmailData.messages && gmailData.messages.length > 0) {
-        // Fetch details for each message
-        const detailed = await Promise.all(
-          gmailData.messages.slice(0, 8).map(async (msg) => {
-            try {
-              const detail = await googleApiCall(accessToken, `/gmail/v1/users/me/messages/${msg.id}?format=full`);
-              const headers = detail.payload?.headers || [];
-              
-              // Extract body
-              let body = '';
-              const getBody = (payload) => {
-                if (payload.body?.data) {
-                  return Buffer.from(payload.body.data, 'base64').toString('utf-8');
-                }
-                if (payload.parts) {
-                  for (const part of payload.parts) {
-                    if (part.mimeType === 'text/plain' && part.body?.data) {
-                      return Buffer.from(part.body.data, 'base64').toString('utf-8');
+      if (tokenResult?.token) {
+        const accessToken = tokenResult.token;
+        const searchQuery = intents.searchTerms.length > 0 
+          ? intents.searchTerms.join(' OR ') 
+          : '';
+        
+        const params = new URLSearchParams({ maxResults: '10' });
+        if (searchQuery) params.append('q', searchQuery);
+        
+        const gmailData = await googleApiCall(accessToken, `/gmail/v1/users/me/messages?${params}`);
+        
+        if (gmailData.messages && gmailData.messages.length > 0) {
+          const detailed = await Promise.all(
+            gmailData.messages.slice(0, 8).map(async (msg) => {
+              try {
+                const detail = await googleApiCall(accessToken, `/gmail/v1/users/me/messages/${msg.id}?format=full`);
+                const headers = detail.payload?.headers || [];
+                
+                let body = '';
+                const getBody = (payload) => {
+                  if (payload.body?.data) {
+                    return Buffer.from(payload.body.data, 'base64').toString('utf-8');
+                  }
+                  if (payload.parts) {
+                    for (const part of payload.parts) {
+                      if (part.mimeType === 'text/plain' && part.body?.data) {
+                        return Buffer.from(part.body.data, 'base64').toString('utf-8');
+                      }
                     }
                   }
-                }
-                return '';
-              };
-              body = getBody(detail.payload);
-              
-              return {
-                subject: headers.find(h => h.name === 'Subject')?.value || '(No Subject)',
-                from: headers.find(h => h.name === 'From')?.value || '',
-                date: headers.find(h => h.name === 'Date')?.value || '',
-                snippet: detail.snippet || '',
-                body: body.slice(0, 1000) // Limit body size
-              };
-            } catch (e) {
-              return null;
-            }
-          })
-        );
-        
-        context.gmail = detailed.filter(Boolean);
+                  return '';
+                };
+                body = getBody(detail.payload);
+                
+                return {
+                  account: gmailAccount.email,
+                  subject: headers.find(h => h.name === 'Subject')?.value || '(No Subject)',
+                  from: headers.find(h => h.name === 'From')?.value || '',
+                  date: headers.find(h => h.name === 'Date')?.value || '',
+                  snippet: detail.snippet || '',
+                  body: body.slice(0, 1000)
+                };
+              } catch (e) {
+                return null;
+              }
+            })
+          );
+          
+          context.gmail = detailed.filter(Boolean);
+        }
       }
     }
     
-    // Fetch Calendar if relevant
+    // Fetch Calendar if relevant - from ALL accounts and ALL selected calendars
     if (intents.calendar) {
       const now = new Date();
       const timeMin = now.toISOString();
-      const timeMax = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(); // Next 2 weeks
+      const timeMax = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
       
       const params = new URLSearchParams({
         timeMin,
         timeMax,
-        maxResults: '15',
+        maxResults: '20',
         singleEvents: 'true',
         orderBy: 'startTime'
       });
       
-      const calData = await googleApiCall(accessToken, `/calendar/v3/calendars/primary/events?${params}`);
+      const allEvents = [];
       
-      if (calData.items && calData.items.length > 0) {
-        context.calendar = calData.items.map(event => ({
-          summary: event.summary || '(No title)',
-          description: event.description || '',
-          location: event.location || '',
-          start: event.start?.dateTime || event.start?.date,
-          end: event.end?.dateTime || event.end?.date,
-          attendees: event.attendees?.map(a => a.email).slice(0, 5) || []
-        }));
+      // Determine which accounts to fetch from
+      const accountsToFetch = targetAccount ? [targetAccount] : connections;
+      
+      for (const conn of accountsToFetch) {
+        const tokenResult = await getValidGoogleToken(userId, conn.connection_id);
+        if (!tokenResult?.token) continue;
+        
+        const accessToken = tokenResult.token;
+        
+        // Get selected calendars for this account
+        const calendarsToFetch = (conn.calendars || [])
+          .filter(cal => cal.selected)
+          .map(cal => cal.id);
+        
+        // If no calendars selected, use primary
+        if (calendarsToFetch.length === 0) {
+          calendarsToFetch.push('primary');
+        }
+        
+        console.log(`[GoogleContext] Fetching calendars from ${conn.email}:`, calendarsToFetch);
+        
+        for (const calId of calendarsToFetch) {
+          try {
+            const encodedCalId = encodeURIComponent(calId);
+            const calData = await googleApiCall(accessToken, `/calendar/v3/calendars/${encodedCalId}/events?${params}`);
+            
+            const calInfo = conn.calendars?.find(c => c.id === calId);
+            
+            if (calData.items && calData.items.length > 0) {
+              const events = calData.items.map(event => ({
+                account: conn.email,
+                calendarName: calInfo?.summary || calInfo?.name || (calId === 'primary' ? 'Primary' : calId),
+                summary: event.summary || '(No title)',
+                description: event.description || '',
+                location: event.location || '',
+                start: event.start?.dateTime || event.start?.date,
+                end: event.end?.dateTime || event.end?.date,
+                attendees: event.attendees?.map(a => a.email).slice(0, 5) || []
+              }));
+              allEvents.push(...events);
+            }
+          } catch (calErr) {
+            console.error(`[GoogleContext] Error fetching calendar ${calId} from ${conn.email}:`, calErr.message);
+          }
+        }
       }
+      
+      // Sort by start time
+      allEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
+      context.calendar = allEvents.slice(0, 25); // Limit to 25 events
     }
     
     // Fetch Drive files if relevant
     if (intents.drive) {
-      const searchQuery = intents.searchTerms.length > 0 
-        ? `name contains '${intents.searchTerms[0]}'`
-        : '';
+      const driveAccount = targetAccount || connections.find(c => c.is_default) || connections[0];
+      const tokenResult = await getValidGoogleToken(userId, driveAccount.connection_id);
       
-      const params = new URLSearchParams({
-        pageSize: '10',
-        fields: 'files(id, name, mimeType, modifiedTime, webViewLink)',
-        orderBy: 'modifiedTime desc'
-      });
-      if (searchQuery) params.append('q', searchQuery);
-      
-      const driveData = await googleApiCall(accessToken, `/drive/v3/files?${params}`);
-      
-      if (driveData.files && driveData.files.length > 0) {
-        context.drive = driveData.files.map(file => ({
-          name: file.name,
-          type: file.mimeType,
-          modified: file.modifiedTime,
-          link: file.webViewLink
-        }));
+      if (tokenResult?.token) {
+        const accessToken = tokenResult.token;
+        const searchQuery = intents.searchTerms.length > 0 
+          ? `name contains '${intents.searchTerms[0]}'`
+          : '';
+        
+        const params = new URLSearchParams({
+          pageSize: '10',
+          fields: 'files(id, name, mimeType, modifiedTime, webViewLink)',
+          orderBy: 'modifiedTime desc'
+        });
+        if (searchQuery) params.append('q', searchQuery);
+        
+        const driveData = await googleApiCall(accessToken, `/drive/v3/files?${params}`);
+        
+        if (driveData.files && driveData.files.length > 0) {
+          context.drive = driveData.files.map(file => ({
+            account: driveAccount.email,
+            name: file.name,
+            type: file.mimeType,
+            modified: file.modifiedTime,
+            link: file.webViewLink
+          }));
+        }
       }
     }
     

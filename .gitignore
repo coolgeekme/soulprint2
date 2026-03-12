@@ -59,3 +59,7 @@ node_modules/@next/swc-linux-arm64-gnu/next-swc.linux-arm64-gnu.node
 .next/cache/webpack/server-production/1.pack
 .next/cache/webpack/server-production/2.pack
 .next/cache/webpack/server-production/4.pack
+-e 
+# Environment files
+*.env
+*.env.*
