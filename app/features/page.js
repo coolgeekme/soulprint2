@@ -41,16 +41,22 @@ const GOOGLE_FEATURES = [
 
 const UNIQUE_FEATURES = [
   { 
+    icon: Brain, 
+    title: 'Persistent Identity Layer', 
+    desc: 'Your SoulPrint — your communication style, preferences, and context — persists across ALL AI models. Switch from GPT to Claude mid-conversation and the AI still knows YOU.',
+    tag: 'PATENT PENDING'
+  },
+  { 
     icon: Sparkles, 
     title: 'Conversational Image Editing', 
     desc: 'Type "remove the hat" or "change shirt to blue" and watch the AI edit your image in place.',
     tag: 'EXCLUSIVE'
   },
   { 
-    icon: Brain, 
-    title: 'Smart Model Routing', 
-    desc: 'Let AI automatically pick the best model for each task — coding goes to GPT, creative writing to Claude.',
-    tag: 'AI-POWERED'
+    icon: Zap, 
+    title: 'Dynamic Intelligence™', 
+    desc: 'Our AI automatically selects the best model for each task — coding goes to GPT, creative writing to Claude, math to Gemini.',
+    tag: 'PATENT PENDING'
   },
   { 
     icon: Upload, 
@@ -58,24 +64,19 @@ const UNIQUE_FEATURES = [
     desc: 'Import your entire ChatGPT history (even 1GB+ files) and your AI learns from your conversations.',
     tag: 'UNIQUE'
   },
-  { 
-    icon: Users, 
-    title: '36-Question Assessment', 
-    desc: 'Build your SoulPrint profile so AI responses match your communication style and preferences.',
-    tag: 'PERSONALIZED'
-  },
 ];
 
 const COMPARISON = [
-  { feature: 'Multiple LLMs', soulprint: true, chatgpt: false, claude: false, gemini: false },
+  { feature: 'Persistent Identity Across Models', soulprint: true, chatgpt: false, claude: false, gemini: false },
+  { feature: 'Multiple LLMs in One Chat', soulprint: true, chatgpt: false, claude: false, gemini: false },
+  { feature: 'Compare 3 Model Responses', soulprint: true, chatgpt: false, claude: false, gemini: false },
+  { feature: 'Dynamic Intelligence™', soulprint: true, chatgpt: false, claude: false, gemini: false },
   { feature: 'Image Generation', soulprint: true, chatgpt: true, claude: false, gemini: true },
   { feature: 'In-Place Image Editing', soulprint: true, chatgpt: 'limited', claude: false, gemini: false },
   { feature: 'Video Generation', soulprint: true, chatgpt: false, claude: false, gemini: false },
   { feature: 'Full Google Suite', soulprint: true, chatgpt: false, claude: false, gemini: 'limited' },
   { feature: 'Personality Assessment', soulprint: true, chatgpt: false, claude: false, gemini: false },
   { feature: 'History Import', soulprint: true, chatgpt: 'n/a', claude: false, gemini: false },
-  { feature: 'Multi-Account Google', soulprint: true, chatgpt: false, claude: false, gemini: false },
-  { feature: 'Smart Model Router', soulprint: true, chatgpt: false, claude: false, gemini: false },
 ];
 
 function FeatureCard({ icon: Icon, title, desc, tag }) {
@@ -181,6 +182,85 @@ export default function FeaturesPage() {
         </div>
       </section>
 
+      {/* PERSISTENT IDENTITY LAYER - The Key Differentiator */}
+      <section className="bg-gradient-to-b from-gray-900 to-sp-black py-24 px-8 relative overflow-hidden">
+        <div className="absolute inset-0 grid-bg opacity-30" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[radial-gradient(ellipse,rgba(246,64,0,0.1)_0%,transparent_70%)]" />
+        
+        <div className="relative z-10 max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <span className="inline-block px-3 py-1 bg-orange-500/20 border border-orange-500/30 rounded-full text-orange-400 text-xs font-bold uppercase tracking-wider mb-4">
+              Patent Pending
+            </span>
+            <h2 className="font-condensed font-black text-white mb-6"
+                style={{ fontSize: 'clamp(36px, 5vw, 56px)' }}>
+              YOUR IDENTITY.<br />
+              <span className="text-orange-500">EVERY AI.</span>
+            </h2>
+            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              This isn't storage. This is <span className="text-white font-semibold">memory</span>. 
+              Your SoulPrint is a persistent identity layer that travels with you across every AI model.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
+            <div className="bg-white/5 backdrop-blur rounded-2xl p-6 border border-white/10">
+              <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center mb-4">
+                <Brain className="w-6 h-6 text-orange-400" />
+              </div>
+              <h3 className="font-bold text-white text-lg mb-2">Memory, Not Storage</h3>
+              <p className="text-gray-400 text-sm">
+                Traditional AI forgets you every session. Your SoulPrint remembers how you think, 
+                communicate, and make decisions — permanently.
+              </p>
+            </div>
+            
+            <div className="bg-white/5 backdrop-blur rounded-2xl p-6 border border-white/10">
+              <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center mb-4">
+                <Users className="w-6 h-6 text-orange-400" />
+              </div>
+              <h3 className="font-bold text-white text-lg mb-2">One Identity, All Models</h3>
+              <p className="text-gray-400 text-sm">
+                Switch from GPT to Claude to Gemini mid-conversation. Your preferences, context, 
+                and communication style persist across every model.
+              </p>
+            </div>
+            
+            <div className="bg-white/5 backdrop-blur rounded-2xl p-6 border border-white/10">
+              <div className="w-12 h-12 bg-orange-500/20 rounded-xl flex items-center justify-center mb-4">
+                <MessageSquare className="w-6 h-6 text-orange-400" />
+              </div>
+              <h3 className="font-bold text-white text-lg mb-2">Compare 3 Responses</h3>
+              <p className="text-gray-400 text-sm">
+                Ask a question and get responses from up to 3 different models simultaneously. 
+                Choose the best answer for your needs.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white/5 backdrop-blur rounded-2xl p-8 border border-white/10">
+            <div className="flex items-start gap-6">
+              <div className="hidden md:block">
+                <SoulPrintLogo size={60} />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-xl mb-3">What is a SoulPrint?</h3>
+                <p className="text-gray-300 leading-relaxed">
+                  A SoulPrint is your <span className="text-orange-400 font-semibold">persistent AI identity layer</span>. 
+                  Not a chatbot. Not a prompt wrapper. Not a memory plugin. It's a mapped, structured imprint of 
+                  how you think, decide, react, prioritize, trust, and communicate — embedded into an AI system 
+                  so the interaction reflects <span className="text-white font-semibold">you</span>, not generic model behavior.
+                </p>
+                <p className="text-gray-400 mt-4 text-sm">
+                  Most AI resets every session. A SoulPrint doesn't. It builds continuity, reference, and resonance 
+                  across conversations so the system responds with your logic, your tone, your structure — consistently.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Multi-Model LLM Section */}
       <section className="bg-white py-24 px-8">
         <div className="max-w-6xl mx-auto">
@@ -193,8 +273,8 @@ export default function FeaturesPage() {
               CHOOSE YOUR INTELLIGENCE
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Why limit yourself to one AI? Access the world's most powerful language models, 
-              all in one conversation. Switch models mid-chat or let Smart Mode pick for you.
+              Access 15+ AI models in a single conversation. Switch models mid-chat, 
+              compare responses, or let Dynamic Intelligence™ pick the best one automatically.
             </p>
           </div>
 
@@ -213,16 +293,19 @@ export default function FeaturesPage() {
               </div>
             ))}
             
-            {/* Smart Mode Card */}
+            {/* Dynamic Intelligence Card */}
             <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
                   <Zap className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold">Smart Mode</h3>
+                <div>
+                  <h3 className="font-bold">Dynamic Intelligence™</h3>
+                  <span className="text-xs text-white/60">Patent Pending</span>
+                </div>
               </div>
               <p className="text-white/80 text-sm mb-4">
-                Can't decide? Let our AI Router automatically pick the best model for each message.
+                Our AI automatically selects the best model for each message based on the task.
               </p>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-center gap-2">

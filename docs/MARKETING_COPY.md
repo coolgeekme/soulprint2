@@ -8,6 +8,34 @@
 2. **"The AI That Knows You"** - Personalized intelligence that learns who you are.
 3. **"All Your AI in One Place"** - GPT, Claude, Gemini, image gen, video gen — unified.
 4. **"AI Without Limits"** - Switch models. Generate anything. Connect everything.
+5. **"Your Identity. Every AI."** - Memory that persists across all models.
+
+---
+
+## 🧬 **THE KEY DIFFERENTIATOR: Persistent Identity Layer** (Patent Pending)
+
+### Headline: **Your Identity. Every AI.**
+
+> This isn't storage. This is **memory**. Your SoulPrint is a persistent identity layer that travels with you across every AI model.
+
+**What Makes This Different:**
+
+| Traditional AI | SoulPrint Engine |
+|----------------|------------------|
+| Forgets you every session | Remembers how you think permanently |
+| One model, one personality | Your identity persists across ALL models |
+| Generic responses | Responses reflect YOUR logic, tone, and style |
+| Starts from zero each time | Builds continuity and resonance over time |
+
+**Key Features:**
+- **Memory, Not Storage**: Your SoulPrint remembers how you think, communicate, and make decisions — permanently.
+- **One Identity, All Models**: Switch from GPT to Claude to Gemini mid-conversation. Your preferences persist.
+- **Compare 3 Responses**: Ask a question and get responses from up to 3 different models. Choose the best.
+
+**What is a SoulPrint?**
+> A SoulPrint is your **persistent AI identity layer**. Not a chatbot. Not a prompt wrapper. Not a memory plugin. It's a mapped, structured imprint of how you think, decide, react, prioritize, trust, and communicate — embedded into an AI system so the interaction reflects **you**, not generic model behavior.
+>
+> Most AI resets every session. A SoulPrint doesn't. It builds continuity, reference, and resonance across conversations so the system responds with your logic, your tone, your structure — consistently.
 
 ---
 
@@ -54,7 +82,7 @@
 | **Perplexity** | Sonar Pro, Sonar, Sonar Reasoning | Real-time web search, research |
 | **Kimi** | Kimi K2, Moonshot 32k/8k | Long context, Chinese language |
 
-**🧠 Smart Mode**: Can't decide? Let our AI Router automatically pick the best model for each message based on the task.
+**🧠 Dynamic Intelligence™**: Can't decide? Let our AI Router automatically pick the best model for each message based on the task.
 
 ---
 
@@ -176,15 +204,16 @@
 
 | Feature | SoulPrint | ChatGPT | Claude | Gemini |
 |---------|-----------|---------|--------|--------|
-| Multiple LLMs | ✅ 15+ models | ❌ OpenAI only | ❌ Anthropic only | ❌ Google only |
+| Persistent Identity Across Models | ✅ | ❌ | ❌ | ❌ |
+| Multiple LLMs in One Chat | ✅ | ❌ | ❌ | ❌ |
+| Compare 3 Model Responses | ✅ | ❌ | ❌ | ❌ |
+| Dynamic Intelligence™ | ✅ | ❌ | ❌ | ❌ |
 | Image Generation | ✅ Multiple providers | ✅ DALL-E only | ❌ | ✅ Imagen only |
 | Image Editing | ✅ In-place editing | ⚠️ Limited | ❌ | ❌ |
 | Video Generation | ✅ Kling, Sora, etc. | ❌ | ❌ | ❌ |
 | Google Integration | ✅ Full suite | ❌ | ❌ | ⚠️ Limited |
 | Personality Assessment | ✅ 36 questions | ❌ | ❌ | ❌ |
 | History Import | ✅ ChatGPT import | N/A | ❌ | ❌ |
-| Multi-account Google | ✅ | ❌ | ❌ | ❌ |
-| Smart Model Routing | ✅ Auto-selects best | ❌ | ❌ | ❌ |
 
 ---
 
