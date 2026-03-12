@@ -1916,20 +1916,75 @@ function reformulateForSafety(instruction) {
   return safe;
 }
 
-// Internal function for image editing (called from tool handler)
-// Uses OpenAI's new Responses API with gpt-image-1 for true in-place editing
-async function handleImageEditInternal(userId, image, editInstruction) {
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-  if (!openaiApiKey) {
-    return { success: false, error: 'OpenAI API key not configured' };
+// Helper function to poll Kie.ai task result
+async function pollKieTaskResult(apiKey, taskId, timeoutMs = 60000) {
+  const startTime = Date.now();
+  const pollInterval = 3000; // Poll every 3 seconds
+  
+  console.log('[Kie.ai Poll] Starting poll for task:', taskId);
+  
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      // Use the correct Kie.ai endpoint
+      const statusResponse = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+      
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        console.log('[Kie.ai Poll] Response:', JSON.stringify(statusData).substring(0, 300));
+        
+        if (statusData.code === 200 && statusData.data) {
+          const state = statusData.data.state;
+          console.log('[Kie.ai Poll] State:', state);
+          
+          // Check for completion
+          if (state === 'success') {
+            // Parse resultJson to get the URL
+            try {
+              const resultJson = JSON.parse(statusData.data.resultJson || '{}');
+              const resultUrl = resultJson.resultUrls?.[0] || resultJson.url || resultJson.image_url;
+              
+              if (resultUrl) {
+                console.log('[Kie.ai Poll] Got result URL:', resultUrl.substring(0, 100));
+                return { success: true, url: resultUrl };
+              }
+              return { success: false, error: 'No image URL in result' };
+            } catch (parseErr) {
+              console.error('[Kie.ai Poll] Failed to parse resultJson:', parseErr);
+              return { success: false, error: 'Failed to parse result' };
+            }
+          }
+          
+          // Check for failure
+          if (state === 'fail') {
+            return { success: false, error: statusData.data.failMsg || 'Task failed' };
+          }
+          
+          // Still processing (waiting, queuing, generating)
+          console.log('[Kie.ai Poll] Still processing, state:', state);
+        }
+      } else {
+        console.log('[Kie.ai Poll] HTTP error:', statusResponse.status);
+      }
+    } catch (pollErr) {
+      console.log('[Kie.ai Poll] Error:', pollErr.message);
+    }
+    
+    // Wait before next poll
+    await new Promise(resolve => setTimeout(resolve, pollInterval));
   }
   
+  return { success: false, error: 'Polling timeout' };
+}
+
+// Internal function for image editing (called from tool handler)
+// Prioritizes Kie.ai for cost-effective true inpainting, falls back to OpenAI
+async function handleImageEditInternal(userId, image, editInstruction) {
   console.log('[ImageEdit Internal] Starting in-place edit:', editInstruction.substring(0, 100));
-  
-  // Reformulate edit instruction to be more safety-system friendly
-  // OpenAI's safety filters can be triggered by certain words like "remove" with body parts
-  const safeEditInstruction = reformulateForSafety(editInstruction);
-  console.log('[ImageEdit Internal] Safe instruction:', safeEditInstruction);
   
   // Get image as base64 or URL
   const mimeType = image.mimeType || 'image/png';
@@ -1952,6 +2007,116 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   const imageDataUrl = imageBase64 
     ? `data:${mimeType};base64,${imageBase64}`
     : imageUrl;
+  
+  // METHOD 1: Try Kie.ai first (cost-effective, true inpainting support)
+  const kieApiKey = process.env.KIE_API_KEY;
+  if (kieApiKey) {
+    try {
+      console.log('[ImageEdit Internal] Attempting Kie.ai Qwen Image Edit');
+      
+      // For Kie.ai, we need to upload the image first if it's base64
+      // Or use the URL directly if available
+      let kieImageUrl = imageUrl;
+      
+      if (!kieImageUrl && imageBase64) {
+        // Upload the image to a temporary location first
+        // For now, we'll use the data URL directly (some endpoints support it)
+        kieImageUrl = imageDataUrl;
+      }
+      
+      // Use Kie.ai's unified createTask endpoint with qwen/image-edit model
+      const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${kieApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'qwen/image-edit',
+          input: {
+            prompt: editInstruction,
+            image_url: kieImageUrl,
+            acceleration: 'regular',
+            num_inference_steps: 30,
+            guidance_scale: 4,
+            enable_safety_checker: false, // Disable to avoid false positives like "remove headband"
+            output_format: 'png',
+          }
+        }),
+      });
+      
+      if (kieResponse.ok) {
+        const kieData = await kieResponse.json();
+        console.log('[ImageEdit Internal] Kie.ai response:', JSON.stringify(kieData).substring(0, 300));
+        
+        // Kie.ai returns taskId for async processing
+        if (kieData.code === 200 && kieData.data?.taskId) {
+          const result = await pollKieTaskResult(kieApiKey, kieData.data.taskId, 90000); // 90s timeout for image edit
+          if (result.success && result.url) {
+            console.log('[ImageEdit Internal] Successfully edited image with Kie.ai Qwen');
+            return {
+              success: true,
+              url: result.url,
+              edit: editInstruction,
+              method: 'kie-qwen-image-edit'
+            };
+          } else if (result.error) {
+            console.log('[ImageEdit Internal] Kie.ai task failed:', result.error);
+          }
+        } else {
+          console.log('[ImageEdit Internal] Kie.ai error response:', kieData.msg || kieData.code);
+        }
+      } else {
+        const err = await kieResponse.json().catch(() => ({}));
+        console.log('[ImageEdit Internal] Kie.ai request failed:', err.msg || err.message || kieResponse.status);
+        
+        // Try Google Nano Banana Edit as alternative
+        console.log('[ImageEdit Internal] Trying Kie.ai Nano Banana Edit');
+        const nanoBananaResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${kieApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/nano-banana-edit',
+            input: {
+              prompt: editInstruction,
+              image_url: kieImageUrl,
+            }
+          }),
+        });
+        
+        if (nanoBananaResponse.ok) {
+          const nbData = await nanoBananaResponse.json();
+          if (nbData.code === 200 && nbData.data?.taskId) {
+            const result = await pollKieTaskResult(kieApiKey, nbData.data.taskId, 90000);
+            if (result.success && result.url) {
+              console.log('[ImageEdit Internal] Successfully edited image with Kie.ai Nano Banana');
+              return {
+                success: true,
+                url: result.url,
+                edit: editInstruction,
+                method: 'kie-nano-banana-edit'
+              };
+            }
+          }
+        }
+      }
+    } catch (kieErr) {
+      console.log('[ImageEdit Internal] Kie.ai error:', kieErr.message);
+    }
+  }
+  
+  // METHOD 2: Fall back to OpenAI (DALL-E 3 regeneration)
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  if (!openaiApiKey) {
+    return { success: false, error: 'No image editing API available' };
+  }
+  
+  // Reformulate for OpenAI safety
+  const safeEditInstruction = reformulateForSafety(editInstruction);
+  console.log('[ImageEdit Internal] Falling back to OpenAI with safe instruction:', safeEditInstruction);
   
   // Method 1: Try the new Responses API with gpt-4.1 (best for editing)
   try {
