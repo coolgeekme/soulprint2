@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -3672,8 +3672,8 @@ function PrivacyTab({ token }) {
 }
 
 // Settings / Telegram / Imports Modal
-function SettingsModal({ onClose, token, onAssessmentReset }) {
-  const [activeTab, setActiveTab] = useState('imports');
+function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
+  const [activeTab, setActiveTab] = useState(initialTab || 'imports');
   const [imports, setImports] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
@@ -6035,6 +6035,7 @@ function AttachmentPill({ att, onRemove, onGenerateJson }) {
 
 export default function ChatPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isMobile = useIsMobile();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -6048,6 +6049,7 @@ export default function ChatPage() {
   const [selectedModel, setSelectedModel] = useState('smart');
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState(null); // For opening settings to specific tab
   const [showSidebar, setShowSidebar] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop sidebar collapse state
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
@@ -6152,6 +6154,17 @@ export default function ChatPage() {
   useEffect(() => { streamingImageUrlRef.current = streamingImageUrl; }, [streamingImageUrl]);
   useEffect(() => { streamingVideoTaskRef.current = streamingVideoTask; }, [streamingVideoTask]);
   useEffect(() => { streamingSourcesRef.current = streamingSources; }, [streamingSources]);
+
+  // Handle URL params to open settings with specific tab (e.g., /chat?settings=telegram)
+  useEffect(() => {
+    const settingsTab = searchParams.get('settings');
+    if (settingsTab && token) {
+      setSettingsInitialTab(settingsTab);
+      setShowSettings(true);
+      // Clean up URL
+      router.replace('/chat', { scroll: false });
+    }
+  }, [searchParams, token, router]);
 
   // Capture the beforeinstallprompt event for PWA install
   useEffect(() => {
@@ -7890,7 +7903,7 @@ Ask me "What can you do with Google?" anytime if you need a reminder!`,
           onOpenSettings={() => setShowSettings(true)}
           initialConversationId={conversationId}
         />
-        {showSettings && <SettingsModal onClose={() => setShowSettings(false)} token={token} />}
+        {showSettings && <SettingsModal onClose={() => { setShowSettings(false); setSettingsInitialTab(null); }} token={token} initialTab={settingsInitialTab} />}
       </>
     );
   }
