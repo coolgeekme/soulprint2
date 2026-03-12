@@ -410,6 +410,8 @@ const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/drive',
   'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/documents',
+  'https://www.googleapis.com/auth/spreadsheets',
   'openid',
   'email',
   'profile'
@@ -7000,7 +7002,7 @@ async function handleChatStream(request) {
           console.log(`[Tool Call] Executing ${toolName} with args:`, JSON.stringify(args).substring(0, 200));
           
           // Handle Google actions
-          if (['send_email', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_google_doc', 'create_google_sheet'].includes(toolName)) {
+          if (['send_email', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_document', 'create_spreadsheet'].includes(toolName)) {
             const result = await executeGoogleAction(user.id, toolName, args);
             console.log(`[Google Tool] Result:`, result);
             return result;
