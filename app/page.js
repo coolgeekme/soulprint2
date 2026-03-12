@@ -216,6 +216,7 @@ export default function LandingPage() {
             <span className="font-condensed text-lg font-bold tracking-widest text-white uppercase">SoulPrint</span>
           </div>
           <div className="flex items-center gap-6">
+            <Link href="/features" className="text-sm text-gray-400 hover:text-white transition-colors">Features</Link>
             {isLoggedIn ? (
               <Link href="/chat" className="btn-orange px-5 py-2 rounded-lg text-sm flex items-center gap-2">
                 Open Chat <ArrowRight className="w-4 h-4" />
