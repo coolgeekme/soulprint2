@@ -1094,29 +1094,80 @@ async function handleCalendarList(request) {
     const timeMin = url.searchParams.get('timeMin') || new Date().toISOString();
     const timeMax = url.searchParams.get('timeMax') || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     const maxResults = url.searchParams.get('maxResults') || '50';
+    const calendarId = url.searchParams.get('calendarId'); // Optional: specific calendar
+    
+    // Get user's Google connection to find selected calendars
+    const db = await connectDB();
+    const connection = await db.collection('google_connections').findOne({
+      user_id: user.id,
+      is_default: true
+    });
+    
+    // Determine which calendars to fetch from
+    let calendarsToFetch = ['primary']; // Default to primary
+    
+    if (calendarId) {
+      // If specific calendar requested, use that
+      calendarsToFetch = [calendarId];
+    } else if (connection?.calendars?.length > 0) {
+      // Get all selected calendars
+      const selectedCalendars = connection.calendars.filter(cal => cal.selected);
+      if (selectedCalendars.length > 0) {
+        calendarsToFetch = selectedCalendars.map(cal => cal.id);
+      }
+    }
+    
+    console.log('[Calendar List] Fetching from calendars:', calendarsToFetch);
     
     const params = new URLSearchParams({
       timeMin,
       timeMax,
-      maxResults,
+      maxResults: Math.ceil(parseInt(maxResults) / calendarsToFetch.length).toString(), // Distribute maxResults
       singleEvents: 'true',
       orderBy: 'startTime'
     });
     
-    const data = await googleApiCall(accessToken, `/calendar/v3/calendars/primary/events?${params}`);
+    // Fetch events from all selected calendars in parallel
+    const allEventsPromises = calendarsToFetch.map(async (calId) => {
+      try {
+        const encodedCalId = encodeURIComponent(calId);
+        const data = await googleApiCall(accessToken, `/calendar/v3/calendars/${encodedCalId}/events?${params}`);
+        
+        // Find calendar info for color/name
+        const calInfo = connection?.calendars?.find(c => c.id === calId);
+        
+        return (data.items || []).map(event => ({
+          id: event.id,
+          calendarId: calId,
+          calendarName: calInfo?.name || (calId === 'primary' ? 'Primary' : calId),
+          calendarColor: calInfo?.color || event.colorId || '#4285f4',
+          summary: event.summary || '(No title)',
+          description: event.description || '',
+          location: event.location || '',
+          start: event.start?.dateTime || event.start?.date,
+          end: event.end?.dateTime || event.end?.date,
+          htmlLink: event.htmlLink,
+          attendees: event.attendees?.map(a => ({ email: a.email, name: a.displayName })) || []
+        }));
+      } catch (calErr) {
+        console.error(`[Calendar List] Error fetching calendar ${calId}:`, calErr.message);
+        return []; // Return empty array for failed calendars
+      }
+    });
+    
+    const allEventsArrays = await Promise.all(allEventsPromises);
+    const allEvents = allEventsArrays.flat();
+    
+    // Sort all events by start time
+    allEvents.sort((a, b) => new Date(a.start) - new Date(b.start));
+    
+    // Limit to maxResults
+    const limitedEvents = allEvents.slice(0, parseInt(maxResults));
     
     return NextResponse.json({
-      events: (data.items || []).map(event => ({
-        id: event.id,
-        summary: event.summary || '(No title)',
-        description: event.description || '',
-        location: event.location || '',
-        start: event.start?.dateTime || event.start?.date,
-        end: event.end?.dateTime || event.end?.date,
-        htmlLink: event.htmlLink,
-        attendees: event.attendees?.map(a => ({ email: a.email, name: a.displayName })) || []
-      })),
-      nextPageToken: data.nextPageToken
+      events: limitedEvents,
+      calendarsQueried: calendarsToFetch.length,
+      totalEvents: allEvents.length
     });
   } catch (err) {
     console.error('Calendar list error:', err);
@@ -1133,7 +1184,7 @@ async function handleCalendarCreate(request) {
     const accessToken = await getValidGoogleToken(user.id);
     if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
     
-    const { summary, description, location, start, end, attendees, timeZone } = await request.json();
+    const { summary, description, location, start, end, attendees, timeZone, calendarId } = await request.json();
     
     if (!summary || !start || !end) {
       return NextResponse.json({ error: 'Missing required fields: summary, start, end' }, { status: 400 });
@@ -1144,6 +1195,10 @@ async function handleCalendarCreate(request) {
     const userLocation = await db.collection('user_locations').findOne({ user_id: user.id });
     const eventTimezone = timeZone || userLocation?.timezone || 'UTC';
     
+    // Use specified calendar or default to primary
+    const targetCalendar = calendarId || 'primary';
+    const encodedCalendarId = encodeURIComponent(targetCalendar);
+    
     const event = {
       summary,
       description: description || '',
@@ -1153,7 +1208,9 @@ async function handleCalendarCreate(request) {
       attendees: attendees?.map(email => ({ email })) || []
     };
     
-    const data = await googleApiCall(accessToken, '/calendar/v3/calendars/primary/events', {
+    console.log('[Calendar Create] Creating event in calendar:', targetCalendar);
+    
+    const data = await googleApiCall(accessToken, `/calendar/v3/calendars/${encodedCalendarId}/events`, {
       method: 'POST',
       body: JSON.stringify(event)
     });
@@ -1185,15 +1242,22 @@ async function handleCalendarUpdate(request, eventId) {
     if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
     
     const updates = await request.json();
+    const calendarId = updates.calendarId || 'primary';
+    const encodedCalendarId = encodeURIComponent(calendarId);
+    
+    // Get user's timezone
+    const db = await getDb();
+    const userLocation = await db.collection('user_locations').findOne({ user_id: user.id });
+    const eventTimezone = updates.timeZone || userLocation?.timezone || 'UTC';
     
     const event = {};
     if (updates.summary) event.summary = updates.summary;
     if (updates.description !== undefined) event.description = updates.description;
     if (updates.location !== undefined) event.location = updates.location;
-    if (updates.start) event.start = { dateTime: updates.start, timeZone: 'UTC' };
-    if (updates.end) event.end = { dateTime: updates.end, timeZone: 'UTC' };
+    if (updates.start) event.start = { dateTime: updates.start, timeZone: eventTimezone };
+    if (updates.end) event.end = { dateTime: updates.end, timeZone: eventTimezone };
     
-    const data = await googleApiCall(accessToken, `/calendar/v3/calendars/primary/events/${eventId}`, {
+    const data = await googleApiCall(accessToken, `/calendar/v3/calendars/${encodedCalendarId}/events/${eventId}`, {
       method: 'PATCH',
       body: JSON.stringify(event)
     });
@@ -1214,7 +1278,12 @@ async function handleCalendarDelete(request, eventId) {
     const accessToken = await getValidGoogleToken(user.id);
     if (!accessToken) return NextResponse.json({ error: 'Google not connected' }, { status: 400 });
     
-    await googleApiCall(accessToken, `/calendar/v3/calendars/primary/events/${eventId}`, {
+    // Get calendarId from query params or body
+    const url = new URL(request.url);
+    const calendarId = url.searchParams.get('calendarId') || 'primary';
+    const encodedCalendarId = encodeURIComponent(calendarId);
+    
+    await googleApiCall(accessToken, `/calendar/v3/calendars/${encodedCalendarId}/events/${eventId}`, {
       method: 'DELETE'
     });
     
