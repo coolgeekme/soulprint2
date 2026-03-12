@@ -521,11 +521,11 @@ export default function FeaturesPage() {
                 </li>
               </ul>
               
-              <a href="https://t.me/SoulPrintAIBot" target="_blank" rel="noopener noreferrer" 
+              <Link href="/integrations" 
                  className="inline-flex items-center gap-2 bg-[#0088cc] hover:bg-[#0077b5] text-white px-6 py-3 rounded-xl font-medium transition-colors">
                 <Send className="w-5 h-5" />
-                Open in Telegram
-              </a>
+                Set Up in Settings
+              </Link>
             </div>
           </div>
         </div>
