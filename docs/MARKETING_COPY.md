@@ -128,7 +128,7 @@
 
 ## 🔗 **Google Integration Section**
 
-### Headline: **Your Google Workspace, Supercharged**
+### Headline: **Your Google Workspace, Supercharged** *(Coming Soon)*
 
 > Connect your Google accounts and let AI handle the busy work. Send emails, schedule meetings, create documents — all through natural conversation.
 
@@ -140,6 +140,23 @@
 - 📁 **Drive**: Upload and organize files
 
 **Multi-Account Support**: Connect multiple Google accounts and switch between them seamlessly.
+
+---
+
+## 📱 **Telegram Integration**
+
+### Headline: **Your AI, In Your Pocket**
+
+> Access SoulPrint directly from Telegram. Your persistent identity travels with you — same preferences, same context, same AI that knows you.
+
+**Features:**
+- 💬 Full chat capabilities on mobile
+- 🎨 Image generation with /image [prompt]
+- 🎬 Video generation with /video [prompt]
+- 🔄 Synced with your web conversations
+- 📱 No app download required
+
+**Bot**: @SoulPrintAIBot
 
 ---
 
@@ -211,7 +228,8 @@
 | Image Generation | ✅ Multiple providers | ✅ DALL-E only | ❌ | ✅ Imagen only |
 | Image Editing | ✅ In-place editing | ⚠️ Limited | ❌ | ❌ |
 | Video Generation | ✅ Kling, Sora, etc. | ❌ | ❌ | ❌ |
-| Google Integration | ✅ Full suite | ❌ | ❌ | ⚠️ Limited |
+| Telegram Integration | ✅ | ❌ | ❌ | ❌ |
+| Google Integration | 🔜 Coming Soon | ❌ | ❌ | ⚠️ Limited |
 | Personality Assessment | ✅ 36 questions | ❌ | ❌ | ❌ |
 | History Import | ✅ ChatGPT import | N/A | ❌ | ❌ |
 

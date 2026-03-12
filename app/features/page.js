@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { 
   ArrowRight, Check, Zap, Brain, Palette, Video, Mail, Calendar, 
   FileText, Search, Mic, Upload, Sparkles, Shield, Users, Clock,
-  MessageSquare, Image, Film, Globe, ChevronRight, Star
+  MessageSquare, Image, Film, Globe, ChevronRight, Star, Send
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
@@ -33,10 +33,10 @@ const VIDEO_MODELS = [
 ];
 
 const GOOGLE_FEATURES = [
-  { icon: Mail, title: 'Gmail', desc: 'Send, read, and manage emails through chat' },
-  { icon: Calendar, title: 'Calendar', desc: 'Create, update, delete events with timezone awareness' },
-  { icon: FileText, title: 'Docs', desc: 'Create documents with AI-generated content' },
-  { icon: Globe, title: 'Sheets', desc: 'Create spreadsheets with data and headers' },
+  { icon: Mail, title: 'Gmail', desc: 'Send, read, and manage emails through chat', badge: 'Coming Soon' },
+  { icon: Calendar, title: 'Calendar', desc: 'Create, update, delete events with timezone awareness', badge: 'Coming Soon' },
+  { icon: FileText, title: 'Docs', desc: 'Create documents with AI-generated content', badge: 'Coming Soon' },
+  { icon: Globe, title: 'Sheets', desc: 'Create spreadsheets with data and headers', badge: 'Coming Soon' },
 ];
 
 const UNIQUE_FEATURES = [
@@ -74,7 +74,8 @@ const COMPARISON = [
   { feature: 'Image Generation', soulprint: true, chatgpt: true, claude: false, gemini: true },
   { feature: 'In-Place Image Editing', soulprint: true, chatgpt: 'limited', claude: false, gemini: false },
   { feature: 'Video Generation', soulprint: true, chatgpt: false, claude: false, gemini: false },
-  { feature: 'Full Google Suite', soulprint: true, chatgpt: false, claude: false, gemini: 'limited' },
+  { feature: 'Telegram Integration', soulprint: true, chatgpt: false, claude: false, gemini: false },
+  { feature: 'Full Google Suite', soulprint: 'soon', chatgpt: false, claude: false, gemini: 'limited' },
   { feature: 'Personality Assessment', soulprint: true, chatgpt: false, claude: false, gemini: false },
   { feature: 'History Import', soulprint: true, chatgpt: 'n/a', claude: false, gemini: false },
 ];
@@ -115,6 +116,8 @@ function ComparisonCell({ value }) {
     return <span className="text-gray-300">—</span>;
   } else if (value === 'limited') {
     return <span className="text-xs text-yellow-600 font-medium">Limited</span>;
+  } else if (value === 'soon') {
+    return <span className="text-xs text-orange-500 font-medium">Coming Soon</span>;
   } else {
     return <span className="text-xs text-gray-400">{value}</span>;
   }
@@ -453,14 +456,94 @@ export default function FeaturesPage() {
         </div>
       </section>
 
+      {/* Telegram Integration Section */}
+      <section className="bg-gray-900 py-24 px-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <div className="order-2 lg:order-1">
+              <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-[#0088cc] rounded-xl flex items-center justify-center">
+                    <Send className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white">SoulPrint Bot</h3>
+                    <p className="text-sm text-gray-400">@SoulPrintAIBot</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="bg-gray-700/50 rounded-xl p-4">
+                    <p className="text-gray-300 text-sm">💬 Chat with your AI directly in Telegram</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-xl p-4">
+                    <p className="text-gray-300 text-sm">🎨 Generate images with /image [prompt]</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-xl p-4">
+                    <p className="text-gray-300 text-sm">🎬 Create videos with /video [prompt]</p>
+                  </div>
+                  <div className="bg-gray-700/50 rounded-xl p-4">
+                    <p className="text-gray-300 text-sm">🔄 Your SoulPrint syncs across web & Telegram</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="order-1 lg:order-2">
+              <span className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3 block">
+                TELEGRAM INTEGRATION
+              </span>
+              <h2 className="font-condensed font-black text-white mb-6"
+                  style={{ fontSize: 'clamp(32px, 4vw, 48px)' }}>
+                YOUR AI,<br />IN YOUR POCKET
+              </h2>
+              <p className="text-gray-400 mb-6">
+                Access SoulPrint directly from Telegram. Your persistent identity travels with you — 
+                same preferences, same context, same AI that knows you.
+              </p>
+              
+              <ul className="space-y-3 mb-8">
+                <li className="flex items-center gap-3 text-gray-300">
+                  <Check className="w-5 h-5 text-orange-500" />
+                  Full chat capabilities on mobile
+                </li>
+                <li className="flex items-center gap-3 text-gray-300">
+                  <Check className="w-5 h-5 text-orange-500" />
+                  Image & video generation on the go
+                </li>
+                <li className="flex items-center gap-3 text-gray-300">
+                  <Check className="w-5 h-5 text-orange-500" />
+                  Synced with your web conversations
+                </li>
+                <li className="flex items-center gap-3 text-gray-300">
+                  <Check className="w-5 h-5 text-orange-500" />
+                  No app download required
+                </li>
+              </ul>
+              
+              <a href="https://t.me/SoulPrintAIBot" target="_blank" rel="noopener noreferrer" 
+                 className="inline-flex items-center gap-2 bg-[#0088cc] hover:bg-[#0077b5] text-white px-6 py-3 rounded-xl font-medium transition-colors">
+                <Send className="w-5 h-5" />
+                Open in Telegram
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Google Integration Section */}
       <section className="bg-gray-50 py-24 px-8">
         <div className="max-w-6xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div>
-              <span className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3 block">
-                GOOGLE INTEGRATION
-              </span>
+              <div className="flex items-center gap-3 mb-3">
+                <span className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase">
+                  GOOGLE INTEGRATION
+                </span>
+                <span className="px-2 py-1 bg-orange-100 text-orange-600 text-xs font-medium rounded-full">
+                  Coming Soon
+                </span>
+              </div>
               <h2 className="font-condensed font-black text-gray-900 mb-6"
                   style={{ fontSize: 'clamp(32px, 4vw, 48px)' }}>
                 YOUR WORKSPACE,<br />SUPERCHARGED
@@ -472,7 +555,12 @@ export default function FeaturesPage() {
               
               <div className="grid grid-cols-2 gap-4">
                 {GOOGLE_FEATURES.map((feature, i) => (
-                  <div key={i} className="bg-white rounded-xl p-4 border border-gray-200">
+                  <div key={i} className="bg-white rounded-xl p-4 border border-gray-200 relative">
+                    {feature.badge && (
+                      <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-orange-100 text-orange-600 text-[10px] font-medium rounded">
+                        {feature.badge}
+                      </span>
+                    )}
                     <feature.icon className="w-6 h-6 text-orange-500 mb-2" />
                     <h4 className="font-semibold text-gray-900 mb-1">{feature.title}</h4>
                     <p className="text-xs text-gray-500">{feature.desc}</p>
