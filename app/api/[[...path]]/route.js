@@ -20689,12 +20689,149 @@ async function handleVoiceToolExecute(request) {
         }});
       }
 
+      case 'get_user_memories':
+      case 'recall_memory': {
+        // Get the user's stored memories
+        try {
+          const memories = await db.collection('user_memories')
+            .find({ user_id: user.id })
+            .sort({ created_at: -1 })
+            .limit(20)
+            .toArray();
+          
+          if (memories.length === 0) {
+            return NextResponse.json({ success: true, result: { 
+              message: 'No stored memories found yet. I learn about you through our conversations!',
+              memories: []
+            }});
+          }
+          
+          // Group by category for better presentation
+          const grouped = {};
+          for (const mem of memories) {
+            const cat = mem.category || 'other';
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push({
+              content: mem.content,
+              importance: mem.importance,
+              created: mem.created_at,
+            });
+          }
+          
+          return NextResponse.json({ success: true, result: { 
+            total: memories.length,
+            memories: grouped,
+            message: `Found ${memories.length} stored memories about you`
+          }});
+        } catch (memErr) {
+          console.error('[VoiceTool] Memory fetch error:', memErr);
+          return NextResponse.json({ success: true, result: { error: 'Could not retrieve memories' } });
+        }
+      }
+
+      case 'get_soulprint':
+      case 'who_am_i': {
+        // Get the user's soulprint/profile information
+        try {
+          const profile = await db.collection('profiles').findOne({ user_id: user.id });
+          const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
+          const commProfile = await db.collection('communication_profiles').findOne({ user_id: user.id });
+          const memories = await db.collection('user_memories')
+            .find({ user_id: user.id, importance: 'high' })
+            .limit(10)
+            .toArray();
+          
+          const soulData = {
+            display_name: profile?.display_name,
+            descriptors: profile?.descriptors || [],
+            field: profile?.field,
+            assistant_name: profile?.assistant_name,
+            help_with: profile?.help_with || [],
+          };
+          
+          // Add soul profile insights
+          if (soulProfile?.insights) {
+            soulData.interests = soulProfile.insights.interests || [];
+            soulData.communication_style = soulProfile.insights.communicationStyle;
+            soulData.personality_insights = soulProfile.insights.insights || [];
+            soulData.summary = soulProfile.insights.latestSummary;
+          }
+          
+          // Add communication preferences
+          if (commProfile) {
+            soulData.communication_preferences = {
+              directness: commProfile.directness,
+              information_density: commProfile.information_density,
+              formality_preference: commProfile.formality_preference,
+              emotional_expression: commProfile.emotional_expression,
+            };
+          }
+          
+          // Add important memories
+          if (memories.length > 0) {
+            soulData.important_memories = memories.map(m => ({
+              content: m.content,
+              category: m.category,
+            }));
+          }
+          
+          return NextResponse.json({ success: true, result: soulData });
+        } catch (profileErr) {
+          console.error('[VoiceTool] Profile fetch error:', profileErr);
+          return NextResponse.json({ success: true, result: { error: 'Could not retrieve profile' } });
+        }
+      }
+
       default:
         return NextResponse.json({ success: false, error: `Unknown tool: ${tool_name}` });
     }
   } catch (err) {
     console.error('[VoiceTool] Error:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+// ============================================================
+// VOICE SYSTEM PROMPT ENDPOINT
+// ============================================================
+
+async function handleGetVoiceSystemPrompt(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) return err('Unauthorized', 401);
+    
+    const db = await getDb();
+    
+    // Build the full system prompt (same as text chat)
+    const basePrompt = await buildSystemPrompt(db, user.id);
+    
+    // Add voice-specific instructions
+    const voiceInstructions = `
+
+## Voice Conversation Mode
+
+You are now in a VOICE conversation. This is different from text chat:
+
+1. **Be Conversational**: Speak naturally as if you're on a phone call. Use contractions, natural pauses.
+2. **Be Concise**: Don't give long lists. Summarize key points verbally.
+3. **Confirm Actions**: Before creating events, sending emails, always confirm details verbally.
+4. **Reference Memory**: You know this user. Reference their memories, preferences, and history naturally.
+5. **Personal Touch**: Use their name occasionally, reference past conversations and preferences.
+
+When the user asks "what do you know about me?" or similar:
+- Reference their stored memories, profile, soulprint data
+- Mention their interests, communication style, important facts
+- Be personal and show that you truly know them
+
+You have full access to their memories, profile, and connected accounts - just like in text chat.`;
+
+    return NextResponse.json({
+      success: true,
+      systemPrompt: basePrompt + voiceInstructions,
+    });
+  } catch (err) {
+    console.error('[VoiceSystemPrompt] Error:', err);
+    return err('Failed to get system prompt', 500);
   }
 }
 
@@ -20772,6 +20909,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'user/location') return handleGetUserLocation(request);
     if (pathStr === 'user/timezone') return handleGetUserTimezone(request);
     if (pathStr === 'user/voice-settings') return handleGetVoiceSettings(request);
+    if (pathStr === 'voice/system-prompt') return handleGetVoiceSystemPrompt(request);
     if (pathStr === 'feature-flags') return handleGetFeatureFlags(request);
     if (pathStr === 'data-imports') return handleGetDataImports(request);
     if (pathStr === 'profile/export') return handleProfileExport(request);

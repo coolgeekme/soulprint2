@@ -39,6 +39,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
   const [sessionStartTime, setSessionStartTime] = useState(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [micSensitivity, setMicSensitivity] = useState('medium'); // low, medium, high
+  const [fullSystemPrompt, setFullSystemPrompt] = useState(null); // Full system prompt with memory
   
   const peerConnectionRef = useRef(null);
   const dataChannelRef = useRef(null);
@@ -53,10 +54,11 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
     high: { threshold: 0.85, silence: 800 },   // Less sensitive (noisy environments)
   };
 
-  // Load user's voice settings on mount
+  // Load user's voice settings and full system prompt on mount
   useEffect(() => {
     const loadVoiceSettings = async () => {
       try {
+        // Load voice settings
         const res = await fetch('/api/user/voice-settings', {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -64,6 +66,18 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
           const settings = await res.json();
           if (settings.default_voice) setSelectedVoice(settings.default_voice);
           if (settings.web_search_enabled !== undefined) setWebSearchEnabled(settings.web_search_enabled);
+        }
+        
+        // Load full system prompt with memories and soulprint
+        const promptRes = await fetch('/api/voice/system-prompt', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (promptRes.ok) {
+          const promptData = await promptRes.json();
+          if (promptData.systemPrompt) {
+            setFullSystemPrompt(promptData.systemPrompt);
+            console.log('[Realtime] Loaded full system prompt with memories');
+          }
         }
       } catch (err) {
         console.error('Failed to load voice settings:', err);
@@ -246,7 +260,10 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
       dc.onopen = () => {
         console.log('[Realtime] Data channel opened');
         
-        // Configure session with tools for web search
+        // Build the instructions using the full system prompt if available
+        const baseInstructions = fullSystemPrompt || systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}.`;
+        
+        // Configure session with tools for web search, Google, and memory access
         const sessionConfig = {
           type: 'session.update',
           session: {
@@ -263,43 +280,76 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
               prefix_padding_ms: 200,
               silence_duration_ms: sensitivitySettings[micSensitivity].silence,
             } : null,
-            instructions: `${systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}.`}
+            instructions: `${baseInstructions}
 
-IMPORTANT: You have access to several tools that give you the SAME capabilities as text chat:
+## Voice Chat Tools
 
-1. WEB SEARCH (web_search): Use for current news, weather, sports scores, stock prices, or any real-time information.
+You have access to powerful tools that give you the SAME capabilities as text chat:
 
-2. EMAIL ACCESS:
-   - get_emails: Check the user's emails. Always ask which account if multiple are connected.
-   - send_email: Send an email. ALWAYS confirm with user before sending.
+### 1. USER MEMORY & IDENTITY
+- **get_user_memories / recall_memory**: Retrieve stored facts about the user (preferences, health info, personal details, etc.)
+- **get_soulprint / who_am_i**: Get the user's complete profile, interests, communication style, and personality insights
 
-3. CALENDAR ACCESS:
-   - get_calendar: Check calendar events. Can specify date range.
-   - create_calendar_event: Create a new event. ALWAYS confirm details before creating.
+WHEN THE USER ASKS "What do you know about me?" or similar:
+- Use get_soulprint to retrieve their full profile
+- Reference their interests, communication style, important memories
+- Be personal - show that you truly know them as a person!
 
-4. GOOGLE ACCOUNTS (get_google_accounts): List connected Google accounts and calendars.
+### 2. WEB SEARCH (web_search)
+Use for current news, weather, sports scores, stock prices, or any real-time information.
 
-CRITICAL RULES FOR WEB SEARCH:
-- When you call web_search, you will receive actual search results. READ THEM CAREFULLY.
-- The results contain real, current data - scores, weather, news. Trust and report what you see.
-- For sports: Look for phrases like "defeated", "final score", "won", followed by numbers.
-- Example: If results say "Suns defeated Pacers 123-108" - report that exact score!
-- If you don't see the specific information, say what you DID find and offer to search again.
-- NEVER say "I don't have access" - you DO have access via web_search!
+### 3. EMAIL ACCESS
+- get_emails: Check the user's emails. Always ask which account if multiple are connected.
+- send_email: Send an email. ALWAYS confirm with user before sending.
 
-SEARCH QUERY TIPS:
-- For sports scores: "[Team1] vs [Team2] final score [today's date]"
-- For weather: "weather in [city name]"
-- For stocks: "[symbol] stock price today"
+### 4. CALENDAR ACCESS
+- get_calendar: Check calendar events. Can specify date range.
+- create_calendar_event: Create a new event. ALWAYS confirm details before creating.
 
-TOOL USAGE RULES:
-- For web search: Use automatically for current events, weather, news, stocks, sports.
-- For email/calendar: Always ask which account to use if the user has multiple.
-- Before sending emails or creating events, ALWAYS confirm with the user first.
-- When showing emails or events, summarize key information naturally.
+### 5. GOOGLE ACCOUNTS (get_google_accounts)
+List connected Google accounts and calendars.
 
-Be conversational, warm, and concise. Speak naturally as if you're having a real phone call.`,
+## CRITICAL RULES
+
+**For Memory/Identity Queries:**
+- ALWAYS use get_soulprint or get_user_memories when asked about the user
+- Reference their profile data naturally in conversation
+- Mention their interests, preferences, and important details
+
+**For Web Search:**
+- When you call web_search, READ THE RESULTS CAREFULLY
+- For sports: Look for "defeated", "final score", "won" with numbers
+- NEVER say "I don't have access" - you DO have access!
+
+**For Email/Calendar:**
+- Always ask which account to use if user has multiple
+- ALWAYS confirm before sending emails or creating events
+- Summarize information naturally when speaking
+
+Be conversational, warm, and personal. You KNOW this user - their profile, memories, and preferences are available to you. Use them!`,
             tools: [
+              // Memory and identity tools
+              {
+                type: 'function',
+                name: 'get_user_memories',
+                description: 'Retrieve the user\'s stored memories - facts, preferences, health info, personal details that they\'ve shared. Use when asked "what do you know about me?" or to recall specific information.',
+                parameters: {
+                  type: 'object',
+                  properties: {},
+                  required: [],
+                },
+              },
+              {
+                type: 'function',
+                name: 'get_soulprint',
+                description: 'Get the user\'s complete SoulPrint profile including: name, interests, communication style, personality insights, important memories. Use when asked about the user\'s identity or to personalize responses.',
+                parameters: {
+                  type: 'object',
+                  properties: {},
+                  required: [],
+                },
+              },
+              // Web search
               {
                 type: 'function',
                 name: 'web_search',
@@ -431,7 +481,7 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
       setStatus('error');
       cleanup();
     }
-  }, [token, systemPrompt, userName, mode, selectedVoice, webSearchEnabled, micSensitivity]);
+  }, [token, systemPrompt, fullSystemPrompt, userName, mode, selectedVoice, webSearchEnabled, micSensitivity]);
 
   // Handle events from OpenAI Realtime API
   const handleRealtimeEvent = useCallback(async (event) => {
@@ -499,6 +549,10 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
             'get_calendar': `📅 Checking calendar${args.account_email ? ` (${args.account_email})` : ''}...`,
             'create_calendar_event': `📅 Creating event: "${args.summary}"...`,
             'get_google_accounts': `🔗 Getting connected accounts...`,
+            'get_user_memories': `🧠 Recalling your memories...`,
+            'recall_memory': `🧠 Recalling your memories...`,
+            'get_soulprint': `✨ Loading your profile...`,
+            'who_am_i': `✨ Loading your profile...`,
           }[toolName] || `⚡ Running ${toolName}...`;
           
           setConversationHistory(prev => [...prev, { 
