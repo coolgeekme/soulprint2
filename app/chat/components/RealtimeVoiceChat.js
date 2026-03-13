@@ -257,26 +257,35 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
             } : null,
             instructions: `${systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}.`}
 
-${webSearchEnabled ? `You have access to real-time web search. When the user asks about current events, news, weather, sports scores, stock prices, or any information that requires up-to-date data, use the web_search function to find accurate information. Always cite your sources when providing searched information.` : ''}
+${webSearchEnabled ? `IMPORTANT: You have access to real-time web search via the web_search function. You MUST use this function when the user asks about:
+- Current news or recent events
+- Weather (today, tomorrow, this week)
+- Stock prices or market updates
+- Sports scores or game results
+- Any question requiring information from after your training cutoff
+- Anything the user explicitly asks you to search for
 
-Be conversational, natural, and concise. Respond as if you're having a real phone call.`,
+When you use web_search, wait for the results before responding. Summarize the key findings naturally in your response and mention where the information came from.` : ''}
+
+Be conversational, warm, and concise. Speak naturally as if you're having a real phone call - be warm and engaging.`,
             tools: webSearchEnabled ? [
               {
                 type: 'function',
                 name: 'web_search',
-                description: 'Search the web for current information. Use this for news, weather, sports, stocks, current events, or any real-time data.',
+                description: 'Search the web for current, real-time information. ALWAYS use this tool for: weather, news, sports scores, stock prices, current events, or any question requiring up-to-date information.',
                 parameters: {
                   type: 'object',
                   properties: {
                     query: {
                       type: 'string',
-                      description: 'The search query',
+                      description: 'The search query to find current information',
                     },
                   },
                   required: ['query'],
                 },
               },
             ] : [],
+            tool_choice: webSearchEnabled ? 'auto' : 'none',
           },
         };
         
@@ -324,11 +333,15 @@ Be conversational, natural, and concise. Respond as if you're having a real phon
 
   // Handle events from OpenAI Realtime API
   const handleRealtimeEvent = useCallback(async (event) => {
-    console.log('[Realtime Event]', event.type);
+    console.log('[Realtime Event]', event.type, event);
 
     switch (event.type) {
       case 'session.created':
+        console.log('[Realtime] Session created:', event.session);
+        break;
+        
       case 'session.updated':
+        console.log('[Realtime] Session updated - tools:', event.session?.tools);
         break;
 
       case 'input_audio_buffer.speech_started':
@@ -369,27 +382,64 @@ Be conversational, natural, and concise. Respond as if you're having a real phon
 
       case 'response.function_call_arguments.done':
         // Handle function calls (web search)
+        console.log('[Realtime] Function call received:', event.name, event);
         if (event.name === 'web_search') {
           try {
             const args = JSON.parse(event.arguments);
             console.log('[Realtime] Web search requested:', args.query);
+            setIsSearching(true);
+            
+            // Add visual feedback that we're searching
+            setConversationHistory(prev => [...prev, { 
+              role: 'system', 
+              text: `🔍 Searching: "${args.query}"...`, 
+              timestamp: new Date() 
+            }]);
             
             const results = await performWebSearch(args.query);
+            console.log('[Realtime] Web search results:', results);
             
             // Send results back to the conversation
+            if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+              const functionOutput = {
+                type: 'conversation.item.create',
+                item: {
+                  type: 'function_call_output',
+                  call_id: event.call_id,
+                  output: JSON.stringify({
+                    results: results.slice(0, 3).map(r => ({
+                      title: r.title,
+                      snippet: r.content?.slice(0, 300),
+                      url: r.url,
+                    })),
+                    summary: results.length > 0 
+                      ? `Found ${results.length} results. Top result: ${results[0]?.title}` 
+                      : 'No results found',
+                  }),
+                },
+              };
+              console.log('[Realtime] Sending function output:', functionOutput);
+              dataChannelRef.current.send(JSON.stringify(functionOutput));
+              
+              // Trigger response generation with the search results
+              dataChannelRef.current.send(JSON.stringify({ type: 'response.create' }));
+            }
+            setIsSearching(false);
+          } catch (err) {
+            console.error('Function call error:', err);
+            setIsSearching(false);
+            // Send error output so the model can respond appropriately
             if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
               dataChannelRef.current.send(JSON.stringify({
                 type: 'conversation.item.create',
                 item: {
                   type: 'function_call_output',
                   call_id: event.call_id,
-                  output: JSON.stringify(results),
+                  output: JSON.stringify({ error: 'Search failed', message: err.message }),
                 },
               }));
               dataChannelRef.current.send(JSON.stringify({ type: 'response.create' }));
             }
-          } catch (err) {
-            console.error('Function call error:', err);
           }
         }
         break;
