@@ -1,10 +1,20 @@
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
 // Dynamically import RealtimeVoiceChat to avoid SSR issues with WebRTC
-const RealtimeVoiceChat = dynamic(() => import('./components/RealtimeVoiceChat'), { ssr: false });
+const RealtimeVoiceChat = dynamic(
+  () => import('@/app/chat/components/RealtimeVoiceChat'),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90">
+        <div className="text-white">Loading voice chat...</div>
+      </div>
+    )
+  }
+);
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -7906,6 +7916,7 @@ Ask me "What can you do with Google?" anytime if you need a reminder!`,
           user={user}
           assistantName={assistantName}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenVoiceChat={() => setShowVoiceChat(true)}
           initialConversationId={conversationId}
         />
         {showSettings && <SettingsModal onClose={() => { setShowSettings(false); setSettingsInitialTab(null); }} token={token} initialTab={settingsInitialTab} />}

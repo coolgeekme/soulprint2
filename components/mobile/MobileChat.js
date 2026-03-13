@@ -7,7 +7,7 @@ import {
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
-  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon, MapPin
+  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon, MapPin, AudioWaveform
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
@@ -1796,6 +1796,7 @@ export default function MobileChat({
   user, 
   assistantName = 'SoulPrint',
   onOpenSettings,
+  onOpenVoiceChat,
   initialConversationId = null 
 }) {
   const [activeTab, setActiveTab] = useState('chat');
@@ -3916,6 +3917,16 @@ export default function MobileChat({
                 >
                   <MicrophoneIcon className="w-5 h-5" />
                 </button>
+                {/* Voice conversation button */}
+                {onOpenVoiceChat && (
+                  <button 
+                    onClick={onOpenVoiceChat}
+                    title="Voice conversation"
+                    className="p-2 rounded-full transition-all flex-shrink-0 text-gray-500 hover:text-green-400"
+                  >
+                    <AudioWaveform className="w-5 h-5" />
+                  </button>
+                )}
                 {/* Show Stop button when loading, otherwise show Send button */}
                 {loading ? (
                   <button 
