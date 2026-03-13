@@ -10914,7 +10914,7 @@ async function getVoiceChatMetrics(db, sevenDaysAgo, thirtyDaysAgo) {
     // Unique users who have used voice chat
     const uniqueVoiceUsers = await db.collection('voice_sessions').distinct('user_id');
     
-    // Aggregate duration and message stats
+    // Aggregate duration, message, and cost stats
     const stats = await db.collection('voice_sessions').aggregate([
       { $match: { status: 'completed' } },
       {
@@ -10924,6 +10924,9 @@ async function getVoiceChatMetrics(db, sevenDaysAgo, thirtyDaysAgo) {
           avg_duration: { $avg: '$duration_seconds' },
           total_messages: { $sum: '$message_count' },
           avg_messages: { $avg: '$message_count' },
+          total_input_tokens: { $sum: { $ifNull: ['$audio_input_tokens', 0] } },
+          total_output_tokens: { $sum: { $ifNull: ['$audio_output_tokens', 0] } },
+          total_cost: { $sum: { $ifNull: ['$estimated_cost_usd', 0] } },
         }
       }
     ]).toArray();
@@ -10933,13 +10936,40 @@ async function getVoiceChatMetrics(db, sevenDaysAgo, thirtyDaysAgo) {
       avg_duration: 0,
       total_messages: 0,
       avg_messages: 0,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cost: 0,
     };
+    
+    // Cost stats for last 30 days
+    const costStats30d = await db.collection('voice_sessions').aggregate([
+      { $match: { status: 'completed', created_at: { $gte: thirtyDaysAgo } } },
+      {
+        $group: {
+          _id: null,
+          total_cost: { $sum: { $ifNull: ['$estimated_cost_usd', 0] } },
+          total_duration: { $sum: '$duration_seconds' },
+        }
+      }
+    ]).toArray();
+    
+    const cost30d = costStats30d[0] || { total_cost: 0, total_duration: 0 };
     
     // Voice distribution
     const voiceDistribution = await db.collection('voice_sessions').aggregate([
       { $group: { _id: '$voice', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]).toArray();
+    
+    // Calculate cost per minute
+    const totalMinutes = aggregateStats.total_duration / 60;
+    const costPerMinute = totalMinutes > 0 ? aggregateStats.total_cost / totalMinutes : 0;
+    
+    // Calculate average cost per session
+    const avgCostPerSession = completedSessions > 0 ? aggregateStats.total_cost / completedSessions : 0;
+    
+    // Calculate cost per user
+    const costPerUser = uniqueVoiceUsers.length > 0 ? aggregateStats.total_cost / uniqueVoiceUsers.length : 0;
     
     return {
       total_sessions: totalSessions,
@@ -10955,6 +10985,18 @@ async function getVoiceChatMetrics(db, sevenDaysAgo, thirtyDaysAgo) {
         acc[v._id || 'unknown'] = v.count;
         return acc;
       }, {}),
+      // Cost metrics for pricing decisions
+      cost: {
+        total_cost_usd: parseFloat(aggregateStats.total_cost.toFixed(2)),
+        cost_last_30d_usd: parseFloat(cost30d.total_cost.toFixed(2)),
+        cost_per_minute_usd: parseFloat(costPerMinute.toFixed(4)),
+        avg_cost_per_session_usd: parseFloat(avgCostPerSession.toFixed(4)),
+        cost_per_user_usd: parseFloat(costPerUser.toFixed(4)),
+        total_audio_input_tokens: aggregateStats.total_input_tokens,
+        total_audio_output_tokens: aggregateStats.total_output_tokens,
+        // Pricing reference
+        pricing_note: 'Based on gpt-4o-realtime: $40/1M input, $80/1M output audio tokens',
+      },
     };
   } catch (err) {
     console.error('Voice metrics error:', err);
@@ -10969,6 +11011,16 @@ async function getVoiceChatMetrics(db, sevenDaysAgo, thirtyDaysAgo) {
       total_voice_messages: 0,
       avg_messages_per_session: 0,
       voice_distribution: {},
+      cost: {
+        total_cost_usd: 0,
+        cost_last_30d_usd: 0,
+        cost_per_minute_usd: 0,
+        avg_cost_per_session_usd: 0,
+        cost_per_user_usd: 0,
+        total_audio_input_tokens: 0,
+        total_audio_output_tokens: 0,
+        pricing_note: 'Based on gpt-4o-realtime: $40/1M input, $80/1M output audio tokens',
+      },
     };
   }
 }
@@ -19964,6 +20016,11 @@ async function handleCreateVoiceSession(request) {
       duration_seconds: 0,
       message_count: 0,
       transcript_preview: null,
+      // Cost tracking fields
+      audio_input_tokens: 0,
+      audio_output_tokens: 0,
+      text_tokens: 0,
+      estimated_cost_usd: 0,
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -19981,6 +20038,31 @@ async function handleCreateVoiceSession(request) {
   }
 }
 
+// Voice chat cost calculation constants (OpenAI Realtime API pricing)
+// gpt-4o-realtime-preview: $40/1M input, $80/1M output audio tokens
+// Approximate: ~50 tokens per second of audio
+const VOICE_COST_PER_1M_INPUT_TOKENS = 40.00;
+const VOICE_COST_PER_1M_OUTPUT_TOKENS = 80.00;
+const AUDIO_TOKENS_PER_SECOND = 50; // Approximate
+
+function calculateVoiceCost(durationSeconds, messageCount) {
+  // Estimate: user speaks ~40% of the time, AI speaks ~60%
+  const userSpeakingSeconds = durationSeconds * 0.4;
+  const aiSpeakingSeconds = durationSeconds * 0.6;
+  
+  const inputTokens = Math.round(userSpeakingSeconds * AUDIO_TOKENS_PER_SECOND);
+  const outputTokens = Math.round(aiSpeakingSeconds * AUDIO_TOKENS_PER_SECOND);
+  
+  const inputCost = (inputTokens / 1_000_000) * VOICE_COST_PER_1M_INPUT_TOKENS;
+  const outputCost = (outputTokens / 1_000_000) * VOICE_COST_PER_1M_OUTPUT_TOKENS;
+  
+  return {
+    audio_input_tokens: inputTokens,
+    audio_output_tokens: outputTokens,
+    estimated_cost_usd: parseFloat((inputCost + outputCost).toFixed(4)),
+  };
+}
+
 // Handler: Update Voice Session - Update metrics when call ends
 async function handleUpdateVoiceSession(request, sessionId) {
   try {
@@ -19990,7 +20072,7 @@ async function handleUpdateVoiceSession(request, sessionId) {
     }
 
     const body = await request.json();
-    const { status, duration_seconds, message_count, transcript_preview } = body;
+    const { status, duration_seconds, message_count, transcript_preview, audio_input_tokens, audio_output_tokens } = body;
 
     const db = await getDb();
     
@@ -20010,16 +20092,36 @@ async function handleUpdateVoiceSession(request, sessionId) {
 
     if (status) updates.status = status;
     if (status === 'completed') updates.ended_at = new Date();
-    if (typeof duration_seconds === 'number') updates.duration_seconds = duration_seconds;
+    if (typeof duration_seconds === 'number') {
+      updates.duration_seconds = duration_seconds;
+      
+      // Calculate cost based on duration (if not provided directly)
+      if (!audio_input_tokens && !audio_output_tokens) {
+        const costData = calculateVoiceCost(duration_seconds, message_count || 0);
+        updates.audio_input_tokens = costData.audio_input_tokens;
+        updates.audio_output_tokens = costData.audio_output_tokens;
+        updates.estimated_cost_usd = costData.estimated_cost_usd;
+      }
+    }
     if (typeof message_count === 'number') updates.message_count = message_count;
     if (transcript_preview) updates.transcript_preview = transcript_preview.slice(0, 500);
+    
+    // If tokens are provided directly from the client
+    if (typeof audio_input_tokens === 'number') updates.audio_input_tokens = audio_input_tokens;
+    if (typeof audio_output_tokens === 'number') {
+      updates.audio_output_tokens = audio_output_tokens;
+      // Recalculate cost with actual tokens
+      const inputCost = ((updates.audio_input_tokens || 0) / 1_000_000) * VOICE_COST_PER_1M_INPUT_TOKENS;
+      const outputCost = (audio_output_tokens / 1_000_000) * VOICE_COST_PER_1M_OUTPUT_TOKENS;
+      updates.estimated_cost_usd = parseFloat((inputCost + outputCost).toFixed(4));
+    }
 
     await db.collection('voice_sessions').updateOne(
       { id: sessionId },
       { $set: updates }
     );
 
-    console.log(`[Voice] Session ${sessionId} updated:`, { status, duration_seconds, message_count });
+    console.log(`[Voice] Session ${sessionId} updated:`, { status, duration_seconds, message_count, cost: updates.estimated_cost_usd });
 
     return NextResponse.json({ success: true });
   } catch (err) {

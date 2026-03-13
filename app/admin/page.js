@@ -5234,6 +5234,57 @@ export default function AdminPage() {
                           </div>
                         </div>
                       </div>
+                      
+                      {/* Voice Chat Cost Metrics - For Pricing Decisions */}
+                      {metrics.voice_chat.cost && (
+                        <div className="mt-4 p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/5 border border-green-500/30 rounded-xl">
+                          <div className="flex items-center gap-2 mb-3">
+                            <DollarSign className="w-4 h-4 text-green-400" />
+                            <p className="text-xs font-bold text-green-400">Voice Chat Costs (Pricing Data)</p>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="bg-black/20 rounded-lg p-3">
+                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Cost</p>
+                              <p className="text-lg font-bold text-green-400">${metrics.voice_chat.cost.total_cost_usd?.toFixed(2) || '0.00'}</p>
+                              <p className="text-[10px] text-gray-500">All time</p>
+                            </div>
+                            <div className="bg-black/20 rounded-lg p-3">
+                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Cost (30d)</p>
+                              <p className="text-lg font-bold text-blue-400">${metrics.voice_chat.cost.cost_last_30d_usd?.toFixed(2) || '0.00'}</p>
+                              <p className="text-[10px] text-gray-500">Last 30 days</p>
+                            </div>
+                            <div className="bg-black/20 rounded-lg p-3">
+                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Cost/Minute</p>
+                              <p className="text-lg font-bold text-orange-400">${metrics.voice_chat.cost.cost_per_minute_usd?.toFixed(3) || '0.000'}</p>
+                              <p className="text-[10px] text-gray-500">Per minute of voice</p>
+                            </div>
+                            <div className="bg-black/20 rounded-lg p-3">
+                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Cost/Session</p>
+                              <p className="text-lg font-bold text-purple-400">${metrics.voice_chat.cost.avg_cost_per_session_usd?.toFixed(3) || '0.000'}</p>
+                              <p className="text-[10px] text-gray-500">Per voice session</p>
+                            </div>
+                            <div className="bg-black/20 rounded-lg p-3">
+                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Cost/User</p>
+                              <p className="text-lg font-bold text-cyan-400">${metrics.voice_chat.cost.cost_per_user_usd?.toFixed(3) || '0.000'}</p>
+                              <p className="text-[10px] text-gray-500">Per voice user</p>
+                            </div>
+                            <div className="bg-black/20 rounded-lg p-3">
+                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Audio Tokens</p>
+                              <p className="text-sm font-bold text-white">
+                                {((metrics.voice_chat.cost.total_audio_input_tokens || 0) + (metrics.voice_chat.cost.total_audio_output_tokens || 0)).toLocaleString()}
+                              </p>
+                              <p className="text-[10px] text-gray-500">
+                                In: {(metrics.voice_chat.cost.total_audio_input_tokens || 0).toLocaleString()} / Out: {(metrics.voice_chat.cost.total_audio_output_tokens || 0).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <p className="text-[10px] text-gray-500 mt-3 text-center">
+                            💡 {metrics.voice_chat.cost.pricing_note || 'Based on gpt-4o-realtime pricing'}
+                          </p>
+                        </div>
+                      )}
                     </>
                   )}
                 </>
