@@ -85,11 +85,15 @@ export default function IntegrationsPage() {
   const connectGoogle = async () => {
     setConnecting(true);
     try {
+      console.log('[Google Connect] Starting connection with token:', token?.substring(0, 20) + '...');
       const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      console.log('[Google Connect] Response status:', res.status);
       const data = await res.json();
+      console.log('[Google Connect] Response data:', data);
       
       if (res.status === 401) {
         // Token expired or invalid - redirect to login
@@ -100,11 +104,13 @@ export default function IntegrationsPage() {
       }
       
       if (data.authUrl) {
+        console.log('[Google Connect] Redirecting to Google...');
         window.location.href = data.authUrl;
       } else {
         setNotification({ type: 'error', message: data.error || 'Failed to get auth URL' });
       }
     } catch (err) {
+      console.error('[Google Connect] Error:', err);
       setNotification({ type: 'error', message: err.message });
     } finally {
       setConnecting(false);

@@ -635,6 +635,17 @@ async function googleApiCall(accessToken, endpoint, options = {}) {
 // Handler: Initiate Google OAuth
 async function handleGoogleAuthStart(request) {
   try {
+    // First check if Google credentials are configured
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+      console.error('Google Auth Start - Missing credentials:', {
+        hasClientId: !!GOOGLE_CLIENT_ID,
+        hasClientSecret: !!GOOGLE_CLIENT_SECRET
+      });
+      return NextResponse.json({ 
+        error: 'Google OAuth not configured. Please check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.' 
+      }, { status: 500 });
+    }
+    
     console.log('Google Auth Start - Authenticating user...');
     const user = await authenticate(request);
     if (!user) {
@@ -692,6 +703,14 @@ async function handleGoogleAuthCallback(request) {
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
+    const errorDescription = url.searchParams.get('error_description');
+    
+    console.log('Google Callback - Received params:', {
+      hasCode: !!code,
+      hasState: !!state,
+      error: error || 'none',
+      errorDescription: errorDescription || 'none'
+    });
     
     // CRITICAL: Production URL must be used for Google OAuth redirect_uri
     // This MUST match what was used in handleGoogleAuthStart
@@ -705,7 +724,9 @@ async function handleGoogleAuthCallback(request) {
     }
     
     if (error) {
-      return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent(error)}`);
+      console.error('Google OAuth Error:', error, errorDescription);
+      const errorMsg = errorDescription ? `${error}: ${errorDescription}` : error;
+      return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent(errorMsg)}`);
     }
     
     if (!code || !state) {
