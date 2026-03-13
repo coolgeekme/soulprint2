@@ -6748,6 +6748,55 @@ export default function ChatPage() {
     setGradualAnswer('');
   };
 
+  // Save voice conversation transcript to chat history
+  const saveVoiceTranscript = async (transcriptItems) => {
+    if (!transcriptItems || transcriptItems.length === 0) return;
+    
+    try {
+      // Create a new conversation for the voice chat if needed
+      let voiceConvId = conversationId;
+      if (!voiceConvId) {
+        const convRes = await fetch('/api/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ 
+            title: `Voice Conversation - ${new Date().toLocaleDateString()}`,
+            model: 'gpt-4o-realtime'
+          }),
+        });
+        const convData = await convRes.json();
+        voiceConvId = convData.id;
+        setConversationId(voiceConvId);
+      }
+      
+      // Save each transcript item as a message
+      for (const item of transcriptItems) {
+        await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            conversation_id: voiceConvId,
+            role: item.role,
+            content: `🎤 *Voice*: ${item.text}`,
+          }),
+        });
+        
+        // Add to local messages too
+        setMessages(prev => [...prev, {
+          id: `voice-${Date.now()}-${Math.random()}`,
+          role: item.role,
+          content: `🎤 *Voice*: ${item.text}`,
+          created_at: new Date().toISOString(),
+        }]);
+      }
+      
+      // Refresh conversations list
+      loadConversations();
+    } catch (e) {
+      console.error('Failed to save voice transcript:', e);
+    }
+  };
+
   // Generate media (image or video) with quick options
   const generateMediaWithOptions = useCallback(async () => {
     if (!input.trim() || loading || isGeneratingMedia) return;
@@ -7926,6 +7975,7 @@ Ask me "What can you do with Google?" anytime if you need a reminder!`,
           <RealtimeVoiceChat 
             token={token} 
             onClose={() => setShowVoiceChat(false)}
+            onSaveTranscript={saveVoiceTranscript}
             systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
             userName={user?.displayName || user?.email?.split('@')[0]}
           />
@@ -9919,6 +9969,17 @@ Ask me "What can you do with Google?" anytime if you need a reminder!`,
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Voice Conversation Modal - Desktop */}
+      {showVoiceChat && (
+        <RealtimeVoiceChat 
+          token={token} 
+          onClose={() => setShowVoiceChat(false)}
+          onSaveTranscript={saveVoiceTranscript}
+          systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
+          userName={user?.displayName || user?.email?.split('@')[0]}
+        />
       )}
     </div>
   );

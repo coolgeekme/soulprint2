@@ -3,11 +3,23 @@
 
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX, Settings, Loader2, AudioWaveform } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, Volume2, VolumeX, Loader2, AudioWaveform, ChevronDown, X } from 'lucide-react';
 
 const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-12-17';
 
-export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userName }) {
+// Available voices from OpenAI Realtime API
+const VOICES = [
+  { id: 'alloy', name: 'Alloy', desc: 'Neutral & balanced' },
+  { id: 'ash', name: 'Ash', desc: 'Soft & thoughtful' },
+  { id: 'ballad', name: 'Ballad', desc: 'Warm & expressive' },
+  { id: 'coral', name: 'Coral', desc: 'Clear & friendly' },
+  { id: 'echo', name: 'Echo', desc: 'Smooth & calm' },
+  { id: 'sage', name: 'Sage', desc: 'Wise & measured' },
+  { id: 'shimmer', name: 'Shimmer', desc: 'Bright & energetic' },
+  { id: 'verse', name: 'Verse', desc: 'Dynamic & engaging' },
+];
+
+export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, systemPrompt, userName }) {
   const [status, setStatus] = useState('idle'); // idle, connecting, connected, error
   const [isMuted, setIsMuted] = useState(false);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
@@ -15,6 +27,9 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
   const [aiResponse, setAiResponse] = useState('');
   const [error, setError] = useState(null);
   const [mode, setMode] = useState('vad'); // 'vad' or 'push-to-talk'
+  const [selectedVoice, setSelectedVoice] = useState('alloy');
+  const [showVoiceMenu, setShowVoiceMenu] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState([]); // Track full conversation
   
   const peerConnectionRef = useRef(null);
   const dataChannelRef = useRef(null);
@@ -26,6 +41,7 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
     try {
       setStatus('connecting');
       setError(null);
+      setConversationHistory([]);
 
       // 1. Get ephemeral token from our backend
       const sessionResponse = await fetch('/api/realtime/session', {
@@ -36,7 +52,7 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
         },
         body: JSON.stringify({
           model: REALTIME_MODEL,
-          voice: 'alloy',
+          voice: selectedVoice,
           instructions: systemPrompt || `You are a helpful AI assistant. The user's name is ${userName || 'User'}. Be conversational and natural.`,
         }),
       });
@@ -94,7 +110,7 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
           type: 'session.update',
           session: {
             modalities: ['text', 'audio'],
-            voice: 'alloy',
+            voice: selectedVoice,
             input_audio_format: 'pcm16',
             output_audio_format: 'pcm16',
             input_audio_transcription: {
@@ -106,7 +122,7 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
               prefix_padding_ms: 300,
               silence_duration_ms: 500,
             } : null,
-            instructions: systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}. Be conversational, natural, and concise. Respond as if you're having a real conversation.`,
+            instructions: systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}. Be conversational, natural, and concise. Respond as if you're having a real phone call.`,
           },
         }));
       };
@@ -148,7 +164,7 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
       setStatus('error');
       cleanup();
     }
-  }, [token, systemPrompt, userName, mode]);
+  }, [token, systemPrompt, userName, mode, selectedVoice]);
 
   // Handle events from OpenAI Realtime API
   const handleRealtimeEvent = (event) => {
@@ -174,7 +190,11 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
 
       case 'conversation.item.input_audio_transcription.completed':
         console.log('[Realtime] User transcript:', event.transcript);
-        setTranscript(event.transcript || '');
+        const userText = event.transcript || '';
+        setTranscript(userText);
+        if (userText) {
+          setConversationHistory(prev => [...prev, { role: 'user', text: userText, timestamp: new Date() }]);
+        }
         break;
 
       case 'response.audio_transcript.delta':
@@ -183,6 +203,10 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
 
       case 'response.audio_transcript.done':
         console.log('[Realtime] AI response complete:', event.transcript);
+        const aiText = event.transcript || '';
+        if (aiText) {
+          setConversationHistory(prev => [...prev, { role: 'assistant', text: aiText, timestamp: new Date() }]);
+        }
         break;
 
       case 'response.audio.started':
@@ -191,10 +215,11 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
 
       case 'response.audio.done':
         setIsAISpeaking(false);
+        setAiResponse('');
         break;
 
       case 'response.done':
-        setAiResponse('');
+        setTranscript('');
         break;
 
       case 'error':
@@ -224,14 +249,21 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
     }
   }, []);
 
-  // End voice chat
+  // End voice chat and save transcript
   const endVoiceChat = useCallback(() => {
     cleanup();
+    
+    // Save transcript if there's any conversation
+    if (conversationHistory.length > 0 && onSaveTranscript) {
+      onSaveTranscript(conversationHistory);
+    }
+    
     setStatus('idle');
     setTranscript('');
     setAiResponse('');
+    setConversationHistory([]);
     if (onClose) onClose();
-  }, [cleanup, onClose]);
+  }, [cleanup, onClose, onSaveTranscript, conversationHistory]);
 
   // Toggle mute
   const toggleMute = useCallback(() => {
@@ -242,21 +274,6 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
       setIsMuted(!isMuted);
     }
   }, [isMuted]);
-
-  // Send text message (for push-to-talk mode)
-  const sendTextMessage = useCallback((text) => {
-    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
-      dataChannelRef.current.send(JSON.stringify({
-        type: 'conversation.item.create',
-        item: {
-          type: 'message',
-          role: 'user',
-          content: [{ type: 'input_text', text }],
-        },
-      }));
-      dataChannelRef.current.send(JSON.stringify({ type: 'response.create' }));
-    }
-  }, []);
 
   // Interrupt AI response
   const interruptAI = useCallback(() => {
@@ -271,6 +288,8 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
     return () => cleanup();
   }, [cleanup]);
 
+  const selectedVoiceData = VOICES.find(v => v.id === selectedVoice) || VOICES[0];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
       <div className="relative w-full max-w-md mx-4">
@@ -284,16 +303,71 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
         }`} />
         
         <div className="relative bg-gray-900/90 rounded-3xl p-8 border border-white/10">
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white transition-colors rounded-full hover:bg-white/10"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
           {/* Header */}
           <div className="text-center mb-8">
             <h2 className="text-xl font-bold text-white mb-2">Voice Conversation</h2>
             <p className="text-sm text-gray-400">
-              {status === 'idle' && 'Click to start talking'}
+              {status === 'idle' && 'Select a voice and click to start'}
               {status === 'connecting' && 'Connecting...'}
               {status === 'connected' && (isAISpeaking ? 'AI is speaking...' : 'Listening...')}
               {status === 'error' && 'Connection error'}
             </p>
           </div>
+
+          {/* Voice selector - only show when idle */}
+          {status === 'idle' && (
+            <div className="mb-6">
+              <label className="block text-xs text-gray-500 mb-2">AI Voice</label>
+              <div className="relative">
+                <button
+                  onClick={() => setShowVoiceMenu(!showVoiceMenu)}
+                  className="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Volume2 className="w-5 h-5 text-orange-400" />
+                    <div className="text-left">
+                      <p className="font-medium">{selectedVoiceData.name}</p>
+                      <p className="text-xs text-gray-500">{selectedVoiceData.desc}</p>
+                    </div>
+                  </div>
+                  <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showVoiceMenu ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {showVoiceMenu && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 border border-white/10 rounded-xl overflow-hidden z-10 max-h-60 overflow-y-auto">
+                    {VOICES.map(voice => (
+                      <button
+                        key={voice.id}
+                        onClick={() => {
+                          setSelectedVoice(voice.id);
+                          setShowVoiceMenu(false);
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/10 transition-colors ${
+                          selectedVoice === voice.id ? 'bg-orange-500/20' : ''
+                        }`}
+                      >
+                        <Volume2 className={`w-4 h-4 ${selectedVoice === voice.id ? 'text-orange-400' : 'text-gray-500'}`} />
+                        <div>
+                          <p className={`font-medium ${selectedVoice === voice.id ? 'text-orange-400' : 'text-white'}`}>
+                            {voice.name}
+                          </p>
+                          <p className="text-xs text-gray-500">{voice.desc}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Main button */}
           <div className="flex justify-center mb-8">
@@ -345,12 +419,12 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
             </div>
           )}
 
-          {/* Transcript display */}
+          {/* Current transcript display */}
           {status === 'connected' && (transcript || aiResponse) && (
-            <div className="space-y-3 max-h-40 overflow-y-auto">
+            <div className="space-y-3 max-h-32 overflow-y-auto mb-4">
               {transcript && (
                 <div className="bg-white/5 rounded-xl p-3">
-                  <p className="text-xs text-gray-500 mb-1">You said:</p>
+                  <p className="text-xs text-gray-500 mb-1">You:</p>
                   <p className="text-sm text-white">{transcript}</p>
                 </div>
               )}
@@ -363,20 +437,28 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
             </div>
           )}
 
+          {/* Conversation history */}
+          {status === 'connected' && conversationHistory.length > 0 && (
+            <div className="border-t border-white/10 pt-4">
+              <p className="text-xs text-gray-500 mb-2">Conversation ({conversationHistory.length} exchanges)</p>
+              <div className="max-h-40 overflow-y-auto space-y-2">
+                {conversationHistory.slice(-6).map((item, i) => (
+                  <div key={i} className={`text-xs p-2 rounded-lg ${
+                    item.role === 'user' ? 'bg-white/5 text-gray-300' : 'bg-orange-500/10 text-orange-200'
+                  }`}>
+                    <span className="font-medium">{item.role === 'user' ? 'You' : 'AI'}:</span> {item.text.slice(0, 100)}{item.text.length > 100 ? '...' : ''}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Error display */}
           {error && (
             <div className="mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl">
               <p className="text-sm text-red-400">{error}</p>
             </div>
           )}
-
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
-          >
-            ✕
-          </button>
 
           {/* Mode selector */}
           {status === 'idle' && (
@@ -409,7 +491,7 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
           {/* Info text */}
           <p className="mt-6 text-center text-xs text-gray-500">
             {status === 'idle' 
-              ? 'Voice conversations use OpenAI Realtime API' 
+              ? 'Transcript will be saved when you end the call' 
               : status === 'connected'
                 ? mode === 'vad' 
                   ? 'Speak naturally - AI will respond automatically'
