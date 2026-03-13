@@ -36,6 +36,31 @@ const themeScript = `
 })();
 `;
 
+// Script to lock orientation to portrait on mobile
+const orientationLockScript = `
+(function() {
+  try {
+    // Try to lock orientation to portrait when app loads
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('portrait').catch(function() {
+        // Orientation lock requires fullscreen on some browsers - this is expected to fail in browser
+      });
+    }
+    // For older iOS Safari
+    if (window.orientation !== undefined) {
+      window.addEventListener('orientationchange', function() {
+        if (Math.abs(window.orientation) === 90) {
+          // Show message or handle landscape mode
+          document.body.classList.add('landscape-mode');
+        } else {
+          document.body.classList.remove('landscape-mode');
+        }
+      });
+    }
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
@@ -56,6 +81,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         <meta name="apple-mobile-web-app-title" content="SoulPrint" />
         <script dangerouslySetInnerHTML={{__html:'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);'}} />
         <script dangerouslySetInnerHTML={{__html: themeScript}} />
+        <script dangerouslySetInnerHTML={{__html: orientationLockScript}} />
       </head>
       <body className="bg-[#0a0a0a] text-white antialiased" suppressHydrationWarning>
         {/* Google Tag Manager (noscript) */}

@@ -640,3 +640,54 @@ html.light body {
   color: #0D1217 !important;
 }
 
+
+/* ============================================
+   ORIENTATION LOCK - Portrait Only on Mobile
+   ============================================ */
+
+/* Landscape mode overlay - shown when device is rotated */
+@media screen and (max-width: 1024px) and (orientation: landscape) {
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+    z-index: 99999;
+  }
+  
+  body::after {
+    content: '📱 Please rotate your device to portrait mode';
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    color: white;
+    padding: 20px 30px;
+    border-radius: 16px;
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+    z-index: 100000;
+    box-shadow: 0 10px 40px rgba(249, 115, 22, 0.3);
+    animation: pulse-rotate 2s ease-in-out infinite;
+    white-space: nowrap;
+  }
+  
+  @keyframes pulse-rotate {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.05); }
+  }
+}
+
+/* Hide the overlay on tablets/desktops where landscape is fine */
+@media screen and (min-width: 1025px) {
+  body::before,
+  body::after {
+    display: none !important;
+  }
+}
+
