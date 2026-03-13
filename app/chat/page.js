@@ -1,6 +1,10 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+
+// Dynamically import RealtimeVoiceChat to avoid SSR issues with WebRTC
+const RealtimeVoiceChat = dynamic(() => import('./components/RealtimeVoiceChat'), { ssr: false });
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -8,7 +12,7 @@ import {
   Plus, Mic, Send, Settings, ChevronLeft, ThumbsUp, ThumbsDown,
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
   Image as ImageIcon, Paperclip, Search, Video, Download, RefreshCw, Play,
-  MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain,
+  MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, Phone,
   GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal,
   Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, ChevronRight, LogOut, Copy, Edit3, Square, ArrowRight,
   Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code
@@ -6050,6 +6054,7 @@ export default function ChatPage() {
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState(null); // For opening settings to specific tab
+  const [showVoiceChat, setShowVoiceChat] = useState(false); // For voice conversations
   const [showSidebar, setShowSidebar] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop sidebar collapse state
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
@@ -7904,6 +7909,16 @@ Ask me "What can you do with Google?" anytime if you need a reminder!`,
           initialConversationId={conversationId}
         />
         {showSettings && <SettingsModal onClose={() => { setShowSettings(false); setSettingsInitialTab(null); }} token={token} initialTab={settingsInitialTab} />}
+        
+        {/* Voice Conversation Modal */}
+        {showVoiceChat && (
+          <RealtimeVoiceChat 
+            token={token} 
+            onClose={() => setShowVoiceChat(false)}
+            systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
+            userName={user?.displayName || user?.email?.split('@')[0]}
+          />
+        )}
       </>
     );
   }
@@ -9055,6 +9070,15 @@ Ask me "What can you do with Google?" anytime if you need a reminder!`,
                 {speech.isListening && (
                   <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-500 animate-ping" />
                 )}
+              </button>
+
+              {/* Voice Call button - Real-time voice conversation */}
+              <button
+                onClick={() => setShowVoiceChat(true)}
+                title="Start voice conversation"
+                className="flex-shrink-0 text-gray-600 hover:text-green-400 transition-all"
+              >
+                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
 
               {/* Create (Image/Video) button */}

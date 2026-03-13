@@ -396,6 +396,71 @@ Output ONLY the prompt, no explanations. Make it detailed enough to recreate the
 
 
 // ============================================================
+// OPENAI REALTIME API - Voice Conversations
+// ============================================================
+
+// Handler: Create ephemeral session for OpenAI Realtime API
+async function handleRealtimeSession(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { model, voice, instructions } = body;
+
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    }
+
+    // Create ephemeral session token from OpenAI
+    const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: model || 'gpt-4o-realtime-preview-2024-12-17',
+        voice: voice || 'alloy',
+        instructions: instructions || 'You are a helpful AI assistant.',
+        modalities: ['text', 'audio'],
+        input_audio_format: 'pcm16',
+        output_audio_format: 'pcm16',
+        input_audio_transcription: {
+          model: 'whisper-1',
+        },
+        turn_detection: {
+          type: 'server_vad',
+          threshold: 0.5,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 500,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      console.error('[Realtime] Session creation failed:', err);
+      return NextResponse.json({ 
+        error: err.error?.message || 'Failed to create realtime session' 
+      }, { status: response.status });
+    }
+
+    const sessionData = await response.json();
+    console.log('[Realtime] Session created for user:', user.id);
+
+    return NextResponse.json(sessionData);
+  } catch (err) {
+    console.error('[Realtime] Error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+
+// ============================================================
 // GOOGLE OAUTH & APIS (Gmail, Calendar, Drive)
 // ============================================================
 // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
@@ -19836,6 +19901,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'imports/chunked/process-batch') return handleChunkedProcessBatch(request);
     if (pathStr === 'imports/extracted') return handleImportExtracted(request);
     if (pathStr === 'transcribe') return handleTranscribe(request);
+    if (pathStr === 'realtime/session') return handleRealtimeSession(request);
     if (pathStr === 'telegram/link') return handleTelegramLink(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
     if (pathStr === 'telegram/model') return handleTelegramSetModel(request);
