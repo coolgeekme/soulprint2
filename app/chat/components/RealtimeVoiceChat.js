@@ -3,7 +3,7 @@
 
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX, Settings, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX, Settings, Loader2, AudioWaveform } from 'lucide-react';
 
 const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-12-17';
 
@@ -302,7 +302,7 @@ export default function RealtimeVoiceChat({ token, onClose, systemPrompt, userNa
                 onClick={startVoiceChat}
                 className="w-24 h-24 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 flex items-center justify-center transition-all transform hover:scale-105 shadow-lg shadow-orange-500/30"
               >
-                <Phone className="w-10 h-10 text-white" />
+                <AudioWaveform className="w-10 h-10 text-white" />
               </button>
             ) : status === 'connecting' ? (
               <div className="w-24 h-24 rounded-full bg-gray-800 flex items-center justify-center">

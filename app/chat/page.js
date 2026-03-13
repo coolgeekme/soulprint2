@@ -12,7 +12,7 @@ import {
   Plus, Mic, Send, Settings, ChevronLeft, ThumbsUp, ThumbsDown,
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
   Image as ImageIcon, Paperclip, Search, Video, Download, RefreshCw, Play,
-  MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, Phone,
+  MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, AudioWaveform,
   GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal,
   Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, ChevronRight, LogOut, Copy, Edit3, Square, ArrowRight,
   Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code
@@ -9072,13 +9072,13 @@ Ask me "What can you do with Google?" anytime if you need a reminder!`,
                 )}
               </button>
 
-              {/* Voice Call button - Real-time voice conversation */}
+              {/* Voice Conversation button - Real-time voice chat */}
               <button
                 onClick={() => setShowVoiceChat(true)}
-                title="Start voice conversation"
-                className="flex-shrink-0 text-gray-600 hover:text-green-400 transition-all"
+                title="Voice conversation"
+                className="flex-shrink-0 text-gray-600 hover:text-green-400 transition-all p-1 -m-1"
               >
-                <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
+                <AudioWaveform className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
 
               {/* Create (Image/Video) button */}
