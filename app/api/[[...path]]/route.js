@@ -14388,10 +14388,14 @@ async function processChunkedBatch(importId, userId, uploads, importType) {
 
         await updateStatus('processing', `Extracting messages from file ${fileNum}/${totalFiles}...`, Math.round((i / totalFiles) * 30) + 30);
 
-        // Extract messages using streaming approach for large files
+        // Extract messages using optimized streaming approach for large files
         let messages = [];
         if (importType === 'chatgpt') {
-          messages = await extractChatGPTMessagesFromFile(outputPath);
+          // Use quick mode for large files to sample instead of extracting everything
+          messages = await extractChatGPTMessagesFromFile(outputPath, { 
+            maxMessages: 500, 
+            quickMode: true 
+          });
         } else if (importType === 'facebook') {
           messages = await extractFacebookMessagesFromFile(outputPath);
         }
@@ -14468,8 +14472,12 @@ async function processChunkedBatch(importId, userId, uploads, importType) {
 }
 
 // Extract ChatGPT messages from ZIP file on disk (streaming, memory-efficient)
-async function extractChatGPTMessagesFromFile(filePath) {
+// OPTIMIZED: For large files with split conversations, only sample what's needed
+async function extractChatGPTMessagesFromFile(filePath, options = {}) {
+  const { maxMessages = 500, quickMode = false } = options;
   const messages = [];
+  let conversationCount = 0;
+  
   try {
     const AdmZip = require('adm-zip');
     const zip = new AdmZip(filePath);
@@ -14478,30 +14486,51 @@ async function extractChatGPTMessagesFromFile(filePath) {
     // Find conversation files - both single file and split format
     const conversationFiles = zipEntries.filter(entry => {
       const name = entry.entryName;
-      // Match conversations.json or conversations-XXX.json (split format)
       return name === 'conversations.json' || 
              name.endsWith('/conversations.json') ||
              /conversations-\d+\.json$/.test(name);
     }).sort((a, b) => a.entryName.localeCompare(b.entryName));
     
-    console.log(`[extractChatGPTMessagesFromFile] Found ${conversationFiles.length} conversation file(s)`);
+    console.log(`[extractChatGPTMessagesFromFile] Found ${conversationFiles.length} conversation file(s), maxMessages=${maxMessages}`);
     
-    for (const entry of conversationFiles) {
+    // For quick mode or large exports, only process first few files
+    const filesToProcess = quickMode && conversationFiles.length > 3 
+      ? conversationFiles.slice(0, 3) 
+      : conversationFiles;
+    
+    for (const entry of filesToProcess) {
+      // Stop early if we have enough messages
+      if (messages.length >= maxMessages) {
+        console.log(`[extractChatGPTMessagesFromFile] Reached ${maxMessages} messages, stopping early`);
+        break;
+      }
+      
       try {
         const content = entry.getData().toString('utf8');
         const conversations = JSON.parse(content);
         const convArray = Array.isArray(conversations) ? conversations : [conversations];
         
-        for (const conv of convArray) {
+        conversationCount += convArray.length;
+        
+        // Sample conversations evenly from the file
+        const step = Math.max(1, Math.floor(convArray.length / 20)); // Sample ~20 conversations per file
+        
+        for (let i = 0; i < convArray.length && messages.length < maxMessages; i += step) {
+          const conv = convArray[i];
+          
           if (conv.mapping) {
-            for (const node of Object.values(conv.mapping)) {
+            // New format with mapping
+            const nodes = Object.values(conv.mapping);
+            for (const node of nodes) {
+              if (messages.length >= maxMessages) break;
+              
               if (node?.message?.content?.parts?.[0]) {
                 const authorRole = node.message.author?.role;
                 if (authorRole === 'user' || authorRole === 'assistant') {
-                  const content = node.message.content.parts.join('\n');
-                  if (content && content.trim()) {
+                  const msgContent = node.message.content.parts.join('\n');
+                  if (msgContent && msgContent.trim().length > 10) {
                     messages.push({
-                      content: content.slice(0, 5000), // Limit content size
+                      content: msgContent.slice(0, 3000),
                       role: authorRole,
                       timestamp: node.message.create_time ? new Date(node.message.create_time * 1000) : new Date(),
                     });
@@ -14514,9 +14543,11 @@ async function extractChatGPTMessagesFromFile(filePath) {
           // Alternative format: direct messages array
           if (conv.messages && Array.isArray(conv.messages)) {
             for (const msg of conv.messages) {
+              if (messages.length >= maxMessages) break;
+              
               if (msg.content && (msg.role === 'user' || msg.role === 'assistant')) {
                 messages.push({
-                  content: typeof msg.content === 'string' ? msg.content.slice(0, 5000) : JSON.stringify(msg.content).slice(0, 5000),
+                  content: typeof msg.content === 'string' ? msg.content.slice(0, 3000) : JSON.stringify(msg.content).slice(0, 3000),
                   role: msg.role,
                   timestamp: msg.timestamp ? new Date(msg.timestamp * 1000) : new Date(),
                 });
@@ -14524,7 +14555,8 @@ async function extractChatGPTMessagesFromFile(filePath) {
             }
           }
         }
-        console.log(`[extractChatGPTMessagesFromFile] Processed ${entry.entryName}: ${messages.length} total messages so far`);
+        
+        console.log(`[extractChatGPTMessagesFromFile] Processed ${entry.entryName}: ${messages.length} messages (${conversationCount} conversations)`);
       } catch (parseErr) {
         console.error(`[extractChatGPTMessagesFromFile] Error parsing ${entry.entryName}:`, parseErr.message);
       }
@@ -14532,7 +14564,8 @@ async function extractChatGPTMessagesFromFile(filePath) {
   } catch (e) {
     console.error('[extractChatGPTMessagesFromFile] Error:', e);
   }
-  console.log(`[extractChatGPTMessagesFromFile] Total messages extracted: ${messages.length}`);
+  
+  console.log(`[extractChatGPTMessagesFromFile] Total: ${messages.length} messages from ${conversationCount} conversations`);
   return messages;
 }
 
