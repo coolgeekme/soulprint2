@@ -20187,7 +20187,7 @@ async function handleVoiceToolExecute(request) {
     // Handle different tools
     switch (tool_name) {
       case 'web_search': {
-        // Delegate to web search handler
+        // Use advanced search for better accuracy
         const tavilyKey = process.env.TAVILY_API_KEY;
         if (tavilyKey) {
           const response = await fetch('https://api.tavily.com/search', {
@@ -20196,22 +20196,30 @@ async function handleVoiceToolExecute(request) {
             body: JSON.stringify({
               api_key: tavilyKey,
               query: tool_args.query,
-              max_results: 3,
-              search_depth: 'basic',
+              max_results: 5,  // Get more results for better accuracy
+              search_depth: 'advanced',  // Use advanced search for sports/real-time data
               include_answer: true,
+              include_raw_content: false,
             }),
           });
           if (response.ok) {
             const data = await response.json();
+            console.log(`[VoiceTool] Web search found ${data.results?.length || 0} results, answer: ${data.answer?.slice(0, 100)}`);
+            
+            // Format results with clear source attribution
+            const formattedResults = data.results?.slice(0, 5).map(r => ({
+              source: r.title,
+              url: r.url,
+              content: r.content,  // Include full content for accuracy
+              score: r.score,
+            })) || [];
+            
             return NextResponse.json({
               success: true,
               result: {
-                results: data.results?.slice(0, 3).map(r => ({
-                  title: r.title,
-                  url: r.url,
-                  snippet: r.content?.slice(0, 300),
-                })) || [],
-                answer: data.answer,
+                direct_answer: data.answer || null,
+                results: formattedResults,
+                instructions: 'IMPORTANT: Only report specific numbers, scores, and facts that are EXPLICITLY stated in these results. If the exact information is not found, say so.',
               },
             });
           }

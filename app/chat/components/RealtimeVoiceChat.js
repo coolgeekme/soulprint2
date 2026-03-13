@@ -38,12 +38,20 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
   const [sessionId, setSessionId] = useState(null);
   const [sessionStartTime, setSessionStartTime] = useState(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [micSensitivity, setMicSensitivity] = useState('medium'); // low, medium, high
   
   const peerConnectionRef = useRef(null);
   const dataChannelRef = useRef(null);
   const audioElementRef = useRef(null);
   const localStreamRef = useRef(null);
   const previewAudioRef = useRef(null);
+  
+  // Sensitivity thresholds: higher = less sensitive
+  const sensitivitySettings = {
+    low: { threshold: 0.6, silence: 600 },    // More sensitive
+    medium: { threshold: 0.75, silence: 700 }, // Balanced (default)
+    high: { threshold: 0.85, silence: 800 },   // Less sensitive (noisy environments)
+  };
 
   // Load user's voice settings on mount
   useEffect(() => {
@@ -251,9 +259,9 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
             },
             turn_detection: mode === 'vad' ? {
               type: 'server_vad',
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 500,
+              threshold: sensitivitySettings[micSensitivity].threshold,
+              prefix_padding_ms: 200,
+              silence_duration_ms: sensitivitySettings[micSensitivity].silence,
             } : null,
             instructions: `${systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}.`}
 
@@ -270,6 +278,13 @@ IMPORTANT: You have access to several tools that give you the SAME capabilities 
    - create_calendar_event: Create a new event. ALWAYS confirm details before creating.
 
 4. GOOGLE ACCOUNTS (get_google_accounts): List connected Google accounts and calendars.
+
+CRITICAL RULES FOR WEB SEARCH:
+- ONLY report information that is EXPLICITLY stated in the search results
+- NEVER make up or guess scores, dates, or specific numbers
+- If the search results don't contain the exact information requested, say "I found some results but they don't have the exact [score/number/detail] you're looking for"
+- Quote the source when reporting facts: "According to [source name]..."
+- If results seem outdated or don't match, acknowledge this and offer to search again with different terms
 
 TOOL USAGE RULES:
 - For web search: Use automatically for current events, weather, news, stocks, sports.
@@ -410,7 +425,7 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
       setStatus('error');
       cleanup();
     }
-  }, [token, systemPrompt, userName, mode, selectedVoice, webSearchEnabled]);
+  }, [token, systemPrompt, userName, mode, selectedVoice, webSearchEnabled, micSensitivity]);
 
   // Handle events from OpenAI Realtime API
   const handleRealtimeEvent = useCallback(async (event) => {
@@ -715,7 +730,7 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
 
           {/* Web search toggle - only when idle */}
           {status === 'idle' && (
-            <div className="mb-6">
+            <div className="mb-4">
               <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10 cursor-pointer hover:bg-white/10 transition-colors">
                 <div className={`p-2 rounded-lg ${webSearchEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-gray-500'}`}>
                   <Globe className="w-5 h-5" />
@@ -734,6 +749,33 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
                   className="sr-only"
                 />
               </label>
+            </div>
+          )}
+
+          {/* Mic sensitivity selector - only when idle */}
+          {status === 'idle' && (
+            <div className="mb-6">
+              <label className="block text-xs text-gray-500 mb-2">Microphone Sensitivity</label>
+              <div className="flex gap-2">
+                {[
+                  { id: 'low', label: 'High', desc: 'Quiet room' },
+                  { id: 'medium', label: 'Medium', desc: 'Normal' },
+                  { id: 'high', label: 'Low', desc: 'Noisy area' },
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setMicSensitivity(opt.id)}
+                    className={`flex-1 py-2 px-3 rounded-lg border text-center transition-all ${
+                      micSensitivity === opt.id
+                        ? 'bg-orange-500/20 border-orange-500/50 text-orange-400'
+                        : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'
+                    }`}
+                  >
+                    <p className="text-xs font-medium">{opt.label}</p>
+                    <p className="text-[10px] text-gray-500">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
