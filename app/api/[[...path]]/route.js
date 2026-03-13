@@ -3755,10 +3755,10 @@ function err(msg, status = 400) {
 
 // Model capabilities and use cases
 const SMART_MODE_MODELS = {
-  // Real-time information
+  // Real-time information and research queries
   'sonar-pro': { 
-    triggers: ['news', 'today', 'current', 'latest', 'price', 'weather', 'stock', 'live', 'happening now', 'right now'],
-    capabilities: ['real-time', 'web-search', 'current-events'],
+    triggers: ['news', 'today', 'current', 'latest', 'price', 'weather', 'stock', 'live', 'happening now', 'right now', 'tell me about', 'what is', 'who is', 'what can you tell', 'find out about', 'search for', 'look up', 'information about', 'info about', 'details about', 'learn about'],
+    capabilities: ['real-time', 'web-search', 'current-events', 'research'],
     provider: 'perplexity'
   },
   // Creative writing
@@ -3829,13 +3829,15 @@ async function classifyQueryForSmartMode(content, conversationHistory = []) {
 
 Query: "${content.slice(0, 500)}"
 
-Available models and their strengths:
-1. sonar-pro (Perplexity) - Real-time web search, current events, live data, prices
-2. claude-sonnet-4-5-20250929 (Anthropic) - Creative writing, stories, essays, nuanced content
-3. gpt-4o (OpenAI) - Code, debugging, technical tasks, general excellence
-4. claude-opus-4-5-20251101 (Anthropic) - Deep analysis, research, complex reasoning
-5. gpt-4o-mini (OpenAI) - Quick simple queries, basic tasks
-6. gemini-2.5-pro (Google) - Math, calculations, logical reasoning
+Choose the BEST model:
+1. sonar-pro (Perplexity) - BEST FOR: Research queries, "what is X", "who is X", "tell me about X", company/product/person info, current events, news, prices, weather, anything needing web search or factual lookup
+2. claude-sonnet-4-5-20250929 (Anthropic) - Creative writing, stories, essays, blog posts, nuanced content
+3. gpt-4o (OpenAI) - Code, debugging, technical implementation, programming help
+4. claude-opus-4-5-20251101 (Anthropic) - Deep analysis, complex reasoning, thorough explanations
+5. gpt-4o-mini (OpenAI) - Quick simple queries, basic conversational tasks
+6. gemini-2.5-pro (Google) - Math, calculations, equations, logical reasoning
+
+IMPORTANT: If the query asks about a company, product, service, person, concept, or anything that requires factual lookup - ALWAYS choose sonar-pro.
 
 Respond with ONLY a JSON object:
 {"model": "model-name", "reason": "brief reason"}`;
@@ -7754,9 +7756,19 @@ async function handleChatCompare(request) {
   let searchContext = null;
   if (enableWebSearch) {
     const { buildSearchContext } = await import('@/lib/llm/providers');
-    // Simple heuristic: if content has question words or is asking for current info, do web search
+    // Comprehensive heuristic: trigger web search for questions, research queries, and current info
     const lowerContent = sanitizedContent.toLowerCase();
-    const searchTriggers = ['what is', 'who is', 'when', 'where', 'how to', 'latest', 'recent', 'news', 'today', 'current', 'price', 'weather'];
+    const searchTriggers = [
+      // Question words
+      'what is', 'what are', 'what can', 'who is', 'who are', 'when', 'where', 'how to', 'how do', 'how does',
+      // Research/info queries
+      'tell me about', 'information about', 'info about', 'details about', 'learn about', 'find out',
+      'look up', 'search for', 'research', 'explain',
+      // Current/real-time info
+      'latest', 'recent', 'news', 'today', 'current', 'price', 'weather', 'score', 'update',
+      // Company/product/person research
+      'company', 'founded', 'ceo', 'product', 'service', 'platform', 'startup', 'fund', 'investment'
+    ];
     const shouldSearch = searchTriggers.some(t => lowerContent.includes(t));
     if (shouldSearch) {
       try {
