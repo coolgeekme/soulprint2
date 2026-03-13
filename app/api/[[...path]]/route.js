@@ -16392,9 +16392,9 @@ async function handleTelegramWebhook(request) {
       switch (toolName) {
         case 'get_emails':
         case 'check_email': {
-          const googleData = await db.collection('google_connections').find({ user_id: userId }).toArray();
-          if (!googleData.length) return { error: 'No Google account connected' };
-          const account = googleData[0];
+          const tgGoogleConnections = await getAllGoogleConnections(userId);
+          if (!tgGoogleConnections.length) return { error: 'No Google account connected. Connect one on the web app in Settings → Integrations.' };
+          const account = tgGoogleConnections[0];
           try {
             const oauth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
             oauth2Client.setCredentials({ access_token: account.access_token, refresh_token: account.refresh_token });
@@ -16418,9 +16418,9 @@ async function handleTelegramWebhook(request) {
         
         case 'get_calendar':
         case 'check_calendar': {
-          const googleData = await db.collection('google_connections').find({ user_id: userId }).toArray();
-          if (!googleData.length) return { error: 'No Google account connected' };
-          const account = googleData[0];
+          const tgCalGoogleConnections = await getAllGoogleConnections(userId);
+          if (!tgCalGoogleConnections.length) return { error: 'No Google account connected. Connect one on the web app in Settings → Integrations.' };
+          const account = tgCalGoogleConnections[0];
           try {
             const oauth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
             oauth2Client.setCredentials({ access_token: account.access_token, refresh_token: account.refresh_token });
@@ -20712,20 +20712,20 @@ async function handleVoiceToolExecute(request) {
 
       case 'get_emails':
       case 'check_email': {
-        // Get user's emails
-        const googleData = await db.collection('google_connections').find({ user_id: user.id }).toArray();
-        if (!googleData.length) {
+        // Get user's emails with token refresh
+        const googleConnections = await getAllGoogleConnections(user.id);
+        if (!googleConnections.length) {
           return NextResponse.json({ success: true, result: { error: 'No Google accounts connected. Please connect your Google account in Settings → Integrations.' } });
         }
         
         const account = tool_args.account_email 
-          ? googleData.find(a => a.email === tool_args.account_email)
-          : googleData[0];
+          ? googleConnections.find(a => a.email === tool_args.account_email)
+          : googleConnections[0];
           
         if (!account) {
           return NextResponse.json({ success: true, result: { 
             error: 'Account not found',
-            available_accounts: googleData.map(a => a.email)
+            available_accounts: googleConnections.map(a => a.email)
           }});
         }
 
@@ -20761,26 +20761,26 @@ async function handleVoiceToolExecute(request) {
           return NextResponse.json({ success: true, result: { emails, account: account.email } });
         } catch (gmailErr) {
           console.error('[VoiceTool] Gmail error:', gmailErr);
-          return NextResponse.json({ success: true, result: { error: 'Failed to fetch emails' } });
+          return NextResponse.json({ success: true, result: { error: 'Failed to fetch emails: ' + gmailErr.message } });
         }
       }
 
       case 'get_calendar':
       case 'check_calendar': {
-        // Get calendar events
-        const googleData = await db.collection('google_connections').find({ user_id: user.id }).toArray();
-        if (!googleData.length) {
+        // Get calendar events with token refresh
+        const calGoogleConnections = await getAllGoogleConnections(user.id);
+        if (!calGoogleConnections.length) {
           return NextResponse.json({ success: true, result: { error: 'No Google accounts connected. Please connect your Google account in Settings → Integrations.' } });
         }
         
         const account = tool_args.account_email 
-          ? googleData.find(a => a.email === tool_args.account_email)
-          : googleData[0];
+          ? calGoogleConnections.find(a => a.email === tool_args.account_email)
+          : calGoogleConnections[0];
           
         if (!account) {
           return NextResponse.json({ success: true, result: { 
             error: 'Account not found',
-            available_accounts: googleData.map(a => a.email)
+            available_accounts: calGoogleConnections.map(a => a.email)
           }});
         }
 
@@ -20819,21 +20819,21 @@ async function handleVoiceToolExecute(request) {
           return NextResponse.json({ success: true, result: { events, account: account.email } });
         } catch (calErr) {
           console.error('[VoiceTool] Calendar error:', calErr);
-          return NextResponse.json({ success: true, result: { error: 'Failed to fetch calendar' } });
+          return NextResponse.json({ success: true, result: { error: 'Failed to fetch calendar: ' + calErr.message } });
         }
       }
 
       case 'send_email': {
-        // Send email using existing handler logic
-        const googleData = await db.collection('google_connections').find({ user_id: user.id }).toArray();
+        // Send email with token refresh
+        const sendGoogleConnections = await getAllGoogleConnections(user.id);
         const account = tool_args.account_email 
-          ? googleData.find(a => a.email === tool_args.account_email)
-          : googleData[0];
+          ? sendGoogleConnections.find(a => a.email === tool_args.account_email)
+          : sendGoogleConnections[0];
           
         if (!account) {
           return NextResponse.json({ success: true, result: { 
             error: 'No Google account connected. Please connect your Google account in Settings → Integrations.',
-            available_accounts: googleData.map(a => a.email)
+            available_accounts: sendGoogleConnections.map(a => a.email)
           }});
         }
 
@@ -20875,15 +20875,15 @@ async function handleVoiceToolExecute(request) {
       }
 
       case 'create_calendar_event': {
-        const googleData = await db.collection('google_connections').find({ user_id: user.id }).toArray();
+        const createCalGoogleConnections = await getAllGoogleConnections(user.id);
         const account = tool_args.account_email 
-          ? googleData.find(a => a.email === tool_args.account_email)
-          : googleData[0];
+          ? createCalGoogleConnections.find(a => a.email === tool_args.account_email)
+          : createCalGoogleConnections[0];
           
         if (!account) {
           return NextResponse.json({ success: true, result: { 
             error: 'No Google account connected. Please connect your Google account in Settings → Integrations.',
-            available_accounts: googleData.map(a => a.email)
+            available_accounts: createCalGoogleConnections.map(a => a.email)
           }});
         }
 
@@ -20928,14 +20928,14 @@ async function handleVoiceToolExecute(request) {
       }
 
       case 'get_google_accounts': {
-        // List connected Google accounts
-        const googleData = await db.collection('google_connections').find({ user_id: user.id }).toArray();
+        // List connected Google accounts with refreshed tokens
+        const listGoogleConnections = await getAllGoogleConnections(user.id);
         return NextResponse.json({ success: true, result: { 
-          accounts: googleData.map(a => ({
+          accounts: listGoogleConnections.map(a => ({
             email: a.email,
             calendars: a.calendars || [{ id: 'primary', name: 'Primary' }],
           })),
-          message: googleData.length === 0 ? 'No Google accounts connected. Connect one in Settings → Integrations.' : `Found ${googleData.length} connected account(s)`
+          message: listGoogleConnections.length === 0 ? 'No Google accounts connected. Connect one in Settings → Integrations.' : `Found ${listGoogleConnections.length} connected account(s)`
         }});
       }
 
