@@ -785,7 +785,7 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
             </div>
           )}
 
-          {/* Main button */}
+          {/* Main visual - SoulPrint Logo with glow effect */}
           <div className="flex justify-center mb-6">
             {status === 'idle' || status === 'error' ? (
               <button
@@ -799,18 +799,38 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
                 <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-orange-500 animate-spin" />
               </div>
             ) : (
-              <button
-                onClick={endVoiceChat}
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 flex items-center justify-center transition-all transform hover:scale-105 shadow-lg shadow-red-500/30"
-              >
-                <PhoneOff className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-              </button>
+              // SoulPrint logo with glow effect when AI is speaking
+              <div className={`relative ${isAISpeaking ? 'animate-pulse' : ''}`}>
+                {/* Glow rings */}
+                {isAISpeaking && (
+                  <>
+                    <div className="absolute inset-0 w-24 h-24 sm:w-28 sm:h-28 -m-2 rounded-full bg-orange-500/20 animate-ping" />
+                    <div className="absolute inset-0 w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-orange-500/30 animate-pulse" />
+                  </>
+                )}
+                <div className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center overflow-hidden transition-all duration-300 ${
+                  isAISpeaking 
+                    ? 'bg-gradient-to-br from-orange-400 to-orange-600 shadow-[0_0_40px_rgba(249,115,22,0.6)]' 
+                    : isSearching
+                      ? 'bg-gradient-to-br from-blue-500 to-cyan-600 shadow-[0_0_30px_rgba(59,130,246,0.5)]'
+                      : 'bg-gradient-to-br from-gray-700 to-gray-800 shadow-lg'
+                }`}>
+                  <img 
+                    src="/logo.svg" 
+                    alt="SoulPrint" 
+                    className={`w-12 h-12 sm:w-14 sm:h-14 transition-all duration-300 ${
+                      isAISpeaking ? 'scale-110 brightness-125' : ''
+                    }`}
+                  />
+                </div>
+              </div>
             )}
           </div>
 
-          {/* Controls */}
+          {/* Controls - Mic, Hang up, and other buttons */}
           {status === 'connected' && (
-            <div className="flex justify-center gap-4 mb-4">
+            <div className="flex justify-center items-center gap-3 mb-4">
+              {/* Mute button */}
               <button
                 onClick={toggleMute}
                 className={`p-3 rounded-full transition-all ${
@@ -823,6 +843,16 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
                 {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
               </button>
               
+              {/* Hang up button */}
+              <button
+                onClick={endVoiceChat}
+                className="p-4 rounded-full bg-gradient-to-br from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 text-white transition-all transform hover:scale-105 shadow-lg shadow-red-500/30"
+                title="End call"
+              >
+                <PhoneOff className="w-5 h-5" />
+              </button>
+              
+              {/* Interrupt button (only when AI is speaking) */}
               {isAISpeaking && (
                 <button
                   onClick={interruptAI}
@@ -833,6 +863,7 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
                 </button>
               )}
               
+              {/* Web search indicator */}
               {webSearchEnabled && (
                 <div className={`p-3 rounded-full ${isSearching ? 'bg-blue-500/20 text-blue-400 animate-pulse' : 'bg-white/5 text-gray-500'}`}>
                   <Search className="w-5 h-5" />
