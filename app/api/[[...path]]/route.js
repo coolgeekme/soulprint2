@@ -16337,13 +16337,151 @@ async function handleTelegramWebhook(request) {
     const { getProvider: gp } = await import('@/lib/llm/providers');
     const provider = gp(preferredProvider, preferredModel);
 
+    // Define tools for Google access and memory
+    const googleTools = [
+      {
+        type: 'function',
+        function: {
+          name: 'get_emails',
+          description: 'Get emails from user\'s connected Gmail account',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Search query like "from:john" or "is:unread"' },
+              limit: { type: 'number', description: 'Number of emails to return' },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_calendar',
+          description: 'Get calendar events from user\'s connected Google Calendar',
+          parameters: {
+            type: 'object',
+            properties: {
+              time_min: { type: 'string', description: 'Start date in ISO format' },
+              time_max: { type: 'string', description: 'End date in ISO format' },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_user_memories',
+          description: 'Get stored memories and facts about the user',
+          parameters: { type: 'object', properties: {} },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_soulprint',
+          description: 'Get user\'s SoulPrint profile including interests, communication style, personality',
+          parameters: { type: 'object', properties: {} },
+        },
+      },
+    ];
+    
+    // Tool execution handler for Telegram
+    const handleTelegramToolCall = async (toolName, args) => {
+      console.log(`[Telegram Tool] Executing ${toolName}:`, args);
+      
+      switch (toolName) {
+        case 'get_emails':
+        case 'check_email': {
+          const googleData = await db.collection('google_connections').find({ user_id: userId }).toArray();
+          if (!googleData.length) return { error: 'No Google account connected' };
+          const account = googleData[0];
+          try {
+            const oauth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
+            oauth2Client.setCredentials({ access_token: account.access_token, refresh_token: account.refresh_token });
+            const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+            const response = await gmail.users.messages.list({ userId: 'me', maxResults: args.limit || 5, q: args.query || 'is:inbox' });
+            const emails = [];
+            for (const msg of (response.data.messages || []).slice(0, 5)) {
+              const detail = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'metadata' });
+              const headers = detail.data.payload?.headers || [];
+              emails.push({
+                subject: headers.find(h => h.name === 'Subject')?.value || '(no subject)',
+                from: headers.find(h => h.name === 'From')?.value || 'Unknown',
+                snippet: detail.data.snippet?.slice(0, 100),
+              });
+            }
+            return { emails, account: account.email };
+          } catch (e) {
+            return { error: 'Failed to fetch emails: ' + e.message };
+          }
+        }
+        
+        case 'get_calendar':
+        case 'check_calendar': {
+          const googleData = await db.collection('google_connections').find({ user_id: userId }).toArray();
+          if (!googleData.length) return { error: 'No Google account connected' };
+          const account = googleData[0];
+          try {
+            const oauth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
+            oauth2Client.setCredentials({ access_token: account.access_token, refresh_token: account.refresh_token });
+            const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+            const now = new Date();
+            const timeMin = args.time_min || now.toISOString();
+            const endOfDay = new Date(now); endOfDay.setHours(23, 59, 59, 999);
+            const timeMax = args.time_max || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            const response = await calendar.events.list({ calendarId: 'primary', timeMin, timeMax, maxResults: 10, singleEvents: true, orderBy: 'startTime' });
+            const events = (response.data.items || []).map(e => ({
+              title: e.summary,
+              start: e.start?.dateTime || e.start?.date,
+              end: e.end?.dateTime || e.end?.date,
+              location: e.location,
+            }));
+            return { events, account: account.email };
+          } catch (e) {
+            return { error: 'Failed to fetch calendar: ' + e.message };
+          }
+        }
+        
+        case 'get_user_memories':
+        case 'recall_memory': {
+          const memories = await db.collection('user_memories').find({ user_id: userId }).sort({ created_at: -1 }).limit(15).toArray();
+          if (!memories.length) return { message: 'No memories stored yet' };
+          const grouped = {};
+          for (const mem of memories) {
+            const cat = mem.category || 'other';
+            if (!grouped[cat]) grouped[cat] = [];
+            grouped[cat].push(mem.content);
+          }
+          return { memories: grouped, total: memories.length };
+        }
+        
+        case 'get_soulprint':
+        case 'who_am_i': {
+          const profile = await db.collection('profiles').findOne({ user_id: userId });
+          const soulProfile = await db.collection('soul_profiles').findOne({ user_id: userId });
+          return {
+            name: profile?.display_name,
+            descriptors: profile?.descriptors,
+            interests: soulProfile?.insights?.interests,
+            communication_style: soulProfile?.insights?.communicationStyle,
+            summary: soulProfile?.insights?.latestSummary,
+          };
+        }
+        
+        default:
+          return { error: 'Unknown tool' };
+      }
+    };
+
     let aiResponse;
     let sources = [];
     try {
-      // Use streaming and collect the full text (works with all providers)
-      const { stream, searchMeta, didSearch } = await provider.generateStream({
+      // Use streaming with custom tools for OpenAI (works best for tool calling)
+      const { stream, searchMeta, didSearch, customToolResults } = await provider.generateStream({
         systemPrompt, messages: historyMessages, model: preferredModel,
-        temperature: 0.7, enableWebSearch: true, // Enable web search for current events
+        temperature: 0.7, enableWebSearch: true,
+        customTools: preferredProvider === 'openai' ? googleTools : [],
+        onToolCall: handleTelegramToolCall,
       });
       
       // Extract sources from searchMeta
@@ -20575,9 +20713,9 @@ async function handleVoiceToolExecute(request) {
       case 'get_emails':
       case 'check_email': {
         // Get user's emails
-        const googleData = await db.collection('user_google_accounts').find({ user_id: user.id }).toArray();
+        const googleData = await db.collection('google_connections').find({ user_id: user.id }).toArray();
         if (!googleData.length) {
-          return NextResponse.json({ success: true, result: { error: 'No Google accounts connected' } });
+          return NextResponse.json({ success: true, result: { error: 'No Google accounts connected. Please connect your Google account in Settings → Integrations.' } });
         }
         
         const account = tool_args.account_email 
@@ -20630,9 +20768,9 @@ async function handleVoiceToolExecute(request) {
       case 'get_calendar':
       case 'check_calendar': {
         // Get calendar events
-        const googleData = await db.collection('user_google_accounts').find({ user_id: user.id }).toArray();
+        const googleData = await db.collection('google_connections').find({ user_id: user.id }).toArray();
         if (!googleData.length) {
-          return NextResponse.json({ success: true, result: { error: 'No Google accounts connected' } });
+          return NextResponse.json({ success: true, result: { error: 'No Google accounts connected. Please connect your Google account in Settings → Integrations.' } });
         }
         
         const account = tool_args.account_email 
@@ -20687,14 +20825,14 @@ async function handleVoiceToolExecute(request) {
 
       case 'send_email': {
         // Send email using existing handler logic
-        const googleData = await db.collection('user_google_accounts').find({ user_id: user.id }).toArray();
+        const googleData = await db.collection('google_connections').find({ user_id: user.id }).toArray();
         const account = tool_args.account_email 
           ? googleData.find(a => a.email === tool_args.account_email)
           : googleData[0];
           
         if (!account) {
           return NextResponse.json({ success: true, result: { 
-            error: 'Please specify which Google account to send from',
+            error: 'No Google account connected. Please connect your Google account in Settings → Integrations.',
             available_accounts: googleData.map(a => a.email)
           }});
         }
@@ -20737,14 +20875,14 @@ async function handleVoiceToolExecute(request) {
       }
 
       case 'create_calendar_event': {
-        const googleData = await db.collection('user_google_accounts').find({ user_id: user.id }).toArray();
+        const googleData = await db.collection('google_connections').find({ user_id: user.id }).toArray();
         const account = tool_args.account_email 
           ? googleData.find(a => a.email === tool_args.account_email)
           : googleData[0];
           
         if (!account) {
           return NextResponse.json({ success: true, result: { 
-            error: 'Please specify which Google account to use',
+            error: 'No Google account connected. Please connect your Google account in Settings → Integrations.',
             available_accounts: googleData.map(a => a.email)
           }});
         }
@@ -20791,12 +20929,13 @@ async function handleVoiceToolExecute(request) {
 
       case 'get_google_accounts': {
         // List connected Google accounts
-        const googleData = await db.collection('user_google_accounts').find({ user_id: user.id }).toArray();
+        const googleData = await db.collection('google_connections').find({ user_id: user.id }).toArray();
         return NextResponse.json({ success: true, result: { 
           accounts: googleData.map(a => ({
             email: a.email,
             calendars: a.calendars || [{ id: 'primary', name: 'Primary' }],
-          }))
+          })),
+          message: googleData.length === 0 ? 'No Google accounts connected. Connect one in Settings → Integrations.' : `Found ${googleData.length} connected account(s)`
         }});
       }
 
