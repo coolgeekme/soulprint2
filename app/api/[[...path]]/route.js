@@ -632,7 +632,15 @@ async function googleApiCall(accessToken, endpoint, options = {}) {
       ...options.headers
     }
   });
-  return response.json();
+  const data = await response.json();
+  
+  // Check for API errors
+  if (data.error) {
+    console.error(`[GoogleAPI] Error calling ${endpoint}:`, data.error);
+    throw new Error(data.error.message || data.error.status || 'Google API error');
+  }
+  
+  return data;
 }
 
 // Handler: Initiate Google OAuth
@@ -753,6 +761,7 @@ async function handleGoogleAuthCallback(request) {
     
     // Exchange code for tokens - use same baseUrl for redirect URI
     const redirectUri = `${baseUrl}/api/auth/google/callback`;
+    console.log('Google Callback - Exchanging code for tokens...');
     const tokens = await exchangeGoogleCode(code, redirectUri);
     
     if (tokens.error) {
@@ -760,11 +769,27 @@ async function handleGoogleAuthCallback(request) {
       return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent(tokens.error_description || tokens.error)}`);
     }
     
+    console.log('Google Callback - Token exchange successful, getting user info...');
+    
     // Get user info from Google
-    const userInfo = await googleApiCall(tokens.access_token, '/oauth2/v2/userinfo');
+    let userInfo;
+    try {
+      userInfo = await googleApiCall(tokens.access_token, '/oauth2/v2/userinfo');
+      console.log('Google Callback - Got user info:', userInfo.email);
+    } catch (userInfoErr) {
+      console.error('Google Callback - Failed to get user info:', userInfoErr);
+      return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent('Failed to get Google user info: ' + userInfoErr.message)}`);
+    }
     
     // Store connection in database - use composite key of user_id + google_id to allow multiple accounts
-    const db = await getDb();
+    let db;
+    try {
+      db = await getDb();
+    } catch (dbErr) {
+      console.error('Google Callback - Database connection failed:', dbErr);
+      return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent('Database connection failed')}`);
+    }
+    
     const connectionId = `${userId}_${userInfo.id}`;
     
     // Fetch available calendars for this account
