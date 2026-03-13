@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 
 # Configuration
-BASE_URL = "https://voice-chat-enhanced.preview.emergentagent.com/api"
+BASE_URL = "https://voice-chat-metrics.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSWORD = "test123"
 

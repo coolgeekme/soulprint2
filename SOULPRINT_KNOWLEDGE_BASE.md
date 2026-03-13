@@ -32,7 +32,7 @@
 - **Bot Integration**: Telegram
 
 ### Key URLs
-- **Production**: https://voice-chat-enhanced.preview.emergentagent.com
+- **Production**: https://voice-chat-metrics.preview.emergentagent.com
 - **API Base**: `/api/*`
 - **Admin Dashboard**: `/admin`
 

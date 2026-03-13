@@ -9,7 +9,7 @@ import io
 import base64
 import time
 
-BASE_URL = "https://voice-chat-enhanced.preview.emergentagent.com/api"
+BASE_URL = "https://voice-chat-metrics.preview.emergentagent.com/api"
 EMAIL = "test@soulprint.com"
 PASSWORD = "test123"
 

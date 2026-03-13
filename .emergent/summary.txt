@@ -1,198 +1,212 @@
 <analysis>
 
 **original_problem_statement**:
-The user's initial goals were to fix a recurring Google OAuth bug and implement true conversational image editing. Over the session, the scope expanded significantly to include:
-1.  **Fix Recurring Google OAuth Redirect URI Bug (Partially Fixed)**: A critical bug where the  for Google OAuth points to a preview URL instead of  after every new fork.
-2.  **Conversational Image Editing (Pivoted)**: The user wants to edit images with natural language (e.g., remove the hat). The initial OpenAI approach failed, leading to a pivot to Kie.ai.
-3.  **Google Integration Bugs**:
-    *   Fix Google Docs/Sheets creation due to a tool name mismatch.
-    *   Enable access to all of a user's Google Calendars, not just the primary one.
-    *   Enable access to all connected Google accounts, not just the default one.
-4.  **Marketing & Documentation**: Create a list of features, generate marketing copy, build a public-facing Features page, and create a  with the tech stack.
-5.  **Telegram Integration UX**: Update the UI and links related to Telegram integration based on user feedback, including routing from the features page to the correct settings tab.
-6.  **Live Voice Chat**: Implement a full conversational voice chat feature allowing users to talk with their AI in real-time.
+The user's goal is to enhance their AI application, SoulPrint. This session focused on completing a Live Voice Chat feature and addressing numerous bugs and new requests that arose during development.
+
+The key requirements implemented and worked on in this session include:
+1.  **Complete Live Voice Chat**:
+    *   Implement voice previews.
+    *   Enable real-time web search during calls.
+    *   Track and display voice chat metrics (including cost) in an admin dashboard.
+    *   Allow users to select and save a default voice.
+    *   Integrate all existing text-chat tools (Google Calendar, Gmail, Drive) into voice chat.
+    *   Improve microphone sensitivity with a user-facing control.
+    *   Enhance the voice chat UI with a pulsing logo and better layout.
+2.  **Improve Web Search Accuracy**: Fix an issue where the AI provided incorrect sports scores by switching the search provider to Brave Search and refining the query and result parsing logic for both text and voice chat.
+3.  **Admin Controls**: Add a feature flag in the admin dashboard to enable or disable the voice chat feature for all users.
+4.  **UI/UX Fixes**:
+    *   Remove the location pin from the mobile input bar to save space.
+    *   Fix an issue on mobile where the input bar overlapped the voice chat modal.
+    *   Implement an automatic request for user location on app load.
+5.  **Production Deployment Issues**: A significant portion of the session was dedicated to troubleshooting why the user's production database and environment variables were not being correctly applied after redeployment. This involved debugging the MongoDB connection string and environment variable management in the user's deployment platform.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a full-stack Next.js app with a monolithic backend API route () and a bloated main chat page ().
+The application is a full-stack Next.js app with a monolithic API route () and a bloated main chat page ().
 
-During this session, several major features and fixes were implemented:
-- **Google Auth Safeguard**: A hardcoded fallback was added to  to ensure the correct production  is used for Google OAuth, mitigating the recurring environment variable issue.
-- **Image Editing Pivot**: The image editing feature was completely re-implemented in  to use the **Kie.ai** inpainting API, as OpenAI's public API does not support the required in-place editing.
-- **Google Integration Fixes**: Bugs preventing Google Doc/Sheet creation were fixed. The Google Calendar and Drive integrations were significantly refactored to support multiple calendars and multiple connected Google accounts.
-- **New Pages & Docs**: A new  page was created and styled.  and  documents were created to detail the tech stack and features.
-- **Live Voice Chat (Partial)**: A major new feature for real-time voice conversation was added. This includes a new backend endpoint (), a new client-side component (), and UI buttons on both desktop and mobile.
+During this session, the following was built and integrated:
+- **Live Voice Chat**: The feature is now largely complete. It supports real-time conversation, tool use (Google suite, web search), default voice selection, and microphone sensitivity controls.
+- **Enhanced Admin Dashboard**: The admin page now includes a section for detailed voice chat metrics (session count, duration, user count) and calculated cost analysis. It also features a toggle to enable/disable the voice chat feature globally.
+- **Brave Search Integration**: The application now uses Brave Search as the primary provider for web queries in both text and voice chat, replacing Tavily for better accuracy.
+- **User Voice Preferences**: A new Voice tab was added to the user settings modal, allowing users to select and save their preferred voice for chats.
+- **Production Environment Fixes**: The application's  and backend code were corrected to use the proper database name and connection string for the user's MongoDB Atlas instance, resolving a critical deployment issue.
+- **UI/UX Improvements**: The mobile chat interface has been refined, and the app now proactively requests location permissions.
 
 **Last working item**:
-    - Last item agent was working: The agent was implementing the user's final set of requirements for the new **Live Voice Chat** feature. The user requested (1) the ability to preview voices, (2) access to real-time web data during a voice chat, and (3) tracking of voice chat metrics for the admin dashboard. The agent had just started creating an updated version of the  component to add these capabilities.
+    - Last item agent was working: Debugging why the newly implemented voice chat metrics are not appearing in the admin dashboard for the user.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? both. The backend endpoint for real-time web search during a call will need a backend test. The frontend  component, including voice preview and the overall flow, requires frontend testing.
+    - Which testing method agent to use? both. The backend testing agent should be used to verify that the  endpoint correctly queries the  collection and returns a non-null  object in its response, even if the collection is empty. The frontend testing agent (or screenshot tool) should then be used to confirm that the  component correctly receives these metrics and renders the Voice Chat statistics section, displaying zeros if no data is present.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: Google OAuth  Root Cause (P1)
+  - Issue 1: Voice chat metrics are not visible in the admin dashboard. (P0)
+  - Issue 2: The root cause of deployment environment variable issues remains unidentified. (P1)
   
   Issues Detail:
   - Issue 1: 
-     - **Description**: The  in the  file is reset to a preview URL after every fork, breaking Google OAuth. A workaround (hardcoded fallback in the code) was implemented, but the underlying infrastructure or deployment script issue that causes the reset has not been investigated or fixed.
-     - **Attempted fixes**: A hardcoded fallback URL was added to  as a safeguard. This fixes the user-facing symptom but not the root cause.
+     - **Description**: The user reported that the Voice Chat section in the admin dashboard is missing (). The agent implemented both the backend logic to calculate these metrics and the frontend UI to display them, but they are not rendering in the user's deployed environment.
+     - **Attempted fixes**: The agent investigated the  endpoint and the  component. The agent's theory is that the  collection might be empty or non-existent in the user's database, causing the API to return a   object, which the frontend then fails to render. The agent's last action was to attempt to make the frontend robust enough to handle a null case, but this was not fully tested.
      - **Next debug checklist**:
-        1.  Investigate the forking/deployment process for this environment.
-        2.  Look for any scripts or configuration files that might be overwriting  during startup or build.
-        3.  Confirm if this is expected behavior for the platform, and if so, document it as a required manual step after each fork.
-     - **Why fix this issue and what will be achieved with the fix?**: Fixing the root cause will prevent this critical, recurring bug and remove the need for the code-level patch, making the system more stable and predictable.
+        1.  Verify the  endpoint in  always returns a  object, even if its values are all zero (e.g., when the  collection is empty).
+        2.  Check the database connection logic again to ensure the admin metrics function is connecting to the correct database ().
+        3.  Modify the  component to ensure the 🎙️ VOICE CHAT and 💰 VOICE CHAT COSTS sections are always rendered, displaying 0 or N/A if the metrics object contains no data, instead of hiding the section completely.
+     - **Why fix this issue and what will be achieved with the fix?**: The user needs this data to make pricing decisions for the voice chat feature.
+     - **Status**:  IN PROGRESS
+     - **Is recurring issue?** N
+     - **Should Test frontend/backend/both after fix?** both
+     - **Blocked on other issue**: None
+
+  - Issue 2: 
+     - **Description**: Throughout the session, the user faced critical issues after redeploying, where the production environment would lose its connection to the MongoDB Atlas database and other secrets. This was because the preview environment's local  file was seemingly overwriting production secrets.
+     - **Attempted fixes**: The agent guided the user to manually inspect and correct the  and  variables within their deployment platform's Secrets section. This fixed the immediate problem, but does not address the underlying platform behavior.
+     - **Next debug checklist**: This is likely a platform/DevOps issue outside the agent's direct control. The next agent should be aware of this and remind the user to verify their production secrets after every deployment. No code fix is possible.
+     - **Why fix this issue and what will be achieved with the fix?**: Understanding this behavior will prevent catastrophic data access issues on future deployments.
      - **Status**:  NOT STARTED
      - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** backend (verifying the )
+     - **Should Test frontend/backend/both after fix?** backend (verifying DB connection after a deployment)
      - **Blocked on other issue**: None
 
 **In progress Task List**:
-  - Task 1: Complete Live Voice Chat Feature (P0)
-
- Task Detail:
-  - Task 1: 
-     - **Where to resume**: The agent was about to modify the  component. Resume by implementing the three requested enhancements:
-        1.  **Voice Preview**: Add a play button next to each voice in the selection dropdown that triggers a TTS sample. This may require a new simple backend endpoint.
-        2.  **Real-time Web Search**: Integrate a web search tool call within the voice conversation flow. When the user asks a question the AI can't answer, it should be able to trigger a search and use the results in its spoken response.
-        3.  **Admin Metrics**: Add logic to log key events (call start, call end, duration, user ID) to the database for later display in an admin dashboard. This will require a new API endpoint.
-     - **What will be achieved with this?**: This will complete the voice chat feature to the user's specifications, making it a fully functional and powerful part of the application.
-     - **Status**:  IN PROGRESS
-     - **Should Test frontend/backend/both after fix?** both
-     - **Blocked on something**: No
+There are no tasks currently in a partially completed state. The last active task became Issue 1.
 
 **Upcoming and Future Tasks**
 Upcoming Tasks:
-- **(P0) User Verification for All New and Fixed Features**: A huge amount of functionality was added or changed but never tested by the user. The next agent's first step after finishing the voice feature should be to ask the user to verify the following:
-    - **Image Editing**: Does the new Kie.ai implementation work as expected?
-    - **Google Integrations**: Does Google Docs/Sheets creation work? Does the app correctly see events from all calendars and all connected accounts?
-    - **Mockup Generator**: This feature from a previous session remains unverified.
-    - **Timezone-Awareness**: This feature from a previous session remains unverified.
-- **(P1) Propose Code Refactoring**: Both  and  are now critically bloated and unmaintainable. The next agent should propose a plan to break them into smaller, feature-specific files.
+- **(P0) Full User Verification**: After the admin metrics bug is fixed, the user must be prompted to perform a full verification of all new and modified features. This includes:
+    - **Voice Chat**: Test making calls, using Google tools (calendar, email), web search accuracy, mic sensitivity slider, and the new UI.
+    - **Admin Dashboard**: Confirm the voice chat toggle works and that cost metrics update correctly.
+    - **User Settings**: Verify that setting a default voice works.
+    - **Mobile Experience**: Check the UI fixes for the input bar and voice modal overlap.
+- **(P1) Propose Code Refactoring**: The monolithic API file () is now dangerously large and complex. It is a major source of technical debt and risk. The next agent must propose a plan to split it into smaller, manageable, feature-specific API routes.
 
 Future Tasks:
-- Implement Autonomous AI Agents (OpenClaw-style)
-- Implement Badge System for Invites
-- Build the Admin Dashboard to display voice chat metrics.
+- Implement Autonomous AI Agents.
+- Implement a Badge System for Invites.
+- Build out more features for the Admin Dashboard.
 
 **Completed work in this session**
-- **Feature: Live Voice Chat (Initial Implementation)**: Added real-time voice conversations using OpenAI's Realtime API. Created the  component and the  backend endpoint.
-- **Bugfix: Google Integrations**:
-    - Fixed a bug preventing Google Docs/Sheets creation.
-    - Refactored Google Calendar/Drive/Gmail functions to support multiple calendars and multiple connected user accounts.
-- **Feature: Image Editing (Kie.ai Pivot)**: Re-implemented image editing to use Kie.ai for true in-painting, replacing the non-functional OpenAI approach.
-- **Bugfix: Google OAuth Redirect URI**: Implemented a robust safeguard in the code to prevent the recurring redirect URI bug from breaking Google login.
-- **Feature: Features Page**: Created a new, fully-styled marketing and features page at .
-- **Feature: Link from Features to Settings**: Implemented URL parameter handling () to allow links from the features page to open the settings modal on the correct tab within the main chat application.
-- **Documentation**: Created  with tech stack and  with marketing copy. Updated all docs with user-provided corrections (e.g., Dynamic Intelligence, bot name).
+- **Feature: Voice Chat Tool Integration**: Expanded voice chat to use all Google tools (Calendar, Gmail, Drive, etc.) available in text chat.
+- **Feature: Voice Chat Cost Tracking**: Implemented backend logic to calculate voice chat costs based on usage and displayed the data in the admin dashboard.
+- **Feature: Admin Feature Flag for Voice Chat**: Created a toggle in the admin panel to enable or disable the voice chat feature for all users.
+- **Feature: Default Voice Selection**: Added a Voice tab to user settings, allowing users to choose and save their preferred voice.
+- **Feature: Microphone Sensitivity Control**: Added a UI slider to the voice chat modal for users to adjust microphone sensitivity.
+- **Bugfix/Improvement: Switched to Brave Search**: Replaced Tavily with Brave Search for both text and voice chat to improve web search accuracy, particularly for real-time data like sports scores.
+- **Bugfix: Production Database Connection**: Diagnosed and guided the user to fix a critical deployment issue where the wrong MongoDB connection string and database name were being used, restoring access to their user data.
+- **UI/UX Fixes**:
+    - Redesigned the voice chat modal to use the SoulPrint logo with a glowing effect.
+    - Fixed mobile UI overlap between the input bar and the voice chat modal.
+    - Removed the space-consuming location pin from the mobile input.
+    - Implemented an automatic browser prompt for location access on app load.
 
 **Earlier issues found/mentioned but not fixed**
    - **Issue 1**: Slack Bot Usability (from original handoff summary). Status: NOT STARTED.
    - **Issue 2**: Desktop Microphone Not Verified (from original handoff summary). Status: NOT STARTED.
 
 **Known issue recurrence from previous fork**
-  - **Google OAuth Redirect URI Bug**: This issue is confirmed to recur on every fork. A workaround has been implemented, but the root cause in the deployment/forking process is still unknown. **Status: IN PROGRESS** (workaround applied, root cause pending).
+  - **Issue recurrence in previous fork**: Deployment environment variable and secrets management.
+  - **Recurrence count**: This issue was the primary cause of problems in the second half of the session, recurring with every user deployment attempt until manually fixed.
+  - **Status**: BLOCKED. This appears to be a characteristic of the user's deployment platform. The workaround is to have the user manually verify secrets in their production environment after each deployment.
 
 **Code Architecture**
 - **Framework**: Next.js 14 (App Router)
 - **Frontend**: React/Tailwind/shadcn.
-    - : **(CRITICALLY BLOATED)** Contains the main chat UI, state management for many features, and now orchestrates the new  modal.
-    - : **(NEW & IN-PROGRESS)** A large new component containing the entire WebRTC and UI logic for voice chat.
-    - : **(NEW)** A new standalone, public-facing features page.
+    - : **(CRITICALLY BLOATED)** Handles main chat state, feature flag fetching, and rendering of desktop UI components.
+    - : **(HEAVILY MODIFIED)** Contains all UI and WebRTC logic for the voice chat feature. Was updated with tool integration, sensitivity controls, and UI redesigns.
+    - : **(HEAVILY MODIFIED)** The admin dashboard. Was updated to include voice chat metrics, cost analysis, and the feature toggle.
+    - : **(MODIFIED)** Updated to include a new Voice settings tab.
 - **Backend**: Monolithic API route.
-    - : **(CRITICALLY BLOATED)** This single file now contains logic for chat, all LLM models, all Google integrations (Gmail, Calendar, Docs, Drive), Kie.ai image editing, and the new OpenAI Realtime session endpoint. It is extremely difficult to maintain.
-- **Database**: MongoDB.
+    - : **(CRITICALLY BLOATED)** This single file was heavily modified. It now contains new endpoints for voice tool execution, feature flags, and user voice settings, plus updated logic for admin metrics, cost calculation, and the switch to Brave Search. **This file urgently needs refactoring.**
+- **Database**: MongoDB (connected via Atlas in production).
 
 **Key Technical Concepts**
-- **AI Service Pivot**: When OpenAI's API was insufficient for image editing, the agent successfully pivoted to an entirely different service (Kie.ai) that met the requirement.
-- **Asynchronous Task Polling**: The Kie.ai integration required implementing a polling mechanism () to handle its asynchronous API.
-- **WebRTC**: The new voice chat feature is built on WebRTC to establish a real-time, low-latency connection to OpenAI's servers.
-- **URL Query Params for State**: Used query parameters () as a mechanism to pass state between separate pages () and the main application () to trigger UI events.
-- **Defensive Programming**: The hardcoded fallback for the Google OAuth URL is a prime example of defensive coding to protect against an unstable external factor (the environment configuration).
+- **External API Pivot**: Switched from Tavily to Brave Search API for better real-time data accuracy.
+- **Real-time Cost Calculation**: Implemented logic to estimate API costs based on character counts and session duration, tied to OpenAI's pricing model.
+- **Dynamic Feature Flagging**: Created a system with a public API endpoint () and an admin toggle to control feature availability across the application without redeploying.
+- **Complex Tool-Use in Voice**: Extended OpenAI's Realtime API to handle function calls for a wide array of tools (not just simple web search), including the full Google suite, by creating a dedicated backend tool execution endpoint.
+- **Environment vs. Code Debugging**: A significant portion of the session involved distinguishing between code bugs and platform-level environment configuration issues, particularly around production secrets.
 
 **key DB schema**
-  - No new schemas were explicitly defined, but logic for logging voice chat metrics to the database is a pending task, which will require a new collection (e.g., ).
+- : A  field (String) was added.
+- : Fields for , , and  (Numbers) were added to track usage and cost.
+- : A document is used to store global feature flags, such as .
 
 **All files of reference**
-- : **(CRITICAL & MODIFIED)** All backend logic resides here. Heavily modified to add Kie.ai, fix Google bugs, and add the voice chat session endpoint.
-- : **(CRITICAL & MODIFIED)** The main UI. Heavily modified to handle the voice chat modal, URL parameters for settings, and props drilling for mobile components.
-- : **(NEW & CRITICAL)** The heart of the new voice chat feature. Currently in-progress.
-- : **(NEW)** The public marketing/features page.
-- : **(NEW)** Contains tech stack documentation.
-- : **(NEW)** Contains marketing copy.
+- : **(CRITICAL & MODIFIED)** All new and updated backend logic was added here.
+- : **(CRITICAL & MODIFIED)** The core of the voice chat feature.
+- : **(CRITICAL & MODIFIED)** The admin dashboard UI.
+- : **(MODIFIED)** Updated to handle the voice chat feature flag.
+- : **(MODIFIED)** Updated with the voice settings tab.
+- : **(MODIFIED)** Updated to handle UI fixes and feature flags.
+- : **(MODIFIED)** Updated multiple times to debug database connection issues.
 
 **Areas that need refactoring**:
-- **Monolithic API Route ()**: This is the highest priority for refactoring. It must be broken down into smaller, domain-specific files (e.g., , , ).
-- **Bloated Chat Page ()**: The main chat page component is doing too much. State management should be lifted to a context provider, and large UI sections (like the mobile chat view and various modals) should be more cleanly separated.
+- **Monolithic API Route ()**: This is the absolute highest priority. The file is unmaintainable and a huge risk factor for future development. It must be broken down into domain-specific API routes (e.g., , , , ).
+- **Bloated Chat Page ()**: The main chat page component continues to accumulate logic (like feature flag fetching) that could be better managed in dedicated hooks or contexts.
 
 **key api endpoints**
-- : (New) Creates an ephemeral session token for OpenAI's Realtime Voice API.
--  (External - Kie.ai): Used for the new image editing feature.
--  (External - Kie.ai): Used to poll for image editing results.
-- : (Modified) Logic was hardened with a fallback URL.
-- All Google API endpoints () were implicitly modified by the refactor to support multi-account and multi-calendar functionality.
+- : (New) Executes Google tool calls initiated from a voice chat session.
+- : (New) A public endpoint to fetch the status of global feature flags (e.g., voice chat enabled).
+- : (New) Fetches the user's saved default voice.
+- : (New) Saves the user's default voice.
+- : (Modified) Updated to include voice chat session and cost metrics.
+- The generic  endpoint for chat was implicitly modified to use Brave Search instead of Tavily.
 
 **Critical Info for New Agent**
-- **Your immediate P0 task is to finish the Live Voice Chat feature.** The user is waiting on three specific enhancements: voice previews, in-call web search, and admin metrics. Resume work in .
-- **After completing the voice chat, you MUST prompt the user for verification on all the other major changes from this session.** This includes the Kie.ai image editing and all the Google integration fixes (multi-account, multi-calendar, Docs/Sheets). Do not assume they work.
-- **Be prepared to propose a major refactoring effort.** The monolithic API and frontend page are significant sources of technical debt and risk. After the critical features are verified, you should suggest a plan to split  and  into manageable modules.
-- The root cause of the recurring  file issue with  is still unknown. While the system is stable due to a patch, investigating this is a valuable long-term fix.
+- **Your immediate P0 task is to fix the missing voice chat metrics in the admin dashboard.** The user needs this for pricing. Start by ensuring the  endpoint always returns a valid  object, and then make the frontend  robustly display the data, even if it's all zeros.
+- **Be aware of the user's fragile deployment environment.** They have separate secrets management for production, which has caused major issues. If they report data is missing after a deployment, the first step is to have them verify their production  and  secrets.
+- **After fixing the metrics bug, you MUST prompt the user for a full verification of all the features added in this session.** Do not assume anything works as intended on their end.
+- **You MUST propose a refactoring of .** The current monolithic structure is unsustainable. Frame this as a necessary step to ensure future stability and speed of development.
 
 **documents created in this job**
-  - 
-  - 
-  -  (This is a page, but serves as a document)
+None.
 
 **Last 10 User Messages and any pending HUMAN messages** 
-- : Requests voice preview, real-time web search in voice chat, and admin metrics tracking. **(Pending - This is the highest priority task)**
-- : Asks why the desktop voice button doesn't work, how to change voices, and where transcripts are saved. **(Partially Addressed - a follow-up to this is the current P0 task)**
-- : nothing happens when i click on the waveform button **(Addressed - Agent found and fixed the bug)**
-- : i dont see the phone icon on mobile. also, can we change that icon to be a waveform or something? **(Addressed)**
-- : Can we try Option C? (Choosing OpenAI Realtime API for voice chat). **(In Progress)**
-- : Asks for the most efficient way to add voice conversations. **(In Progress)**
-- : There’s an actual Telegram button in settings to link. It’s not in Integrations. **(Addressed)**
-- : Provides the correct Telegram bot name. **(Addressed)**
-- : Clarifies the Telegram button on the features page should link to settings. **(Addressed)**
-- : Asks agent to create a README for the tech stack. **(Completed)**
+- : User asks why voice chat metrics are not in the admin dashboard. **(PENDING - This is the current P0 issue)**.
+- : User requests a UI change for the voice chat button to a glowing logo. **(Completed)**.
+- : User requests cost tracking for voice chat in the admin dashboard. **(Completed, but now part of the P0 bug)**.
+- : User requests the app to automatically ask for location access. **(Completed)**.
+- : User reports mobile UI issues (location pin, input bar overlap). **(Completed)**.
+- : User asks to verify Dynamic Intelligence is working. **(Completed)**.
+- : User provides the correct  for their production database. **(Part of a completed debugging flow)**.
+- : User provides the full  from their old working version. **(Part of a completed debugging flow)**.
+- : User provides the  from their secrets. **(Part of a completed debugging flow)**.
+- : User confirms secrets are correct in their deployment environment, suspecting a MongoDB issue. **(Part of a completed debugging flow)**.
 
 **Project Health Check:**
 - **Broken**:
-    - The new Live Voice Chat feature is incomplete and does not meet the user's latest requirements.
+    - The voice chat metrics display in the admin dashboard is not working for the user.
 - **Needs Verification**:
-    - **Image Editing (Kie.ai)**: Completely new implementation, untested by user.
-    - **Google Multi-Account/Multi-Calendar**: Major backend refactor, untested by user.
-    - **Google Docs/Sheets Creation**: Bug fix, untested by user.
-    - **Mockup Generator**: (From previous session) Untested by user.
+    - The entire Live Voice Chat feature set after numerous additions and changes.
+    - The accuracy of web search via Brave Search for various query types.
+    - The admin toggle's effect on the user-facing UI.
+    - All mobile UI fixes.
 - **Mocked**: None.
-- **Completed in this session**: Google Auth bug workaround, Features page creation, Documentation creation.
+- **Completed in this session**: Switched search to Brave, added admin controls, enhanced voice chat with tools/costs/UI, fixed production DB connection issue.
 
 **3rd Party Integrations**
-- **OpenAI**: Used for chat (GPT series), image generation (DALL-E 3), and now real-time voice (Realtime API).
-- **Kie.ai**: **(NEW)** Now the primary service for image in-painting/editing (). Also used for video generation.
-- **Google APIs**: (googleapis library) - Heavily used for Gmail, Calendar, Docs, Sheets, Drive. Now supports multiple accounts and calendars.
-- **Anthropic, Google (Gemini), Perplexity, Kimi/Moonshot**: Available as alternative LLMs for chat.
+- **OpenAI**: Used for chat (GPT series), image generation (DALL-E 3), and real-time voice (Realtime API).
+- **Brave Search API**: **(NEW)** Now the primary service for all web search queries.
+- **Kie.ai**: Used for image in-painting/editing.
+- **Google APIs**: (googleapis library) - Used for Gmail, Calendar, Docs, Sheets, Drive.
+- **Anthropic, Google (Gemini), Perplexity, Kimi/Moonshot**: Available as alternative LLMs for text chat.
 - **Telegram Bot API**: Integrated for chat via Telegram.
 
-All integrations use user-provided API keys stored in the database or environment.
+All integrations use user-provided API keys.
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Only used once very early in the session. Many major changes since then have not been tested).
-  - Troubleshoot agent used after agent stuck in loop: NO
+  - Testing agent used after significant changes: NO. The agent relied on direct user feedback and manual  tests.
+  - Troubleshoot agent used after agent stuck in loop: NO. The agent manually debugged the complex deployment issues with the user.
   - Test files created: None.
-  - Known regressions: None, but the risk is high due to lack of testing.
+  - Known regressions: The voice chat metrics display, which was added, is now considered broken.
 
 **Credentials to test flow:**
-- Login with  and password .
-- Google OAuth credentials are in .
-- OpenAI API key is required.
-- Kie.ai API key is required.
+- User credentials are in the database. A test user can be created or use / if it exists in the connected database.
+- API keys for OpenAI, Google, Brave, etc., are expected to be in the  file or production secrets.
 
 **What agent forgot to execute**
-- The agent never followed up on user verification for the **Mockup Generator** and **Timezone-Awareness** features from the previous session's handoff.
-- The agent did not test any of the major features it built or fixed after the initial Google Auth fix (Kie.ai editing, multi-account Google, voice chat, etc.).
-- The agent did not address the root cause of the recurring Google OAuth  bug, only the symptom.
-- The agent did not address the long-standing Slack and Microphone issues from the original handoff summary.
-- The agent did not act on the recommendation to refactor the monolithic  and  files, instead making them significantly larger.
+- The agent did not follow up on user verification for the **Mockup Generator** and **Timezone-Awareness** features mentioned in the initial handoff from the *previous* session.
+- The agent did not address the long-standing **Slack Bot Usability** and **Desktop Microphone Not Verified** issues from the original handoff.
+- The agent did not get a chance to act on the critical need to refactor the  and  files, instead making them significantly larger to meet user requests.
 
 </analysis>

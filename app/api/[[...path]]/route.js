@@ -10827,6 +10827,36 @@ async function handleAdminGetMetrics(request) {
   const grandTotalCost = totalEstCost + totalMediaCost;
   const grandTotalCostLast30d = totalCostLast30d + totalMediaCostLast30d;
 
+  // Get voice chat metrics (ensure we always have an object)
+  let voiceChatMetrics;
+  try {
+    voiceChatMetrics = await getVoiceChatMetrics(db, sevenDaysAgo, thirtyDaysAgo);
+  } catch (voiceErr) {
+    console.error('[Admin Metrics] Voice chat metrics error:', voiceErr);
+    voiceChatMetrics = {
+      total_sessions: 0,
+      sessions_7d: 0,
+      sessions_30d: 0,
+      completed_sessions: 0,
+      unique_users: 0,
+      total_duration_seconds: 0,
+      avg_duration_seconds: 0,
+      total_voice_messages: 0,
+      avg_messages_per_session: 0,
+      voice_distribution: {},
+      cost: {
+        total_cost_usd: 0,
+        cost_last_30d_usd: 0,
+        cost_per_minute_usd: 0,
+        avg_cost_per_session_usd: 0,
+        cost_per_user_usd: 0,
+        total_audio_input_tokens: 0,
+        total_audio_output_tokens: 0,
+        pricing_note: 'Based on gpt-4o-realtime: $40/1M input, $80/1M output audio tokens',
+      },
+    };
+  }
+
   return ok({
     wau: wauUsers,
     total_users: totalUsers,
@@ -10889,7 +10919,7 @@ async function handleAdminGetMetrics(request) {
       },
     },
     // Voice chat metrics (from voice_sessions collection)
-    voice_chat: await getVoiceChatMetrics(db, sevenDaysAgo, thirtyDaysAgo),
+    voice_chat: voiceChatMetrics,
     // Legacy (for backwards compatibility)
     est_cost_per_user_month: costPerAcceptedUserLast30d,
     est_projected_monthly_cost: parseFloat(totalCostLast30d.toFixed(4)),

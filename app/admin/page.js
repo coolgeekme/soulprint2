@@ -5056,6 +5056,39 @@ export default function AdminPage() {
                       color="orange"
                     />
                   </div>
+                  
+                  {/* Voice Chat Summary - Quick Overview */}
+                  <p className="text-[10px] font-bold text-purple-400 tracking-widest uppercase mt-6 mb-3">🎙️ Voice Chat</p>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    <MetricCard 
+                      label="Voice Sessions" 
+                      value={metrics.voice_chat?.total_sessions ?? 0} 
+                      sub={`${metrics.voice_chat?.sessions_30d ?? 0} last 30d`}
+                      icon={MessageSquare} 
+                      color="purple" 
+                    />
+                    <MetricCard 
+                      label="Voice Users" 
+                      value={metrics.voice_chat?.unique_users ?? 0} 
+                      sub="Used voice chat"
+                      icon={Users} 
+                      color="blue" 
+                    />
+                    <MetricCard 
+                      label="Avg Duration" 
+                      value={metrics.voice_chat?.avg_duration_seconds ? `${Math.round(metrics.voice_chat.avg_duration_seconds / 60)}m ${Math.round(metrics.voice_chat.avg_duration_seconds % 60)}s` : '0s'} 
+                      sub="Per session"
+                      icon={Clock} 
+                      color="green" 
+                    />
+                    <MetricCard 
+                      label="Voice Cost" 
+                      value={`$${(metrics.voice_chat?.cost?.total_cost_usd ?? 0).toFixed(2)}`}
+                      sub={`$${(metrics.voice_chat?.cost?.cost_last_30d_usd ?? 0).toFixed(2)} last 30d`}
+                      icon={DollarSign} 
+                      color="orange" 
+                    />
+                  </div>
                 </>
               )}
 
@@ -5160,133 +5193,129 @@ export default function AdminPage() {
                     </>
                   )}
                   
-                  {/* Voice Chat Metrics */}
-                  {metrics.voice_chat && (
-                    <>
-                      <p className="text-[10px] font-bold text-purple-400 tracking-widest uppercase mt-6 mb-3">🎙️ Voice Chat</p>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                        <MetricCard 
-                          label="Total Sessions" 
-                          value={metrics.voice_chat.total_sessions || 0} 
-                          sub={`${metrics.voice_chat.sessions_30d || 0} last 30d`}
-                          icon={MessageSquare} 
-                          color="purple" 
-                        />
-                        <MetricCard 
-                          label="Unique Users" 
-                          value={metrics.voice_chat.unique_users || 0} 
-                          sub="Used voice chat"
-                          icon={Users} 
-                          color="blue" 
-                        />
-                        <MetricCard 
-                          label="Avg Duration" 
-                          value={metrics.voice_chat.avg_duration_seconds ? `${Math.round(metrics.voice_chat.avg_duration_seconds / 60)}m ${metrics.voice_chat.avg_duration_seconds % 60}s` : '0s'} 
-                          sub="Per session"
-                          icon={Clock} 
-                          color="green" 
-                        />
-                        <MetricCard 
-                          label="Total Talk Time" 
-                          value={metrics.voice_chat.total_duration_seconds ? `${Math.round(metrics.voice_chat.total_duration_seconds / 60)}m` : '0m'} 
-                          sub="All sessions"
-                          icon={TrendingUp} 
-                          color="orange" 
-                        />
-                      </div>
-                      
-                      {/* Voice Distribution */}
-                      {metrics.voice_chat.voice_distribution && Object.keys(metrics.voice_chat.voice_distribution).length > 0 && (
-                        <div className="mt-4 p-4 bg-white/3 border border-white/5 rounded-xl">
-                          <p className="text-xs font-medium text-gray-400 mb-3">Voice Popularity</p>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            {Object.entries(metrics.voice_chat.voice_distribution)
-                              .sort((a, b) => b[1] - a[1])
-                              .map(([voice, count]) => (
-                                <div key={voice} className="flex justify-between items-center bg-white/5 rounded-lg px-3 py-2">
-                                  <span className="text-xs text-gray-400 capitalize">{voice}</span>
-                                  <span className="text-xs font-bold text-white">{count}</span>
-                                </div>
-                              ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Voice Chat Stats Summary */}
-                      <div className="mt-4 p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl">
-                        <p className="text-xs font-medium text-purple-400 mb-2">Voice Chat Summary</p>
-                        <div className="grid grid-cols-2 gap-4 text-xs">
-                          <div>
-                            <span className="text-gray-500">Completed Sessions:</span>
-                            <span className="text-white ml-2">{metrics.voice_chat.completed_sessions || 0}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Avg Messages/Session:</span>
-                            <span className="text-white ml-2">{metrics.voice_chat.avg_messages_per_session || 0}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Sessions (7d):</span>
-                            <span className="text-white ml-2">{metrics.voice_chat.sessions_7d || 0}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Total Voice Messages:</span>
-                            <span className="text-white ml-2">{metrics.voice_chat.total_voice_messages || 0}</span>
-                          </div>
+                  {/* Voice Chat Metrics - Always show (even with zeros) */}
+                  <>
+                    <p className="text-[10px] font-bold text-purple-400 tracking-widest uppercase mt-6 mb-3">🎙️ Voice Chat</p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                      <MetricCard 
+                        label="Total Sessions" 
+                        value={metrics.voice_chat?.total_sessions || 0} 
+                        sub={`${metrics.voice_chat?.sessions_30d || 0} last 30d`}
+                        icon={MessageSquare} 
+                        color="purple" 
+                      />
+                      <MetricCard 
+                        label="Unique Users" 
+                        value={metrics.voice_chat?.unique_users || 0} 
+                        sub="Used voice chat"
+                        icon={Users} 
+                        color="blue" 
+                      />
+                      <MetricCard 
+                        label="Avg Duration" 
+                        value={metrics.voice_chat?.avg_duration_seconds ? `${Math.round(metrics.voice_chat.avg_duration_seconds / 60)}m ${metrics.voice_chat.avg_duration_seconds % 60}s` : '0s'} 
+                        sub="Per session"
+                        icon={Clock} 
+                        color="green" 
+                      />
+                      <MetricCard 
+                        label="Total Talk Time" 
+                        value={metrics.voice_chat?.total_duration_seconds ? `${Math.round(metrics.voice_chat.total_duration_seconds / 60)}m` : '0m'} 
+                        sub="All sessions"
+                        icon={TrendingUp} 
+                        color="orange" 
+                      />
+                    </div>
+                    
+                    {/* Voice Distribution */}
+                    {metrics.voice_chat?.voice_distribution && Object.keys(metrics.voice_chat.voice_distribution).length > 0 && (
+                      <div className="mt-4 p-4 bg-white/3 border border-white/5 rounded-xl">
+                        <p className="text-xs font-medium text-gray-400 mb-3">Voice Popularity</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {Object.entries(metrics.voice_chat.voice_distribution)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([voice, count]) => (
+                              <div key={voice} className="flex justify-between items-center bg-white/5 rounded-lg px-3 py-2">
+                                <span className="text-xs text-gray-400 capitalize">{voice}</span>
+                                <span className="text-xs font-bold text-white">{count}</span>
+                              </div>
+                            ))}
                         </div>
                       </div>
+                    )}
+                    
+                    {/* Voice Chat Stats Summary */}
+                    <div className="mt-4 p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl">
+                      <p className="text-xs font-medium text-purple-400 mb-2">Voice Chat Summary</p>
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <span className="text-gray-500">Completed Sessions:</span>
+                          <span className="text-white ml-2">{metrics.voice_chat?.completed_sessions || 0}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Avg Messages/Session:</span>
+                          <span className="text-white ml-2">{metrics.voice_chat?.avg_messages_per_session || 0}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Sessions (7d):</span>
+                          <span className="text-white ml-2">{metrics.voice_chat?.sessions_7d || 0}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Total Voice Messages:</span>
+                          <span className="text-white ml-2">{metrics.voice_chat?.total_voice_messages || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Voice Chat Cost Metrics - For Pricing Decisions */}
+                    <div className="mt-4 p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/5 border border-green-500/30 rounded-xl">
+                      <div className="flex items-center gap-2 mb-3">
+                        <DollarSign className="w-4 h-4 text-green-400" />
+                        <p className="text-xs font-bold text-green-400">Voice Chat Costs (Pricing Data)</p>
+                      </div>
                       
-                      {/* Voice Chat Cost Metrics - For Pricing Decisions */}
-                      {metrics.voice_chat.cost && (
-                        <div className="mt-4 p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/5 border border-green-500/30 rounded-xl">
-                          <div className="flex items-center gap-2 mb-3">
-                            <DollarSign className="w-4 h-4 text-green-400" />
-                            <p className="text-xs font-bold text-green-400">Voice Chat Costs (Pricing Data)</p>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div className="bg-black/20 rounded-lg p-3">
-                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Cost</p>
-                              <p className="text-lg font-bold text-green-400">${metrics.voice_chat.cost.total_cost_usd?.toFixed(2) || '0.00'}</p>
-                              <p className="text-[10px] text-gray-500">All time</p>
-                            </div>
-                            <div className="bg-black/20 rounded-lg p-3">
-                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Cost (30d)</p>
-                              <p className="text-lg font-bold text-blue-400">${metrics.voice_chat.cost.cost_last_30d_usd?.toFixed(2) || '0.00'}</p>
-                              <p className="text-[10px] text-gray-500">Last 30 days</p>
-                            </div>
-                            <div className="bg-black/20 rounded-lg p-3">
-                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Cost/Minute</p>
-                              <p className="text-lg font-bold text-orange-400">${metrics.voice_chat.cost.cost_per_minute_usd?.toFixed(3) || '0.000'}</p>
-                              <p className="text-[10px] text-gray-500">Per minute of voice</p>
-                            </div>
-                            <div className="bg-black/20 rounded-lg p-3">
-                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Cost/Session</p>
-                              <p className="text-lg font-bold text-purple-400">${metrics.voice_chat.cost.avg_cost_per_session_usd?.toFixed(3) || '0.000'}</p>
-                              <p className="text-[10px] text-gray-500">Per voice session</p>
-                            </div>
-                            <div className="bg-black/20 rounded-lg p-3">
-                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Cost/User</p>
-                              <p className="text-lg font-bold text-cyan-400">${metrics.voice_chat.cost.cost_per_user_usd?.toFixed(3) || '0.000'}</p>
-                              <p className="text-[10px] text-gray-500">Per voice user</p>
-                            </div>
-                            <div className="bg-black/20 rounded-lg p-3">
-                              <p className="text-[10px] text-gray-500 uppercase tracking-wider">Audio Tokens</p>
-                              <p className="text-sm font-bold text-white">
-                                {((metrics.voice_chat.cost.total_audio_input_tokens || 0) + (metrics.voice_chat.cost.total_audio_output_tokens || 0)).toLocaleString()}
-                              </p>
-                              <p className="text-[10px] text-gray-500">
-                                In: {(metrics.voice_chat.cost.total_audio_input_tokens || 0).toLocaleString()} / Out: {(metrics.voice_chat.cost.total_audio_output_tokens || 0).toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-                          
-                          <p className="text-[10px] text-gray-500 mt-3 text-center">
-                            💡 {metrics.voice_chat.cost.pricing_note || 'Based on gpt-4o-realtime pricing'}
+                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="bg-black/20 rounded-lg p-3">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Cost</p>
+                          <p className="text-lg font-bold text-green-400">${metrics.voice_chat?.cost?.total_cost_usd?.toFixed(2) || '0.00'}</p>
+                          <p className="text-[10px] text-gray-500">All time</p>
+                        </div>
+                        <div className="bg-black/20 rounded-lg p-3">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Cost (30d)</p>
+                          <p className="text-lg font-bold text-blue-400">${metrics.voice_chat?.cost?.cost_last_30d_usd?.toFixed(2) || '0.00'}</p>
+                          <p className="text-[10px] text-gray-500">Last 30 days</p>
+                        </div>
+                        <div className="bg-black/20 rounded-lg p-3">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Cost/Minute</p>
+                          <p className="text-lg font-bold text-orange-400">${metrics.voice_chat?.cost?.cost_per_minute_usd?.toFixed(3) || '0.000'}</p>
+                          <p className="text-[10px] text-gray-500">Per minute of voice</p>
+                        </div>
+                        <div className="bg-black/20 rounded-lg p-3">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Avg Cost/Session</p>
+                          <p className="text-lg font-bold text-purple-400">${metrics.voice_chat?.cost?.avg_cost_per_session_usd?.toFixed(3) || '0.000'}</p>
+                          <p className="text-[10px] text-gray-500">Per voice session</p>
+                        </div>
+                        <div className="bg-black/20 rounded-lg p-3">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Cost/User</p>
+                          <p className="text-lg font-bold text-cyan-400">${metrics.voice_chat?.cost?.cost_per_user_usd?.toFixed(3) || '0.000'}</p>
+                          <p className="text-[10px] text-gray-500">Per voice user</p>
+                        </div>
+                        <div className="bg-black/20 rounded-lg p-3">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider">Audio Tokens</p>
+                          <p className="text-sm font-bold text-white">
+                            {((metrics.voice_chat?.cost?.total_audio_input_tokens || 0) + (metrics.voice_chat?.cost?.total_audio_output_tokens || 0)).toLocaleString()}
+                          </p>
+                          <p className="text-[10px] text-gray-500">
+                            In: {(metrics.voice_chat?.cost?.total_audio_input_tokens || 0).toLocaleString()} / Out: {(metrics.voice_chat?.cost?.total_audio_output_tokens || 0).toLocaleString()}
                           </p>
                         </div>
-                      )}
-                    </>
-                  )}
+                      </div>
+                      
+                      <p className="text-[10px] text-gray-500 mt-3 text-center">
+                        💡 {metrics.voice_chat?.cost?.pricing_note || 'Based on gpt-4o-realtime: $40/1M input, $80/1M output audio tokens'}
+                      </p>
+                    </div>
+                  </>
                 </>
               )}
 
