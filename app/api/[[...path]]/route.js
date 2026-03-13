@@ -779,11 +779,16 @@ async function handleGoogleAuthCallback(request) {
     // Exchange code for tokens - use same baseUrl for redirect URI
     const redirectUri = `${baseUrl}/api/auth/google/callback`;
     console.log('Google Callback - Exchanging code for tokens...');
+    console.log('Google Callback - Using redirect_uri:', redirectUri);
+    console.log('Google Callback - Client ID present:', !!GOOGLE_CLIENT_ID);
+    console.log('Google Callback - Client Secret present:', !!GOOGLE_CLIENT_SECRET);
+    
     const tokens = await exchangeGoogleCode(code, redirectUri);
     
     if (tokens.error) {
-      console.error('Token exchange error:', tokens);
-      return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent(tokens.error_description || tokens.error)}`);
+      console.error('Token exchange error - Full response:', JSON.stringify(tokens));
+      const errorDetail = tokens.error_description || tokens.error || 'Unknown token error';
+      return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent('Token exchange failed: ' + errorDetail)}`);
     }
     
     console.log('Google Callback - Token exchange successful, getting user info...');
