@@ -14156,10 +14156,10 @@ async function handleChunkedChunk(request) {
 async function extractMemoriesFromImport(db, userId, messages, source) {
   if (!messages || messages.length === 0) return 0;
 
-  // Sample messages for memory extraction (take up to 50 representative messages)
+  // Sample messages for memory extraction (take up to 100 representative messages for better coverage)
   const userMessages = messages
     .filter(m => m.role === 'user' || m.role === 'human')
-    .slice(0, 50);
+    .slice(0, 100);
 
   if (userMessages.length === 0) return 0;
 
@@ -14178,7 +14178,7 @@ async function extractMemoriesFromImport(db, userId, messages, source) {
 
     if (messagesText.length < 100) return 0;
 
-    // Use AI to extract important facts/memories
+    // Use AI to extract important facts/memories AND communication style
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -14190,8 +14190,12 @@ async function extractMemoriesFromImport(db, userId, messages, source) {
         messages: [
           {
             role: 'system',
-            content: `You are extracting important personal facts and memories from a user's conversation history.
-Extract facts that would be useful for a personal AI assistant to remember, such as:
+            content: `You are analyzing a user's conversation history to extract TWO things:
+
+1. MEMORIES: Important personal facts that a personal AI assistant should remember
+2. COMMUNICATION PROFILE: How this person communicates and their personality
+
+For MEMORIES, extract facts like:
 - Personal details (name, location, family, relationships)
 - Preferences and favorites (food, music, hobbies)
 - Work/career information
@@ -14200,18 +14204,37 @@ Extract facts that would be useful for a personal AI assistant to remember, such
 - Goals and aspirations
 - Recurring topics they care about
 
-Return a JSON array of memory objects with this format:
-[{"content": "The fact or memory", "category": "personal|preference|work|health|event|goal|interest", "importance": "high|medium|low"}]
+For COMMUNICATION PROFILE, analyze:
+- Writing style (formal vs casual, verbose vs concise)
+- Emotional expression (expressive vs reserved)
+- How they ask questions
+- Topics they're passionate about
+- Their sense of humor (if any)
+- How they prefer to receive information
 
-Only extract factual information, not opinions or temporary states. Maximum 15 memories.`
+Return JSON with this EXACT format:
+{
+  "memories": [{"content": "fact", "category": "personal|preference|work|health|event|goal|interest", "importance": "high|medium|low"}],
+  "communication_profile": {
+    "style": "brief description of their communication style",
+    "formality": "formal|casual|mixed",
+    "verbosity": "concise|moderate|verbose",
+    "emotional_expression": "expressive|neutral|reserved",
+    "interests": ["topic1", "topic2"],
+    "personality_traits": ["trait1", "trait2"],
+    "preferred_response_style": "how they likely want responses"
+  }
+}
+
+Maximum 20 memories. Be specific and factual.`
           },
           {
             role: 'user',
-            content: `Extract important personal memories from these ${source} messages:\n\n${messagesText.substring(0, 15000)}`
+            content: `Analyze these ${source} messages:\n\n${messagesText.substring(0, 20000)}`
           }
         ],
         temperature: 0.3,
-        max_tokens: 2000,
+        max_tokens: 3000,
       }),
     });
 
@@ -14224,50 +14247,111 @@ Only extract factual information, not opinions or temporary states. Maximum 15 m
     const content = data.choices?.[0]?.message?.content;
 
     // Parse the JSON response
-    let memories = [];
+    let parsed = { memories: [], communication_profile: null };
     try {
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        memories = JSON.parse(jsonMatch[0]);
+        parsed = JSON.parse(jsonMatch[0]);
       }
     } catch (parseError) {
-      console.log('[MemoryExtract] Failed to parse memories:', parseError);
-      return 0;
+      console.log('[MemoryExtract] Failed to parse response:', parseError);
+      // Try to extract just memories array as fallback
+      try {
+        const arrayMatch = content.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          parsed.memories = JSON.parse(arrayMatch[0]);
+        }
+      } catch (e) {}
     }
 
-    if (!Array.isArray(memories) || memories.length === 0) return 0;
+    let memoriesAdded = 0;
 
     // Save memories to database
-    const memoryDocs = memories
-      .filter(m => m.content && m.content.length > 5)
-      .map(m => ({
-        id: uuidv4(),
-        user_id: userId,
-        content: m.content,
-        category: m.category || 'general',
-        importance: m.importance || 'medium',
-        source: `${source}_import`,
-        pinned: m.importance === 'high',
-        created_at: new Date(),
-      }));
+    const memories = parsed.memories || [];
+    if (Array.isArray(memories) && memories.length > 0) {
+      const memoryDocs = memories
+        .filter(m => m.content && m.content.length > 5)
+        .map(m => ({
+          id: uuidv4(),
+          user_id: userId,
+          content: m.content,
+          category: m.category || 'general',
+          importance: m.importance || 'medium',
+          source: `${source}_import`,
+          pinned: m.importance === 'high',
+          created_at: new Date(),
+        }));
 
-    if (memoryDocs.length > 0) {
-      // Check for duplicates
-      const existingMemories = await db.collection('memories')
-        .find({ user_id: userId })
-        .toArray();
-      
-      const existingContents = new Set(existingMemories.map(m => m.content.toLowerCase().trim()));
-      const newMemories = memoryDocs.filter(m => !existingContents.has(m.content.toLowerCase().trim()));
+      if (memoryDocs.length > 0) {
+        // Check for duplicates
+        const existingMemories = await db.collection('user_memories')
+          .find({ user_id: userId })
+          .toArray();
+        
+        const existingContents = new Set(existingMemories.map(m => m.content?.toLowerCase().trim()));
+        const newMemories = memoryDocs.filter(m => !existingContents.has(m.content.toLowerCase().trim()));
 
-      if (newMemories.length > 0) {
-        await db.collection('memories').insertMany(newMemories);
-        console.log(`[MemoryExtract] Added ${newMemories.length} memories from ${source} import`);
-        return newMemories.length;
+        if (newMemories.length > 0) {
+          await db.collection('user_memories').insertMany(newMemories);
+          memoriesAdded = newMemories.length;
+          console.log(`[MemoryExtract] Added ${newMemories.length} memories from ${source} import`);
+        }
       }
     }
 
-    return 0;
+    // Update SoulPrint/Communication Profile
+    const commProfile = parsed.communication_profile;
+    if (commProfile) {
+      console.log('[MemoryExtract] Updating SoulPrint with communication profile');
+      
+      // Update or create soul_profiles entry
+      await db.collection('soul_profiles').updateOne(
+        { user_id: userId },
+        {
+          $set: {
+            user_id: userId,
+            'insights.communicationStyle': commProfile.style,
+            'insights.formality': commProfile.formality,
+            'insights.verbosity': commProfile.verbosity,
+            'insights.emotionalExpression': commProfile.emotional_expression,
+            'insights.interests': commProfile.interests || [],
+            'insights.personalityTraits': commProfile.personality_traits || [],
+            'insights.preferredResponseStyle': commProfile.preferred_response_style,
+            'insights.lastUpdatedFrom': `${source}_import`,
+            updated_at: new Date(),
+          },
+          $setOnInsert: {
+            created_at: new Date(),
+          }
+        },
+        { upsert: true }
+      );
+      
+      // Also update communication_profiles collection
+      await db.collection('communication_profiles').updateOne(
+        { user_id: userId },
+        {
+          $set: {
+            user_id: userId,
+            formality_preference: commProfile.formality,
+            information_density: commProfile.verbosity,
+            emotional_expression: commProfile.emotional_expression,
+            imported_style_description: commProfile.style,
+            imported_interests: commProfile.interests || [],
+            imported_traits: commProfile.personality_traits || [],
+            updated_at: new Date(),
+          },
+          $setOnInsert: {
+            created_at: new Date(),
+          }
+        },
+        { upsert: true }
+      );
+      
+      console.log('[MemoryExtract] SoulPrint communication profile updated');
+    }
+
+    return memoriesAdded;
   } catch (error) {
     console.error('[MemoryExtract] Error:', error);
     return 0;
@@ -14391,10 +14475,10 @@ async function processChunkedBatch(importId, userId, uploads, importType) {
         // Extract messages using optimized streaming approach for large files
         let messages = [];
         if (importType === 'chatgpt') {
-          // Use quick mode for large files to sample instead of extracting everything
+          // Sample across ALL files for comprehensive personality/memory coverage
           messages = await extractChatGPTMessagesFromFile(outputPath, { 
-            maxMessages: 500, 
-            quickMode: true 
+            maxMessages: 1000,
+            forSoulprint: true 
           });
         } else if (importType === 'facebook') {
           messages = await extractFacebookMessagesFromFile(outputPath);
@@ -14472,11 +14556,12 @@ async function processChunkedBatch(importId, userId, uploads, importType) {
 }
 
 // Extract ChatGPT messages from ZIP file on disk (streaming, memory-efficient)
-// OPTIMIZED: For large files with split conversations, only sample what's needed
+// OPTIMIZED: Samples across ALL files for comprehensive personality/memory extraction
 async function extractChatGPTMessagesFromFile(filePath, options = {}) {
-  const { maxMessages = 500, quickMode = false } = options;
+  const { maxMessages = 1000, forSoulprint = true } = options;
   const messages = [];
   let conversationCount = 0;
+  let totalFilesFound = 0;
   
   try {
     const AdmZip = require('adm-zip');
@@ -14491,19 +14576,15 @@ async function extractChatGPTMessagesFromFile(filePath, options = {}) {
              /conversations-\d+\.json$/.test(name);
     }).sort((a, b) => a.entryName.localeCompare(b.entryName));
     
-    console.log(`[extractChatGPTMessagesFromFile] Found ${conversationFiles.length} conversation file(s), maxMessages=${maxMessages}`);
+    totalFilesFound = conversationFiles.length;
+    console.log(`[extractChatGPTMessagesFromFile] Found ${totalFilesFound} conversation file(s), maxMessages=${maxMessages}`);
     
-    // For quick mode or large exports, only process first few files
-    const filesToProcess = quickMode && conversationFiles.length > 3 
-      ? conversationFiles.slice(0, 3) 
-      : conversationFiles;
+    // Calculate how many messages to take from each file for even coverage
+    const messagesPerFile = Math.ceil(maxMessages / Math.max(1, conversationFiles.length));
+    console.log(`[extractChatGPTMessagesFromFile] Taking ~${messagesPerFile} messages per file for comprehensive coverage`);
     
-    for (const entry of filesToProcess) {
-      // Stop early if we have enough messages
-      if (messages.length >= maxMessages) {
-        console.log(`[extractChatGPTMessagesFromFile] Reached ${maxMessages} messages, stopping early`);
-        break;
-      }
+    for (const entry of conversationFiles) {
+      const fileMessages = [];
       
       try {
         const content = entry.getData().toString('utf8');
@@ -14512,27 +14593,31 @@ async function extractChatGPTMessagesFromFile(filePath, options = {}) {
         
         conversationCount += convArray.length;
         
-        // Sample conversations evenly from the file
-        const step = Math.max(1, Math.floor(convArray.length / 20)); // Sample ~20 conversations per file
+        // For SoulPrint enhancement, prioritize USER messages and sample evenly
+        const totalConvs = convArray.length;
+        const convsToSample = Math.min(totalConvs, Math.ceil(messagesPerFile / 3)); // ~3 messages per conv
+        const step = Math.max(1, Math.floor(totalConvs / convsToSample));
         
-        for (let i = 0; i < convArray.length && messages.length < maxMessages; i += step) {
+        for (let i = 0; i < totalConvs && fileMessages.length < messagesPerFile; i += step) {
           const conv = convArray[i];
           
           if (conv.mapping) {
-            // New format with mapping
+            // New format with mapping - extract user messages for personality analysis
             const nodes = Object.values(conv.mapping);
             for (const node of nodes) {
-              if (messages.length >= maxMessages) break;
+              if (fileMessages.length >= messagesPerFile) break;
               
               if (node?.message?.content?.parts?.[0]) {
                 const authorRole = node.message.author?.role;
-                if (authorRole === 'user' || authorRole === 'assistant') {
+                // For SoulPrint, prioritize user messages (shows personality/style)
+                if (authorRole === 'user') {
                   const msgContent = node.message.content.parts.join('\n');
-                  if (msgContent && msgContent.trim().length > 10) {
-                    messages.push({
-                      content: msgContent.slice(0, 3000),
+                  if (msgContent && msgContent.trim().length > 20) {
+                    fileMessages.push({
+                      content: msgContent.slice(0, 2000),
                       role: authorRole,
                       timestamp: node.message.create_time ? new Date(node.message.create_time * 1000) : new Date(),
+                      conversationTitle: conv.title || 'Untitled',
                     });
                   }
                 }
@@ -14543,11 +14628,11 @@ async function extractChatGPTMessagesFromFile(filePath, options = {}) {
           // Alternative format: direct messages array
           if (conv.messages && Array.isArray(conv.messages)) {
             for (const msg of conv.messages) {
-              if (messages.length >= maxMessages) break;
+              if (fileMessages.length >= messagesPerFile) break;
               
-              if (msg.content && (msg.role === 'user' || msg.role === 'assistant')) {
-                messages.push({
-                  content: typeof msg.content === 'string' ? msg.content.slice(0, 3000) : JSON.stringify(msg.content).slice(0, 3000),
+              if (msg.content && msg.role === 'user') {
+                fileMessages.push({
+                  content: typeof msg.content === 'string' ? msg.content.slice(0, 2000) : JSON.stringify(msg.content).slice(0, 2000),
                   role: msg.role,
                   timestamp: msg.timestamp ? new Date(msg.timestamp * 1000) : new Date(),
                 });
@@ -14556,7 +14641,8 @@ async function extractChatGPTMessagesFromFile(filePath, options = {}) {
           }
         }
         
-        console.log(`[extractChatGPTMessagesFromFile] Processed ${entry.entryName}: ${messages.length} messages (${conversationCount} conversations)`);
+        messages.push(...fileMessages);
+        console.log(`[extractChatGPTMessagesFromFile] ${entry.entryName}: +${fileMessages.length} messages (total: ${messages.length})`);
       } catch (parseErr) {
         console.error(`[extractChatGPTMessagesFromFile] Error parsing ${entry.entryName}:`, parseErr.message);
       }
@@ -14565,7 +14651,7 @@ async function extractChatGPTMessagesFromFile(filePath, options = {}) {
     console.error('[extractChatGPTMessagesFromFile] Error:', e);
   }
   
-  console.log(`[extractChatGPTMessagesFromFile] Total: ${messages.length} messages from ${conversationCount} conversations`);
+  console.log(`[extractChatGPTMessagesFromFile] Complete: ${messages.length} messages from ${conversationCount} conversations across ${totalFilesFound} files`);
   return messages;
 }
 
