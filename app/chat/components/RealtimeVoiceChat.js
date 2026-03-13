@@ -654,8 +654,8 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
   const selectedVoiceData = VOICES.find(v => v.id === selectedVoice) || VOICES[0];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
-      <div className="relative w-full max-w-md mx-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm">
+      <div className="relative w-full max-w-md mx-4 pb-safe">
         {/* Background animation */}
         <div className={`absolute inset-0 rounded-3xl transition-all duration-500 ${
           status === 'connected' 
@@ -667,7 +667,7 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
             : 'bg-gradient-to-br from-gray-800/50 to-gray-900/50'
         }`} />
         
-        <div className="relative bg-gray-900/90 rounded-3xl p-6 sm:p-8 border border-white/10 max-h-[90vh] overflow-y-auto">
+        <div className="relative bg-gray-900/90 rounded-3xl p-6 sm:p-8 border border-white/10 max-h-[85vh] overflow-y-auto mb-4">
           {/* Close button */}
           <button
             onClick={onClose}
@@ -907,7 +907,7 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
           )}
 
           {/* Info */}
-          <p className="mt-4 text-center text-xs text-gray-500">
+          <p className="mt-4 text-center text-xs text-gray-500 pb-6">
             {status === 'idle' ? 'Transcript saved when you end the call' : ''}
           </p>
         </div>

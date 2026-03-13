@@ -3883,26 +3883,6 @@ export default function MobileChat({
                   disabled={loading}
                   style={{ fontSize: '16px', lineHeight: '1.4' }} // Prevent iOS zoom on focus
                 />
-                {/* Location button */}
-                <button 
-                  onClick={() => {
-                    if (userLocation) {
-                      setShowLocationSheet(true);
-                    } else {
-                      requestLocation();
-                    }
-                  }}
-                  disabled={locationLoading}
-                  title={userLocation ? `📍 ${userLocation.address}` : 'Share location'}
-                  className={`p-2 rounded-full transition-all flex-shrink-0 ${
-                    locationLoading ? 'animate-pulse text-orange-400' :
-                    userLocation ? 'text-green-500 hover:text-green-400' : 
-                    locationError ? 'text-red-400 hover:text-red-300' :
-                    'text-gray-500 hover:text-orange-400'
-                  }`}
-                >
-                  <MapPin className="w-5 h-5" />
-                </button>
                 {/* Voice input button */}
                 <button 
                   onClick={speech.toggle}
