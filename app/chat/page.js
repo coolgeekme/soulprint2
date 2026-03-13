@@ -4132,7 +4132,52 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
     } catch (e) {}
   };
 
-  const tabs = ['soulprint', 'imports', 'integrations', 'telegram', 'schedules', 'memories', 'invites', 'announcements', 'profile', 'privacy', 'appearance', 'feedback'];
+  const tabs = ['soulprint', 'imports', 'integrations', 'telegram', 'voice', 'schedules', 'memories', 'invites', 'announcements', 'profile', 'privacy', 'appearance', 'feedback'];
+
+  // Voice Chat Settings
+  const [voiceSettings, setVoiceSettings] = useState({ default_voice: 'alloy', web_search_enabled: true });
+  const [voiceSettingsLoading, setVoiceSettingsLoading] = useState(false);
+  const [voiceSettingsSaving, setVoiceSettingsSaving] = useState(false);
+
+  // Load voice settings
+  const loadVoiceSettings = async () => {
+    setVoiceSettingsLoading(true);
+    try {
+      const res = await fetch('/api/user/voice-settings', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setVoiceSettings(data);
+      }
+    } catch (e) {
+      console.error('Failed to load voice settings:', e);
+    }
+    setVoiceSettingsLoading(false);
+  };
+
+  // Save voice settings
+  const saveVoiceSetting = async (key, value) => {
+    setVoiceSettingsSaving(true);
+    try {
+      const newSettings = { ...voiceSettings, [key]: value };
+      setVoiceSettings(newSettings);
+      
+      await fetch('/api/user/voice-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(newSettings),
+      });
+    } catch (e) {
+      console.error('Failed to save voice settings:', e);
+    }
+    setVoiceSettingsSaving(false);
+  };
+
+  // Auto-load voice settings when voice tab is opened
+  useEffect(() => {
+    if (activeTab === 'voice' && token && !voiceSettingsLoading) {
+      loadVoiceSettings();
+    }
+  }, [activeTab, token]);
 
   // SoulPrint data
   const [soulPrintData, setSoulPrintData] = useState(null);
@@ -4270,7 +4315,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
             {tabs.map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
                 className={`px-2 py-2 text-[9px] sm:text-[10px] font-semibold tracking-wide uppercase transition-colors rounded-lg text-center ${activeTab === tab ? 'text-orange-500 bg-orange-500/10 border border-orange-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent'}`}>
-                <span className="block text-sm mb-0.5">{tab === 'soulprint' ? '🪪' : tab === 'imports' ? '📥' : tab === 'integrations' ? '🔗' : tab === 'telegram' ? '💬' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'invites' ? '🎁' : tab === 'announcements' ? '📢' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : tab === 'appearance' ? '🎨' : '📝'}</span>
+                <span className="block text-sm mb-0.5">{tab === 'soulprint' ? '🪪' : tab === 'imports' ? '📥' : tab === 'integrations' ? '🔗' : tab === 'telegram' ? '💬' : tab === 'voice' ? '🎙️' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'invites' ? '🎁' : tab === 'announcements' ? '📢' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : tab === 'appearance' ? '🎨' : '📝'}</span>
                 {tab}
               </button>
             ))}
@@ -4925,6 +4970,97 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                     {linkMsg && <p className={`text-xs mt-2 ${linkMsg.startsWith('✅') ? 'text-green-400' : 'text-red-400'}`}>{linkMsg}</p>}
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* VOICE SETTINGS TAB */}
+          {activeTab === 'voice' && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-white text-sm font-semibold">🎙️ Voice Chat Settings</h3>
+                <p className="text-gray-500 text-xs mt-0.5">Configure your default voice and preferences for voice conversations</p>
+              </div>
+
+              {voiceSettingsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                </div>
+              ) : (
+                <>
+                  {/* Default Voice Selection */}
+                  <div className="p-4 bg-white/3 border border-white/8 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-white text-sm font-semibold">Default Voice</p>
+                        <p className="text-gray-500 text-xs">Choose the AI voice that will be used by default in voice chats</p>
+                      </div>
+                      {voiceSettingsSaving && <Loader2 className="w-4 h-4 animate-spin text-orange-500" />}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: 'alloy', name: 'Alloy', desc: 'Neutral & balanced' },
+                        { id: 'ash', name: 'Ash', desc: 'Soft & thoughtful' },
+                        { id: 'ballad', name: 'Ballad', desc: 'Warm & expressive' },
+                        { id: 'coral', name: 'Coral', desc: 'Clear & friendly' },
+                        { id: 'echo', name: 'Echo', desc: 'Smooth & calm' },
+                        { id: 'sage', name: 'Sage', desc: 'Wise & measured' },
+                        { id: 'shimmer', name: 'Shimmer', desc: 'Bright & energetic' },
+                        { id: 'verse', name: 'Verse', desc: 'Dynamic & engaging' },
+                      ].map(voice => (
+                        <button
+                          key={voice.id}
+                          onClick={() => saveVoiceSetting('default_voice', voice.id)}
+                          className={`p-3 rounded-xl border transition-all text-left ${
+                            voiceSettings.default_voice === voice.id 
+                              ? 'bg-orange-500/20 border-orange-500/50' 
+                              : 'bg-white/5 border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          <p className={`font-medium text-sm ${voiceSettings.default_voice === voice.id ? 'text-orange-400' : 'text-white'}`}>
+                            {voice.name}
+                          </p>
+                          <p className="text-xs text-gray-500">{voice.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Web Search Toggle */}
+                  <div className="p-4 bg-white/3 border border-white/8 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${voiceSettings.web_search_enabled ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-gray-500'}`}>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-white text-sm font-medium">Real-time Web Search</p>
+                          <p className="text-gray-500 text-xs">AI can search for current news, weather, stocks, etc. during voice calls</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => saveVoiceSetting('web_search_enabled', !voiceSettings.web_search_enabled)}
+                        className={`w-12 h-6 rounded-full transition-colors ${voiceSettings.web_search_enabled ? 'bg-blue-500' : 'bg-gray-600'}`}
+                      >
+                        <div className={`w-5 h-5 rounded-full bg-white transition-transform mx-0.5 ${voiceSettings.web_search_enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Voice Chat Tips */}
+                  <div className="p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl">
+                    <p className="text-purple-400 text-xs font-semibold mb-2">💡 Tips for Voice Chat</p>
+                    <ul className="space-y-1.5 text-gray-400 text-xs">
+                      <li>• Click the waveform icon 🎙️ in the chat input area to start a voice conversation</li>
+                      <li>• You can preview any voice before starting by clicking the play button</li>
+                      <li>• Say "search for..." or ask about current events to trigger web search</li>
+                      <li>• Your conversation transcript is saved when you end the call</li>
+                    </ul>
+                  </div>
+                </>
               )}
             </div>
           )}

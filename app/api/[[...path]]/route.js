@@ -19792,6 +19792,76 @@ async function handleSlackInteractive(request) {
 }
 
 // ============================================================
+// USER VOICE SETTINGS APIs
+// ============================================================
+
+// Handler: Get User Voice Settings
+async function handleGetVoiceSettings(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const db = await getDb();
+    const settings = await db.collection('user_voice_settings').findOne({ user_id: user.id });
+
+    return NextResponse.json({
+      default_voice: settings?.default_voice || 'alloy',
+      web_search_enabled: settings?.web_search_enabled ?? true,
+    });
+  } catch (err) {
+    console.error('[VoiceSettings] Get error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// Handler: Update User Voice Settings
+async function handleUpdateVoiceSettings(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { default_voice, web_search_enabled } = body;
+
+    const db = await getDb();
+    
+    const updates = {
+      user_id: user.id,
+      updated_at: new Date(),
+    };
+
+    if (default_voice !== undefined) {
+      // Validate voice
+      const validVoices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse'];
+      if (validVoices.includes(default_voice)) {
+        updates.default_voice = default_voice;
+      }
+    }
+
+    if (web_search_enabled !== undefined) {
+      updates.web_search_enabled = !!web_search_enabled;
+    }
+
+    await db.collection('user_voice_settings').updateOne(
+      { user_id: user.id },
+      { $set: updates, $setOnInsert: { created_at: new Date() } },
+      { upsert: true }
+    );
+
+    console.log(`[VoiceSettings] Updated for user ${user.id}:`, updates);
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('[VoiceSettings] Update error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// ============================================================
 // VOICE CHAT APIS - TTS Preview, Session Tracking, Web Search
 // ============================================================
 
@@ -20168,6 +20238,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/beta-redemptions') return handleAdminGetBetaRedemptions(request);
     if (pathStr === 'user/location') return handleGetUserLocation(request);
     if (pathStr === 'user/timezone') return handleGetUserTimezone(request);
+    if (pathStr === 'user/voice-settings') return handleGetVoiceSettings(request);
     if (pathStr === 'data-imports') return handleGetDataImports(request);
     if (pathStr === 'profile/export') return handleProfileExport(request);
     if (pathStr === 'profile/soul') return handleGetSoulProfile(request);
@@ -20380,6 +20451,7 @@ export async function PUT(request, { params }) {
   try {
     if (pathStr === 'profile') return handleProfileUpdate(request);
     if (pathStr === 'telegram/model') return handleTelegramSetModel(request);
+    if (pathStr === 'user/voice-settings') return handleUpdateVoiceSettings(request);
     
     // Conversation project move: conversations/:id/project
     if (pathStr.match(/^conversations\/[^\/]+\/project$/)) {

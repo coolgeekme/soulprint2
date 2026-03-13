@@ -5124,6 +5124,83 @@ export default function AdminPage() {
                       </div>
                     </>
                   )}
+                  
+                  {/* Voice Chat Metrics */}
+                  {metrics.voice_chat && (
+                    <>
+                      <p className="text-[10px] font-bold text-purple-400 tracking-widest uppercase mt-6 mb-3">🎙️ Voice Chat</p>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                        <MetricCard 
+                          label="Total Sessions" 
+                          value={metrics.voice_chat.total_sessions || 0} 
+                          sub={`${metrics.voice_chat.sessions_30d || 0} last 30d`}
+                          icon={MessageSquare} 
+                          color="purple" 
+                        />
+                        <MetricCard 
+                          label="Unique Users" 
+                          value={metrics.voice_chat.unique_users || 0} 
+                          sub="Used voice chat"
+                          icon={Users} 
+                          color="blue" 
+                        />
+                        <MetricCard 
+                          label="Avg Duration" 
+                          value={metrics.voice_chat.avg_duration_seconds ? `${Math.round(metrics.voice_chat.avg_duration_seconds / 60)}m ${metrics.voice_chat.avg_duration_seconds % 60}s` : '0s'} 
+                          sub="Per session"
+                          icon={Clock} 
+                          color="green" 
+                        />
+                        <MetricCard 
+                          label="Total Talk Time" 
+                          value={metrics.voice_chat.total_duration_seconds ? `${Math.round(metrics.voice_chat.total_duration_seconds / 60)}m` : '0m'} 
+                          sub="All sessions"
+                          icon={TrendingUp} 
+                          color="orange" 
+                        />
+                      </div>
+                      
+                      {/* Voice Distribution */}
+                      {metrics.voice_chat.voice_distribution && Object.keys(metrics.voice_chat.voice_distribution).length > 0 && (
+                        <div className="mt-4 p-4 bg-white/3 border border-white/5 rounded-xl">
+                          <p className="text-xs font-medium text-gray-400 mb-3">Voice Popularity</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {Object.entries(metrics.voice_chat.voice_distribution)
+                              .sort((a, b) => b[1] - a[1])
+                              .map(([voice, count]) => (
+                                <div key={voice} className="flex justify-between items-center bg-white/5 rounded-lg px-3 py-2">
+                                  <span className="text-xs text-gray-400 capitalize">{voice}</span>
+                                  <span className="text-xs font-bold text-white">{count}</span>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Voice Chat Stats Summary */}
+                      <div className="mt-4 p-4 bg-purple-500/5 border border-purple-500/20 rounded-xl">
+                        <p className="text-xs font-medium text-purple-400 mb-2">Voice Chat Summary</p>
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                          <div>
+                            <span className="text-gray-500">Completed Sessions:</span>
+                            <span className="text-white ml-2">{metrics.voice_chat.completed_sessions || 0}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Avg Messages/Session:</span>
+                            <span className="text-white ml-2">{metrics.voice_chat.avg_messages_per_session || 0}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Sessions (7d):</span>
+                            <span className="text-white ml-2">{metrics.voice_chat.sessions_7d || 0}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Total Voice Messages:</span>
+                            <span className="text-white ml-2">{metrics.voice_chat.total_voice_messages || 0}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 

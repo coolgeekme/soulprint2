@@ -37,12 +37,34 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
   const [isSearching, setIsSearching] = useState(false);
   const [sessionId, setSessionId] = useState(null);
   const [sessionStartTime, setSessionStartTime] = useState(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   
   const peerConnectionRef = useRef(null);
   const dataChannelRef = useRef(null);
   const audioElementRef = useRef(null);
   const localStreamRef = useRef(null);
   const previewAudioRef = useRef(null);
+
+  // Load user's voice settings on mount
+  useEffect(() => {
+    const loadVoiceSettings = async () => {
+      try {
+        const res = await fetch('/api/user/voice-settings', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const settings = await res.json();
+          if (settings.default_voice) setSelectedVoice(settings.default_voice);
+          if (settings.web_search_enabled !== undefined) setWebSearchEnabled(settings.web_search_enabled);
+        }
+      } catch (err) {
+        console.error('Failed to load voice settings:', err);
+      }
+      setSettingsLoaded(true);
+    };
+    
+    if (token) loadVoiceSettings();
+  }, [token]);
 
   // Preview a voice using TTS API
   const previewVoice = useCallback(async (voiceId) => {
