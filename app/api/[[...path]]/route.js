@@ -582,13 +582,18 @@ async function getValidGoogleToken(userId, accountIdentifier = null) {
     connection = await db.collection('google_connections').findOne({ user_id: userId });
   }
   
-  if (!connection) return null;
+  if (!connection) {
+    console.log('[Google Token] No connection found for:', connectionId);
+    return null;
+  }
   
   // Check if token is expired (with 5 min buffer)
   const isExpired = new Date(connection.expires_at) < new Date(Date.now() + 5 * 60 * 1000);
+  console.log('[Google Token] Token expired:', isExpired, 'expires_at:', connection.expires_at);
   
   if (isExpired && connection.refresh_token) {
     try {
+      console.log('[Google Token] Attempting refresh for:', connection.email);
       const tokens = await refreshGoogleToken(connection.refresh_token);
       if (tokens.access_token) {
         await db.collection('google_connections').updateOne(
@@ -601,10 +606,11 @@ async function getValidGoogleToken(userId, accountIdentifier = null) {
             }
           }
         );
+        console.log('[Google Token] Refresh successful for:', connection.email);
         return { token: tokens.access_token, connection };
       }
     } catch (err) {
-      console.error('Token refresh failed:', err);
+      console.error('[Google Token] Refresh failed for', connection.email, ':', err.message);
       return null;
     }
   }
@@ -614,17 +620,24 @@ async function getValidGoogleToken(userId, accountIdentifier = null) {
 
 // Get all Google connections for a user with valid tokens
 async function getAllGoogleConnections(userId) {
+  console.log('[Google] Getting connections for user:', userId);
   const db = await getDb();
   const connections = await db.collection('google_connections').find({ user_id: userId }).toArray();
+  console.log('[Google] Found', connections.length, 'connections in database');
   
   const validConnections = [];
   for (const conn of connections) {
+    console.log('[Google] Checking connection:', conn.email, 'expires_at:', conn.expires_at);
     const result = await getValidGoogleToken(userId, conn.connection_id);
     if (result?.token) {
+      console.log('[Google] Valid token for:', conn.email);
       validConnections.push({ ...conn, access_token: result.token });
+    } else {
+      console.log('[Google] Token invalid/refresh failed for:', conn.email);
     }
   }
   
+  console.log('[Google] Returning', validConnections.length, 'valid connections');
   return validConnections;
 }
 
@@ -4283,6 +4296,18 @@ async function buildSystemPrompt(db, userId) {
     }
   }
 
+  // Build Google accounts context
+  let googleContext = '';
+  try {
+    const googleConnections = await db.collection('google_connections').find({ user_id: userId }).toArray();
+    if (googleConnections.length > 0) {
+      const accountsList = googleConnections.map(c => `- ${c.email}`).join('\n');
+      googleContext = `\n## Connected Google Accounts\n${displayName} has connected the following Google accounts:\n${accountsList}\n\nYou can access their Gmail, Google Calendar, and Google Drive when they ask. Always ask which account to use if they have multiple.`;
+    }
+  } catch (gErr) {
+    console.error('[SystemPrompt] Error fetching Google connections:', gErr);
+  }
+
   return `You are **${assistantName}**, a personal AI companion for **${displayName}**.
 
 ${dateTimeContext}
@@ -4311,6 +4336,7 @@ In short: You are the operating system of ${displayName} — running on AI.
 - **Field**: ${field || 'Not specified'}
 - **Needs help with**: ${helpWith.join(', ') || 'General assistance'}
 ${locationContext}
+${googleContext}
 ${assessmentContext}
 ${commProfileContext}
 ${soulProfileContext}
@@ -20713,7 +20739,10 @@ async function handleVoiceToolExecute(request) {
       case 'get_emails':
       case 'check_email': {
         // Get user's emails with token refresh
+        console.log('[VoiceTool] get_emails called for user:', user.id);
         const googleConnections = await getAllGoogleConnections(user.id);
+        console.log('[VoiceTool] Got', googleConnections.length, 'Google connections');
+        
         if (!googleConnections.length) {
           return NextResponse.json({ success: true, result: { error: 'No Google accounts connected. Please connect your Google account in Settings → Integrations.' } });
         }
@@ -20721,6 +20750,8 @@ async function handleVoiceToolExecute(request) {
         const account = tool_args.account_email 
           ? googleConnections.find(a => a.email === tool_args.account_email)
           : googleConnections[0];
+        
+        console.log('[VoiceTool] Using account:', account?.email);
           
         if (!account) {
           return NextResponse.json({ success: true, result: { 
@@ -20730,6 +20761,7 @@ async function handleVoiceToolExecute(request) {
         }
 
         try {
+          console.log('[VoiceTool] Creating OAuth client...');
           const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET
@@ -20739,12 +20771,14 @@ async function handleVoiceToolExecute(request) {
             refresh_token: account.refresh_token,
           });
 
+          console.log('[VoiceTool] Calling Gmail API...');
           const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
           const response = await gmail.users.messages.list({
             userId: 'me',
             maxResults: tool_args.limit || 5,
             q: tool_args.query || 'is:inbox',
           });
+          console.log('[VoiceTool] Got', response.data.messages?.length || 0, 'emails');
 
           const emails = [];
           for (const msg of (response.data.messages || []).slice(0, 5)) {
@@ -20760,7 +20794,7 @@ async function handleVoiceToolExecute(request) {
           }
           return NextResponse.json({ success: true, result: { emails, account: account.email } });
         } catch (gmailErr) {
-          console.error('[VoiceTool] Gmail error:', gmailErr);
+          console.error('[VoiceTool] Gmail error:', gmailErr.message, gmailErr.stack);
           return NextResponse.json({ success: true, result: { error: 'Failed to fetch emails: ' + gmailErr.message } });
         }
       }
