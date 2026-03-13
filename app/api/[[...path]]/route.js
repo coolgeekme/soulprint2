@@ -20229,12 +20229,12 @@ async function handleVoiceToolExecute(request) {
               const data = await response.json();
               console.log(`[VoiceTool] Brave returned ${data.web?.results?.length || 0} results`);
               
-              const formattedResults = data.web?.results?.slice(0, 6).map(r => ({
-                source: r.title,
-                url: r.url,
-                content: r.description,
-                extra_snippets: r.extra_snippets?.join(' ') || '',
-              })) || [];
+              // Format results as clear text for the AI to read
+              const formattedResults = data.web?.results?.slice(0, 6).map((r, i) => {
+                // Clean up HTML tags from content
+                const cleanContent = r.description?.replace(/<[^>]*>/g, '') || '';
+                return `[Result ${i+1}] ${r.title}\n${cleanContent}`;
+              }).join('\n\n') || 'No results found';
               
               // Also check for instant answers (infobox)
               let instantAnswer = null;
@@ -20245,14 +20245,17 @@ async function handleVoiceToolExecute(request) {
                 instantAnswer = data.mixed.main[0].all[0].description;
               }
               
+              // Create a clear text summary for the AI
+              let summary = `WEB SEARCH RESULTS FOR: "${searchQuery}"\n\n`;
+              if (instantAnswer) {
+                summary += `INSTANT ANSWER: ${instantAnswer}\n\n`;
+              }
+              summary += `SEARCH RESULTS:\n${formattedResults}\n\n`;
+              summary += `INSTRUCTIONS: Read the results above carefully. Report ONLY information that is explicitly stated. For sports scores, quote the exact numbers shown. If you don't see the specific answer, say "I found some information but not the exact [detail] you asked for."`;
+              
               return NextResponse.json({
                 success: true,
-                result: {
-                  instant_answer: instantAnswer,
-                  results: formattedResults,
-                  query: searchQuery,
-                  instructions: 'CRITICAL: Only state facts EXPLICITLY found in these results. For scores, only report if you see the exact score. For weather, report what the results say. Never guess or make up numbers.',
-                },
+                result: summary,
               });
             } else {
               console.error(`[VoiceTool] Brave search failed: ${response.status}`);
@@ -20280,18 +20283,21 @@ async function handleVoiceToolExecute(request) {
               const data = await response.json();
               console.log(`[VoiceTool] Tavily fallback: ${data.results?.length || 0} results`);
               
+              // Format as clear text
+              const formattedResults = data.results?.slice(0, 5).map((r, i) => 
+                `[Result ${i+1}] ${r.title}\n${r.content}`
+              ).join('\n\n') || 'No results found';
+              
+              let summary = `WEB SEARCH RESULTS FOR: "${tool_args.query}"\n\n`;
+              if (data.answer) {
+                summary += `DIRECT ANSWER: ${data.answer}\n\n`;
+              }
+              summary += `SEARCH RESULTS:\n${formattedResults}\n\n`;
+              summary += `INSTRUCTIONS: Report ONLY information explicitly stated above.`;
+              
               return NextResponse.json({
                 success: true,
-                result: {
-                  instant_answer: data.answer || null,
-                  results: data.results?.slice(0, 5).map(r => ({
-                    source: r.title,
-                    url: r.url,
-                    content: r.content,
-                  })) || [],
-                  query: tool_args.query,
-                  instructions: 'CRITICAL: Only state facts EXPLICITLY found in these results. Never guess or make up numbers.',
-                },
+                result: summary,
               });
             }
           } catch (tavilyErr) {
