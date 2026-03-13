@@ -853,33 +853,100 @@ Be conversational, warm, and personal. You KNOW this user - their profile, memor
                 <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-orange-500 animate-spin" />
               </div>
             ) : (
-              // SoulPrint logo with glow effect when AI is speaking
-              <div className={`relative ${isAISpeaking ? 'animate-pulse' : ''}`}>
-                {/* Glow rings */}
+              // SoulPrint logo with dynamic pulsating effect when AI is speaking
+              <div className="relative flex items-center justify-center">
+                {/* Animated rings when AI is speaking */}
                 {isAISpeaking && (
                   <>
-                    <div className="absolute inset-0 w-24 h-24 sm:w-28 sm:h-28 -m-2 rounded-full bg-orange-500/20 animate-ping" />
-                    <div className="absolute inset-0 w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-orange-500/30 animate-pulse" />
+                    {/* Ring 1 - slowest, largest */}
+                    <div 
+                      className="absolute rounded-full bg-orange-500/15"
+                      style={{
+                        width: '140px',
+                        height: '140px',
+                        animation: 'voicePulseRing1 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                      }}
+                    />
+                    {/* Ring 2 - medium */}
+                    <div 
+                      className="absolute rounded-full bg-orange-500/25"
+                      style={{
+                        width: '115px',
+                        height: '115px',
+                        animation: 'voicePulseRing2 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        animationDelay: '0.2s',
+                      }}
+                    />
+                    {/* Ring 3 - inner glow */}
+                    <div 
+                      className="absolute rounded-full bg-orange-500/35"
+                      style={{
+                        width: '98px',
+                        height: '98px',
+                        animation: 'voicePulseRing3 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                      }}
+                    />
                   </>
                 )}
-                <div className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center overflow-hidden transition-all duration-300 ${
-                  isAISpeaking 
-                    ? 'bg-gradient-to-br from-orange-400 to-orange-600 shadow-[0_0_40px_rgba(249,115,22,0.6)]' 
-                    : isSearching
-                      ? 'bg-gradient-to-br from-blue-500 to-cyan-600 shadow-[0_0_30px_rgba(59,130,246,0.5)]'
-                      : 'bg-gradient-to-br from-gray-700 to-gray-800 shadow-lg'
-                }`}>
+                
+                {/* Main logo container with breathing animation */}
+                <div 
+                  className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center overflow-hidden transition-all duration-300 ${
+                    isAISpeaking 
+                      ? 'bg-gradient-to-br from-orange-400 via-orange-500 to-orange-600' 
+                      : isSearching
+                        ? 'bg-gradient-to-br from-blue-500 to-cyan-600 shadow-[0_0_30px_rgba(59,130,246,0.5)]'
+                        : 'bg-gradient-to-br from-gray-700 to-gray-800 shadow-lg'
+                  }`}
+                  style={{
+                    boxShadow: isAISpeaking 
+                      ? '0 0 50px rgba(249,115,22,0.6), 0 0 80px rgba(249,115,22,0.4), 0 0 120px rgba(249,115,22,0.2)' 
+                      : undefined,
+                    animation: isAISpeaking ? 'voiceBreathe 1.5s ease-in-out infinite' : undefined,
+                  }}
+                >
+                  {/* Logo with pulse effect */}
                   <img 
                     src="/logo.svg" 
                     alt="SoulPrint" 
-                    className={`w-12 h-12 sm:w-14 sm:h-14 transition-all duration-300 ${
-                      isAISpeaking ? 'scale-110 brightness-125' : ''
-                    }`}
+                    className="w-12 h-12 sm:w-14 sm:h-14 transition-transform duration-300"
+                    style={{
+                      filter: isAISpeaking 
+                        ? 'brightness(1.4) drop-shadow(0 0 10px rgba(255,255,255,0.6))' 
+                        : 'brightness(1)',
+                      animation: isAISpeaking ? 'voiceLogoPulse 0.75s ease-in-out infinite' : undefined,
+                    }}
                   />
                 </div>
               </div>
             )}
           </div>
+          
+          {/* Keyframe animations for voice chat pulsating logo */}
+          <style>{`
+            @keyframes voicePulseRing1 {
+              0% { transform: scale(0.8); opacity: 0.8; }
+              50% { transform: scale(1.1); opacity: 0.3; }
+              100% { transform: scale(1.3); opacity: 0; }
+            }
+            @keyframes voicePulseRing2 {
+              0% { transform: scale(0.85); opacity: 0.9; }
+              50% { transform: scale(1.05); opacity: 0.4; }
+              100% { transform: scale(1.2); opacity: 0; }
+            }
+            @keyframes voicePulseRing3 {
+              0%, 100% { transform: scale(0.95); opacity: 0.7; }
+              50% { transform: scale(1.02); opacity: 1; }
+            }
+            @keyframes voiceBreathe {
+              0%, 100% { transform: scale(1); }
+              50% { transform: scale(1.06); }
+            }
+            @keyframes voiceLogoPulse {
+              0%, 100% { transform: scale(1); }
+              50% { transform: scale(1.12); }
+            }
+          `}</style>
 
           {/* Controls - Mic, Hang up, and other buttons */}
           {status === 'connected' && (
