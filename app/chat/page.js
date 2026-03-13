@@ -6481,6 +6481,60 @@ export default function ChatPage() {
       .then(r => r.json()).then(d => setLatestNews(d.posts || [])).catch(() => {});
   }, []);
 
+  // Auto-request location when user loads the app (if not already set)
+  useEffect(() => {
+    if (!token || !user) return;
+    
+    // Check if we already have location or have asked before this session
+    const hasAskedLocation = sessionStorage.getItem('sp_location_asked');
+    if (hasAskedLocation) return;
+    
+    // Mark that we've asked this session
+    sessionStorage.setItem('sp_location_asked', 'true');
+    
+    // Check if user already has location saved
+    fetch('/api/user/location', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.hasLocation) {
+          // User already has location, just set it
+          setUserLocation({ lat: data.lat, lng: data.lng, address: data.address, timezone: data.timezone });
+        } else {
+          // Request location automatically (silently - no error messages shown)
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                  const res = await fetch('/api/user/location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ 
+                      lat: latitude, 
+                      lng: longitude,
+                      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    }),
+                  });
+                  const locData = await res.json();
+                  if (res.ok) {
+                    setUserLocation({ lat: latitude, lng: longitude, address: locData.address, timezone: locData.timezone });
+                  }
+                } catch (err) {
+                  console.log('Auto location save failed:', err);
+                }
+              },
+              (error) => {
+                // Silently fail - user can manually set location later
+                console.log('Auto location request denied or failed:', error.message);
+              },
+              { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+            );
+          }
+        }
+      })
+      .catch(() => {});
+  }, [token, user]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
