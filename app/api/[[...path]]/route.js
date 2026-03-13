@@ -20187,44 +20187,125 @@ async function handleVoiceToolExecute(request) {
     // Handle different tools
     switch (tool_name) {
       case 'web_search': {
-        // Use advanced search for better accuracy
+        // Use Brave Search as primary (better for real-time sports/weather)
+        const braveKey = process.env.BRAVE_SEARCH_API_KEY;
         const tavilyKey = process.env.TAVILY_API_KEY;
-        if (tavilyKey) {
-          const response = await fetch('https://api.tavily.com/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              api_key: tavilyKey,
-              query: tool_args.query,
-              max_results: 5,  // Get more results for better accuracy
-              search_depth: 'advanced',  // Use advanced search for sports/real-time data
-              include_answer: true,
-              include_raw_content: false,
-            }),
-          });
-          if (response.ok) {
-            const data = await response.json();
-            console.log(`[VoiceTool] Web search found ${data.results?.length || 0} results, answer: ${data.answer?.slice(0, 100)}`);
+        
+        // Get user's location for weather/local queries
+        let userLocation = null;
+        try {
+          userLocation = await db.collection('user_locations').findOne({ user_id: user.id });
+        } catch (locErr) {
+          console.log('[VoiceTool] Could not fetch user location');
+        }
+        
+        // Enhance weather queries with location
+        let searchQuery = tool_args.query;
+        const isWeatherQuery = /weather|temperature|forecast|rain|snow|sunny|cloudy/i.test(searchQuery);
+        const hasLocation = /in\s+\w+|at\s+\w+|\w+\s+weather/i.test(searchQuery);
+        
+        if (isWeatherQuery && !hasLocation && userLocation?.city) {
+          const locationStr = userLocation.city + (userLocation.region ? ', ' + userLocation.region : '');
+          searchQuery = `${searchQuery} in ${locationStr}`;
+          console.log(`[VoiceTool] Enhanced weather query with location: ${searchQuery}`);
+        }
+        
+        // Try Brave Search first
+        if (braveKey) {
+          try {
+            console.log(`[VoiceTool] Brave search for: ${searchQuery}`);
             
-            // Format results with clear source attribution
-            const formattedResults = data.results?.slice(0, 5).map(r => ({
-              source: r.title,
-              url: r.url,
-              content: r.content,  // Include full content for accuracy
-              score: r.score,
-            })) || [];
+            const response = await fetch(
+              `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(searchQuery)}&count=8&freshness=pd`, 
+              {
+                headers: {
+                  'X-Subscription-Token': braveKey,
+                  'Accept': 'application/json',
+                },
+              }
+            );
             
-            return NextResponse.json({
-              success: true,
-              result: {
-                direct_answer: data.answer || null,
-                results: formattedResults,
-                instructions: 'IMPORTANT: Only report specific numbers, scores, and facts that are EXPLICITLY stated in these results. If the exact information is not found, say so.',
-              },
-            });
+            if (response.ok) {
+              const data = await response.json();
+              console.log(`[VoiceTool] Brave returned ${data.web?.results?.length || 0} results`);
+              
+              const formattedResults = data.web?.results?.slice(0, 6).map(r => ({
+                source: r.title,
+                url: r.url,
+                content: r.description,
+                extra_snippets: r.extra_snippets?.join(' ') || '',
+              })) || [];
+              
+              // Also check for instant answers (infobox)
+              let instantAnswer = null;
+              if (data.infobox?.results?.[0]) {
+                instantAnswer = data.infobox.results[0].description;
+              }
+              if (data.mixed?.main?.[0]?.all?.[0]?.description) {
+                instantAnswer = data.mixed.main[0].all[0].description;
+              }
+              
+              return NextResponse.json({
+                success: true,
+                result: {
+                  instant_answer: instantAnswer,
+                  results: formattedResults,
+                  query: searchQuery,
+                  instructions: 'CRITICAL: Only state facts EXPLICITLY found in these results. For scores, only report if you see the exact score. For weather, report what the results say. Never guess or make up numbers.',
+                },
+              });
+            } else {
+              console.error(`[VoiceTool] Brave search failed: ${response.status}`);
+            }
+          } catch (braveErr) {
+            console.error('[VoiceTool] Brave search error:', braveErr);
           }
         }
-        return NextResponse.json({ success: false, error: 'Search failed' });
+        
+        // Fallback to Tavily
+        if (tavilyKey) {
+          try {
+            const response = await fetch('https://api.tavily.com/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                api_key: tavilyKey,
+                query: tool_args.query,
+                max_results: 5,
+                search_depth: 'advanced',
+                include_answer: true,
+              }),
+            });
+            if (response.ok) {
+              const data = await response.json();
+              console.log(`[VoiceTool] Tavily fallback: ${data.results?.length || 0} results`);
+              
+              return NextResponse.json({
+                success: true,
+                result: {
+                  instant_answer: data.answer || null,
+                  results: data.results?.slice(0, 5).map(r => ({
+                    source: r.title,
+                    url: r.url,
+                    content: r.content,
+                  })) || [],
+                  query: tool_args.query,
+                  instructions: 'CRITICAL: Only state facts EXPLICITLY found in these results. Never guess or make up numbers.',
+                },
+              });
+            }
+          } catch (tavilyErr) {
+            console.error('[VoiceTool] Tavily fallback error:', tavilyErr);
+          }
+        }
+        
+        return NextResponse.json({ 
+          success: true, 
+          result: { 
+            error: 'Web search is temporarily unavailable',
+            results: [],
+          } 
+        });
       }
 
       case 'get_emails':
