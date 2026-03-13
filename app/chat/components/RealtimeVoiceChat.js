@@ -46,6 +46,50 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
   const audioElementRef = useRef(null);
   const localStreamRef = useRef(null);
   const previewAudioRef = useRef(null);
+  const wakeLockRef = useRef(null); // Screen Wake Lock reference
+  
+  // Screen Wake Lock - keep screen awake during voice chat
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+        console.log('[Realtime] Screen Wake Lock acquired');
+        
+        // Re-acquire if released (e.g., user switches tabs and comes back)
+        wakeLockRef.current.addEventListener('release', () => {
+          console.log('[Realtime] Screen Wake Lock released');
+        });
+      }
+    } catch (err) {
+      console.log('[Realtime] Wake Lock not supported or failed:', err.message);
+    }
+  };
+  
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.log('[Realtime] Screen Wake Lock released manually');
+      } catch (err) {
+        console.log('[Realtime] Wake Lock release error:', err.message);
+      }
+    }
+  };
+  
+  // Re-acquire wake lock when tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && status === 'connected') {
+        await requestWakeLock();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [status]);
   
   // Sensitivity thresholds: higher = less sensitive
   const sensitivitySettings = {
@@ -474,6 +518,9 @@ Be conversational, warm, and personal. You KNOW this user - their profile, memor
 
       setStatus('connected');
       console.log('[Realtime] Voice chat connected!');
+      
+      // Keep screen awake during voice chat
+      await requestWakeLock();
 
     } catch (err) {
       console.error('[Realtime] Error:', err);
@@ -645,6 +692,8 @@ Be conversational, warm, and personal. You KNOW this user - their profile, memor
   // Cleanup function
   const cleanup = useCallback(() => {
     stopPreview();
+    // Release screen wake lock when ending voice chat
+    releaseWakeLock();
     if (dataChannelRef.current) {
       dataChannelRef.current.close();
       dataChannelRef.current = null;
