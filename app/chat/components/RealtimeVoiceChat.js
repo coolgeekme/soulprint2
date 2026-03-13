@@ -257,35 +257,116 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
             } : null,
             instructions: `${systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}.`}
 
-${webSearchEnabled ? `IMPORTANT: You have access to real-time web search via the web_search function. You MUST use this function when the user asks about:
-- Current news or recent events
-- Weather (today, tomorrow, this week)
-- Stock prices or market updates
-- Sports scores or game results
-- Any question requiring information from after your training cutoff
-- Anything the user explicitly asks you to search for
+IMPORTANT: You have access to several tools that give you the SAME capabilities as text chat:
 
-When you use web_search, wait for the results before responding. Summarize the key findings naturally in your response and mention where the information came from.` : ''}
+1. WEB SEARCH (web_search): Use for current news, weather, sports scores, stock prices, or any real-time information.
 
-Be conversational, warm, and concise. Speak naturally as if you're having a real phone call - be warm and engaging.`,
-            tools: webSearchEnabled ? [
+2. EMAIL ACCESS:
+   - get_emails: Check the user's emails. Always ask which account if multiple are connected.
+   - send_email: Send an email. ALWAYS confirm with user before sending.
+
+3. CALENDAR ACCESS:
+   - get_calendar: Check calendar events. Can specify date range.
+   - create_calendar_event: Create a new event. ALWAYS confirm details before creating.
+
+4. GOOGLE ACCOUNTS (get_google_accounts): List connected Google accounts and calendars.
+
+TOOL USAGE RULES:
+- For web search: Use automatically for current events, weather, news, stocks, sports.
+- For email/calendar: Always ask which account to use if the user has multiple.
+- Before sending emails or creating events, ALWAYS confirm with the user first.
+- When showing emails or events, summarize key information naturally.
+
+Be conversational, warm, and concise. Speak naturally as if you're having a real phone call.`,
+            tools: [
               {
                 type: 'function',
                 name: 'web_search',
-                description: 'Search the web for current, real-time information. ALWAYS use this tool for: weather, news, sports scores, stock prices, current events, or any question requiring up-to-date information.',
+                description: 'Search the web for current, real-time information. Use for: weather, news, sports scores, stock prices, current events.',
                 parameters: {
                   type: 'object',
                   properties: {
-                    query: {
-                      type: 'string',
-                      description: 'The search query to find current information',
-                    },
+                    query: { type: 'string', description: 'The search query' },
                   },
                   required: ['query'],
                 },
               },
-            ] : [],
-            tool_choice: webSearchEnabled ? 'auto' : 'none',
+              {
+                type: 'function',
+                name: 'get_emails',
+                description: 'Get emails from the user\'s Gmail inbox. Ask which account to use first.',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    account_email: { type: 'string', description: 'The Google account email to check' },
+                    query: { type: 'string', description: 'Optional Gmail search query (e.g., "is:unread", "from:boss@company.com")' },
+                    limit: { type: 'number', description: 'Number of emails to fetch (default 5)' },
+                  },
+                  required: [],
+                },
+              },
+              {
+                type: 'function',
+                name: 'send_email',
+                description: 'Send an email using Gmail. ALWAYS confirm with user before sending.',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    account_email: { type: 'string', description: 'The Google account to send from' },
+                    to: { type: 'string', description: 'Recipient email address' },
+                    subject: { type: 'string', description: 'Email subject' },
+                    body: { type: 'string', description: 'Email body content' },
+                  },
+                  required: ['account_email', 'to', 'subject', 'body'],
+                },
+              },
+              {
+                type: 'function',
+                name: 'get_calendar',
+                description: 'Get calendar events. Ask which account to use first.',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    account_email: { type: 'string', description: 'The Google account email' },
+                    calendar_id: { type: 'string', description: 'Calendar ID (default "primary")' },
+                    start_date: { type: 'string', description: 'Start date (ISO format, default today)' },
+                    end_date: { type: 'string', description: 'End date (ISO format, default 7 days from now)' },
+                    limit: { type: 'number', description: 'Max events to return (default 10)' },
+                  },
+                  required: [],
+                },
+              },
+              {
+                type: 'function',
+                name: 'create_calendar_event',
+                description: 'Create a new calendar event. ALWAYS confirm details before creating.',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    account_email: { type: 'string', description: 'The Google account to use' },
+                    calendar_id: { type: 'string', description: 'Calendar ID (default "primary")' },
+                    summary: { type: 'string', description: 'Event title' },
+                    description: { type: 'string', description: 'Event description' },
+                    location: { type: 'string', description: 'Event location' },
+                    start: { type: 'string', description: 'Start datetime (ISO 8601)' },
+                    end: { type: 'string', description: 'End datetime (ISO 8601)' },
+                    attendees: { type: 'array', items: { type: 'string' }, description: 'Attendee emails' },
+                  },
+                  required: ['account_email', 'summary', 'start', 'end'],
+                },
+              },
+              {
+                type: 'function',
+                name: 'get_google_accounts',
+                description: 'List the user\'s connected Google accounts and their calendars.',
+                parameters: {
+                  type: 'object',
+                  properties: {},
+                  required: [],
+                },
+              },
+            ],
+            tool_choice: 'auto',
           },
         };
         
@@ -381,65 +462,77 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
         break;
 
       case 'response.function_call_arguments.done':
-        // Handle function calls (web search)
+        // Handle ALL function calls through unified backend API
         console.log('[Realtime] Function call received:', event.name, event);
-        if (event.name === 'web_search') {
-          try {
-            const args = JSON.parse(event.arguments);
-            console.log('[Realtime] Web search requested:', args.query);
-            setIsSearching(true);
+        try {
+          const args = JSON.parse(event.arguments || '{}');
+          const toolName = event.name;
+          console.log(`[Realtime] Executing tool: ${toolName}`, args);
+          setIsSearching(true);
+          
+          // Add visual feedback
+          const actionLabel = {
+            'web_search': `🔍 Searching: "${args.query}"...`,
+            'get_emails': `📧 Checking emails${args.account_email ? ` (${args.account_email})` : ''}...`,
+            'send_email': `✉️ Sending email to ${args.to}...`,
+            'get_calendar': `📅 Checking calendar${args.account_email ? ` (${args.account_email})` : ''}...`,
+            'create_calendar_event': `📅 Creating event: "${args.summary}"...`,
+            'get_google_accounts': `🔗 Getting connected accounts...`,
+          }[toolName] || `⚡ Running ${toolName}...`;
+          
+          setConversationHistory(prev => [...prev, { 
+            role: 'system', 
+            text: actionLabel, 
+            timestamp: new Date() 
+          }]);
+          
+          // Call unified voice tool API
+          const response = await fetch('/api/voice/tool', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              tool_name: toolName,
+              tool_args: args,
+            }),
+          });
+          
+          const result = await response.json();
+          console.log(`[Realtime] Tool result for ${toolName}:`, result);
+          
+          // Send results back to the conversation
+          if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+            const functionOutput = {
+              type: 'conversation.item.create',
+              item: {
+                type: 'function_call_output',
+                call_id: event.call_id,
+                output: JSON.stringify(result.success ? result.result : { error: result.error }),
+              },
+            };
+            console.log('[Realtime] Sending function output:', functionOutput);
+            dataChannelRef.current.send(JSON.stringify(functionOutput));
             
-            // Add visual feedback that we're searching
-            setConversationHistory(prev => [...prev, { 
-              role: 'system', 
-              text: `🔍 Searching: "${args.query}"...`, 
-              timestamp: new Date() 
-            }]);
-            
-            const results = await performWebSearch(args.query);
-            console.log('[Realtime] Web search results:', results);
-            
-            // Send results back to the conversation
-            if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
-              const functionOutput = {
-                type: 'conversation.item.create',
-                item: {
-                  type: 'function_call_output',
-                  call_id: event.call_id,
-                  output: JSON.stringify({
-                    results: results.slice(0, 3).map(r => ({
-                      title: r.title,
-                      snippet: r.content?.slice(0, 300),
-                      url: r.url,
-                    })),
-                    summary: results.length > 0 
-                      ? `Found ${results.length} results. Top result: ${results[0]?.title}` 
-                      : 'No results found',
-                  }),
-                },
-              };
-              console.log('[Realtime] Sending function output:', functionOutput);
-              dataChannelRef.current.send(JSON.stringify(functionOutput));
-              
-              // Trigger response generation with the search results
-              dataChannelRef.current.send(JSON.stringify({ type: 'response.create' }));
-            }
-            setIsSearching(false);
-          } catch (err) {
-            console.error('Function call error:', err);
-            setIsSearching(false);
-            // Send error output so the model can respond appropriately
-            if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
-              dataChannelRef.current.send(JSON.stringify({
-                type: 'conversation.item.create',
-                item: {
-                  type: 'function_call_output',
-                  call_id: event.call_id,
-                  output: JSON.stringify({ error: 'Search failed', message: err.message }),
-                },
-              }));
-              dataChannelRef.current.send(JSON.stringify({ type: 'response.create' }));
-            }
+            // Trigger response generation
+            dataChannelRef.current.send(JSON.stringify({ type: 'response.create' }));
+          }
+          setIsSearching(false);
+        } catch (err) {
+          console.error('Function call error:', err);
+          setIsSearching(false);
+          // Send error output
+          if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+            dataChannelRef.current.send(JSON.stringify({
+              type: 'conversation.item.create',
+              item: {
+                type: 'function_call_output',
+                call_id: event.call_id,
+                output: JSON.stringify({ error: 'Tool execution failed', message: err.message }),
+              },
+            }));
+            dataChannelRef.current.send(JSON.stringify({ type: 'response.create' }));
           }
         }
         break;
@@ -449,7 +542,7 @@ Be conversational, warm, and concise. Speak naturally as if you're having a real
         setError(event.error?.message || 'Unknown error');
         break;
     }
-  }, [performWebSearch]);
+  }, [token]);
 
   // Cleanup function
   const cleanup = useCallback(() => {

@@ -20165,6 +20165,297 @@ async function handleWebSearch(request) {
   }
 }
 
+// Handler: Execute Voice Chat Tool - Unified tool execution for voice chat
+// This allows voice chat to have the same capabilities as text chat
+async function handleVoiceToolExecute(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { tool_name, tool_args } = body;
+
+    if (!tool_name) {
+      return NextResponse.json({ error: 'Tool name required' }, { status: 400 });
+    }
+
+    console.log(`[VoiceTool] Executing ${tool_name} with args:`, tool_args);
+    const db = await getDb();
+
+    // Handle different tools
+    switch (tool_name) {
+      case 'web_search': {
+        // Delegate to web search handler
+        const tavilyKey = process.env.TAVILY_API_KEY;
+        if (tavilyKey) {
+          const response = await fetch('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: tavilyKey,
+              query: tool_args.query,
+              max_results: 3,
+              search_depth: 'basic',
+              include_answer: true,
+            }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            return NextResponse.json({
+              success: true,
+              result: {
+                results: data.results?.slice(0, 3).map(r => ({
+                  title: r.title,
+                  url: r.url,
+                  snippet: r.content?.slice(0, 300),
+                })) || [],
+                answer: data.answer,
+              },
+            });
+          }
+        }
+        return NextResponse.json({ success: false, error: 'Search failed' });
+      }
+
+      case 'get_emails':
+      case 'check_email': {
+        // Get user's emails
+        const googleData = await db.collection('user_google_accounts').find({ user_id: user.id }).toArray();
+        if (!googleData.length) {
+          return NextResponse.json({ success: true, result: { error: 'No Google accounts connected' } });
+        }
+        
+        const account = tool_args.account_email 
+          ? googleData.find(a => a.email === tool_args.account_email)
+          : googleData[0];
+          
+        if (!account) {
+          return NextResponse.json({ success: true, result: { 
+            error: 'Account not found',
+            available_accounts: googleData.map(a => a.email)
+          }});
+        }
+
+        try {
+          const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET
+          );
+          oauth2Client.setCredentials({
+            access_token: account.access_token,
+            refresh_token: account.refresh_token,
+          });
+
+          const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+          const response = await gmail.users.messages.list({
+            userId: 'me',
+            maxResults: tool_args.limit || 5,
+            q: tool_args.query || 'is:inbox',
+          });
+
+          const emails = [];
+          for (const msg of (response.data.messages || []).slice(0, 5)) {
+            const detail = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'metadata' });
+            const headers = detail.data.payload?.headers || [];
+            emails.push({
+              id: msg.id,
+              subject: headers.find(h => h.name === 'Subject')?.value || '(no subject)',
+              from: headers.find(h => h.name === 'From')?.value || 'Unknown',
+              date: headers.find(h => h.name === 'Date')?.value || '',
+              snippet: detail.data.snippet?.slice(0, 200),
+            });
+          }
+          return NextResponse.json({ success: true, result: { emails, account: account.email } });
+        } catch (gmailErr) {
+          console.error('[VoiceTool] Gmail error:', gmailErr);
+          return NextResponse.json({ success: true, result: { error: 'Failed to fetch emails' } });
+        }
+      }
+
+      case 'get_calendar':
+      case 'check_calendar': {
+        // Get calendar events
+        const googleData = await db.collection('user_google_accounts').find({ user_id: user.id }).toArray();
+        if (!googleData.length) {
+          return NextResponse.json({ success: true, result: { error: 'No Google accounts connected' } });
+        }
+        
+        const account = tool_args.account_email 
+          ? googleData.find(a => a.email === tool_args.account_email)
+          : googleData[0];
+          
+        if (!account) {
+          return NextResponse.json({ success: true, result: { 
+            error: 'Account not found',
+            available_accounts: googleData.map(a => a.email)
+          }});
+        }
+
+        try {
+          const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET
+          );
+          oauth2Client.setCredentials({
+            access_token: account.access_token,
+            refresh_token: account.refresh_token,
+          });
+
+          const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+          const now = new Date();
+          const timeMin = tool_args.start_date ? new Date(tool_args.start_date) : now;
+          const timeMax = tool_args.end_date ? new Date(tool_args.end_date) : new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+          const response = await calendar.events.list({
+            calendarId: tool_args.calendar_id || 'primary',
+            timeMin: timeMin.toISOString(),
+            timeMax: timeMax.toISOString(),
+            maxResults: tool_args.limit || 10,
+            singleEvents: true,
+            orderBy: 'startTime',
+          });
+
+          const events = (response.data.items || []).map(e => ({
+            id: e.id,
+            title: e.summary,
+            start: e.start?.dateTime || e.start?.date,
+            end: e.end?.dateTime || e.end?.date,
+            location: e.location,
+            description: e.description?.slice(0, 200),
+          }));
+          return NextResponse.json({ success: true, result: { events, account: account.email } });
+        } catch (calErr) {
+          console.error('[VoiceTool] Calendar error:', calErr);
+          return NextResponse.json({ success: true, result: { error: 'Failed to fetch calendar' } });
+        }
+      }
+
+      case 'send_email': {
+        // Send email using existing handler logic
+        const googleData = await db.collection('user_google_accounts').find({ user_id: user.id }).toArray();
+        const account = tool_args.account_email 
+          ? googleData.find(a => a.email === tool_args.account_email)
+          : googleData[0];
+          
+        if (!account) {
+          return NextResponse.json({ success: true, result: { 
+            error: 'Please specify which Google account to send from',
+            available_accounts: googleData.map(a => a.email)
+          }});
+        }
+
+        try {
+          const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET
+          );
+          oauth2Client.setCredentials({
+            access_token: account.access_token,
+            refresh_token: account.refresh_token,
+          });
+
+          const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+          
+          const emailContent = [
+            `To: ${tool_args.to}`,
+            `From: ${account.email}`,
+            `Subject: ${tool_args.subject}`,
+            '',
+            tool_args.body,
+          ].join('\n');
+
+          const encodedEmail = Buffer.from(emailContent).toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+          
+          await gmail.users.messages.send({
+            userId: 'me',
+            requestBody: { raw: encodedEmail },
+          });
+
+          return NextResponse.json({ success: true, result: { 
+            message: `Email sent successfully to ${tool_args.to}`,
+            from: account.email
+          }});
+        } catch (sendErr) {
+          console.error('[VoiceTool] Send email error:', sendErr);
+          return NextResponse.json({ success: true, result: { error: 'Failed to send email: ' + sendErr.message } });
+        }
+      }
+
+      case 'create_calendar_event': {
+        const googleData = await db.collection('user_google_accounts').find({ user_id: user.id }).toArray();
+        const account = tool_args.account_email 
+          ? googleData.find(a => a.email === tool_args.account_email)
+          : googleData[0];
+          
+        if (!account) {
+          return NextResponse.json({ success: true, result: { 
+            error: 'Please specify which Google account to use',
+            available_accounts: googleData.map(a => a.email)
+          }});
+        }
+
+        try {
+          const oauth2Client = new google.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET
+          );
+          oauth2Client.setCredentials({
+            access_token: account.access_token,
+            refresh_token: account.refresh_token,
+          });
+
+          const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+          
+          const event = {
+            summary: tool_args.summary || tool_args.title,
+            description: tool_args.description,
+            location: tool_args.location,
+            start: { dateTime: tool_args.start, timeZone: user.timezone || 'America/New_York' },
+            end: { dateTime: tool_args.end, timeZone: user.timezone || 'America/New_York' },
+          };
+
+          if (tool_args.attendees && Array.isArray(tool_args.attendees)) {
+            event.attendees = tool_args.attendees.map(email => ({ email }));
+          }
+
+          const response = await calendar.events.insert({
+            calendarId: tool_args.calendar_id || 'primary',
+            requestBody: event,
+          });
+
+          return NextResponse.json({ success: true, result: { 
+            message: `Event "${tool_args.summary}" created successfully`,
+            event_id: response.data.id,
+            link: response.data.htmlLink,
+          }});
+        } catch (calErr) {
+          console.error('[VoiceTool] Create event error:', calErr);
+          return NextResponse.json({ success: true, result: { error: 'Failed to create event: ' + calErr.message } });
+        }
+      }
+
+      case 'get_google_accounts': {
+        // List connected Google accounts
+        const googleData = await db.collection('user_google_accounts').find({ user_id: user.id }).toArray();
+        return NextResponse.json({ success: true, result: { 
+          accounts: googleData.map(a => ({
+            email: a.email,
+            calendars: a.calendars || [{ id: 'primary', name: 'Primary' }],
+          }))
+        }});
+      }
+
+      default:
+        return NextResponse.json({ success: false, error: `Unknown tool: ${tool_name}` });
+    }
+  } catch (err) {
+    console.error('[VoiceTool] Error:', err);
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
 // ============================================================
 // ROUTER
 // ============================================================
@@ -20364,6 +20655,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'tts/preview') return handleTTSPreview(request);
     if (pathStr === 'voice-sessions') return handleCreateVoiceSession(request);
     if (pathStr === 'web-search') return handleWebSearch(request);
+    if (pathStr === 'voice/tool') return handleVoiceToolExecute(request);
     
     if (pathStr === 'telegram/link') return handleTelegramLink(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
