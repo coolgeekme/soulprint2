@@ -577,6 +577,29 @@ Be conversational, warm, and personal. You KNOW this user - their profile, memor
           const result = await response.json();
           console.log(`[Realtime] Tool result for ${toolName}:`, result);
           
+          // Update UI with detailed result feedback
+          if (!result.success) {
+            setToolActions(prev => [...prev.slice(-4), { 
+              text: `❌ ${toolName} failed: ${result.error || 'Unknown error'}`, 
+              timestamp: new Date() 
+            }]);
+          } else if (result.result?.error) {
+            setToolActions(prev => [...prev.slice(-4), { 
+              text: `⚠️ ${toolName}: ${result.result.error}`, 
+              timestamp: new Date() 
+            }]);
+          } else {
+            const successMsg = toolName === 'get_calendar' 
+              ? `✅ Found ${result.result?.events?.length || 0} calendar events`
+              : toolName === 'get_emails'
+                ? `✅ Found ${result.result?.emails?.length || 0} emails`
+                : `✅ ${toolName} completed`;
+            setToolActions(prev => [...prev.slice(-4), { 
+              text: successMsg, 
+              timestamp: new Date() 
+            }]);
+          }
+          
           // Send results back to the conversation
           if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
             const functionOutput = {

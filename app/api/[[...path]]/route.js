@@ -20587,6 +20587,70 @@ async function handleWebSearch(request) {
   }
 }
 
+// Test endpoint for Google connections - helps debug Google access issues
+async function handleTestGoogleConnections(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const db = await getDb();
+    
+    // Step 1: Raw database query
+    const rawConnections = await db.collection('google_connections').find({ user_id: user.id }).toArray();
+    
+    // Step 2: Get connections with token refresh
+    const validConnections = await getAllGoogleConnections(user.id);
+    
+    // Step 3: Try to access Gmail with first valid connection
+    let gmailTest = { status: 'not_tested' };
+    if (validConnections.length > 0) {
+      const account = validConnections[0];
+      try {
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET
+        );
+        oauth2Client.setCredentials({
+          access_token: account.access_token,
+          refresh_token: account.refresh_token,
+        });
+        
+        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+        const response = await gmail.users.messages.list({
+          userId: 'me',
+          maxResults: 1,
+        });
+        gmailTest = { 
+          status: 'success', 
+          message_count: response.data.messages?.length || 0,
+          email: account.email 
+        };
+      } catch (gmailErr) {
+        gmailTest = { status: 'error', error: gmailErr.message };
+      }
+    }
+
+    return NextResponse.json({
+      user_id: user.id,
+      raw_connections: rawConnections.map(c => ({
+        email: c.email,
+        connection_id: c.connection_id,
+        has_access_token: !!c.access_token,
+        has_refresh_token: !!c.refresh_token,
+        expires_at: c.expires_at,
+        is_expired: new Date(c.expires_at) < new Date(),
+      })),
+      valid_connections_count: validConnections.length,
+      gmail_test: gmailTest,
+    });
+  } catch (err) {
+    console.error('[TestGoogleConnections] Error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 // Handler: Execute Voice Chat Tool - Unified tool execution for voice chat
 // This allows voice chat to have the same capabilities as text chat
 async function handleVoiceToolExecute(request) {
@@ -21321,6 +21385,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'voice-sessions') return handleCreateVoiceSession(request);
     if (pathStr === 'web-search') return handleWebSearch(request);
     if (pathStr === 'voice/tool') return handleVoiceToolExecute(request);
+    if (pathStr === 'test/google-connections') return handleTestGoogleConnections(request);
     
     if (pathStr === 'telegram/link') return handleTelegramLink(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
