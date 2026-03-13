@@ -517,7 +517,13 @@ async function exchangeGoogleCode(code, redirectUri) {
       redirect_uri: redirectUri
     })
   });
-  return response.json();
+  
+  const data = await response.json();
+  console.log('Token exchange response status:', response.status);
+  if (data.error) {
+    console.error('Token exchange failed:', JSON.stringify(data));
+  }
+  return data;
 }
 
 // Refresh access token
@@ -632,12 +638,23 @@ async function googleApiCall(accessToken, endpoint, options = {}) {
       ...options.headers
     }
   });
+  
   const data = await response.json();
   
-  // Check for API errors
+  // Check for API errors - Google returns errors in various formats
   if (data.error) {
-    console.error(`[GoogleAPI] Error calling ${endpoint}:`, data.error);
-    throw new Error(data.error.message || data.error.status || 'Google API error');
+    const errorInfo = typeof data.error === 'object' ? data.error : { message: data.error };
+    console.error(`[GoogleAPI] Error calling ${endpoint}:`, JSON.stringify(data));
+    
+    // Build a descriptive error message
+    const errorMsg = errorInfo.message || errorInfo.status || errorInfo.code || JSON.stringify(data.error);
+    throw new Error(`Google API (${endpoint}): ${errorMsg}`);
+  }
+  
+  // Also check HTTP status
+  if (!response.ok) {
+    console.error(`[GoogleAPI] HTTP ${response.status} for ${endpoint}:`, JSON.stringify(data));
+    throw new Error(`Google API HTTP ${response.status}: ${JSON.stringify(data)}`);
   }
   
   return data;
@@ -805,55 +822,68 @@ async function handleGoogleAuthCallback(request) {
       }));
     } catch (e) {
       console.error('Failed to fetch calendars:', e);
+      // Continue without calendars - not fatal
     }
     
-    await db.collection('google_connections').updateOne(
-      { connection_id: connectionId },
-      {
-        $set: {
-          connection_id: connectionId,
-          user_id: userId,
-          google_id: userInfo.id,
-          email: userInfo.email,
-          name: userInfo.name,
-          picture: userInfo.picture,
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token || null,
-          expires_at: new Date(Date.now() + tokens.expires_in * 1000),
-          scopes: GOOGLE_SCOPES.split(' '),
-          calendars: calendars,
-          is_default: false, // Will be set to true if this is the first account
-          connected_at: new Date(),
-          updated_at: new Date()
-        }
-      },
-      { upsert: true }
-    );
-    
-    // If this is the first account, make it the default
-    const accountCount = await db.collection('google_connections').countDocuments({ user_id: userId });
-    if (accountCount === 1) {
+    // Store the connection in database
+    try {
       await db.collection('google_connections').updateOne(
         { connection_id: connectionId },
-        { $set: { is_default: true } }
+        {
+          $set: {
+            connection_id: connectionId,
+            user_id: userId,
+            google_id: userInfo.id,
+            email: userInfo.email,
+            name: userInfo.name,
+            picture: userInfo.picture,
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token || null,
+            expires_at: new Date(Date.now() + tokens.expires_in * 1000),
+            scopes: GOOGLE_SCOPES.split(' '),
+            calendars: calendars,
+            is_default: false,
+            connected_at: new Date(),
+            updated_at: new Date()
+          }
+        },
+        { upsert: true }
       );
-      
-      // Mark this as the user's first Google connection for welcome message
-      await db.collection('users').updateOne(
-        { id: userId },
-        { $set: { google_just_connected: true, google_connected_at: new Date() } }
-      );
+    } catch (dbWriteErr) {
+      console.error('Google Callback - Failed to save connection:', dbWriteErr);
+      return NextResponse.redirect(`${baseUrl}/integrations?error=${encodeURIComponent('Failed to save Google connection: ' + dbWriteErr.message)}`);
     }
     
-    return NextResponse.redirect(`${baseUrl}/integrations?google=success&first=${accountCount === 1}`);
+    // If this is the first account, make it the default
+    try {
+      const accountCount = await db.collection('google_connections').countDocuments({ user_id: userId });
+      if (accountCount === 1) {
+        await db.collection('google_connections').updateOne(
+          { connection_id: connectionId },
+          { $set: { is_default: true } }
+        );
+        
+        // Mark this as the user's first Google connection for welcome message
+        await db.collection('users').updateOne(
+          { id: userId },
+          { $set: { google_just_connected: true, google_connected_at: new Date() } }
+        );
+      }
+      
+      return NextResponse.redirect(`${baseUrl}/integrations?google=success&first=${accountCount === 1}`);
+    } catch (dbUpdateErr) {
+      console.error('Google Callback - Failed to update defaults:', dbUpdateErr);
+      // Connection was saved, just couldn't set defaults - still success
+      return NextResponse.redirect(`${baseUrl}/integrations?google=success&first=false`);
+    }
   } catch (err) {
-    console.error('Google callback error:', err);
+    console.error('Google callback error at final catch:', err);
     const PRODUCTION_URL = 'https://soulprintengine.ai';
     let errorBaseUrl = process.env.NEXT_PUBLIC_BASE_URL;
     if (!errorBaseUrl || errorBaseUrl.includes('preview.emergentagent.com') || errorBaseUrl.includes('localhost')) {
       errorBaseUrl = PRODUCTION_URL;
     }
-    return NextResponse.redirect(`${errorBaseUrl}/integrations?error=${encodeURIComponent(err.message)}`);
+    return NextResponse.redirect(`${errorBaseUrl}/integrations?error=${encodeURIComponent('Callback error: ' + err.message)}`);
   }
 }
 
