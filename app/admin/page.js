@@ -4418,6 +4418,41 @@ function SettingsTab({ token }) {
         </div>
       </div>
 
+      {/* Voice Chat Feature Toggle */}
+      <div className="p-4 bg-gradient-to-r from-orange-500/5 to-transparent border border-orange-500/20 rounded-xl">
+        <label className="text-orange-400 text-xs font-bold tracking-widest uppercase mb-3 block flex items-center gap-2">
+          <Cpu className="w-4 h-4" />
+          Voice Chat Feature
+        </label>
+        <p className="text-gray-500 text-xs mb-4">
+          Enable real-time voice conversations with AI. Uses OpenAI Realtime API. Toggle off to hide the voice chat button for all users.
+        </p>
+        
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={async () => {
+              const newEnabled = !settings.voice_chat_enabled;
+              setSettings(s => ({ ...s, voice_chat_enabled: newEnabled }));
+              try {
+                await fetch('/api/admin/settings', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ ...settings, voice_chat_enabled: newEnabled }),
+                });
+              } catch (e) {
+                console.error('Failed to toggle voice chat:', e);
+              }
+            }}
+            className={`w-12 h-6 rounded-full transition-all relative ${settings.voice_chat_enabled !== false ? 'bg-orange-500' : 'bg-white/10'}`}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settings.voice_chat_enabled !== false ? 'right-1' : 'left-1'}`} />
+          </button>
+          <span className="text-gray-400 text-sm">
+            {settings.voice_chat_enabled !== false ? 'Voice chat enabled for all users' : 'Voice chat disabled'}
+          </span>
+        </div>
+      </div>
+
       {/* Viral Invite Program */}
       <div className="p-4 bg-gradient-to-r from-purple-500/5 to-transparent border border-purple-500/20 rounded-xl">
         <label className="text-purple-400 text-xs font-bold tracking-widest uppercase mb-3 block flex items-center gap-2">

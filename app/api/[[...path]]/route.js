@@ -11375,6 +11375,21 @@ async function handleAdminUpdateSettings(request) {
   return ok({ success: true });
 }
 
+// Public endpoint to check feature flags (no admin required, but requires auth)
+async function handleGetFeatureFlags(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  const settings = await db.collection('settings').findOne({ id: 'global' });
+
+  // Only expose safe feature flags to users
+  return ok({
+    voice_chat_enabled: settings?.voice_chat_enabled !== false, // Default to true if not set
+    viral_invites_enabled: settings?.viral_invites_enabled === true,
+  });
+}
+
 // ============================================================
 // VIRAL INVITE SYSTEM
 // ============================================================
@@ -20625,6 +20640,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'user/location') return handleGetUserLocation(request);
     if (pathStr === 'user/timezone') return handleGetUserTimezone(request);
     if (pathStr === 'user/voice-settings') return handleGetVoiceSettings(request);
+    if (pathStr === 'feature-flags') return handleGetFeatureFlags(request);
     if (pathStr === 'data-imports') return handleGetDataImports(request);
     if (pathStr === 'profile/export') return handleProfileExport(request);
     if (pathStr === 'profile/soul') return handleGetSoulProfile(request);

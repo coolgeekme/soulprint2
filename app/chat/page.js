@@ -6201,6 +6201,7 @@ export default function ChatPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState(null); // For opening settings to specific tab
   const [showVoiceChat, setShowVoiceChat] = useState(false); // For voice conversations
+  const [voiceChatEnabled, setVoiceChatEnabled] = useState(true); // Feature flag from admin
   const [showSidebar, setShowSidebar] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Desktop sidebar collapse state
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
@@ -6452,6 +6453,15 @@ export default function ChatPage() {
         }]);
       })
       .catch(() => router.push('/auth'));
+    // Fetch feature flags
+    fetch('/api/feature-flags', { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.json())
+      .then(flags => {
+        if (flags.voice_chat_enabled !== undefined) {
+          setVoiceChatEnabled(flags.voice_chat_enabled);
+        }
+      })
+      .catch(() => {}); // Silent fail, default to enabled
     fetch('/api/conversations', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : [])).catch(() => {});
     // Fetch projects
@@ -8101,13 +8111,13 @@ Ask me "What can you do with Google?" anytime if you need a reminder!`,
           user={user}
           assistantName={assistantName}
           onOpenSettings={() => setShowSettings(true)}
-          onOpenVoiceChat={() => setShowVoiceChat(true)}
+          onOpenVoiceChat={voiceChatEnabled ? () => setShowVoiceChat(true) : null}
           initialConversationId={conversationId}
         />
         {showSettings && <SettingsModal onClose={() => { setShowSettings(false); setSettingsInitialTab(null); }} token={token} initialTab={settingsInitialTab} />}
         
         {/* Voice Conversation Modal */}
-        {showVoiceChat && (
+        {showVoiceChat && voiceChatEnabled && (
           <RealtimeVoiceChat 
             token={token} 
             onClose={() => setShowVoiceChat(false)}
@@ -9270,13 +9280,15 @@ Ask me "What can you do with Google?" anytime if you need a reminder!`,
               </button>
 
               {/* Voice Conversation button - Real-time voice chat */}
-              <button
-                onClick={() => setShowVoiceChat(true)}
-                title="Voice conversation"
-                className="flex-shrink-0 text-gray-600 hover:text-green-400 transition-all p-1 -m-1"
-              >
-                <AudioWaveform className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
+              {voiceChatEnabled && (
+                <button
+                  onClick={() => setShowVoiceChat(true)}
+                  title="Voice conversation"
+                  className="flex-shrink-0 text-gray-600 hover:text-green-400 transition-all p-1 -m-1"
+                >
+                  <AudioWaveform className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              )}
 
               {/* Create (Image/Video) button */}
               <CreateMenu onGenerate={handleMediaGenerate} isGenerating={isGeneratingMedia} />
@@ -10108,7 +10120,7 @@ Ask me "What can you do with Google?" anytime if you need a reminder!`,
       )}
       
       {/* Voice Conversation Modal - Desktop */}
-      {showVoiceChat && (
+      {showVoiceChat && voiceChatEnabled && (
         <RealtimeVoiceChat 
           token={token} 
           onClose={() => setShowVoiceChat(false)}
