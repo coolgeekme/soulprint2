@@ -10888,10 +10888,89 @@ async function handleAdminGetMetrics(request) {
         messages_30d: telegramMessagesLast30d,
       },
     },
+    // Voice chat metrics (from voice_sessions collection)
+    voice_chat: await getVoiceChatMetrics(db, sevenDaysAgo, thirtyDaysAgo),
     // Legacy (for backwards compatibility)
     est_cost_per_user_month: costPerAcceptedUserLast30d,
     est_projected_monthly_cost: parseFloat(totalCostLast30d.toFixed(4)),
   });
+}
+
+// Helper function to get voice chat metrics for admin dashboard
+async function getVoiceChatMetrics(db, sevenDaysAgo, thirtyDaysAgo) {
+  try {
+    const totalSessions = await db.collection('voice_sessions').countDocuments();
+    const sessionsLast7d = await db.collection('voice_sessions').countDocuments({ 
+      created_at: { $gte: sevenDaysAgo } 
+    });
+    const sessionsLast30d = await db.collection('voice_sessions').countDocuments({ 
+      created_at: { $gte: thirtyDaysAgo } 
+    });
+    
+    const completedSessions = await db.collection('voice_sessions').countDocuments({ 
+      status: 'completed' 
+    });
+    
+    // Unique users who have used voice chat
+    const uniqueVoiceUsers = await db.collection('voice_sessions').distinct('user_id');
+    
+    // Aggregate duration and message stats
+    const stats = await db.collection('voice_sessions').aggregate([
+      { $match: { status: 'completed' } },
+      {
+        $group: {
+          _id: null,
+          total_duration: { $sum: '$duration_seconds' },
+          avg_duration: { $avg: '$duration_seconds' },
+          total_messages: { $sum: '$message_count' },
+          avg_messages: { $avg: '$message_count' },
+        }
+      }
+    ]).toArray();
+    
+    const aggregateStats = stats[0] || {
+      total_duration: 0,
+      avg_duration: 0,
+      total_messages: 0,
+      avg_messages: 0,
+    };
+    
+    // Voice distribution
+    const voiceDistribution = await db.collection('voice_sessions').aggregate([
+      { $group: { _id: '$voice', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]).toArray();
+    
+    return {
+      total_sessions: totalSessions,
+      sessions_7d: sessionsLast7d,
+      sessions_30d: sessionsLast30d,
+      completed_sessions: completedSessions,
+      unique_users: uniqueVoiceUsers.length,
+      total_duration_seconds: aggregateStats.total_duration,
+      avg_duration_seconds: Math.round(aggregateStats.avg_duration || 0),
+      total_voice_messages: aggregateStats.total_messages,
+      avg_messages_per_session: Math.round(aggregateStats.avg_messages || 0),
+      voice_distribution: voiceDistribution.reduce((acc, v) => {
+        acc[v._id || 'unknown'] = v.count;
+        return acc;
+      }, {}),
+    };
+  } catch (err) {
+    console.error('Voice metrics error:', err);
+    return {
+      total_sessions: 0,
+      sessions_7d: 0,
+      sessions_30d: 0,
+      completed_sessions: 0,
+      unique_users: 0,
+      total_duration_seconds: 0,
+      avg_duration_seconds: 0,
+      total_voice_messages: 0,
+      avg_messages_per_session: 0,
+      voice_distribution: {},
+    };
+  }
 }
 
 async function handleAdminGetQuestions(request) {
@@ -19713,6 +19792,310 @@ async function handleSlackInteractive(request) {
 }
 
 // ============================================================
+// VOICE CHAT APIS - TTS Preview, Session Tracking, Web Search
+// ============================================================
+
+// Handler: TTS Voice Preview - Generate short audio sample of a voice
+async function handleTTSPreview(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { voice, text } = body;
+
+    if (!voice || !text) {
+      return NextResponse.json({ error: 'Voice and text required' }, { status: 400 });
+    }
+
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    }
+
+    // Use OpenAI TTS API (fastest and cheapest for previews)
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'tts-1', // Use standard model for speed
+        input: text.slice(0, 200), // Limit text for preview
+        voice: voice,
+        response_format: 'mp3',
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      console.error('[TTS] Preview error:', err);
+      return NextResponse.json({ 
+        error: err.error?.message || 'TTS failed' 
+      }, { status: response.status });
+    }
+
+    // Stream audio back to client
+    const audioBuffer = await response.arrayBuffer();
+    return new NextResponse(audioBuffer, {
+      headers: {
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': audioBuffer.byteLength.toString(),
+      },
+    });
+  } catch (err) {
+    console.error('[TTS] Error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// Handler: Create Voice Session - Track voice chat for admin metrics
+async function handleCreateVoiceSession(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { voice, mode, web_search_enabled } = body;
+
+    const db = await getDb();
+    const sessionId = uuidv4();
+
+    const session = {
+      id: sessionId,
+      user_id: user.id,
+      user_email: user.email,
+      voice: voice || 'alloy',
+      mode: mode || 'vad',
+      web_search_enabled: web_search_enabled ?? true,
+      status: 'started',
+      started_at: new Date(),
+      ended_at: null,
+      duration_seconds: 0,
+      message_count: 0,
+      transcript_preview: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    await db.collection('voice_sessions').insertOne(session);
+    console.log(`[Voice] Session ${sessionId} started for user ${user.id}`);
+
+    return NextResponse.json({ 
+      success: true, 
+      session_id: sessionId 
+    });
+  } catch (err) {
+    console.error('[Voice] Create session error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// Handler: Update Voice Session - Update metrics when call ends
+async function handleUpdateVoiceSession(request, sessionId) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { status, duration_seconds, message_count, transcript_preview } = body;
+
+    const db = await getDb();
+    
+    // Verify session belongs to user
+    const session = await db.collection('voice_sessions').findOne({ 
+      id: sessionId,
+      user_id: user.id 
+    });
+    
+    if (!session) {
+      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    const updates = {
+      updated_at: new Date(),
+    };
+
+    if (status) updates.status = status;
+    if (status === 'completed') updates.ended_at = new Date();
+    if (typeof duration_seconds === 'number') updates.duration_seconds = duration_seconds;
+    if (typeof message_count === 'number') updates.message_count = message_count;
+    if (transcript_preview) updates.transcript_preview = transcript_preview.slice(0, 500);
+
+    await db.collection('voice_sessions').updateOne(
+      { id: sessionId },
+      { $set: updates }
+    );
+
+    console.log(`[Voice] Session ${sessionId} updated:`, { status, duration_seconds, message_count });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error('[Voice] Update session error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// Handler: Get Voice Sessions (Admin) - For analytics dashboard
+async function handleGetVoiceSessions(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const db = await getDb();
+    const url = new URL(request.url);
+    const limit = parseInt(url.searchParams.get('limit')) || 50;
+    const page = parseInt(url.searchParams.get('page')) || 1;
+    const skip = (page - 1) * limit;
+
+    const sessions = await db.collection('voice_sessions')
+      .find({})
+      .sort({ created_at: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray();
+
+    const total = await db.collection('voice_sessions').countDocuments();
+
+    // Calculate aggregate stats
+    const stats = await db.collection('voice_sessions').aggregate([
+      {
+        $group: {
+          _id: null,
+          total_sessions: { $sum: 1 },
+          total_duration: { $sum: '$duration_seconds' },
+          avg_duration: { $avg: '$duration_seconds' },
+          total_messages: { $sum: '$message_count' },
+          completed_count: { 
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } 
+          },
+        }
+      }
+    ]).toArray();
+
+    const aggregateStats = stats[0] || {
+      total_sessions: 0,
+      total_duration: 0,
+      avg_duration: 0,
+      total_messages: 0,
+      completed_count: 0,
+    };
+
+    return NextResponse.json({
+      sessions,
+      total,
+      page,
+      limit,
+      stats: aggregateStats,
+    });
+  } catch (err) {
+    console.error('[Voice] Get sessions error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// Handler: Web Search - Search the web using Tavily (for voice chat real-time data)
+async function handleWebSearch(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { query, limit = 3 } = body;
+
+    if (!query) {
+      return NextResponse.json({ error: 'Query required' }, { status: 400 });
+    }
+
+    const tavilyKey = process.env.TAVILY_API_KEY;
+    const braveKey = process.env.BRAVE_SEARCH_API_KEY;
+
+    // Try Tavily first (preferred)
+    if (tavilyKey) {
+      try {
+        const response = await fetch('https://api.tavily.com/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            api_key: tavilyKey,
+            query: query,
+            max_results: limit,
+            search_depth: 'basic',
+            include_answer: true,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`[WebSearch] Tavily returned ${data.results?.length || 0} results for: ${query}`);
+          
+          return NextResponse.json({
+            results: data.results?.map(r => ({
+              title: r.title,
+              url: r.url,
+              content: r.content?.slice(0, 500),
+            })) || [],
+            answer: data.answer,
+            query: query,
+          });
+        }
+      } catch (tavilyErr) {
+        console.error('[WebSearch] Tavily error:', tavilyErr);
+      }
+    }
+
+    // Fallback to Brave Search
+    if (braveKey) {
+      try {
+        const response = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${limit}`, {
+          headers: {
+            'X-Subscription-Token': braveKey,
+            'Accept': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`[WebSearch] Brave returned ${data.web?.results?.length || 0} results for: ${query}`);
+          
+          return NextResponse.json({
+            results: data.web?.results?.map(r => ({
+              title: r.title,
+              url: r.url,
+              content: r.description?.slice(0, 500),
+            })) || [],
+            query: query,
+          });
+        }
+      } catch (braveErr) {
+        console.error('[WebSearch] Brave error:', braveErr);
+      }
+    }
+
+    return NextResponse.json({ 
+      error: 'No search provider configured',
+      results: [],
+    }, { status: 503 });
+  } catch (err) {
+    console.error('[WebSearch] Error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// ============================================================
 // ROUTER
 // ============================================================
 
@@ -19807,6 +20190,9 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/insights') return handleAdminGetBusinessInsights(request);
     if (pathStr === 'admin/pricing-features') return handleAdminGetPricingFeatures(request);
     if (pathStr === 'admin/pricing-features/calculate') return handleAdminCalculatePricing(request);
+    
+    // Voice sessions (admin)
+    if (pathStr === 'admin/voice-sessions') return handleGetVoiceSessions(request);
 
     // Google OAuth & API routes
     if (pathStr === 'auth/google/callback') return handleGoogleAuthCallback(request);
@@ -19902,6 +20288,12 @@ export async function POST(request, { params }) {
     if (pathStr === 'imports/extracted') return handleImportExtracted(request);
     if (pathStr === 'transcribe') return handleTranscribe(request);
     if (pathStr === 'realtime/session') return handleRealtimeSession(request);
+    
+    // Voice Chat APIs
+    if (pathStr === 'tts/preview') return handleTTSPreview(request);
+    if (pathStr === 'voice-sessions') return handleCreateVoiceSession(request);
+    if (pathStr === 'web-search') return handleWebSearch(request);
+    
     if (pathStr === 'telegram/link') return handleTelegramLink(request);
     if (pathStr === 'telegram/setup') return handleTelegramSetup(request);
     if (pathStr === 'telegram/model') return handleTelegramSetModel(request);
@@ -20123,6 +20515,24 @@ export async function DELETE(request, { params }) {
     return err('Not found', 404);
   } catch (error) {
     console.error('DELETE error:', error);
+    return err(error.message, 500);
+  }
+}
+
+export async function PATCH(request, { params }) {
+  const pathArr = params?.path || [];
+  const pathStr = pathArr.join('/');
+
+  try {
+    // Voice session update: voice-sessions/:id
+    if (pathStr.startsWith('voice-sessions/') && pathArr.length === 2) {
+      const sessionId = pathArr[1];
+      return handleUpdateVoiceSession(request, sessionId);
+    }
+
+    return err('Not found', 404);
+  } catch (error) {
+    console.error('PATCH error:', error);
     return err(error.message, 500);
   }
 }

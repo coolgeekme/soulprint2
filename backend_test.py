@@ -1,330 +1,351 @@
 #!/usr/bin/env python3
+
 """
-Backend Test Suite for SoulPrint Engine Critical Fixes
-Tests two P0 fixes:
-1. Google OAuth Redirect URI Fix
-2. Image Edit Endpoint with Multiple API Fallbacks
+Backend API Testing Suite - Voice Chat Feature Testing
+Tests the 5 new Voice Chat APIs as requested in review.
 """
 
 import requests
-import base64
 import json
 import os
-from io import BytesIO
-from PIL import Image
 import time
+from datetime import datetime
 
-# Get backend URL from environment
-BACKEND_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://soulprintengine.ai')
-if not BACKEND_URL.startswith('http'):
-    BACKEND_URL = f'https://{BACKEND_URL}'
+# Configuration
+BASE_URL = "https://voice-chat-enhanced.preview.emergentagent.com/api"
+TEST_EMAIL = "test@soulprint.com"  
+TEST_PASSWORD = "test123"
 
-API_BASE = f"{BACKEND_URL}/api"
-
-print(f"🚀 Starting SoulPrint Engine Critical Fixes Test")
-print(f"📍 Backend URL: {BACKEND_URL}")
-print(f"📍 API Base: {API_BASE}")
-print("="*80)
-
-class TestRunner:
+class VoiceChatAPITester:
     def __init__(self):
-        self.auth_token = None
-        self.user_id = None
+        self.session = requests.Session()
+        self.token = None
+        self.admin_token = None
+        self.session_id = None
         
-    def login(self):
-        """Login as test user"""
-        print("\n📋 Test 1: Authentication Setup")
-        print("-" * 40)
+    def log(self, message):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        print(f"[{timestamp}] {message}")
         
+    def test_authentication(self):
+        """Test 1: Authentication - Login to get token"""
         try:
-            login_data = {
-                "email": "test@soulprint.com",
-                "passcode": "test123"
-            }
+            self.log("🔐 Testing Authentication...")
             
-            response = requests.post(f"{API_BASE}/auth/login", json=login_data)
-            print(f"   ✅ POST /api/auth/login: {response.status_code}")
+            response = self.session.post(f"{BASE_URL}/auth/login", 
+                json={"email": TEST_EMAIL, "passcode": TEST_PASSWORD})
             
             if response.status_code == 200:
                 data = response.json()
-                self.auth_token = data.get('token')
-                self.user_id = data.get('userId')
-                print(f"   ✅ Token received: {self.auth_token[:20]}...")
-                print(f"   ✅ User ID: {self.user_id}")
-                print(f"   ✅ Role: {data.get('role')}")
+                self.token = data.get('token')
+                self.admin_token = self.token  # test@soulprint.com should be superadmin
+                
+                # Set authorization header for future requests
+                self.session.headers.update({
+                    'Authorization': f'Bearer {self.token}',
+                    'Content-Type': 'application/json'
+                })
+                
+                self.log(f"✅ LOGIN SUCCESS: Token obtained, Role: {data.get('role', 'unknown')}")
                 return True
             else:
-                print(f"   ❌ Login failed: {response.text}")
+                error_msg = response.json().get('error', 'Unknown error') if response.content else f"HTTP {response.status_code}"
+                self.log(f"❌ LOGIN FAILED: {error_msg}")
                 return False
                 
         except Exception as e:
-            print(f"   ❌ Login error: {str(e)}")
+            self.log(f"❌ LOGIN ERROR: {str(e)}")
             return False
     
-    def get_auth_headers(self):
-        """Get authorization headers"""
-        return {"Authorization": f"Bearer {self.auth_token}"}
-    
-    def test_google_oauth_redirect_fix(self):
-        """Test Google OAuth redirect URI fix"""
-        print("\n📋 Test 2: Google OAuth Redirect URI Fix")
-        print("-" * 40)
-        print("   🔍 Testing GET /api/auth/google")
-        
+    def test_tts_preview_api(self):
+        """Test 2: TTS Voice Preview API (POST /api/tts/preview)"""
         try:
-            # Call Google OAuth start endpoint
-            response = requests.post(
-                f"{API_BASE}/auth/google",
-                headers=self.get_auth_headers()
-            )
+            self.log("🎤 Testing TTS Voice Preview API...")
             
-            print(f"   ✅ Response status: {response.status_code}")
+            # Test different voices as specified
+            test_voices = ["alloy", "echo", "shimmer"]
             
-            if response.status_code == 200:
-                data = response.json()
-                auth_url = data.get('authUrl', '')
+            for voice in test_voices:
+                test_data = {
+                    "voice": voice,
+                    "text": "Hello, this is a voice preview."
+                }
                 
-                print(f"   📤 Auth URL received: {len(auth_url)} characters")
+                response = self.session.post(f"{BASE_URL}/tts/preview", json=test_data)
                 
-                # Parse redirect_uri from auth URL
-                if 'redirect_uri=' in auth_url:
-                    redirect_start = auth_url.find('redirect_uri=') + len('redirect_uri=')
-                    redirect_end = auth_url.find('&', redirect_start)
-                    if redirect_end == -1:
-                        redirect_end = len(auth_url)
+                if response.status_code == 200:
+                    # Should return audio/mpeg binary data
+                    content_type = response.headers.get('Content-Type', '')
+                    content_length = len(response.content)
                     
-                    redirect_uri = auth_url[redirect_start:redirect_end]
-                    # URL decode the redirect_uri
-                    import urllib.parse
-                    redirect_uri = urllib.parse.unquote(redirect_uri)
-                    
-                    print(f"   🔍 Extracted redirect_uri: {redirect_uri}")
-                    
-                    # Test the critical fix
-                    expected_redirect = "https://soulprintengine.ai/api/auth/google/callback"
-                    
-                    if redirect_uri == expected_redirect:
-                        print(f"   ✅ PASS: redirect_uri is correct production URL")
-                        print(f"   ✅ Expected: {expected_redirect}")
-                        print(f"   ✅ Actual:   {redirect_uri}")
-                        
-                        # Verify it's NOT using preview or localhost
-                        if "preview.emergentagent.com" not in redirect_uri and "localhost" not in redirect_uri:
-                            print(f"   ✅ PASS: No preview or localhost URLs detected")
-                            return True
-                        else:
-                            print(f"   ❌ FAIL: Contains preview/localhost URL")
-                            return False
+                    if 'audio/mpeg' in content_type and content_length > 0:
+                        self.log(f"✅ TTS PREVIEW SUCCESS: Voice '{voice}' - {content_length} bytes audio data")
                     else:
-                        print(f"   ❌ FAIL: redirect_uri mismatch")
-                        print(f"   ❌ Expected: {expected_redirect}")
-                        print(f"   ❌ Actual:   {redirect_uri}")
-                        return False
+                        self.log(f"⚠️  TTS PREVIEW WARNING: Voice '{voice}' - Unexpected content type: {content_type}, Length: {content_length}")
                 else:
-                    print(f"   ❌ FAIL: No redirect_uri parameter found in auth URL")
-                    print(f"   📤 Auth URL: {auth_url[:200]}...")
+                    error_msg = response.json().get('error', 'Unknown error') if response.content else f"HTTP {response.status_code}"
+                    self.log(f"❌ TTS PREVIEW FAILED: Voice '{voice}' - {error_msg}")
                     return False
-            else:
-                print(f"   ❌ FAIL: HTTP {response.status_code}")
-                print(f"   📤 Response: {response.text}")
-                return False
-                
+            
+            return True
+            
         except Exception as e:
-            print(f"   ❌ ERROR: {str(e)}")
+            self.log(f"❌ TTS PREVIEW ERROR: {str(e)}")
             return False
     
-    def create_test_image(self):
-        """Create a simple test image (red square)"""
-        print("   🎨 Creating test image (red square)...")
-        
-        # Create a 100x100 red square
-        img = Image.new('RGB', (100, 100), color='red')
-        
-        # Convert to base64
-        buffer = BytesIO()
-        img.save(buffer, format='PNG')
-        img_bytes = buffer.getvalue()
-        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-        
-        print(f"   ✅ Test image created: {len(img_base64)} base64 characters")
-        
-        return {
-            "base64": img_base64,
-            "mimeType": "image/png"
-        }
-    
-    def test_image_edit_endpoint(self):
-        """Test image edit endpoint with multiple API fallbacks"""
-        print("\n📋 Test 3: Image Edit Endpoint with Multiple API Fallbacks")
-        print("-" * 40)
-        print("   🔍 Testing POST /api/image/edit")
-        
+    def test_voice_session_create_api(self):
+        """Test 3: Voice Session Create API (POST /api/voice-sessions)"""
         try:
-            # Create test image
-            test_image = self.create_test_image()
+            self.log("📞 Testing Voice Session Create API...")
             
-            # Test payload
-            payload = {
-                "image": test_image,
-                "prompt": "change the color to blue"
+            test_data = {
+                "voice": "alloy",
+                "mode": "vad", 
+                "web_search_enabled": True
             }
             
-            print(f"   📤 Sending image edit request...")
-            print(f"   📤 Prompt: '{payload['prompt']}'")
-            
-            # Call image edit endpoint
-            response = requests.post(
-                f"{API_BASE}/image/edit",
-                json=payload,
-                headers=self.get_auth_headers()
-            )
-            
-            print(f"   ✅ Response status: {response.status_code}")
+            response = self.session.post(f"{BASE_URL}/voice-sessions", json=test_data)
             
             if response.status_code == 200:
                 data = response.json()
                 
-                # Check required fields
-                required_fields = ['url', 'method']
-                found_fields = []
-                missing_fields = []
-                
-                for field in required_fields:
-                    if field in data:
-                        found_fields.append(field)
-                    else:
-                        missing_fields.append(field)
-                
-                print(f"   📤 Response fields: {list(data.keys())}")
-                print(f"   ✅ Found required fields: {found_fields}")
-                
-                if missing_fields:
-                    print(f"   ⚠️ Missing fields: {missing_fields}")
-                
-                # Check the method used (which API was attempted)
-                method = data.get('method', 'unknown')
-                url = data.get('url', '')
-                
-                print(f"   🔧 Method used: {method}")
-                print(f"   📷 Result URL length: {len(url)} characters")
-                
-                # Verify the API hierarchy was attempted
-                if method in ['responses-api-gpt-4.1', 'images-edits-gpt-image-1', 'dall-e-3-fallback', 'generation']:
-                    print(f"   ✅ PASS: Valid API method used ({method})")
-                    
-                    # Note about method types
-                    if method == 'generation':
-                        print(f"   ℹ️ Note: Using DALL-E 3 generation (may indicate API quota limits on newer methods)")
-                    
-                    # Check if URL is present
-                    if url:
-                        print(f"   ✅ PASS: Image URL returned")
-                        
-                        # Check if it's a data URL or HTTP URL
-                        if url.startswith('data:image/') or url.startswith('http'):
-                            print(f"   ✅ PASS: Valid image URL format")
-                            return True
-                        else:
-                            print(f"   ❌ FAIL: Invalid URL format")
-                            return False
-                    else:
-                        print(f"   ❌ FAIL: No image URL returned")
-                        return False
+                if data.get('success') and data.get('session_id'):
+                    self.session_id = data['session_id']
+                    self.log(f"✅ VOICE SESSION CREATE SUCCESS: Session ID: {self.session_id}")
+                    return True
                 else:
-                    print(f"   ❌ FAIL: Unknown API method: {method}")
-                    return False
-                    
-            elif response.status_code in [400, 401, 403]:
-                print(f"   ❌ FAIL: Client error {response.status_code}")
-                print(f"   📤 Response: {response.text}")
-                return False
-            elif response.status_code >= 500:
-                print(f"   ⚠️ Server error {response.status_code} (may be expected if API quotas exceeded)")
-                try:
-                    error_data = response.json()
-                    error_message = error_data.get('error', 'Unknown error')
-                    print(f"   📤 Error message: {error_message}")
-                    
-                    # If it's a quota error, that's actually expected behavior
-                    if any(keyword in error_message.lower() for keyword in ['quota', 'rate limit', 'billing', 'insufficient']):
-                        print(f"   ✅ CONDITIONAL PASS: Quota/billing error is expected behavior")
-                        print(f"   ℹ️ The endpoint is correctly attempting the APIs but hitting limits")
-                        return True
-                    else:
-                        print(f"   ❌ FAIL: Unexpected server error")
-                        return False
-                except:
-                    print(f"   ❌ FAIL: Server error with non-JSON response")
+                    self.log(f"❌ VOICE SESSION CREATE FAILED: Invalid response format - {data}")
                     return False
             else:
-                print(f"   ❌ FAIL: Unexpected status code {response.status_code}")
+                error_msg = response.json().get('error', 'Unknown error') if response.content else f"HTTP {response.status_code}"
+                self.log(f"❌ VOICE SESSION CREATE FAILED: {error_msg}")
                 return False
                 
         except Exception as e:
-            print(f"   ❌ ERROR: {str(e)}")
+            self.log(f"❌ VOICE SESSION CREATE ERROR: {str(e)}")
+            return False
+    
+    def test_voice_session_update_api(self):
+        """Test 4: Voice Session Update API (PATCH /api/voice-sessions/:id)"""
+        try:
+            self.log("📝 Testing Voice Session Update API...")
+            
+            if not self.session_id:
+                self.log("❌ VOICE SESSION UPDATE FAILED: No session ID from create test")
+                return False
+            
+            test_data = {
+                "status": "completed",
+                "duration_seconds": 120,
+                "message_count": 10,
+                "transcript_preview": "Test transcript"
+            }
+            
+            response = self.session.patch(f"{BASE_URL}/voice-sessions/{self.session_id}", json=test_data)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get('success'):
+                    self.log(f"✅ VOICE SESSION UPDATE SUCCESS: Session {self.session_id} updated")
+                    return True
+                else:
+                    self.log(f"❌ VOICE SESSION UPDATE FAILED: Invalid response format - {data}")
+                    return False
+            else:
+                error_msg = response.json().get('error', 'Unknown error') if response.content else f"HTTP {response.status_code}"
+                self.log(f"❌ VOICE SESSION UPDATE FAILED: {error_msg}")
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ VOICE SESSION UPDATE ERROR: {str(e)}")
+            return False
+    
+    def test_web_search_api(self):
+        """Test 5: Web Search API (POST /api/web-search)"""
+        try:
+            self.log("🔍 Testing Web Search API...")
+            
+            test_data = {
+                "query": "current weather in New York",
+                "limit": 3
+            }
+            
+            response = self.session.post(f"{BASE_URL}/web-search", json=test_data)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Should have results array and query field
+                if 'results' in data and 'query' in data:
+                    results_count = len(data['results'])
+                    self.log(f"✅ WEB SEARCH SUCCESS: {results_count} results for query '{data['query']}'")
+                    
+                    # Log first result as example
+                    if results_count > 0:
+                        first_result = data['results'][0]
+                        self.log(f"   Sample result: {first_result.get('title', 'No title')[:50]}...")
+                    
+                    return True
+                else:
+                    self.log(f"❌ WEB SEARCH FAILED: Invalid response format - {data}")
+                    return False
+            else:
+                error_msg = response.json().get('error', 'Unknown error') if response.content else f"HTTP {response.status_code}"
+                self.log(f"❌ WEB SEARCH FAILED: {error_msg}")
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ WEB SEARCH ERROR: {str(e)}")
+            return False
+    
+    def test_admin_voice_sessions_api(self):
+        """Test 6: Admin Voice Sessions (GET /api/admin/voice-sessions)"""
+        try:
+            self.log("👑 Testing Admin Voice Sessions API...")
+            
+            response = self.session.get(f"{BASE_URL}/admin/voice-sessions")
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Should have sessions array, total, page, limit, and stats
+                expected_fields = ['sessions', 'total', 'page', 'limit', 'stats']
+                if all(field in data for field in expected_fields):
+                    sessions_count = len(data['sessions'])
+                    total_sessions = data['total']
+                    stats = data['stats']
+                    
+                    self.log(f"✅ ADMIN VOICE SESSIONS SUCCESS: {sessions_count} sessions returned, {total_sessions} total")
+                    self.log(f"   Stats: {stats.get('total_sessions', 0)} total, {stats.get('completed_count', 0)} completed")
+                    
+                    # Verify our test session appears
+                    if self.session_id:
+                        session_found = any(session.get('id') == self.session_id for session in data['sessions'])
+                        if session_found:
+                            self.log(f"✅ TEST SESSION VERIFIED: Session {self.session_id} found in admin list")
+                        else:
+                            self.log(f"⚠️  TEST SESSION NOT FOUND: Session {self.session_id} not in admin list (may be pagination)")
+                    
+                    return True
+                else:
+                    missing_fields = [f for f in expected_fields if f not in data]
+                    self.log(f"❌ ADMIN VOICE SESSIONS FAILED: Missing fields: {missing_fields}")
+                    return False
+            else:
+                error_msg = response.json().get('error', 'Unknown error') if response.content else f"HTTP {response.status_code}"
+                self.log(f"❌ ADMIN VOICE SESSIONS FAILED: {error_msg}")
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ ADMIN VOICE SESSIONS ERROR: {str(e)}")
+            return False
+    
+    def test_admin_metrics_voice_chat(self):
+        """Test 7: Admin Metrics Voice Chat (GET /api/admin/metrics)"""
+        try:
+            self.log("📊 Testing Admin Metrics Voice Chat...")
+            
+            response = self.session.get(f"{BASE_URL}/admin/metrics")
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Should include voice_chat object with metrics
+                if 'voice_chat' in data:
+                    voice_metrics = data['voice_chat']
+                    
+                    # Check expected voice_chat fields
+                    expected_fields = ['total_sessions', 'sessions_7d', 'sessions_30d', 'completed_sessions', 
+                                     'unique_users', 'total_duration_seconds', 'avg_duration_seconds', 
+                                     'total_voice_messages', 'avg_messages_per_session', 'voice_distribution']
+                    
+                    missing_fields = [f for f in expected_fields if f not in voice_metrics]
+                    
+                    if not missing_fields:
+                        self.log(f"✅ ADMIN METRICS VOICE CHAT SUCCESS: All voice_chat metrics present")
+                        self.log(f"   Voice metrics: {voice_metrics.get('total_sessions', 0)} sessions, {voice_metrics.get('unique_users', 0)} users")
+                        return True
+                    else:
+                        self.log(f"❌ ADMIN METRICS VOICE CHAT FAILED: Missing voice_chat fields: {missing_fields}")
+                        return False
+                else:
+                    self.log(f"❌ ADMIN METRICS VOICE CHAT FAILED: No voice_chat object in response")
+                    return False
+            else:
+                error_msg = response.json().get('error', 'Unknown error') if response.content else f"HTTP {response.status_code}"
+                self.log(f"❌ ADMIN METRICS VOICE CHAT FAILED: {error_msg}")
+                return False
+                
+        except Exception as e:
+            self.log(f"❌ ADMIN METRICS VOICE CHAT ERROR: {str(e)}")
             return False
     
     def run_all_tests(self):
-        """Run all tests"""
-        print("🧪 Running SoulPrint Engine Critical Fixes Test Suite")
+        """Run all Voice Chat API tests"""
+        self.log("🚀 Starting Voice Chat API Testing Suite...")
+        self.log(f"   Base URL: {BASE_URL}")
+        self.log(f"   Test User: {TEST_EMAIL}")
         
-        # Test results tracking
-        results = {}
+        test_results = []
         
         # Test 1: Authentication
-        results['auth'] = self.login()
+        result = self.test_authentication()
+        test_results.append(("Authentication", result))
+        if not result:
+            self.log("❌ CRITICAL: Cannot proceed without authentication")
+            return test_results
         
-        if not results['auth']:
-            print("\n❌ CRITICAL: Authentication failed - cannot continue with other tests")
-            return results
+        # Test 2: TTS Voice Preview API  
+        result = self.test_tts_preview_api()
+        test_results.append(("TTS Voice Preview API", result))
         
-        # Test 2: Google OAuth Redirect URI Fix
-        results['google_oauth_redirect'] = self.test_google_oauth_redirect_fix()
+        # Test 3: Voice Session Create API
+        result = self.test_voice_session_create_api()
+        test_results.append(("Voice Session Create API", result))
         
-        # Test 3: Image Edit Endpoint
-        results['image_edit_endpoint'] = self.test_image_edit_endpoint()
+        # Test 4: Voice Session Update API
+        result = self.test_voice_session_update_api()
+        test_results.append(("Voice Session Update API", result))
         
-        return results
-    
-    def print_summary(self, results):
-        """Print test summary"""
-        print("\n" + "="*80)
-        print("📊 TEST RESULTS SUMMARY")
-        print("="*80)
+        # Test 5: Web Search API
+        result = self.test_web_search_api()
+        test_results.append(("Web Search API", result))
         
-        passed = 0
-        total = 0
+        # Test 6: Admin Voice Sessions API
+        result = self.test_admin_voice_sessions_api()
+        test_results.append(("Admin Voice Sessions API", result))
         
-        for test_name, result in results.items():
-            total += 1
-            status = "✅ PASS" if result else "❌ FAIL"
-            test_display = test_name.replace('_', ' ').title()
-            print(f"   {status} {test_display}")
-            if result:
-                passed += 1
+        # Test 7: Admin Metrics Voice Chat
+        result = self.test_admin_metrics_voice_chat()
+        test_results.append(("Admin Metrics Voice Chat", result))
         
-        print(f"\nOverall: {passed}/{total} tests passed")
+        # Summary
+        self.log("\n" + "="*60)
+        self.log("📋 VOICE CHAT API TESTING SUMMARY")
+        self.log("="*60)
         
-        if passed == total:
-            print("🎉 ALL TESTS PASSED! Critical fixes are working correctly.")
+        passed_count = 0
+        for test_name, passed in test_results:
+            status = "✅ PASS" if passed else "❌ FAIL"
+            self.log(f"{status}: {test_name}")
+            if passed:
+                passed_count += 1
+        
+        total_tests = len(test_results)
+        success_rate = (passed_count / total_tests) * 100
+        
+        self.log("="*60)
+        self.log(f"📊 RESULTS: {passed_count}/{total_tests} tests passed ({success_rate:.1f}% success rate)")
+        
+        if passed_count == total_tests:
+            self.log("🎉 ALL VOICE CHAT APIS WORKING PERFECTLY!")
         else:
-            print("⚠️ Some tests failed. Please review the issues above.")
+            failed_tests = [name for name, passed in test_results if not passed]
+            self.log(f"⚠️  FAILED TESTS: {', '.join(failed_tests)}")
         
-        return passed == total
-
-def main():
-    """Main test execution"""
-    runner = TestRunner()
-    
-    try:
-        results = runner.run_all_tests()
-        success = runner.print_summary(results)
-        
-        return 0 if success else 1
-        
-    except Exception as e:
-        print(f"\n💥 FATAL ERROR: {str(e)}")
-        return 1
+        return test_results
 
 if __name__ == "__main__":
-    exit(main())
+    tester = VoiceChatAPITester()
+    tester.run_all_tests()

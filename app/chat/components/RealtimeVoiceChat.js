@@ -1,22 +1,23 @@
 // OpenAI Realtime Voice Chat Component
 // Uses WebRTC for bidirectional audio streaming with gpt-4o-realtime model
+// Features: Voice preview, web search, session tracking
 
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, MicOff, PhoneOff, Volume2, VolumeX, Loader2, AudioWaveform, ChevronDown, X } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, Volume2, VolumeX, Loader2, AudioWaveform, ChevronDown, X, Play, Square, Globe, Search } from 'lucide-react';
 
 const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-12-17';
 
 // Available voices from OpenAI Realtime API
 const VOICES = [
-  { id: 'alloy', name: 'Alloy', desc: 'Neutral & balanced' },
-  { id: 'ash', name: 'Ash', desc: 'Soft & thoughtful' },
-  { id: 'ballad', name: 'Ballad', desc: 'Warm & expressive' },
-  { id: 'coral', name: 'Coral', desc: 'Clear & friendly' },
-  { id: 'echo', name: 'Echo', desc: 'Smooth & calm' },
-  { id: 'sage', name: 'Sage', desc: 'Wise & measured' },
-  { id: 'shimmer', name: 'Shimmer', desc: 'Bright & energetic' },
-  { id: 'verse', name: 'Verse', desc: 'Dynamic & engaging' },
+  { id: 'alloy', name: 'Alloy', desc: 'Neutral & balanced', preview: 'Hello! I\'m Alloy, your AI assistant.' },
+  { id: 'ash', name: 'Ash', desc: 'Soft & thoughtful', preview: 'Hi there. I\'m Ash, here to help you.' },
+  { id: 'ballad', name: 'Ballad', desc: 'Warm & expressive', preview: 'Hey! I\'m Ballad, ready to chat with you.' },
+  { id: 'coral', name: 'Coral', desc: 'Clear & friendly', preview: 'Hello! I\'m Coral, nice to meet you.' },
+  { id: 'echo', name: 'Echo', desc: 'Smooth & calm', preview: 'Greetings. I\'m Echo, at your service.' },
+  { id: 'sage', name: 'Sage', desc: 'Wise & measured', preview: 'Hello. I\'m Sage, here to assist you.' },
+  { id: 'shimmer', name: 'Shimmer', desc: 'Bright & energetic', preview: 'Hi! I\'m Shimmer, excited to help!' },
+  { id: 'verse', name: 'Verse', desc: 'Dynamic & engaging', preview: 'Hey there! I\'m Verse, let\'s talk!' },
 ];
 
 export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, systemPrompt, userName }) {
@@ -29,21 +30,130 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
   const [mode, setMode] = useState('vad'); // 'vad' or 'push-to-talk'
   const [selectedVoice, setSelectedVoice] = useState('alloy');
   const [showVoiceMenu, setShowVoiceMenu] = useState(false);
-  const [conversationHistory, setConversationHistory] = useState([]); // Track full conversation
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [previewingVoice, setPreviewingVoice] = useState(null);
+  const [previewAudio, setPreviewAudio] = useState(null);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const [sessionStartTime, setSessionStartTime] = useState(null);
   
   const peerConnectionRef = useRef(null);
   const dataChannelRef = useRef(null);
   const audioElementRef = useRef(null);
   const localStreamRef = useRef(null);
+  const previewAudioRef = useRef(null);
 
-  // Initialize WebRTC connection
+  // Preview a voice using TTS API
+  const previewVoice = useCallback(async (voiceId) => {
+    // Stop any current preview
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+    }
+    
+    if (previewingVoice === voiceId) {
+      setPreviewingVoice(null);
+      return;
+    }
+    
+    setPreviewingVoice(voiceId);
+    
+    try {
+      const voice = VOICES.find(v => v.id === voiceId);
+      const response = await fetch('/api/tts/preview', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          voice: voiceId,
+          text: voice?.preview || 'Hello, this is a voice preview.',
+        }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to generate preview');
+      
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      previewAudioRef.current = audio;
+      
+      audio.onended = () => {
+        setPreviewingVoice(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      audio.play();
+    } catch (err) {
+      console.error('Voice preview error:', err);
+      setPreviewingVoice(null);
+    }
+  }, [token, previewingVoice]);
+
+  // Stop preview
+  const stopPreview = useCallback(() => {
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current = null;
+    }
+    setPreviewingVoice(null);
+  }, []);
+
+  // Web search function for the AI to call
+  const performWebSearch = useCallback(async (query) => {
+    setIsSearching(true);
+    try {
+      const response = await fetch('/api/web-search', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query, limit: 3 }),
+      });
+      
+      if (!response.ok) throw new Error('Search failed');
+      
+      const data = await response.json();
+      return data.results || [];
+    } catch (err) {
+      console.error('Web search error:', err);
+      return [];
+    } finally {
+      setIsSearching(false);
+    }
+  }, [token]);
+
+  // Start voice chat session and track it
   const startVoiceChat = useCallback(async () => {
     try {
       setStatus('connecting');
       setError(null);
       setConversationHistory([]);
+      setSessionStartTime(new Date());
 
-      // 1. Get ephemeral token from our backend
+      // 1. Create session in our backend for tracking
+      const trackResponse = await fetch('/api/voice-sessions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          voice: selectedVoice,
+          mode: mode,
+          web_search_enabled: webSearchEnabled,
+        }),
+      });
+      
+      if (trackResponse.ok) {
+        const trackData = await trackResponse.json();
+        setSessionId(trackData.session_id);
+      }
+
+      // 2. Get ephemeral token from OpenAI
       const sessionResponse = await fetch('/api/realtime/session', {
         method: 'POST',
         headers: {
@@ -69,13 +179,13 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
         throw new Error('No ephemeral key received');
       }
 
-      // 2. Create WebRTC peer connection
+      // 3. Create WebRTC peer connection
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
       });
       peerConnectionRef.current = pc;
 
-      // 3. Set up audio element for playback
+      // 4. Set up audio element for playback
       const audioEl = document.createElement('audio');
       audioEl.autoplay = true;
       audioElementRef.current = audioEl;
@@ -85,7 +195,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
         audioEl.srcObject = event.streams[0];
       };
 
-      // 4. Add local audio track
+      // 5. Add local audio track
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
@@ -99,14 +209,15 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
         pc.addTrack(track, stream);
       });
 
-      // 5. Set up data channel for events
+      // 6. Set up data channel for events
       const dc = pc.createDataChannel('oai-events');
       dataChannelRef.current = dc;
 
       dc.onopen = () => {
         console.log('[Realtime] Data channel opened');
-        // Configure the session
-        dc.send(JSON.stringify({
+        
+        // Configure session with tools for web search
+        const sessionConfig = {
           type: 'session.update',
           session: {
             modalities: ['text', 'audio'],
@@ -122,9 +233,32 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
               prefix_padding_ms: 300,
               silence_duration_ms: 500,
             } : null,
-            instructions: systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}. Be conversational, natural, and concise. Respond as if you're having a real phone call.`,
+            instructions: `${systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}.`}
+
+${webSearchEnabled ? `You have access to real-time web search. When the user asks about current events, news, weather, sports scores, stock prices, or any information that requires up-to-date data, use the web_search function to find accurate information. Always cite your sources when providing searched information.` : ''}
+
+Be conversational, natural, and concise. Respond as if you're having a real phone call.`,
+            tools: webSearchEnabled ? [
+              {
+                type: 'function',
+                name: 'web_search',
+                description: 'Search the web for current information. Use this for news, weather, sports, stocks, current events, or any real-time data.',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    query: {
+                      type: 'string',
+                      description: 'The search query',
+                    },
+                  },
+                  required: ['query'],
+                },
+              },
+            ] : [],
           },
-        }));
+        };
+        
+        dc.send(JSON.stringify(sessionConfig));
       };
 
       dc.onmessage = (event) => {
@@ -132,7 +266,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
         handleRealtimeEvent(data);
       };
 
-      // 6. Create and send offer to OpenAI
+      // 7. Create and send offer to OpenAI
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -164,32 +298,22 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
       setStatus('error');
       cleanup();
     }
-  }, [token, systemPrompt, userName, mode, selectedVoice]);
+  }, [token, systemPrompt, userName, mode, selectedVoice, webSearchEnabled]);
 
   // Handle events from OpenAI Realtime API
-  const handleRealtimeEvent = (event) => {
+  const handleRealtimeEvent = useCallback(async (event) => {
     console.log('[Realtime Event]', event.type);
 
     switch (event.type) {
       case 'session.created':
-        console.log('[Realtime] Session created');
-        break;
-
       case 'session.updated':
-        console.log('[Realtime] Session updated');
         break;
 
       case 'input_audio_buffer.speech_started':
-        console.log('[Realtime] User started speaking');
         setIsAISpeaking(false);
         break;
 
-      case 'input_audio_buffer.speech_stopped':
-        console.log('[Realtime] User stopped speaking');
-        break;
-
       case 'conversation.item.input_audio_transcription.completed':
-        console.log('[Realtime] User transcript:', event.transcript);
         const userText = event.transcript || '';
         setTranscript(userText);
         if (userText) {
@@ -202,7 +326,6 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
         break;
 
       case 'response.audio_transcript.done':
-        console.log('[Realtime] AI response complete:', event.transcript);
         const aiText = event.transcript || '';
         if (aiText) {
           setConversationHistory(prev => [...prev, { role: 'assistant', text: aiText, timestamp: new Date() }]);
@@ -222,15 +345,43 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
         setTranscript('');
         break;
 
+      case 'response.function_call_arguments.done':
+        // Handle function calls (web search)
+        if (event.name === 'web_search') {
+          try {
+            const args = JSON.parse(event.arguments);
+            console.log('[Realtime] Web search requested:', args.query);
+            
+            const results = await performWebSearch(args.query);
+            
+            // Send results back to the conversation
+            if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+              dataChannelRef.current.send(JSON.stringify({
+                type: 'conversation.item.create',
+                item: {
+                  type: 'function_call_output',
+                  call_id: event.call_id,
+                  output: JSON.stringify(results),
+                },
+              }));
+              dataChannelRef.current.send(JSON.stringify({ type: 'response.create' }));
+            }
+          } catch (err) {
+            console.error('Function call error:', err);
+          }
+        }
+        break;
+
       case 'error':
         console.error('[Realtime] Error:', event.error);
         setError(event.error?.message || 'Unknown error');
         break;
     }
-  };
+  }, [performWebSearch]);
 
   // Cleanup function
   const cleanup = useCallback(() => {
+    stopPreview();
     if (dataChannelRef.current) {
       dataChannelRef.current.close();
       dataChannelRef.current = null;
@@ -247,13 +398,37 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
       audioElementRef.current.srcObject = null;
       audioElementRef.current = null;
     }
-  }, []);
+  }, [stopPreview]);
 
-  // End voice chat and save transcript
-  const endVoiceChat = useCallback(() => {
+  // End voice chat, save transcript, and update session metrics
+  const endVoiceChat = useCallback(async () => {
+    const endTime = new Date();
+    const duration = sessionStartTime ? Math.round((endTime - sessionStartTime) / 1000) : 0;
+    
     cleanup();
     
-    // Save transcript if there's any conversation
+    // Update session metrics in backend
+    if (sessionId) {
+      try {
+        await fetch(`/api/voice-sessions/${sessionId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            status: 'completed',
+            duration_seconds: duration,
+            message_count: conversationHistory.length,
+            transcript_preview: conversationHistory.slice(0, 3).map(h => h.text).join(' ').slice(0, 200),
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to update session:', err);
+      }
+    }
+    
+    // Save transcript
     if (conversationHistory.length > 0 && onSaveTranscript) {
       onSaveTranscript(conversationHistory);
     }
@@ -262,8 +437,10 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
     setTranscript('');
     setAiResponse('');
     setConversationHistory([]);
+    setSessionId(null);
+    setSessionStartTime(null);
     if (onClose) onClose();
-  }, [cleanup, onClose, onSaveTranscript, conversationHistory]);
+  }, [cleanup, onClose, onSaveTranscript, conversationHistory, sessionId, sessionStartTime, token]);
 
   // Toggle mute
   const toggleMute = useCallback(() => {
@@ -275,7 +452,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
     }
   }, [isMuted]);
 
-  // Interrupt AI response
+  // Interrupt AI
   const interruptAI = useCallback(() => {
     if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
       dataChannelRef.current.send(JSON.stringify({ type: 'response.cancel' }));
@@ -298,11 +475,13 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
           status === 'connected' 
             ? isAISpeaking 
               ? 'bg-gradient-to-br from-orange-500/30 to-orange-600/20 animate-pulse' 
-              : 'bg-gradient-to-br from-green-500/20 to-emerald-600/10'
+              : isSearching
+                ? 'bg-gradient-to-br from-blue-500/30 to-cyan-600/20 animate-pulse'
+                : 'bg-gradient-to-br from-green-500/20 to-emerald-600/10'
             : 'bg-gradient-to-br from-gray-800/50 to-gray-900/50'
         }`} />
         
-        <div className="relative bg-gray-900/90 rounded-3xl p-8 border border-white/10">
+        <div className="relative bg-gray-900/90 rounded-3xl p-6 sm:p-8 border border-white/10 max-h-[90vh] overflow-y-auto">
           {/* Close button */}
           <button
             onClick={onClose}
@@ -312,116 +491,146 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
           </button>
 
           {/* Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <h2 className="text-xl font-bold text-white mb-2">Voice Conversation</h2>
             <p className="text-sm text-gray-400">
               {status === 'idle' && 'Select a voice and click to start'}
               {status === 'connecting' && 'Connecting...'}
-              {status === 'connected' && (isAISpeaking ? 'AI is speaking...' : 'Listening...')}
+              {status === 'connected' && (
+                isSearching ? '🔍 Searching the web...' :
+                isAISpeaking ? 'AI is speaking...' : 'Listening...'
+              )}
               {status === 'error' && 'Connection error'}
             </p>
           </div>
 
-          {/* Voice selector - only show when idle */}
+          {/* Voice selector with preview - only when idle */}
           {status === 'idle' && (
             <div className="mb-6">
-              <label className="block text-xs text-gray-500 mb-2">AI Voice</label>
-              <div className="relative">
-                <button
-                  onClick={() => setShowVoiceMenu(!showVoiceMenu)}
-                  className="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white hover:bg-white/10 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Volume2 className="w-5 h-5 text-orange-400" />
-                    <div className="text-left">
-                      <p className="font-medium">{selectedVoiceData.name}</p>
-                      <p className="text-xs text-gray-500">{selectedVoiceData.desc}</p>
+              <label className="block text-xs text-gray-500 mb-2">AI Voice (tap speaker to preview)</label>
+              <div className="grid grid-cols-2 gap-2">
+                {VOICES.map(voice => (
+                  <div
+                    key={voice.id}
+                    className={`relative flex items-center gap-2 p-3 rounded-xl border transition-all cursor-pointer ${
+                      selectedVoice === voice.id 
+                        ? 'bg-orange-500/20 border-orange-500/50' 
+                        : 'bg-white/5 border-white/10 hover:bg-white/10'
+                    }`}
+                    onClick={() => setSelectedVoice(voice.id)}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        previewVoice(voice.id);
+                      }}
+                      className={`p-1.5 rounded-full transition-all ${
+                        previewingVoice === voice.id 
+                          ? 'bg-orange-500 text-white' 
+                          : 'bg-white/10 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {previewingVoice === voice.id ? (
+                        <Square className="w-3 h-3" />
+                      ) : (
+                        <Play className="w-3 h-3" />
+                      )}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-medium text-sm truncate ${selectedVoice === voice.id ? 'text-orange-400' : 'text-white'}`}>
+                        {voice.name}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">{voice.desc}</p>
                     </div>
                   </div>
-                  <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showVoiceMenu ? 'rotate-180' : ''}`} />
-                </button>
-                
-                {showVoiceMenu && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 border border-white/10 rounded-xl overflow-hidden z-10 max-h-60 overflow-y-auto">
-                    {VOICES.map(voice => (
-                      <button
-                        key={voice.id}
-                        onClick={() => {
-                          setSelectedVoice(voice.id);
-                          setShowVoiceMenu(false);
-                        }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/10 transition-colors ${
-                          selectedVoice === voice.id ? 'bg-orange-500/20' : ''
-                        }`}
-                      >
-                        <Volume2 className={`w-4 h-4 ${selectedVoice === voice.id ? 'text-orange-400' : 'text-gray-500'}`} />
-                        <div>
-                          <p className={`font-medium ${selectedVoice === voice.id ? 'text-orange-400' : 'text-white'}`}>
-                            {voice.name}
-                          </p>
-                          <p className="text-xs text-gray-500">{voice.desc}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                ))}
               </div>
             </div>
           )}
 
+          {/* Web search toggle - only when idle */}
+          {status === 'idle' && (
+            <div className="mb-6">
+              <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/10 cursor-pointer hover:bg-white/10 transition-colors">
+                <div className={`p-2 rounded-lg ${webSearchEnabled ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 text-gray-500'}`}>
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-white text-sm font-medium">Real-time Web Search</p>
+                  <p className="text-xs text-gray-500">AI can search for current news, weather, stocks, etc.</p>
+                </div>
+                <div className={`w-10 h-6 rounded-full transition-colors ${webSearchEnabled ? 'bg-blue-500' : 'bg-gray-600'}`}>
+                  <div className={`w-4 h-4 mt-1 rounded-full bg-white transition-transform ${webSearchEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+                </div>
+                <input
+                  type="checkbox"
+                  checked={webSearchEnabled}
+                  onChange={(e) => setWebSearchEnabled(e.target.checked)}
+                  className="sr-only"
+                />
+              </label>
+            </div>
+          )}
+
           {/* Main button */}
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-6">
             {status === 'idle' || status === 'error' ? (
               <button
                 onClick={startVoiceChat}
-                className="w-24 h-24 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 flex items-center justify-center transition-all transform hover:scale-105 shadow-lg shadow-orange-500/30"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 flex items-center justify-center transition-all transform hover:scale-105 shadow-lg shadow-orange-500/30"
               >
-                <AudioWaveform className="w-10 h-10 text-white" />
+                <AudioWaveform className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
               </button>
             ) : status === 'connecting' ? (
-              <div className="w-24 h-24 rounded-full bg-gray-800 flex items-center justify-center">
-                <Loader2 className="w-10 h-10 text-orange-500 animate-spin" />
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-800 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-orange-500 animate-spin" />
               </div>
             ) : (
               <button
                 onClick={endVoiceChat}
-                className="w-24 h-24 rounded-full bg-gradient-to-br from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 flex items-center justify-center transition-all transform hover:scale-105 shadow-lg shadow-red-500/30"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 flex items-center justify-center transition-all transform hover:scale-105 shadow-lg shadow-red-500/30"
               >
-                <PhoneOff className="w-10 h-10 text-white" />
+                <PhoneOff className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
               </button>
             )}
           </div>
 
           {/* Controls */}
           {status === 'connected' && (
-            <div className="flex justify-center gap-4 mb-6">
+            <div className="flex justify-center gap-4 mb-4">
               <button
                 onClick={toggleMute}
-                className={`p-4 rounded-full transition-all ${
+                className={`p-3 rounded-full transition-all ${
                   isMuted 
                     ? 'bg-red-500/20 text-red-400' 
                     : 'bg-white/10 text-white hover:bg-white/20'
                 }`}
                 title={isMuted ? 'Unmute' : 'Mute'}
               >
-                {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
               </button>
               
               {isAISpeaking && (
                 <button
                   onClick={interruptAI}
-                  className="p-4 rounded-full bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-all"
+                  className="p-3 rounded-full bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-all"
                   title="Interrupt"
                 >
-                  <VolumeX className="w-6 h-6" />
+                  <VolumeX className="w-5 h-5" />
                 </button>
+              )}
+              
+              {webSearchEnabled && (
+                <div className={`p-3 rounded-full ${isSearching ? 'bg-blue-500/20 text-blue-400 animate-pulse' : 'bg-white/5 text-gray-500'}`}>
+                  <Search className="w-5 h-5" />
+                </div>
               )}
             </div>
           )}
 
-          {/* Current transcript display */}
+          {/* Current transcript */}
           {status === 'connected' && (transcript || aiResponse) && (
-            <div className="space-y-3 max-h-32 overflow-y-auto mb-4">
+            <div className="space-y-2 mb-4">
               {transcript && (
                 <div className="bg-white/5 rounded-xl p-3">
                   <p className="text-xs text-gray-500 mb-1">You:</p>
@@ -440,46 +649,42 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
           {/* Conversation history */}
           {status === 'connected' && conversationHistory.length > 0 && (
             <div className="border-t border-white/10 pt-4">
-              <p className="text-xs text-gray-500 mb-2">Conversation ({conversationHistory.length} exchanges)</p>
-              <div className="max-h-40 overflow-y-auto space-y-2">
-                {conversationHistory.slice(-6).map((item, i) => (
+              <p className="text-xs text-gray-500 mb-2">History ({conversationHistory.length})</p>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {conversationHistory.slice(-4).map((item, i) => (
                   <div key={i} className={`text-xs p-2 rounded-lg ${
                     item.role === 'user' ? 'bg-white/5 text-gray-300' : 'bg-orange-500/10 text-orange-200'
                   }`}>
-                    <span className="font-medium">{item.role === 'user' ? 'You' : 'AI'}:</span> {item.text.slice(0, 100)}{item.text.length > 100 ? '...' : ''}
+                    <span className="font-medium">{item.role === 'user' ? 'You' : 'AI'}:</span> {item.text.slice(0, 80)}{item.text.length > 80 ? '...' : ''}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Error display */}
+          {/* Error */}
           {error && (
             <div className="mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl">
               <p className="text-sm text-red-400">{error}</p>
             </div>
           )}
 
-          {/* Mode selector */}
+          {/* Mode selector - only when idle */}
           {status === 'idle' && (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-4 flex justify-center">
               <div className="inline-flex bg-white/5 rounded-lg p-1">
                 <button
                   onClick={() => setMode('vad')}
-                  className={`px-4 py-2 rounded-md text-xs font-medium transition-all ${
-                    mode === 'vad' 
-                      ? 'bg-orange-500 text-white' 
-                      : 'text-gray-400 hover:text-white'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    mode === 'vad' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'
                   }`}
                 >
                   Auto (VAD)
                 </button>
                 <button
                   onClick={() => setMode('push-to-talk')}
-                  className={`px-4 py-2 rounded-md text-xs font-medium transition-all ${
-                    mode === 'push-to-talk' 
-                      ? 'bg-orange-500 text-white' 
-                      : 'text-gray-400 hover:text-white'
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    mode === 'push-to-talk' ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white'
                   }`}
                 >
                   Push-to-Talk
@@ -488,16 +693,9 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
             </div>
           )}
 
-          {/* Info text */}
-          <p className="mt-6 text-center text-xs text-gray-500">
-            {status === 'idle' 
-              ? 'Transcript will be saved when you end the call' 
-              : status === 'connected'
-                ? mode === 'vad' 
-                  ? 'Speak naturally - AI will respond automatically'
-                  : 'Press and hold the mic button to speak'
-                : ''
-            }
+          {/* Info */}
+          <p className="mt-4 text-center text-xs text-gray-500">
+            {status === 'idle' ? 'Transcript saved when you end the call' : ''}
           </p>
         </div>
       </div>

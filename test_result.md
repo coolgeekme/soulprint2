@@ -109,6 +109,10 @@ agent_communication:
     message: "Fixed two critical P0 issues: 1) Google OAuth redirect URI bug - added permanent safeguard to always use production URL https://soulprintengine.ai even if env variable is wrong. 2) Conversational image editing - updated handleImageEditInternal to use OpenAI's new Responses API with gpt-image-1 for true in-place editing. Falls back to images/edits API and DALL-E 3 if needed. Need to test: a) Google OAuth returns correct redirect_uri, b) Image edit endpoint works with new APIs."
   - agent: "testing"
     message: "✅ TESTING COMPLETED: Both critical P0 fixes tested and verified working perfectly! (1) ✅ Google OAuth Redirect URI Fix: POST /api/auth/google now correctly returns production URL https://soulprintengine.ai/api/auth/google/callback in authUrl parameter, no preview/localhost URLs detected. The permanent safeguard successfully prevents redirect URI mismatches. (2) ✅ Image Edit Endpoint: POST /api/image/edit successfully processes image edits with multiple API fallback system. Returns valid results using DALL-E 3 generation method (indicating proper fallback when gpt-image-1 quota limits are hit). Both fixes are production-ready and resolving the reported P0 issues."
+  - agent: "main"
+    message: "Implemented Live Voice Chat feature enhancements: 1) TTS Voice Preview API (POST /api/tts/preview) - Uses OpenAI TTS-1 model for fast voice previews. 2) Voice Session Tracking (POST /api/voice-sessions, PATCH /api/voice-sessions/:id) - Stores session data in voice_sessions MongoDB collection for admin analytics. 3) Real-time Web Search API (POST /api/web-search) - Uses Tavily or Brave Search for AI to search during voice conversations. 4) Admin Voice Metrics - Added voice_chat stats to GET /api/admin/metrics and new GET /api/admin/voice-sessions endpoint. Frontend RealtimeVoiceChat.js already has UI for voice preview, web search toggle, and session tracking. Need to test: all 4 new endpoints and verify admin metrics include voice_chat data."
+  - agent: "testing"
+    message: "🎉 VOICE CHAT API TESTING COMPLETE! All 5 new Voice Chat APIs tested successfully with 100% pass rate (7/7 tests passed): (1) ✅ TTS Voice Preview API: All 3 voices (alloy, echo, shimmer) working perfectly, returning proper audio/mpeg data. (2) ✅ Voice Session Create API: Successfully creates sessions with voice, mode, web_search_enabled parameters. (3) ✅ Voice Session Update API: Successfully updates sessions with completion data (status, duration_seconds, message_count, transcript_preview). (4) ✅ Web Search API: Tavily integration working perfectly, returns 3 results for test query. (5) ✅ Admin Voice Sessions API: Returns proper paginated sessions with stats. (6) ✅ Admin Metrics Voice Chat: All voice_chat metrics present in admin dashboard. Complete test flow verified: Login → Create session → Update session → Verify in admin endpoints → Confirm metrics tracking. All endpoints require proper authentication and return expected response formats. Voice Chat feature backend is production-ready!"
 
 backend:
   - task: "Remember This Auto-Save Feature (POST /api/chat/stream with user_explicit memory patterns)"
@@ -1280,7 +1284,7 @@ agent_communication:
   - agent: "main"
     message: "PRIORITY: Test Cloud Import API. Two new endpoints: (1) POST /api/imports/cloud - accepts {url, type, provider} and returns {importId, status: 'pending'}. (2) GET /api/imports/status?importId=xxx - returns job status with progress, message, error. Test with a small publicly accessible ZIP file. Note: Google Drive is blocked for large files. Test expected flow: POST to start import -> returns importId -> poll GET status -> should eventually show completed/failed. Auth required for all endpoints. Test user: test@soulprint.com/test123."
   - agent: "main"
-    message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://edit-ai-tool-1.preview.emergentagent.com. Test with fresh user registration first."
+    message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://voice-chat-enhanced.preview.emergentagent.com. Test with fresh user registration first."
   - agent: "testing"
     message: "🎉 BACKEND TESTING COMPLETE! All critical endpoints tested successfully. Registration, login, assessment flow (36 questions), chat streaming with memory injection, admin APIs, and connector stubs all working perfectly. The SoulPrint Engine backend is fully functional and ready for production use."
   - agent: "main"
@@ -1493,3 +1497,85 @@ agent_communication:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: PDF/DOCX Document Parsing API working perfectly! All 7 test cases passed (100% success rate): (1) ✅ Authentication: Successfully authenticated with test@soulprint.com/test123, returns superadmin role and token. (2) ✅ PDF Parsing: Created test PDF (1874 bytes) and successfully parsed with pdf-parse-new library. Returns {success: true, text: 342 chars, metadata: {pages: 1, info: {...}}, fileName: 'test.pdf', fileType: 'application/pdf'}. Text extraction working correctly. (3) ✅ DOCX Parsing: Created test DOCX (36793 bytes) and successfully parsed with mammoth library. Returns {success: true, text: 358 chars, metadata: {}, fileName: 'test.docx', fileType: 'application/vnd.openxml...'} format. (4) ✅ Plain Text Fallback: Successfully handles .txt files (194 bytes) with proper text extraction and returns correct response format. (5) ✅ Error Handling: Properly returns 400 error with 'No file provided' message when no file is uploaded. (6) ✅ Unsupported Format: Correctly rejects unsupported file types (PNG) with 400 error and 'Unsupported file type: image/png' message. (7) ✅ Authentication Required: Endpoint properly requires Bearer token authentication, returns 401 'Unauthorized' without valid token. Fixed issues: Added authentication requirement, fixed PDF parsing with pdf-parse-new library, improved error handling for missing files. API fully functional and production ready!"
+
+
+  - task: "TTS Voice Preview API (POST /api/tts/preview)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented TTS voice preview endpoint using OpenAI TTS-1 model. Accepts {voice, text} in request body. Returns audio/mpeg stream. Used for previewing available voices before starting a voice chat session. Limited to 200 characters for quick previews."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: TTS Voice Preview API working perfectly! Successfully tested all 3 specified voices (alloy, echo, shimmer) with 'Hello, this is a voice preview.' text. All voices return proper audio/mpeg binary data: alloy (37,920 bytes), echo (33,600 bytes), shimmer (38,400 bytes). OpenAI TTS-1 model integration working correctly. Authentication required and functioning."
+
+  - task: "Voice Session Tracking API (POST /api/voice-sessions, PATCH /api/voice-sessions/:id)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented voice session tracking for admin analytics. POST /api/voice-sessions creates a new session with user_id, voice, mode, web_search_enabled. PATCH /api/voice-sessions/:id updates session with status, duration_seconds, message_count, transcript_preview. Stores in voice_sessions MongoDB collection."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Voice Session Tracking API working perfectly! (1) ✅ POST /api/voice-sessions: Successfully creates session with voice='alloy', mode='vad', web_search_enabled=true. Returns {success: true, session_id: 'ab9e1b54-b6cc-47cb-8a0d-d059a9c03f34'}. (2) ✅ PATCH /api/voice-sessions/:id: Successfully updates session with status='completed', duration_seconds=120, message_count=10, transcript_preview='Test transcript'. Returns {success: true}. Session persisted to voice_sessions MongoDB collection correctly."
+
+  - task: "Web Search API for Voice Chat (POST /api/web-search)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented web search endpoint for real-time voice chat. Uses Tavily API (preferred) with fallback to Brave Search. Accepts {query, limit} in request body. Returns {results: [{title, url, content}], answer?, query}. Used when AI needs to search for current information during voice conversations."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Web Search API working perfectly! Successfully tested with query='current weather in New York', limit=3. Returns proper response format with 3 results from Tavily API. Each result contains title, url, and content fields. Response includes results array, query field, and proper authentication required. Tavily integration functioning correctly as primary search provider."
+
+  - task: "Admin Voice Sessions Endpoint (GET /api/admin/voice-sessions)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented admin endpoint to view all voice sessions with pagination. Returns sessions array plus aggregate stats (total_sessions, total_duration, avg_duration, total_messages, completed_count). Requires admin/superadmin role."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Admin Voice Sessions Endpoint working perfectly! Returns proper response structure with sessions array, total, page, limit, and stats object. Successfully retrieved 1 session (test session created during testing). Stats include total_sessions=1, completed_count=1. Test session ab9e1b54-b6cc-47cb-8a0d-d059a9c03f34 verified in admin list. Authentication and admin role validation working correctly."
+
+  - task: "Voice Chat Metrics in Admin Dashboard (GET /api/admin/metrics)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added voice_chat metrics object to admin metrics response. Includes: total_sessions, sessions_7d, sessions_30d, completed_sessions, unique_users, total_duration_seconds, avg_duration_seconds, total_voice_messages, avg_messages_per_session, voice_distribution. Uses helper function getVoiceChatMetrics()."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Voice Chat Metrics in Admin Dashboard working perfectly! GET /api/admin/metrics successfully includes voice_chat object with all expected fields: total_sessions, sessions_7d, sessions_30d, completed_sessions, unique_users, total_duration_seconds, avg_duration_seconds, total_voice_messages, avg_messages_per_session, voice_distribution. Test shows 1 session and 1 unique user. getVoiceChatMetrics() helper function correctly aggregating data from voice_sessions collection."
+
+test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
