@@ -634,8 +634,21 @@ async function googleApiCall(accessToken, endpoint, options = {}) {
 // Handler: Initiate Google OAuth
 async function handleGoogleAuthStart(request) {
   try {
+    console.log('Google Auth Start - Authenticating user...');
     const user = await authenticate(request);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) {
+      console.error('Google Auth Start - Authentication failed: No user returned');
+      // Try to get more info about why auth failed
+      const token = getTokenFromRequest(request);
+      console.error('Google Auth Start - Token present:', !!token);
+      if (token) {
+        const decoded = verifyToken(token);
+        console.error('Google Auth Start - Token decoded:', !!decoded);
+      }
+      return NextResponse.json({ error: 'Unauthorized - Please log in again' }, { status: 401 });
+    }
+    
+    console.log('Google Auth Start - User authenticated:', user.id);
     
     // CRITICAL: Production URL must be used for Google OAuth
     // The redirect_uri MUST match what's configured in Google Cloud Console
@@ -3597,19 +3610,32 @@ function extractPlaceType(text) {
 // ============================================================
 
 async function authenticate(request) {
-  const token = getTokenFromRequest(request);
-  if (!token) return null;
-  const decoded = verifyToken(token);
-  if (!decoded) return null;
-  const db = await getDb();
-  const user = await db.collection('users').findOne({ id: decoded.userId });
-  if (user) {
-    await db.collection('users').updateOne(
-      { id: decoded.userId },
-      { $set: { last_active_at: new Date() } }
-    );
+  try {
+    const token = getTokenFromRequest(request);
+    if (!token) {
+      console.log('[Auth] No token provided');
+      return null;
+    }
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      console.log('[Auth] Token verification failed');
+      return null;
+    }
+    const db = await getDb();
+    const user = await db.collection('users').findOne({ id: decoded.userId });
+    if (user) {
+      await db.collection('users').updateOne(
+        { id: decoded.userId },
+        { $set: { last_active_at: new Date() } }
+      );
+    } else {
+      console.log('[Auth] User not found in database:', decoded.userId);
+    }
+    return user;
+  } catch (err) {
+    console.error('[Auth] Authentication error:', err.message);
+    return null;
   }
-  return user;
 }
 
 async function requireAdmin(request) {

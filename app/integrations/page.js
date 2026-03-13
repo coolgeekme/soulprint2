@@ -90,10 +90,19 @@ export default function IntegrationsPage() {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
+      
+      if (res.status === 401) {
+        // Token expired or invalid - redirect to login
+        setNotification({ type: 'error', message: 'Session expired. Please log in again.' });
+        localStorage.removeItem('sp_token');
+        setTimeout(() => router.push('/auth'), 1500);
+        return;
+      }
+      
       if (data.authUrl) {
         window.location.href = data.authUrl;
       } else {
-        setNotification({ type: 'error', message: 'Failed to get auth URL' });
+        setNotification({ type: 'error', message: data.error || 'Failed to get auth URL' });
       }
     } catch (err) {
       setNotification({ type: 'error', message: err.message });
