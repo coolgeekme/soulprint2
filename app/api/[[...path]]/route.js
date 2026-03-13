@@ -468,16 +468,19 @@ async function handleRealtimeSession(request) {
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/gmail.modify',
+  // Gmail - using full access scope as configured in consent screen
+  'https://mail.google.com/',
+  // Calendar
   'https://www.googleapis.com/auth/calendar',
-  'https://www.googleapis.com/auth/calendar.events',
+  // Drive
   'https://www.googleapis.com/auth/drive',
-  'https://www.googleapis.com/auth/drive.file',
+  // Google Docs
   'https://www.googleapis.com/auth/documents',
+  // Google Sheets
   'https://www.googleapis.com/auth/spreadsheets',
+  // Google Slides
   'https://www.googleapis.com/auth/presentations',
+  // Basic profile
   'openid',
   'email',
   'profile'
