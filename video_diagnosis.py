@@ -9,7 +9,7 @@ import json
 import time
 
 # Configuration
-BASE_URL = "https://voice-chat-metrics.preview.emergentagent.com/api"
+BASE_URL = "https://web-search-fix.preview.emergentagent.com/api"
 LOGIN_EMAIL = "test@soulprint.com"
 LOGIN_PASSWORD = "test123"
 

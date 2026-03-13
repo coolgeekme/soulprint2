@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://voice-chat-metrics.preview.emergentagent.com"
+BASE_URL = "https://web-search-fix.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

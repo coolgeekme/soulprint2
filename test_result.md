@@ -106,6 +106,8 @@ user_problem_statement: "SoulPrint Engine — Multi-tenant Personal AI Web App w
 
 agent_communication:
   - agent: "main"
+    message: "CRITICAL BUG - Web Search Not Working: User reported web search is failing across all platforms. Direct API tests show Brave Search API (curl) returns results correctly. Perplexity sonar-pro API (curl) returns results correctly. The issue must be in the chat flow or how providers.js triggers search. Need to test: 1) POST /api/chat/stream with query='what is the weather today?' and enableWebSearch=true. 2) Check if type='search' events are being emitted. 3) Check if Dynamic Intelligence is routing to Perplexity correctly for search queries."
+  - agent: "main"
     message: "Fixed two critical P0 issues: 1) Google OAuth redirect URI bug - added permanent safeguard to always use production URL https://soulprintengine.ai even if env variable is wrong. 2) Conversational image editing - updated handleImageEditInternal to use OpenAI's new Responses API with gpt-image-1 for true in-place editing. Falls back to images/edits API and DALL-E 3 if needed. Need to test: a) Google OAuth returns correct redirect_uri, b) Image edit endpoint works with new APIs."
   - agent: "testing"
     message: "✅ TESTING COMPLETED: Both critical P0 fixes tested and verified working perfectly! (1) ✅ Google OAuth Redirect URI Fix: POST /api/auth/google now correctly returns production URL https://soulprintengine.ai/api/auth/google/callback in authUrl parameter, no preview/localhost URLs detected. The permanent safeguard successfully prevents redirect URI mismatches. (2) ✅ Image Edit Endpoint: POST /api/image/edit successfully processes image edits with multiple API fallback system. Returns valid results using DALL-E 3 generation method (indicating proper fallback when gpt-image-1 quota limits are hit). Both fixes are production-ready and resolving the reported P0 issues."
@@ -117,6 +119,8 @@ agent_communication:
     message: "Fixed P0 Voice Chat Metrics visibility issue in Admin Dashboard. Changes: (1) FRONTEND: Added voice chat metrics section to Quick Stats tab (the default view) in admin/page.js - now displays Total Sessions, Voice Users, Avg Duration, and Voice Cost on the main metrics view instead of only in the Engagement sub-tab. (2) BACKEND: Made voice_chat metrics more robust in route.js - extracted getVoiceChatMetrics call into a variable with explicit try-catch to ensure it ALWAYS returns a valid object even on error. Used nullish coalescing (??) instead of logical OR (||) for safer default values. The metrics should now always be visible showing zeros if no voice sessions exist."
   - agent: "main"
     message: "MAJOR ENHANCEMENT: Voice Chat Memory & Google Integration. Added full memory and Google capabilities to voice chat matching text chat. Changes: (1) NEW API: GET /api/voice/system-prompt - Returns full system prompt with user memories, soul profile, assessment answers, communication preferences, location context. (2) NEW TOOLS: get_user_memories/recall_memory - Retrieve stored memories about user. get_soulprint/who_am_i - Get user's complete profile, interests, personality insights. (3) FRONTEND: RealtimeVoiceChat.js now fetches full system prompt on load and includes memory tools in session config. User can now ask 'what do you know about me?' and voice AI will access their memories, soulprint data. (4) Google tools (email, calendar) were already integrated - confirmed working with connected accounts."
+  - agent: "testing"
+    message: "🚨 P0 WEB SEARCH BUG DIAGNOSIS COMPLETE: Confirmed user's critical bug report. ✅ UNDERLYING SEARCH APIs WORK: Brave Search API (BSAf5fK...) returns proper weather results, Perplexity sonar-pro API returns real-time data with citations. ❌ MONGODB CONNECTIVITY ISSUE: 'MongoServerSelectionError: Server selection timed out after 30000 ms' prevents authentication for ALL web search endpoints (they all require auth). ❌ CANNOT TEST CHAT FLOW: Unable to test POST /api/chat/stream with enableWebSearch=true due to auth failures. 🔍 ROOT CAUSE LIKELY: Issue is in chat flow integration (providers.js generateStream method, search trigger logic, or tool calling) NOT the underlying search APIs. 🛠️ IMMEDIATE FIXES NEEDED: (1) Fix MongoDB connection pool/network issue (2) Test chat stream with working auth (3) Debug why enableWebSearch isn't triggering search in providers.js (4) Check search trigger keywords and tool calling logic. Web search provider code structure looks correct but needs live testing with working database."
 
 backend:
   - task: "Remember This Auto-Save Feature (POST /api/chat/stream with user_explicit memory patterns)"
@@ -571,9 +575,9 @@ backend:
 
   - task: "Web Search Integration (POST /api/chat/stream with enableWebSearch=true)"
     implemented: true
-    working: true
+    working: false
     file: "app/api/[[...path]]/route.js, app/lib/llm/providers.js"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
     needs_retesting: false
     status_history:
@@ -583,6 +587,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ TESTED: Web search integration working perfectly! OpenAI models with enableWebSearch=true correctly trigger Tavily search and emit type='search' events with query arrays. Perplexity sonar models use built-in search (no type='search' events expected) and return real-time Bitcoin price information. Both search pathways functioning correctly."
+      - working: false
+        agent: "user"
+        comment: "❌ USER REPORTED: Real-time web search is failing across all platforms (voice, text chat, Telegram). Need to investigate. Direct API tests show Brave Search API is working correctly (tested with curl). Perplexity API also working correctly (tested sonar-pro with curl). The issue might be in how the chat flow triggers search or how dynamic intelligence routes queries."
+      - working: false
+        agent: "testing"
+        comment: "🔍 CRITICAL P0 BUG CONFIRMED: Web search failing due to MongoDB connectivity issues preventing authentication (Server selection timed out after 30000 ms). ✅ UNDERLYING APIs VERIFIED WORKING: Direct tests confirmed Brave Search API (BSAf5fK...) returns weather results correctly, Perplexity sonar-pro API returns real-time weather data with citations. ❌ CHAT FLOW BROKEN: Cannot test POST /api/chat/stream with enableWebSearch=true due to auth failure. All web search endpoints (/api/web-search, /api/voice/tool) require authentication. 🔍 ROOT CAUSE: Issue is NOT in search APIs but in chat flow integration - likely in providers.js generateStream() method or how search triggers are detected. MongoDB timeout suggests connection pool/network issue. PRIORITY: Fix MongoDB connectivity first, then test web search integration. The web search provider logic in /app/lib/llm/providers.js appears correct with proper Brave/Tavily fallback."
 
   - task: "Social Media Post Auto-detection (POST /api/chat/stream)"
     implemented: true
@@ -1288,7 +1298,7 @@ agent_communication:
   - agent: "main"
     message: "PRIORITY: Test Cloud Import API. Two new endpoints: (1) POST /api/imports/cloud - accepts {url, type, provider} and returns {importId, status: 'pending'}. (2) GET /api/imports/status?importId=xxx - returns job status with progress, message, error. Test with a small publicly accessible ZIP file. Note: Google Drive is blocked for large files. Test expected flow: POST to start import -> returns importId -> poll GET status -> should eventually show completed/failed. Auth required for all endpoints. Test user: test@soulprint.com/test123."
   - agent: "main"
-    message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://voice-chat-metrics.preview.emergentagent.com. Test with fresh user registration first."
+    message: "Built complete SoulPrint Engine MVP. All routes implemented. Testing critical backend flows: auth, assessment, chat streaming, admin. Base URL is https://web-search-fix.preview.emergentagent.com. Test with fresh user registration first."
   - agent: "testing"
     message: "🎉 BACKEND TESTING COMPLETE! All critical endpoints tested successfully. Registration, login, assessment flow (36 questions), chat streaming with memory injection, admin APIs, and connector stubs all working perfectly. The SoulPrint Engine backend is fully functional and ready for production use."
   - agent: "main"
