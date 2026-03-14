@@ -176,27 +176,8 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-sp-black">
-      {/* Back to Chat Banner - shown when logged in */}
-      {isLoggedIn && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-sp-orange to-orange-600 py-2.5 px-4 safe-area-top">
-          <div className="max-w-7xl mx-auto flex items-center justify-between pt-[env(safe-area-inset-top)]">
-            <div className="flex items-center gap-3">
-              <SoulPrintLogo size={20} className="opacity-80" />
-              <span className="text-white text-sm font-medium">Welcome back!</span>
-            </div>
-            <Link 
-              href="/chat" 
-              className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-1.5 rounded-full text-sm font-medium transition-colors"
-            >
-              <ArrowRight className="w-4 h-4" />
-              Back to Chat
-            </Link>
-          </div>
-        </div>
-      )}
-
       {/* HERO SECTION */}
-      <section className={`relative overflow-hidden ${isLoggedIn ? 'pt-12' : ''}`} style={{ minHeight: '100vh' }}>
+      <section className="relative overflow-hidden" style={{ minHeight: '100vh' }}>
         {/* Grid background */}
         <div className="absolute inset-0 grid-bg opacity-100" />
         {/* Orange glow from center top */}
