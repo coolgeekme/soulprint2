@@ -7,7 +7,7 @@ import {
   UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
   PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar,
-  KeyRound, Mail, Send, AlertTriangle, Cpu
+  KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
@@ -5528,6 +5528,149 @@ export default function AdminPage() {
                         Media costs will appear here after users generate images/videos
                       </div>
                     )}
+                  </div>
+
+                  {/* Voice Chat Costs Section */}
+                  <div className="mt-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Mic className="w-4 h-4 text-orange-400" />
+                      <h3 className="text-sm font-bold text-white tracking-wide">Voice Chat Costs (OpenAI Realtime)</h3>
+                    </div>
+
+                    {/* Voice Cost Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                      <MetricCard
+                        label="Total Voice Cost"
+                        value={metrics.voice_chat?.cost?.total_cost_usd != null ? `$${metrics.voice_chat.cost.total_cost_usd.toFixed(2)}` : '—'}
+                        sub={`${metrics.voice_chat?.completed_sessions || 0} sessions`}
+                        icon={DollarSign}
+                        color="orange"
+                      />
+                      <MetricCard
+                        label="Voice Cost (30d)"
+                        value={metrics.voice_chat?.cost?.cost_last_30d_usd != null ? `$${metrics.voice_chat.cost.cost_last_30d_usd.toFixed(2)}` : '—'}
+                        sub={`${metrics.voice_chat?.sessions_30d || 0} sessions`}
+                        icon={TrendingUp}
+                        color="blue"
+                      />
+                      <MetricCard
+                        label="Cost / Session"
+                        value={metrics.voice_chat?.cost?.avg_cost_per_session_usd != null ? `$${metrics.voice_chat.cost.avg_cost_per_session_usd.toFixed(3)}` : '—'}
+                        sub="Average per call"
+                        icon={Phone}
+                        color="purple"
+                      />
+                      <MetricCard
+                        label="Cost / Minute"
+                        value={metrics.voice_chat?.cost?.cost_per_minute_usd != null ? `$${metrics.voice_chat.cost.cost_per_minute_usd.toFixed(3)}` : '—'}
+                        sub="Per minute of voice"
+                        icon={Clock}
+                        color="green"
+                      />
+                      <MetricCard
+                        label="Cost / Voice User"
+                        value={metrics.voice_chat?.cost?.cost_per_user_usd != null ? `$${metrics.voice_chat.cost.cost_per_user_usd.toFixed(3)}` : '—'}
+                        sub={`${metrics.voice_chat?.unique_users || 0} users`}
+                        icon={User}
+                        color="cyan"
+                      />
+                      <MetricCard
+                        label="Total Audio Tokens"
+                        value={((metrics.voice_chat?.cost?.total_audio_input_tokens || 0) + (metrics.voice_chat?.cost?.total_audio_output_tokens || 0)).toLocaleString()}
+                        sub={`In: ${(metrics.voice_chat?.cost?.total_audio_input_tokens || 0).toLocaleString()} / Out: ${(metrics.voice_chat?.cost?.total_audio_output_tokens || 0).toLocaleString()}`}
+                        icon={Mic}
+                        color="orange"
+                      />
+                    </div>
+
+                    {/* Voice Usage Stats */}
+                    <div className="bg-[#111] border border-white/8 rounded-xl p-4 mb-4">
+                      <p className="text-[10px] font-bold text-orange-400 tracking-widest uppercase mb-3">Voice Usage Breakdown</p>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                        <div className="bg-black/20 rounded-lg p-3">
+                          <p className="text-xl font-bold text-white">{metrics.voice_chat?.total_sessions || 0}</p>
+                          <p className="text-[10px] text-gray-500">Total Sessions</p>
+                        </div>
+                        <div className="bg-black/20 rounded-lg p-3">
+                          <p className="text-xl font-bold text-white">{metrics.voice_chat?.unique_users || 0}</p>
+                          <p className="text-[10px] text-gray-500">Unique Users</p>
+                        </div>
+                        <div className="bg-black/20 rounded-lg p-3">
+                          <p className="text-xl font-bold text-white">{Math.round((metrics.voice_chat?.total_duration_seconds || 0) / 60)}m</p>
+                          <p className="text-[10px] text-gray-500">Total Duration</p>
+                        </div>
+                        <div className="bg-black/20 rounded-lg p-3">
+                          <p className="text-xl font-bold text-white">{Math.round((metrics.voice_chat?.avg_duration_seconds || 0) / 60)}m</p>
+                          <p className="text-[10px] text-gray-500">Avg Duration</p>
+                        </div>
+                      </div>
+                      
+                      {/* Voice Distribution */}
+                      {metrics.voice_chat?.voice_distribution && Object.keys(metrics.voice_chat.voice_distribution).length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-white/5">
+                          <p className="text-[10px] text-gray-500 mb-2">Voice Distribution</p>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(metrics.voice_chat.voice_distribution).map(([voice, count]) => (
+                              <span key={voice} className="px-2 py-1 bg-orange-500/10 border border-orange-500/30 rounded text-xs text-orange-400">
+                                {voice}: {count}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      <p className="text-[10px] text-gray-700 mt-3 pt-3 border-t border-white/5">
+                        💡 OpenAI gpt-4o-realtime: $40/1M input audio tokens, $80/1M output audio tokens. ~50 tokens/second of audio.
+                      </p>
+                    </div>
+
+                    {/* Pricing Recommendations */}
+                    <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/5 border border-green-500/30 rounded-xl p-4">
+                      <p className="text-[10px] font-bold text-green-400 tracking-widest uppercase mb-3">💰 Pricing Insights for Voice</p>
+                      <div className="space-y-2 text-xs text-gray-400">
+                        <div className="flex justify-between">
+                          <span>Cost per minute of voice:</span>
+                          <span className="text-green-400 font-semibold">${metrics.voice_chat?.cost?.cost_per_minute_usd?.toFixed(3) || '0.000'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Suggested markup (3x):</span>
+                          <span className="text-blue-400 font-semibold">${((metrics.voice_chat?.cost?.cost_per_minute_usd || 0) * 3).toFixed(3)}/min</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Suggested per-session price (5x avg):</span>
+                          <span className="text-purple-400 font-semibold">${((metrics.voice_chat?.cost?.avg_cost_per_session_usd || 0) * 5).toFixed(2)}/session</span>
+                        </div>
+                        <div className="flex justify-between border-t border-white/10 pt-2 mt-2">
+                          <span>Monthly voice package suggestion:</span>
+                          <span className="text-orange-400 font-bold">${Math.max(5, Math.ceil((metrics.voice_chat?.cost?.cost_per_user_usd || 0) * 5)).toFixed(0)}/user/month</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Combined Cost Summary */}
+                  <div className="mt-6 p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl">
+                    <p className="text-[10px] font-bold text-purple-400 tracking-widest uppercase mb-3">📊 Combined Cost Summary</p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                      <div className="bg-black/20 rounded-lg p-3">
+                        <p className="text-[10px] text-gray-500 mb-1">LLM (Text)</p>
+                        <p className="text-lg font-bold text-blue-400">${metrics.est_total_cost?.toFixed(2) || '0.00'}</p>
+                      </div>
+                      <div className="bg-black/20 rounded-lg p-3">
+                        <p className="text-[10px] text-gray-500 mb-1">Voice Chat</p>
+                        <p className="text-lg font-bold text-orange-400">${metrics.voice_chat?.cost?.total_cost_usd?.toFixed(2) || '0.00'}</p>
+                      </div>
+                      <div className="bg-black/20 rounded-lg p-3">
+                        <p className="text-[10px] text-gray-500 mb-1">Media (Images/Video)</p>
+                        <p className="text-lg font-bold text-purple-400">${metrics.media_cost_total?.toFixed(2) || '0.00'}</p>
+                      </div>
+                      <div className="bg-black/20 rounded-lg p-3">
+                        <p className="text-[10px] text-gray-500 mb-1">TOTAL</p>
+                        <p className="text-xl font-bold text-green-400">
+                          ${((metrics.est_total_cost || 0) + (metrics.voice_chat?.cost?.total_cost_usd || 0) + (metrics.media_cost_total || 0)).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
