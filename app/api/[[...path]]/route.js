@@ -7516,12 +7516,69 @@ async function handleChatStream(request) {
           return { success: false, error: `Unknown tool: ${toolName}` };
         };
 
+        // PROACTIVE WEB SEARCH: Pre-search and inject context for better real-time answers
+        // This ensures search happens even if the model doesn't call the tool
+        let preSearchSources = [];
+        let preSearchDidSearch = false;
+        if (enableWebSearch && attachments.length === 0 && providerName === 'openai') {
+          const lastUserMsg = historyMessages[historyMessages.length - 1];
+          const userText = typeof lastUserMsg?.content === 'string' 
+            ? lastUserMsg.content 
+            : (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.find(p => p.type === 'text')?.text : null);
+          
+          if (userText) {
+            const lowerText = userText.toLowerCase();
+            // More aggressive search triggers - search whenever user asks about something
+            const searchKeywords = [
+              'weather', 'news', 'price', 'stock', 'score', 'latest', 'current', 'today', 'recent',
+              'what is', 'what are', 'who is', 'who are', 'tell me about', 'explain', 'how to',
+              'when did', 'where is', 'why did', 'find', 'search', 'look up',
+              '2024', '2025', '2026'
+            ];
+            const needsSearch = searchKeywords.some(kw => lowerText.includes(kw));
+            
+            if (needsSearch) {
+              console.log('[Chat] Proactive search triggered for:', userText.slice(0, 100));
+              try {
+                const { buildSearchContext } = await import('@/lib/llm/providers');
+                const searchResult = await buildSearchContext(userText);
+                
+                if (searchResult && searchResult.results?.length > 0) {
+                  preSearchDidSearch = true;
+                  preSearchSources = searchResult.results.map(r => ({
+                    title: r.title || 'Untitled',
+                    url: r.url,
+                    snippet: r.content?.substring(0, 150) || '',
+                  }));
+                  
+                  // Inject search context into the last user message
+                  historyMessages = [
+                    ...historyMessages.slice(0, -1),
+                    { 
+                      role: 'user', 
+                      content: `${searchResult.context}\n\n---\n\nUser question: ${userText}` 
+                    }
+                  ];
+                  console.log('[Chat] Pre-search injected:', preSearchSources.length, 'sources');
+                  
+                  // Send sources to client immediately
+                  if (preSearchSources.length > 0) {
+                    send({ type: 'sources', sources: preSearchSources.slice(0, 6) });
+                  }
+                }
+              } catch (searchErr) {
+                console.log('[Chat] Proactive search failed:', searchErr.message);
+              }
+            }
+          }
+        }
+
         const { stream: aiStream, searchMeta, didSearch, customToolResults } = await provider.generateStream({
           systemPrompt,
           messages: historyMessages,
           model,
           temperature: 0.7,
-          enableWebSearch: enableWebSearch && attachments.length === 0, // disable search when analyzing files
+          enableWebSearch: enableWebSearch && attachments.length === 0 && !preSearchDidSearch, // disable tool search if we already pre-searched
           customTools: allTools.length > 0 ? allTools : undefined,
           onToolCall: allTools.length > 0 ? handleGoogleToolCall : undefined,
         });
@@ -7539,7 +7596,7 @@ async function handleChatStream(request) {
         }
 
         // Extract and format sources from search
-        let sources = [];
+        let sources = [...preSearchSources]; // Start with pre-search sources
         if (didSearch && searchMeta.length > 0) {
           console.log('[Sources Debug] searchMeta:', JSON.stringify(searchMeta, null, 2));
           // Collect all unique sources from search results
@@ -7557,8 +7614,8 @@ async function handleChatStream(request) {
             }
           });
           console.log('[Sources Debug] Extracted sources:', sources.length);
-          // Send sources to client
-          if (sources.length > 0) {
+          // Send sources to client (only if we didn't already send them from pre-search)
+          if (sources.length > 0 && !preSearchDidSearch) {
             send({ type: 'sources', sources: sources.slice(0, 6) }); // Limit to 6 sources
           }
         }
@@ -7593,7 +7650,7 @@ async function handleChatStream(request) {
           id: assistantMsgId, conversation_id: convId, user_id: user.id,
           role: 'assistant', content: fullContent, created_at: new Date(),
           model_used: model, provider_used: providerName,
-          web_search_used: didSearch,
+          web_search_used: didSearch || preSearchDidSearch,
           sources: sources.length > 0 ? sources : undefined,
           est_input_tokens: estInputTokens,
           est_output_tokens: estOutputTokens,
@@ -20875,10 +20932,12 @@ async function handleVoiceToolExecute(request) {
                 result: summary,
               });
             } else {
-              console.error(`[VoiceTool] Brave search failed: ${response.status}`);
+              // Log the full error response for debugging
+              const errorText = await response.text().catch(() => 'unable to read');
+              console.error(`[VoiceTool] Brave search failed: ${response.status} - ${errorText.slice(0, 200)}`);
             }
           } catch (braveErr) {
-            console.error('[VoiceTool] Brave search error:', braveErr);
+            console.error('[VoiceTool] Brave search error:', braveErr.message);
           }
         }
         
