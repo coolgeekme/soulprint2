@@ -6842,7 +6842,7 @@ async function handleChatStream(request) {
 
   // Apply smart token-aware trimming (best practice: stay within 6k context tokens for history)
   const rawHistory = recentMessages.map(m => ({ role: m.role, content: m.content }));
-  const historyMessages = trimHistory(rawHistory, 6000);
+  let historyMessages = trimHistory(rawHistory, 6000);
 
   // Build the current user message — support images (vision) + documents
   let userMessageContent;
