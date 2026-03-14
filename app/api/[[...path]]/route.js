@@ -12859,6 +12859,58 @@ async function handleAdminGetBusinessInsights(request) {
     enterprise_candidates: usageSegments.power.count,
   };
 
+  // ── VOICE CHAT COSTS FOR PRICING ─────────────────────────────────────────────
+  // Get voice session costs for pricing voice features
+  const voiceCostAgg = await db.collection('voice_sessions').aggregate([
+    { $match: { status: 'completed' } },
+    {
+      $group: {
+        _id: null,
+        total_sessions: { $sum: 1 },
+        total_duration: { $sum: { $ifNull: ['$duration_seconds', 0] } },
+        total_cost: { $sum: { $ifNull: ['$estimated_cost_usd', 0] } },
+        total_input_tokens: { $sum: { $ifNull: ['$audio_input_tokens', 0] } },
+        total_output_tokens: { $sum: { $ifNull: ['$audio_output_tokens', 0] } },
+        avg_duration: { $avg: { $ifNull: ['$duration_seconds', 0] } },
+      }
+    }
+  ]).toArray();
+
+  const uniqueVoiceUsers = await db.collection('voice_sessions').distinct('user_id');
+  
+  const voiceData = voiceCostAgg[0] || {
+    total_sessions: 0,
+    total_duration: 0,
+    total_cost: 0,
+    total_input_tokens: 0,
+    total_output_tokens: 0,
+    avg_duration: 0,
+  };
+
+  // Calculate voice cost metrics
+  const voiceCostPerMinute = voiceData.total_duration > 0 
+    ? voiceData.total_cost / (voiceData.total_duration / 60) 
+    : 0;
+  const voiceCostPerSession = voiceData.total_sessions > 0 
+    ? voiceData.total_cost / voiceData.total_sessions 
+    : 0;
+  const voiceCostPerUser = uniqueVoiceUsers.length > 0 
+    ? voiceData.total_cost / uniqueVoiceUsers.length 
+    : 0;
+
+  const voiceCosts = {
+    total_cost_usd: parseFloat(voiceData.total_cost.toFixed(2)),
+    total_sessions: voiceData.total_sessions,
+    unique_users: uniqueVoiceUsers.length,
+    total_duration_seconds: voiceData.total_duration,
+    avg_duration_seconds: Math.round(voiceData.avg_duration || 0),
+    total_audio_input_tokens: voiceData.total_input_tokens,
+    total_audio_output_tokens: voiceData.total_output_tokens,
+    cost_per_minute: parseFloat(voiceCostPerMinute.toFixed(4)),
+    cost_per_session: parseFloat(voiceCostPerSession.toFixed(4)),
+    cost_per_user: parseFloat(voiceCostPerUser.toFixed(4)),
+  };
+
   return ok({
     generated_at: now.toISOString(),
     
@@ -12910,6 +12962,9 @@ async function handleAdminGetBusinessInsights(request) {
     
     // Revenue Potential
     revenue_potential: revenuePotential,
+    
+    // Voice Chat Costs (for pricing voice features)
+    voice_costs: voiceCosts,
   });
 }
 

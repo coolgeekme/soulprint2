@@ -3386,6 +3386,82 @@ function InsightsTab({ token }) {
           </div>
         </div>
 
+        {/* Voice Chat Cost Analysis */}
+        {insights.voice_costs && (
+          <div className="bg-black/30 border border-orange-500/20 rounded-lg p-3 mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm">🎙️</span>
+              <span className="text-orange-400 text-xs font-medium">Voice Chat Costs (For Pricing Voice Features)</span>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
+              <div>
+                <p className="text-gray-500 text-[10px]">Total Voice Cost</p>
+                <p className="text-orange-400 font-bold">${insights.voice_costs.total_cost_usd?.toFixed(2) || '0.00'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-[10px]">Cost/Session</p>
+                <p className="text-orange-400 font-bold">${insights.voice_costs.cost_per_session?.toFixed(3) || '0.000'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-[10px]">Cost/Minute</p>
+                <p className="text-orange-400 font-bold">${insights.voice_costs.cost_per_minute?.toFixed(3) || '0.000'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-[10px]">Cost/Voice User</p>
+                <p className="text-orange-400 font-bold">${insights.voice_costs.cost_per_user?.toFixed(3) || '0.000'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-[10px]">Voice Sessions</p>
+                <p className="text-orange-400 font-bold">{insights.voice_costs.total_sessions || 0}</p>
+              </div>
+            </div>
+            
+            {/* Voice Usage Stats */}
+            <div className="grid grid-cols-4 gap-2 mb-3 text-center">
+              <div className="bg-black/30 rounded p-2">
+                <p className="text-white font-bold">{insights.voice_costs.unique_users || 0}</p>
+                <p className="text-gray-600 text-[10px]">Voice Users</p>
+              </div>
+              <div className="bg-black/30 rounded p-2">
+                <p className="text-white font-bold">{Math.round((insights.voice_costs.total_duration_seconds || 0) / 60)}m</p>
+                <p className="text-gray-600 text-[10px]">Total Duration</p>
+              </div>
+              <div className="bg-black/30 rounded p-2">
+                <p className="text-white font-bold">{Math.round((insights.voice_costs.avg_duration_seconds || 0) / 60)}m</p>
+                <p className="text-gray-600 text-[10px]">Avg Session</p>
+              </div>
+              <div className="bg-black/30 rounded p-2">
+                <p className="text-white font-bold">
+                  {((insights.voice_costs.total_audio_input_tokens || 0) + (insights.voice_costs.total_audio_output_tokens || 0)).toLocaleString()}
+                </p>
+                <p className="text-gray-600 text-[10px]">Audio Tokens</p>
+              </div>
+            </div>
+
+            {/* Voice Pricing Suggestions */}
+            <div className="bg-orange-500/10 border border-orange-500/20 rounded p-2">
+              <p className="text-orange-400 text-[10px] font-bold mb-2">💡 Voice Pricing Suggestions</p>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Per minute (3x markup):</span>
+                  <span className="text-white font-medium">${((insights.voice_costs.cost_per_minute || 0) * 3).toFixed(3)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Per session (5x markup):</span>
+                  <span className="text-white font-medium">${((insights.voice_costs.cost_per_session || 0) * 5).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Monthly voice add-on:</span>
+                  <span className="text-orange-400 font-bold">${Math.max(5, Math.ceil((insights.voice_costs.cost_per_user || 0) * 5))}</span>
+                </div>
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-600 mt-2">
+              Based on OpenAI gpt-4o-realtime: $40/1M input, $80/1M output audio tokens (~50 tokens/second)
+            </p>
+          </div>
+        )}
+
         {/* Tier Pricing Table */}
         {insights.pricing_recommendations.tiers && (
           <div className="overflow-x-auto mb-4">
