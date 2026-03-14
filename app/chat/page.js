@@ -4176,8 +4176,29 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
   useEffect(() => {
     if (activeTab === 'voice' && token && !voiceSettingsLoading) {
       loadVoiceSettings();
+      loadVoiceStats();
     }
   }, [activeTab, token]);
+
+  // Voice Stats
+  const [voiceStats, setVoiceStats] = useState(null);
+  const [voiceStatsLoading, setVoiceStatsLoading] = useState(false);
+
+  // Load voice stats
+  const loadVoiceStats = async () => {
+    if (voiceStatsLoading) return;
+    setVoiceStatsLoading(true);
+    try {
+      const res = await fetch('/api/user/voice-stats', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setVoiceStats(data);
+      }
+    } catch (e) {
+      console.error('Failed to load voice stats:', e);
+    }
+    setVoiceStatsLoading(false);
+  };
 
   // SoulPrint data
   const [soulPrintData, setSoulPrintData] = useState(null);
@@ -5048,6 +5069,90 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                         <div className={`w-5 h-5 rounded-full bg-white transition-transform mx-0.5 ${voiceSettings.web_search_enabled ? 'translate-x-6' : 'translate-x-0'}`} />
                       </button>
                     </div>
+                  </div>
+
+                  {/* Voice Chat Statistics */}
+                  <div className="p-4 bg-gradient-to-br from-orange-500/10 to-purple-500/10 border border-orange-500/20 rounded-xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-orange-400 text-xs font-semibold">📊 Your Voice Chat Stats</p>
+                      {voiceStatsLoading && <Loader2 className="w-3 h-3 animate-spin text-orange-500" />}
+                    </div>
+                    
+                    {voiceStats ? (
+                      <div className="space-y-4">
+                        {/* Main Stats Grid */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 bg-white/5 rounded-lg">
+                            <p className="text-2xl font-bold text-white">{voiceStats.stats.total_sessions}</p>
+                            <p className="text-gray-500 text-xs">Total Sessions</p>
+                          </div>
+                          <div className="p-3 bg-white/5 rounded-lg">
+                            <p className="text-2xl font-bold text-white">{voiceStats.stats.total_duration_formatted}</p>
+                            <p className="text-gray-500 text-xs">Total Time</p>
+                          </div>
+                          <div className="p-3 bg-white/5 rounded-lg">
+                            <p className="text-2xl font-bold text-white">{voiceStats.stats.avg_duration_formatted}</p>
+                            <p className="text-gray-500 text-xs">Avg Duration</p>
+                          </div>
+                          <div className="p-3 bg-white/5 rounded-lg">
+                            <p className="text-2xl font-bold text-white">{voiceStats.stats.total_messages}</p>
+                            <p className="text-gray-500 text-xs">Messages</p>
+                          </div>
+                        </div>
+
+                        {/* Voice Distribution */}
+                        {voiceStats.voice_distribution?.length > 0 && (
+                          <div>
+                            <p className="text-gray-500 text-xs mb-2">🎤 Voices Used</p>
+                            <div className="flex flex-wrap gap-2">
+                              {voiceStats.voice_distribution.map((v, i) => (
+                                <span 
+                                  key={i} 
+                                  className="px-2 py-1 bg-white/5 border border-white/10 rounded-full text-xs text-gray-400"
+                                >
+                                  {v.voice} <span className="text-orange-400">({v.count})</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recent Sessions */}
+                        {voiceStats.recent_sessions?.length > 0 && (
+                          <div>
+                            <p className="text-gray-500 text-xs mb-2">🕐 Recent Sessions</p>
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                              {voiceStats.recent_sessions.slice(0, 5).map((session, i) => (
+                                <div key={i} className="flex items-center justify-between p-2 bg-white/3 rounded-lg">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${session.status === 'completed' ? 'bg-green-500' : session.status === 'active' ? 'bg-orange-500' : 'bg-gray-500'}`} />
+                                    <span className="text-white text-xs">{session.voice || 'Default'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-gray-500 text-xs">
+                                    <span>{session.message_count || 0} msgs</span>
+                                    <span>{session.duration_seconds ? `${Math.round(session.duration_seconds / 60)}m` : '-'}</span>
+                                    <span>{new Date(session.created_at).toLocaleDateString()}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* First/Last Session */}
+                        {voiceStats.stats.first_session && (
+                          <div className="flex justify-between text-xs text-gray-500 pt-2 border-t border-white/5">
+                            <span>First: {new Date(voiceStats.stats.first_session).toLocaleDateString()}</span>
+                            <span>Last: {new Date(voiceStats.stats.last_session).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <p className="text-gray-500 text-xs">No voice chat history yet</p>
+                        <p className="text-gray-600 text-xs mt-1">Start a voice conversation to see your stats!</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Voice Chat Tips */}

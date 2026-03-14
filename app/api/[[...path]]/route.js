@@ -20683,6 +20683,123 @@ async function handleGetVoiceSessions(request) {
   }
 }
 
+// Handler: Get User Voice Stats - Get voice chat statistics for a specific user
+async function handleGetUserVoiceStats(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const db = await getDatabase();
+    
+    // Get user's voice sessions
+    const sessions = await db.collection('voice_sessions')
+      .find({ user_id: user.id })
+      .sort({ created_at: -1 })
+      .limit(10)
+      .toArray();
+
+    // Calculate user-specific stats
+    const stats = await db.collection('voice_sessions').aggregate([
+      { $match: { user_id: user.id } },
+      {
+        $group: {
+          _id: null,
+          total_sessions: { $sum: 1 },
+          total_duration: { $sum: { $ifNull: ['$duration_seconds', 0] } },
+          avg_duration: { $avg: { $ifNull: ['$duration_seconds', 0] } },
+          total_messages: { $sum: { $ifNull: ['$message_count', 0] } },
+          completed_count: { 
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } 
+          },
+          first_session: { $min: '$created_at' },
+          last_session: { $max: '$created_at' },
+        }
+      }
+    ]).toArray();
+
+    // Voice distribution - which voices user has used
+    const voiceDistribution = await db.collection('voice_sessions').aggregate([
+      { $match: { user_id: user.id } },
+      { $group: { _id: '$voice', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]).toArray();
+
+    // Sessions over time (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const sessionsOverTime = await db.collection('voice_sessions').aggregate([
+      { 
+        $match: { 
+          user_id: user.id,
+          created_at: { $gte: thirtyDaysAgo }
+        } 
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } },
+          count: { $sum: 1 },
+          total_duration: { $sum: { $ifNull: ['$duration_seconds', 0] } }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]).toArray();
+
+    const aggregateStats = stats[0] || {
+      total_sessions: 0,
+      total_duration: 0,
+      avg_duration: 0,
+      total_messages: 0,
+      completed_count: 0,
+      first_session: null,
+      last_session: null,
+    };
+
+    // Format duration nicely
+    const formatDuration = (seconds) => {
+      if (!seconds || seconds === 0) return '0m';
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}m`;
+    };
+
+    return NextResponse.json({
+      stats: {
+        total_sessions: aggregateStats.total_sessions,
+        total_duration_seconds: aggregateStats.total_duration,
+        total_duration_formatted: formatDuration(aggregateStats.total_duration),
+        avg_duration_seconds: Math.round(aggregateStats.avg_duration || 0),
+        avg_duration_formatted: formatDuration(Math.round(aggregateStats.avg_duration || 0)),
+        total_messages: aggregateStats.total_messages,
+        completed_rate: aggregateStats.total_sessions > 0 
+          ? Math.round((aggregateStats.completed_count / aggregateStats.total_sessions) * 100) 
+          : 0,
+        first_session: aggregateStats.first_session,
+        last_session: aggregateStats.last_session,
+      },
+      voice_distribution: voiceDistribution.map(v => ({
+        voice: v._id || 'unknown',
+        count: v.count,
+      })),
+      sessions_over_time: sessionsOverTime,
+      recent_sessions: sessions.map(s => ({
+        id: s.id,
+        voice: s.voice,
+        duration_seconds: s.duration_seconds,
+        message_count: s.message_count,
+        status: s.status,
+        created_at: s.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error('[Voice] Get user stats error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 // Handler: Web Search - Search the web using Tavily (for voice chat real-time data)
 async function handleWebSearch(request) {
   try {
@@ -21447,6 +21564,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'user/location') return handleGetUserLocation(request);
     if (pathStr === 'user/timezone') return handleGetUserTimezone(request);
     if (pathStr === 'user/voice-settings') return handleGetVoiceSettings(request);
+    if (pathStr === 'user/voice-stats') return handleGetUserVoiceStats(request);
     if (pathStr === 'voice/system-prompt') return handleGetVoiceSystemPrompt(request);
     if (pathStr === 'feature-flags') return handleGetFeatureFlags(request);
     if (pathStr === 'data-imports') return handleGetDataImports(request);
