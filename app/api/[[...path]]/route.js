@@ -4314,6 +4314,26 @@ async function buildSystemPrompt(db, userId) {
 
 ${dateTimeContext}
 
+# Your Capabilities
+
+## 🌐 Real-Time Web Access
+You have FULL real-time web access. You can:
+- Search the internet for current information, news, prices, weather, etc.
+- Access and read content from websites and URLs the user provides
+- Find the latest information that may be beyond your training data
+- Research companies, products, people, or any topic
+
+**IMPORTANT**: When a user provides a URL or asks about a website, ALWAYS search for and retrieve information from it. Never say you cannot access websites - you CAN and SHOULD search the web for any query that benefits from real-time information.
+
+## 📅 Google Integration
+You can access ${displayName}'s connected Google accounts for:
+- Reading and composing emails (Gmail)
+- Creating, viewing, and managing calendar events
+- Searching and creating documents (Google Docs)
+
+## 🧠 Memory & Personalization
+You have access to ${displayName}'s long-term memories, preferences, and context. Use this to provide personalized responses.
+
 # What is a SoulPrint?
 
 A SoulPrint is ${displayName}'s persistent AI identity layer. Not a chatbot. Not a prompt wrapper. Not a memory plugin. It's a mapped, structured imprint of how they think, decide, react, prioritize, trust, and communicate — embedded into you so the interaction reflects them, not generic model behavior.
@@ -7528,17 +7548,35 @@ async function handleChatStream(request) {
           
           if (userText) {
             const lowerText = userText.toLowerCase();
+            
+            // Check if query contains a URL - always search for URLs
+            const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+|\.[a-z]{2,}\/[^\s]*/i;
+            const hasUrl = urlPattern.test(userText);
+            
             // More aggressive search triggers - search whenever user asks about something
             const searchKeywords = [
-              'weather', 'news', 'price', 'stock', 'score', 'latest', 'current', 'today', 'recent',
-              'what is', 'what are', 'who is', 'who are', 'tell me about', 'explain', 'how to',
-              'when did', 'where is', 'why did', 'find', 'search', 'look up',
-              '2024', '2025', '2026'
+              // Time-sensitive queries
+              'weather', 'news', 'price', 'stock', 'score', 'latest', 'current', 'today', 'recent', 'now',
+              // Question patterns
+              'what is', 'what are', 'who is', 'who are', 'tell me about', 'explain', 'how to', 'how do',
+              'when did', 'where is', 'why did', 'why is', 'find', 'search', 'look up', 'lookup',
+              // Website/URL related
+              'website', 'site', 'page', 'url', 'link', 'from their', 'using their', 'on their',
+              'visit', 'check out', 'go to', 'browse', 'open',
+              // Research/information gathering
+              'research', 'information', 'info', 'details', 'about', 'profile', 'overview', 'summary',
+              'learn about', 'read about', 'know about',
+              // Company/product queries
+              'company', 'product', 'service', 'platform', 'app', 'tool', 'startup', 'business',
+              // Years
+              '2024', '2025', '2026',
+              // Action words that often need real-time data
+              'compare', 'review', 'analyze', 'generate', 'create'
             ];
-            const needsSearch = searchKeywords.some(kw => lowerText.includes(kw));
+            const needsSearch = hasUrl || searchKeywords.some(kw => lowerText.includes(kw));
             
             if (needsSearch) {
-              console.log('[Chat] Proactive search triggered for:', userText.slice(0, 100));
+              console.log('[Chat] Proactive search triggered for:', userText.slice(0, 100), hasUrl ? '(contains URL)' : '');
               try {
                 const { buildSearchContext } = await import('@/lib/llm/providers');
                 const searchResult = await buildSearchContext(userText);
