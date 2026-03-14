@@ -20715,6 +20715,34 @@ async function handleGetUserVoiceStats(request) {
           },
           first_session: { $min: '$created_at' },
           last_session: { $max: '$created_at' },
+          total_audio_input_tokens: { $sum: { $ifNull: ['$audio_input_tokens', 0] } },
+          total_audio_output_tokens: { $sum: { $ifNull: ['$audio_output_tokens', 0] } },
+          total_cost: { $sum: { $ifNull: ['$estimated_cost_usd', 0] } },
+        }
+      }
+    ]).toArray();
+
+    // Get text chat token stats for the user
+    const textStats = await db.collection('messages').aggregate([
+      { $match: { user_id: user.id, role: 'assistant', est_input_tokens: { $exists: true } } },
+      {
+        $group: {
+          _id: null,
+          total_messages: { $sum: 1 },
+          total_input_tokens: { $sum: { $ifNull: ['$est_input_tokens', 0] } },
+          total_output_tokens: { $sum: { $ifNull: ['$est_output_tokens', 0] } },
+        }
+      }
+    ]).toArray();
+
+    // Get media generation stats
+    const mediaStats = await db.collection('media_generations').aggregate([
+      { $match: { user_id: user.id } },
+      {
+        $group: {
+          _id: '$type',
+          count: { $sum: 1 },
+          total_cost: { $sum: { $ifNull: ['$cost_usd', 0] } },
         }
       }
     ]).toArray();
@@ -20755,7 +20783,32 @@ async function handleGetUserVoiceStats(request) {
       completed_count: 0,
       first_session: null,
       last_session: null,
+      total_audio_input_tokens: 0,
+      total_audio_output_tokens: 0,
+      total_cost: 0,
     };
+
+    const textStatsData = textStats[0] || {
+      total_messages: 0,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+    };
+
+    // Calculate text chat costs (using GPT-4o pricing as estimate: $2.50/1M input, $10/1M output)
+    const textInputCost = (textStatsData.total_input_tokens / 1_000_000) * 2.50;
+    const textOutputCost = (textStatsData.total_output_tokens / 1_000_000) * 10.00;
+    const totalTextCost = textInputCost + textOutputCost;
+
+    // Calculate media costs
+    const mediaCostByType = {};
+    let totalMediaCost = 0;
+    mediaStats.forEach(m => {
+      mediaCostByType[m._id || 'unknown'] = {
+        count: m.count,
+        cost: parseFloat(m.total_cost.toFixed(4)),
+      };
+      totalMediaCost += m.total_cost;
+    });
 
     // Format duration nicely
     const formatDuration = (seconds) => {
@@ -20780,6 +20833,30 @@ async function handleGetUserVoiceStats(request) {
         first_session: aggregateStats.first_session,
         last_session: aggregateStats.last_session,
       },
+      costs: {
+        voice: {
+          audio_input_tokens: aggregateStats.total_audio_input_tokens,
+          audio_output_tokens: aggregateStats.total_audio_output_tokens,
+          total_cost_usd: parseFloat(aggregateStats.total_cost.toFixed(4)),
+          cost_per_session: aggregateStats.total_sessions > 0 
+            ? parseFloat((aggregateStats.total_cost / aggregateStats.total_sessions).toFixed(4))
+            : 0,
+          cost_per_minute: aggregateStats.total_duration > 0
+            ? parseFloat((aggregateStats.total_cost / (aggregateStats.total_duration / 60)).toFixed(4))
+            : 0,
+        },
+        text: {
+          total_messages: textStatsData.total_messages,
+          input_tokens: textStatsData.total_input_tokens,
+          output_tokens: textStatsData.total_output_tokens,
+          estimated_cost_usd: parseFloat(totalTextCost.toFixed(4)),
+        },
+        media: {
+          by_type: mediaCostByType,
+          total_cost_usd: parseFloat(totalMediaCost.toFixed(4)),
+        },
+        grand_total_usd: parseFloat((aggregateStats.total_cost + totalTextCost + totalMediaCost).toFixed(4)),
+      },
       voice_distribution: voiceDistribution.map(v => ({
         voice: v._id || 'unknown',
         count: v.count,
@@ -20792,6 +20869,7 @@ async function handleGetUserVoiceStats(request) {
         message_count: s.message_count,
         status: s.status,
         created_at: s.created_at,
+        cost_usd: s.estimated_cost_usd,
       })),
     });
   } catch (err) {

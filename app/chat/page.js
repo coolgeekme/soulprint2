@@ -5146,6 +5146,94 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                             <span>Last: {new Date(voiceStats.stats.last_session).toLocaleDateString()}</span>
                           </div>
                         )}
+
+                        {/* Cost Breakdown Section */}
+                        {voiceStats.costs && (
+                          <div className="mt-4 pt-4 border-t border-white/10">
+                            <p className="text-green-400 text-xs font-semibold mb-3">💰 Cost Breakdown (Your Usage)</p>
+                            
+                            {/* Grand Total */}
+                            <div className="p-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-lg mb-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-gray-400 text-xs">Total Cost (All Services)</span>
+                                <span className="text-xl font-bold text-green-400">${voiceStats.costs.grand_total_usd?.toFixed(2) || '0.00'}</span>
+                              </div>
+                            </div>
+
+                            {/* Cost by Service */}
+                            <div className="space-y-2">
+                              {/* Voice Chat Costs */}
+                              <div className="p-3 bg-white/3 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-white text-xs font-medium">🎙️ Voice Chat</span>
+                                  <span className="text-orange-400 text-sm font-semibold">${voiceStats.costs.voice.total_cost_usd?.toFixed(4) || '0.00'}</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                                  <div>
+                                    <span className="block text-gray-600">Input Tokens</span>
+                                    <span className="text-gray-400">{(voiceStats.costs.voice.audio_input_tokens || 0).toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="block text-gray-600">Output Tokens</span>
+                                    <span className="text-gray-400">{(voiceStats.costs.voice.audio_output_tokens || 0).toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="block text-gray-600">Cost/Session</span>
+                                    <span className="text-gray-400">${voiceStats.costs.voice.cost_per_session?.toFixed(4) || '0.00'}</span>
+                                  </div>
+                                  <div>
+                                    <span className="block text-gray-600">Cost/Minute</span>
+                                    <span className="text-gray-400">${voiceStats.costs.voice.cost_per_minute?.toFixed(4) || '0.00'}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Text Chat Costs */}
+                              <div className="p-3 bg-white/3 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-white text-xs font-medium">💬 Text Chat</span>
+                                  <span className="text-blue-400 text-sm font-semibold">${voiceStats.costs.text.estimated_cost_usd?.toFixed(4) || '0.00'}</span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-xs text-gray-500">
+                                  <div>
+                                    <span className="block text-gray-600">Messages</span>
+                                    <span className="text-gray-400">{(voiceStats.costs.text.total_messages || 0).toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="block text-gray-600">Input Tokens</span>
+                                    <span className="text-gray-400">{(voiceStats.costs.text.input_tokens || 0).toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="block text-gray-600">Output Tokens</span>
+                                    <span className="text-gray-400">{(voiceStats.costs.text.output_tokens || 0).toLocaleString()}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Media Generation Costs */}
+                              {voiceStats.costs.media.total_cost_usd > 0 && (
+                                <div className="p-3 bg-white/3 rounded-lg">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-white text-xs font-medium">🖼️ Media Generation</span>
+                                    <span className="text-purple-400 text-sm font-semibold">${voiceStats.costs.media.total_cost_usd?.toFixed(4) || '0.00'}</span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2 text-xs">
+                                    {Object.entries(voiceStats.costs.media.by_type || {}).map(([type, data]) => (
+                                      <span key={type} className="px-2 py-1 bg-white/5 rounded text-gray-400">
+                                        {type}: {data.count} (${data.cost?.toFixed(2)})
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Pricing Note */}
+                            <p className="text-gray-600 text-[10px] mt-3 italic">
+                              * Costs are estimates based on OpenAI API pricing. Voice: $40/1M input, $80/1M output tokens. Text: ~$2.50/1M input, ~$10/1M output.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="text-center py-4">
