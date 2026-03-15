@@ -2025,6 +2025,9 @@ export default function MobileChat({
   const [selectedAspectRatio, setSelectedAspectRatio] = useState('1:1');
   const [mediaPrompt, setMediaPrompt] = useState('');
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
+  // Visual content generation state (flyers, infographics, images)
+  const [isGeneratingVisual, setIsGeneratingVisual] = useState(false);
+  const [visualGenerationType, setVisualGenerationType] = useState(''); // 'flyer', 'infographic', 'image'
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renamingConversation, setRenamingConversation] = useState(null);
   const [renameTitle, setRenameTitle] = useState('');
@@ -2847,6 +2850,28 @@ export default function MobileChat({
             } else if (data.type === 'delta') {
               fullContent += data.content;
               setStreamingContent(fullContent);
+              
+              // Detect if AI is about to generate visual content
+              const lowerContent = fullContent.toLowerCase();
+              const generatingPhrases = [
+                'generating the infographic', 'generate the infographic', 'create the infographic', 'creating the infographic',
+                'generating the flyer', 'generate the flyer', 'create the flyer', 'creating the flyer',
+                'generating the poster', 'generate the poster', 'create the poster', 'creating the poster',
+                'generating this image', 'generate this image', 'creating this image',
+                'i\'ll generate', 'i will generate', 'let me generate', 'let me create',
+                'hold on for a moment', 'please hold', 'one moment while i',
+                'working on your', 'designing your', 'crafting your'
+              ];
+              const isGeneratingVisualContent = generatingPhrases.some(phrase => lowerContent.includes(phrase));
+              
+              if (isGeneratingVisualContent && !isGeneratingVisual) {
+                let type = 'image';
+                if (lowerContent.includes('infographic')) type = 'infographic';
+                else if (lowerContent.includes('flyer')) type = 'flyer';
+                else if (lowerContent.includes('poster')) type = 'poster';
+                setIsGeneratingVisual(true);
+                setVisualGenerationType(type);
+              }
             } else if (data.type === 'sources') {
               // Received sources from web search
               setStreamingSources(data.sources || []);
@@ -2871,6 +2896,8 @@ export default function MobileChat({
 
       setStreamingContent('');
       setStreamingSources([]);
+      setIsGeneratingVisual(false);
+      setVisualGenerationType('');
       if (newConvId && newConvId !== conversationId) {
         setConversationId(newConvId);
         // Refresh conversations list
@@ -3966,6 +3993,51 @@ export default function MobileChat({
                         <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                         <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Visual Content Generating Indicator */}
+              {isGeneratingVisual && (
+                <div className="py-3">
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 border border-purple-500/20 p-4">
+                    {/* Animated background shimmer */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+                    
+                    {/* Content */}
+                    <div className="relative flex items-center gap-3">
+                      {/* Animated icon */}
+                      <div className="relative flex-shrink-0">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+                          <Sparkles className="w-6 h-6 text-purple-400 animate-pulse" />
+                        </div>
+                        {/* Spinning ring */}
+                        <div className="absolute inset-0 rounded-xl border-2 border-transparent border-t-purple-500/50 animate-spin" style={{ animationDuration: '2s' }} />
+                      </div>
+                      
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-semibold text-sm mb-0.5">
+                          {visualGenerationType === 'infographic' ? '📊 Creating your infographic...' :
+                           visualGenerationType === 'flyer' ? '📄 Designing your flyer...' :
+                           visualGenerationType === 'poster' ? '🖼️ Creating your poster...' :
+                           '✨ Generating your image...'}
+                        </p>
+                        <p className="text-gray-400 text-xs">This may take 15-30 seconds</p>
+                      </div>
+                    </div>
+                    
+                    {/* Progress animation */}
+                    <div className="mt-3 relative h-1 bg-white/10 rounded-full overflow-hidden">
+                      <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 rounded-full animate-progress" />
+                    </div>
+                    
+                    {/* Progress dots */}
+                    <div className="flex justify-center gap-1.5 mt-3">
+                      <div className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   </div>
                 </div>

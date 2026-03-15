@@ -6555,6 +6555,9 @@ export default function ChatPage() {
   const [quickVideoLength, setQuickVideoLength] = useState('5');
   const [selectedImageModel, setSelectedImageModel] = useState('smart');
   const [selectedVideoModel, setSelectedVideoModel] = useState('smart');
+  // Visual content generation state (flyers, infographics, images)
+  const [isGeneratingVisual, setIsGeneratingVisual] = useState(false);
+  const [visualGenerationType, setVisualGenerationType] = useState(''); // 'flyer', 'infographic', 'image'
   // Image-to-JSON generation state
   const [generatingImageJson, setGeneratingImageJson] = useState(false);
   const [imageJsonResult, setImageJsonResult] = useState(null);
@@ -7505,6 +7508,9 @@ export default function ChatPage() {
               // Image generated – store url for rendering
               setStreamingImageUrl(data.url);
               setStreamingRevPrompt(data.revised_prompt);
+              // Reset visual generation state since image arrived
+              setIsGeneratingVisual(false);
+              setVisualGenerationType('');
             } else if (data.type === 'video_task') {
               // Video job started – store taskId for polling
               setStreamingVideoTask({ taskId: data.taskId, status: 'generating', prompt: data.prompt });
@@ -7514,6 +7520,29 @@ export default function ChatPage() {
               if (!streamingImageUrlRef.current) {
                 fullContent += data.content;
                 setStreamingContent(fullContent);
+                
+                // Detect if AI is about to generate visual content
+                const lowerContent = fullContent.toLowerCase();
+                const generatingPhrases = [
+                  'generating the infographic', 'generate the infographic', 'create the infographic', 'creating the infographic',
+                  'generating the flyer', 'generate the flyer', 'create the flyer', 'creating the flyer',
+                  'generating the poster', 'generate the poster', 'create the poster', 'creating the poster',
+                  'generating this image', 'generate this image', 'creating this image',
+                  'i\'ll generate', 'i will generate', 'let me generate', 'let me create',
+                  'hold on for a moment', 'please hold', 'one moment while i',
+                  'working on your', 'designing your', 'crafting your'
+                ];
+                const isGeneratingVisualContent = generatingPhrases.some(phrase => lowerContent.includes(phrase));
+                
+                if (isGeneratingVisualContent && !isGeneratingVisual) {
+                  // Determine what type of visual is being generated
+                  let type = 'image';
+                  if (lowerContent.includes('infographic')) type = 'infographic';
+                  else if (lowerContent.includes('flyer')) type = 'flyer';
+                  else if (lowerContent.includes('poster')) type = 'poster';
+                  setIsGeneratingVisual(true);
+                  setVisualGenerationType(type);
+                }
               }
             } else if (data.type === 'done') {
               const finalMsg = {
@@ -7555,6 +7584,8 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
       setSearchingWeb(false);
+      setIsGeneratingVisual(false);
+      setVisualGenerationType('');
       abortControllerRef.current = null;
       // Use setTimeout to ensure focus after all React state updates complete
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -9351,6 +9382,53 @@ export default function ChatPage() {
                         totalModels={compareResponses.responses.length}
                       />
                     ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Visual Content Generating Indicator */}
+            {isGeneratingVisual && (
+              <div className="px-2 sm:px-4 py-3">
+                <div className="max-w-3xl mx-auto">
+                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 border border-purple-500/20 p-5">
+                    {/* Animated background shimmer */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+                    
+                    {/* Content */}
+                    <div className="relative flex items-center gap-4">
+                      {/* Animated icon */}
+                      <div className="relative flex-shrink-0">
+                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+                          <Sparkles className="w-7 h-7 text-purple-400 animate-pulse" />
+                        </div>
+                        {/* Spinning ring */}
+                        <div className="absolute inset-0 rounded-xl border-2 border-transparent border-t-purple-500/50 animate-spin" style={{ animationDuration: '2s' }} />
+                      </div>
+                      
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-semibold text-base mb-1">
+                          {visualGenerationType === 'infographic' ? '📊 Creating your infographic...' :
+                           visualGenerationType === 'flyer' ? '📄 Designing your flyer...' :
+                           visualGenerationType === 'poster' ? '🖼️ Creating your poster...' :
+                           '✨ Generating your image...'}
+                        </p>
+                        <p className="text-gray-400 text-sm">This may take 15-30 seconds. We're crafting something beautiful!</p>
+                      </div>
+                    </div>
+                    
+                    {/* Progress animation */}
+                    <div className="mt-4 relative h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 rounded-full animate-progress" />
+                    </div>
+                    
+                    {/* Progress dots */}
+                    <div className="flex justify-center gap-2 mt-4">
+                      <div className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
                   </div>
                 </div>
               </div>
