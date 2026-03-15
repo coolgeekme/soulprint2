@@ -408,6 +408,20 @@ async function processFile(file) {
       }
       
       const data = await res.json();
+      
+      // Check if this is an image-based PDF that was converted to PNG
+      if (data.metadata?.imageBasedPdf && data.metadata?.base64) {
+        // Return as image type so it gets sent to vision model
+        return { 
+          type: 'image',
+          base64: data.metadata.base64,
+          mimeType: data.metadata.convertedMimeType || 'image/png',
+          name: file.name,
+          isImageBasedPdf: true,
+          text: data.text || '' // Keep the indicator text
+        };
+      }
+      
       return { 
         type: 'document', 
         text: data.text || '', 

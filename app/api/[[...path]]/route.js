@@ -18,14 +18,99 @@ async function parseDocumentContent(buffer, mimeType, fileName) {
         // Try pdf-parse-new first
         const pdfParseNew = require('pdf-parse-new');
         const pdfData = await pdfParseNew(buffer);
-        return {
-          success: true,
-          text: pdfData.text?.slice(0, 50000) || '',
-          metadata: {
-            pages: pdfData.numpages,
-            info: pdfData.info
+        
+        // Check if we got meaningful text (more than just whitespace)
+        const extractedText = pdfData.text?.trim() || '';
+        
+        if (extractedText.length > 20) {
+          // Good text extraction
+          return {
+            success: true,
+            text: extractedText.slice(0, 50000),
+            metadata: {
+              pages: pdfData.numpages,
+              info: pdfData.info
+            }
+          };
+        } else {
+          // PDF is likely image-based (flyer, poster, scanned document)
+          // Convert to PNG using pdftoppm for vision processing
+          console.log('[PDF] No extractable text found - converting to image for OCR...');
+          
+          try {
+            const { execSync } = require('child_process');
+            const fs = require('fs');
+            const path = require('path');
+            const crypto = require('crypto');
+            
+            // Create temp files
+            const tempId = crypto.randomBytes(8).toString('hex');
+            const tempPdf = `/tmp/pdf_${tempId}.pdf`;
+            const tempPng = `/tmp/pdf_${tempId}`;
+            
+            // Write PDF to temp file
+            fs.writeFileSync(tempPdf, buffer);
+            
+            // Convert first page to PNG using pdftoppm (high quality)
+            execSync(`pdftoppm -png -f 1 -l 1 -r 200 "${tempPdf}" "${tempPng}"`, { 
+              timeout: 30000,
+              stdio: ['pipe', 'pipe', 'pipe']
+            });
+            
+            // Read the PNG file (pdftoppm adds page number suffix)
+            const pngPath = `${tempPng}-1.png`;
+            let pngBuffer;
+            
+            if (fs.existsSync(pngPath)) {
+              pngBuffer = fs.readFileSync(pngPath);
+              // Cleanup temp files
+              try {
+                fs.unlinkSync(tempPdf);
+                fs.unlinkSync(pngPath);
+              } catch (e) {}
+            } else {
+              // Try without suffix (single page PDFs)
+              const altPngPath = `${tempPng}.png`;
+              if (fs.existsSync(altPngPath)) {
+                pngBuffer = fs.readFileSync(altPngPath);
+                try {
+                  fs.unlinkSync(tempPdf);
+                  fs.unlinkSync(altPngPath);
+                } catch (e) {}
+              }
+            }
+            
+            if (pngBuffer) {
+              const base64Png = pngBuffer.toString('base64');
+              console.log('[PDF] Converted to PNG, size:', pngBuffer.length, 'bytes');
+              return {
+                success: true,
+                text: `[Image-based PDF: "${fileName || 'document.pdf'}" - Converted to image for visual analysis]`,
+                metadata: {
+                  pages: pdfData.numpages,
+                  info: pdfData.info,
+                  imageBasedPdf: true,
+                  base64: base64Png,
+                  convertedMimeType: 'image/png'
+                }
+              };
+            }
+          } catch (convertError) {
+            console.error('[PDF] Conversion error:', convertError.message);
           }
-        };
+          
+          // If conversion failed, return message asking user to share as image
+          return {
+            success: true,
+            text: `[This PDF "${fileName || 'document.pdf'}" appears to be image-based (flyer/poster/scanned). For best results, please take a screenshot of the PDF and upload it as an image instead.]`,
+            metadata: {
+              pages: pdfData.numpages,
+              info: pdfData.info,
+              imageBasedPdf: true,
+              conversionFailed: true
+            }
+          };
+        }
       } catch (newError) {
         console.error('PDF parse new error:', newError);
         try {
