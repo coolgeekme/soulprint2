@@ -9000,6 +9000,40 @@ export default function ChatPage() {
                   <div className={`rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-relaxed break-words ${msg.role === 'user' ? 'bg-orange-500/15 border border-orange-500/20 text-white' : 'bg-white/4 border border-white/8 text-gray-200'}`}>
                     {msg.role === 'assistant' ? (
                       <>
+                        {/* Generating Animation - show when creating flyers/infographics/images */}
+                        {msg.is_generating && (
+                          <div className="mb-4">
+                            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 border border-white/10 p-4">
+                              {/* Animated background shimmer */}
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+                              
+                              {/* Content */}
+                              <div className="relative flex items-center gap-4">
+                                {/* Animated icon */}
+                                <div className="relative">
+                                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+                                    <Sparkles className="w-6 h-6 text-purple-400 animate-pulse" />
+                                  </div>
+                                  {/* Spinning ring */}
+                                  <div className="absolute inset-0 rounded-xl border-2 border-transparent border-t-purple-500/50 animate-spin" style={{ animationDuration: '2s' }} />
+                                </div>
+                                
+                                {/* Text */}
+                                <div className="flex-1">
+                                  <p className="text-white font-medium text-sm mb-1">Creating your design...</p>
+                                  <p className="text-gray-400 text-xs">This may take a moment. We're crafting something beautiful!</p>
+                                </div>
+                              </div>
+                              
+                              {/* Progress dots */}
+                              <div className="flex justify-center gap-1.5 mt-4">
+                                <div className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <div className="w-2 h-2 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <div className="w-2 h-2 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         {/* Image card */}
                         {msg.image_url && (
                           <ImageCard 

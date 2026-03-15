@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MessageSquare, User, ChevronDown, 
-  Plus, Settings, X, Check, Loader2, Globe,
+  Plus, Settings, X, Check, Loader2, Globe, Sparkles,
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
@@ -588,11 +588,38 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
             />
           )}
           
-          {/* Show loading spinner for generating media */}
+          {/* Show animated generating state for media/flyers/infographics */}
           {message.is_generating && (
-            <div className="flex items-center gap-2 mb-3 text-orange-400">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">Generating...</span>
+            <div className="mb-4">
+              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 border border-white/10 p-4">
+                {/* Animated background shimmer */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+                
+                {/* Content */}
+                <div className="relative flex items-center gap-3">
+                  {/* Animated icon */}
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+                      <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
+                    </div>
+                    {/* Spinning ring */}
+                    <div className="absolute inset-0 rounded-xl border-2 border-transparent border-t-purple-500/50 animate-spin" style={{ animationDuration: '2s' }} />
+                  </div>
+                  
+                  {/* Text */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium text-sm mb-0.5">Creating your design...</p>
+                    <p className="text-gray-400 text-xs">Crafting something beautiful!</p>
+                  </div>
+                </div>
+                
+                {/* Progress dots */}
+                <div className="flex justify-center gap-1.5 mt-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
             </div>
           )}
           
