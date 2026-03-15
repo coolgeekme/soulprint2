@@ -1050,7 +1050,7 @@ const MoreOptionsSheet = ({ isOpen, onClose, onSettings }) => {
 };
 
 // Attachment/Create Options Sheet (+ button menu)
-const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onImageGen, onVideoGen, onCompare, onGallery }) => {
+const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onImageGen, onVideoGen, onCompare, onGallery, onNewConversation, onGenerateFlyer }) => {
   if (!isOpen) return null;
   
   return (
@@ -1059,6 +1059,20 @@ const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onI
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         <h3 className="text-white font-semibold text-lg mb-4">Create</h3>
         <div className="space-y-2">
+          {/* New Conversation - First Option */}
+          <button 
+            onClick={() => { onNewConversation?.(); onClose(); }}
+            className="w-full p-4 rounded-2xl bg-gradient-to-r from-orange-500/20 to-pink-500/20 border border-orange-500/30 text-left flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-full bg-orange-500/30 flex items-center justify-center">
+              <Plus className="w-5 h-5 text-orange-400" />
+            </div>
+            <div>
+              <span className="text-white font-medium">New Conversation</span>
+              <p className="text-gray-500 text-xs">Start a fresh chat</p>
+            </div>
+          </button>
+
           {/* Generate Image */}
           <button 
             onClick={() => { onImageGen?.(); onClose(); }}
@@ -1070,6 +1084,20 @@ const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onI
             <div>
               <span className="text-white font-medium">Generate Image</span>
               <p className="text-gray-500 text-xs">Create AI-generated images</p>
+            </div>
+          </button>
+          
+          {/* Generate Flyer */}
+          <button 
+            onClick={() => { onGenerateFlyer?.(); onClose(); }}
+            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-cyan-400" />
+            </div>
+            <div>
+              <span className="text-white font-medium">Generate Flyer</span>
+              <p className="text-gray-500 text-xs">Create flyers, posters & promotional materials</p>
             </div>
           </button>
           
@@ -1298,6 +1326,158 @@ const VideoGenSheet = ({
         >
           {isGenerating ? 'Generating...' : '🎬 Generate Video'}
         </button>
+        
+        <button onClick={onClose} className="w-full mt-3 p-3 text-gray-500 text-sm">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Flyer Generation Sheet
+const FlyerGenSheet = ({ 
+  isOpen, onClose, onGenerate, isGenerating 
+}) => {
+  const [flyerPrompt, setFlyerPrompt] = useState('');
+  const [flyerType, setFlyerType] = useState('promotional');
+  const [flyerSize, setFlyerSize] = useState('8.5x11');
+  const [outputFormat, setOutputFormat] = useState('png');
+  
+  const flyerTypes = [
+    { value: 'promotional', label: '🎉 Promotional', desc: 'Events, sales, announcements' },
+    { value: 'informational', label: '📋 Informational', desc: 'Classes, services, programs' },
+    { value: 'social', label: '📱 Social Media', desc: 'Instagram, Facebook posts' },
+    { value: 'poster', label: '🖼️ Poster', desc: 'Large format displays' },
+  ];
+  
+  const flyerSizes = [
+    { value: '8.5x11', label: 'Letter (8.5×11")', aspect: '8.5:11' },
+    { value: '11x17', label: 'Tabloid (11×17")', aspect: '11:17' },
+    { value: '1080x1080', label: 'Square (1080×1080)', aspect: '1:1' },
+    { value: '1080x1920', label: 'Story (1080×1920)', aspect: '9:16' },
+  ];
+  
+  if (!isOpen) return null;
+  
+  const handleGenerate = () => {
+    const sizeInfo = flyerSizes.find(s => s.value === flyerSize);
+    const fullPrompt = `Create a professional ${flyerType} flyer with the following details: ${flyerPrompt}. 
+    
+Design requirements:
+- Size: ${sizeInfo?.label}
+- Style: Modern, professional, eye-catching
+- Include all text clearly and legibly
+- Use appropriate colors and imagery
+- Make it print-ready with proper margins`;
+    
+    onGenerate(fullPrompt, sizeInfo?.aspect || '8.5:11', outputFormat);
+  };
+  
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-end" onClick={onClose}>
+      <div className="w-full bg-[#141a21] rounded-t-3xl p-6 pb-10 safe-area-bottom animate-slide-up max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
+        <h3 className="text-white font-semibold text-lg mb-1">📄 Generate Flyer</h3>
+        <p className="text-gray-500 text-xs mb-4">Create professional flyers, posters & promotional materials</p>
+        
+        {/* Flyer Description */}
+        <div className="mb-4">
+          <label className="text-gray-400 text-xs mb-2 block">What's the flyer about?</label>
+          <textarea
+            value={flyerPrompt}
+            onChange={(e) => setFlyerPrompt(e.target.value)}
+            placeholder="Pickleball clinic on March 22nd at Johnson Park. $25 per person. Beginners welcome. Contact coach@example.com..."
+            className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-gray-600 resize-none h-28 focus:outline-none focus:border-cyan-500/50"
+          />
+        </div>
+
+        {/* Flyer Type */}
+        <div className="mb-4">
+          <label className="text-gray-400 text-xs mb-2 block">Flyer Type</label>
+          <div className="grid grid-cols-2 gap-2">
+            {flyerTypes.map(type => (
+              <button
+                key={type.value}
+                onClick={() => setFlyerType(type.value)}
+                className={`p-3 rounded-xl text-left transition-colors ${
+                  flyerType === type.value
+                    ? 'bg-cyan-500/20 border border-cyan-500/50'
+                    : 'bg-white/5 border border-transparent'
+                }`}
+              >
+                <span className="text-white text-sm font-medium">{type.label}</span>
+                <p className="text-gray-500 text-[10px]">{type.desc}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Size Selection */}
+        <div className="mb-4">
+          <label className="text-gray-400 text-xs mb-2 block">Size</label>
+          <div className="grid grid-cols-2 gap-2">
+            {flyerSizes.map(size => (
+              <button
+                key={size.value}
+                onClick={() => setFlyerSize(size.value)}
+                className={`p-3 rounded-xl text-center transition-colors ${
+                  flyerSize === size.value
+                    ? 'bg-cyan-500/20 border border-cyan-500/50'
+                    : 'bg-white/5 border border-transparent'
+                }`}
+              >
+                <span className="text-white text-sm">{size.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Output Format */}
+        <div className="mb-6">
+          <label className="text-gray-400 text-xs mb-2 block">Output Format</label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setOutputFormat('png')}
+              className={`flex-1 p-3 rounded-xl transition-colors ${
+                outputFormat === 'png'
+                  ? 'bg-cyan-500/20 border border-cyan-500/50'
+                  : 'bg-white/5 border border-transparent'
+              }`}
+            >
+              <span className="text-white text-sm font-medium">PNG</span>
+              <p className="text-gray-500 text-[10px]">Best for digital</p>
+            </button>
+            <button
+              onClick={() => setOutputFormat('pdf')}
+              className={`flex-1 p-3 rounded-xl transition-colors ${
+                outputFormat === 'pdf'
+                  ? 'bg-cyan-500/20 border border-cyan-500/50'
+                  : 'bg-white/5 border border-transparent'
+              }`}
+            >
+              <span className="text-white text-sm font-medium">PDF</span>
+              <p className="text-gray-500 text-[10px]">Best for printing</p>
+            </button>
+          </div>
+        </div>
+
+        {/* Generate Button */}
+        <button
+          onClick={handleGenerate}
+          disabled={!flyerPrompt.trim() || isGenerating}
+          className={`w-full p-4 rounded-xl font-medium transition-all ${
+            flyerPrompt.trim() && !isGenerating
+              ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
+              : 'bg-white/10 text-gray-500'
+          }`}
+        >
+          {isGenerating ? 'Generating...' : '✨ Generate Flyer'}
+        </button>
+        
+        <p className="text-gray-600 text-[10px] text-center mt-3">
+          Tip: Be specific! Include dates, times, locations, pricing, and contact info.
+        </p>
         
         <button onClick={onClose} className="w-full mt-3 p-3 text-gray-500 text-sm">
           Cancel
@@ -1811,6 +1991,7 @@ export default function MobileChat({
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
+  const [showFlyerGenSheet, setShowFlyerGenSheet] = useState(false);
   const [profile, setProfile] = useState(null);
   const [soulPrint, setSoulPrint] = useState(null);
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
@@ -3076,6 +3257,91 @@ export default function MobileChat({
     } finally {
       setIsGeneratingMedia(false);
       setMediaPrompt('');
+    }
+  };
+
+  // Handle flyer generation
+  const handleFlyerGenerate = async (prompt, aspectRatio, outputFormat) => {
+    if (!prompt.trim()) return;
+    setIsGeneratingMedia(true);
+    
+    const placeholderMsg = {
+      id: `flyer-${Date.now()}`,
+      role: 'assistant',
+      content: `📄 Generating flyer...\n\n**Details:** ${prompt.slice(0, 200)}...\n**Format:** ${outputFormat.toUpperCase()}\n**Size:** ${aspectRatio}`,
+      created_at: new Date().toISOString(),
+      is_generating: true,
+    };
+    setMessages(prev => [...prev, placeholderMsg]);
+    setShowFlyerGenSheet(false);
+    setActiveTab('chat');
+
+    try {
+      // Use the image generation endpoint with flyer-optimized settings
+      const res = await fetch('/api/media/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ 
+          type: 'image', 
+          model: 'gpt-image-1', // Use DALL-E 3 / gpt-image-1 for flyers
+          prompt: prompt, 
+          aspectRatio: aspectRatio === '8.5:11' ? '2:3' : aspectRatio === '11:17' ? '2:3' : aspectRatio === '9:16' ? '9:16' : '1:1',
+          conversationId,
+          isFlyer: true,
+          outputFormat: outputFormat,
+        }),
+      });
+
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setMessages(prev => prev.map(m => 
+          m.id === placeholderMsg.id 
+            ? { ...m, content: `❌ Flyer generation failed: ${data.error || 'Unknown error'}`, is_generating: false }
+            : m
+        ));
+      } else if (data.url) {
+        // Generate PDF if requested
+        let pdfUrl = null;
+        if (outputFormat === 'pdf') {
+          try {
+            const pdfRes = await fetch('/api/media/convert-to-pdf', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ imageUrl: data.url, aspectRatio }),
+            });
+            const pdfData = await pdfRes.json();
+            if (pdfRes.ok && pdfData.pdfUrl) {
+              pdfUrl = pdfData.pdfUrl;
+            }
+          } catch (pdfErr) {
+            console.error('PDF conversion failed:', pdfErr);
+          }
+        }
+
+        setMessages(prev => prev.map(m => 
+          m.id === placeholderMsg.id 
+            ? {
+                ...m,
+                content: `✨ Flyer generated!\n\n**Details:** ${prompt.slice(0, 150)}...${pdfUrl ? '\n\n📥 PDF version available!' : ''}`,
+                is_generating: false,
+                image_url: data.url,
+                pdf_url: pdfUrl,
+                model_used: 'gpt-image-1',
+                is_flyer: true,
+              }
+            : m
+        ));
+        loadGallery();
+      }
+    } catch (err) {
+      setMessages(prev => prev.map(m => 
+        m.id === placeholderMsg.id 
+          ? { ...m, content: `❌ Connection error: ${err.message}`, is_generating: false }
+          : m
+      ));
+    } finally {
+      setIsGeneratingMedia(false);
     }
   };
 
@@ -4596,6 +4862,8 @@ export default function MobileChat({
         onVideoGen={() => setShowVideoGenSheet(true)}
         onCompare={() => setShowCompareMode(true)}
         onGallery={() => { loadGallery(); setShowGallery(true); }}
+        onNewConversation={newConversation}
+        onGenerateFlyer={() => setShowFlyerGenSheet(true)}
       />
 
       {/* Image Generation Sheet */}
@@ -4624,6 +4892,14 @@ export default function MobileChat({
         prompt={mediaPrompt}
         onPromptChange={setMediaPrompt}
         onGenerate={handleMediaGenerate}
+        isGenerating={isGeneratingMedia}
+      />
+
+      {/* Flyer Generation Sheet */}
+      <FlyerGenSheet
+        isOpen={showFlyerGenSheet}
+        onClose={() => setShowFlyerGenSheet(false)}
+        onGenerate={handleFlyerGenerate}
         isGenerating={isGeneratingMedia}
       />
 

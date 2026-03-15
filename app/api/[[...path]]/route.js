@@ -171,6 +171,103 @@ async function parseDocumentContent(buffer, mimeType, fileName) {
 }
 
 // Handler for document parsing endpoint
+// Convert image to PDF for flyer downloads
+async function handleConvertToPdf(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  try {
+    const { imageUrl, aspectRatio = '8.5:11' } = await request.json();
+    
+    if (!imageUrl) return err('imageUrl required');
+
+    // Download the image
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) return err('Failed to fetch image');
+    
+    const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+    
+    // Convert to PDF using sharp and PDFKit
+    const PDFDocument = require('pdfkit');
+    const sharp = require('sharp');
+    
+    // Get image dimensions
+    const imgMeta = await sharp(imgBuffer).metadata();
+    
+    // Calculate PDF page size (in points, 72 points = 1 inch)
+    let pageWidth, pageHeight;
+    if (aspectRatio === '8.5:11' || aspectRatio === '2:3') {
+      pageWidth = 612; // 8.5 inches
+      pageHeight = 792; // 11 inches
+    } else if (aspectRatio === '11:17') {
+      pageWidth = 792; // 11 inches
+      pageHeight = 1224; // 17 inches
+    } else if (aspectRatio === '1:1') {
+      pageWidth = 612;
+      pageHeight = 612;
+    } else if (aspectRatio === '9:16') {
+      pageWidth = 405; // ~5.6 inches
+      pageHeight = 720; // 10 inches
+    } else {
+      pageWidth = 612;
+      pageHeight = 792;
+    }
+
+    // Create PDF
+    const doc = new PDFDocument({
+      size: [pageWidth, pageHeight],
+      margin: 0,
+    });
+
+    // Collect PDF data
+    const chunks = [];
+    doc.on('data', chunk => chunks.push(chunk));
+    
+    const pdfPromise = new Promise((resolve, reject) => {
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+    });
+
+    // Resize image to fit page while maintaining aspect ratio
+    const resizedImg = await sharp(imgBuffer)
+      .resize(Math.round(pageWidth * 2), Math.round(pageHeight * 2), {
+        fit: 'contain',
+        background: { r: 255, g: 255, b: 255, alpha: 1 }
+      })
+      .png()
+      .toBuffer();
+
+    // Add image to PDF
+    doc.image(resizedImg, 0, 0, {
+      width: pageWidth,
+      height: pageHeight,
+    });
+    doc.end();
+
+    const pdfBuffer = await pdfPromise;
+
+    // Upload PDF to storage (using the same method as media)
+    const crypto = require('crypto');
+    const pdfId = crypto.randomBytes(16).toString('hex');
+    const pdfFileName = `flyer_${pdfId}.pdf`;
+    
+    // For now, return as base64 data URL (could be uploaded to cloud storage)
+    const pdfBase64 = pdfBuffer.toString('base64');
+    const pdfDataUrl = `data:application/pdf;base64,${pdfBase64}`;
+
+    return NextResponse.json({
+      success: true,
+      pdfUrl: pdfDataUrl,
+      fileName: pdfFileName,
+      size: pdfBuffer.length,
+    });
+
+  } catch (err) {
+    console.error('[PDF Convert] Error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 async function handleParseDocument(request) {
   try {
     // Require authentication
@@ -21929,6 +22026,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'generate/image-kie') return handleGenerateImageKie(request);
     if (pathStr === 'generate/video') return handleGenerateVideo(request);
     if (pathStr === 'media/generate') return handleMediaGenerate(request);
+    if (pathStr === 'media/convert-to-pdf') return handleConvertToPdf(request);
     if (pathStr === 'parse/document') return handleParseDocument(request);
     if (pathStr === 'analyze/image-to-json') return handleImageToJson(request);
     if (pathStr === 'image/edit') return handleImageEdit(request);
