@@ -6615,18 +6615,36 @@ function ensureAlternatingMessages(messages) {
   let lastRole = null;
   
   for (const msg of messages) {
-    // Skip consecutive messages of the same role (keep the latest one)
-    if (msg.role === lastRole) {
-      // If same role as previous, merge or replace
-      if (result.length > 0 && result[result.length - 1].role === msg.role) {
-        // Keep the more recent message (later in array = more recent after sorting)
+    // Skip messages with empty content
+    if (!msg.content || (typeof msg.content === 'string' && !msg.content.trim())) {
+      continue;
+    }
+    
+    // Handle consecutive messages of the same role by merging content
+    if (msg.role === lastRole && result.length > 0) {
+      const lastMsg = result[result.length - 1];
+      
+      // Merge content based on type
+      if (typeof lastMsg.content === 'string' && typeof msg.content === 'string') {
+        // Both are strings - concatenate with separator
+        lastMsg.content = `${lastMsg.content}\n\n${msg.content}`;
+      } else if (Array.isArray(lastMsg.content) && Array.isArray(msg.content)) {
+        // Both are arrays (multimodal) - concatenate
+        lastMsg.content = [...lastMsg.content, ...msg.content];
+      } else if (Array.isArray(lastMsg.content) && typeof msg.content === 'string') {
+        // Last is array, new is string - add as text element
+        lastMsg.content.push({ type: 'text', text: msg.content });
+      } else if (typeof lastMsg.content === 'string' && Array.isArray(msg.content)) {
+        // Last is string, new is array - convert and merge
+        lastMsg.content = [{ type: 'text', text: lastMsg.content }, ...msg.content];
+      } else {
+        // Fallback: replace with newer message
         result[result.length - 1] = msg;
       }
       continue;
     }
     
-    // If we have user followed by user, or assistant followed by assistant, skip the first
-    result.push(msg);
+    result.push({ ...msg }); // Clone to avoid mutation
     lastRole = msg.role;
   }
   
@@ -6636,7 +6654,20 @@ function ensureAlternatingMessages(messages) {
     result.shift();
   }
   
-  // If after sanitization we have no messages, that's okay - we'll just have the current user message
+  // CRITICAL: Ensure the last message is from 'user' role for the LLM to respond
+  // If history ends with assistant message, add a placeholder user message
+  if (result.length > 0 && result[result.length - 1].role === 'assistant') {
+    console.log('[ensureAlternatingMessages] Warning: Last message was assistant, history may be incomplete');
+  }
+  
+  // Log for debugging
+  if (result.length > 0) {
+    const roleSequence = result.map(m => m.role[0]).join(''); // e.g., "uauau"
+    if (roleSequence.includes('uu') || roleSequence.includes('aa')) {
+      console.error('[ensureAlternatingMessages] ERROR: Still have consecutive roles:', roleSequence);
+    }
+  }
+  
   return result;
 }
 
@@ -8003,9 +8034,19 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
         }
 
+        // CRITICAL: Ensure messages alternate before sending to LLM
+        // This prevents "user or tool message(s) should alternate with assistant message(s)" errors
+        const sanitizedMessages = ensureAlternatingMessages(historyMessages);
+        
+        // Debug log to catch message format issues
+        if (sanitizedMessages.length > 0) {
+          const roles = sanitizedMessages.map(m => m.role).join(' → ');
+          console.log(`[Chat] Message roles before LLM call: ${roles}`);
+        }
+        
         const { stream: aiStream, searchMeta, didSearch, customToolResults } = await provider.generateStream({
           systemPrompt,
-          messages: historyMessages,
+          messages: sanitizedMessages,
           model,
           temperature: 0.7,
           enableWebSearch: enableWebSearch && attachments.length === 0 && !preSearchDidSearch, // disable tool search if we already pre-searched
