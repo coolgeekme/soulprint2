@@ -59,7 +59,7 @@ const VIDEO_MODELS = [
 
 const MODELS = [
   // Dynamic Intelligence - AI auto-selects best model
-  { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', group: 'Smart', isSmartMode: true, description: 'AI picks the best model for your query' },
+  { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', group: 'Dynamic', isSmartMode: true, description: 'AI picks the best model for your query' },
   // OpenAI
   { value: 'gpt-4o',       label: 'GPT-4o',             provider: 'openai',      group: 'OpenAI' },
   { value: 'gpt-4o-mini',  label: 'GPT-4o Mini',        provider: 'openai',      group: 'OpenAI' },
@@ -4946,12 +4946,12 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                       </div>
                     </div>
                     <div className="space-y-1.5 max-h-52 overflow-y-auto">
-                      {['Smart', 'OpenAI', 'Claude', 'Gemini', 'Perplexity', 'Kimi'].map(group => {
+                      {['Dynamic', 'OpenAI', 'Claude', 'Gemini', 'Perplexity', 'Kimi'].map(group => {
                         const groupModels = TELEGRAM_MODELS.filter(m => m.group === group && !m.comingSoon);
                         if (!groupModels.length) return null;
                         return (
                           <div key={group}>
-                            <p className="text-[9px] font-bold text-gray-600 tracking-widest uppercase px-1 mt-2 mb-1">{group === 'Smart' ? '🧠 Smart' : group}</p>
+                            <p className="text-[9px] font-bold text-gray-600 tracking-widest uppercase px-1 mt-2 mb-1">{group === 'Dynamic' ? '🧠 Dynamic' : group}</p>
                             {groupModels.map(m => (
                               <button key={m.value}
                                 onClick={() => saveTelegramModel(m.value)}
@@ -4963,7 +4963,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                                 {m.isSmartMode && <span className="text-[9px] text-purple-400/70 ml-1">auto</span>}
                               </button>
                             ))}
-                            {group === 'Smart' && (
+                            {group === 'Dynamic' && (
                               <p className="text-[9px] text-gray-600 px-1 mt-1 mb-2">Auto-selects best model: code → GPT-4o, search → Sonar, creative → Claude</p>
                             )}
                           </div>
@@ -9498,12 +9498,12 @@ export default function ChatPage() {
                   </button>
                   {showModelPicker && (
                     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#141a21] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[240px] z-10 max-h-72 overflow-y-auto">
-                      {['Smart', 'OpenAI', 'Claude', 'Gemini', 'Perplexity', 'Kimi'].map(group => {
+                      {['Dynamic', 'OpenAI', 'Claude', 'Gemini', 'Perplexity', 'Kimi'].map(group => {
                         const groupModels = MODELS.filter(m => m.group === group);
                         if (!groupModels.length) return null;
                         return (
                           <div key={group}>
-                            <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider mt-1">{group}</div>
+                            <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider mt-1">{group === 'Dynamic' ? '🧠 Dynamic' : group}</div>
                             {groupModels.map(m => (
                               <button 
                                 key={m.value} 

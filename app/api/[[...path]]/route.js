@@ -7352,6 +7352,10 @@ async function handleChatStream(request) {
       /^(?:please\s+)?(?:can you\s+)?paint\s+(?:me\s+)?/i, 
       /^(?:please\s+)?(?:can you\s+)?visualize\b/i,
       /\bdall-?e\b/i, /\bstable\s+diffusion\b/i,
+      // Short confirmation/request patterns for image generation (after discussing a design)
+      /^image[!.\s]*$/i,  // Just "Image" or "Image!"
+      /^(?:generate|create|make)\s+(?:the\s+)?(?:image|picture|logo|design)[!.\s]*$/i,  // "generate the image"
+      /^(?:yes|yeah|ok|okay|please|go ahead)[,!\s]*(?:generate|create|make)?\s*(?:the\s+)?(?:image|picture|logo|design)?[!.\s]*$/i,  // "yes, generate it"
     ];
     if (imagePatterns.some(p => p.test(lower))) return 'image';
     return null;
@@ -7365,13 +7369,15 @@ async function handleChatStream(request) {
       const send = (obj) => controller.enqueue(enc.encode(JSON.stringify(obj) + '\n'));
 
       try {
-        // Send meta first (include smart mode info if applicable)
+        // Send meta first (include Dynamic Intelligence info if applicable)
         send({ 
           type: 'meta', 
           conversationId: convId, 
           messageId: assistantMsgId,
           ...(smartModeInfo && { 
-            smartMode: true, 
+            smartMode: true,  // Keep for backward compatibility
+            dynamicIntelligence: true,  // New field name
+            dynamicLabel: 'Dynamic',  // Display label for UI
             selectedModel: model,
             modelReason: smartModeInfo.reason,
             confidence: smartModeInfo.confidence
@@ -7393,6 +7399,24 @@ async function handleChatStream(request) {
           
           let displayMessage = '🎨 Generating your image with DALL-E 3...\n\n';
           let enhancedPrompt = content;
+          
+          // If the request is very short (e.g., just "Image" or "generate the image"),
+          // extract context from recent conversation to understand what to generate
+          const isShortRequest = content.trim().split(/\s+/).length <= 5;
+          if (isShortRequest && historyMessages.length > 0) {
+            // Get recent assistant messages that might contain design descriptions
+            const recentContext = historyMessages
+              .filter(m => m.role === 'assistant')
+              .slice(-3)
+              .map(m => typeof m.content === 'string' ? m.content : '')
+              .join('\n')
+              .substring(0, 2000);
+            
+            if (recentContext) {
+              console.log('[Image Generation] Short request detected, using conversation context');
+              enhancedPrompt = `Based on our conversation, generate an image of what was discussed. Here's the context from our conversation:\n\n${recentContext}\n\nUser's request: ${content}\n\nCreate a high-quality, visually appealing image based on what was discussed.`;
+            }
+          }
           
           if (isInfographic) {
             displayMessage = '📊 Creating your professional infographic...\n\n';
