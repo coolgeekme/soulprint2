@@ -5457,6 +5457,74 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                 </p>
               </div>
 
+              {/* How Memories Work - Expandable Info Panel */}
+              <details className="group">
+                <summary className="flex items-center justify-between cursor-pointer p-3 bg-white/5 border border-white/10 rounded-lg hover:bg-white/8 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-400">ℹ️</span>
+                    <span className="text-white text-sm font-medium">How do memories work?</span>
+                  </div>
+                  <span className="text-gray-500 text-xs group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-2 p-4 bg-gradient-to-br from-blue-500/5 to-purple-500/5 border border-white/10 rounded-lg space-y-4">
+                  
+                  {/* Where Stored */}
+                  <div>
+                    <h5 className="text-white text-xs font-semibold mb-2">🔒 Where Are Memories Stored?</h5>
+                    <p className="text-gray-400 text-xs leading-relaxed">
+                      Your memories are stored securely in our cloud database, associated only with your account. They are:
+                    </p>
+                    <ul className="text-gray-500 text-xs mt-2 space-y-1">
+                      <li className="flex items-center gap-2"><span className="text-green-400">✓</span> Private - Only accessible to you</li>
+                      <li className="flex items-center gap-2"><span className="text-green-400">✓</span> Cloud-synced - Available across all devices</li>
+                      <li className="flex items-center gap-2"><span className="text-green-400">✓</span> Deletable - Remove any memory anytime</li>
+                      <li className="flex items-center gap-2"><span className="text-green-400">✓</span> Exportable - Download your data (GDPR)</li>
+                    </ul>
+                  </div>
+
+                  {/* What Gets Saved */}
+                  <div>
+                    <h5 className="text-white text-xs font-semibold mb-2">📝 What Gets Saved?</h5>
+                    <p className="text-gray-400 text-xs mb-2">SoulPrint automatically detects important info you share:</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2 bg-white/5 rounded">
+                        <span className="text-pink-400">Personal</span>
+                        <p className="text-gray-600 text-[10px]">Name, birthday, preferences</p>
+                      </div>
+                      <div className="p-2 bg-white/5 rounded">
+                        <span className="text-red-400">Health</span>
+                        <p className="text-gray-600 text-[10px]">Allergies, medications</p>
+                      </div>
+                      <div className="p-2 bg-white/5 rounded">
+                        <span className="text-purple-400">Relationships</span>
+                        <p className="text-gray-600 text-[10px]">Family, pets, friends</p>
+                      </div>
+                      <div className="p-2 bg-white/5 rounded">
+                        <span className="text-green-400">Work</span>
+                        <p className="text-gray-600 text-[10px]">Job, company, projects</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* How Used */}
+                  <div>
+                    <h5 className="text-white text-xs font-semibold mb-2">✨ How Are Memories Used?</h5>
+                    <p className="text-gray-400 text-xs leading-relaxed">
+                      Your memories personalize every conversation. The AI naturally references them 
+                      (e.g., "How's your dog Max?"), prioritizes health/safety info, and adapts to your preferences.
+                    </p>
+                  </div>
+
+                  {/* Security Note */}
+                  <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <p className="text-blue-400 text-[10px]">
+                      🔐 <strong>Security:</strong> Memories are encrypted in transit and at rest. We never sell or share your personal data. 
+                      You can delete all memories or your entire account at any time from Privacy settings.
+                    </p>
+                  </div>
+                </div>
+              </details>
+
               {/* Add Memory Form */}
               <div className="flex flex-col gap-2">
                 <div className="flex gap-2">
