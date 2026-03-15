@@ -1050,7 +1050,7 @@ const MoreOptionsSheet = ({ isOpen, onClose, onSettings }) => {
 };
 
 // Attachment/Create Options Sheet (+ button menu)
-const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onImageGen, onVideoGen, onCompare, onGallery, onNewConversation, onGenerateFlyer }) => {
+const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onImageGen, onVideoGen, onCompare, onGallery, onNewConversation }) => {
   if (!isOpen) return null;
   
   return (
@@ -1084,20 +1084,6 @@ const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onI
             <div>
               <span className="text-white font-medium">Generate Image</span>
               <p className="text-gray-500 text-xs">Create AI-generated images</p>
-            </div>
-          </button>
-          
-          {/* Generate Flyer */}
-          <button 
-            onClick={() => { onGenerateFlyer?.(); onClose(); }}
-            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-cyan-400" />
-            </div>
-            <div>
-              <span className="text-white font-medium">Generate Flyer</span>
-              <p className="text-gray-500 text-xs">Create flyers, posters & promotional materials</p>
             </div>
           </button>
           
@@ -4863,7 +4849,6 @@ export default function MobileChat({
         onCompare={() => setShowCompareMode(true)}
         onGallery={() => { loadGallery(); setShowGallery(true); }}
         onNewConversation={newConversation}
-        onGenerateFlyer={() => setShowFlyerGenSheet(true)}
       />
 
       {/* Image Generation Sheet */}
