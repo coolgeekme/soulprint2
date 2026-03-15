@@ -12,7 +12,7 @@ import os
 from datetime import datetime
 
 # Get base URL from environment
-BASE_URL = os.environ.get('NEXT_PUBLIC_BASE_URL', 'https://web-search-fix.preview.emergentagent.com')
+BASE_URL = os.environ.get('NEXT_PUBLIC_BASE_URL', 'https://voice-analytics-hub-1.preview.emergentagent.com')
 API_URL = f"{BASE_URL}/api"
 
 # Test credentials

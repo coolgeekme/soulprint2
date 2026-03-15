@@ -4531,6 +4531,17 @@ You can generate images, flyers, posters, infographics, and visual content. When
 - "This data would look amazing as an infographic! Want me to create one?"
 - "I can turn this into a professional-looking visual if you'd like. Just say the word!"
 
+### ⚠️ CRITICAL: Generate ACTUAL IMAGES, Not Text!
+**When creating flyers, infographics, or posters - you MUST generate an actual image using the image generation tool.**
+
+❌ WRONG: Writing out the content as markdown/text (like "### Infographic Title" with bullet points)
+✅ CORRECT: Using the image generation capability to create a beautiful visual graphic
+
+When the user asks for an infographic, flyer, or poster:
+1. First, gather all the necessary information from the user
+2. Then, USE THE IMAGE GENERATION TOOL to create an actual visual image
+3. The output should be a PNG/image file, NOT markdown text
+
 ### Professional Flyer Design Guidelines
 When generating flyers, posters, or promotional materials, you MUST design like a **professional graphic designer**:
 
@@ -7246,11 +7257,12 @@ async function handleChatStream(request) {
     
     // Don't detect media intent for long texts (likely task lists, documents, etc.)
     // Real image/video generation requests are typically short and direct
-    if (text.length > 500) return null;
+    // Increased limit to 800 for infographic requests which include more details
+    if (text.length > 800) return null;
     
     // Don't detect if the text contains multiple line breaks (likely a list or document)
     const lineBreaks = (text.match(/\n/g) || []).length;
-    if (lineBreaks > 3) return null;
+    if (lineBreaks > 5) return null; // Increased to allow bullet points in infographic descriptions
     
     // Don't detect if the text seems to be asking about features, discussing, or listing tasks
     const taskListIndicators = [
@@ -7269,6 +7281,32 @@ async function handleChatStream(request) {
       /^(?:please\s+)?(?:can you\s+)?animate\b/i,
     ];
     if (videoPatterns.some(p => p.test(lower))) return 'video';
+    
+    // INFOGRAPHIC/FLYER detection - these MUST generate actual images, not text!
+    // Check BEFORE general image patterns since these are more specific
+    const infographicPatterns = [
+      // Direct requests for infographics
+      /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:an?\s+)?(?:beautiful\s+)?infographic/i,
+      /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?flyer/i,
+      /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?poster/i,
+      /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?banner/i,
+      /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?brochure/i,
+      // User confirmation patterns (when AI offered and user said yes)
+      /^(?:yes|yeah|sure|ok|okay|please|go ahead|do it|create it|make it|generate it)[\s,!.]*(?:create|make|generate)?(?:\s+the)?(?:\s+infographic|\s+flyer|\s+poster)?/i,
+      // Direct keyword triggers - only if short message (under 200 chars)
+      ...(lower.length < 200 ? [
+        /\binfographic\b.*\b(?:about|for|showing|with|on)\b/i,
+        /\bflyer\b.*\b(?:about|for|showing|with|on)\b/i,
+      ] : []),
+      // "turn this into" patterns
+      /(?:turn|convert)\s+(?:this|it)\s+into\s+(?:an?\s+)?(?:infographic|flyer|poster)/i,
+      // "I want/need" patterns
+      /(?:i\s+)?(?:want|need|would like)\s+(?:an?\s+)?(?:infographic|flyer|poster)/i,
+    ];
+    if (infographicPatterns.some(p => p.test(lower))) {
+      console.log('[detectMediaIntent] Detected infographic/flyer request - will generate image');
+      return 'image';
+    }
     
     // Image detection - must be a clear, direct request
     const imagePatterns = [
@@ -7317,19 +7355,64 @@ async function handleChatStream(request) {
 
         // ── Handle image generation ───────────────────────────────────────
         if (mediaIntent === 'image' && attachments.length === 0) {
-          send({ type: 'delta', content: '🎨 Generating your image with DALL-E 3...\n\n' });
+          // Detect if this is an infographic/flyer request and enhance the prompt
+          const lowerContent = content.toLowerCase();
+          const isInfographic = /\binfographic\b/i.test(lowerContent);
+          const isFlyer = /\b(flyer|poster|banner|brochure)\b/i.test(lowerContent);
+          
+          let displayMessage = '🎨 Generating your image with DALL-E 3...\n\n';
+          let enhancedPrompt = content;
+          
+          if (isInfographic) {
+            displayMessage = '📊 Creating your professional infographic...\n\n';
+            // Enhance the prompt for infographic generation
+            enhancedPrompt = `Create a stunning, professional infographic design. The infographic should have:
+- A cohesive, modern color palette (3-5 colors maximum)
+- Clear visual hierarchy with bold, impactful headlines
+- Beautiful data visualization elements (icons, charts, statistics displayed prominently)
+- Clean, organized sections with proper white space
+- Professional typography with readable fonts
+- Visual icons and illustrations representing key concepts
+- A polished, designer-quality finish that looks like it was created by a professional graphic designer
+
+CONTENT TO VISUALIZE:
+${content}
+
+Style: Modern, clean, professional infographic design. Make it visually stunning and engaging.`;
+          } else if (isFlyer) {
+            displayMessage = '🎨 Designing your professional flyer...\n\n';
+            // Enhance the prompt for flyer generation
+            enhancedPrompt = `Create a stunning, professional promotional flyer/poster design. The design should have:
+- Eye-catching visual composition using the rule of thirds
+- Bold, attention-grabbing headline typography
+- Strong visual hierarchy (most important info largest/boldest)
+- Relevant, high-quality imagery that supports the message
+- Professional color scheme that evokes the right mood
+- Clear call-to-action that stands out
+- Proper white space - not overcrowded
+- All key information clearly visible (date, time, location if applicable)
+- A polished, designer-quality finish
+
+CONTENT TO DESIGN:
+${content}
+
+Style: Professional graphic design quality. Make it look like a skilled designer created it, NOT like a simple text document.`;
+          }
+          
+          send({ type: 'delta', content: displayMessage });
           try {
             const apiKey = process.env.OPENAI_API_KEY;
             if (!apiKey) {
               throw new Error('OpenAI API key not configured');
             }
             
-            console.log('[Image Generation] Starting DALL-E 3 request for prompt:', content.substring(0, 100));
+            console.log('[Image Generation] Starting DALL-E 3 request for prompt:', enhancedPrompt.substring(0, 150));
+            console.log('[Image Generation] Type:', isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'general image'));
             
             const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-              body: JSON.stringify({ model: 'dall-e-3', prompt: content, n: 1, size: '1024x1024', quality: 'standard', style: 'vivid' }),
+              body: JSON.stringify({ model: 'dall-e-3', prompt: enhancedPrompt, n: 1, size: '1024x1024', quality: 'hd', style: 'vivid' }),
             });
             
             const imgData = await imgRes.json();
@@ -7354,8 +7437,12 @@ async function handleChatStream(request) {
             
             console.log('[Image Generation] Success! URL:', imageUrl.substring(0, 80) + '...');
 
-            fullContent = `![Generated Image](${imageUrl})\n\n*Prompt used: ${revisedPrompt}*`;
-            send({ type: 'image', url: imageUrl, revised_prompt: revisedPrompt });
+            // Customize the output message based on content type
+            const contentTypeLabel = isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'image');
+            const successEmoji = isInfographic ? '📊' : (isFlyer ? '🎨' : '🖼️');
+            
+            fullContent = `![Generated ${contentTypeLabel.charAt(0).toUpperCase() + contentTypeLabel.slice(1)}](${imageUrl})\n\n${successEmoji} *Your ${contentTypeLabel} has been created!*`;
+            send({ type: 'image', url: imageUrl, revised_prompt: revisedPrompt, contentType: contentTypeLabel });
             send({ type: 'delta', content: fullContent });
           } catch (imgErr) {
             console.error('[Image Generation] Exception:', imgErr.message, imgErr.stack);
@@ -7364,10 +7451,11 @@ async function handleChatStream(request) {
           }
           // Save message
           const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+          const storedContentType = isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'image');
           await db.collection('messages').insertOne({
             id: assistantMsgId, conversation_id: convId, user_id: user.id,
             role: 'assistant', content: fullContent, created_at: new Date(),
-            model_used: 'dall-e-3', provider_used: 'openai', content_type: 'image',
+            model_used: 'dall-e-3', provider_used: 'openai', content_type: storedContentType,
             est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
           });
           await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
