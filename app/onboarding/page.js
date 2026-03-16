@@ -70,7 +70,7 @@ export default function OnboardingPage() {
     setLoading(true);
     const token = localStorage.getItem('sp_token');
     try {
-      await fetch('/api/profile', {
+      await fetch('/api/user/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({

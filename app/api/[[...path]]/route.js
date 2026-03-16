@@ -17156,7 +17156,9 @@ async function handleTelegramWebhook(request) {
       switch (toolName) {
         case 'get_emails':
         case 'check_email': {
+          console.log('[Telegram Tool] get_emails called for user:', userId);
           const tgGoogleConnections = await getAllGoogleConnections(userId);
+          console.log('[Telegram Tool] getAllGoogleConnections result:', tgGoogleConnections.length, 'connections');
           if (!tgGoogleConnections.length) return { error: 'No Google account connected. Connect one on the web app in Settings → Integrations.' };
           const account = tgGoogleConnections[0];
           try {
@@ -17182,7 +17184,9 @@ async function handleTelegramWebhook(request) {
         
         case 'get_calendar':
         case 'check_calendar': {
+          console.log('[Telegram Tool] get_calendar called for user:', userId);
           const tgCalGoogleConnections = await getAllGoogleConnections(userId);
+          console.log('[Telegram Tool] getAllGoogleConnections result:', tgCalGoogleConnections.length, 'connections');
           if (!tgCalGoogleConnections.length) return { error: 'No Google account connected. Connect one on the web app in Settings → Integrations.' };
           const account = tgCalGoogleConnections[0];
           try {

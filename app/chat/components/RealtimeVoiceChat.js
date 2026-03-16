@@ -149,7 +149,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
     
     try {
       const voice = VOICES.find(v => v.id === voiceId);
-      const response = await fetch('/api/tts/preview', {
+      const response = await fetch('/api/voice/tts/preview', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -193,7 +193,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
   const performWebSearch = useCallback(async (query) => {
     setIsSearching(true);
     try {
-      const response = await fetch('/api/web-search', {
+      const response = await fetch('/api/voice/search', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -223,7 +223,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
       setSessionStartTime(new Date());
 
       // 1. Create session in our backend for tracking
-      const trackResponse = await fetch('/api/voice-sessions', {
+      const trackResponse = await fetch('/api/voice/sessions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -722,8 +722,8 @@ Be conversational, warm, and personal. You KNOW this user - their profile, memor
     // Update session metrics in backend
     if (sessionId) {
       try {
-        await fetch(`/api/voice-sessions/${sessionId}`, {
-          method: 'PATCH',
+        await fetch(`/api/voice/sessions/${sessionId}`, {
+          method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',

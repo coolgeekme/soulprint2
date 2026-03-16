@@ -464,7 +464,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
     if (status === 'success' || status === 'failed') return;
     const poll = async () => {
       try {
-        const res = await fetch(`/api/generate/video/${taskId}`, {
+        const res = await fetch(`/api/media/video/status/${taskId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const d = await res.json();
@@ -1991,7 +1991,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     // Step 1: Initialize upload session using disk-based storage
     let initRes;
     try {
-      initRes = await fetch('/api/imports/chunked/init', {
+      initRes = await fetch('/api/import/chunked/init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ 
@@ -2038,7 +2038,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min timeout for large chunks
           
-          const chunkRes = await fetch('/api/imports/chunked/chunk', {
+          const chunkRes = await fetch('/api/import/chunked/chunk', {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
             body: formData,
@@ -2081,7 +2081,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
     onProgress(87);
     
     // Step 3: Process the uploaded file
-    const processRes = await fetch('/api/imports/chunked/process-batch', {
+    const processRes = await fetch('/api/import/chunked/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ 
@@ -2532,7 +2532,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
       formData.append('file', file);
       formData.append('type', 'auto');
       
-      const uploadRes = await fetch('/api/imports/upload', {
+      const uploadRes = await fetch('/api/import/data', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -2735,7 +2735,7 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
 
     try {
       // Upload extracted data (much smaller than full ZIP!)
-      const res = await fetch('/api/imports/extracted', {
+      const res = await fetch('/api/import/data', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json', 
@@ -4025,11 +4025,11 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
     form.append('file', file);
     form.append('type', type);
     try {
-      await fetch('/api/imports/upload', {
+      await fetch('/api/import/data', {
         method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
       });
       setTimeout(() => {
-        fetch('/api/imports', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/import/data', { headers: { Authorization: `Bearer ${token}` } })
           .then(r => r.json()).then(d => setImports(Array.isArray(d) ? d : []));
       }, 1000);
     } catch (e) { console.error(e); }
@@ -4100,7 +4100,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
     console.log('[Memories] Starting load, token exists:', !!token);
     setMemoriesLoading(true);
     try {
-      const res = await fetch('/api/memories', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch('/api/user/memories', { headers: { Authorization: `Bearer ${token}` } });
       console.log('[Memories] API response status:', res.status);
       const d = await res.json();
       console.log('[Memories] Loaded:', d.memories?.length || 0, 'memories', d.error ? `Error: ${d.error}` : '');
@@ -4125,7 +4125,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
   const addMemory = async () => {
     if (!newMemory.trim()) return;
     try {
-      await fetch('/api/memories', {
+      await fetch('/api/user/memories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ content: newMemory, category: newMemoryCategory, importance: 'medium' }),
@@ -4289,7 +4289,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
   const loadSoulPrint = async () => {
     setSoulPrintLoading(true);
     try {
-      const res = await fetch('/api/profile/soulprint', {
+      const res = await fetch('/api/user/profile/soul', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) {
@@ -5883,7 +5883,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                         <button
                           onClick={async () => {
                             try {
-                              await fetch('/api/profile', {
+                              await fetch('/api/user/profile', {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                 body: JSON.stringify({ assistant_name: editingAssistantName })
@@ -5920,7 +5920,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                         <button
                           onClick={async () => {
                             try {
-                              await fetch('/api/profile', {
+                              await fetch('/api/user/profile', {
                                 method: 'PUT',
                                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                 body: JSON.stringify({ display_name: editingDisplayName })
@@ -5957,7 +5957,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                           <button
                             onClick={async () => {
                               try {
-                                await fetch('/api/profile', {
+                                await fetch('/api/user/profile', {
                                   method: 'PUT',
                                   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                   body: JSON.stringify({ custom_greeting: editingCustomGreeting })
@@ -6068,7 +6068,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                 <button
                   onClick={async () => {
                     try {
-                      const res = await fetch('/api/profile/export', { headers: { Authorization: `Bearer ${token}` } });
+                      const res = await fetch('/api/user/profile/export', { headers: { Authorization: `Bearer ${token}` } });
                       const data = await res.json();
                       if (data.markdown) {
                         const blob = new Blob([data.markdown], { type: 'text/markdown' });
@@ -6740,7 +6740,7 @@ export default function ChatPage() {
         }
       })
       .catch(() => {}); // Silent fail, default to enabled
-    fetch('/api/conversations', { headers: { Authorization: `Bearer ${t}` } })
+    fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : [])).catch(() => {});
     // Fetch projects
     fetch('/api/projects', { headers: { Authorization: `Bearer ${t}` } })
@@ -7234,7 +7234,7 @@ export default function ChatPage() {
       // Create a new conversation for the voice chat if needed
       let voiceConvId = conversationId;
       if (!voiceConvId) {
-        const convRes = await fetch('/api/conversations', {
+        const convRes = await fetch('/api/user/conversations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ 
@@ -7434,7 +7434,7 @@ export default function ChatPage() {
         });
 
         // Refresh conversations list
-        fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
+        fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${token}` } })
           .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : []));
       } catch (err) {
         setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: 'Connection error during comparison. Please try again.', created_at: new Date().toISOString() }]);
@@ -7564,7 +7564,7 @@ export default function ChatPage() {
               setSearchQueries([]);
               setStreamingSources([]);
               streamingSourcesRef.current = [];
-              fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
+              fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${token}` } })
                 .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : []));
             } else if (data.type === 'error') {
               setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: `Error: ${data.error}`, created_at: new Date().toISOString() }]);
@@ -7814,7 +7814,7 @@ export default function ChatPage() {
       }, 1500);
       
       // Refresh conversations
-      fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } })
+      fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : []));
         
     } catch (err) {
@@ -8173,7 +8173,7 @@ export default function ChatPage() {
           setSelectedProject(null);
         }
         // Reload conversations
-        const convRes = await fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } });
+        const convRes = await fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${token}` } });
         const convData = await convRes.json();
         setConversations(Array.isArray(convData) ? convData : []);
       }
@@ -8264,7 +8264,7 @@ export default function ChatPage() {
       });
       if (res.ok) {
         // Refresh conversations
-        const convRes = await fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } });
+        const convRes = await fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${token}` } });
         const convData = await convRes.json();
         setConversations(Array.isArray(convData) ? convData : []);
         // Refresh projects

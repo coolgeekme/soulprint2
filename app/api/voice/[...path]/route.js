@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
-import { ok, err, authenticate, requireAdmin } from '@/lib/api-utils';
-import { getValidGoogleToken, getAllGoogleConnections } from '@/app/api/google/[...path]/route';
+import { ok, err, authenticate, requireAdmin, getValidGoogleToken, getAllGoogleConnections } from '@/lib/api-utils';
 
 // ============================================================
 // VOICE COST CONSTANTS (OpenAI Realtime API pricing)
@@ -511,8 +510,10 @@ async function handleVoiceToolExecute(request) {
     }
 
     case 'get_calendar_events': {
+      console.log('[Voice Tool] get_calendar_events called for user:', user.id);
       const tokenResult = await getValidGoogleToken(user.id);
-      if (!tokenResult?.token) return ok({ error: 'Google Calendar not connected' });
+      console.log('[Voice Tool] getValidGoogleToken result:', tokenResult ? 'got token' : 'no token');
+      if (!tokenResult?.token) return ok({ error: 'Google Calendar not connected. Please connect your Google account in Settings → Integrations.' });
       
       const timeMin = tool_args?.start_time || new Date().toISOString();
       const maxDays = tool_args?.days || 7;
@@ -538,8 +539,10 @@ async function handleVoiceToolExecute(request) {
     }
 
     case 'get_emails': {
+      console.log('[Voice Tool] get_emails called for user:', user.id);
       const tokenResult = await getValidGoogleToken(user.id);
-      if (!tokenResult?.token) return ok({ error: 'Gmail not connected' });
+      console.log('[Voice Tool] getValidGoogleToken result:', tokenResult ? 'got token' : 'no token');
+      if (!tokenResult?.token) return ok({ error: 'Gmail not connected. Please connect your Google account in Settings → Integrations.' });
       
       const maxResults = Math.min(tool_args?.limit || 5, 10);
       
