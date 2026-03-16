@@ -2822,12 +2822,18 @@ function InsightsTab({ token }) {
       const res = await fetch('/api/admin/pricing-features', {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        // Endpoint doesn't exist yet, that's okay
+        console.log('Pricing features endpoint not available');
+        return;
+      }
       const data = await res.json();
       if (Array.isArray(data)) {
         setPricingFeatures(data);
       }
     } catch (e) {
-      console.error('Failed to load pricing features:', e);
+      console.log('Pricing features not available:', e.message);
+      // Non-critical error, continue without features
     }
   };
   
@@ -2837,10 +2843,16 @@ function InsightsTab({ token }) {
       const res = await fetch('/api/admin/pricing-features/calculate', {
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        // Endpoint doesn't exist yet, that's okay
+        console.log('Pricing calculation endpoint not available');
+        return;
+      }
       const data = await res.json();
       setCalculatedPricing(data);
     } catch (e) {
-      console.error('Failed to calculate pricing:', e);
+      console.log('Pricing calculation not available:', e.message);
+      // Non-critical error, continue without calculated pricing
     }
   };
   
@@ -2855,7 +2867,7 @@ function InsightsTab({ token }) {
         ? { id: editingFeature.id, ...featureForm }
         : featureForm;
       
-      await fetch(endpoint, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -2863,6 +2875,11 @@ function InsightsTab({ token }) {
         },
         body: JSON.stringify(body),
       });
+      
+      if (!res.ok) {
+        alert('Feature management not available yet');
+        return;
+      }
       
       setShowFeatureModal(false);
       setEditingFeature(null);
@@ -2878,7 +2895,8 @@ function InsightsTab({ token }) {
       loadPricingFeatures();
       calculateWithFeatures();
     } catch (e) {
-      console.error('Failed to save feature:', e);
+      console.log('Failed to save feature:', e.message);
+      alert('Feature management not available yet');
     }
   };
   
@@ -2886,14 +2904,19 @@ function InsightsTab({ token }) {
   const deleteFeature = async (id) => {
     if (!confirm('Delete this feature?')) return;
     try {
-      await fetch(`/api/admin/pricing-features?id=${id}`, {
+      const res = await fetch(`/api/admin/pricing-features?id=${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        alert('Feature management not available yet');
+        return;
+      }
       loadPricingFeatures();
       calculateWithFeatures();
     } catch (e) {
-      console.error('Failed to delete feature:', e);
+      console.log('Failed to delete feature:', e.message);
+      alert('Feature management not available yet');
     }
   };
   
