@@ -2999,6 +2999,16 @@ function InsightsTab({ token }) {
 
   if (!insights) return null;
 
+  // Safety check: ensure insights has required structure
+  if (!insights.pricing_recommendations || !insights.user_segments) {
+    return (
+      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 text-yellow-400">
+        <p className="font-medium">Incomplete insights data</p>
+        <p className="text-xs mt-1 text-gray-400">The API returned partial data. Please refresh the page.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -3342,7 +3352,7 @@ function InsightsTab({ token }) {
         <p className="text-gray-500 text-xs mb-4">Understanding how users consume your product helps set tier limits</p>
         
         <div className="grid grid-cols-5 gap-2">
-          {Object.entries(insights.user_segments).map(([tier, data]) => (
+          {insights.user_segments && Object.entries(insights.user_segments).map(([tier, data]) => (
             <div key={tier} className={`p-3 rounded-lg border ${
               tier === 'power' ? 'bg-orange-500/10 border-orange-500/30' :
               tier === 'heavy' ? 'bg-green-500/10 border-green-500/30' :
@@ -3539,99 +3549,6 @@ function InsightsTab({ token }) {
                 </tr>
               </tbody>
             </table>
-          </div>
-        )}
-
-        {/* Market Positioning Strategies */}
-        {insights.pricing_recommendations.market_positioning && (
-          <div className="space-y-3">
-            <p className="text-gray-400 text-xs font-medium">💡 Market Positioning Options:</p>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-              {/* Budget */}
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm">🎯</span>
-                  <span className="text-blue-400 text-xs font-bold uppercase">Budget</span>
-                </div>
-                <div className="space-y-1 mb-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Basic:</span>
-                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.budget_option?.basic || 10}/mo</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Pro:</span>
-                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.budget_option?.pro || 20}/mo</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Enterprise:</span>
-                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.budget_option?.enterprise || 50}/mo</span>
-                  </div>
-                </div>
-                <p className="text-gray-500 text-[10px]">{insights.pricing_recommendations.market_positioning.budget_option?.strategy}</p>
-              </div>
-              
-              {/* Competitive */}
-              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm">⚖️</span>
-                  <span className="text-green-400 text-xs font-bold uppercase">Competitive</span>
-                  <span className="text-[9px] bg-green-500/20 text-green-300 px-1.5 py-0.5 rounded">Recommended</span>
-                </div>
-                <div className="space-y-1 mb-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Basic:</span>
-                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.competitive?.basic || 15}/mo</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Pro:</span>
-                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.competitive?.pro || 20}/mo</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Enterprise:</span>
-                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.competitive?.enterprise || 99}/mo</span>
-                  </div>
-                </div>
-                <p className="text-gray-500 text-[10px]">{insights.pricing_recommendations.market_positioning.competitive?.strategy}</p>
-              </div>
-              
-              {/* Premium */}
-              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm">👑</span>
-                  <span className="text-purple-400 text-xs font-bold uppercase">Premium</span>
-                </div>
-                <div className="space-y-1 mb-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Basic:</span>
-                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.premium?.basic || 20}/mo</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Pro:</span>
-                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.premium?.pro || 30}/mo</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Enterprise:</span>
-                    <span className="text-white font-medium">${insights.pricing_recommendations.market_positioning.premium?.enterprise || 149}/mo</span>
-                  </div>
-                </div>
-                <p className="text-gray-500 text-[10px]">{insights.pricing_recommendations.market_positioning.premium?.strategy}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Market Comparison */}
-        {insights.pricing_recommendations.market_comparison && (
-          <div className="mt-4 bg-black/30 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-400 text-xs font-medium mb-2">📊 Market Reference (2025):</p>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(insights.pricing_recommendations.market_comparison).map(([key, val]) => (
-                <span key={key} className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[10px]">
-                  <span className="text-gray-500">{val.name}:</span>
-                  <span className="text-white font-medium ml-1">${val.price}/mo</span>
-                </span>
-              ))}
-            </div>
           </div>
         )}
       </div>
