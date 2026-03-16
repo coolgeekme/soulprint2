@@ -22126,6 +22126,11 @@ export async function GET(request, { params }) {
   const pathArr = params?.path || [];
   const pathStr = pathArr.join('/');
 
+  // Health check endpoint for deployment/monitoring
+  if (pathStr === 'health') {
+    return NextResponse.json({ status: 'ok', timestamp: new Date().toISOString() }, { status: 200 });
+  }
+
   try {
     if (pathStr === 'auth/me') return handleMe(request);
     if (pathStr === 'assessment/questions') return handleGetQuestions(request);
