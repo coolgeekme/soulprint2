@@ -101,6 +101,13 @@ export default function AuthPage() {
           setGoogleLoading(false);
           return;
         }
+        // Handle Firebase not configured more gracefully
+        if (error.includes('Firebase not configured')) {
+          console.warn('[Auth] Firebase not configured - Google sign-in unavailable');
+          setError('Google sign-in is currently unavailable. Please use email/password instead.');
+          setGoogleLoading(false);
+          return;
+        }
         throw new Error(error);
       }
 
@@ -143,10 +150,36 @@ export default function AuthPage() {
           throw new Error(captchaData.error || 'Security verification failed');
         }
 
-        // For sign up, use Firebase
+        // For sign up, use Firebase if configured, otherwise use legacy
         result = await signUpWithEmail(email, password);
         
         if (result.error) {
+          // Handle Firebase not configured - fall back to legacy auth
+          if (result.error.includes('Firebase not configured')) {
+            console.log('[Auth] Firebase not configured, using legacy registration');
+            const legacyRes = await fetch('/api/auth/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                email, 
+                passcode: password,
+                recaptcha_token: recaptchaToken
+              }),
+            });
+            
+            if (!legacyRes.ok) {
+              const legacyData = await legacyRes.json();
+              throw new Error(legacyData.error || 'Registration failed');
+            }
+            
+            const data = await legacyRes.json();
+            localStorage.setItem('sp_token', data.token);
+            localStorage.setItem('sp_user', JSON.stringify(data));
+            handlePostAuth(data);
+            setLoading(false);
+            return;
+          }
+          
           if (result.error.includes('email-already-in-use')) {
             throw new Error('Email already in use. Try signing in instead.');
           }
@@ -182,10 +215,13 @@ export default function AuthPage() {
         
         if (result.error) {
           // Firebase auth failed - try legacy auth for existing users
-          if (result.error.includes('user-not-found') || 
+          if (result.error.includes('Firebase not configured') ||
+              result.error.includes('user-not-found') || 
               result.error.includes('wrong-password') || 
               result.error.includes('invalid-credential') ||
               result.error.includes('invalid-login-credentials')) {
+            
+            console.log('[Auth] Attempting legacy authentication');
             
             // Try legacy authentication
             const legacyRes = await fetch('/api/auth/login', {
