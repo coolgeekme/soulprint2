@@ -67,6 +67,15 @@ export default function AuthPage() {
       });
 
       console.log('[Auth] Backend response status:', res.status);
+      console.log('[Auth] Backend response content-type:', res.headers.get('content-type'));
+      
+      // Check if response is JSON
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error('[Auth] Non-JSON response:', text.substring(0, 500));
+        throw new Error('Server returned an invalid response. Please try again or contact support.');
+      }
       
       if (!res.ok) {
         const data = await res.json();
