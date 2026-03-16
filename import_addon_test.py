@@ -10,7 +10,7 @@ import time
 import sys
 
 # Get the base URL from environment variable
-NEXT_PUBLIC_BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://nextjs-restructure.preview.emergentagent.com')
+NEXT_PUBLIC_BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://oauth-redirect-fix-1.preview.emergentagent.com')
 BASE_URL = f"{NEXT_PUBLIC_BASE_URL}/api"
 
 class ImportTestAddOn:
