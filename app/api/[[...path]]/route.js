@@ -7628,7 +7628,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
               
               send({ type: 'done' });
-              return new Response(stream.readable, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' } });
+              return new Response(stream.readable, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' } });
             } catch (vidErr) {
               console.error('[Image-to-Video] Error:', vidErr);
               fullContent = `Sorry, I couldn't animate your image: ${vidErr.message}`;
@@ -7694,7 +7694,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
               
               send({ type: 'done' });
-              return new Response(stream.readable, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' } });
+              return new Response(stream.readable, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' } });
             } catch (vidErr) {
               console.error('[Image-to-Video] Error:', vidErr);
               fullContent = `Sorry, I couldn't animate your image: ${vidErr.message}`;
@@ -7756,7 +7756,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
               
               send({ type: 'done' });
-              return new Response(stream.readable, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' } });
+              return new Response(stream.readable, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' } });
             } catch (vidErr) {
               console.error('[Text-to-Video] Error:', vidErr);
               fullContent = `Sorry, video generation failed: ${vidErr.message}`;
@@ -8194,6 +8194,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
     },
   });
 }
