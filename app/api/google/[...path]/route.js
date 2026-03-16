@@ -184,11 +184,10 @@ async function handleGoogleAuthStart(request) {
     const user = await authenticate(request);
     if (!user) return err('Unauthorized', 401);
     
-    const PRODUCTION_URL = 'https://soulprintengine.ai';
-    let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    
-    if (!baseUrl || baseUrl.includes('preview.emergentagent.com') || baseUrl.includes('localhost')) {
-      baseUrl = PRODUCTION_URL;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      console.error('Google Auth Start - NEXT_PUBLIC_BASE_URL is not set!');
+      return err('Server configuration error', 500);
     }
     
     const redirectUri = `${baseUrl}/api/google/auth/callback`;
@@ -224,10 +223,10 @@ async function handleGoogleAuthCallback(request) {
       return NextResponse.redirect(new URL('/settings?google=error&message=invalid_state', url.origin));
     }
     
-    const PRODUCTION_URL = 'https://soulprintengine.ai';
-    let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!baseUrl || baseUrl.includes('preview.emergentagent.com') || baseUrl.includes('localhost')) {
-      baseUrl = PRODUCTION_URL;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      console.error('Google Callback - NEXT_PUBLIC_BASE_URL is not set!');
+      return new NextResponse('Server configuration error', { status: 500 });
     }
     
     const redirectUri = `${baseUrl}/api/google/auth/callback`;

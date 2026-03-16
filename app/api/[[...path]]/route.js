@@ -885,20 +885,15 @@ async function handleGoogleAuthStart(request) {
     
     console.log('Google Auth Start - User authenticated:', user.id);
     
-    // CRITICAL: Production URL must be used for Google OAuth
-    // The redirect_uri MUST match what's configured in Google Cloud Console
-    // Using production URL: https://soulprintengine.ai
-    const PRODUCTION_URL = 'https://soulprintengine.ai';
-    let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    // Use the environment variable for the base URL - this should be set correctly for each deployment
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
     
-    console.log('Google Auth - NEXT_PUBLIC_BASE_URL from env:', baseUrl);
-    
-    // SAFEGUARD: If env variable is not the production URL, use production URL
-    // This prevents the recurring redirect_uri mismatch bug after forks
-    if (!baseUrl || baseUrl.includes('preview.emergentagent.com') || baseUrl.includes('localhost')) {
-      console.warn('Google Auth - WARNING: NEXT_PUBLIC_BASE_URL is not production URL, using fallback:', PRODUCTION_URL);
-      baseUrl = PRODUCTION_URL;
+    if (!baseUrl) {
+      console.error('Google Auth - NEXT_PUBLIC_BASE_URL is not set!');
+      return err('Server configuration error: BASE_URL not set', 500);
     }
+    
+    console.log('Google Auth - Using base URL:', baseUrl);
     
     const redirectUri = `${baseUrl}/api/google/auth/callback`;
     console.log('Google Auth - Final redirect URI:', redirectUri);
@@ -935,16 +930,15 @@ async function handleGoogleAuthCallback(request) {
       errorDescription: errorDescription || 'none'
     });
     
-    // CRITICAL: Production URL must be used for Google OAuth redirect_uri
-    // This MUST match what was used in handleGoogleAuthStart
-    const PRODUCTION_URL = 'https://soulprintengine.ai';
-    let baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    // Use the environment variable for the base URL
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
     
-    // SAFEGUARD: If env variable is not the production URL, use production URL
-    if (!baseUrl || baseUrl.includes('preview.emergentagent.com') || baseUrl.includes('localhost')) {
-      console.warn('Google Callback - WARNING: Using production URL fallback:', PRODUCTION_URL);
-      baseUrl = PRODUCTION_URL;
+    if (!baseUrl) {
+      console.error('Google Callback - NEXT_PUBLIC_BASE_URL is not set!');
+      return new NextResponse('Server configuration error', { status: 500 });
     }
+    
+    console.log('Google Callback - Using base URL:', baseUrl);
     
     if (error) {
       console.error('Google OAuth Error:', error, errorDescription);
@@ -1078,11 +1072,7 @@ async function handleGoogleAuthCallback(request) {
     }
   } catch (err) {
     console.error('Google callback error at final catch:', err);
-    const PRODUCTION_URL = 'https://soulprintengine.ai';
-    let errorBaseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!errorBaseUrl || errorBaseUrl.includes('preview.emergentagent.com') || errorBaseUrl.includes('localhost')) {
-      errorBaseUrl = PRODUCTION_URL;
-    }
+    const errorBaseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://soulprintengine.ai';
     return NextResponse.redirect(`${errorBaseUrl}/integrations?error=${encodeURIComponent('Callback error: ' + err.message)}`);
   }
 }
