@@ -321,6 +321,141 @@ async function handleAdminResetPasscode(request, userId) {
 // METRICS HANDLERS
 // ============================================================
 
+// ============================================================
+// BUSINESS INSIGHTS HANDLER
+// ============================================================
+
+async function handleAdminGetInsights(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+
+  // Get all users and their message counts
+  const userActivity = await db.collection('messages').aggregate([
+    { $group: { _id: '$user_id', message_count: { $sum: 1 } } },
+  ]).toArray();
+
+  // Segment users by activity level
+  const totalUsers = await db.collection('users').countDocuments();
+  const segments = {
+    inactive: { count: 0, percentage: 0, messages: 0 },
+    light: { count: 0, percentage: 0, messages: 0, range: '1-10' },
+    moderate: { count: 0, percentage: 0, messages: 0, range: '11-50' },
+    heavy: { count: 0, percentage: 0, messages: 0, range: '51-200' },
+    power: { count: 0, percentage: 0, messages: 0, range: '200+' },
+  };
+
+  const activeUserIds = new Set(userActivity.map(u => u._id));
+  segments.inactive.count = totalUsers - activeUserIds.size;
+
+  for (const user of userActivity) {
+    const msgCount = user.message_count;
+    if (msgCount <= 10) {
+      segments.light.count++;
+      segments.light.messages += msgCount;
+    } else if (msgCount <= 50) {
+      segments.moderate.count++;
+      segments.moderate.messages += msgCount;
+    } else if (msgCount <= 200) {
+      segments.heavy.count++;
+      segments.heavy.messages += msgCount;
+    } else {
+      segments.power.count++;
+      segments.power.messages += msgCount;
+    }
+  }
+
+  // Calculate percentages
+  for (const key in segments) {
+    segments[key].percentage = totalUsers > 0 ? Math.round((segments[key].count / totalUsers) * 100) : 0;
+  }
+
+  // Get cost data
+  const totalMessages = await db.collection('messages').countDocuments();
+  const tokensByModel = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', est_input_tokens: { $exists: true } } },
+    { $group: { _id: '$model_used', total_input: { $sum: '$est_input_tokens' }, total_output: { $sum: '$est_output_tokens' } } },
+  ]).toArray();
+
+  let totalLLMCost = 0;
+  for (const row of tokensByModel) {
+    const p = MODEL_PRICING[row._id] || DEFAULT_PRICING;
+    const cost = (row.total_input / 1_000_000) * p.input + (row.total_output / 1_000_000) * p.output;
+    totalLLMCost += cost;
+  }
+
+  // Get media generation cost
+  const mediaJobs = await db.collection('media_generation_jobs').find({}).toArray();
+  const totalMediaCost = mediaJobs.reduce((sum, job) => sum + (job.estimated_cost_usd || 0), 0);
+
+  // Get voice chat costs
+  const voiceMetrics = await getVoiceChatMetrics(db, new Date(now - 7 * 24 * 60 * 60 * 1000), thirtyDaysAgo);
+  const voiceCosts = voiceMetrics.cost || {};
+
+  // Calculate pricing recommendations
+  const costPerMessage = totalMessages > 0 ? totalLLMCost / totalMessages : 0;
+  const avgCostPerUser = totalUsers > 0 ? totalLLMCost / totalUsers : 0;
+
+  const pricingRecommendations = {
+    cost_per_message: costPerMessage,
+    avg_cost_per_user: avgCostPerUser,
+    total_llm_cost: totalLLMCost,
+    total_media_cost: totalMediaCost,
+    tiers: {
+      free: {
+        message_limit: 25,
+        estimated_cost: parseFloat((25 * costPerMessage).toFixed(2)),
+      },
+      basic: {
+        message_limit: 100,
+        estimated_cost: parseFloat((100 * costPerMessage).toFixed(2)),
+        price_at_70_margin: parseFloat((100 * costPerMessage / 0.3).toFixed(2)),
+        price_at_80_margin: parseFloat((100 * costPerMessage / 0.2).toFixed(2)),
+        price_at_90_margin: parseFloat((100 * costPerMessage / 0.1).toFixed(2)),
+        recommended_price: Math.max(10, Math.ceil((100 * costPerMessage / 0.2))),
+      },
+      pro: {
+        message_limit: 500,
+        estimated_cost: parseFloat((500 * costPerMessage).toFixed(2)),
+        price_at_70_margin: parseFloat((500 * costPerMessage / 0.3).toFixed(2)),
+        price_at_80_margin: parseFloat((500 * costPerMessage / 0.2).toFixed(2)),
+        price_at_90_margin: parseFloat((500 * costPerMessage / 0.1).toFixed(2)),
+        recommended_price: Math.max(20, Math.ceil((500 * costPerMessage / 0.2))),
+      },
+      enterprise: {
+        message_limit: 'unlimited',
+        estimated_cost: parseFloat((avgCostPerUser * 10).toFixed(2)),
+        recommended_price: Math.max(99, Math.ceil((avgCostPerUser * 10 / 0.2))),
+      },
+    },
+  };
+
+  return ok({
+    generated_at: new Date().toISOString(),
+    user_segments: segments,
+    pricing_recommendations: pricingRecommendations,
+    voice_costs: {
+      ...voiceCosts,
+      total_sessions: voiceMetrics.total_sessions,
+      unique_users: voiceMetrics.unique_users,
+      total_duration_seconds: voiceMetrics.total_duration_seconds,
+      avg_duration_seconds: voiceMetrics.avg_duration_seconds,
+      total_audio_input_tokens: voiceCosts.total_audio_input_tokens,
+      total_audio_output_tokens: voiceCosts.total_audio_output_tokens,
+      cost_per_session: voiceMetrics.completed_sessions > 0 ? voiceCosts.total_cost_usd / voiceMetrics.completed_sessions : 0,
+      cost_per_minute: voiceMetrics.total_duration_seconds > 0 ? voiceCosts.total_cost_usd / (voiceMetrics.total_duration_seconds / 60) : 0,
+      cost_per_user: voiceMetrics.unique_users > 0 ? voiceCosts.total_cost_usd / voiceMetrics.unique_users : 0,
+    },
+  });
+}
+
+// ============================================================
+// METRICS HANDLER
+// ============================================================
+
 async function handleAdminGetMetrics(request) {
   const admin = await requireAdmin(request);
   if (!admin) return err('Forbidden', 403);
@@ -378,7 +513,7 @@ async function handleAdminGetMetrics(request) {
 
   const recentSignups = await db.collection('users').countDocuments({ created_at: { $gte: thirtyDaysAgo } });
 
-  // Cost calculations
+  // Cost calculations (all time)
   const tokensByModel = await db.collection('messages').aggregate([
     { $match: { role: 'assistant', est_input_tokens: { $exists: true } } },
     { $group: { _id: '$model_used', total_input: { $sum: '$est_input_tokens' }, total_output: { $sum: '$est_output_tokens' }, count: { $sum: 1 } } },
@@ -391,6 +526,48 @@ async function handleAdminGetMetrics(request) {
     const cost = (row.total_input / 1_000_000) * p.input + (row.total_output / 1_000_000) * p.output;
     costByModel[row._id] = { cost: parseFloat(cost.toFixed(4)), messages: row.count };
     totalEstCost += cost;
+  }
+
+  // Cost calculations (last 30 days)
+  const tokensByModel30d = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', est_input_tokens: { $exists: true }, created_at: { $gte: thirtyDaysAgo } } },
+    { $group: { _id: '$model_used', total_input: { $sum: '$est_input_tokens' }, total_output: { $sum: '$est_output_tokens' }, count: { $sum: 1 } } },
+  ]).toArray();
+
+  const costByModel30d = {};
+  let totalEstCost30d = 0;
+  for (const row of tokensByModel30d) {
+    const p = MODEL_PRICING[row._id] || DEFAULT_PRICING;
+    const cost = (row.total_input / 1_000_000) * p.input + (row.total_output / 1_000_000) * p.output;
+    costByModel30d[row._id] = { cost: parseFloat(cost.toFixed(4)), messages: row.count };
+    totalEstCost30d += cost;
+  }
+
+  // Media generation cost calculations
+  const mediaJobs = await db.collection('media_generation_jobs').find({}).toArray();
+  let totalMediaCost = 0;
+  let mediaCost30d = 0;
+  const mediaCostByModel = {};
+
+  for (const job of mediaJobs) {
+    const cost = job.estimated_cost_usd || 0;
+    totalMediaCost += cost;
+    
+    if (job.created_at && new Date(job.created_at) >= thirtyDaysAgo) {
+      mediaCost30d += cost;
+    }
+    
+    const model = job.model || 'unknown';
+    if (!mediaCostByModel[model]) {
+      mediaCostByModel[model] = { cost: 0, jobs: 0 };
+    }
+    mediaCostByModel[model].cost += cost;
+    mediaCostByModel[model].jobs += 1;
+  }
+
+  // Round media costs
+  for (const model in mediaCostByModel) {
+    mediaCostByModel[model].cost = parseFloat(mediaCostByModel[model].cost.toFixed(4));
   }
 
   // Voice metrics
@@ -422,7 +599,12 @@ async function handleAdminGetMetrics(request) {
     thumbs_up: thumbsUp,
     thumbs_down: thumbsDown,
     est_total_cost: parseFloat(totalEstCost.toFixed(4)),
+    est_total_cost_30d: parseFloat(totalEstCost30d.toFixed(4)),
     cost_by_model: costByModel,
+    cost_by_model_30d: costByModel30d,
+    media_cost_total: parseFloat(totalMediaCost.toFixed(4)),
+    media_cost_30d: parseFloat(mediaCost30d.toFixed(4)),
+    media_cost_by_model: mediaCostByModel,
     voice_chat: voiceChatMetrics,
   });
 }
@@ -776,6 +958,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'users') return handleAdminGetUsers(request);
     if (pathStr === 'waitlist') return handleAdminGetWaitlist(request);
     if (pathStr === 'metrics') return handleAdminGetMetrics(request);
+    if (pathStr === 'insights') return handleAdminGetInsights(request);
     if (pathStr === 'settings') return handleAdminGetSettings(request);
     if (pathStr === 'feedback') return handleAdminGetFeedback(request);
     if (pathStr === 'beta-groups') return handleAdminGetBetaGroups(request);
