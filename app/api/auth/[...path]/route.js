@@ -191,10 +191,14 @@ async function handleLogin(request) {
 
 // POST /api/auth/firebase
 async function handleFirebaseAuth(request) {
+  console.log('[Firebase Auth] Starting Firebase auth handler');
   const body = await request.json();
   const { idToken, email, displayName, photoURL, uid, accessCode } = body;
   
+  console.log('[Firebase Auth] Received:', { email, displayName, uid: uid?.substring(0, 10) + '...', hasIdToken: !!idToken });
+  
   if (!idToken || !email || !uid) {
+    console.log('[Firebase Auth] Missing required fields');
     return err('Missing required Firebase authentication data');
   }
 
@@ -204,22 +208,37 @@ async function handleFirebaseAuth(request) {
   
   try {
     const parts = idToken.split('.');
-    if (parts.length !== 3) return err('Invalid token format', 401);
+    if (parts.length !== 3) {
+      console.log('[Firebase Auth] Invalid token format - not 3 parts');
+      return err('Invalid token format', 401);
+    }
     
     payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    if (payload.email !== email) return err('Token email mismatch', 401);
-    if (payload.exp && payload.exp * 1000 < Date.now()) return err('Token expired', 401);
+    console.log('[Firebase Auth] Token payload:', { email: payload.email, exp: payload.exp, provider: payload.firebase?.sign_in_provider });
+    
+    if (payload.email !== email) {
+      console.log('[Firebase Auth] Token email mismatch:', payload.email, 'vs', email);
+      return err('Token email mismatch', 401);
+    }
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      console.log('[Firebase Auth] Token expired');
+      return err('Token expired', 401);
+    }
     
     isGoogleAuth = payload.firebase?.sign_in_provider === 'google.com';
     firebaseEmailVerified = payload.email_verified === true;
+    console.log('[Firebase Auth] isGoogleAuth:', isGoogleAuth, 'emailVerified:', firebaseEmailVerified);
   } catch (e) {
+    console.log('[Firebase Auth] Token parse error:', e.message);
     return err('Invalid authentication token', 401);
   }
 
   const db = await getDb();
   const now = new Date();
   
+  console.log('[Firebase Auth] Looking up user:', email.toLowerCase());
   let user = await db.collection('users').findOne({ email: email.toLowerCase() });
+  console.log('[Firebase Auth] User found:', !!user, user ? { id: user.id, role: user.role, accepted: user.accepted } : null);
   
   if (user) {
     const updateFields = { 
