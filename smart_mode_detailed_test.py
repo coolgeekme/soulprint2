@@ -8,7 +8,7 @@ import requests
 import json
 
 # Configuration
-BASE_URL = "https://voice-analytics-hub-1.preview.emergentagent.com/api"
+BASE_URL = "https://nextjs-restructure.preview.emergentagent.com/api"
 LOGIN_EMAIL = "test@soulprint.com"
 LOGIN_PASSWORD = "test123"
 

@@ -9,7 +9,7 @@ import io
 import base64
 import time
 
-BASE_URL = "https://voice-analytics-hub-1.preview.emergentagent.com/api"
+BASE_URL = "https://nextjs-restructure.preview.emergentagent.com/api"
 EMAIL = "test@soulprint.com"
 PASSWORD = "test123"
 

@@ -14,7 +14,7 @@ import sys
 import os
 
 # Configuration
-BASE_URL = "https://voice-analytics-hub-1.preview.emergentagent.com/api"
+BASE_URL = "https://nextjs-restructure.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSCODE = "test123"
 

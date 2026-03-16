@@ -86,8 +86,8 @@ export default function IntegrationsPage() {
     setConnecting(true);
     try {
       console.log('[Google Connect] Starting connection with token:', token?.substring(0, 20) + '...');
-      const res = await fetch('/api/auth/google', {
-        method: 'POST',
+      const res = await fetch('/api/google/auth/start', {
+        method: 'GET',
         headers: { Authorization: `Bearer ${token}` }
       });
       

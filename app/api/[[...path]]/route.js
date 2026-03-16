@@ -900,7 +900,7 @@ async function handleGoogleAuthStart(request) {
       baseUrl = PRODUCTION_URL;
     }
     
-    const redirectUri = `${baseUrl}/api/auth/google/callback`;
+    const redirectUri = `${baseUrl}/api/google/auth/callback`;
     console.log('Google Auth - Final redirect URI:', redirectUri);
     
     // Create state with user ID for security
@@ -972,7 +972,7 @@ async function handleGoogleAuthCallback(request) {
     const userId = stateData.userId;
     
     // Exchange code for tokens - use same baseUrl for redirect URI
-    const redirectUri = `${baseUrl}/api/auth/google/callback`;
+    const redirectUri = `${baseUrl}/api/google/auth/callback`;
     console.log('Google Callback - Exchanging code for tokens...');
     console.log('Google Callback - Using redirect_uri:', redirectUri);
     console.log('Google Callback - Client ID present:', !!GOOGLE_CLIENT_ID);

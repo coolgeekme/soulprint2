@@ -191,7 +191,7 @@ async function handleGoogleAuthStart(request) {
       baseUrl = PRODUCTION_URL;
     }
     
-    const redirectUri = `${baseUrl}/api/auth/google/callback`;
+    const redirectUri = `${baseUrl}/api/google/auth/callback`;
     const state = Buffer.from(JSON.stringify({ userId: user.id, timestamp: Date.now() })).toString('base64');
     const authUrl = getGoogleAuthUrl(redirectUri, state);
     
@@ -230,7 +230,7 @@ async function handleGoogleAuthCallback(request) {
       baseUrl = PRODUCTION_URL;
     }
     
-    const redirectUri = `${baseUrl}/api/auth/google/callback`;
+    const redirectUri = `${baseUrl}/api/google/auth/callback`;
     const tokens = await exchangeGoogleCode(code, redirectUri);
     
     if (tokens.error) {

@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://voice-analytics-hub-1.preview.emergentagent.com/api"
+BASE_URL = "https://nextjs-restructure.preview.emergentagent.com/api"
 TEST_EMAIL = "reggie@coolgeek.me"
 TEST_PASSCODE = "testpasscode123"
 

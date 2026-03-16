@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://voice-analytics-hub-1.preview.emergentagent.com"
+BASE_URL = "https://nextjs-restructure.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  
