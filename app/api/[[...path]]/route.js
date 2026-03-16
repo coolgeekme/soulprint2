@@ -7358,6 +7358,15 @@ async function handleChatStream(request) {
       const enc = new TextEncoder();
       const send = (obj) => controller.enqueue(enc.encode(JSON.stringify(obj) + '\n'));
 
+      // Add keepalive mechanism to prevent connection timeouts during GC pauses
+      let keepaliveInterval = setInterval(() => {
+        try {
+          controller.enqueue(enc.encode(': keepalive\n\n'));
+        } catch (e) {
+          clearInterval(keepaliveInterval);
+        }
+      }, 15000); // Send ping every 15 seconds
+
       try {
         // Send meta first (include Dynamic Intelligence info if applicable)
         send({ 
@@ -8171,6 +8180,11 @@ Style: Professional graphic design quality. Make it look like a skilled designer
       } catch (error) {
         send({ type: 'error', error: error.message });
         controller.close();
+      } finally {
+        // Clean up keepalive interval
+        if (keepaliveInterval) {
+          clearInterval(keepaliveInterval);
+        }
       }
     },
   });
