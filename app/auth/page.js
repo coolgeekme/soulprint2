@@ -51,6 +51,7 @@ export default function AuthPage() {
 
   // Sync Firebase user with backend
   async function syncWithBackend(firebaseUser, idToken) {
+    console.log('[Auth] Syncing with backend...', { email: firebaseUser.email });
     try {
       const res = await fetch('/api/auth/firebase', {
         method: 'POST',
@@ -65,30 +66,38 @@ export default function AuthPage() {
         }),
       });
 
+      console.log('[Auth] Backend response status:', res.status);
+      
       if (!res.ok) {
         const data = await res.json();
+        console.error('[Auth] Backend error:', data);
         throw new Error(data.error || 'Failed to sync with backend');
       }
 
       const data = await res.json();
+      console.log('[Auth] Backend success:', { token: !!data.token, accepted: data.accepted });
       localStorage.setItem('sp_token', data.token);
       localStorage.setItem('sp_user', JSON.stringify(data));
       return data;
     } catch (err) {
+      console.error('[Auth] Sync error:', err);
       throw err;
     }
   }
 
   // Handle Google Sign-In
   async function handleGoogleSignIn() {
+    console.log('[Auth] Starting Google sign-in...');
     setGoogleLoading(true);
     setError('');
 
     try {
       const { user, idToken, error } = await signInWithGoogle();
+      console.log('[Auth] Google sign-in result:', { user: !!user, idToken: !!idToken, error });
       
       if (error) {
         if (error.includes('popup-closed-by-user')) {
+          console.log('[Auth] User closed popup');
           setGoogleLoading(false);
           return;
         }
@@ -96,8 +105,10 @@ export default function AuthPage() {
       }
 
       const data = await syncWithBackend(user, idToken);
+      console.log('[Auth] Calling handlePostAuth with:', data);
       handlePostAuth(data);
     } catch (err) {
+      console.error('[Auth] Google sign-in error:', err);
       setError(err.message || 'Google sign-in failed');
     } finally {
       setGoogleLoading(false);

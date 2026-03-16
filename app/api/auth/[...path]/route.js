@@ -610,3 +610,57 @@ export async function POST(request, { params }) {
     return err(error.message || 'Internal server error', 500);
   }
 }
+
+// GET handler for /api/auth/me
+export async function GET(request, { params }) {
+  const pathArr = params?.path || [];
+  const endpoint = pathArr[0];
+
+  try {
+    if (endpoint === 'me') {
+      return handleMe(request);
+    }
+    return err('Auth endpoint not found', 404);
+  } catch (error) {
+    console.error('[Auth API] GET Error:', error);
+    return err(error.message || 'Internal server error', 500);
+  }
+}
+
+// Handle GET /api/auth/me
+async function handleMe(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  const profile = await db.collection('profiles').findOne({ user_id: user.id });
+  
+  // Get connected Google accounts
+  const googleConnections = await db.collection('google_connections')
+    .find({ user_id: user.id })
+    .toArray();
+  
+  const connectedAccounts = googleConnections.map(conn => ({
+    email: conn.email,
+    name: conn.name,
+    picture: conn.picture,
+    is_default: conn.is_default,
+    connection_id: conn.connection_id
+  }));
+
+  return ok({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    accepted: user.accepted,
+    email_verified: user.email_verified || false,
+    firebase_linked: !!user.firebase_uid,
+    profile: {
+      ...profile,
+      display_name: profile?.display_name || user.display_name,
+    },
+    onboarding_complete: profile?.onboarding_complete || false,
+    assessment_complete: profile?.assessment_complete || false,
+    connected_accounts: connectedAccounts,
+  });
+}
