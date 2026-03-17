@@ -1198,20 +1198,26 @@ async function handleAdminGetConversations(request) {
 
   const query = {};
   if (search) {
-    // Search by user email or topic
+    // Search by user email, topic, or message content
     const matchingUsers = await db.collection('users')
       .find({ email: { $regex: search, $options: 'i' } }, { projection: { _id: 0, id: 1, email: 1 } })
       .toArray();
     const userIds = matchingUsers.map(u => u.id);
 
-    if (userIds.length > 0) {
-      query.$or = [
-        { user_id: { $in: userIds } },
-        { topic: { $regex: search, $options: 'i' } },
-      ];
-    } else {
-      query.topic = { $regex: search, $options: 'i' };
-    }
+    // Find conversations that contain messages matching the search
+    const matchingMsgConvs = await db.collection('messages').aggregate([
+      { $match: { content: { $regex: search, $options: 'i' } } },
+      { $group: { _id: '$conversation_id' } },
+    ]).toArray();
+    const msgConvIds = matchingMsgConvs.map(m => m._id).filter(Boolean);
+
+    const orConditions = [
+      { topic: { $regex: search, $options: 'i' } },
+    ];
+    if (userIds.length > 0) orConditions.push({ user_id: { $in: userIds } });
+    if (msgConvIds.length > 0) orConditions.push({ id: { $in: msgConvIds } });
+
+    query.$or = orConditions;
   }
 
   const total = await db.collection('conversations').countDocuments(query);

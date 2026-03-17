@@ -6774,7 +6774,23 @@ export default function ChatPage() {
       })
       .catch(() => {}); // Silent fail, default to enabled
     fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${t}` } })
-      .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : [])).catch(() => {});
+      .then(r => r.json()).then(d => {
+        const convList = Array.isArray(d) ? d : [];
+        setConversations(convList);
+        // Resume the most recent conversation if one exists
+        if (convList.length > 0) {
+          const lastConv = convList[0]; // Already sorted by updated_at desc
+          setConversationId(lastConv.id);
+          fetch(`/api/messages?conversationId=${lastConv.id}`, { headers: { Authorization: `Bearer ${t}` } })
+            .then(r => r.json())
+            .then(msgs => {
+              if (Array.isArray(msgs) && msgs.length > 0) {
+                setMessages(msgs);
+              }
+            })
+            .catch(() => {});
+        }
+      }).catch(() => {});
     // Fetch projects
     fetch('/api/projects', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json()).then(d => {
