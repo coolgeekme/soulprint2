@@ -517,6 +517,115 @@ async function handleDataImportUpload(request) {
   if (!user) return err('Unauthorized', 401);
 
   try {
+    const contentType = request.headers.get('content-type') || '';
+    const db = await getDb();
+    const uploadId = uuidv4();
+
+    // Handle JSON body (pre-extracted messages from client-side processing)
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      const messages = body.messages || [];
+      const posts = body.posts || [];
+      const source = body.type || 'unknown';
+      
+      if (messages.length === 0 && posts.length === 0) {
+        return err('No messages or posts found in the data');
+      }
+
+      // Create import record
+      await db.collection('data_imports').insertOne({
+        id: uploadId,
+        user_id: user.id,
+        source,
+        status: 'processing',
+        created_at: new Date(),
+      });
+
+      // Build parsed data for analysis
+      const userMessages = messages.filter(m => m.role === 'user');
+      const assistantMessages = messages.filter(m => m.role === 'assistant');
+      
+      // Build extracted text for analysis
+      const extractedText = messages
+        .map(m => `[${m.role}]: ${m.content}`)
+        .join('\n\n')
+        .slice(0, 50000);
+
+      const conversationCount = Math.max(1, Math.ceil(messages.length / 10));
+
+      const parsedData = {
+        source,
+        extractedText,
+        conversationCount,
+        messageCount: messages.length,
+        userMessageCount: userMessages.length,
+        postCount: posts.length,
+        userMessages: userMessages.slice(0, 500),
+        messages: messages.filter(m => m.role !== 'assistant').slice(0, 500),
+        posts: posts.slice(0, 200),
+      };
+
+      // Update with parsed stats
+      await db.collection('data_imports').updateOne(
+        { id: uploadId },
+        { $set: { 
+          status: 'analyzing',
+          parsed_stats: {
+            source: parsedData.source,
+            conversationCount: parsedData.conversationCount,
+            messageCount: parsedData.messageCount,
+            userMessageCount: parsedData.userMessageCount,
+            postCount: parsedData.postCount,
+          }
+        } }
+      );
+
+      // Analyze communication style
+      const analysis = await analyzeCommmunicationStyle(parsedData);
+      
+      if (analysis.error) {
+        await db.collection('data_imports').updateOne(
+          { id: uploadId },
+          { $set: { status: 'error', error: analysis.error } }
+        );
+        return err(`Analysis failed: ${analysis.error}`);
+      }
+
+      await db.collection('data_imports').updateOne(
+        { id: uploadId },
+        { $set: { status: 'complete', analysis, completed_at: new Date() } }
+      );
+
+      // Update soul profile
+      await db.collection('soul_profiles').updateOne(
+        { user_id: user.id },
+        { 
+          $set: { insights: analysis, updated_at: new Date() },
+          $push: {
+            import_history: {
+              import_id: uploadId,
+              source: parsedData.source,
+              analyzed_at: new Date(),
+            }
+          }
+        },
+        { upsert: true }
+      );
+
+      return ok({
+        success: true,
+        uploadId,
+        importId: uploadId,
+        analysis,
+        stats: {
+          source: parsedData.source,
+          conversationsAnalyzed: parsedData.conversationCount,
+          messagesAnalyzed: parsedData.messageCount,
+        }
+      });
+    }
+
+    // Handle FormData (ZIP file upload)
     const formData = await request.formData();
     const file = formData.get('file');
     const source = formData.get('source') || 'unknown';
@@ -529,9 +638,6 @@ async function handleDataImportUpload(request) {
     if (!filename.toLowerCase().endsWith('.zip')) {
       return err('Please upload a ZIP file');
     }
-    
-    const db = await getDb();
-    const uploadId = uuidv4();
     
     await db.collection('data_imports').insertOne({
       id: uploadId,

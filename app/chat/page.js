@@ -4862,7 +4862,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                             </span>
                           </p>
                           <p className="text-gray-600 text-[10px]">
-                            {imp.stats?.messageCount || imp.stats?.conversationCount || 0} items analyzed · {new Date(imp.created_at).toLocaleDateString()}
+                            {imp.stats?.messageCount || imp.stats?.userMessageCount || imp.stats?.conversationCount || 0} items analyzed · {new Date(imp.created_at).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
