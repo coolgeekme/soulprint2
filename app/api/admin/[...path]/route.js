@@ -1183,6 +1183,76 @@ async function handleAdminDeleteBlogPost(request, postId) {
 // ============================================================
 // ROUTE HANDLERS
 // ============================================================
+// Conversations Handler
+// ============================================================
+
+async function handleAdminGetConversations(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  const { searchParams } = new URL(request.url);
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = 25;
+  const search = searchParams.get('search') || '';
+
+  const query = {};
+  if (search) {
+    // Search by user email or topic
+    const matchingUsers = await db.collection('users')
+      .find({ email: { $regex: search, $options: 'i' } }, { projection: { _id: 0, id: 1, email: 1 } })
+      .toArray();
+    const userIds = matchingUsers.map(u => u.id);
+
+    if (userIds.length > 0) {
+      query.$or = [
+        { user_id: { $in: userIds } },
+        { topic: { $regex: search, $options: 'i' } },
+      ];
+    } else {
+      query.topic = { $regex: search, $options: 'i' };
+    }
+  }
+
+  const total = await db.collection('conversations').countDocuments(query);
+  const pages = Math.max(1, Math.ceil(total / limit));
+
+  const conversations = await db.collection('conversations')
+    .find(query, { projection: { _id: 0 } })
+    .sort({ updated_at: -1 })
+    .skip((page - 1) * limit)
+    .limit(limit)
+    .toArray();
+
+  // Get user emails
+  const userIds = [...new Set(conversations.map(c => c.user_id))];
+  const users = await db.collection('users')
+    .find({ id: { $in: userIds } }, { projection: { _id: 0, id: 1, email: 1 } })
+    .toArray();
+  const userMap = Object.fromEntries(users.map(u => [u.id, u.email]));
+
+  // Get message counts per conversation
+  const convIds = conversations.map(c => c.id).filter(Boolean);
+  const msgCounts = await db.collection('messages').aggregate([
+    { $match: { conversation_id: { $in: convIds } } },
+    { $group: { _id: '$conversation_id', count: { $sum: 1 } } },
+  ]).toArray();
+  const msgCountMap = Object.fromEntries(msgCounts.map(m => [m._id, m.count]));
+
+  const enriched = conversations.map(c => ({
+    id: c.id,
+    user_email: userMap[c.user_id] || 'Unknown',
+    topic: c.topic || null,
+    message_count: msgCountMap[c.id] || c.message_count || 0,
+    source: c.source || 'web',
+    created_at: c.created_at,
+    updated_at: c.updated_at,
+  }));
+
+  return ok({ conversations: enriched, page, pages, total });
+}
+
+// ============================================================
 
 export async function GET(request, { params }) {
   const pathArr = params?.path || [];
@@ -1195,6 +1265,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'insights') return handleAdminGetInsights(request);
     if (pathStr === 'settings') return handleAdminGetSettings(request);
     if (pathStr === 'feedback') return handleAdminGetFeedback(request);
+    if (pathStr === 'conversations') return handleAdminGetConversations(request);
     if (pathStr === 'beta-groups') return handleAdminGetBetaGroups(request);
     if (pathStr === 'beta-codes') return handleAdminGetBetaCodes(request);
     if (pathStr === 'blog/posts') return handleAdminGetBlogPosts(request);

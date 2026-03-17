@@ -4937,6 +4937,39 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                     <p className="text-gray-400 text-xs">You can chat with your SoulPrint directly in Telegram. Type <code className="bg-white/10 px-1 rounded">/help</code> in the bot for commands.</p>
                   </div>
 
+                  {/* Disconnect Telegram */}
+                  <div className="p-4 rounded-xl bg-white/3 border border-white/8 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-white text-xs font-semibold">Disconnect Telegram</p>
+                        <p className="text-gray-500 text-[11px] mt-0.5">Unlink your Telegram account from SoulPrint</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!confirm('Are you sure you want to disconnect Telegram? You can re-link later.')) return;
+                          try {
+                            const res = await fetch('/api/telegram/unlink', {
+                              method: 'POST',
+                              headers: { Authorization: `Bearer ${token}` },
+                            });
+                            if (res.ok) {
+                              setTelegramStatus(s => ({ ...s, linked: false }));
+                            } else {
+                              const d = await res.json().catch(() => ({}));
+                              alert(d.error || 'Failed to disconnect');
+                            }
+                          } catch {
+                            alert('Connection error. Please try again.');
+                          }
+                        }}
+                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg border border-red-500/20 transition-colors"
+                        data-testid="telegram-disconnect-btn"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  </div>
+
                   {/* AI Model selector for Telegram */}
                   <div className="p-4 rounded-xl bg-white/3 border border-white/8 space-y-3">
                     <div className="flex items-center justify-between">

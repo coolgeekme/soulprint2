@@ -1108,27 +1108,81 @@ function ConversationsTab({ token }) {
   const [convs, setConvs] = useState([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
 
-  useEffect(() => {
+  const fetchConversations = (p = page, s = search) => {
     setLoading(true);
-    fetch(`/api/admin/conversations?page=${page}`, { headers: { Authorization: `Bearer ${token}` } })
+    const params = new URLSearchParams({ page: p });
+    if (s) params.set('search', s);
+    fetch(`/api/admin/conversations?${params}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(d => { setConvs(d.conversations || []); setPages(d.pages || 1); })
+      .then(d => { setConvs(d.conversations || []); setPages(d.pages || 1); setTotal(d.total || 0); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [page]);
+  };
+
+  useEffect(() => { fetchConversations(page, search); }, [page]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setPage(1);
+    setSearch(searchInput);
+    fetchConversations(1, searchInput);
+  };
+
+  const clearSearch = () => {
+    setSearchInput('');
+    setSearch('');
+    setPage(1);
+    fetchConversations(1, '');
+  };
 
   return (
     <div>
       <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
         <p className="text-blue-400 text-xs">🔒 <strong>Privacy Mode:</strong> Conversation content is not visible to admins. Only general topic categories are shown.</p>
       </div>
+
+      {/* Search Bar */}
+      <form onSubmit={handleSearch} className="mb-4 flex gap-2" data-testid="conversation-search-form">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            placeholder="Search by email or topic..."
+            className="w-full bg-[#111] border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-xs text-white placeholder-gray-600 focus:border-orange-500/40 transition-colors"
+            data-testid="conversation-search-input"
+          />
+        </div>
+        <button type="submit" className="px-4 py-2 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 text-xs font-bold rounded-lg border border-orange-500/20 transition-colors" data-testid="conversation-search-btn">
+          Search
+        </button>
+        {search && (
+          <button type="button" onClick={clearSearch} className="px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-400 text-xs rounded-lg border border-white/10 transition-colors" data-testid="conversation-clear-search-btn">
+            Clear
+          </button>
+        )}
+      </form>
+
+      {search && (
+        <p className="text-gray-500 text-xs mb-3">Showing results for "<span className="text-orange-400">{search}</span>" — {total} conversation{total !== 1 ? 's' : ''} found</p>
+      )}
+
       {loading ? <div className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-600" /></div> : (
+        convs.length === 0 ? (
+          <div className="text-center py-12 text-gray-600 text-sm">
+            {search ? 'No conversations match your search.' : 'No conversations yet.'}
+          </div>
+        ) : (
         <table className="w-full admin-table">
           <thead>
             <tr className="border-b border-white/5">
-              {['User', 'Topic Category', 'Messages', 'Created', 'Last Active'].map(h => (
+              {['User', 'Topic Category', 'Source', 'Messages', 'Created', 'Last Active'].map(h => (
                 <th key={h} className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">{h}</th>
               ))}
             </tr>
@@ -1138,23 +1192,32 @@ function ConversationsTab({ token }) {
               <tr key={c.id} className="border-b border-white/3">
                 <td className="py-3 pr-4 text-gray-400 text-xs">{c.user_email}</td>
                 <td className="py-3 pr-4 text-white text-xs">{c.topic || '💬 General Chat'}</td>
+                <td className="py-3 pr-4 text-xs">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${c.source === 'telegram' ? 'bg-[#229ED9]/20 text-[#229ED9]' : 'bg-white/10 text-gray-400'}`}>
+                    {c.source || 'web'}
+                  </span>
+                </td>
                 <td className="py-3 pr-4 text-gray-500 text-xs">{c.message_count || '—'}</td>
-                <td className="py-3 pr-4 text-gray-600 text-[10px]">{new Date(c.created_at).toLocaleDateString()}</td>
-                <td className="py-3 pr-4 text-gray-600 text-[10px]">{new Date(c.updated_at).toLocaleDateString()}</td>
+                <td className="py-3 pr-4 text-gray-600 text-[10px]">{c.created_at ? new Date(c.created_at).toLocaleDateString() : '—'}</td>
+                <td className="py-3 pr-4 text-gray-600 text-[10px]">{c.updated_at ? new Date(c.updated_at).toLocaleDateString() : '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        )
       )}
-      {pages > 1 && (
-        <div className="flex items-center gap-2 justify-center mt-4">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            className="text-xs text-gray-500 hover:text-white disabled:opacity-30 px-3 py-1.5 bg-[#111] border border-white/10 rounded-lg">Prev</button>
-          <span className="text-xs text-gray-600">{page} / {pages}</span>
-          <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}
-            className="text-xs text-gray-500 hover:text-white disabled:opacity-30 px-3 py-1.5 bg-[#111] border border-white/10 rounded-lg">Next</button>
-        </div>
-      )}
+      <div className="flex items-center justify-between mt-4">
+        <span className="text-gray-600 text-xs">{total} total conversation{total !== 1 ? 's' : ''}</span>
+        {pages > 1 && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              className="text-xs text-gray-500 hover:text-white disabled:opacity-30 px-3 py-1.5 bg-[#111] border border-white/10 rounded-lg">Prev</button>
+            <span className="text-xs text-gray-600">{page} / {pages}</span>
+            <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}
+              className="text-xs text-gray-500 hover:text-white disabled:opacity-30 px-3 py-1.5 bg-[#111] border border-white/10 rounded-lg">Next</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -4789,6 +4852,9 @@ export default function AdminPage() {
   const [showCustomDateRange, setShowCustomDateRange] = useState(false);
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastRefreshed, setLastRefreshed] = useState(null);
+  const autoRefreshInterval = 30000; // 30 seconds
 
   const loadMetrics = async (t, start = null, end = null) => {
     setMetricsLoading(true);
@@ -4813,6 +4879,7 @@ export default function AdminPage() {
       if (res.ok && d && !d.error) {
         setMetrics(d);
         setWaitlistCount(d.waitlist_count || 0);
+        setLastRefreshed(new Date());
       } else {
         console.error('Metrics API error:', d);
         setMetricsError(d.error || 'Failed to load metrics');
@@ -4850,6 +4917,17 @@ export default function AdminPage() {
 
     loadMetrics(t);
   }, []);
+
+  // Auto-refresh interval
+  useEffect(() => {
+    if (!autoRefresh || !token) return;
+    const interval = setInterval(() => {
+      if (activeTab === 'metrics') {
+        loadMetrics(token);
+      }
+    }, autoRefreshInterval);
+    return () => clearInterval(interval);
+  }, [autoRefresh, token, activeTab, dateRange]);
 
   if (loading) {
     return (
@@ -4945,6 +5023,36 @@ export default function AdminPage() {
                 )}
               </h1>
               <p className="text-gray-600 text-xs mt-0.5 capitalize">{adminRole} access</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Auto-refresh controls */}
+              <div className="flex items-center gap-2" data-testid="auto-refresh-controls">
+                <button
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${
+                    autoRefresh 
+                      ? 'bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20' 
+                      : 'bg-white/5 text-gray-500 border-white/10 hover:bg-white/10 hover:text-gray-300'
+                  }`}
+                  data-testid="auto-refresh-toggle"
+                >
+                  <RefreshCw className={`w-3 h-3 ${autoRefresh ? 'animate-spin' : ''}`} style={autoRefresh ? { animationDuration: '3s' } : {}} />
+                  {autoRefresh ? 'Live' : 'Paused'}
+                </button>
+                {lastRefreshed && (
+                  <span className="text-gray-600 text-[10px] hidden sm:inline" data-testid="last-refreshed">
+                    Updated {lastRefreshed.toLocaleTimeString()}
+                  </span>
+                )}
+                <button
+                  onClick={() => loadMetrics(token)}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white border border-white/10 transition-colors"
+                  title="Refresh now"
+                  data-testid="manual-refresh-btn"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </div>
           
