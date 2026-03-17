@@ -6646,21 +6646,31 @@ export default function ChatPage() {
     if (!text || text.length > 500) return null;
     const lower = text.toLowerCase().trim();
     
+    // Negative patterns - don't trigger on these common false positives
+    const negativePatterns = [
+      /\b(how|can|could|would|should|do|does|did|will|what|why|is|are|was|were)\b.*\b(generate|create|make)\b/i,
+      /\b(generate|create|make)\b.*\b(idea|list|plan|report|summary|code|text|content|response|email|message)\b/i,
+      /\b(generate|create|make)\b.*\b(money|revenue|income|profit|leads|sales|results)\b/i,
+      /\bdraw\s+(a\s+)?(conclusion|comparison|parallel|line|boundary|distinction|connection)\b/i,
+      /\bpicture\s+(this|that|yourself)\b/i,
+      /\bvisualize\s+(your|the\s+future|success|yourself|data|the\s+data)\b/i,
+    ];
+    if (negativePatterns.some(p => p.test(lower))) return null;
+    
     // Video patterns - check first (more specific)
     const videoPatterns = [
-      /\b(generate|create|make|animate)\s+(a\s+)?(video|clip|animation|short film)\b/i,
-      /\bvideo\s+of\b/i,
-      /\banimate\s+(a|an|the|my|this)?\s*\w/i,
+      /\b(generate|create|make)\s+(a\s+|me\s+a\s+)?(video|clip|animation|short film)\b/i,
+      /\banimate\s+(a|an|the|my|this)\s+\w/i,
+      /\b(video|animation)\s+(of|for|about|showing)\b/i,
     ];
     if (videoPatterns.some(p => p.test(lower))) return 'video';
     
-    // Image patterns
+    // Image patterns - require clear generation intent
     const imagePatterns = [
-      /\b(generate|create|make|draw|paint)\s+(an?\s+)?(image|picture|photo|illustration|artwork|painting)\b/i,
-      /\b(show|give)\s+me\s+(an?\s+)?(picture|image|photo)\b/i,
-      /\b(picture|photo|image|illustration)\s+of\b/i,
-      /\bvisualize\b/i,
-      /\bdraw\s+(me\s+)?(a|an|the)?\s*\w/i,
+      /\b(generate|create|make|draw|paint|design)\s+(me\s+)?(a|an)\s+(image|picture|photo|illustration|artwork|painting|poster|flyer|infographic|logo|banner|thumbnail|meme|wallpaper|portrait|headshot)\b/i,
+      /\b(show|give)\s+me\s+(a|an)\s+(picture|image|photo|illustration)\s+(of|with|showing)\b/i,
+      /\b(draw|paint|sketch|illustrate)\s+(me\s+)?(a|an|my|the)\s+\w/i,
+      /\b(image|picture|photo|illustration)\s+(of|for|about|showing|with)\b.*\b(please|style|realistic|cartoon|anime)\b/i,
     ];
     if (imagePatterns.some(p => p.test(lower))) return 'image';
     
