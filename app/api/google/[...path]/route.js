@@ -184,13 +184,9 @@ async function handleGoogleAuthStart(request) {
     const user = await authenticate(request);
     if (!user) return err('Unauthorized', 401);
     
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!baseUrl) {
-      console.error('Google Auth Start - NEXT_PUBLIC_BASE_URL is not set!');
-      return err('Server configuration error', 500);
-    }
-    
-    const redirectUri = `${baseUrl}/api/google/auth/callback`;
+    // Use dynamic origin for OAuth redirect to work across all environments
+    const origin = new URL(request.url).origin;
+    const redirectUri = `${origin}/api/google/auth/callback`;
     const state = Buffer.from(JSON.stringify({ userId: user.id, timestamp: Date.now() })).toString('base64');
     const authUrl = getGoogleAuthUrl(redirectUri, state);
     
@@ -223,13 +219,9 @@ async function handleGoogleAuthCallback(request) {
       return NextResponse.redirect(new URL('/settings?google=error&message=invalid_state', url.origin));
     }
     
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!baseUrl) {
-      console.error('Google Callback - NEXT_PUBLIC_BASE_URL is not set!');
-      return new NextResponse('Server configuration error', { status: 500 });
-    }
-    
-    const redirectUri = `${baseUrl}/api/google/auth/callback`;
+    // Use dynamic origin for OAuth redirect to work across all environments
+    const origin = new URL(request.url).origin;
+    const redirectUri = `${origin}/api/google/auth/callback`;
     const tokens = await exchangeGoogleCode(code, redirectUri);
     
     if (tokens.error) {
