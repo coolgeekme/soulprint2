@@ -393,7 +393,24 @@ async function handleGetConversations(request) {
     .limit(100)
     .toArray();
 
-  return ok(conversations.map(c => ({
+  // If search query provided, also match against message content
+  const search = searchParams.get('search') || '';
+  let results = conversations;
+  if (search.trim()) {
+    const q = search.trim().toLowerCase();
+    // Title matches
+    const titleMatchIds = new Set(conversations.filter(c => (c.title || '').toLowerCase().includes(q)).map(c => c.id));
+    // Message content matches
+    const convIds = conversations.map(c => c.id).filter(Boolean);
+    const msgMatches = await db.collection('messages').aggregate([
+      { $match: { conversation_id: { $in: convIds }, content: { $regex: search, $options: 'i' } } },
+      { $group: { _id: '$conversation_id' } },
+    ]).toArray();
+    const contentMatchIds = new Set(msgMatches.map(m => m._id));
+    results = conversations.filter(c => titleMatchIds.has(c.id) || contentMatchIds.has(c.id));
+  }
+
+  return ok(results.map(c => ({
     id: c.id,
     title: c.title,
     created_at: c.created_at,

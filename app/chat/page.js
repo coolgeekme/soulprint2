@@ -6530,6 +6530,8 @@ export default function ChatPage() {
   const [editingTitle, setEditingTitle] = useState('');
   const [convMenuId, setConvMenuId] = useState(null); // which conversation's menu is open
   const [searchQuery, setSearchQuery] = useState(''); // conversation search
+  const [searchResults, setSearchResults] = useState(null); // null = not searching
+  const searchTimeoutRef = useRef(null);
   // Projects state
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null); // null = all, 'general' = uncategorized, or project id
@@ -8477,14 +8479,11 @@ export default function ChatPage() {
   const currentModel = MODELS.find(m => m.value === selectedModel) || MODELS[0];
 
   // Filter conversations based on search query and pin Telegram chats to top
-  const filteredConversations = (searchQuery.trim() 
-    ? conversations.filter(c => (c.title || 'Conversation').toLowerCase().includes(searchQuery.toLowerCase()))
-    : conversations
-  ).sort((a, b) => {
+  const baseConversations = searchResults !== null ? searchResults : conversations;
+  const filteredConversations = baseConversations.sort((a, b) => {
     // Pin Telegram conversations to the top
     if (a.source === 'telegram' && b.source !== 'telegram') return -1;
     if (a.source !== 'telegram' && b.source === 'telegram') return 1;
-    // Keep original order for same type (most recent first)
     return 0;
   });
 
@@ -8562,12 +8561,26 @@ export default function ChatPage() {
                 type="text"
                 placeholder="Search conversations..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSearchQuery(val);
+                  if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                  if (!val.trim()) {
+                    setSearchResults(null);
+                    return;
+                  }
+                  searchTimeoutRef.current = setTimeout(() => {
+                    fetch(`/api/user/conversations?search=${encodeURIComponent(val)}`, { headers: { Authorization: `Bearer ${token}` } })
+                      .then(r => r.json())
+                      .then(d => setSearchResults(Array.isArray(d) ? d : []))
+                      .catch(() => {});
+                  }, 300);
+                }}
                 className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-xs text-white placeholder-gray-600 focus:border-orange-500/40 outline-none transition-colors"
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => { setSearchQuery(''); setSearchResults(null); }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-white"
                 >
                   <X className="w-3 h-3" />
