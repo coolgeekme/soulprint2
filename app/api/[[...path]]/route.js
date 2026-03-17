@@ -4515,19 +4515,20 @@ You can generate images, flyers, posters, infographics, and visual content. When
 - Explaining concepts that would benefit from visual representation
 - Working on any content that would benefit from a visual format
 
-**PROACTIVELY offer to generate a visual version.** Ask something like:
-- "Would you like me to generate this as a flyer? I can create both PNG (for digital) and PDF (for printing) versions."
-- "This looks like it could make a great poster! Want me to design one for you?"
-- "This data would look amazing as an infographic! Want me to create one?"
-- "I can turn this into a professional-looking visual if you'd like. Just say the word!"
+**Only generate images when the user EXPLICITLY requests one.** You may suggest the option, for example:
+- "Would you like me to generate this as a flyer?"
+- "This could make a great poster — want me to design one?"
+- "I can create an infographic from this data if you'd like."
 
-### ⚠️ CRITICAL: Generate ACTUAL IMAGES, Not Text!
-**When creating flyers, infographics, or posters - you MUST generate an actual image using the image generation tool.**
+But NEVER auto-generate an image unless the user clearly says yes or directly asks for image/visual generation.
+
+### ⚠️ When the user DOES request an image:
+**Generate an actual image using the image generation tool, not text/markdown.**
 
 ❌ WRONG: Writing out the content as markdown/text (like "### Infographic Title" with bullet points)
 ✅ CORRECT: Using the image generation capability to create a beautiful visual graphic
 
-When the user asks for an infographic, flyer, or poster:
+When the user explicitly asks for an infographic, flyer, or poster:
 1. First, gather all the necessary information from the user
 2. Then, USE THE IMAGE GENERATION TOOL to create an actual visual image
 3. The output should be a PNG/image file, NOT markdown text
@@ -7313,7 +7314,9 @@ async function handleChatStream(request) {
       /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?banner/i,
       /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?brochure/i,
       // User confirmation patterns (when AI offered and user said yes)
-      /^(?:yes|yeah|sure|ok|okay|please|go ahead|do it|create it|make it|generate it)[\s,!.]*(?:create|make|generate)?(?:\s+the)?(?:\s+infographic|\s+flyer|\s+poster)?/i,
+      // These must be SHORT confirmation responses, not general messages starting with "please"
+      /^(?:yes|yeah|sure|ok|okay|go ahead|do it|create it|make it|generate it)[,!\s.]*(?:generate|create|make)?(?:\s+(?:the|that|this|it))?\s*(?:infographic|flyer|poster|image)?[,!\s.]*$/i,
+      /^please\s+(?:generate|create|make|design)\s+(?:(?:the|an?)\s+)?(?:infographic|flyer|poster|image|banner|brochure)/i,
       // Direct keyword triggers - only if short message (under 200 chars)
       ...(lower.length < 200 ? [
         /\binfographic\b.*\b(?:about|for|showing|with|on)\b/i,
@@ -7334,13 +7337,13 @@ async function handleChatStream(request) {
       /^(?:please\s+)?(?:can you\s+)?generate\s+(?:an?\s+)?image\b/i, 
       /^(?:please\s+)?(?:can you\s+)?create\s+(?:an?\s+)?image\b/i,
       /^(?:please\s+)?(?:can you\s+)?make\s+(?:an?\s+)?image\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?draw\s+(?:me\s+)?(?:an?\s+)?/i,
+      /^(?:please\s+)?(?:can you\s+)?draw\s+(?:me\s+)?(?:a|an)\s+(?:picture|image|portrait|sketch|illustration|painting|cartoon)\b/i,
       /^(?:please\s+)?(?:can you\s+)?(?:show|give)\s+me\s+(?:an?\s+)?(?:picture|image|photo)\b/i,
       /^(?:please\s+)?(?:can you\s+)?picture\s+of\b/i, 
       /^(?:please\s+)?(?:can you\s+)?photo\s+of\b/i, 
       /^(?:please\s+)?(?:can you\s+)?illustration\s+of\b/i,
-      /^(?:please\s+)?(?:can you\s+)?paint\s+(?:me\s+)?/i, 
-      /^(?:please\s+)?(?:can you\s+)?visualize\b/i,
+      /^(?:please\s+)?(?:can you\s+)?paint\s+(?:me\s+)?(?:a|an)\s+/i, 
+      /^(?:please\s+)?(?:can you\s+)?visualize\s+(?:a|an|the|this|my)\s+/i,
       /\bdall-?e\b/i, /\bstable\s+diffusion\b/i,
       // Short confirmation/request patterns for image generation (after discussing a design)
       /^image[!.\s]*$/i,  // Just "Image" or "Image!"
