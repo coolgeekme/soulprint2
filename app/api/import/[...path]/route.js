@@ -752,15 +752,28 @@ async function handleGetDataImports(request) {
   const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
   
   return ok({
-    imports: imports.map(i => ({
-      id: i.id,
-      source: i.parsed_stats?.source || i.source,
-      status: i.status,
-      stats: i.parsed_stats,
-      analysis: i.analysis,
-      created_at: i.created_at,
-      completed_at: i.completed_at,
-    })),
+    imports: imports.map(i => {
+      const stats = i.parsed_stats || {};
+      // If stats show 0 but analysis exists, try to estimate counts from analysis
+      if ((!stats.messageCount && !stats.conversationCount) && i.analysis) {
+        const a = i.analysis;
+        // Estimate from analysis content
+        if (a.interests?.length > 0 || a.communicationStyle || a.summary) {
+          stats.messageCount = stats.messageCount || null;
+          stats.conversationCount = stats.conversationCount || null;
+          stats.analyzed = true;
+        }
+      }
+      return {
+        id: i.id,
+        source: stats.source || i.source,
+        status: i.status,
+        stats,
+        analysis: i.analysis,
+        created_at: i.created_at,
+        completed_at: i.completed_at,
+      };
+    }),
     soulProfile: soulProfile?.insights || null,
   });
 }
