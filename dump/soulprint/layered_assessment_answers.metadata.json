@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"bc29b9e2ad944e4d91470c3aa37606d5","collectionName":"layered_assessment_answers","type":"collection"}

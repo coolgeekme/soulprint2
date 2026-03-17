@@ -433,6 +433,148 @@ async function handleAdminGetInsights(request) {
     },
   };
 
+  // Revenue potential scenarios
+  const usersExceeding20 = userActivity.filter(u => u.message_count > 20).length;
+  const usersExceeding50 = userActivity.filter(u => u.message_count > 50).length;
+  const enterpriseCandidates = userActivity.filter(u => u.message_count > 500).length;
+
+  const revenuePotential = {
+    if_free_tier_20_msgs: {
+      paying_users: usersExceeding20,
+      at_10_per_month: usersExceeding20 * 10,
+      at_20_per_month: usersExceeding20 * 20,
+    },
+    if_free_tier_50_msgs: {
+      paying_users: usersExceeding50,
+      at_10_per_month: usersExceeding50 * 10,
+      at_20_per_month: usersExceeding50 * 20,
+    },
+    enterprise_candidates: enterpriseCandidates,
+  };
+
+  // Top users by message count
+  const allUsers = await db.collection('users').find({}, { projection: { _id: 0, id: 1, email: 1 } }).toArray();
+  const allProfiles = await db.collection('profiles').find({}, { projection: { _id: 0, user_id: 1, display_name: 1 } }).toArray();
+  const profileMap = Object.fromEntries(allProfiles.map(p => [p.user_id, p]));
+  const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
+
+  // Get media counts per user
+  const mediaByUser = await db.collection('media_generation_jobs').aggregate([
+    { $group: { _id: '$user_id', count: { $sum: 1 }, cost: { $sum: { $ifNull: ['$estimated_cost_usd', 0] } } } },
+  ]).toArray();
+  const mediaUserMap = Object.fromEntries(mediaByUser.map(m => [m._id, m]));
+
+  // Get last active per user
+  const lastActiveByUser = await db.collection('users').find({}, { projection: { _id: 0, id: 1, last_active_at: 1 } }).toArray();
+  const lastActiveMap = Object.fromEntries(lastActiveByUser.map(u => [u.id, u.last_active_at]));
+
+  const topUsers = userActivity
+    .sort((a, b) => b.message_count - a.message_count)
+    .slice(0, 20)
+    .map(u => {
+      const user = userMap[u._id] || {};
+      const profile = profileMap[u._id] || {};
+      const media = mediaUserMap[u._id] || {};
+      const estCost = (u.message_count * costPerMessage).toFixed(2);
+      return {
+        name: profile.display_name || 'Unknown',
+        email: user.email || '',
+        messages: u.message_count,
+        media_generated: media.count || 0,
+        estimated_cost: estCost,
+        last_active: lastActiveMap[u._id] || null,
+      };
+    });
+
+  // Model popularity
+  const modelUsage = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', model_used: { $exists: true, $ne: null } } },
+    { $group: { _id: '$model_used', count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+  ]).toArray();
+  const totalModelMessages = modelUsage.reduce((sum, m) => sum + m.count, 0);
+  const modelPopularity = modelUsage.map(m => ({
+    model: m._id || 'unknown',
+    count: m.count,
+    percentage: totalModelMessages > 0 ? Math.round((m.count / totalModelMessages) * 100) : 0,
+  }));
+
+  // Feature adoption
+  const profilesCount = await db.collection('profiles').countDocuments();
+  const assessmentComplete = await db.collection('profiles').countDocuments({ assessment_complete: true });
+  const onboardingComplete = await db.collection('profiles').countDocuments({ onboarding_complete: true });
+  const usersWithImports = await db.collection('import_jobs').distinct('user_id');
+  const usersWithMedia = await db.collection('media_generation_jobs').distinct('user_id');
+  const usersWithMemories = await db.collection('memories').distinct('user_id');
+  const telegramLinked = await db.collection('telegram_mappings').countDocuments({ linked: true });
+  const voiceUsers = voiceMetrics.unique_users || 0;
+
+  const featureAdoption = {
+    assessment: { rate: totalUsers > 0 ? Math.round((assessmentComplete / totalUsers) * 100) : 0, users: assessmentComplete },
+    onboarding: { rate: totalUsers > 0 ? Math.round((onboardingComplete / totalUsers) * 100) : 0, users: onboardingComplete },
+    chat_import: { rate: totalUsers > 0 ? Math.round((usersWithImports.length / totalUsers) * 100) : 0, users: usersWithImports.length },
+    media_generation: { rate: totalUsers > 0 ? Math.round((usersWithMedia.length / totalUsers) * 100) : 0, users: usersWithMedia.length },
+    memories: { rate: totalUsers > 0 ? Math.round((usersWithMemories.length / totalUsers) * 100) : 0, users: usersWithMemories.length },
+    telegram: { rate: totalUsers > 0 ? Math.round((telegramLinked / totalUsers) * 100) : 0, users: telegramLinked },
+    voice_chat: { rate: totalUsers > 0 ? Math.round((voiceUsers / totalUsers) * 100) : 0, users: voiceUsers },
+  };
+
+  // Churn indicators
+  const inactive30d = await db.collection('users').countDocuments({ last_active_at: { $lt: thirtyDaysAgo } });
+  const neverEngaged = totalUsers - activeUserIds.size;
+  const churnRate = totalUsers > 0 ? Math.round((inactive30d / totalUsers) * 100) : 0;
+  const dropOffRate = totalUsers > 0 ? Math.round((neverEngaged / totalUsers) * 100) : 0;
+
+  const churnIndicators = {
+    inactive_30d: inactive30d,
+    churn_rate: churnRate,
+    never_engaged: neverEngaged,
+    drop_off_rate: dropOffRate,
+  };
+
+  // Weekly trends (last 4 weeks)
+  const weeklyTrends = [];
+  for (let i = 0; i < 4; i++) {
+    const weekEnd = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+    const weekStart = new Date(weekEnd - 7 * 24 * 60 * 60 * 1000);
+    const weekMessages = await db.collection('messages').countDocuments({ created_at: { $gte: weekStart, $lt: weekEnd } });
+    const weekActiveUsers = await db.collection('messages').aggregate([
+      { $match: { created_at: { $gte: weekStart, $lt: weekEnd } } },
+      { $group: { _id: '$user_id' } },
+      { $count: 'total' },
+    ]).toArray();
+    const weekNewUsers = await db.collection('users').countDocuments({ created_at: { $gte: weekStart, $lt: weekEnd } });
+    weeklyTrends.push({
+      week: `Week ${4 - i}`,
+      start: weekStart.toISOString().split('T')[0],
+      messages: weekMessages,
+      active_users: weekActiveUsers[0]?.total || 0,
+      new_users: weekNewUsers,
+    });
+  }
+  weeklyTrends.reverse();
+
+  // Media insights
+  const mediaUsers = usersWithMedia.length;
+  const totalMediaJobs = mediaJobs.length;
+  const mediaAdoptionRate = totalUsers > 0 ? Math.round((mediaUsers / totalUsers) * 100) : 0;
+  const avgMediaPerUser = mediaUsers > 0 ? parseFloat((totalMediaJobs / mediaUsers).toFixed(1)) : 0;
+
+  const mediaByType = await db.collection('media_generation_jobs').aggregate([
+    { $group: { _id: { $ifNull: ['$media_type', '$type'] }, count: { $sum: 1 }, total_cost: { $sum: { $ifNull: ['$estimated_cost_usd', 0] } } } },
+  ]).toArray();
+
+  const mediaInsights = {
+    users_using_media: mediaUsers,
+    media_adoption_rate: mediaAdoptionRate,
+    avg_media_per_user: avgMediaPerUser,
+    by_type: mediaByType.map(m => ({
+      type: m._id || 'Unknown',
+      count: m.count,
+      total_cost: parseFloat((m.total_cost || 0).toFixed(2)),
+    })),
+  };
+
   return ok({
     generated_at: new Date().toISOString(),
     user_segments: segments,
@@ -449,6 +591,13 @@ async function handleAdminGetInsights(request) {
       cost_per_minute: voiceMetrics.total_duration_seconds > 0 ? voiceCosts.total_cost_usd / (voiceMetrics.total_duration_seconds / 60) : 0,
       cost_per_user: voiceMetrics.unique_users > 0 ? voiceCosts.total_cost_usd / voiceMetrics.unique_users : 0,
     },
+    revenue_potential: revenuePotential,
+    top_users: topUsers,
+    model_popularity: modelPopularity,
+    feature_adoption: featureAdoption,
+    churn_indicators: churnIndicators,
+    weekly_trends: weeklyTrends,
+    media_insights: mediaInsights,
   });
 }
 
@@ -578,6 +727,57 @@ async function handleAdminGetMetrics(request) {
     voiceChatMetrics = { total_sessions: 0, sessions_7d: 0, sessions_30d: 0, completed_sessions: 0, unique_users: 0, total_duration_seconds: 0, avg_duration_seconds: 0, total_voice_messages: 0, avg_messages_per_session: 0, voice_distribution: {}, cost: {} };
   }
 
+  // Computed cost metrics the frontend needs
+  const avgCostPerMessage = totalMessages > 0 ? totalEstCost / totalMessages : 0;
+  const avgCostPerMessage30d = totalMessagesLast30d > 0 ? totalEstCost30d / totalMessagesLast30d : 0;
+  const estCostPerActiveUser30d = activeUsersLast30d > 0 ? totalEstCost30d / activeUsersLast30d : 0;
+  const messagesPerActiveUser30d = activeUsersLast30d > 0 ? (totalMessagesLast30d / activeUsersLast30d).toFixed(1) : '0';
+  const estCostPerUserAllTime = acceptedUsers > 0 ? totalEstCost / acceptedUsers : 0;
+  const messagesPerUserAllTime = acceptedUsers > 0 ? (totalMessages / acceptedUsers).toFixed(1) : '0';
+  const estProjectedMonthlyCost = totalEstCost30d;
+
+  // Media generation counts
+  const mediaCountTotal = mediaJobs.length;
+  const mediaCount30d = mediaJobs.filter(j => j.created_at && new Date(j.created_at) >= thirtyDaysAgo).length;
+
+  // Grand totals (LLM + media + voice)
+  const voiceCostTotal = voiceChatMetrics?.cost?.total_cost_usd || 0;
+  const voiceCost30d = voiceChatMetrics?.cost?.cost_last_30d_usd || 0;
+  const grandTotalCost = totalEstCost + totalMediaCost + voiceCostTotal;
+  const grandTotalCost30d = totalEstCost30d + mediaCost30d + voiceCost30d;
+
+  // Enhanced media_cost_by_model with fields the frontend expects
+  const enhancedMediaCostByModel = {};
+  for (const job of mediaJobs) {
+    const model = job.model || 'unknown';
+    const type = job.media_type || job.type || 'image';
+    const key = `${type}-${model}`;
+    if (!enhancedMediaCostByModel[key]) {
+      enhancedMediaCostByModel[key] = { cost: 0, count: 0, credits: 0, model, type, jobs: 0 };
+    }
+    enhancedMediaCostByModel[key].cost += (job.estimated_cost_usd || 0);
+    enhancedMediaCostByModel[key].count += 1;
+    enhancedMediaCostByModel[key].credits += (job.credits_used || 0);
+    enhancedMediaCostByModel[key].jobs += 1;
+  }
+  for (const key in enhancedMediaCostByModel) {
+    enhancedMediaCostByModel[key].cost = parseFloat(enhancedMediaCostByModel[key].cost.toFixed(4));
+  }
+
+  // Telegram metrics for the engagement tab
+  const telegramMessagesLast30d = await db.collection('messages').countDocuments({ source: 'telegram', created_at: { $gte: thirtyDaysAgo } });
+  const telegramWeeklyActive = await db.collection('messages').aggregate([
+    { $match: { source: 'telegram', created_at: { $gte: sevenDaysAgo } } },
+    { $group: { _id: '$user_id' } },
+    { $count: 'total' },
+  ]).toArray();
+  const telegramConversations = await db.collection('conversations').countDocuments({ source: 'telegram' });
+  const telegramAdoptionRate = totalUsers > 0 ? Math.round((telegramLinkedUsers / totalUsers) * 100) : 0;
+
+  // Platform breakdown
+  const webMessages = totalMessages - telegramMessages;
+  const webMessagesLast30d = totalMessagesLast30d - telegramMessagesLast30d;
+
   return ok({
     wau: wauUsers,
     total_users: totalUsers,
@@ -604,8 +804,42 @@ async function handleAdminGetMetrics(request) {
     cost_by_model_30d: costByModel30d,
     media_cost_total: parseFloat(totalMediaCost.toFixed(4)),
     media_cost_30d: parseFloat(mediaCost30d.toFixed(4)),
-    media_cost_by_model: mediaCostByModel,
+    media_cost_by_model: enhancedMediaCostByModel,
     voice_chat: voiceChatMetrics,
+    // Computed cost fields
+    est_projected_monthly_cost: parseFloat(estProjectedMonthlyCost.toFixed(4)),
+    est_cost_per_active_user_30d: parseFloat(estCostPerActiveUser30d.toFixed(4)),
+    messages_per_active_user_30d: messagesPerActiveUser30d,
+    avg_cost_per_message_30d: parseFloat(avgCostPerMessage30d.toFixed(6)),
+    est_cost_per_user_all_time: parseFloat(estCostPerUserAllTime.toFixed(4)),
+    messages_per_user_all_time: messagesPerUserAllTime,
+    avg_cost_per_message: parseFloat(avgCostPerMessage.toFixed(6)),
+    // Media counts
+    media_count_total: mediaCountTotal,
+    media_count_30d: mediaCount30d,
+    // Grand totals
+    grand_total_cost: parseFloat(grandTotalCost.toFixed(4)),
+    grand_total_cost_30d: parseFloat(grandTotalCost30d.toFixed(4)),
+    // Telegram metrics
+    telegram: {
+      linked_users: telegramLinkedUsers,
+      adoption_rate: telegramAdoptionRate,
+      messages_total: telegramMessages,
+      messages_30d: telegramMessagesLast30d,
+      weekly_active_users: telegramWeeklyActive[0]?.total || 0,
+      conversations: telegramConversations,
+    },
+    // Platform breakdown
+    platform_breakdown: {
+      web: {
+        messages_total: webMessages,
+        messages_30d: webMessagesLast30d,
+      },
+      telegram: {
+        messages_total: telegramMessages,
+        messages_30d: telegramMessagesLast30d,
+      },
+    },
   });
 }
 

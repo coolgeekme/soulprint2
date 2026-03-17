@@ -5142,7 +5142,7 @@ export default function AdminPage() {
                   </div>
                   
                   {/* Telegram Metrics */}
-                  {metrics.telegram && (
+                  {metrics.telegram && (metrics.telegram.linked_users > 0 || metrics.telegram.messages_total > 0) && (
                     <>
                       <p className="text-[10px] font-bold text-blue-400 tracking-widest uppercase mt-6 mb-3">📱 Telegram</p>
                       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
