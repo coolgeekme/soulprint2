@@ -20,42 +20,44 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
 - X-Accel-Buffering headers for streaming
 - Keep-alive mechanism for chat streams
 - Admin metrics & insights API endpoints created
-- InsightsTab crash fixes (removed non-existent data references)
+- InsightsTab crash fixes
 - Firebase auth error handling restored
 
-### Session 2 (2026-03-17)
-- **Admin Metrics API** (`/api/admin/metrics`) — Added 15+ missing computed fields:
-  - `est_projected_monthly_cost`, `est_cost_per_active_user_30d`, `messages_per_active_user_30d`, `avg_cost_per_message_30d`
-  - `est_cost_per_user_all_time`, `messages_per_user_all_time`, `avg_cost_per_message`
-  - `media_count_total`, `media_count_30d`, `grand_total_cost`, `grand_total_cost_30d`
-  - `telegram` object (linked_users, adoption_rate, messages_total, messages_30d, weekly_active_users, conversations)
-  - `platform_breakdown` (web/telegram message counts)
-  - Enhanced `media_cost_by_model` with model/count/credits/type fields
-- **Admin Insights API** (`/api/admin/insights`) — Added 7 new data sections:
-  - `revenue_potential` (free tier scenarios + enterprise candidates)
-  - `top_users` (top 20 by messages with name, email, cost, media, last_active)
-  - `model_popularity` (model distribution with percentages)
-  - `feature_adoption` (assessment, onboarding, import, media, memories, telegram, voice)
-  - `churn_indicators` (inactive_30d, churn_rate, never_engaged, drop_off_rate)
-  - `weekly_trends` (last 4 weeks: messages, active users, new users)
-  - `media_insights` (users_using_media, adoption_rate, avg_media_per_user, by_type)
+### Session 2 (2026-03-17) — Admin Dashboard Metrics
+- Added 15+ missing computed fields to `/api/admin/metrics`
+- Added 7 new data sections to `/api/admin/insights` (revenue potential, top users, model popularity, feature adoption, churn, trends, media)
+- All Metrics sub-tabs and Insights tab now render without crashes
+
+### Session 3 (2026-03-17) — Three New Features
+1. **Real-time Auto-Refresh Dashboard**
+   - 30-second polling interval on Metrics tab
+   - Live/Paused toggle button with spinning indicator
+   - "Updated at" timestamp display
+   - Manual refresh button
+2. **Conversation Search**
+   - Created `GET /api/admin/conversations` endpoint with search, pagination
+   - Search by user email or topic
+   - Source column (web/telegram), total count
+   - Clear button resets search
+3. **Telegram Disconnect**
+   - Added "Disconnect" button in chat settings > Telegram tab
+   - Calls `POST /api/telegram/unlink` with confirmation dialog
+   - Updates UI state on successful unlink
 
 ## Prioritized Backlog
 
-### P0 (Critical)
-- ~~Fix admin dashboard missing metrics~~ ✅ DONE
-
 ### P1 (Important)
-- Production DB export (blocked on Atlas firewall - user needs to contact Emergent support)
-- Platform DNS/routing misconfiguration causing 520 errors (needs Emergent support)
+- Production DB export (blocked on Atlas firewall)
+- Platform DNS/routing 520 errors (needs Emergent support)
 
 ### P2 (Nice to Have)
-- Refactor monolithic `/app/api/[[...path]]/route.js` into smaller modules
+- Refactor monolithic `/app/api/[[...path]]/route.js`
 - Add `tier_recommendations` and `features_by_segment` to insights API
-- Admin dashboard data-testid attributes
+- Admin dashboard data-testid coverage
 
 ## Key Files
-- `/app/app/api/admin/[...path]/route.js` — Admin API endpoints
-- `/app/app/admin/page.js` — Admin dashboard frontend (5749 lines)
+- `/app/app/api/admin/[...path]/route.js` — Admin API (metrics, insights, conversations)
+- `/app/app/admin/page.js` — Admin dashboard frontend
+- `/app/app/chat/page.js` — Chat page with Telegram disconnect
 - `/app/lib/mongo.js` — MongoDB connection (lazy loading)
 - `/app/api/[[...path]]/route.js` — Main API router
