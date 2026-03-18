@@ -6579,20 +6579,43 @@ function sanitizeInput(text) {
 // ── Smart History Trimmer (token-aware) ───────────────────────────────────────
 // Keeps the most recent messages that fit within a token budget
 // This is a best practice to avoid context window overflow and unnecessary token costs
-function trimHistory(messages, maxContextTokens = 6000) {
+function trimHistory(messages, maxContextTokens = 32000) {
   if (!messages || messages.length === 0) return [];
+  
+  const MIN_RECENT_MESSAGES = 6; // Always keep at least the last 6 messages
+  const MAX_SINGLE_MSG_TOKENS = 4000; // Truncate individual messages beyond this
+  
+  // First pass: truncate overly long individual messages (e.g. pasted transcripts)
+  const processed = messages.map(msg => {
+    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+    const est = Math.ceil(content.length / 4);
+    if (est > MAX_SINGLE_MSG_TOKENS && typeof msg.content === 'string') {
+      const maxChars = MAX_SINGLE_MSG_TOKENS * 4;
+      return {
+        ...msg,
+        content: msg.content.slice(0, maxChars) + `\n\n...[message truncated — original was ~${est} tokens]`,
+      };
+    }
+    return msg;
+  });
+  
   let total = 0;
   const trimmed = [];
+  
   // Work backwards (most-recent first), keep messages that fit
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
+  for (let i = processed.length - 1; i >= 0; i--) {
+    const msg = processed[i];
     const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-    const est = Math.ceil(content.length / 4) + 4; // +4 for role overhead
-    if (total + est > maxContextTokens) break;
+    const est = Math.ceil(content.length / 4) + 4;
+    
+    // Always include the minimum recent messages
+    const isRecent = (processed.length - i) <= MIN_RECENT_MESSAGES;
+    
+    if (!isRecent && total + est > maxContextTokens) break;
     total += est;
     trimmed.unshift(msg);
   }
-  // Ensure messages alternate between user and assistant (OpenAI requirement)
+  
   return ensureAlternatingMessages(trimmed);
 }
 
@@ -7194,12 +7217,12 @@ async function handleChatStream(request) {
   // Get recent messages for context (best practice: use smart token-aware trimming)
   const recentMessages = await db.collection('messages')
     .find({ conversation_id: convId, id: { $ne: userMsgId } })
-    .sort({ created_at: -1 }).limit(30).toArray();
+    .sort({ created_at: -1 }).limit(50).toArray();
   recentMessages.reverse();
 
-  // Apply smart token-aware trimming (best practice: stay within 6k context tokens for history)
+  // Apply smart token-aware trimming (keeps last 6 messages always + fits within 32k tokens)
   const rawHistory = recentMessages.map(m => ({ role: m.role, content: m.content }));
-  let historyMessages = trimHistory(rawHistory, 6000);
+  let historyMessages = trimHistory(rawHistory, 32000);
 
   // Build the current user message — support images (vision) + documents
   let userMessageContent;
@@ -8281,11 +8304,11 @@ async function handleChatCompare(request) {
   // Get recent messages for context
   const recentMessages = await db.collection('messages')
     .find({ conversation_id: convId, id: { $ne: userMsgId }, is_comparison_response: { $ne: true } })
-    .sort({ created_at: -1 }).limit(20).toArray();
+    .sort({ created_at: -1 }).limit(50).toArray();
   recentMessages.reverse();
 
   const rawHistory = recentMessages.map(m => ({ role: m.role, content: m.content }));
-  const historyMessages = trimHistory(rawHistory, 4000);
+  const historyMessages = trimHistory(rawHistory, 32000);
 
   // Build user message content
   let userMessageContent;
