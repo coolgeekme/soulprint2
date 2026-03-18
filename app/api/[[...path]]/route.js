@@ -4047,6 +4047,159 @@ Respond with ONLY a JSON object:
 }
 
 // ============================================================
+// DYNAMIC INTELLIGENCE - MEDIA INTENT DETECTION
+// ============================================================
+
+/**
+ * AI-powered intent classification for Dynamic Intelligence
+ * Analyzes user message and conversation context to determine:
+ * - text: Normal text response needed
+ * - image: User wants to generate/create an image
+ * - video: User wants to generate/create a video
+ * - image_edit: User wants to modify an existing image
+ */
+async function classifyMediaIntent(userMessage, conversationHistory = [], hasImageAttachment = false) {
+  try {
+    // Build context from recent conversation
+    const recentHistory = conversationHistory.slice(-6).map(m => {
+      const role = m.role === 'user' ? 'User' : 'Assistant';
+      const content = typeof m.content === 'string' ? m.content.slice(0, 300) : '[media content]';
+      return `${role}: ${content}`;
+    }).join('\n');
+
+    const classificationPrompt = `You are the Dynamic Intelligence system. Analyze this conversation and determine what type of response the user needs.
+
+RECENT CONVERSATION:
+${recentHistory || '(No prior context)'}
+
+CURRENT USER MESSAGE:
+"${userMessage.slice(0, 500)}"
+
+${hasImageAttachment ? 'NOTE: User has attached an image to this message.' : ''}
+
+CLASSIFY THE INTENT - What does the user want?
+
+1. **image** - User wants to CREATE/GENERATE a NEW image. Examples:
+   - "Create an image of a sunset"
+   - "Show me what a futuristic city looks like"
+   - "I want a picture of a dragon"
+   - "Design a logo for my company"
+   - "Make an infographic about climate change"
+   - "Can you visualize this concept?"
+   - User said "yes" after AI offered to create an image
+   - Short confirmations like "yes, create it" or "go ahead" after discussing visual content
+
+2. **video** - User wants to CREATE/GENERATE a video. Examples:
+   - "Create a video of waves on a beach"
+   - "Make an animation of a bouncing ball"
+   - "Generate a video showing..."
+   - "Animate this" (with image attached)
+   - "Turn this into a video"
+
+3. **image_edit** - User wants to MODIFY an EXISTING image (requires attached image). Examples:
+   - "Remove the background" (with image)
+   - "Change the color to blue" (with image)
+   - "Add a hat to the person" (with image)
+   - "Make it look more vintage" (with image)
+
+4. **text** - User wants a normal text response (default). Examples:
+   - Asking questions
+   - Having a conversation
+   - Requesting information
+   - Code help
+   - Writing assistance
+   - DISCUSSING images without wanting to generate one
+   - Asking ABOUT how to create images
+
+IMPORTANT RULES:
+- If user is ASKING ABOUT images/videos (not requesting creation), return "text"
+- If user is discussing features or making lists, return "text"
+- If user attached an image and wants to modify it, return "image_edit"
+- If user attached an image and wants to animate it, return "video"
+- When in doubt, prefer "text" - only classify as media if intent is clear
+- Short confirmations ("yes", "do it", "create it") after discussing visual content = "image" or "video"
+
+Respond with ONLY a JSON object:
+{"intent": "text|image|video|image_edit", "confidence": "high|medium|low", "reason": "brief explanation"}`;
+
+    const { getProvider } = await import('@/lib/llm/providers');
+    const classifier = getProvider('openai', 'gpt-4o-mini');
+    
+    const result = await classifier.generateChatCompletion({
+      systemPrompt: 'You are the Dynamic Intelligence intent classifier. Respond only with valid JSON.',
+      messages: [{ role: 'user', content: classificationPrompt }],
+      model: 'gpt-4o-mini',
+      temperature: 0.1,
+      max_tokens: 150,
+    });
+
+    // Parse the JSON response
+    const jsonMatch = result.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      console.log(`[Dynamic Intelligence] Intent: ${parsed.intent} (${parsed.confidence}) - ${parsed.reason}`);
+      return {
+        intent: parsed.intent || 'text',
+        confidence: parsed.confidence || 'medium',
+        reason: parsed.reason || 'AI classification'
+      };
+    }
+  } catch (e) {
+    console.error('[Dynamic Intelligence] Intent classification failed:', e.message);
+  }
+
+  // Default to text if classification fails
+  return { intent: 'text', confidence: 'fallback', reason: 'Classification failed, defaulting to text' };
+}
+
+// Fast-path detection for obvious media requests (skip AI call for speed)
+function quickMediaIntentCheck(text, hasAttachment = false) {
+  if (!text) return null;
+  const lower = text.toLowerCase().trim();
+  
+  // Skip if too long (likely a document/list, not a media request)
+  if (text.length > 500) return null;
+  
+  // Obvious video patterns
+  const videoPatterns = [
+    /^(?:please\s+)?(?:can you\s+)?(?:generate|create|make)\s+(?:a\s+)?video\b/i,
+    /^(?:please\s+)?animate\s+/i,
+    /\bturn\s+(?:this|it)\s+into\s+(?:a\s+)?video\b/i,
+  ];
+  if (videoPatterns.some(p => p.test(lower))) {
+    return { intent: 'video', confidence: 'high', reason: 'Direct video request' };
+  }
+  
+  // Obvious image patterns
+  const imagePatterns = [
+    /^(?:please\s+)?(?:can you\s+)?(?:generate|create|make|draw)\s+(?:an?\s+)?(?:image|picture|illustration|logo|infographic|flyer|poster)\b/i,
+    /^(?:please\s+)?(?:show|visualize)\s+(?:me\s+)?/i,
+    /^(?:please\s+)?design\s+(?:a\s+)?/i,
+  ];
+  if (imagePatterns.some(p => p.test(lower))) {
+    return { intent: 'image', confidence: 'high', reason: 'Direct image request' };
+  }
+  
+  // Image edit patterns (requires attachment)
+  if (hasAttachment) {
+    const editPatterns = [
+      /\b(?:edit|modify|change|remove|add|replace|adjust|fix|enhance|improve)\b/i,
+      /\b(?:make\s+it|turn\s+it)\b/i,
+    ];
+    if (editPatterns.some(p => p.test(lower))) {
+      return { intent: 'image_edit', confidence: 'medium', reason: 'Image modification request' };
+    }
+    
+    // Animation request with attachment
+    if (/\b(?:animate|animation|motion|moving|video)\b/i.test(lower)) {
+      return { intent: 'video', confidence: 'high', reason: 'Animate attached image' };
+    }
+  }
+  
+  return null; // No quick match, needs full AI classification
+}
+
+// ============================================================
 // LONG-TERM MEMORY SYSTEM
 // ============================================================
 
@@ -7270,88 +7423,32 @@ async function handleChatStream(request) {
   const assistantMsgId = uuidv4();
   let fullContent = '';
 
-  // ── Media intent detection ──────────────────────────────────────────────
-  // Detect if user is asking to generate an image or video
-  const detectMediaIntent = (text) => {
-    if (!text) return null;
-    const lower = text.toLowerCase().trim();
+  // ── Dynamic Intelligence: Media Intent Detection ──────────────────────────────────
+  // Use AI to understand if user wants to generate image/video based on conversation context
+  const hasImageAttachment = attachments.some(a => a.type === 'image');
+  
+  // First try quick pattern matching (fast path)
+  let mediaIntentResult = quickMediaIntentCheck(sanitizedContent, hasImageAttachment);
+  
+  // If no quick match and model is 'smart' or content suggests possible media intent, use AI classification
+  if (!mediaIntentResult && (model === 'smart' || sanitizedContent.length < 300)) {
+    // Check if content might be media-related before calling AI (to save API calls)
+    // Include natural language patterns like "I want to see", "show me what X looks like", etc.
+    const mightBeMedia = /\b(image|picture|photo|video|animate|draw|create|generate|design|show me|visualize|make|infographic|flyer|poster|logo|want to see|looks like|what.*look|see what|see a|see an)\b/i.test(sanitizedContent);
     
-    // Don't detect media intent for long texts (likely task lists, documents, etc.)
-    // Real image/video generation requests are typically short and direct
-    // Increased limit to 800 for infographic requests which include more details
-    if (text.length > 800) return null;
-    
-    // Don't detect if the text contains multiple line breaks (likely a list or document)
-    const lineBreaks = (text.match(/\n/g) || []).length;
-    if (lineBreaks > 5) return null; // Increased to allow bullet points in infographic descriptions
-    
-    // Don't detect if the text seems to be asking about features, discussing, or listing tasks
-    const taskListIndicators = [
-      /\b(task|todo|to-do|list|prioritize|organize|help me|create.*list|feature|ability to|fix|integration|review)\b/i,
-      /\b(should|could|would|can we|let's|need to|want to)\b.*\b(add|implement|build|create|fix)\b/i,
-    ];
-    if (taskListIndicators.some(p => p.test(lower))) return null;
-    
-    // Video detection (check first — more specific)
-    // Must be a clear, direct request at the start of the message
-    const videoPatterns = [
-      /^(?:please\s+)?(?:can you\s+)?generate\s+(?:a\s+)?video\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?create\s+(?:a\s+)?video\b/i,
-      /^(?:please\s+)?(?:can you\s+)?make\s+(?:a\s+)?video\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?video\s+of\b/i,
-      /^(?:please\s+)?(?:can you\s+)?animate\b/i,
-    ];
-    if (videoPatterns.some(p => p.test(lower))) return 'video';
-    
-    // INFOGRAPHIC/FLYER detection - these MUST generate actual images, not text!
-    // Check BEFORE general image patterns since these are more specific
-    const infographicPatterns = [
-      // Direct requests for infographics
-      /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:an?\s+)?(?:beautiful\s+)?infographic/i,
-      /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?flyer/i,
-      /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?poster/i,
-      /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?banner/i,
-      /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?brochure/i,
-      // User confirmation patterns (when AI offered and user said yes)
-      /^(?:yes|yeah|sure|ok|okay|please|go ahead|do it|create it|make it|generate it)[\s,!.]*(?:create|make|generate)?(?:\s+the)?(?:\s+infographic|\s+flyer|\s+poster)?/i,
-      // Direct keyword triggers - only if short message (under 200 chars)
-      ...(lower.length < 200 ? [
-        /\binfographic\b.*\b(?:about|for|showing|with|on)\b/i,
-        /\bflyer\b.*\b(?:about|for|showing|with|on)\b/i,
-      ] : []),
-      // "turn this into" patterns
-      /(?:turn|convert)\s+(?:this|it)\s+into\s+(?:an?\s+)?(?:infographic|flyer|poster)/i,
-      // "I want/need" patterns
-      /(?:i\s+)?(?:want|need|would like)\s+(?:an?\s+)?(?:infographic|flyer|poster)/i,
-    ];
-    if (infographicPatterns.some(p => p.test(lower))) {
-      console.log('[detectMediaIntent] Detected infographic/flyer request - will generate image');
-      return 'image';
+    if (mightBeMedia) {
+      console.log('[Dynamic Intelligence] Analyzing media intent with AI...');
+      mediaIntentResult = await classifyMediaIntent(sanitizedContent, historyMessages.slice(-6), hasImageAttachment);
+      
+      // Only use AI result if confidence is high or medium
+      if (mediaIntentResult.confidence === 'low' || mediaIntentResult.intent === 'text') {
+        mediaIntentResult = null;
+      }
     }
-    
-    // Image detection - must be a clear, direct request
-    const imagePatterns = [
-      /^(?:please\s+)?(?:can you\s+)?generate\s+(?:an?\s+)?image\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?create\s+(?:an?\s+)?image\b/i,
-      /^(?:please\s+)?(?:can you\s+)?make\s+(?:an?\s+)?image\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?draw\s+(?:me\s+)?(?:an?\s+)?/i,
-      /^(?:please\s+)?(?:can you\s+)?(?:show|give)\s+me\s+(?:an?\s+)?(?:picture|image|photo)\b/i,
-      /^(?:please\s+)?(?:can you\s+)?picture\s+of\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?photo\s+of\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?illustration\s+of\b/i,
-      /^(?:please\s+)?(?:can you\s+)?paint\s+(?:me\s+)?/i, 
-      /^(?:please\s+)?(?:can you\s+)?visualize\b/i,
-      /\bdall-?e\b/i, /\bstable\s+diffusion\b/i,
-      // Short confirmation/request patterns for image generation (after discussing a design)
-      /^image[!.\s]*$/i,  // Just "Image" or "Image!"
-      /^(?:generate|create|make)\s+(?:the\s+)?(?:image|picture|logo|design)[!.\s]*$/i,  // "generate the image"
-      /^(?:yes|yeah|ok|okay|please|go ahead)[,!\s]*(?:generate|create|make)?\s*(?:the\s+)?(?:image|picture|logo|design)?[!.\s]*$/i,  // "yes, generate it"
-    ];
-    if (imagePatterns.some(p => p.test(lower))) return 'image';
-    return null;
-  };
-
-  const mediaIntent = detectMediaIntent(sanitizedContent);
+  }
+  
+  const mediaIntent = mediaIntentResult?.intent || null;
+  const mediaIntentReason = mediaIntentResult?.reason || null;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -7371,6 +7468,10 @@ async function handleChatStream(request) {
             selectedModel: model,
             modelReason: smartModeInfo.reason,
             confidence: smartModeInfo.confidence
+          }),
+          ...(mediaIntent && mediaIntent !== 'text' && {
+            mediaIntent: mediaIntent,
+            mediaIntentReason: mediaIntentReason
           }),
           ...(memoryToSave && { memorySaved: true, memoryContent: memoryToSave })
         });
@@ -7507,6 +7608,40 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
           controller.close();
           return;
+        }
+
+        // ── Handle image editing (Dynamic Intelligence detected image_edit intent) ───────────────────────────────────────
+        if (mediaIntent === 'image_edit' && hasImageAttachment) {
+          const imageAttachment = attachments.find(a => a.type === 'image');
+          if (imageAttachment && imageAttachment.base64) {
+            send({ type: 'delta', content: '✨ Editing your image...\n\n' });
+            try {
+              const editResult = await handleImageEditInternal(user.id, imageAttachment.base64, sanitizedContent);
+              
+              if (editResult.success && editResult.url) {
+                fullContent = `![Edited Image](${editResult.url})\n\n✨ *Your image has been edited!*\n\n**Edit applied:** ${sanitizedContent}`;
+                send({ type: 'image', url: editResult.url, contentType: 'image_edit', method: editResult.method });
+                send({ type: 'delta', content: fullContent });
+              } else {
+                throw new Error(editResult.error || 'Image editing failed');
+              }
+            } catch (editErr) {
+              console.error('[Image Edit] Exception:', editErr.message);
+              fullContent = `Sorry, I couldn't edit the image: ${editErr.message}\n\nWould you like me to try a different approach?`;
+              send({ type: 'delta', content: fullContent });
+            }
+            
+            // Save message
+            await db.collection('messages').insertOne({
+              id: assistantMsgId, conversation_id: convId, user_id: user.id,
+              role: 'assistant', content: fullContent, created_at: new Date(),
+              model_used: 'gpt-image-1', provider_used: 'openai', content_type: 'image_edit',
+            });
+            await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+            controller.close();
+            return;
+          }
         }
 
         // ── Handle video generation (text-to-video OR image-to-video) ───────────────────────────────────────
