@@ -3741,7 +3741,16 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
     fetch('/api/imports', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(d => setImports(Array.isArray(d) ? d : [])).catch(() => {});
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => setProfile(d.profile)).catch(() => {});
+      .then(r => r.json()).then(d => {
+        setProfile(d.profile);
+        if (d.profile?.default_model) {
+          const validModel = MODELS.find(m => m.value === d.profile.default_model && !m.comingSoon);
+          if (validModel) {
+            setSelectedModel(d.profile.default_model);
+            setDefaultModelSaved(d.profile.default_model);
+          }
+        }
+      }).catch(() => {});
     fetch('/api/telegram/status', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(setTelegramStatus).catch(() => {});
     fetch('/api/data-imports', { headers: { Authorization: `Bearer ${token}` } })
@@ -6508,6 +6517,7 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState([]);
   const [selectedModel, setSelectedModel] = useState('smart');
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [defaultModelSaved, setDefaultModelSaved] = useState(null); // persisted default
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState(null); // For opening settings to specific tab
   const [showVoiceChat, setShowVoiceChat] = useState(false); // For voice conversations
@@ -9588,16 +9598,33 @@ export default function ChatPage() {
                                   }
                                 }}
                                 disabled={m.comingSoon}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors ${
+                                className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center justify-between ${
                                   m.comingSoon 
                                     ? 'text-gray-600 cursor-not-allowed opacity-60' 
                                     : selectedModel === m.value 
                                       ? 'bg-orange-500/15 text-orange-400' 
                                       : 'text-gray-400 hover:bg-white/5 hover:text-white'
                                 }`}>
-                                {m.label}
-                                {m.comingSoon && <span className="ml-1 text-[9px] text-orange-500/70">✨</span>}
-                                {m.isSmartMode && <span className="ml-1 text-[9px] text-cyan-400/70">Auto</span>}
+                                <span>
+                                  {m.label}
+                                  {m.comingSoon && <span className="ml-1 text-[9px] text-orange-500/70">✨</span>}
+                                  {m.isSmartMode && <span className="ml-1 text-[9px] text-cyan-400/70">Auto</span>}
+                                  {defaultModelSaved === m.value && <span className="ml-1 text-[9px] text-green-400">★ default</span>}
+                                </span>
+                                {selectedModel === m.value && !m.comingSoon && defaultModelSaved !== m.value && (
+                                  <span
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      fetch('/api/user/profile', {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                        body: JSON.stringify({ default_model: m.value }),
+                                      }).then(r => { if (r.ok) setDefaultModelSaved(m.value); });
+                                    }}
+                                    className="text-[9px] text-gray-500 hover:text-green-400 cursor-pointer transition-colors"
+                                    data-testid="set-default-model-btn"
+                                  >set default</span>
+                                )}
                               </button>
                             ))}
                           </div>

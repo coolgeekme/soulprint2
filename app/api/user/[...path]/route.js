@@ -50,7 +50,7 @@ async function handleUpdateProfile(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { display_name, descriptors, field, help_with, discovery_source, assistant_name, onboarding_complete, custom_greeting } = body;
+  const { display_name, descriptors, field, help_with, discovery_source, assistant_name, onboarding_complete, custom_greeting, default_model } = body;
 
   const db = await getDb();
   const update = { updated_at: new Date() };
@@ -63,6 +63,7 @@ async function handleUpdateProfile(request) {
   if (assistant_name !== undefined) update.assistant_name = assistant_name;
   if (onboarding_complete !== undefined) update.onboarding_complete = onboarding_complete;
   if (custom_greeting !== undefined) update.custom_greeting = custom_greeting;
+  if (default_model !== undefined) update.default_model = default_model;
 
   await db.collection('profiles').updateOne(
     { user_id: user.id },
@@ -93,6 +94,7 @@ async function handleGetSoulProfile(request) {
       field: profile?.field,
       help_with: profile?.help_with || [],
       soul_profile_summary: profile?.soul_profile_summary,
+      default_model: profile?.default_model || null,
     },
     soul_insights: soulProfile?.insights || null,
     assessment_answers: assessmentAnswers.length,
