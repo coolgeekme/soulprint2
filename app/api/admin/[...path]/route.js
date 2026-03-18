@@ -388,8 +388,8 @@ async function handleAdminGetInsights(request) {
   }
 
   // Get media generation cost
-  const mediaJobs = await db.collection('media_generation_jobs').find({}).toArray();
-  const totalMediaCost = mediaJobs.reduce((sum, job) => sum + (job.estimated_cost_usd || 0), 0);
+  const mediaJobs = await db.collection('media_gallery').find({}).toArray();
+  const totalMediaCost = mediaJobs.reduce((sum, job) => sum + (job.cost_usd || job.estimated_cost_usd || 0), 0);
 
   // Get voice chat costs
   const voiceMetrics = await getVoiceChatMetrics(db, new Date(now - 7 * 24 * 60 * 60 * 1000), thirtyDaysAgo);
@@ -459,8 +459,8 @@ async function handleAdminGetInsights(request) {
   const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
 
   // Get media counts per user
-  const mediaByUser = await db.collection('media_generation_jobs').aggregate([
-    { $group: { _id: '$user_id', count: { $sum: 1 }, cost: { $sum: { $ifNull: ['$estimated_cost_usd', 0] } } } },
+  const mediaByUser = await db.collection('media_gallery').aggregate([
+    { $group: { _id: '$user_id', count: { $sum: 1 }, cost: { $sum: { $ifNull: ['$cost_usd', 0] } } } },
   ]).toArray();
   const mediaUserMap = Object.fromEntries(mediaByUser.map(m => [m._id, m]));
 
@@ -504,7 +504,7 @@ async function handleAdminGetInsights(request) {
   const assessmentComplete = await db.collection('profiles').countDocuments({ assessment_complete: true });
   const onboardingComplete = await db.collection('profiles').countDocuments({ onboarding_complete: true });
   const usersWithImports = await db.collection('import_jobs').distinct('user_id');
-  const usersWithMedia = await db.collection('media_generation_jobs').distinct('user_id');
+  const usersWithMedia = await db.collection('media_gallery').distinct('user_id');
   const usersWithMemories = await db.collection('memories').distinct('user_id');
   const telegramLinked = await db.collection('telegram_mappings').countDocuments({ linked: true });
   const voiceUsers = voiceMetrics.unique_users || 0;
@@ -560,8 +560,8 @@ async function handleAdminGetInsights(request) {
   const mediaAdoptionRate = totalUsers > 0 ? Math.round((mediaUsers / totalUsers) * 100) : 0;
   const avgMediaPerUser = mediaUsers > 0 ? parseFloat((totalMediaJobs / mediaUsers).toFixed(1)) : 0;
 
-  const mediaByType = await db.collection('media_generation_jobs').aggregate([
-    { $group: { _id: { $ifNull: ['$media_type', '$type'] }, count: { $sum: 1 }, total_cost: { $sum: { $ifNull: ['$estimated_cost_usd', 0] } } } },
+  const mediaByType = await db.collection('media_gallery').aggregate([
+    { $group: { _id: { $ifNull: ['$media_type', '$type'] }, count: { $sum: 1 }, total_cost: { $sum: { $ifNull: ['$cost_usd', 0] } } } },
   ]).toArray();
 
   const mediaInsights = {
@@ -693,13 +693,13 @@ async function handleAdminGetMetrics(request) {
   }
 
   // Media generation cost calculations
-  const mediaJobs = await db.collection('media_generation_jobs').find({}).toArray();
+  const mediaJobs = await db.collection('media_gallery').find({}).toArray();
   let totalMediaCost = 0;
   let mediaCost30d = 0;
   const mediaCostByModel = {};
 
   for (const job of mediaJobs) {
-    const cost = job.estimated_cost_usd || 0;
+    const cost = job.cost_usd || job.estimated_cost_usd || 0;
     totalMediaCost += cost;
     
     if (job.created_at && new Date(job.created_at) >= thirtyDaysAgo) {
@@ -755,7 +755,7 @@ async function handleAdminGetMetrics(request) {
     if (!enhancedMediaCostByModel[key]) {
       enhancedMediaCostByModel[key] = { cost: 0, count: 0, credits: 0, model, type, jobs: 0 };
     }
-    enhancedMediaCostByModel[key].cost += (job.estimated_cost_usd || 0);
+    enhancedMediaCostByModel[key].cost += (job.cost_usd || job.estimated_cost_usd || 0);
     enhancedMediaCostByModel[key].count += 1;
     enhancedMediaCostByModel[key].credits += (job.credits_used || 0);
     enhancedMediaCostByModel[key].jobs += 1;
