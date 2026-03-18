@@ -6579,7 +6579,7 @@ function sanitizeInput(text) {
 // ── Smart History Trimmer (token-aware) ───────────────────────────────────────
 // Keeps the most recent messages that fit within a token budget
 // This is a best practice to avoid context window overflow and unnecessary token costs
-function trimHistory(messages, maxContextTokens = 32000) {
+function trimHistory(messages, maxContextTokens = 128000) {
   if (!messages || messages.length === 0) return [];
   
   const MIN_RECENT_MESSAGES = 6; // Always keep at least the last 6 messages
@@ -7222,7 +7222,7 @@ async function handleChatStream(request) {
 
   // Apply smart token-aware trimming (keeps last 6 messages always + fits within 32k tokens)
   const rawHistory = recentMessages.map(m => ({ role: m.role, content: m.content }));
-  let historyMessages = trimHistory(rawHistory, 32000);
+  let historyMessages = trimHistory(rawHistory, 128000);
 
   // Build the current user message — support images (vision) + documents
   let userMessageContent;
