@@ -3462,7 +3462,7 @@ function InsightsTab({ token }) {
             <span className="text-sm">💰</span>
             <span className="text-white text-xs font-medium">Your Cost Structure</span>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
             <div>
               <p className="text-gray-500 text-[10px]">Cost/Message</p>
               <p className="text-green-400 font-bold">${insights.pricing_recommendations.cost_per_message?.toFixed(4) || '0.00'}</p>
@@ -3473,13 +3473,22 @@ function InsightsTab({ token }) {
             </div>
             <div>
               <p className="text-gray-500 text-[10px]">Total LLM Cost</p>
-              <p className="text-green-400 font-bold">${insights.pricing_recommendations.total_llm_cost?.toFixed(2) || '0.00'}</p>
+              <p className="text-blue-400 font-bold">${insights.pricing_recommendations.total_llm_cost?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-[10px]">Total Voice Cost</p>
+              <p className="text-orange-400 font-bold">${insights.pricing_recommendations.total_voice_cost?.toFixed(2) || '0.00'}</p>
             </div>
             <div>
               <p className="text-gray-500 text-[10px]">Total Media Cost</p>
-              <p className="text-green-400 font-bold">${insights.pricing_recommendations.total_media_cost?.toFixed(2) || '0.00'}</p>
+              <p className="text-purple-400 font-bold">${insights.pricing_recommendations.total_media_cost?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-[10px]">Total Platform Cost</p>
+              <p className="text-white font-bold text-lg">${insights.pricing_recommendations.total_platform_cost?.toFixed(2) || '0.00'}</p>
             </div>
           </div>
+          <p className="text-gray-600 text-[10px]">Tier pricing below includes all costs (LLM + Voice + Media) for accurate margin calculations</p>
         </div>
 
         {/* Voice Chat Cost Analysis */}

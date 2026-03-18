@@ -395,40 +395,52 @@ async function handleAdminGetInsights(request) {
   const voiceMetrics = await getVoiceChatMetrics(db, new Date(now - 7 * 24 * 60 * 60 * 1000), thirtyDaysAgo);
   const voiceCosts = voiceMetrics.cost || {};
 
-  // Calculate pricing recommendations
+  // Calculate pricing recommendations (including voice costs)
   const costPerMessage = totalMessages > 0 ? totalLLMCost / totalMessages : 0;
   const avgCostPerUser = totalUsers > 0 ? totalLLMCost / totalUsers : 0;
+  const voiceCostPerUser = voiceMetrics.unique_users > 0 ? (voiceCosts.total_cost_usd || 0) / voiceMetrics.unique_users : 0;
+  const mediaCostPerUser = totalUsers > 0 ? totalMediaCost / totalUsers : 0;
+  const totalCostPerUser = avgCostPerUser + voiceCostPerUser + mediaCostPerUser;
+  const totalPlatformCost = totalLLMCost + totalMediaCost + (voiceCosts.total_cost_usd || 0);
+
+  // Combined cost per message tier (LLM + estimated voice + media per-msg)
+  const combinedCostPerMsg = costPerMessage + (voiceCostPerUser > 0 ? voiceCostPerUser / (totalMessages > 0 ? totalMessages / totalUsers : 10) : 0);
 
   const pricingRecommendations = {
     cost_per_message: costPerMessage,
     avg_cost_per_user: avgCostPerUser,
     total_llm_cost: totalLLMCost,
     total_media_cost: totalMediaCost,
+    total_voice_cost: voiceCosts.total_cost_usd || 0,
+    total_platform_cost: totalPlatformCost,
+    voice_cost_per_user: voiceCostPerUser,
+    media_cost_per_user: mediaCostPerUser,
+    total_cost_per_user: totalCostPerUser,
     tiers: {
       free: {
         message_limit: 25,
-        estimated_cost: parseFloat((25 * costPerMessage).toFixed(2)),
+        estimated_cost: parseFloat((25 * combinedCostPerMsg).toFixed(2)),
       },
       basic: {
         message_limit: 100,
-        estimated_cost: parseFloat((100 * costPerMessage).toFixed(2)),
-        price_at_70_margin: parseFloat((100 * costPerMessage / 0.3).toFixed(2)),
-        price_at_80_margin: parseFloat((100 * costPerMessage / 0.2).toFixed(2)),
-        price_at_90_margin: parseFloat((100 * costPerMessage / 0.1).toFixed(2)),
-        recommended_price: Math.max(10, Math.ceil((100 * costPerMessage / 0.2))),
+        estimated_cost: parseFloat((100 * combinedCostPerMsg).toFixed(2)),
+        price_at_70_margin: parseFloat((100 * combinedCostPerMsg / 0.3).toFixed(2)),
+        price_at_80_margin: parseFloat((100 * combinedCostPerMsg / 0.2).toFixed(2)),
+        price_at_90_margin: parseFloat((100 * combinedCostPerMsg / 0.1).toFixed(2)),
+        recommended_price: Math.max(10, Math.ceil((100 * combinedCostPerMsg / 0.2))),
       },
       pro: {
         message_limit: 500,
-        estimated_cost: parseFloat((500 * costPerMessage).toFixed(2)),
-        price_at_70_margin: parseFloat((500 * costPerMessage / 0.3).toFixed(2)),
-        price_at_80_margin: parseFloat((500 * costPerMessage / 0.2).toFixed(2)),
-        price_at_90_margin: parseFloat((500 * costPerMessage / 0.1).toFixed(2)),
-        recommended_price: Math.max(20, Math.ceil((500 * costPerMessage / 0.2))),
+        estimated_cost: parseFloat((500 * combinedCostPerMsg).toFixed(2)),
+        price_at_70_margin: parseFloat((500 * combinedCostPerMsg / 0.3).toFixed(2)),
+        price_at_80_margin: parseFloat((500 * combinedCostPerMsg / 0.2).toFixed(2)),
+        price_at_90_margin: parseFloat((500 * combinedCostPerMsg / 0.1).toFixed(2)),
+        recommended_price: Math.max(20, Math.ceil((500 * combinedCostPerMsg / 0.2))),
       },
       enterprise: {
         message_limit: 'unlimited',
-        estimated_cost: parseFloat((avgCostPerUser * 10).toFixed(2)),
-        recommended_price: Math.max(99, Math.ceil((avgCostPerUser * 10 / 0.2))),
+        estimated_cost: parseFloat((totalCostPerUser * 10).toFixed(2)),
+        recommended_price: Math.max(99, Math.ceil((totalCostPerUser * 10 / 0.2))),
       },
     },
   };
