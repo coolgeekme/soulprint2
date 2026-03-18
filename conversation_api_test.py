@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://oauth-redirect-fix-1.preview.emergentagent.com/api"
+BASE_URL = "https://ai-image-gen-135.preview.emergentagent.com/api"
 TEST_EMAIL = "reggie@coolgeek.me"
 TEST_PASSCODE = "testpasscode123"
 

@@ -15,7 +15,7 @@ import time
 import sys
 
 # Configuration
-BASE_URL = "https://oauth-redirect-fix-1.preview.emergentagent.com/api"
+BASE_URL = "https://ai-image-gen-135.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSCODE = "test123"
 

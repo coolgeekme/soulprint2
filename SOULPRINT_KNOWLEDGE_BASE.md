@@ -32,7 +32,7 @@
 - **Bot Integration**: Telegram
 
 ### Key URLs
-- **Production**: https://oauth-redirect-fix-1.preview.emergentagent.com
+- **Production**: https://ai-image-gen-135.preview.emergentagent.com
 - **API Base**: `/api/*`
 - **Admin Dashboard**: `/admin`
 

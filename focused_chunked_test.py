@@ -9,7 +9,7 @@ import io
 import base64
 import time
 
-BASE_URL = "https://oauth-redirect-fix-1.preview.emergentagent.com/api"
+BASE_URL = "https://ai-image-gen-135.preview.emergentagent.com/api"
 EMAIL = "test@soulprint.com"
 PASSWORD = "test123"
 

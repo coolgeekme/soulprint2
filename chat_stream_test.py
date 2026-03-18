@@ -7,7 +7,7 @@ import requests
 import json
 import time
 
-BASE_URL = "https://oauth-redirect-fix-1.preview.emergentagent.com"
+BASE_URL = "https://ai-image-gen-135.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"
