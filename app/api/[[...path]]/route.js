@@ -4057,6 +4057,8 @@ Respond with ONLY a JSON object:
  * - image: User wants to generate/create an image
  * - video: User wants to generate/create a video
  * - image_edit: User wants to modify an existing image
+ * - image_regen: User wants to regenerate the last image with different settings
+ * - video_regen: User wants to regenerate the last video with different settings
  */
 async function classifyMediaIntent(userMessage, conversationHistory = [], hasImageAttachment = false) {
   try {
@@ -4066,6 +4068,14 @@ async function classifyMediaIntent(userMessage, conversationHistory = [], hasIma
       const content = typeof m.content === 'string' ? m.content.slice(0, 300) : '[media content]';
       return `${role}: ${content}`;
     }).join('\n');
+    
+    // Check if there's a recent image or video in conversation
+    const hasRecentImage = conversationHistory.slice(-4).some(m => 
+      m.content?.includes('Generated with') || m.content?.includes('🎨') || m.image_url
+    );
+    const hasRecentVideo = conversationHistory.slice(-4).some(m => 
+      m.content?.includes('Video') || m.content?.includes('🎬') || m.video_url || m.video_task
+    );
 
     const classificationPrompt = `You are the Dynamic Intelligence system. Analyze this conversation and determine what type of response the user needs.
 
@@ -4076,6 +4086,8 @@ CURRENT USER MESSAGE:
 "${userMessage.slice(0, 500)}"
 
 ${hasImageAttachment ? 'NOTE: User has attached an image to this message.' : ''}
+${hasRecentImage ? 'NOTE: There was a recently generated IMAGE in this conversation.' : ''}
+${hasRecentVideo ? 'NOTE: There was a recently generated VIDEO in this conversation.' : ''}
 
 CLASSIFY THE INTENT - What does the user want?
 
@@ -4102,7 +4114,23 @@ CLASSIFY THE INTENT - What does the user want?
    - "Add a hat to the person" (with image)
    - "Make it look more vintage" (with image)
 
-4. **text** - User wants a normal text response (default). Examples:
+4. **image_regen** - User wants to REGENERATE the last image with different settings (requires recent image). Examples:
+   - "make it wider" / "make it landscape" / "try landscape"
+   - "make it portrait" / "make it vertical" / "try portrait"
+   - "make it square"
+   - "try natural style" / "more natural" / "less vivid"
+   - "try vivid style" / "more colorful" / "more vibrant"
+   - "try again" / "regenerate" / "another version"
+   - "make it bigger" / "make it smaller"
+   - These ONLY apply if there's a recent image in conversation!
+
+5. **video_regen** - User wants to REGENERATE the last video with different settings (requires recent video). Examples:
+   - "make it longer" / "try 10 seconds"
+   - "make it shorter" / "try 5 seconds"
+   - "try again" / "regenerate the video"
+   - These ONLY apply if there's a recent video in conversation!
+
+6. **text** - User wants a normal text response (default). Examples:
    - Asking questions
    - Having a conversation
    - Requesting information
@@ -4118,9 +4146,10 @@ IMPORTANT RULES:
 - If user attached an image and wants to animate it, return "video"
 - When in doubt, prefer "text" - only classify as media if intent is clear
 - Short confirmations ("yes", "do it", "create it") after discussing visual content = "image" or "video"
+- Adjustment requests ("make it wider", "try natural") ONLY work if recent media exists in conversation
 
 Respond with ONLY a JSON object:
-{"intent": "text|image|video|image_edit", "confidence": "high|medium|low", "reason": "brief explanation"}`;
+{"intent": "text|image|video|image_edit|image_regen|video_regen", "confidence": "high|medium|low", "reason": "brief explanation", "settings": {"aspectRatio": "1:1|16:9|9:16", "style": "vivid|natural", "duration": 5|10}}`;
 
     const { getProvider } = await import('@/lib/llm/providers');
     const classifier = getProvider('openai', 'gpt-4o-mini');
@@ -4141,7 +4170,8 @@ Respond with ONLY a JSON object:
       return {
         intent: parsed.intent || 'text',
         confidence: parsed.confidence || 'medium',
-        reason: parsed.reason || 'AI classification'
+        reason: parsed.reason || 'AI classification',
+        settings: parsed.settings || null  // Include settings for regen requests
       };
     }
   } catch (e) {
@@ -7641,6 +7671,93 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
             controller.close();
             return;
+          }
+        }
+
+        // ── Handle image regeneration with new settings ───────────────────────────────────────
+        if (mediaIntent === 'image_regen') {
+          // Find the last generated image in the conversation
+          const recentMessages = await db.collection('messages')
+            .find({ conversation_id: convId, content_type: { $in: ['image', 'infographic', 'flyer'] } })
+            .sort({ created_at: -1 })
+            .limit(1)
+            .toArray();
+          
+          if (recentMessages.length > 0) {
+            const lastImageMsg = recentMessages[0];
+            // Extract the original prompt from the message content
+            let originalPrompt = lastImageMsg.generation_prompt || '';
+            if (!originalPrompt) {
+              // Try to extract from content
+              const promptMatch = lastImageMsg.content?.match(/\*Prompt used: (.+)\*/);
+              if (promptMatch) originalPrompt = promptMatch[1];
+            }
+            
+            // Get new settings from intent or use defaults
+            const newSettings = mediaIntentResult?.settings || {};
+            const aspectRatio = newSettings.aspectRatio || '1:1';
+            const style = newSettings.style || 'vivid';
+            
+            // Map aspect ratio to DALL-E size
+            const sizeMap = { '1:1': '1024x1024', '16:9': '1792x1024', '9:16': '1024x1792' };
+            const size = sizeMap[aspectRatio] || '1024x1024';
+            
+            const styleLabel = style === 'vivid' ? '🎨 Vivid' : '🌿 Natural';
+            const aspectLabel = { '1:1': 'Square', '16:9': 'Landscape', '9:16': 'Portrait' }[aspectRatio] || 'Square';
+            
+            send({ type: 'delta', content: `🔄 Regenerating with **${styleLabel}** style, **${aspectLabel}** format...\n\n` });
+            
+            try {
+              const openaiKey = process.env.OPENAI_API_KEY;
+              if (!openaiKey) throw new Error('OpenAI API key not configured');
+              
+              const imageRes = await fetch('https://api.openai.com/v1/images/generations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
+                body: JSON.stringify({
+                  model: 'dall-e-3',
+                  prompt: originalPrompt || sanitizedContent,
+                  n: 1,
+                  size: size,
+                  quality: 'hd',
+                  style: style,
+                }),
+              });
+              
+              if (!imageRes.ok) {
+                const errText = await imageRes.text();
+                throw new Error(`DALL-E API error: ${errText}`);
+              }
+              
+              const imageData = await imageRes.json();
+              const imageUrl = imageData.data?.[0]?.url;
+              const revisedPrompt = imageData.data?.[0]?.revised_prompt || originalPrompt;
+              
+              if (!imageUrl) throw new Error('No image URL returned');
+              
+              fullContent = `![Regenerated Image](${imageUrl})\n\n🔄 *Image regenerated with ${styleLabel} style, ${aspectLabel} format!*\n\n*Prompt used: ${revisedPrompt?.substring(0, 200)}...*`;
+              send({ type: 'image', url: imageUrl, revised_prompt: revisedPrompt, contentType: 'image', aspectRatio, style });
+              send({ type: 'delta', content: fullContent });
+            } catch (regenErr) {
+              console.error('[Image Regen] Exception:', regenErr.message);
+              fullContent = `Sorry, image regeneration failed: ${regenErr.message}`;
+              send({ type: 'delta', content: fullContent });
+            }
+            
+            // Save message
+            await db.collection('messages').insertOne({
+              id: assistantMsgId, conversation_id: convId, user_id: user.id,
+              role: 'assistant', content: fullContent, created_at: new Date(),
+              model_used: 'dall-e-3', provider_used: 'openai', content_type: 'image',
+              generation_prompt: originalPrompt,
+            });
+            await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+            controller.close();
+            return;
+          } else {
+            // No recent image found - fall through to regular chat
+            send({ type: 'delta', content: "I don't see a recent image to modify. Would you like me to create a new one? Just describe what you'd like to see!\n\n" });
           }
         }
 
