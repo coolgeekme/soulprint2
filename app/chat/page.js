@@ -453,25 +453,51 @@ async function processFile(file) {
 }
 
 // ── VideoCard: polls for video status and renders player when ready ──────────
-function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
+function VideoCard({ taskId, prompt, token, initialStatus = 'generating', onRegenerate }) {
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [error, setError] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const pollRef = useRef(null);
+  const startTimeRef = useRef(Date.now());
+  const timerRef = useRef(null);
 
   useEffect(() => {
-    if (status === 'success' || status === 'failed') return;
+    // Start elapsed time counter
+    timerRef.current = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (status === 'success' || status === 'failed') {
+      clearInterval(timerRef.current);
+      return;
+    }
     const poll = async () => {
       try {
         const res = await fetch(`/api/media/video/status/${taskId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const d = await res.json();
+        
+        // Update progress if available
+        if (d.progress !== undefined) {
+          setProgress(d.progress);
+        } else {
+          // Estimate progress based on time (typical video takes ~90 seconds)
+          const estimatedProgress = Math.min(95, Math.floor((elapsedTime / 90) * 100));
+          setProgress(estimatedProgress);
+        }
+        
         if (d.status === 'success') {
           setStatus('success');
           setVideoUrl(d.videoUrl);
           setThumbnailUrl(d.thumbnailUrl);
+          setProgress(100);
           clearInterval(pollRef.current);
         } else if (d.status === 'failed') {
           setStatus('failed');
@@ -481,15 +507,27 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
       } catch (e) {}
     };
     poll();
-    pollRef.current = setInterval(poll, 6000);
+    pollRef.current = setInterval(poll, 5000); // Poll every 5 seconds
     return () => clearInterval(pollRef.current);
-  }, [taskId, status, token]);
+  }, [taskId, status, token, elapsedTime]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  };
+
+  const handleRegenerate = () => {
+    if (onRegenerate) {
+      onRegenerate({ prompt, type: 'video' });
+    }
+  };
 
   if (status === 'success' && videoUrl) {
     return (
       <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
         {/* Embedded Video Player */}
-        <div className="relative bg-black">
+        <div className="relative bg-black group">
           <video
             src={videoUrl}
             controls
@@ -499,11 +537,22 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
           >
             Your browser does not support the video tag.
           </video>
+          {/* Regenerate button on hover */}
+          {onRegenerate && (
+            <button
+              onClick={handleRegenerate}
+              className="absolute top-2 right-2 px-3 py-1.5 bg-blue-500/90 hover:bg-blue-600 text-white text-xs rounded-lg flex items-center gap-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+              title="Generate a new version"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+            </button>
+          )}
         </div>
         <div className="p-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold text-green-400 flex items-center gap-1.5">
               <Video className="w-3.5 h-3.5" /> Video ready!
+              <span className="text-gray-500 font-normal">({formatTime(elapsedTime)})</span>
             </p>
             <p className="text-[10px] text-gray-600 mt-0.5 truncate max-w-xs">{prompt}</p>
           </div>
@@ -518,33 +567,61 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
 
   if (status === 'failed') {
     return (
-      <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/5 p-3">
-        <p className="text-xs text-red-400 flex items-center gap-1.5">
-          <X className="w-3.5 h-3.5" /> Video generation failed: {error}
-        </p>
+      <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-red-400 flex items-center gap-1.5">
+            <X className="w-3.5 h-3.5" /> Video generation failed: {error}
+          </p>
+          {onRegenerate && (
+            <button
+              onClick={handleRegenerate}
+              className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 text-xs rounded-lg flex items-center gap-1.5 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Try Again
+            </button>
+          )}
+        </div>
       </div>
     );
   }
 
-  // Generating state
+  // Generating state with progress
   return (
     <div className="mt-3 rounded-xl border border-orange-500/20 bg-orange-500/5 p-4">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-orange-500/15 flex items-center justify-center flex-shrink-0">
-          <Video className="w-4 h-4 text-orange-400 animate-pulse" />
+        <div className="w-10 h-10 rounded-full bg-orange-500/15 flex items-center justify-center flex-shrink-0 relative">
+          <Video className="w-5 h-5 text-orange-400" />
+          {/* Circular progress indicator */}
+          <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 40 40">
+            <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
+            <circle 
+              cx="20" cy="20" r="18" fill="none" stroke="rgb(249, 115, 22)" strokeWidth="2"
+              strokeDasharray={`${progress * 1.13} 113`}
+              className="transition-all duration-500"
+            />
+          </svg>
         </div>
         <div className="flex-1">
-          <p className="text-xs font-semibold text-orange-400 flex items-center gap-2">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            Generating your video...
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-orange-400 flex items-center gap-2">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Generating your video...
+            </p>
+            <span className="text-xs text-gray-500">{progress}%</span>
+          </div>
+          <p className="text-[10px] text-gray-600 mt-0.5">
+            Elapsed: {formatTime(elapsedTime)} • Usually takes 1-3 minutes
           </p>
-          <p className="text-[10px] text-gray-600 mt-0.5">This usually takes 1-3 minutes. I'll update automatically.</p>
-          <div className="mt-2 w-full bg-white/5 rounded-full h-1 overflow-hidden">
-            <div className="h-full bg-orange-500/50 rounded-full animate-pulse w-2/3" />
+          {/* Progress bar */}
+          <div className="mt-2 w-full bg-white/5 rounded-full h-1.5 overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-orange-500 to-orange-400 rounded-full transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
           </div>
         </div>
       </div>
-      <p className="text-[10px] text-gray-700 mt-2 truncate italic">"{prompt}"</p>
+      <p className="text-[10px] text-gray-700 mt-3 truncate italic">"{prompt}"</p>
     </div>
   );
 }
@@ -1133,11 +1210,12 @@ function MockupGenerator({ design, onClose, onGenerate, isGenerating, token }) {
   );
 }
 
-// ── ImageCard: renders a generated image with download option ─────────────────
-function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit }) {
+// ── ImageCard: renders a generated image with download, edit, and regenerate options ─────────────────
+function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, onRegenerate, messageId }) {
   const [loaded, setLoaded] = useState(false);
   const [showJson, setShowJson] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
+  const [showActions, setShowActions] = useState(false);
   
   // Build the JSON object for this generation
   const jsonData = {
@@ -1146,6 +1224,7 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
     prompt: generationParams?.prompt || revisedPrompt || '',
     revisedPrompt: revisedPrompt || '',
     aspectRatio: generationParams?.aspectRatio || '1:1',
+    style: generationParams?.style || 'vivid',
     generatedAt: generationParams?.generatedAt || new Date().toISOString(),
     imageUrl: url,
   };
@@ -1169,6 +1248,17 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
     document.body.removeChild(a);
     URL.revokeObjectURL(downloadUrl);
   };
+
+  const handleRegenerate = () => {
+    if (onRegenerate) {
+      onRegenerate({
+        prompt: generationParams?.prompt || revisedPrompt || '',
+        model: generationParams?.model || 'dall-e-3',
+        aspectRatio: generationParams?.aspectRatio || '1:1',
+        style: generationParams?.style || 'vivid',
+      });
+    }
+  };
   
   return (
     <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
@@ -1184,21 +1274,45 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
           className={`w-full max-h-96 object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0 absolute inset-0'}`}
           onLoad={() => setLoaded(true)}
         />
-        {/* Edit overlay on hover */}
-        {onEdit && loaded && (
-          <button
-            onClick={() => onEdit({ url, source: 'generated' })}
-            className="absolute top-2 right-2 px-3 py-1.5 bg-purple-500/90 hover:bg-purple-600 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1.5 shadow-lg"
-          >
-            <Pencil className="w-3.5 h-3.5" /> Edit
-          </button>
+        {/* Action buttons overlay on hover */}
+        {loaded && (
+          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+            {onRegenerate && (
+              <button
+                onClick={handleRegenerate}
+                className="px-3 py-1.5 bg-blue-500/90 hover:bg-blue-600 text-white text-xs rounded-lg flex items-center gap-1.5 shadow-lg"
+                title="Generate a new version"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+              </button>
+            )}
+            {onEdit && (
+              <button
+                onClick={() => onEdit({ url, source: 'generated', prompt: revisedPrompt })}
+                className="px-3 py-1.5 bg-purple-500/90 hover:bg-purple-600 text-white text-xs rounded-lg flex items-center gap-1.5 shadow-lg"
+                title="Edit this image"
+              >
+                <Pencil className="w-3.5 h-3.5" /> Edit
+              </button>
+            )}
+          </div>
         )}
       </div>
       <div className="p-3 space-y-2">
         <div className="flex items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-orange-400 flex items-center gap-1.5">
-              <ImageIcon className="w-3.5 h-3.5" /> Generated with {modelLabel || 'AI'}
+              <ImageIcon className="w-3.5 h-3.5" /> Generated with {modelLabel || 'DALL-E 3'}
+              {generationParams?.aspectRatio && (
+                <span className="ml-2 px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-gray-400">
+                  {generationParams.aspectRatio}
+                </span>
+              )}
+              {generationParams?.style && (
+                <span className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-gray-400 capitalize">
+                  {generationParams.style}
+                </span>
+              )}
             </p>
             {revisedPrompt && <p className="text-[10px] text-gray-600 mt-0.5 truncate">{revisedPrompt}</p>}
           </div>
@@ -1250,6 +1364,131 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── MediaGenerationOptions: UI for selecting style and aspect ratio ──────────
+function MediaGenerationOptions({ type = 'image', options, onChange, onClose }) {
+  const [localOptions, setLocalOptions] = useState({
+    style: options?.style || 'vivid',
+    aspectRatio: options?.aspectRatio || '1:1',
+    quality: options?.quality || 'hd',
+  });
+
+  const imageStyles = [
+    { value: 'vivid', label: 'Vivid', description: 'Vibrant, dramatic colors', icon: '🎨' },
+    { value: 'natural', label: 'Natural', description: 'Realistic, balanced tones', icon: '🌿' },
+  ];
+
+  const imageAspectRatios = [
+    { value: '1:1', label: 'Square', description: '1024×1024', icon: '⬜' },
+    { value: '16:9', label: 'Landscape', description: '1792×1024', icon: '🖼️' },
+    { value: '9:16', label: 'Portrait', description: '1024×1792', icon: '📱' },
+  ];
+
+  const videoAspectRatios = [
+    { value: '16:9', label: 'Landscape', description: '1280×720', icon: '🖥️' },
+    { value: '9:16', label: 'Portrait', description: '720×1280', icon: '📱' },
+    { value: '1:1', label: 'Square', description: '720×720', icon: '⬜' },
+  ];
+
+  const qualityOptions = [
+    { value: 'standard', label: 'Standard', description: 'Faster generation' },
+    { value: 'hd', label: 'HD', description: 'Higher quality' },
+  ];
+
+  const handleChange = (key, value) => {
+    const newOptions = { ...localOptions, [key]: value };
+    setLocalOptions(newOptions);
+    onChange?.(newOptions);
+  };
+
+  return (
+    <div className="bg-[#141a21] border border-white/10 rounded-xl p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+          {type === 'image' ? <><Palette className="w-4 h-4 text-orange-400" /> Image Options</> : <><Film className="w-4 h-4 text-orange-400" /> Video Options</>}
+        </h3>
+        {onClose && (
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Style (Image only) */}
+      {type === 'image' && (
+        <div className="space-y-2">
+          <label className="text-xs text-gray-400 font-medium">Style</label>
+          <div className="grid grid-cols-2 gap-2">
+            {imageStyles.map(style => (
+              <button
+                key={style.value}
+                onClick={() => handleChange('style', style.value)}
+                className={`p-3 rounded-lg border text-left transition-all ${
+                  localOptions.style === style.value
+                    ? 'border-orange-500 bg-orange-500/10 text-white'
+                    : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{style.icon}</span>
+                  <div>
+                    <p className="text-xs font-medium">{style.label}</p>
+                    <p className="text-[10px] text-gray-500">{style.description}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Aspect Ratio */}
+      <div className="space-y-2">
+        <label className="text-xs text-gray-400 font-medium">Aspect Ratio</label>
+        <div className="grid grid-cols-3 gap-2">
+          {(type === 'image' ? imageAspectRatios : videoAspectRatios).map(ratio => (
+            <button
+              key={ratio.value}
+              onClick={() => handleChange('aspectRatio', ratio.value)}
+              className={`p-2 rounded-lg border text-center transition-all ${
+                localOptions.aspectRatio === ratio.value
+                  ? 'border-orange-500 bg-orange-500/10 text-white'
+                  : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20'
+              }`}
+            >
+              <span className="text-lg block">{ratio.icon}</span>
+              <p className="text-[10px] font-medium mt-1">{ratio.label}</p>
+              <p className="text-[9px] text-gray-500">{ratio.description}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Quality (Image only) */}
+      {type === 'image' && (
+        <div className="space-y-2">
+          <label className="text-xs text-gray-400 font-medium">Quality</label>
+          <div className="flex gap-2">
+            {qualityOptions.map(q => (
+              <button
+                key={q.value}
+                onClick={() => handleChange('quality', q.value)}
+                className={`flex-1 p-2 rounded-lg border text-center transition-all ${
+                  localOptions.quality === q.value
+                    ? 'border-orange-500 bg-orange-500/10 text-white'
+                    : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/20'
+                }`}
+              >
+                <p className="text-xs font-medium">{q.label}</p>
+                <p className="text-[9px] text-gray-500">{q.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -6552,6 +6791,7 @@ export default function ChatPage() {
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [mediaOptionsExpanded, setMediaOptionsExpanded] = useState(false);
   const [quickAspectRatio, setQuickAspectRatio] = useState('1:1');
+  const [quickImageStyle, setQuickImageStyle] = useState('vivid');
   const [quickVideoLength, setQuickVideoLength] = useState('5');
   const [selectedImageModel, setSelectedImageModel] = useState('smart');
   const [selectedVideoModel, setSelectedVideoModel] = useState('smart');
@@ -7305,8 +7545,8 @@ export default function ChatPage() {
             model: modelToUse,
             prompt: content,
             aspectRatio: quickAspectRatio,
-            quality: 'standard',
-            style: 'vivid',
+            quality: 'hd',
+            style: quickImageStyle,
           }),
         });
         
@@ -7362,7 +7602,7 @@ export default function ChatPage() {
       setLoading(false);
       setIsGeneratingMedia(false);
     }
-  }, [input, loading, isGeneratingMedia, detectedMediaIntent, token, mediaOptionsExpanded, quickAspectRatio, quickVideoLength]);
+  }, [input, loading, isGeneratingMedia, detectedMediaIntent, token, mediaOptionsExpanded, quickAspectRatio, quickImageStyle, quickVideoLength, selectedImageModel, selectedVideoModel]);
 
   // Send as regular chat (bypass media detection)
   const sendAsChat = useCallback(() => {
@@ -7375,6 +7615,118 @@ export default function ChatPage() {
       }
     }, 0);
   }, []);
+
+  // Regenerate image with same/modified parameters
+  const handleRegenerateImage = useCallback(async (params) => {
+    if (loading || isGeneratingMedia) return;
+    
+    setLoading(true);
+    setIsGeneratingMedia(true);
+    
+    const userMessage = { 
+      id: `u-${Date.now()}`, 
+      role: 'user', 
+      content: `🔄 Regenerate image: "${params.prompt?.slice(0, 100)}..."`,
+    };
+    setMessages(prev => [...prev, userMessage]);
+    
+    try {
+      const res = await fetch('/api/media/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          type: 'image',
+          model: params.model || 'dall-e-3',
+          prompt: params.prompt,
+          aspectRatio: params.aspectRatio || quickAspectRatio,
+          quality: 'hd',
+          style: params.style || quickImageStyle,
+        }),
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Image regeneration failed');
+      
+      const assistantMsg = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: `🎨 Image regenerated!\n\n**Prompt:** ${params.prompt}`,
+        image_url: data.url,
+        model_label: params.model || 'DALL-E 3',
+        generation_params: {
+          prompt: params.prompt,
+          aspectRatio: params.aspectRatio || quickAspectRatio,
+          style: params.style || quickImageStyle,
+          model: params.model || 'dall-e-3',
+        }
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+      
+    } catch (error) {
+      console.error('Image regeneration error:', error);
+      const errorMsg = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: `Sorry, image regeneration failed: ${error.message}`,
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setLoading(false);
+      setIsGeneratingMedia(false);
+    }
+  }, [token, loading, isGeneratingMedia, quickAspectRatio, quickImageStyle]);
+
+  // Regenerate video with same/modified parameters
+  const handleRegenerateVideo = useCallback(async (params) => {
+    if (loading || isGeneratingMedia) return;
+    
+    setLoading(true);
+    setIsGeneratingMedia(true);
+    
+    const userMessage = { 
+      id: `u-${Date.now()}`, 
+      role: 'user', 
+      content: `🔄 Regenerate video: "${params.prompt?.slice(0, 100)}..."`,
+    };
+    setMessages(prev => [...prev, userMessage]);
+    
+    try {
+      const res = await fetch('/api/media/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          type: 'video',
+          model: params.model || 'kling-3.0',
+          prompt: params.prompt,
+          aspectRatio: params.aspectRatio || '16:9',
+          duration: params.duration || 5,
+        }),
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Video regeneration failed');
+      
+      const assistantMsg = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: `🎬 Video regeneration started!\n\n**Prompt:** ${params.prompt}\n\nYour video is being generated...`,
+        video_task: { taskId: data.taskId, status: 'generating', prompt: params.prompt },
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+      
+    } catch (error) {
+      console.error('Video regeneration error:', error);
+      const errorMsg = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: `Sorry, video regeneration failed: ${error.message}`,
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setLoading(false);
+      setIsGeneratingMedia(false);
+    }
+  }, [token, loading, isGeneratingMedia]);
 
   const sendMessage = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0) || loading || compareLoading) return;
@@ -9072,10 +9424,12 @@ export default function ChatPage() {
                             revisedPrompt={msg.content?.match(/\*Prompt used: (.+)\*/)?.[1] || msg.generation_params?.prompt || ''} 
                             modelLabel={msg.model_label || msg.generation_params?.modelLabel} 
                             generationParams={msg.generation_params}
+                            messageId={msg.id}
                             onEdit={(imageData) => {
                               setEditableImage({ ...imageData, messageId: msg.id });
                               setShowImageEditor(true);
                             }}
+                            onRegenerate={(params) => handleRegenerateImage(params)}
                           />
                         )}
                         {/* Video card - for polling state (only if no video_url yet) */}
@@ -9085,19 +9439,30 @@ export default function ChatPage() {
                             prompt={msg.video_task.prompt}
                             token={token}
                             initialStatus={msg.video_task.status}
+                            onRegenerate={(params) => handleRegenerateVideo(params)}
                           />
                         )}
                         {/* Saved video - direct URL from database */}
                         {msg.video_url && (
                           <div className="mt-2 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
-                            <video
-                              src={msg.video_url}
-                              controls
-                              playsInline
-                              className="w-full max-h-60 sm:max-h-80 object-contain"
-                            >
-                              Your browser does not support the video tag.
-                            </video>
+                            <div className="relative group">
+                              <video
+                                src={msg.video_url}
+                                controls
+                                playsInline
+                                className="w-full max-h-60 sm:max-h-80 object-contain"
+                              >
+                                Your browser does not support the video tag.
+                              </video>
+                              {/* Regenerate button on hover */}
+                              <button
+                                onClick={() => handleRegenerateVideo({ prompt: msg.video_task?.prompt || msg.content?.match(/\*\*Prompt:\*\* (.+)/)?.[1] || 'video' })}
+                                className="absolute top-2 right-2 px-3 py-1.5 bg-blue-500/90 hover:bg-blue-600 text-white text-xs rounded-lg flex items-center gap-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-all"
+                                title="Generate a new version"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+                              </button>
+                            </div>
                             <div className="p-2 flex justify-end">
                               <a href={msg.video_url} target="_blank" rel="noopener noreferrer" download
                                 className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-[11px] sm:text-xs rounded-lg hover:bg-orange-500/25 transition-colors">
@@ -9596,13 +9961,38 @@ export default function ChatPage() {
                   
                   {/* Quick Options */}
                   <div className="flex flex-wrap items-center gap-4 mb-3">
+                    {/* Style selector (image only) */}
+                    {detectedMediaIntent === 'image' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400 text-sm">Style:</span>
+                        <div className="flex gap-1">
+                          {[
+                            { value: 'vivid', label: '🎨 Vivid' },
+                            { value: 'natural', label: '🌿 Natural' },
+                          ].map(style => (
+                            <button
+                              key={style.value}
+                              onClick={() => setQuickImageStyle(style.value)}
+                              className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
+                                quickImageStyle === style.value
+                                  ? 'bg-orange-500 text-white'
+                                  : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                              }`}
+                            >
+                              {style.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2">
                       <span className="text-gray-400 text-sm">Aspect:</span>
                       <div className="flex gap-1">
                         {[
-                          { value: '1:1', label: 'Square' },
-                          { value: '16:9', label: 'Landscape' },
-                          { value: '9:16', label: 'Portrait' },
+                          { value: '1:1', label: '⬜ Square' },
+                          { value: '16:9', label: '🖼️ Wide' },
+                          { value: '9:16', label: '📱 Tall' },
                         ].map(ratio => (
                           <button
                             key={ratio.value}
