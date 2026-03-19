@@ -7738,10 +7738,13 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             const successEmoji = isInfographic ? '📊' : (isFlyer ? '🎨' : '🖼️');
             const modelLabel = {
               'nano-banana': 'Nano Banana',
-              'midjourney-v7': 'Midjourney V7',
-              'flux-pro': 'Flux Pro',
-              'gpt-image-1-5': 'GPT Image 1.5',
-              'seedream-5-lite': 'Seedream 5',
+              'nano-banana-pro': 'Nano Banana Pro',
+              'nano-banana-2': 'Nano Banana 2',
+              'imagen-4': 'Imagen 4',
+              'seedream': 'Seedream',
+              'seedream-5-lite': 'Seedream',
+              'ideogram-character': 'Ideogram Character',
+              'qwen-image-edit': 'Qwen Image Edit',
               'dall-e-3': 'DALL-E 3'
             }[modelUsed] || modelUsed;
             
@@ -9318,11 +9321,57 @@ async function handleVideoStatus(request, taskId) {
 // Model names follow the format: provider/model-name 
 // Costs are in Kie.ai credits (1 credit = $0.005)
 // Each model has its own input parameter format
+// VERIFIED WORKING MODELS (tested March 2026)
 const KIE_IMAGE_MODELS = {
-  'seedream-5-lite': { 
+  // === VERIFIED WORKING ===
+  'nano-banana': { 
+    model: 'google/nano-banana', 
+    useJobsApi: true, 
+    credits: 10,
+    description: 'Google Gemini 2.5 Flash - great all-around model',
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      image_size: aspectRatio || '1:1',
+      output_format: 'png',
+    })
+  },
+  'nano-banana-pro': { 
+    model: 'nano-banana-pro', 
+    useJobsApi: true, 
+    credits: 15,
+    description: 'Google Gemini 3 Pro - advanced realism, 4K, text rendering',
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      image_size: aspectRatio || '1:1',
+      output_format: 'png',
+    })
+  },
+  'nano-banana-2': { 
+    model: 'nano-banana-2', 
+    useJobsApi: true, 
+    credits: 12,
+    description: 'Google Nano Banana 2 - improved version',
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      image_size: aspectRatio || '1:1',
+      output_format: 'png',
+    })
+  },
+  'imagen-4': { 
+    model: 'google/imagen4', 
+    useJobsApi: true, 
+    credits: 20,
+    description: 'Google Imagen 4 - highest quality photorealistic',
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      aspect_ratio: aspectRatio || '1:1',
+    })
+  },
+  'seedream': { 
     model: 'bytedance/seedream', 
     useJobsApi: true, 
     credits: 5.5,
+    description: 'ByteDance Seedream - fast, good text rendering',
     formatInput: (prompt, aspectRatio) => ({
       prompt,
       image_size: { '1:1': 'square_hd', '16:9': 'landscape_16_9', '9:16': 'portrait_9_16' }[aspectRatio] || 'square_hd',
@@ -9330,51 +9379,37 @@ const KIE_IMAGE_MODELS = {
       enable_safety_checker: true,
     })
   },
-  'nano-banana': { 
-    model: 'google/nano-banana', 
-    useJobsApi: true, 
-    credits: 10,
-    formatInput: (prompt, aspectRatio) => ({
-      prompt,
-      image_size: aspectRatio || '1:1', // Uses ratio format like "1:1", "16:9"
-      output_format: 'png',
-    })
-  },
-  'gpt4o-image': { 
-    model: 'openai/gpt-4o-image', 
-    useJobsApi: true, 
-    credits: 20,
-    formatInput: (prompt, aspectRatio) => ({
-      prompt,
-      size: { '1:1': '1024x1024', '16:9': '1792x1024', '9:16': '1024x1792' }[aspectRatio] || '1024x1024',
-    })
-  },
-  'flux-pro': { 
-    model: 'black-forest-labs/flux-1.1-pro', 
+  'ideogram-character': { 
+    model: 'ideogram/character', 
     useJobsApi: true, 
     credits: 25,
+    description: 'Ideogram Character - consistent character generation (requires reference image)',
+    formatInput: (prompt, aspectRatio, referenceImages) => ({
+      prompt,
+      reference_image_urls: referenceImages || [],
+      aspect_ratio: aspectRatio || '1:1',
+    })
+  },
+  'qwen-image-edit': { 
+    model: 'qwen/image-edit', 
+    useJobsApi: true, 
+    credits: 10,
+    description: 'Qwen Image Edit - semantic image editing',
+    formatInput: (prompt, aspectRatio, imageUrl) => ({
+      prompt,
+      image_url: imageUrl,
+    })
+  },
+  // === LEGACY/FALLBACK ===
+  'seedream-5-lite': { 
+    model: 'bytedance/seedream', // Same as seedream
+    useJobsApi: true, 
+    credits: 5.5,
     formatInput: (prompt, aspectRatio) => ({
       prompt,
       image_size: { '1:1': 'square_hd', '16:9': 'landscape_16_9', '9:16': 'portrait_9_16' }[aspectRatio] || 'square_hd',
-    })
-  },
-  'midjourney-v7': { 
-    model: 'midjourney/v7-imagine', 
-    useJobsApi: true, 
-    credits: 40,
-    formatInput: (prompt, aspectRatio) => ({
-      prompt,
-      aspect_ratio: aspectRatio || '1:1',
-    })
-  },
-  'gpt-image-1-5': { 
-    model: 'gpt-image/1.5-text-to-image', 
-    useJobsApi: true, 
-    credits: 50,
-    formatInput: (prompt, aspectRatio) => ({
-      prompt,
-      aspect_ratio: aspectRatio || '1:1',
-      quality: 'high',
+      guidance_scale: 2.5,
+      enable_safety_checker: true,
     })
   },
 };
@@ -9473,22 +9508,25 @@ const KIE_CREDIT_TO_USD = 0.005;
 // ============================================================
 
 // Analyze prompt and recommend the best image model
+// Uses only VERIFIED WORKING Kie.ai models (tested March 2026)
 function selectBestImageModel(prompt) {
   const lowerPrompt = prompt.toLowerCase();
   
   // Keywords and patterns for different use cases
   const patterns = {
-    // Text-heavy - Seedream (only verified working model for text/logos)
+    // Text-heavy - Seedream (best for text/logos)
     textHeavy: /\b(logo|text|typography|sign|poster|banner|flyer|advertisement|brand|label|t-shirt design|title|headline|letters|words|writing|infographic)\b/i,
-    // Photorealistic - Nano Banana (verified working)
-    photorealistic: /\b(photo|photograph|realistic|real|hd|4k|portrait|headshot|professional|corporate|stock photo|documentary|natural|authentic)\b/i,
+    // Photorealistic - Imagen 4 or Nano Banana Pro (best quality)
+    photorealistic: /\b(photo|photograph|realistic|real|hd|4k|portrait|headshot|professional|corporate|stock photo|documentary|natural|authentic|hyper[-\s]?realistic)\b/i,
+    // High quality artistic - Nano Banana Pro
+    highQuality: /\b(high quality|detailed|intricate|masterpiece|stunning|beautiful|epic|cinematic)\b/i,
   };
   
   // Check patterns and return recommendation
   // Use only verified working Kie.ai models
   if (patterns.textHeavy.test(lowerPrompt)) {
     return {
-      model: 'seedream-5-lite',
+      model: 'seedream',
       reason: '📝 Text/logos - Seedream excels at text clarity',
       confidence: 'high'
     };
@@ -9496,13 +9534,21 @@ function selectBestImageModel(prompt) {
   
   if (patterns.photorealistic.test(lowerPrompt)) {
     return {
-      model: 'nano-banana',
-      reason: '📷 Photorealistic - Nano Banana for natural imagery',
+      model: 'imagen-4',
+      reason: '📷 Photorealistic - Imagen 4 for highest quality realism',
       confidence: 'high'
     };
   }
   
-  // Default to Nano Banana for general requests (best all-around model)
+  if (patterns.highQuality.test(lowerPrompt)) {
+    return {
+      model: 'nano-banana-pro',
+      reason: '✨ High quality - Nano Banana Pro for detailed imagery',
+      confidence: 'high'
+    };
+  }
+  
+  // Default to Nano Banana for general requests (best all-around)
   return {
     model: 'nano-banana',
     reason: '🖼️ General image - Nano Banana for versatile quality',
