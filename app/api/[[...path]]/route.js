@@ -2555,7 +2555,7 @@ async function pollKieTaskResult(apiKey, taskId, timeoutMs = 60000) {
 // Internal function for image editing (called from tool handler)
 // Prioritizes Kie.ai for cost-effective true inpainting, falls back to OpenAI
 async function handleImageEditInternal(userId, image, editInstruction) {
-  console.log('[ImageEdit Internal] Starting in-place edit:', editInstruction.substring(0, 100));
+  console.log('[ImageEdit] Starting edit with OpenAI (best editing quality):', editInstruction.substring(0, 100));
   
   // Get image as base64 or URL
   let mimeType = image.mimeType || 'image/png';
@@ -2571,19 +2571,19 @@ async function handleImageEditInternal(userId, image, editInstruction) {
     }
   }
   
-  console.log('[ImageEdit Internal] Image info - base64 length:', imageBase64?.length || 0, 'url:', imageUrl?.substring(0, 50) || 'none');
+  console.log('[ImageEdit] Image info - base64 length:', imageBase64?.length || 0, 'url:', imageUrl?.substring(0, 50) || 'none');
   
+  // Fetch image from URL if needed
   if (!imageBase64 && imageUrl) {
     try {
       const imgResponse = await fetch(imageUrl);
       if (!imgResponse.ok) throw new Error('Failed to fetch image');
       const imgBuffer = await imgResponse.arrayBuffer();
       imageBase64 = Buffer.from(imgBuffer).toString('base64');
-      // Try to get mime type from response
       const contentType = imgResponse.headers.get('content-type');
       if (contentType) mimeType = contentType;
     } catch (err) {
-      console.error('[ImageEdit Internal] Failed to fetch image:', err);
+      console.error('[ImageEdit] Failed to fetch image:', err);
       return { success: false, error: 'Failed to fetch original image' };
     }
   }
@@ -2592,331 +2592,131 @@ async function handleImageEditInternal(userId, image, editInstruction) {
     return { success: false, error: 'No image data provided' };
   }
   
-  // Create data URL for the image
-  const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
-  
-  // METHOD 1: Try Kie.ai first (cost-effective, true inpainting support)
-  const kieApiKey = process.env.KIE_API_KEY;
-  if (kieApiKey) {
-    try {
-      console.log('[ImageEdit Internal] Attempting Kie.ai Image Edit');
-      
-      // For Kie.ai, we need to upload the image first if it's base64
-      // Kie.ai doesn't accept data URLs, so we must upload to their temp storage
-      let kieImageUrl = imageUrl;
-      
-      if (!kieImageUrl && imageBase64) {
-        // Upload the base64 image to Kie.ai temporary storage (expires in 3 days)
-        console.log('[ImageEdit Internal] Uploading image to Kie.ai temp storage...');
-        try {
-          const uploadResponse = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${kieApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              base64Data: imageBase64,
-              fileName: `edit_${Date.now()}.${mimeType.split('/')[1] || 'png'}`,
-              uploadPath: 'image-edit'
-            }),
-          });
-          
-          if (uploadResponse.ok) {
-            const uploadData = await uploadResponse.json();
-            if (uploadData.success && uploadData.data?.downloadUrl) {
-              kieImageUrl = uploadData.data.downloadUrl;
-              console.log('[ImageEdit Internal] Image uploaded to:', kieImageUrl);
-            }
-          } else {
-            console.log('[ImageEdit Internal] Failed to upload image to Kie.ai storage');
-          }
-        } catch (uploadErr) {
-          console.log('[ImageEdit Internal] Upload error:', uploadErr.message);
-        }
-      }
-      
-      // Only proceed with Kie.ai if we have a proper URL (not data URL)
-      if (kieImageUrl && !kieImageUrl.startsWith('data:')) {
-        // Try qwen/image-edit first (best for semantic edits)
-        console.log('[ImageEdit Internal] Trying Kie.ai qwen/image-edit');
-        const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${kieApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'qwen/image-edit',
-            input: {
-              prompt: editInstruction,
-              image_url: kieImageUrl,
-            }
-          }),
-        });
-        
-        if (kieResponse.ok) {
-          const kieData = await kieResponse.json();
-          console.log('[ImageEdit Internal] Kie.ai qwen response:', JSON.stringify(kieData).substring(0, 200));
-          
-          if (kieData.code === 200 && kieData.data?.taskId) {
-            const result = await pollKieTaskResult(kieApiKey, kieData.data.taskId, 90000);
-            if (result.success && result.url) {
-              console.log('[ImageEdit Internal] Successfully edited image with Kie.ai qwen/image-edit');
-              return {
-                success: true,
-                url: result.url,
-                edit: editInstruction,
-                method: 'kie-qwen-image-edit'
-              };
-            } else if (result.error) {
-              console.log('[ImageEdit Internal] Kie.ai qwen task failed:', result.error);
-            }
-          } else {
-            console.log('[ImageEdit Internal] Kie.ai qwen error:', kieData.msg || kieData.code);
-          }
-        }
-        
-        // Try google/nano-banana as fallback (good for style/appearance edits)
-        console.log('[ImageEdit Internal] Trying Kie.ai google/nano-banana for editing');
-        const nanoBananaResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${kieApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'google/nano-banana',
-            input: {
-              prompt: `Edit this image: ${editInstruction}. Keep everything else exactly the same.`,
-              image_url: kieImageUrl,
-            }
-          }),
-        });
-        
-        if (nanoBananaResponse.ok) {
-          const nbData = await nanoBananaResponse.json();
-          if (nbData.code === 200 && nbData.data?.taskId) {
-            const result = await pollKieTaskResult(kieApiKey, nbData.data.taskId, 90000);
-            if (result.success && result.url) {
-              console.log('[ImageEdit Internal] Successfully edited image with Kie.ai nano-banana');
-              return {
-                success: true,
-                url: result.url,
-                edit: editInstruction,
-                method: 'kie-nano-banana-edit'
-              };
-            }
-          }
-        }
-      } else {
-        console.log('[ImageEdit Internal] Skipping Kie.ai - no valid URL available');
-      }
-    } catch (kieErr) {
-      console.log('[ImageEdit Internal] Kie.ai error:', kieErr.message);
-    }
-  }
-  
-  // METHOD 2: Fall back to OpenAI (gpt-image-1 or DALL-E 3)
   const openaiApiKey = process.env.OPENAI_API_KEY;
   if (!openaiApiKey) {
-    return { success: false, error: 'No image editing API available' };
+    return { success: false, error: 'OpenAI API key not configured' };
   }
   
-  // Reformulate for OpenAI safety
+  // Reformulate instruction for better results
   const safeEditInstruction = reformulateForSafety(editInstruction);
-  console.log('[ImageEdit Internal] Falling back to OpenAI with safe instruction:', safeEditInstruction);
+  console.log('[ImageEdit] Using OpenAI gpt-image-1 for best editing quality');
   
-  // Method 1: Try gpt-image-1 with the images/edit endpoint (newer API)
+  // METHOD 1: Try gpt-image-1 with images/edits endpoint (best quality)
   try {
-    console.log('[ImageEdit Internal] Attempting gpt-image-1 images/edit API');
+    console.log('[ImageEdit] Attempting gpt-image-1 images/edits API');
     
-    // Use the new images array format with image_url objects
-    const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-image-1',
-        prompt: `${safeEditInstruction}. Maintain all other details exactly as they are.`,
-        images: [
-          { image_url: imageDataUrl }
-        ],
-        response_format: 'b64_json',
-        size: '1024x1024',
-      }),
-    });
-    
-    if (editResponse.ok) {
-      const editData = await editResponse.json();
-      if (editData.data?.[0]?.b64_json) {
-        const editedImageBase64 = editData.data[0].b64_json;
-        const editedImageUrl = `data:image/png;base64,${editedImageBase64}`;
-        console.log('[ImageEdit Internal] Successfully edited image with gpt-image-1');
-        return {
-          success: true,
-          url: editedImageUrl,
-          base64: editedImageBase64,
-          edit: editInstruction,
-          method: 'gpt-image-1-edit'
-        };
-      }
-    } else {
-      const err = await editResponse.json().catch(() => ({}));
-      console.log('[ImageEdit Internal] gpt-image-1 edit failed:', err.error?.message || 'Unknown error');
-    }
-  } catch (editErr) {
-    console.log('[ImageEdit Internal] gpt-image-1 edit error:', editErr.message);
-  }
-  
-  // Method 2: Try images/edits with FormData (DALL-E 2 compatible endpoint)
-  try {
-    console.log('[ImageEdit Internal] Attempting images/edits API with FormData');
-    
-    // Need to send as FormData for this endpoint
-    const formData = new FormData();
-    
-    // Convert base64 to blob for upload
+    // Convert base64 to blob for FormData upload
     const binaryString = atob(imageBase64);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
     const imageBlob = new Blob([bytes], { type: mimeType });
+    
+    const formData = new FormData();
     formData.append('image', imageBlob, 'image.png');
     formData.append('prompt', `${safeEditInstruction}. Maintain all other details exactly as they are.`);
     formData.append('model', 'gpt-image-1');
     formData.append('size', '1024x1024');
     formData.append('response_format', 'b64_json');
     
-    const editsResponse = await fetch('https://api.openai.com/v1/images/edits', {
+    const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-      },
+      headers: { 'Authorization': `Bearer ${openaiApiKey}` },
       body: formData,
     });
     
-    if (editsResponse.ok) {
-      const editsData = await editsResponse.json();
-      if (editsData.data?.[0]) {
-        const result = editsData.data[0];
+    if (editResponse.ok) {
+      const editData = await editResponse.json();
+      if (editData.data?.[0]) {
+        const result = editData.data[0];
         const editedBase64 = result.b64_json;
         const editedUrl = result.url || (editedBase64 ? `data:image/png;base64,${editedBase64}` : null);
         if (editedUrl) {
-          console.log('[ImageEdit Internal] Successfully edited image with images/edits FormData API');
+          console.log('[ImageEdit] Success with gpt-image-1!');
           return {
             success: true,
             url: editedUrl,
             base64: editedBase64,
             edit: editInstruction,
-            method: 'images-edits-formdata'
+            method: 'gpt-image-1'
           };
         }
       }
     } else {
-      const err = await editsResponse.json().catch(() => ({}));
-      console.log('[ImageEdit Internal] images/edits FormData failed:', err.error?.message || 'Unknown error');
+      const err = await editResponse.json().catch(() => ({}));
+      console.log('[ImageEdit] gpt-image-1 failed:', err.error?.message || 'Unknown error');
     }
-  } catch (editsErr) {
-    console.log('[ImageEdit Internal] images/edits FormData error:', editsErr.message);
+  } catch (editErr) {
+    console.log('[ImageEdit] gpt-image-1 error:', editErr.message);
   }
   
-  // Method 3: Fallback to GPT-4o analysis + DALL-E 3 regeneration
-  // This is the least accurate but most reliable
-  console.log('[ImageEdit Internal] Falling back to GPT-4o analysis + DALL-E 3');
-  
-  const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [
-        {
+  // METHOD 2: Fall back to DALL-E 3 via GPT-4o Vision analysis + regeneration
+  try {
+    console.log('[ImageEdit] Falling back to GPT-4o Vision + DALL-E 3');
+    
+    const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
+    
+    // Use GPT-4o Vision to analyze and create an edit prompt
+    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [{
           role: 'user',
           content: [
-            {
-              type: 'image_url',
-              image_url: {
-                url: imageDataUrl,
-                detail: 'high'
-              }
-            },
-            {
-              type: 'text',
-              text: `Describe this image in EXTREME detail for EXACT recreation. Then modify the description to apply this change: "${safeEditInstruction}"
+            { type: 'image_url', image_url: { url: imageDataUrl, detail: 'high' } },
+            { type: 'text', text: `Analyze this image in detail and create a prompt to recreate it with this modification: "${safeEditInstruction}"
 
-Describe:
-- Detailed appearance of any people (general features, expression, pose)
-- Exact clothing (every color, pattern, text, logo - describe precisely)
-- Exact background (every element, exact colors)
-- Lighting, photography style, composition
-
-Output a single detailed prompt to recreate this image with the requested modification applied. Everything else should remain identical. Make the prompt suitable for DALL-E 3 image generation.`
-            }
+Describe the original image precisely (subject, style, colors, composition, background) and incorporate the requested change.
+Output ONLY the generation prompt, no explanations.` }
           ]
+        }],
+        max_tokens: 800,
+        temperature: 0.3,
+      }),
+    });
+    
+    if (!analysisResponse.ok) throw new Error('Vision analysis failed');
+    
+    const analysisData = await analysisResponse.json();
+    const editPrompt = analysisData.choices?.[0]?.message?.content;
+    
+    if (editPrompt) {
+      // Generate with DALL-E 3
+      const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'dall-e-3',
+          prompt: editPrompt,
+          n: 1,
+          size: '1024x1024',
+          quality: 'hd',
+          style: 'natural',
+        }),
+      });
+      
+      if (generateResponse.ok) {
+        const generateData = await generateResponse.json();
+        const resultUrl = generateData.data?.[0]?.url;
+        if (resultUrl) {
+          console.log('[ImageEdit] Success with GPT-4o + DALL-E 3 fallback!');
+          return {
+            success: true,
+            url: resultUrl,
+            edit: editInstruction,
+            method: 'dall-e-3-vision'
+          };
         }
-      ],
-      max_tokens: 1500,
-      temperature: 0.1,
-    }),
-  });
-  
-  if (!analysisResponse.ok) {
-    const err = await analysisResponse.json().catch(() => ({}));
-    console.error('[ImageEdit Internal] Analysis failed:', err);
-    return { success: false, error: err.error?.message || 'Failed to analyze image' };
+      }
+    }
+  } catch (fallbackErr) {
+    console.log('[ImageEdit] Fallback error:', fallbackErr.message);
   }
   
-  const analysisData = await analysisResponse.json();
-  const editedPrompt = analysisData.choices?.[0]?.message?.content || '';
-  
-  console.log('[ImageEdit Internal] Generated edit prompt:', editedPrompt.substring(0, 300));
-  
-  // Generate with DALL-E 3
-  const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'dall-e-3',
-      prompt: editedPrompt,
-      n: 1,
-      size: '1024x1024',
-      quality: 'hd',
-      style: 'natural',
-    }),
-  });
-  
-  if (!generateResponse.ok) {
-    const err = await generateResponse.json().catch(() => ({}));
-    console.error('[ImageEdit Internal] Generation failed:', err);
-    return { success: false, error: err.error?.message || 'Failed to generate edited image' };
-  }
-  
-  const generateData = await generateResponse.json();
-  const editedImageUrl = generateData.data?.[0]?.url;
-  
-  if (!editedImageUrl) {
-    return { success: false, error: 'No image generated' };
-  }
-  
-  console.log('[ImageEdit Internal] Successfully edited image with DALL-E 3 fallback');
-  
-  return {
-    success: true,
-    url: editedImageUrl,
-    edit: editInstruction,
-    method: 'dall-e-3-fallback',
-    note: 'Used DALL-E 3 regeneration. For best results with in-place editing, ensure your OpenAI API has access to gpt-image-1.'
-  };
+  return { success: false, error: 'Image editing failed with all methods' };
 }
 
 // Internal function for mockup generation (called from tool handler)
@@ -4123,7 +3923,7 @@ ${hasRecentVideo ? 'NOTE: There was a recently generated VIDEO in this conversat
 
 CLASSIFY THE INTENT - What does the user want?
 
-1. **image** - User wants to CREATE/GENERATE a NEW image. Examples:
+1. **image** - User wants to CREATE/GENERATE a NEW image (no reference). Examples:
    - "Create an image of a sunset"
    - "Show me what a futuristic city looks like"
    - "I want a picture of a dragon"
@@ -4132,21 +3932,30 @@ CLASSIFY THE INTENT - What does the user want?
    - "Can you visualize this concept?"
    - User said "yes" after AI offered to create an image
    - Short confirmations like "yes, create it" or "go ahead" after discussing visual content
-   - WITH ATTACHED IMAGE: "put this logo on a shirt", "use this design for...", "generate an image with this logo", "create a mockup with this"
 
-2. **video** - User wants to CREATE/GENERATE a video. Examples:
+2. **mockup** - User wants to create a PRODUCT MOCKUP with their logo/design. Examples:
+   - "put this logo on a shirt" (with attached image)
+   - "use this design on a mug"
+   - "generate a mockup with this logo on a t-shirt"
+   - "show me this logo on business cards"
+   - "put my design on a hoodie"
+   - "create a product mockup with this"
+   - "show people at a bar wearing shirts with this logo on the back"
+   - ANY request that combines an uploaded image/logo with a product context
+
+3. **video** - User wants to CREATE/GENERATE a video. Examples:
    - "Create a video of waves on a beach"
    - "Make an animation of a bouncing ball"
    - "Generate a video showing..."
    - "Animate this" (with image attached)
    - "Turn this into a video"
 
-3. **image_edit** - User wants to MODIFY/EDIT an EXISTING image. This includes:
+4. **image_edit** - User wants to MODIFY/EDIT an EXISTING image. This includes:
    - With attached image: "Remove the background", "Change the color", "Add a hat"
    - For previous generated image: "make it more realistic", "make it look like a photograph", "edit it to be more natural", "change the style to photorealistic", "make it look more professional"
    - Any request to CHANGE HOW THE IMAGE LOOKS (not just regenerate with settings)
 
-4. **image_regen** - User wants to REGENERATE the last image with DIFFERENT TECHNICAL SETTINGS (aspect ratio, style preset). Examples:
+5. **image_regen** - User wants to REGENERATE the last image with DIFFERENT TECHNICAL SETTINGS (aspect ratio, style preset). Examples:
    - "make it wider" / "make it landscape" / "try landscape" (changes aspect ratio)
    - "make it portrait" / "make it vertical" / "try portrait" (changes aspect ratio)
    - "make it square" (changes aspect ratio)
@@ -4154,13 +3963,13 @@ CLASSIFY THE INTENT - What does the user want?
    - "try again" / "regenerate" / "another version" (same settings, new generation)
    - NOTE: "make it more realistic" is image_edit, NOT image_regen!
 
-5. **video_regen** - User wants to REGENERATE the last video with different settings (requires recent video). Examples:
+6. **video_regen** - User wants to REGENERATE the last video with different settings (requires recent video). Examples:
    - "make it longer" / "try 10 seconds"
    - "make it shorter" / "try 5 seconds"
    - "try again" / "regenerate the video"
    - These ONLY apply if there's a recent video in conversation!
 
-6. **text** - User wants a normal text response (default). Examples:
+7. **text** - User wants a normal text response (default). Examples:
    - Asking questions
    - Having a conversation
    - Requesting information
@@ -4172,17 +3981,17 @@ CLASSIFY THE INTENT - What does the user want?
 IMPORTANT RULES:
 - If user is ASKING ABOUT images/videos (not requesting creation), return "text"
 - If user is discussing features or making lists, return "text"
-- If user attached an image and wants to modify it, return "image_edit"
+- If user attached an image and wants it ON A PRODUCT (shirt, mug, poster, etc.), return "mockup"
+- If user attached an image and wants to modify the IMAGE ITSELF, return "image_edit"
 - If user attached an image and wants to animate it, return "video"
-- If user wants to CHANGE THE APPEARANCE/STYLE of a previous image (make it realistic, photographic, vintage, etc.), return "image_edit"
-- If user wants to CHANGE TECHNICAL SETTINGS (aspect ratio, size, style preset), return "image_regen"
+- If user wants to CHANGE THE APPEARANCE/STYLE of a previous image, return "image_edit"
+- If user wants to CHANGE TECHNICAL SETTINGS (aspect ratio), return "image_regen"
 - When in doubt, prefer "text" - only classify as media if intent is clear
-- Short confirmations ("yes", "do it", "create it") after discussing visual content = "image" or "video"
 - "make it more realistic/photographic" = image_edit (NOT image_regen)
-- "make it wider/portrait/square" = image_regen (changes aspect ratio)
+- "put this on a shirt" = mockup (NOT image or image_edit)
 
 Respond with ONLY a JSON object:
-{"intent": "text|image|video|image_edit|image_regen|video_regen", "confidence": "high|medium|low", "reason": "brief explanation", "settings": {"aspectRatio": "1:1|16:9|9:16", "style": "vivid|natural", "duration": 5|10}}`;
+{"intent": "text|image|mockup|video|image_edit|image_regen|video_regen", "confidence": "high|medium|low", "reason": "brief explanation", "settings": {"aspectRatio": "1:1|16:9|9:16", "style": "vivid|natural", "duration": 5|10}}`;
 
     const { getProvider } = await import('@/lib/llm/providers');
     const classifier = getProvider('openai', 'gpt-4o-mini');
@@ -4245,22 +4054,22 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
   
   // Image edit patterns (requires attachment)
   if (hasAttachment) {
-    // First check: Generate image WITH reference (logo on shirt, design on product, mockup)
-    const referenceImagePatterns = [
-      /\b(?:put|place|add)\s+(?:this|the)\s+(?:logo|design|image)\s+on\b/i,
-      /\b(?:generate|create|make)\s+(?:an?\s+)?(?:image|picture|mockup)\s+(?:with|using)\s+(?:this|the)\b/i,
-      /\b(?:on\s+(?:a|the)\s+)?(?:shirt|t-shirt|tshirt|mug|cup|poster|banner|product)\b/i,
-      /\buse\s+(?:this|my)\s+(?:logo|design)\s+(?:for|to|on)\b/i,
+    // First check: MOCKUP request (logo on product)
+    const mockupPatterns = [
+      /\b(?:put|place|add)\s+(?:this|the|my)\s+(?:logo|design|image)\s+on\s+(?:a\s+)?(?:shirt|t-shirt|tshirt|hoodie|mug|cup|poster|banner|product|card|business\s*card|back|front)\b/i,
       /\bmockup\b/i,
-      /\bwith\s+(?:this|the|my)\s+logo\b/i,
+      /\b(?:on\s+(?:a|the)\s+)?(?:shirt|t-shirt|tshirt|hoodie|mug|cup)\s+(?:with|showing)\b/i,
+      /\bwearing\s+(?:shirts?|t-shirts?)\s+with\s+(?:this|the|my)\s+logo\b/i,
+      /\blogo\s+on\s+(?:the\s+)?(?:back|front)\s+(?:of)?\s+(?:a\s+)?(?:shirt|t-shirt)\b/i,
+      /\bshow\s+(?:this|my)\s+(?:logo|design)\s+on\b/i,
     ];
-    if (referenceImagePatterns.some(p => p.test(lower))) {
-      return { intent: 'image', confidence: 'high', reason: 'Generate image with reference/logo' };
+    if (mockupPatterns.some(p => p.test(lower))) {
+      return { intent: 'mockup', confidence: 'high', reason: 'Product mockup with logo/design' };
     }
     
     // Then check: Edit existing image
     const editPatterns = [
-      /\b(?:edit|modify|change|remove|add|replace|adjust|fix|enhance|improve)\b/i,
+      /\b(?:edit|modify|change|remove|replace|adjust|fix|enhance|improve)\b/i,
       /\b(?:make\s+it|turn\s+it)\b/i,
     ];
     if (editPatterns.some(p => p.test(lower))) {
@@ -7592,12 +7401,12 @@ async function handleChatStream(request) {
           send({ type: 'delta', content: '✅ **Saved to your memories:** "' + memoryToSave + '"\n\n---\n\n' });
         }
 
-        // ── Handle image generation WITH reference image (logo on shirt, design on product) ───────────────────
-        // This bypasses the selected chat model and uses GPT-4o Vision for analysis
-        if (mediaIntent === 'image' && hasImageAttachment) {
+        // ── Handle MOCKUP generation (logo on product) ───────────────────
+        // Uses GPT-4o Vision for analysis + Kie.ai/DALL-E for generation
+        if (mediaIntent === 'mockup' && hasImageAttachment) {
           const imageAttachment = attachments.find(a => a.type === 'image');
           if (imageAttachment) {
-            send({ type: 'delta', content: '🎨 Analyzing your image and generating...\n\n' });
+            send({ type: 'delta', content: '🎨 Creating your mockup...\n\n' });
             
             try {
               // Always use GPT-4o Vision for analyzing the reference image - not the selected chat model
@@ -7685,17 +7494,17 @@ Output ONLY the generation prompt, no explanations.` }
                 modelUsed = 'dall-e-3';
               }
               
-              if (!imageUrl) throw new Error('Image generation failed');
+              if (!imageUrl) throw new Error('Mockup generation failed');
               
               const modelLabels = { 'nano-banana': 'Nano Banana', 'nano-banana-pro': 'Nano Banana Pro', 'imagen-4': 'Imagen 4', 'seedream': 'Seedream', 'dall-e-3': 'DALL-E 3' };
-              fullContent = `![Generated Image](${imageUrl})\n\n🖼️ *Image created with your design!*\n\n🤖 *Model: ${modelLabels[modelUsed] || modelUsed}*`;
-              send({ type: 'image', url: imageUrl, contentType: 'image', model: modelUsed });
+              fullContent = `![Product Mockup](${imageUrl})\n\n🛍️ *Your product mockup is ready!*\n\n🤖 *Generated with: ${modelLabels[modelUsed] || modelUsed}*`;
+              send({ type: 'image', url: imageUrl, contentType: 'mockup', model: modelUsed });
               send({ type: 'delta', content: fullContent });
               
               await db.collection('messages').insertOne({
                 id: assistantMsgId, conversation_id: convId, user_id: user.id,
                 role: 'assistant', content: fullContent, created_at: new Date(),
-                model_used: modelUsed, provider_used: modelUsed === 'dall-e-3' ? 'openai' : 'kie.ai', content_type: 'image',
+                model_used: modelUsed, provider_used: modelUsed === 'dall-e-3' ? 'openai' : 'kie.ai', content_type: 'mockup',
                 image_url: imageUrl, generation_prompt: generationPrompt,
               });
               await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
@@ -7703,8 +7512,8 @@ Output ONLY the generation prompt, no explanations.` }
               closeStream();
               return;
             } catch (refErr) {
-              console.error('[Image with Reference] Error:', refErr.message);
-              fullContent = `Sorry, I couldn't generate the image: ${refErr.message}`;
+              console.error('[Mockup Generation] Error:', refErr.message);
+              fullContent = `Sorry, I couldn't create the mockup: ${refErr.message}`;
               send({ type: 'delta', content: fullContent });
             }
           }
@@ -7991,13 +7800,14 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
           
           if (imageToEdit) {
-            send({ type: 'delta', content: '✨ Editing the image...\n\n' });
+            send({ type: 'delta', content: '✨ Editing with OpenAI (best quality)...\n\n' });
             let editResult = null;
             try {
               editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent);
               
               if (editResult.success && editResult.url) {
-                fullContent = `![Edited Image](${editResult.url})\n\n✨ *Image edited!*\n\n**Edit applied:** ${sanitizedContent}`;
+                const methodLabel = { 'gpt-image-1': 'GPT Image', 'dall-e-3-vision': 'DALL-E 3' }[editResult.method] || editResult.method;
+                fullContent = `![Edited Image](${editResult.url})\n\n✨ *Image edited with ${methodLabel}!*\n\n**Edit applied:** ${sanitizedContent}`;
                 send({ type: 'image', url: editResult.url, contentType: 'image_edit', method: editResult.method });
                 send({ type: 'delta', content: fullContent });
               } else {
