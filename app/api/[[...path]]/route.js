@@ -7562,7 +7562,6 @@ async function handleChatStream(request) {
           const isInfographic = /\binfographic\b/i.test(lowerContent);
           const isFlyer = /\b(flyer|poster|banner|brochure)\b/i.test(lowerContent);
           
-          let displayMessage = '🎨 Generating your image with DALL-E 3...\n\n';
           let enhancedPrompt = content;
           
           // If the request is very short (e.g., just "Image" or "generate the image"),
@@ -7582,6 +7581,21 @@ async function handleChatStream(request) {
               enhancedPrompt = `Based on our conversation, generate an image of what was discussed. Here's the context from our conversation:\n\n${recentContext}\n\nUser's request: ${content}\n\nCreate a high-quality, visually appealing image based on what was discussed.`;
             }
           }
+          
+          // Pre-select model to show correct loading message
+          const preSelection = selectBestImageModel(enhancedPrompt || content);
+          const modelDisplayNames = {
+            'nano-banana': 'Nano Banana',
+            'nano-banana-pro': 'Nano Banana Pro',
+            'nano-banana-2': 'Nano Banana 2',
+            'imagen-4': 'Imagen 4',
+            'seedream': 'Seedream',
+            'seedream-5-lite': 'Seedream',
+            'dall-e-3': 'DALL-E 3'
+          };
+          const displayModelName = modelDisplayNames[preSelection.model] || preSelection.model;
+          
+          let displayMessage = `🎨 Generating your image with ${displayModelName}...\n\n`;
           
           if (isInfographic) {
             displayMessage = '📊 Creating your professional infographic...\n\n';
@@ -7823,8 +7837,9 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           
           if (imageToEdit) {
             send({ type: 'delta', content: '✨ Editing the image...\n\n' });
+            let editResult = null;
             try {
-              const editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent);
+              editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent);
               
               if (editResult.success && editResult.url) {
                 fullContent = `![Edited Image](${editResult.url})\n\n✨ *Image edited!*\n\n**Edit applied:** ${sanitizedContent}`;
@@ -7843,8 +7858,8 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             await db.collection('messages').insertOne({
               id: assistantMsgId, conversation_id: convId, user_id: user.id,
               role: 'assistant', content: fullContent, created_at: new Date(),
-              model_used: 'gpt-image-1', provider_used: 'openai', content_type: 'image_edit',
-              image_url: editResult?.url,
+              model_used: editResult?.method || 'image-edit', provider_used: 'kie.ai', content_type: 'image_edit',
+              image_url: editResult?.url || null,
             });
             await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
             send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
