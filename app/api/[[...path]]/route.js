@@ -4132,6 +4132,7 @@ CLASSIFY THE INTENT - What does the user want?
    - "Can you visualize this concept?"
    - User said "yes" after AI offered to create an image
    - Short confirmations like "yes, create it" or "go ahead" after discussing visual content
+   - WITH ATTACHED IMAGE: "put this logo on a shirt", "use this design for...", "generate an image with this logo", "create a mockup with this"
 
 2. **video** - User wants to CREATE/GENERATE a video. Examples:
    - "Create a video of waves on a beach"
@@ -4244,6 +4245,20 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
   
   // Image edit patterns (requires attachment)
   if (hasAttachment) {
+    // First check: Generate image WITH reference (logo on shirt, design on product, mockup)
+    const referenceImagePatterns = [
+      /\b(?:put|place|add)\s+(?:this|the)\s+(?:logo|design|image)\s+on\b/i,
+      /\b(?:generate|create|make)\s+(?:an?\s+)?(?:image|picture|mockup)\s+(?:with|using)\s+(?:this|the)\b/i,
+      /\b(?:on\s+(?:a|the)\s+)?(?:shirt|t-shirt|tshirt|mug|cup|poster|banner|product)\b/i,
+      /\buse\s+(?:this|my)\s+(?:logo|design)\s+(?:for|to|on)\b/i,
+      /\bmockup\b/i,
+      /\bwith\s+(?:this|the|my)\s+logo\b/i,
+    ];
+    if (referenceImagePatterns.some(p => p.test(lower))) {
+      return { intent: 'image', confidence: 'high', reason: 'Generate image with reference/logo' };
+    }
+    
+    // Then check: Edit existing image
     const editPatterns = [
       /\b(?:edit|modify|change|remove|add|replace|adjust|fix|enhance|improve)\b/i,
       /\b(?:make\s+it|turn\s+it)\b/i,
@@ -7577,7 +7592,125 @@ async function handleChatStream(request) {
           send({ type: 'delta', content: '✅ **Saved to your memories:** "' + memoryToSave + '"\n\n---\n\n' });
         }
 
-        // ── Handle image generation ───────────────────────────────────────
+        // ── Handle image generation WITH reference image (logo on shirt, design on product) ───────────────────
+        // This bypasses the selected chat model and uses GPT-4o Vision for analysis
+        if (mediaIntent === 'image' && hasImageAttachment) {
+          const imageAttachment = attachments.find(a => a.type === 'image');
+          if (imageAttachment) {
+            send({ type: 'delta', content: '🎨 Analyzing your image and generating...\n\n' });
+            
+            try {
+              // Always use GPT-4o Vision for analyzing the reference image - not the selected chat model
+              const openaiApiKey = process.env.OPENAI_API_KEY;
+              if (!openaiApiKey) throw new Error('OpenAI API key not configured');
+              
+              // Get image as base64
+              let imageBase64 = imageAttachment.base64;
+              const mimeType = imageAttachment.mimeType || 'image/png';
+              
+              // Handle data URL prefix
+              if (imageBase64 && imageBase64.startsWith('data:')) {
+                const match = imageBase64.match(/^data:[^;]+;base64,(.+)$/);
+                if (match) imageBase64 = match[1];
+              }
+              
+              // Use GPT-4o Vision to analyze the image and create a generation prompt
+              const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  model: 'gpt-4o',
+                  messages: [{
+                    role: 'user',
+                    content: [
+                      { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}`, detail: 'high' } },
+                      { type: 'text', text: `The user uploaded this image (likely a logo or design) with this request: "${sanitizedContent}"
+
+Create a detailed prompt for generating a new image that incorporates this design/logo exactly as requested. 
+- Preserve all colors, shapes, and text from the uploaded image
+- Follow the user's specific instructions about placement and context
+- Make it photorealistic and professional
+
+Output ONLY the generation prompt, no explanations.` }
+                    ]
+                  }],
+                  max_tokens: 800,
+                  temperature: 0.3,
+                }),
+              });
+              
+              if (!analysisResponse.ok) {
+                const err = await analysisResponse.json().catch(() => ({}));
+                throw new Error(err.error?.message || 'Failed to analyze image');
+              }
+              
+              const analysisData = await analysisResponse.json();
+              const generationPrompt = analysisData.choices?.[0]?.message?.content || sanitizedContent;
+              console.log('[Image with Reference] Generated prompt:', generationPrompt.substring(0, 150));
+              
+              // Now generate the image using Kie.ai or DALL-E
+              const smartSelection = selectBestImageModel(generationPrompt);
+              const kieKey = process.env.KIE_API_KEY;
+              let imageUrl, modelUsed = 'dall-e-3';
+              
+              if (kieKey && KIE_IMAGE_MODELS[smartSelection.model]) {
+                const modelConfig = KIE_IMAGE_MODELS[smartSelection.model];
+                const inputParams = modelConfig.formatInput ? modelConfig.formatInput(generationPrompt, '1:1') : { prompt: generationPrompt };
+                
+                const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+                  body: JSON.stringify({ model: modelConfig.model, input: inputParams }),
+                });
+                const data = await res.json();
+                
+                if (data.code === 200 && data.data?.taskId) {
+                  const result = await pollKieTaskResult(kieKey, data.data.taskId, 120000);
+                  if (result.success && result.url) {
+                    imageUrl = result.url;
+                    modelUsed = smartSelection.model;
+                  }
+                }
+              }
+              
+              // Fallback to DALL-E 3
+              if (!imageUrl) {
+                const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiApiKey}` },
+                  body: JSON.stringify({ model: 'dall-e-3', prompt: generationPrompt, n: 1, size: '1024x1024', quality: 'hd', style: 'natural' }),
+                });
+                const imgData = await imgRes.json();
+                imageUrl = imgData.data?.[0]?.url;
+                modelUsed = 'dall-e-3';
+              }
+              
+              if (!imageUrl) throw new Error('Image generation failed');
+              
+              const modelLabels = { 'nano-banana': 'Nano Banana', 'nano-banana-pro': 'Nano Banana Pro', 'imagen-4': 'Imagen 4', 'seedream': 'Seedream', 'dall-e-3': 'DALL-E 3' };
+              fullContent = `![Generated Image](${imageUrl})\n\n🖼️ *Image created with your design!*\n\n🤖 *Model: ${modelLabels[modelUsed] || modelUsed}*`;
+              send({ type: 'image', url: imageUrl, contentType: 'image', model: modelUsed });
+              send({ type: 'delta', content: fullContent });
+              
+              await db.collection('messages').insertOne({
+                id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                role: 'assistant', content: fullContent, created_at: new Date(),
+                model_used: modelUsed, provider_used: modelUsed === 'dall-e-3' ? 'openai' : 'kie.ai', content_type: 'image',
+                image_url: imageUrl, generation_prompt: generationPrompt,
+              });
+              await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+              send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+              closeStream();
+              return;
+            } catch (refErr) {
+              console.error('[Image with Reference] Error:', refErr.message);
+              fullContent = `Sorry, I couldn't generate the image: ${refErr.message}`;
+              send({ type: 'delta', content: fullContent });
+            }
+          }
+        }
+
+        // ── Handle image generation (no reference image) ───────────────────────────────────────
         if (mediaIntent === 'image' && attachments.length === 0) {
           // Detect if this is an infographic/flyer request and enhance the prompt
           const lowerContent = content.toLowerCase();
