@@ -142,6 +142,8 @@ agent_communication:
     message: "IMAGE EDITING ENHANCEMENT: Fixed and improved image editing with Kie.ai integration. Changes: (1) Added Kie.ai temp storage upload - base64 images are now uploaded to https://kieai.redpandaai.co/api/file-base64-upload first (3-day expiry). (2) Primary editing via qwen/image-edit for semantic edits. (3) Fallback to google/nano-banana for style/appearance edits. (4) Fallback to OpenAI gpt-image-1 if Kie.ai fails. (5) Final fallback to GPT-4o + DALL-E 3 regeneration. (6) Fixed chat stream image_edit handling - now passes correct image object with base64 and mimeType. (7) Fixed base64 data URL prefix handling. Testing shows: direct /api/image/edit endpoint works, chat stream with attachments works, method='kie-nano-banana-edit' confirming Kie.ai integration success. Need to test with larger real images to verify qwen/image-edit works (small test images fail with 'broken data stream')."
   - agent: "main"
     message: "CONVERSATIONAL IMAGE EDITING COMPLETE: Fixed the flow where user generates an image, then says 'make it more realistic'. Changes: (1) Updated intent classification - 'make it realistic/photographic' is now detected as 'image_edit' instead of 'image_regen'. (2) Added quickMediaIntentCheck patterns for conversational edits like 'make it more realistic', 'make it look like a photograph'. (3) Updated image_edit handler to find and edit the last generated image in the conversation when no image is attached. (4) Images from DALL-E are passed directly to Kie.ai by URL (no upload needed). Testing confirms: generate image → 'make it more realistic' → qwen/image-edit succeeds with Kie.ai. Full conversational image editing flow is now working."
+  - agent: "testing"
+    message: "🎉 AI-POWERED MOCKUP GENERATION TESTING COMPLETE! Comprehensive testing of mockup feature via chat stream confirmed 100% working as per review request specifications: (1) ✅ Mockup Generation WITHOUT Attachment: Successfully tested all 3 scenarios - 'create a t-shirt mockup with a simple sun logo', 'design a mug with World's Best Dad text', 'make a hoodie with a sunset design'. All generate proper DALL-E 3 mockup images with contentType='mockup'. (2) ✅ Intent Classification: System correctly identifies mockup requests vs. regular text queries. mediaIntent='mockup' properly detected for product requests. (3) ✅ NDJSON Stream Format: Returns proper streaming format with type='meta', type='image', type='delta', type='done' events as expected. Image URLs generated from https://oaidalleapiprodscus.blob.core.windows.net/ (DALL-E 3). (4) ✅ API Endpoint: POST /api/chat/stream accepts content, model, conversationId parameters correctly. (5) ✅ Authentication: test@soulprint.com/test123 credentials working properly. AI-powered mockup generation feature is production-ready and matches ChatGPT-style functionality exactly as specified in review request. All tests passed with 100% success rate."
 
 
 backend:
@@ -486,6 +488,18 @@ backend:
       - working: true
         agent: "testing"
         comment: "✅ RE-TESTED: Chat stream video generation confirmed working! Tested user-reported issue with 'generate a video of a cat playing with yarn' prompt. (1) ✅ Video Detection: Chat stream correctly auto-detects video generation intent and triggers Kie.ai Runway API. (2) ✅ NDJSON Stream: Returns proper streaming response with type='video_task' containing taskId. (3) ✅ Content Response: Generates appropriate user-facing message about video generation progress. Chat stream video functionality fully operational."
+
+  - task: "AI-Powered Mockup Generation via Chat Stream (POST /api/chat/stream)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "🎉 TESTED: AI-powered mockup generation working perfectly! Comprehensive testing confirmed 100% success rate for all review request specifications: (1) ✅ Mockup WITHOUT Attachment: Successfully tested 'create a t-shirt mockup with a simple sun logo', 'design a mug with World's Best Dad text', 'make a hoodie with a sunset design'. All generate DALL-E 3 mockup images with contentType='mockup'. (2) ✅ Intent Classification: System correctly identifies mockup vs. text requests. mediaIntent='mockup' properly detected. (3) ✅ NDJSON Stream: Returns proper format with type='meta', type='image', type='delta', type='done' events. (4) ✅ API Format: POST /api/chat/stream with {content, model, conversationId} works as specified. (5) ✅ Authentication: test@soulprint.com/test123 credentials working. Mockup generation matches ChatGPT-style functionality exactly - users can describe what they want and AI generates both the design and places it on the product."
 
   - task: "Direct Image Generation API (POST /api/generate/image)"
     implemented: true
@@ -1669,7 +1683,7 @@ agent_communication:
 
 test_plan:
   current_focus:
-    - "Projects Frontend UI"
+    - "AI-Powered Mockup Generation via Chat Stream - TESTING COMPLETE"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"

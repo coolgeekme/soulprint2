@@ -578,555 +578,6 @@ Output ONLY the prompt, no explanations. Make it detailed enough to recreate the
 
 
 // ============================================================
-// DYNAMIC MOCKUPS API - Professional Product Mockups
-// ============================================================
-
-const DYNAMIC_MOCKUPS_API_BASE = 'https://app.dynamicmockups.com/api/v1';
-
-// Get available mockups from Dynamic Mockups library
-async function handleDynamicMockupsTemplates(request) {
-  try {
-    const user = await authenticate(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
-    }
-
-    const url = new URL(request.url);
-    const collectionUuid = url.searchParams.get('collection_uuid');
-    const name = url.searchParams.get('name');
-
-    let apiUrl = `${DYNAMIC_MOCKUPS_API_BASE}/mockups`;
-    const params = new URLSearchParams();
-    if (collectionUuid) params.append('collection_uuid', collectionUuid);
-    if (name) params.append('name', name);
-    if (params.toString()) apiUrl += `?${params.toString()}`;
-
-    console.log('[DynamicMockups] Fetching templates from:', apiUrl);
-
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey,
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[DynamicMockups] API error:', response.status, errorText);
-      return NextResponse.json({ 
-        error: `Dynamic Mockups API error: ${response.statusText}`,
-        details: errorText 
-      }, { status: response.status });
-    }
-
-    const data = await response.json();
-    console.log('[DynamicMockups] Retrieved', data.data?.length || 0, 'templates');
-
-    return NextResponse.json({
-      success: true,
-      templates: data.data || [],
-      count: data.data?.length || 0,
-    });
-  } catch (err) {
-    console.error('[DynamicMockups] Templates error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to fetch mockup templates' }, { status: 500 });
-  }
-}
-
-// Get collections from Dynamic Mockups
-async function handleDynamicMockupsCollections(request) {
-  try {
-    const user = await authenticate(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
-    }
-
-    const response = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/collections`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey,
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[DynamicMockups] Collections error:', response.status, errorText);
-      return NextResponse.json({ 
-        error: `Dynamic Mockups API error: ${response.statusText}` 
-      }, { status: response.status });
-    }
-
-    const data = await response.json();
-    console.log('[DynamicMockups] Retrieved', data.data?.length || 0, 'collections');
-
-    return NextResponse.json({
-      success: true,
-      collections: data.data || [],
-      count: data.data?.length || 0,
-    });
-  } catch (err) {
-    console.error('[DynamicMockups] Collections error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to fetch collections' }, { status: 500 });
-  }
-}
-
-// Get mockup detail with smart objects
-async function handleDynamicMockupsDetail(request, mockupUuid) {
-  try {
-    const user = await authenticate(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
-    }
-
-    if (!mockupUuid) {
-      return NextResponse.json({ error: 'Mockup UUID is required' }, { status: 400 });
-    }
-
-    console.log('[DynamicMockups] Fetching detail for:', mockupUuid);
-
-    const response = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/mockups/${mockupUuid}`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey,
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[DynamicMockups] Detail error:', response.status, errorText);
-      return NextResponse.json({ 
-        error: response.status === 404 ? 'Mockup not found' : `API error: ${response.statusText}` 
-      }, { status: response.status });
-    }
-
-    const data = await response.json();
-    console.log('[DynamicMockups] Got mockup detail with', data.data?.smart_objects?.length || 0, 'smart objects');
-
-    return NextResponse.json({
-      success: true,
-      mockup: data.data,
-    });
-  } catch (err) {
-    console.error('[DynamicMockups] Detail error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to fetch mockup detail' }, { status: 500 });
-  }
-}
-
-// Render mockup with design - the main endpoint
-async function handleDynamicMockupsRender(request) {
-  try {
-    const user = await authenticate(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
-    }
-
-    const body = await request.json();
-    const { mockup_uuid, smart_objects, export_options, export_label, design } = body;
-
-    if (!mockup_uuid) {
-      return NextResponse.json({ error: 'mockup_uuid is required' }, { status: 400 });
-    }
-
-    if (!smart_objects || !smart_objects.length) {
-      return NextResponse.json({ error: 'smart_objects array is required' }, { status: 400 });
-    }
-
-    console.log('[DynamicMockups] Rendering mockup:', mockup_uuid, 'with', smart_objects.length, 'smart objects');
-
-    // If design is provided as base64, we need to upload it to a temporary URL first
-    // Dynamic Mockups requires a publicly accessible URL for the design
-    let processedSmartObjects = smart_objects;
-    
-    if (design?.base64) {
-      // Upload the design to a temp storage and get URL
-      // For now, we'll try to use the base64 directly if it's a URL-accessible format
-      // Dynamic Mockups may accept data URLs in some cases
-      const base64Prefix = design.mimeType ? `data:${design.mimeType};base64,` : 'data:image/png;base64,';
-      const designDataUrl = `${base64Prefix}${design.base64}`;
-      
-      // Try uploading to their temp storage first
-      try {
-        const uploadResponse = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            base64: design.base64,
-            filename: `design_${Date.now()}.${design.mimeType?.split('/')[1] || 'png'}`
-          })
-        });
-        
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          if (uploadData.url) {
-            console.log('[DynamicMockups] Uploaded design to temp URL:', uploadData.url);
-            // Update smart objects with the uploaded URL
-            processedSmartObjects = smart_objects.map(so => ({
-              ...so,
-              asset: {
-                ...so.asset,
-                url: uploadData.url
-              }
-            }));
-          }
-        }
-      } catch (uploadErr) {
-        console.log('[DynamicMockups] Temp upload failed, using provided URLs:', uploadErr.message);
-      }
-    }
-
-    const renderPayload = {
-      mockup_uuid,
-      smart_objects: processedSmartObjects,
-    };
-
-    if (export_options) {
-      renderPayload.export_options = export_options;
-    } else {
-      // Default export options
-      renderPayload.export_options = {
-        image_format: 'png',
-        image_size: 1000,
-        mode: 'view'
-      };
-    }
-
-    if (export_label) {
-      renderPayload.export_label = export_label;
-    }
-
-    console.log('[DynamicMockups] Render payload:', JSON.stringify(renderPayload, null, 2).substring(0, 500));
-
-    const response = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/renders`, {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(renderPayload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[DynamicMockups] Render error:', response.status, errorText);
-      
-      // Parse error for better messaging
-      let errorMessage = `Render failed: ${response.statusText}`;
-      try {
-        const errorJson = JSON.parse(errorText);
-        if (errorJson.message) errorMessage = errorJson.message;
-        if (errorJson.errors) errorMessage += ': ' + JSON.stringify(errorJson.errors);
-      } catch (e) {}
-      
-      return NextResponse.json({ 
-        error: errorMessage,
-        details: errorText
-      }, { status: response.status });
-    }
-
-    const data = await response.json();
-    console.log('[DynamicMockups] Render successful:', data.data?.export_path ? 'Got URL' : 'No URL');
-
-    return NextResponse.json({
-      success: true,
-      url: data.data?.export_path,
-      label: data.data?.export_label,
-      mockup_uuid,
-    });
-  } catch (err) {
-    console.error('[DynamicMockups] Render error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to render mockup' }, { status: 500 });
-  }
-}
-
-// Bulk render mockups
-async function handleDynamicMockupsBulkRender(request) {
-  try {
-    const user = await authenticate(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
-    }
-
-    const body = await request.json();
-    const { collection_uuid, artworks, colors, export_options, export_label } = body;
-
-    if (!collection_uuid) {
-      return NextResponse.json({ error: 'collection_uuid is required' }, { status: 400 });
-    }
-
-    if (!artworks || Object.keys(artworks).length === 0) {
-      return NextResponse.json({ error: 'artworks object is required' }, { status: 400 });
-    }
-
-    console.log('[DynamicMockups] Bulk rendering collection:', collection_uuid);
-
-    const bulkPayload = {
-      collection_uuid,
-      artworks,
-    };
-
-    if (colors) bulkPayload.colors = colors;
-    if (export_options) bulkPayload.export_options = export_options;
-    if (export_label) bulkPayload.export_label = export_label;
-
-    const response = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/renders/bulk`, {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(bulkPayload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[DynamicMockups] Bulk render error:', response.status, errorText);
-      return NextResponse.json({ 
-        error: `Bulk render failed: ${response.statusText}` 
-      }, { status: response.status });
-    }
-
-    const data = await response.json();
-    console.log('[DynamicMockups] Bulk render successful:', data.data?.exports?.length || 0, 'images');
-
-    return NextResponse.json({
-      success: true,
-      exports: data.data?.exports || [],
-      count: data.data?.exports?.length || 0,
-    });
-  } catch (err) {
-    console.error('[DynamicMockups] Bulk render error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to bulk render mockups' }, { status: 500 });
-  }
-}
-
-// Simple mockup render with auto template selection
-async function handleDynamicMockupsSimple(request) {
-  try {
-    const user = await authenticate(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
-    }
-
-    const body = await request.json();
-    const { design, product_type, color } = body;
-
-    if (!design) {
-      return NextResponse.json({ error: 'design is required (base64 or url)' }, { status: 400 });
-    }
-
-    if (!product_type) {
-      return NextResponse.json({ error: 'product_type is required (e.g., tshirt, mug, hoodie)' }, { status: 400 });
-    }
-
-    console.log('[DynamicMockups Simple] Creating', product_type, 'mockup');
-
-    // Map common product types to search terms
-    const productSearchTerms = {
-      'tshirt': 't-shirt',
-      't-shirt': 't-shirt',
-      'shirt': 't-shirt',
-      'mug': 'mug',
-      'cup': 'mug',
-      'hoodie': 'hoodie',
-      'sweatshirt': 'hoodie',
-      'poster': 'poster',
-      'print': 'poster',
-      'cap': 'cap',
-      'hat': 'cap',
-      'book': 'book',
-      'phone': 'phone case',
-      'phonecase': 'phone case',
-      'bag': 'tote bag',
-      'totebag': 'tote bag',
-      'pillow': 'pillow',
-      'cushion': 'pillow'
-    };
-
-    const searchTerm = productSearchTerms[product_type.toLowerCase()] || product_type;
-
-    // Step 1: Find a mockup template for this product type
-    const templatesResponse = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/mockups?name=${encodeURIComponent(searchTerm)}`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey,
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!templatesResponse.ok) {
-      const errorText = await templatesResponse.text();
-      console.error('[DynamicMockups Simple] Templates error:', errorText);
-      return NextResponse.json({ error: 'Failed to find mockup templates' }, { status: 500 });
-    }
-
-    const templatesData = await templatesResponse.json();
-    const templates = templatesData.data || [];
-
-    if (templates.length === 0) {
-      return NextResponse.json({ 
-        error: `No mockup templates found for "${product_type}". Try: tshirt, mug, hoodie, poster, cap, book, phone, bag, pillow` 
-      }, { status: 404 });
-    }
-
-    // Use the first matching template
-    const selectedTemplate = templates[0];
-    console.log('[DynamicMockups Simple] Selected template:', selectedTemplate.name, selectedTemplate.uuid);
-
-    // Step 2: Get the mockup detail to find smart objects
-    const detailResponse = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/mockups/${selectedTemplate.uuid}`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': apiKey,
-        'Accept': 'application/json',
-      },
-    });
-
-    if (!detailResponse.ok) {
-      return NextResponse.json({ error: 'Failed to get mockup details' }, { status: 500 });
-    }
-
-    const detailData = await detailResponse.json();
-    const mockupDetail = detailData.data;
-    const smartObjects = mockupDetail?.smart_objects || [];
-
-    if (smartObjects.length === 0) {
-      return NextResponse.json({ error: 'No smart objects found in mockup template' }, { status: 500 });
-    }
-
-    // Use the first smart object
-    const targetSmartObject = smartObjects[0];
-    console.log('[DynamicMockups Simple] Using smart object:', targetSmartObject.name, targetSmartObject.uuid);
-
-    // Step 3: Upload design if it's base64
-    let designUrl = design.url || design;
-    
-    if (design.base64 || (typeof design === 'string' && design.length > 500)) {
-      // Try to upload to temp storage
-      const base64Data = design.base64 || design;
-      try {
-        const uploadResponse = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            base64: base64Data.replace(/^data:[^;]+;base64,/, ''),
-            filename: `design_${Date.now()}.png`
-          })
-        });
-        
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          if (uploadData.url) {
-            designUrl = uploadData.url;
-            console.log('[DynamicMockups Simple] Uploaded design to:', designUrl);
-          }
-        }
-      } catch (uploadErr) {
-        console.error('[DynamicMockups Simple] Upload failed:', uploadErr.message);
-        return NextResponse.json({ error: 'Failed to upload design. Please provide a URL instead.' }, { status: 400 });
-      }
-    }
-
-    // Step 4: Render the mockup
-    const renderPayload = {
-      mockup_uuid: selectedTemplate.uuid,
-      smart_objects: [{
-        uuid: targetSmartObject.uuid,
-        asset: {
-          url: designUrl,
-          fit: 'contain'
-        }
-      }],
-      export_options: {
-        image_format: 'png',
-        image_size: 1000,
-        mode: 'view'
-      }
-    };
-
-    // Add color if specified
-    if (color) {
-      renderPayload.smart_objects[0].color = color;
-    }
-
-    console.log('[DynamicMockups Simple] Rendering with payload:', JSON.stringify(renderPayload).substring(0, 300));
-
-    const renderResponse = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/renders`, {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(renderPayload),
-    });
-
-    if (!renderResponse.ok) {
-      const errorText = await renderResponse.text();
-      console.error('[DynamicMockups Simple] Render error:', errorText);
-      return NextResponse.json({ 
-        error: 'Failed to render mockup',
-        details: errorText 
-      }, { status: 500 });
-    }
-
-    const renderData = await renderResponse.json();
-    console.log('[DynamicMockups Simple] Success!');
-
-    return NextResponse.json({
-      success: true,
-      url: renderData.data?.export_path,
-      template: {
-        uuid: selectedTemplate.uuid,
-        name: selectedTemplate.name,
-        thumbnail: selectedTemplate.thumbnail
-      },
-      product_type,
-    });
-  } catch (err) {
-    console.error('[DynamicMockups Simple] Error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to create mockup' }, { status: 500 });
-  }
-}
-
-
-
-
-// ============================================================
 // OPENAI REALTIME API - Voice Conversations
 // ============================================================
 
@@ -4482,7 +3933,7 @@ CLASSIFY THE INTENT - What does the user want?
    - User said "yes" after AI offered to create an image
    - Short confirmations like "yes, create it" or "go ahead" after discussing visual content
 
-2. **mockup** - User wants to create a PRODUCT MOCKUP with their logo/design. Examples:
+2. **mockup** - User wants to create a PRODUCT MOCKUP with a logo/design. Examples:
    - "put this logo on a shirt" (with attached image)
    - "use this design on a mug"
    - "generate a mockup with this logo on a t-shirt"
@@ -4490,7 +3941,12 @@ CLASSIFY THE INTENT - What does the user want?
    - "put my design on a hoodie"
    - "create a product mockup with this"
    - "show people at a bar wearing shirts with this logo on the back"
-   - ANY request that combines an uploaded image/logo with a product context
+   - "create a t-shirt mockup with a cat logo" (NO attachment - AI generates both)
+   - "design a mug with 'World's Best Dad' text" (NO attachment - AI generates)
+   - "make a hoodie with a sunset design" (NO attachment - AI generates)
+   - "create a phone case with a galaxy pattern" (NO attachment - AI generates)
+   - ANY request that mentions a PRODUCT (shirt, mug, hoodie, poster, etc.) + a DESIGN/LOGO
+   - Works both WITH and WITHOUT image attachments
 
 3. **video** - User wants to CREATE/GENERATE a video. Examples:
    - "Create a video of waves on a beach"
@@ -4538,6 +3994,10 @@ IMPORTANT RULES:
 - When in doubt, prefer "text" - only classify as media if intent is clear
 - "make it more realistic/photographic" = image_edit (NOT image_regen)
 - "put this on a shirt" = mockup (NOT image or image_edit)
+- "create a t-shirt with X design" = mockup (even WITHOUT attachment)
+- "make a mug with X" = mockup
+- "design a hoodie with X" = mockup
+- If user mentions a PRODUCT (shirt, mug, hoodie, cap, poster, phone case) AND a design/logo/pattern = mockup
 
 Respond with ONLY a JSON object:
 {"intent": "text|image|mockup|video|image_edit|image_regen|video_regen", "confidence": "high|medium|low", "reason": "brief explanation", "settings": {"aspectRatio": "1:1|16:9|9:16", "style": "vivid|natural", "duration": 5|10}}`;
@@ -4597,6 +4057,20 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
     /^(?:please\s+)?(?:show|visualize)\s+(?:me\s+)?/i,
     /^(?:please\s+)?design\s+(?:a\s+)?/i,
   ];
+  
+  // Check for mockup patterns FIRST (even without attachment)
+  // This catches requests like "create a t-shirt with a cat logo"
+  const mockupWithoutAttachmentPatterns = [
+    /\b(?:create|make|design|generate)\s+(?:a\s+)?(?:t-?shirt|shirt|hoodie|mug|cup|poster|cap|hat|tote\s*bag|phone\s*case|pillow)\s+(?:mockup\s+)?(?:with|featuring|showing|that\s+has|that\s+says)\b/i,
+    /\b(?:t-?shirt|shirt|hoodie|mug|cup|poster|cap|hat|tote\s*bag|phone\s*case|pillow)\s+(?:mockup\s+)?(?:with|featuring|showing)\s+/i,
+    /\bmockup\s+of\s+(?:a\s+)?(?:t-?shirt|shirt|hoodie|mug|cup|poster|cap|hat)/i,
+    /\b(?:put|place|add)\s+(?:a\s+)?(?:\w+\s+)?(?:logo|design|pattern|text|image)\s+on\s+(?:a\s+)?(?:t-?shirt|shirt|hoodie|mug|cup|poster|cap|hat|tote\s*bag|phone\s*case|pillow)\b/i,
+    /\b(?:t-?shirt|shirt|hoodie|mug|poster|cap)\s+(?:design|mockup)\s+(?:with|of|for)\b/i,
+  ];
+  if (mockupWithoutAttachmentPatterns.some(p => p.test(lower))) {
+    return { intent: 'mockup', confidence: 'high', reason: 'Product mockup request (AI-generated design)' };
+  }
+  
   if (imagePatterns.some(p => p.test(lower))) {
     return { intent: 'image', confidence: 'high', reason: 'Direct image request' };
   }
@@ -8080,6 +7554,123 @@ Professional studio lighting, white or neutral background. High resolution, clea
               fullContent = `Sorry, I couldn't create the mockup: ${refErr.message}`;
               send({ type: 'delta', content: fullContent });
             }
+          }
+        }
+
+        // ── Handle MOCKUP generation WITHOUT attachment (AI-generated design) ───────
+        // User describes what they want: "create a t-shirt with a cat logo" - AI generates both
+        if (mediaIntent === 'mockup' && !hasImageAttachment) {
+          send({ type: 'delta', content: '🎨 Creating your product mockup...\n\n' });
+          
+          try {
+            const openaiApiKey = process.env.OPENAI_API_KEY;
+            if (!openaiApiKey) throw new Error('OpenAI API key not configured');
+            
+            // Extract product type and design description from the user's message
+            const productMatch = sanitizedContent.toLowerCase();
+            let productType = 'shirt';
+            if (/\b(mug|cup)\b/.test(productMatch)) productType = 'mug';
+            else if (/\b(hoodie|sweatshirt)\b/.test(productMatch)) productType = 'hoodie';
+            else if (/\b(poster|banner|wall art)\b/.test(productMatch)) productType = 'poster';
+            else if (/\b(cap|hat)\b/.test(productMatch)) productType = 'cap';
+            else if (/\b(tote bag|bag)\b/.test(productMatch)) productType = 'tote bag';
+            else if (/\b(phone case)\b/.test(productMatch)) productType = 'phone case';
+            else if (/\b(laptop|macbook)\b/.test(productMatch)) productType = 'laptop sleeve';
+            else if (/\b(pillow|cushion)\b/.test(productMatch)) productType = 'pillow';
+            
+            let placement = 'front';
+            if (/\b(back)\b/.test(productMatch)) placement = 'back';
+            
+            console.log(`[Mockup AI] Creating ${productType} mockup from description`);
+            
+            // Create a detailed mockup prompt from the user's description
+            // Ask GPT to create the perfect mockup prompt
+            send({ type: 'delta', content: `📦 Generating ${productType} mockup...\n` });
+            
+            const promptCreatorResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o',
+                messages: [
+                  {
+                    role: 'system',
+                    content: `You are an expert at creating DALL-E prompts for product mockups. 
+Given a user's description of what they want on a product, create a detailed, professional DALL-E prompt that will generate a photorealistic product mockup.
+
+Rules:
+- Focus on creating a photorealistic, professional-looking mockup
+- Include the design/logo prominently on the product
+- Add appropriate context (studio lighting, neutral background, professional photography style)
+- Make the design look like it's actually printed on the product
+- Output ONLY the prompt text, no explanations`
+                  },
+                  {
+                    role: 'user',
+                    content: `Create a DALL-E prompt for this mockup request: "${sanitizedContent}"
+
+Product: ${productType}
+Placement: ${placement}
+
+Generate a photorealistic mockup image showing this design on the product.`
+                  }
+                ],
+                max_tokens: 500,
+                temperature: 0.7,
+              }),
+            });
+            
+            const promptData = await promptCreatorResponse.json();
+            const mockupPrompt = promptData.choices?.[0]?.message?.content || 
+              `Professional product photography of a ${productType} with custom design. ${sanitizedContent}. Photorealistic, studio lighting, white background, high quality mockup.`;
+            
+            console.log('[Mockup AI] Generated prompt:', mockupPrompt.substring(0, 200));
+            
+            // Generate the mockup image with DALL-E 3
+            const generateRes = await fetch('https://api.openai.com/v1/images/generations', {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                model: 'dall-e-3', 
+                prompt: mockupPrompt, 
+                n: 1, 
+                size: '1024x1024', 
+                quality: 'hd', 
+                style: 'natural' 
+              }),
+            });
+            
+            const generateData = await generateRes.json();
+            const mockupUrl = generateData.data?.[0]?.url;
+            const revisedPrompt = generateData.data?.[0]?.revised_prompt;
+            
+            if (!mockupUrl) {
+              throw new Error(generateData.error?.message || 'Failed to generate mockup');
+            }
+            
+            console.log('[Mockup AI] Successfully generated mockup!');
+            
+            fullContent = `![Product Mockup](${mockupUrl})\n\n🛍️ *Your ${productType} mockup is ready!*\n\n${revisedPrompt ? `*Design: ${revisedPrompt.substring(0, 200)}...*` : ''}`;
+            send({ type: 'image', url: mockupUrl, contentType: 'mockup', model: 'dall-e-3' });
+            send({ type: 'delta', content: fullContent });
+            
+            await db.collection('messages').insertOne({
+              id: assistantMsgId, conversation_id: convId, user_id: user.id,
+              role: 'assistant', content: fullContent, created_at: new Date(),
+              model_used: 'dall-e-3', provider_used: 'openai', content_type: 'mockup',
+              image_url: mockupUrl,
+            });
+            await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+            closeStream();
+            return;
+          } catch (mockupErr) {
+            console.error('[Mockup AI Generation] Error:', mockupErr.message);
+            fullContent = `Sorry, I couldn't create the mockup: ${mockupErr.message}`;
+            send({ type: 'delta', content: fullContent });
           }
         }
 
@@ -23186,14 +22777,6 @@ export async function GET(request, { params }) {
       const fileId = pathArr[3];
       return handleDriveGet(request, fileId);
     }
-    
-    // Dynamic Mockups API (GET routes)
-    if (pathStr === 'dynamic-mockups/templates') return handleDynamicMockupsTemplates(request);
-    if (pathStr === 'dynamic-mockups/collections') return handleDynamicMockupsCollections(request);
-    if (pathStr.match(/^dynamic-mockups\/templates\/[^\/]+$/)) {
-      const mockupUuid = pathArr[2];
-      return handleDynamicMockupsDetail(request, mockupUuid);
-    }
 
     return err('Not found', 404);
   } catch (error) {
@@ -23352,13 +22935,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'google/calendar/events') return handleCalendarCreate(request);
     if (pathStr === 'google/drive/search') return handleDriveSearch(request);
     
-    // Mockup generation (DALL-E based)
+    // Mockup generation (AI-powered with DALL-E)
     if (pathStr === 'mockup/generate') return handleMockupGenerate(request);
-    
-    // Dynamic Mockups API (Professional PSD mockups)
-    if (pathStr === 'dynamic-mockups/render') return handleDynamicMockupsRender(request);
-    if (pathStr === 'dynamic-mockups/bulk-render') return handleDynamicMockupsBulkRender(request);
-    if (pathStr === 'dynamic-mockups/simple') return handleDynamicMockupsSimple(request);
 
     return err('Not found', 404);
   } catch (error) {
