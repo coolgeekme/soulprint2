@@ -7620,49 +7620,133 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
           
           send({ type: 'delta', content: displayMessage });
+          
+          // Declare variables outside try block for use in message save
+          let imageUrl, revisedPrompt;
+          let modelUsed = 'dall-e-3';
+          let smartSelection = null;
+          
           try {
-            const apiKey = process.env.OPENAI_API_KEY;
-            if (!apiKey) {
-              throw new Error('OpenAI API key not configured');
+            // Use Dynamic Intelligence to select the best image model
+            smartSelection = selectBestImageModel(enhancedPrompt);
+            const selectedModel = smartSelection.model;
+            console.log(`[Dynamic Intelligence] Image generation: Selected ${selectedModel} - ${smartSelection.reason}`);
+            
+            // Check for Kie.ai API key
+            const kieKey = process.env.KIE_API_KEY;
+            
+            // For text-heavy content (logos, infographics, flyers), use Kie.ai models
+            // For general images, fall back to DALL-E 3 if no Kie.ai key
+            
+            if (kieKey && KIE_IMAGE_MODELS[selectedModel]) {
+              // Use Kie.ai with smart model selection
+              const modelConfig = KIE_IMAGE_MODELS[selectedModel];
+              console.log(`[Image Generation] Starting ${selectedModel} request via Kie.ai`);
+              
+              const inputParams = modelConfig.formatInput ? 
+                modelConfig.formatInput(enhancedPrompt, '1:1') : 
+                { prompt: enhancedPrompt, image_size: 'square_hd' };
+              
+              const res = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+                body: JSON.stringify({
+                  model: modelConfig.model,
+                  input: inputParams,
+                }),
+              });
+              const data = await res.json();
+              
+              if (data.code === 200 && data.data?.taskId) {
+                const taskId = data.data.taskId;
+                // Poll for completion
+                let attempts = 0;
+                const maxAttempts = 60;
+                
+                while (!imageUrl && attempts < maxAttempts) {
+                  await new Promise(r => setTimeout(r, 3000));
+                  attempts++;
+                  
+                  const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+                    headers: { Authorization: `Bearer ${kieKey}` },
+                  });
+                  const statusData = await statusRes.json();
+                  
+                  if (statusData.code === 200) {
+                    const status = statusData.data?.state;
+                    if (status === 'success') {
+                      try {
+                        const resultJson = JSON.parse(statusData.data?.resultJson || '{}');
+                        imageUrl = resultJson?.resultUrls?.[0] || resultJson?.url || resultJson?.image_url;
+                        revisedPrompt = enhancedPrompt;
+                        modelUsed = selectedModel;
+                      } catch (e) {
+                        console.error('[Image Generation] Failed to parse Kie.ai result:', e);
+                      }
+                      break;
+                    } else if (status === 'fail') {
+                      console.error('[Image Generation] Kie.ai failed:', statusData.data?.failMsg);
+                      throw new Error(statusData.data?.failMsg || 'Kie.ai image generation failed');
+                    }
+                  }
+                }
+              } else {
+                console.log('[Image Generation] Kie.ai error, falling back to DALL-E 3:', data.msg);
+              }
             }
             
-            console.log('[Image Generation] Starting DALL-E 3 request for prompt:', enhancedPrompt.substring(0, 150));
-            console.log('[Image Generation] Type:', isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'general image'));
-            
-            const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-              body: JSON.stringify({ model: 'dall-e-3', prompt: enhancedPrompt, n: 1, size: '1024x1024', quality: 'hd', style: 'vivid' }),
-            });
-            
-            const imgData = await imgRes.json();
-            
-            if (!imgRes.ok) {
-              console.error('[Image Generation] API Error:', imgRes.status, JSON.stringify(imgData));
-              throw new Error(imgData.error?.message || `API returned status ${imgRes.status}`);
+            // Fallback to DALL-E 3 if Kie.ai didn't work
+            if (!imageUrl) {
+              const apiKey = process.env.OPENAI_API_KEY;
+              if (!apiKey) {
+                throw new Error('No image generation API available');
+              }
+              
+              console.log('[Image Generation] Using DALL-E 3 for prompt:', enhancedPrompt.substring(0, 100));
+              
+              const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+                body: JSON.stringify({ model: 'dall-e-3', prompt: enhancedPrompt, n: 1, size: '1024x1024', quality: 'hd', style: 'vivid' }),
+              });
+              
+              const imgData = await imgRes.json();
+              
+              if (!imgRes.ok) {
+                console.error('[Image Generation] DALL-E API Error:', imgRes.status, JSON.stringify(imgData));
+                throw new Error(imgData.error?.message || `API returned status ${imgRes.status}`);
+              }
+              
+              if (imgData.error) {
+                console.error('[Image Generation] Response Error:', JSON.stringify(imgData.error));
+                throw new Error(imgData.error.message);
+              }
+              
+              imageUrl = imgData.data?.[0]?.url;
+              revisedPrompt = imgData.data?.[0]?.revised_prompt || enhancedPrompt;
+              modelUsed = 'dall-e-3';
             }
-            
-            if (imgData.error) {
-              console.error('[Image Generation] Response Error:', JSON.stringify(imgData.error));
-              throw new Error(imgData.error.message);
-            }
-            
-            const imageUrl = imgData.data?.[0]?.url;
-            const revisedPrompt = imgData.data?.[0]?.revised_prompt || content;
             
             if (!imageUrl) {
-              console.error('[Image Generation] No URL in response:', JSON.stringify(imgData));
               throw new Error('No image URL returned from API');
             }
             
-            console.log('[Image Generation] Success! URL:', imageUrl.substring(0, 80) + '...');
+            console.log(`[Image Generation] Success with ${modelUsed}! URL:`, imageUrl.substring(0, 80) + '...');
 
             // Customize the output message based on content type
             const contentTypeLabel = isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'image');
             const successEmoji = isInfographic ? '📊' : (isFlyer ? '🎨' : '🖼️');
+            const modelLabel = {
+              'nano-banana': 'Nano Banana',
+              'midjourney-v7': 'Midjourney V7',
+              'flux-pro': 'Flux Pro',
+              'gpt-image-1-5': 'GPT Image 1.5',
+              'seedream-5-lite': 'Seedream 5',
+              'dall-e-3': 'DALL-E 3'
+            }[modelUsed] || modelUsed;
             
-            fullContent = `![Generated ${contentTypeLabel.charAt(0).toUpperCase() + contentTypeLabel.slice(1)}](${imageUrl})\n\n${successEmoji} *Your ${contentTypeLabel} has been created!*`;
-            send({ type: 'image', url: imageUrl, revised_prompt: revisedPrompt, contentType: contentTypeLabel });
+            fullContent = `![Generated ${contentTypeLabel.charAt(0).toUpperCase() + contentTypeLabel.slice(1)}](${imageUrl})\n\n${successEmoji} *Your ${contentTypeLabel} has been created!*\n\n🤖 *Model: ${modelLabel}* ${smartSelection?.reason || ''}`;
+            send({ type: 'image', url: imageUrl, revised_prompt: revisedPrompt, contentType: contentTypeLabel, model: modelUsed });
             send({ type: 'delta', content: fullContent });
           } catch (imgErr) {
             console.error('[Image Generation] Exception:', imgErr.message, imgErr.stack);
@@ -7675,7 +7759,9 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           await db.collection('messages').insertOne({
             id: assistantMsgId, conversation_id: convId, user_id: user.id,
             role: 'assistant', content: fullContent, created_at: new Date(),
-            model_used: 'dall-e-3', provider_used: 'openai', content_type: storedContentType,
+            model_used: modelUsed || 'dall-e-3', provider_used: modelUsed === 'dall-e-3' ? 'openai' : 'kie.ai', content_type: storedContentType,
+            image_url: imageUrl,
+            generation_prompt: enhancedPrompt,
             est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
           });
           await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
@@ -9392,31 +9478,18 @@ function selectBestImageModel(prompt) {
   
   // Keywords and patterns for different use cases
   const patterns = {
-    // Photorealistic - Nano Banana or Flux
-    photorealistic: /\b(photo|photograph|realistic|real|hd|4k|portrait|headshot|professional|corporate|stock photo|documentary)\b/i,
-    // Text-heavy - Ideogram or Seedream
-    textHeavy: /\b(logo|text|typography|sign|poster|banner|flyer|advertisement|brand|label|t-shirt design|title|headline|letters|words|writing)\b/i,
-    // Artistic/Creative - Midjourney
-    artistic: /\b(art|artistic|fantasy|surreal|dream|magical|ethereal|abstract|painting|illustration|anime|manga|concept art|cinematic|epic|dramatic|vibrant|colorful)\b/i,
-    // Product/Commercial - Flux Pro or GPT Image
-    product: /\b(product|ecommerce|catalog|mockup|packaging|commercial|marketing|advertisement|studio shot|white background)\b/i,
-    // Quick/Simple - Seedream Lite
-    simple: /\b(simple|basic|quick|icon|emoji|avatar|thumbnail|sketch|draft)\b/i,
+    // Text-heavy - Seedream (only verified working model for text/logos)
+    textHeavy: /\b(logo|text|typography|sign|poster|banner|flyer|advertisement|brand|label|t-shirt design|title|headline|letters|words|writing|infographic)\b/i,
+    // Photorealistic - Nano Banana (verified working)
+    photorealistic: /\b(photo|photograph|realistic|real|hd|4k|portrait|headshot|professional|corporate|stock photo|documentary|natural|authentic)\b/i,
   };
   
   // Check patterns and return recommendation
+  // Use only verified working Kie.ai models
   if (patterns.textHeavy.test(lowerPrompt)) {
     return {
       model: 'seedream-5-lite',
-      reason: '📝 Text rendering - Seedream excels at text clarity',
-      confidence: 'high'
-    };
-  }
-  
-  if (patterns.artistic.test(lowerPrompt)) {
-    return {
-      model: 'midjourney-v7',
-      reason: '🎨 Artistic/creative style - Midjourney creates stunning art',
+      reason: '📝 Text/logos - Seedream excels at text clarity',
       confidence: 'high'
     };
   }
@@ -9429,23 +9502,7 @@ function selectBestImageModel(prompt) {
     };
   }
   
-  if (patterns.product.test(lowerPrompt)) {
-    return {
-      model: 'flux-pro',
-      reason: '🛍️ Product/commercial - Flux Pro for clean commercial shots',
-      confidence: 'high'
-    };
-  }
-  
-  if (patterns.simple.test(lowerPrompt)) {
-    return {
-      model: 'seedream-5-lite',
-      reason: '⚡ Quick generation - Seedream Lite is fast and affordable',
-      confidence: 'medium'
-    };
-  }
-  
-  // Default to Nano Banana for general requests
+  // Default to Nano Banana for general requests (best all-around model)
   return {
     model: 'nano-banana',
     reason: '🖼️ General image - Nano Banana for versatile quality',
