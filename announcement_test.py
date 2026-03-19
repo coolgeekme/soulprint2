@@ -14,7 +14,7 @@ import sys
 import os
 
 # Configuration
-BASE_URL = "https://ai-image-gen-135.preview.emergentagent.com/api"
+BASE_URL = "https://image-edit-preview.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSCODE = "test123"
 
