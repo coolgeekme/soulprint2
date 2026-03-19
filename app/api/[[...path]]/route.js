@@ -14543,50 +14543,9 @@ async function handleAdminSendBetaCode(request) {
 
 // Verify Google reCAPTCHA token
 async function handleVerifyCaptcha(request) {
-  try {
-    const { token, action } = await request.json();
-    
-    if (!token) {
-      return err('Captcha token required', 400);
-    }
-
-    const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET_KEY;
-    if (!RECAPTCHA_SECRET) {
-      console.error('RECAPTCHA_SECRET_KEY not configured');
-      return err('Captcha verification not configured', 500);
-    }
-
-    // Verify with Google
-    const verifyRes = await fetch('https://www.google.com/recaptcha/api/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `secret=${RECAPTCHA_SECRET}&response=${token}`,
-    });
-
-    const verifyData = await verifyRes.json();
-
-    if (!verifyData.success) {
-      console.error('reCAPTCHA verification failed:', verifyData);
-      return err('Security verification failed', 400);
-    }
-
-    // Check score (reCAPTCHA v3 returns a score 0.0-1.0)
-    if (verifyData.score !== undefined && verifyData.score < 0.3) {
-      console.warn('Low reCAPTCHA score:', verifyData.score);
-      return err('Security check failed. Please try again.', 400);
-    }
-
-    // Check action matches
-    if (action && verifyData.action !== action) {
-      console.warn('reCAPTCHA action mismatch:', verifyData.action, 'expected:', action);
-      return err('Security verification mismatch', 400);
-    }
-
-    return ok({ success: true, score: verifyData.score });
-  } catch (error) {
-    console.error('Captcha verification error:', error);
-    return err('Captcha verification failed', 500);
-  }
+  // reCAPTCHA disabled for internal dev site
+  // Always return success
+  return ok({ success: true, score: 1.0, message: 'Captcha verification disabled for internal use' });
 }
 
 // Send email verification

@@ -5,9 +5,6 @@ import Link from 'next/link';
 import { Eye, EyeOff, Mail, Lock, KeyRound, Loader2, CheckCircle } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } from '@/lib/firebase';
-import Script from 'next/script';
-
-const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6Le_c34sAAAAAAEM4XN1qxw3Ropv6KJpjmaynfxT';
 
 export default function AuthPage() {
   const router = useRouter();
@@ -23,7 +20,6 @@ export default function AuthPage() {
   const [resetSent, setResetSent] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
-  const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
   const [latency, setLatency] = useState(0);
   const buildId = 'v2.5.0';
   const [sid, setSid] = useState('');
@@ -33,21 +29,6 @@ export default function AuthPage() {
     setLatency(Math.floor(Math.random() * 30 + 10));
     setSid(Math.random().toString(36).slice(2, 10).toUpperCase());
   }, []);
-
-  // Get reCAPTCHA token
-  const getRecaptchaToken = useCallback(async (action) => {
-    if (!recaptchaLoaded || !window.grecaptcha) {
-      console.warn('reCAPTCHA not loaded yet');
-      return null;
-    }
-    try {
-      const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action });
-      return token;
-    } catch (err) {
-      console.error('reCAPTCHA error:', err);
-      return null;
-    }
-  }, [recaptchaLoaded]);
 
   // Sync Firebase user with backend
   async function syncWithBackend(firebaseUser, idToken) {
@@ -132,24 +113,6 @@ export default function AuthPage() {
       let result;
       
       if (mode === 'signup') {
-        // Get reCAPTCHA token for signup
-        const recaptchaToken = await getRecaptchaToken('signup');
-        if (!recaptchaToken) {
-          throw new Error('Security verification failed. Please refresh and try again.');
-        }
-
-        // Verify reCAPTCHA on backend first
-        const captchaRes = await fetch('/api/auth/verify-captcha', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: recaptchaToken, action: 'signup' }),
-        });
-        
-        if (!captchaRes.ok) {
-          const captchaData = await captchaRes.json();
-          throw new Error(captchaData.error || 'Security verification failed');
-        }
-
         // For sign up, use Firebase if configured, otherwise use legacy
         result = await signUpWithEmail(email, password);
         
@@ -162,8 +125,7 @@ export default function AuthPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
                 email, 
-                passcode: password,
-                recaptcha_token: recaptchaToken
+                passcode: password
               }),
             });
             
@@ -413,12 +375,6 @@ export default function AuthPage() {
 
   return (
     <>
-      {/* Google reCAPTCHA v3 Script */}
-      <Script
-        src={`https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`}
-        onLoad={() => setRecaptchaLoaded(true)}
-      />
-      
       <div className="min-h-screen grid-bg flex items-center justify-center px-4 relative overflow-hidden">
       {/* Orange glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.2)_0%,transparent_70%)]" />
