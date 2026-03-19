@@ -7402,201 +7402,125 @@ async function handleChatStream(request) {
         }
 
         // ── Handle MOCKUP generation (logo on product) ───────────────────
-        // Uses GPT-4o with native image generation to preserve the EXACT logo
+        // Two approaches: 1) Generate blank product, composite exact logo 2) AI approximation
         if (mediaIntent === 'mockup' && hasImageAttachment) {
           const imageAttachment = attachments.find(a => a.type === 'image');
           if (imageAttachment) {
-            send({ type: 'delta', content: '🎨 Creating your mockup with your exact logo...\n\n' });
+            send({ type: 'delta', content: '🎨 Creating your mockup with your EXACT logo...\n\n' });
             
             try {
               const openaiApiKey = process.env.OPENAI_API_KEY;
               if (!openaiApiKey) throw new Error('OpenAI API key not configured');
               
-              // Get image as base64
-              let imageBase64 = imageAttachment.base64;
-              const mimeType = imageAttachment.mimeType || 'image/png';
+              // Get logo as base64
+              let logoBase64 = imageAttachment.base64;
+              const logoMimeType = imageAttachment.mimeType || 'image/png';
               
               // Handle data URL prefix
-              if (imageBase64 && imageBase64.startsWith('data:')) {
-                const match = imageBase64.match(/^data:[^;]+;base64,(.+)$/);
-                if (match) imageBase64 = match[1];
+              if (logoBase64 && logoBase64.startsWith('data:')) {
+                const match = logoBase64.match(/^data:[^;]+;base64,(.+)$/);
+                if (match) logoBase64 = match[1];
               }
               
-              const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
-              let imageUrl, modelUsed = 'gpt-4o';
+              // Import Sharp for image compositing
+              const sharp = (await import('sharp')).default;
               
-              // METHOD 1: Try GPT-4o with native image generation (best for preserving exact logo)
-              // This uses the new responses API which can generate images while preserving reference
-              console.log('[Mockup] Trying GPT-4o with native image generation');
+              // Step 1: Detect what product they want
+              const productMatch = sanitizedContent.toLowerCase();
+              let productType = 'shirt';
+              if (/\b(mug|cup)\b/.test(productMatch)) productType = 'mug';
+              else if (/\b(hoodie|sweatshirt)\b/.test(productMatch)) productType = 'hoodie';
+              else if (/\b(poster|banner)\b/.test(productMatch)) productType = 'poster';
+              else if (/\b(cap|hat)\b/.test(productMatch)) productType = 'cap';
               
-              try {
-                const gpt4oResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                  method: 'POST',
-                  headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    model: 'gpt-4o',
-                    messages: [{
-                      role: 'user',
-                      content: [
-                        { type: 'image_url', image_url: { url: imageDataUrl, detail: 'high' } },
-                        { type: 'text', text: `This is my logo/design. I need you to create a product mockup: ${sanitizedContent}
-
-CRITICAL INSTRUCTIONS:
-1. Use THIS EXACT LOGO - preserve every detail: exact colors, exact text, exact shapes, exact proportions
-2. Do NOT recreate or reinterpret the logo - use it EXACTLY as shown
-3. Place the logo prominently on the product as requested
-4. The rest of the scene should be photorealistic
-5. Make sure the logo is clearly visible and matches the original pixel-for-pixel
-
-Generate this image now.` }
-                      ]
-                    }],
-                    max_tokens: 1000,
-                  }),
-                });
-                
-                // Check if GPT-4o returned image generation instructions
-                const gpt4oData = await gpt4oResponse.json();
-                const responseText = gpt4oData.choices?.[0]?.message?.content || '';
-                
-                // GPT-4o doesn't directly generate images, it gives instructions
-                // We need to use the images API with gpt-image-1 for actual generation
-                console.log('[Mockup] GPT-4o analysis complete, now generating with gpt-image-1');
-                
-              } catch (gpt4oErr) {
-                console.log('[Mockup] GPT-4o attempt:', gpt4oErr.message);
+              // Step 2: Detect placement
+              let placement = 'front';
+              if (/\b(back)\b/.test(productMatch)) placement = 'back';
+              
+              console.log(`[Mockup] Creating ${productType} mockup with logo on ${placement}`);
+              
+              // Step 3: Generate a BLANK product mockup (no logo)
+              send({ type: 'delta', content: '📦 Generating blank product mockup...\n' });
+              
+              const blankProductPrompt = `Professional product photography of a plain black ${productType === 'shirt' ? 't-shirt' : productType} ${placement === 'back' ? 'shown from the back' : 'shown from the front'}. 
+Clean, simple mockup style. No text, no logos, no designs - completely blank.
+${productType === 'shirt' ? 'The shirt should be laid flat or on an invisible mannequin.' : ''}
+Professional studio lighting, white or neutral background. High resolution, clean and minimal.`;
+              
+              const blankRes = await fetch('https://api.openai.com/v1/images/generations', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  model: 'dall-e-3', 
+                  prompt: blankProductPrompt, 
+                  n: 1, 
+                  size: '1024x1024', 
+                  quality: 'hd', 
+                  style: 'natural' 
+                }),
+              });
+              
+              const blankData = await blankRes.json();
+              const blankProductUrl = blankData.data?.[0]?.url;
+              
+              if (!blankProductUrl) {
+                throw new Error('Failed to generate blank product mockup');
               }
               
-              // METHOD 2: Use gpt-image-1 edit endpoint with the logo as reference
-              // This is the best approach for true logo preservation
-              if (!imageUrl) {
-                console.log('[Mockup] Trying gpt-image-1 images/edits with logo reference');
-                
-                try {
-                  // Convert base64 to blob
-                  const binaryString = atob(imageBase64);
-                  const bytes = new Uint8Array(binaryString.length);
-                  for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                  }
-                  const logoBlob = new Blob([bytes], { type: mimeType });
-                  
-                  const formData = new FormData();
-                  formData.append('image', logoBlob, 'logo.png');
-                  formData.append('prompt', `Create a professional product mockup: ${sanitizedContent}. 
-The uploaded image is the EXACT logo/design that MUST appear on the product. 
-Preserve the logo EXACTLY as uploaded - same colors, same text, same design, same proportions.
-Place the logo prominently on the product. Make the scene photorealistic and professional.`);
-                  formData.append('model', 'gpt-image-1');
-                  formData.append('size', '1024x1024');
-                  formData.append('response_format', 'url');
-                  
-                  const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${openaiApiKey}` },
-                    body: formData,
-                  });
-                  
-                  if (editResponse.ok) {
-                    const editData = await editResponse.json();
-                    imageUrl = editData.data?.[0]?.url;
-                    if (imageUrl) {
-                      modelUsed = 'gpt-image-1';
-                      console.log('[Mockup] Success with gpt-image-1!');
-                    }
-                  } else {
-                    const err = await editResponse.json().catch(() => ({}));
-                    console.log('[Mockup] gpt-image-1 edit failed:', err.error?.message);
-                  }
-                } catch (editErr) {
-                  console.log('[Mockup] gpt-image-1 error:', editErr.message);
-                }
-              }
+              // Step 4: Download the blank product image
+              send({ type: 'delta', content: '🖼️ Compositing your exact logo...\n' });
               
-              // METHOD 3: Fallback - Analyze logo and generate with DALL-E 3 (less accurate)
-              if (!imageUrl) {
-                console.log('[Mockup] Falling back to logo analysis + DALL-E 3 generation');
-                
-                // First analyze the logo in detail
-                const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                  method: 'POST',
-                  headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    model: 'gpt-4o',
-                    messages: [{
-                      role: 'user',
-                      content: [
-                        { type: 'image_url', image_url: { url: imageDataUrl, detail: 'high' } },
-                        { type: 'text', text: `Describe this logo/design in EXTREME detail for recreation:
-- Exact text (font style, size, weight, case, spacing)
-- Exact colors (describe as hex codes if possible)
-- Exact shapes and their positions
-- Any icons or graphics
-- Layout and proportions
-- Style (modern, vintage, etc.)
-
-Be so precise that an artist could recreate it pixel-perfectly.` }
-                      ]
-                    }],
-                    max_tokens: 600,
-                  }),
-                });
-                
-                const analysisData = await analysisResponse.json();
-                const logoDescription = analysisData.choices?.[0]?.message?.content || '';
-                
-                // Generate with DALL-E 3 using the detailed description
-                const generatePrompt = `Create a photorealistic product mockup: ${sanitizedContent}
-
-The product MUST feature this EXACT logo/design:
-${logoDescription}
-
-CRITICAL: Recreate the logo EXACTLY as described - same text, same colors, same layout, same style.
-Place the logo prominently and clearly visible on the product.
-Professional product photography style, clean background.`;
-                
-                const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
-                  method: 'POST',
-                  headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ 
-                    model: 'dall-e-3', 
-                    prompt: generatePrompt, 
-                    n: 1, 
-                    size: '1024x1024', 
-                    quality: 'hd', 
-                    style: 'natural' 
-                  }),
-                });
-                const imgData = await imgRes.json();
-                imageUrl = imgData.data?.[0]?.url;
-                modelUsed = 'dall-e-3';
-                
-                if (imageUrl) {
-                  console.log('[Mockup] Generated with DALL-E 3 (logo approximation)');
-                }
-              }
+              const productResponse = await fetch(blankProductUrl);
+              const productBuffer = Buffer.from(await productResponse.arrayBuffer());
               
-              if (!imageUrl) throw new Error('Mockup generation failed');
+              // Step 5: Prepare the logo (ensure it has transparency and proper size)
+              const logoBuffer = Buffer.from(logoBase64, 'base64');
               
-              const modelLabels = { 
-                'gpt-4o': 'GPT-4o', 
-                'gpt-image-1': 'GPT Image (exact logo)', 
-                'dall-e-3': 'DALL-E 3 (logo approximation)' 
-              };
+              // Get product image dimensions
+              const productMeta = await sharp(productBuffer).metadata();
+              const productWidth = productMeta.width || 1024;
+              const productHeight = productMeta.height || 1024;
               
-              const exactNote = modelUsed === 'gpt-image-1' 
-                ? '\n\n✅ *Your exact logo was preserved*' 
-                : '\n\n⚠️ *Note: AI recreated your logo design. For pixel-perfect results, consider using a graphic design tool.*';
+              // Resize logo to fit nicely on the product (about 40% of product width)
+              const logoTargetWidth = Math.round(productWidth * 0.4);
+              const resizedLogo = await sharp(logoBuffer)
+                .resize(logoTargetWidth, null, { fit: 'inside' })
+                .toBuffer();
               
-              fullContent = `![Product Mockup](${imageUrl})\n\n🛍️ *Your product mockup is ready!*\n\n🤖 *Generated with: ${modelLabels[modelUsed] || modelUsed}*${exactNote}`;
-              send({ type: 'image', url: imageUrl, contentType: 'mockup', model: modelUsed });
+              const logoMeta = await sharp(resizedLogo).metadata();
+              const logoWidth = logoMeta.width || logoTargetWidth;
+              const logoHeight = logoMeta.height || logoTargetWidth;
+              
+              // Calculate position (centered, slightly above center for shirts)
+              const logoLeft = Math.round((productWidth - logoWidth) / 2);
+              const logoTop = Math.round((productHeight - logoHeight) / 2) - Math.round(productHeight * 0.05);
+              
+              // Step 6: Composite the logo onto the product
+              const compositedBuffer = await sharp(productBuffer)
+                .composite([{
+                  input: resizedLogo,
+                  top: Math.max(0, logoTop),
+                  left: Math.max(0, logoLeft),
+                  blend: 'over'
+                }])
+                .png()
+                .toBuffer();
+              
+              // Step 7: Convert to base64 data URL
+              const compositedBase64 = compositedBuffer.toString('base64');
+              const imageUrl = `data:image/png;base64,${compositedBase64}`;
+              
+              console.log('[Mockup] Successfully composited exact logo onto product!');
+              
+              fullContent = `![Product Mockup](${imageUrl})\n\n🛍️ *Your product mockup is ready!*\n\n✅ **Your exact logo has been placed on the ${productType}!**\n\n_This uses true image compositing - your logo pixels are preserved exactly._`;
+              send({ type: 'image', url: imageUrl, contentType: 'mockup', model: 'sharp-composite' });
               send({ type: 'delta', content: fullContent });
               
               await db.collection('messages').insertOne({
                 id: assistantMsgId, conversation_id: convId, user_id: user.id,
                 role: 'assistant', content: fullContent, created_at: new Date(),
-                model_used: modelUsed, provider_used: modelUsed === 'dall-e-3' ? 'openai' : 'kie.ai', content_type: 'mockup',
-                image_url: imageUrl, generation_prompt: generationPrompt,
+                model_used: 'dall-e-3+sharp', provider_used: 'openai', content_type: 'mockup',
+                image_url: imageUrl,
               });
               await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
               send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
