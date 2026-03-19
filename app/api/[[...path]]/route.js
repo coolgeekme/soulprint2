@@ -578,6 +578,555 @@ Output ONLY the prompt, no explanations. Make it detailed enough to recreate the
 
 
 // ============================================================
+// DYNAMIC MOCKUPS API - Professional Product Mockups
+// ============================================================
+
+const DYNAMIC_MOCKUPS_API_BASE = 'https://app.dynamicmockups.com/api/v1';
+
+// Get available mockups from Dynamic Mockups library
+async function handleDynamicMockupsTemplates(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
+    }
+
+    const url = new URL(request.url);
+    const collectionUuid = url.searchParams.get('collection_uuid');
+    const name = url.searchParams.get('name');
+
+    let apiUrl = `${DYNAMIC_MOCKUPS_API_BASE}/mockups`;
+    const params = new URLSearchParams();
+    if (collectionUuid) params.append('collection_uuid', collectionUuid);
+    if (name) params.append('name', name);
+    if (params.toString()) apiUrl += `?${params.toString()}`;
+
+    console.log('[DynamicMockups] Fetching templates from:', apiUrl);
+
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[DynamicMockups] API error:', response.status, errorText);
+      return NextResponse.json({ 
+        error: `Dynamic Mockups API error: ${response.statusText}`,
+        details: errorText 
+      }, { status: response.status });
+    }
+
+    const data = await response.json();
+    console.log('[DynamicMockups] Retrieved', data.data?.length || 0, 'templates');
+
+    return NextResponse.json({
+      success: true,
+      templates: data.data || [],
+      count: data.data?.length || 0,
+    });
+  } catch (err) {
+    console.error('[DynamicMockups] Templates error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to fetch mockup templates' }, { status: 500 });
+  }
+}
+
+// Get collections from Dynamic Mockups
+async function handleDynamicMockupsCollections(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
+    }
+
+    const response = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/collections`, {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[DynamicMockups] Collections error:', response.status, errorText);
+      return NextResponse.json({ 
+        error: `Dynamic Mockups API error: ${response.statusText}` 
+      }, { status: response.status });
+    }
+
+    const data = await response.json();
+    console.log('[DynamicMockups] Retrieved', data.data?.length || 0, 'collections');
+
+    return NextResponse.json({
+      success: true,
+      collections: data.data || [],
+      count: data.data?.length || 0,
+    });
+  } catch (err) {
+    console.error('[DynamicMockups] Collections error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to fetch collections' }, { status: 500 });
+  }
+}
+
+// Get mockup detail with smart objects
+async function handleDynamicMockupsDetail(request, mockupUuid) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
+    }
+
+    if (!mockupUuid) {
+      return NextResponse.json({ error: 'Mockup UUID is required' }, { status: 400 });
+    }
+
+    console.log('[DynamicMockups] Fetching detail for:', mockupUuid);
+
+    const response = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/mockups/${mockupUuid}`, {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[DynamicMockups] Detail error:', response.status, errorText);
+      return NextResponse.json({ 
+        error: response.status === 404 ? 'Mockup not found' : `API error: ${response.statusText}` 
+      }, { status: response.status });
+    }
+
+    const data = await response.json();
+    console.log('[DynamicMockups] Got mockup detail with', data.data?.smart_objects?.length || 0, 'smart objects');
+
+    return NextResponse.json({
+      success: true,
+      mockup: data.data,
+    });
+  } catch (err) {
+    console.error('[DynamicMockups] Detail error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to fetch mockup detail' }, { status: 500 });
+  }
+}
+
+// Render mockup with design - the main endpoint
+async function handleDynamicMockupsRender(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
+    }
+
+    const body = await request.json();
+    const { mockup_uuid, smart_objects, export_options, export_label, design } = body;
+
+    if (!mockup_uuid) {
+      return NextResponse.json({ error: 'mockup_uuid is required' }, { status: 400 });
+    }
+
+    if (!smart_objects || !smart_objects.length) {
+      return NextResponse.json({ error: 'smart_objects array is required' }, { status: 400 });
+    }
+
+    console.log('[DynamicMockups] Rendering mockup:', mockup_uuid, 'with', smart_objects.length, 'smart objects');
+
+    // If design is provided as base64, we need to upload it to a temporary URL first
+    // Dynamic Mockups requires a publicly accessible URL for the design
+    let processedSmartObjects = smart_objects;
+    
+    if (design?.base64) {
+      // Upload the design to a temp storage and get URL
+      // For now, we'll try to use the base64 directly if it's a URL-accessible format
+      // Dynamic Mockups may accept data URLs in some cases
+      const base64Prefix = design.mimeType ? `data:${design.mimeType};base64,` : 'data:image/png;base64,';
+      const designDataUrl = `${base64Prefix}${design.base64}`;
+      
+      // Try uploading to their temp storage first
+      try {
+        const uploadResponse = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base64: design.base64,
+            filename: `design_${Date.now()}.${design.mimeType?.split('/')[1] || 'png'}`
+          })
+        });
+        
+        if (uploadResponse.ok) {
+          const uploadData = await uploadResponse.json();
+          if (uploadData.url) {
+            console.log('[DynamicMockups] Uploaded design to temp URL:', uploadData.url);
+            // Update smart objects with the uploaded URL
+            processedSmartObjects = smart_objects.map(so => ({
+              ...so,
+              asset: {
+                ...so.asset,
+                url: uploadData.url
+              }
+            }));
+          }
+        }
+      } catch (uploadErr) {
+        console.log('[DynamicMockups] Temp upload failed, using provided URLs:', uploadErr.message);
+      }
+    }
+
+    const renderPayload = {
+      mockup_uuid,
+      smart_objects: processedSmartObjects,
+    };
+
+    if (export_options) {
+      renderPayload.export_options = export_options;
+    } else {
+      // Default export options
+      renderPayload.export_options = {
+        image_format: 'png',
+        image_size: 1000,
+        mode: 'view'
+      };
+    }
+
+    if (export_label) {
+      renderPayload.export_label = export_label;
+    }
+
+    console.log('[DynamicMockups] Render payload:', JSON.stringify(renderPayload, null, 2).substring(0, 500));
+
+    const response = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/renders`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(renderPayload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[DynamicMockups] Render error:', response.status, errorText);
+      
+      // Parse error for better messaging
+      let errorMessage = `Render failed: ${response.statusText}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.message) errorMessage = errorJson.message;
+        if (errorJson.errors) errorMessage += ': ' + JSON.stringify(errorJson.errors);
+      } catch (e) {}
+      
+      return NextResponse.json({ 
+        error: errorMessage,
+        details: errorText
+      }, { status: response.status });
+    }
+
+    const data = await response.json();
+    console.log('[DynamicMockups] Render successful:', data.data?.export_path ? 'Got URL' : 'No URL');
+
+    return NextResponse.json({
+      success: true,
+      url: data.data?.export_path,
+      label: data.data?.export_label,
+      mockup_uuid,
+    });
+  } catch (err) {
+    console.error('[DynamicMockups] Render error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to render mockup' }, { status: 500 });
+  }
+}
+
+// Bulk render mockups
+async function handleDynamicMockupsBulkRender(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
+    }
+
+    const body = await request.json();
+    const { collection_uuid, artworks, colors, export_options, export_label } = body;
+
+    if (!collection_uuid) {
+      return NextResponse.json({ error: 'collection_uuid is required' }, { status: 400 });
+    }
+
+    if (!artworks || Object.keys(artworks).length === 0) {
+      return NextResponse.json({ error: 'artworks object is required' }, { status: 400 });
+    }
+
+    console.log('[DynamicMockups] Bulk rendering collection:', collection_uuid);
+
+    const bulkPayload = {
+      collection_uuid,
+      artworks,
+    };
+
+    if (colors) bulkPayload.colors = colors;
+    if (export_options) bulkPayload.export_options = export_options;
+    if (export_label) bulkPayload.export_label = export_label;
+
+    const response = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/renders/bulk`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(bulkPayload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[DynamicMockups] Bulk render error:', response.status, errorText);
+      return NextResponse.json({ 
+        error: `Bulk render failed: ${response.statusText}` 
+      }, { status: response.status });
+    }
+
+    const data = await response.json();
+    console.log('[DynamicMockups] Bulk render successful:', data.data?.exports?.length || 0, 'images');
+
+    return NextResponse.json({
+      success: true,
+      exports: data.data?.exports || [],
+      count: data.data?.exports?.length || 0,
+    });
+  } catch (err) {
+    console.error('[DynamicMockups] Bulk render error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to bulk render mockups' }, { status: 500 });
+  }
+}
+
+// Simple mockup render with auto template selection
+async function handleDynamicMockupsSimple(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const apiKey = process.env.DYNAMIC_MOCKUPS_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Dynamic Mockups API key not configured' }, { status: 500 });
+    }
+
+    const body = await request.json();
+    const { design, product_type, color } = body;
+
+    if (!design) {
+      return NextResponse.json({ error: 'design is required (base64 or url)' }, { status: 400 });
+    }
+
+    if (!product_type) {
+      return NextResponse.json({ error: 'product_type is required (e.g., tshirt, mug, hoodie)' }, { status: 400 });
+    }
+
+    console.log('[DynamicMockups Simple] Creating', product_type, 'mockup');
+
+    // Map common product types to search terms
+    const productSearchTerms = {
+      'tshirt': 't-shirt',
+      't-shirt': 't-shirt',
+      'shirt': 't-shirt',
+      'mug': 'mug',
+      'cup': 'mug',
+      'hoodie': 'hoodie',
+      'sweatshirt': 'hoodie',
+      'poster': 'poster',
+      'print': 'poster',
+      'cap': 'cap',
+      'hat': 'cap',
+      'book': 'book',
+      'phone': 'phone case',
+      'phonecase': 'phone case',
+      'bag': 'tote bag',
+      'totebag': 'tote bag',
+      'pillow': 'pillow',
+      'cushion': 'pillow'
+    };
+
+    const searchTerm = productSearchTerms[product_type.toLowerCase()] || product_type;
+
+    // Step 1: Find a mockup template for this product type
+    const templatesResponse = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/mockups?name=${encodeURIComponent(searchTerm)}`, {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!templatesResponse.ok) {
+      const errorText = await templatesResponse.text();
+      console.error('[DynamicMockups Simple] Templates error:', errorText);
+      return NextResponse.json({ error: 'Failed to find mockup templates' }, { status: 500 });
+    }
+
+    const templatesData = await templatesResponse.json();
+    const templates = templatesData.data || [];
+
+    if (templates.length === 0) {
+      return NextResponse.json({ 
+        error: `No mockup templates found for "${product_type}". Try: tshirt, mug, hoodie, poster, cap, book, phone, bag, pillow` 
+      }, { status: 404 });
+    }
+
+    // Use the first matching template
+    const selectedTemplate = templates[0];
+    console.log('[DynamicMockups Simple] Selected template:', selectedTemplate.name, selectedTemplate.uuid);
+
+    // Step 2: Get the mockup detail to find smart objects
+    const detailResponse = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/mockups/${selectedTemplate.uuid}`, {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!detailResponse.ok) {
+      return NextResponse.json({ error: 'Failed to get mockup details' }, { status: 500 });
+    }
+
+    const detailData = await detailResponse.json();
+    const mockupDetail = detailData.data;
+    const smartObjects = mockupDetail?.smart_objects || [];
+
+    if (smartObjects.length === 0) {
+      return NextResponse.json({ error: 'No smart objects found in mockup template' }, { status: 500 });
+    }
+
+    // Use the first smart object
+    const targetSmartObject = smartObjects[0];
+    console.log('[DynamicMockups Simple] Using smart object:', targetSmartObject.name, targetSmartObject.uuid);
+
+    // Step 3: Upload design if it's base64
+    let designUrl = design.url || design;
+    
+    if (design.base64 || (typeof design === 'string' && design.length > 500)) {
+      // Try to upload to temp storage
+      const base64Data = design.base64 || design;
+      try {
+        const uploadResponse = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base64: base64Data.replace(/^data:[^;]+;base64,/, ''),
+            filename: `design_${Date.now()}.png`
+          })
+        });
+        
+        if (uploadResponse.ok) {
+          const uploadData = await uploadResponse.json();
+          if (uploadData.url) {
+            designUrl = uploadData.url;
+            console.log('[DynamicMockups Simple] Uploaded design to:', designUrl);
+          }
+        }
+      } catch (uploadErr) {
+        console.error('[DynamicMockups Simple] Upload failed:', uploadErr.message);
+        return NextResponse.json({ error: 'Failed to upload design. Please provide a URL instead.' }, { status: 400 });
+      }
+    }
+
+    // Step 4: Render the mockup
+    const renderPayload = {
+      mockup_uuid: selectedTemplate.uuid,
+      smart_objects: [{
+        uuid: targetSmartObject.uuid,
+        asset: {
+          url: designUrl,
+          fit: 'contain'
+        }
+      }],
+      export_options: {
+        image_format: 'png',
+        image_size: 1000,
+        mode: 'view'
+      }
+    };
+
+    // Add color if specified
+    if (color) {
+      renderPayload.smart_objects[0].color = color;
+    }
+
+    console.log('[DynamicMockups Simple] Rendering with payload:', JSON.stringify(renderPayload).substring(0, 300));
+
+    const renderResponse = await fetch(`${DYNAMIC_MOCKUPS_API_BASE}/renders`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(renderPayload),
+    });
+
+    if (!renderResponse.ok) {
+      const errorText = await renderResponse.text();
+      console.error('[DynamicMockups Simple] Render error:', errorText);
+      return NextResponse.json({ 
+        error: 'Failed to render mockup',
+        details: errorText 
+      }, { status: 500 });
+    }
+
+    const renderData = await renderResponse.json();
+    console.log('[DynamicMockups Simple] Success!');
+
+    return NextResponse.json({
+      success: true,
+      url: renderData.data?.export_path,
+      template: {
+        uuid: selectedTemplate.uuid,
+        name: selectedTemplate.name,
+        thumbnail: selectedTemplate.thumbnail
+      },
+      product_type,
+    });
+  } catch (err) {
+    console.error('[DynamicMockups Simple] Error:', err);
+    return NextResponse.json({ error: err.message || 'Failed to create mockup' }, { status: 500 });
+  }
+}
+
+
+
+
+// ============================================================
 // OPENAI REALTIME API - Voice Conversations
 // ============================================================
 
@@ -22637,6 +23186,14 @@ export async function GET(request, { params }) {
       const fileId = pathArr[3];
       return handleDriveGet(request, fileId);
     }
+    
+    // Dynamic Mockups API (GET routes)
+    if (pathStr === 'dynamic-mockups/templates') return handleDynamicMockupsTemplates(request);
+    if (pathStr === 'dynamic-mockups/collections') return handleDynamicMockupsCollections(request);
+    if (pathStr.match(/^dynamic-mockups\/templates\/[^\/]+$/)) {
+      const mockupUuid = pathArr[2];
+      return handleDynamicMockupsDetail(request, mockupUuid);
+    }
 
     return err('Not found', 404);
   } catch (error) {
@@ -22795,8 +23352,13 @@ export async function POST(request, { params }) {
     if (pathStr === 'google/calendar/events') return handleCalendarCreate(request);
     if (pathStr === 'google/drive/search') return handleDriveSearch(request);
     
-    // Mockup generation
+    // Mockup generation (DALL-E based)
     if (pathStr === 'mockup/generate') return handleMockupGenerate(request);
+    
+    // Dynamic Mockups API (Professional PSD mockups)
+    if (pathStr === 'dynamic-mockups/render') return handleDynamicMockupsRender(request);
+    if (pathStr === 'dynamic-mockups/bulk-render') return handleDynamicMockupsBulkRender(request);
+    if (pathStr === 'dynamic-mockups/simple') return handleDynamicMockupsSimple(request);
 
     return err('Not found', 404);
   } catch (error) {
