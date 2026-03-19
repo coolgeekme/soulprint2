@@ -2558,9 +2558,20 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   console.log('[ImageEdit Internal] Starting in-place edit:', editInstruction.substring(0, 100));
   
   // Get image as base64 or URL
-  const mimeType = image.mimeType || 'image/png';
+  let mimeType = image.mimeType || 'image/png';
   let imageBase64 = image.base64;
   let imageUrl = image.url;
+  
+  // Handle case where base64 includes data URL prefix
+  if (imageBase64 && imageBase64.startsWith('data:')) {
+    const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      mimeType = match[1];
+      imageBase64 = match[2];
+    }
+  }
+  
+  console.log('[ImageEdit Internal] Image info - base64 length:', imageBase64?.length || 0, 'url:', imageUrl?.substring(0, 50) || 'none');
   
   if (!imageBase64 && imageUrl) {
     try {
@@ -2568,81 +2579,106 @@ async function handleImageEditInternal(userId, image, editInstruction) {
       if (!imgResponse.ok) throw new Error('Failed to fetch image');
       const imgBuffer = await imgResponse.arrayBuffer();
       imageBase64 = Buffer.from(imgBuffer).toString('base64');
+      // Try to get mime type from response
+      const contentType = imgResponse.headers.get('content-type');
+      if (contentType) mimeType = contentType;
     } catch (err) {
       console.error('[ImageEdit Internal] Failed to fetch image:', err);
       return { success: false, error: 'Failed to fetch original image' };
     }
   }
   
+  if (!imageBase64) {
+    return { success: false, error: 'No image data provided' };
+  }
+  
   // Create data URL for the image
-  const imageDataUrl = imageBase64 
-    ? `data:${mimeType};base64,${imageBase64}`
-    : imageUrl;
+  const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
   
   // METHOD 1: Try Kie.ai first (cost-effective, true inpainting support)
   const kieApiKey = process.env.KIE_API_KEY;
   if (kieApiKey) {
     try {
-      console.log('[ImageEdit Internal] Attempting Kie.ai Qwen Image Edit');
+      console.log('[ImageEdit Internal] Attempting Kie.ai Image Edit');
       
       // For Kie.ai, we need to upload the image first if it's base64
-      // Or use the URL directly if available
+      // Kie.ai doesn't accept data URLs, so we must upload to their temp storage
       let kieImageUrl = imageUrl;
       
       if (!kieImageUrl && imageBase64) {
-        // Upload the image to a temporary location first
-        // For now, we'll use the data URL directly (some endpoints support it)
-        kieImageUrl = imageDataUrl;
+        // Upload the base64 image to Kie.ai temporary storage (expires in 3 days)
+        console.log('[ImageEdit Internal] Uploading image to Kie.ai temp storage...');
+        try {
+          const uploadResponse = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${kieApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              base64Data: imageBase64,
+              fileName: `edit_${Date.now()}.${mimeType.split('/')[1] || 'png'}`,
+              uploadPath: 'image-edit'
+            }),
+          });
+          
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json();
+            if (uploadData.success && uploadData.data?.downloadUrl) {
+              kieImageUrl = uploadData.data.downloadUrl;
+              console.log('[ImageEdit Internal] Image uploaded to:', kieImageUrl);
+            }
+          } else {
+            console.log('[ImageEdit Internal] Failed to upload image to Kie.ai storage');
+          }
+        } catch (uploadErr) {
+          console.log('[ImageEdit Internal] Upload error:', uploadErr.message);
+        }
       }
       
-      // Use Kie.ai's unified createTask endpoint with qwen/image-edit model
-      const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${kieApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'qwen/image-edit',
-          input: {
-            prompt: editInstruction,
-            image_url: kieImageUrl,
-            acceleration: 'regular',
-            num_inference_steps: 30,
-            guidance_scale: 4,
-            enable_safety_checker: false, // Disable to avoid false positives like "remove headband"
-            output_format: 'png',
-          }
-        }),
-      });
-      
-      if (kieResponse.ok) {
-        const kieData = await kieResponse.json();
-        console.log('[ImageEdit Internal] Kie.ai response:', JSON.stringify(kieData).substring(0, 300));
+      // Only proceed with Kie.ai if we have a proper URL (not data URL)
+      if (kieImageUrl && !kieImageUrl.startsWith('data:')) {
+        // Try qwen/image-edit first (best for semantic edits)
+        console.log('[ImageEdit Internal] Trying Kie.ai qwen/image-edit');
+        const kieResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${kieApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'qwen/image-edit',
+            input: {
+              prompt: editInstruction,
+              image_url: kieImageUrl,
+            }
+          }),
+        });
         
-        // Kie.ai returns taskId for async processing
-        if (kieData.code === 200 && kieData.data?.taskId) {
-          const result = await pollKieTaskResult(kieApiKey, kieData.data.taskId, 90000); // 90s timeout for image edit
-          if (result.success && result.url) {
-            console.log('[ImageEdit Internal] Successfully edited image with Kie.ai Qwen');
-            return {
-              success: true,
-              url: result.url,
-              edit: editInstruction,
-              method: 'kie-qwen-image-edit'
-            };
-          } else if (result.error) {
-            console.log('[ImageEdit Internal] Kie.ai task failed:', result.error);
+        if (kieResponse.ok) {
+          const kieData = await kieResponse.json();
+          console.log('[ImageEdit Internal] Kie.ai qwen response:', JSON.stringify(kieData).substring(0, 200));
+          
+          if (kieData.code === 200 && kieData.data?.taskId) {
+            const result = await pollKieTaskResult(kieApiKey, kieData.data.taskId, 90000);
+            if (result.success && result.url) {
+              console.log('[ImageEdit Internal] Successfully edited image with Kie.ai qwen/image-edit');
+              return {
+                success: true,
+                url: result.url,
+                edit: editInstruction,
+                method: 'kie-qwen-image-edit'
+              };
+            } else if (result.error) {
+              console.log('[ImageEdit Internal] Kie.ai qwen task failed:', result.error);
+            }
+          } else {
+            console.log('[ImageEdit Internal] Kie.ai qwen error:', kieData.msg || kieData.code);
           }
-        } else {
-          console.log('[ImageEdit Internal] Kie.ai error response:', kieData.msg || kieData.code);
         }
-      } else {
-        const err = await kieResponse.json().catch(() => ({}));
-        console.log('[ImageEdit Internal] Kie.ai request failed:', err.msg || err.message || kieResponse.status);
         
-        // Try Google Nano Banana Edit as alternative
-        console.log('[ImageEdit Internal] Trying Kie.ai Nano Banana Edit');
+        // Try google/nano-banana as fallback (good for style/appearance edits)
+        console.log('[ImageEdit Internal] Trying Kie.ai google/nano-banana for editing');
         const nanoBananaResponse = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
           method: 'POST',
           headers: {
@@ -2650,9 +2686,9 @@ async function handleImageEditInternal(userId, image, editInstruction) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/nano-banana-edit',
+            model: 'google/nano-banana',
             input: {
-              prompt: editInstruction,
+              prompt: `Edit this image: ${editInstruction}. Keep everything else exactly the same.`,
               image_url: kieImageUrl,
             }
           }),
@@ -2663,7 +2699,7 @@ async function handleImageEditInternal(userId, image, editInstruction) {
           if (nbData.code === 200 && nbData.data?.taskId) {
             const result = await pollKieTaskResult(kieApiKey, nbData.data.taskId, 90000);
             if (result.success && result.url) {
-              console.log('[ImageEdit Internal] Successfully edited image with Kie.ai Nano Banana');
+              console.log('[ImageEdit Internal] Successfully edited image with Kie.ai nano-banana');
               return {
                 success: true,
                 url: result.url,
@@ -2673,13 +2709,15 @@ async function handleImageEditInternal(userId, image, editInstruction) {
             }
           }
         }
+      } else {
+        console.log('[ImageEdit Internal] Skipping Kie.ai - no valid URL available');
       }
     } catch (kieErr) {
       console.log('[ImageEdit Internal] Kie.ai error:', kieErr.message);
     }
   }
   
-  // METHOD 2: Fall back to OpenAI (DALL-E 3 regeneration)
+  // METHOD 2: Fall back to OpenAI (gpt-image-1 or DALL-E 3)
   const openaiApiKey = process.env.OPENAI_API_KEY;
   if (!openaiApiKey) {
     return { success: false, error: 'No image editing API available' };
@@ -2689,63 +2727,55 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   const safeEditInstruction = reformulateForSafety(editInstruction);
   console.log('[ImageEdit Internal] Falling back to OpenAI with safe instruction:', safeEditInstruction);
   
-  // Method 1: Try the new Responses API with gpt-4.1 (best for editing)
+  // Method 1: Try gpt-image-1 with the images/edit endpoint (newer API)
   try {
-    console.log('[ImageEdit Internal] Attempting Responses API with gpt-4.1');
-    const responsesApiResponse = await fetch('https://api.openai.com/v1/responses', {
+    console.log('[ImageEdit Internal] Attempting gpt-image-1 images/edit API');
+    
+    // Use the new images array format with image_url objects
+    const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4.1',
-        input: [
-          {
-            role: 'user',
-            content: [
-              { type: 'input_text', text: `${safeEditInstruction}. Maintain the same person, pose, background, and lighting - only apply the requested modification.` },
-              { type: 'input_image', image_url: imageDataUrl }
-            ]
-          }
+        model: 'gpt-image-1',
+        prompt: `${safeEditInstruction}. Maintain all other details exactly as they are.`,
+        images: [
+          { image_url: imageDataUrl }
         ],
-        tools: [{ type: 'image_generation', input_fidelity: 'high', action: 'edit' }],
+        response_format: 'b64_json',
+        size: '1024x1024',
       }),
     });
     
-    if (responsesApiResponse.ok) {
-      const responsesData = await responsesApiResponse.json();
-      console.log('[ImageEdit Internal] Responses API success, output types:', 
-        responsesData.output?.map(o => o.type).join(', '));
-      
-      // Find the image generation result
-      const imageOutput = responsesData.output?.find(o => o.type === 'image_generation_call');
-      if (imageOutput?.result) {
-        // Result is base64 encoded image
-        const editedImageBase64 = imageOutput.result;
+    if (editResponse.ok) {
+      const editData = await editResponse.json();
+      if (editData.data?.[0]?.b64_json) {
+        const editedImageBase64 = editData.data[0].b64_json;
         const editedImageUrl = `data:image/png;base64,${editedImageBase64}`;
-        console.log('[ImageEdit Internal] Successfully edited image with Responses API');
+        console.log('[ImageEdit Internal] Successfully edited image with gpt-image-1');
         return {
           success: true,
           url: editedImageUrl,
           base64: editedImageBase64,
           edit: editInstruction,
-          method: 'responses-api-gpt-4.1'
+          method: 'gpt-image-1-edit'
         };
       }
     } else {
-      const err = await responsesApiResponse.json().catch(() => ({}));
-      console.log('[ImageEdit Internal] Responses API failed:', err.error?.message || 'Unknown error');
+      const err = await editResponse.json().catch(() => ({}));
+      console.log('[ImageEdit Internal] gpt-image-1 edit failed:', err.error?.message || 'Unknown error');
     }
-  } catch (responsesErr) {
-    console.log('[ImageEdit Internal] Responses API error:', responsesErr.message);
+  } catch (editErr) {
+    console.log('[ImageEdit Internal] gpt-image-1 edit error:', editErr.message);
   }
   
-  // Method 2: Try gpt-image-1 with the images/edits endpoint
+  // Method 2: Try images/edits with FormData (DALL-E 2 compatible endpoint)
   try {
-    console.log('[ImageEdit Internal] Attempting images/edits API');
+    console.log('[ImageEdit Internal] Attempting images/edits API with FormData');
     
-    // Need to send as FormData for the edits endpoint
+    // Need to send as FormData for this endpoint
     const formData = new FormData();
     
     // Convert base64 to blob for upload
@@ -2759,6 +2789,7 @@ async function handleImageEditInternal(userId, image, editInstruction) {
     formData.append('prompt', `${safeEditInstruction}. Maintain all other details exactly as they are.`);
     formData.append('model', 'gpt-image-1');
     formData.append('size', '1024x1024');
+    formData.append('response_format', 'b64_json');
     
     const editsResponse = await fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
@@ -2772,24 +2803,25 @@ async function handleImageEditInternal(userId, image, editInstruction) {
       const editsData = await editsResponse.json();
       if (editsData.data?.[0]) {
         const result = editsData.data[0];
-        const editedUrl = result.url || (result.b64_json ? `data:image/png;base64,${result.b64_json}` : null);
+        const editedBase64 = result.b64_json;
+        const editedUrl = result.url || (editedBase64 ? `data:image/png;base64,${editedBase64}` : null);
         if (editedUrl) {
-          console.log('[ImageEdit Internal] Successfully edited image with images/edits API');
+          console.log('[ImageEdit Internal] Successfully edited image with images/edits FormData API');
           return {
             success: true,
             url: editedUrl,
-            base64: result.b64_json,
+            base64: editedBase64,
             edit: editInstruction,
-            method: 'images-edits-gpt-image-1'
+            method: 'images-edits-formdata'
           };
         }
       }
     } else {
       const err = await editsResponse.json().catch(() => ({}));
-      console.log('[ImageEdit Internal] images/edits API failed:', err.error?.message || 'Unknown error');
+      console.log('[ImageEdit Internal] images/edits FormData failed:', err.error?.message || 'Unknown error');
     }
   } catch (editsErr) {
-    console.log('[ImageEdit Internal] images/edits API error:', editsErr.message);
+    console.log('[ImageEdit Internal] images/edits FormData error:', editsErr.message);
   }
   
   // Method 3: Fallback to GPT-4o analysis + DALL-E 3 regeneration
@@ -7646,7 +7678,13 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           if (imageAttachment && imageAttachment.base64) {
             send({ type: 'delta', content: '✨ Editing your image...\n\n' });
             try {
-              const editResult = await handleImageEditInternal(user.id, imageAttachment.base64, sanitizedContent);
+              // Pass image object with base64 and mimeType properties
+              const imageObject = {
+                base64: imageAttachment.base64,
+                mimeType: imageAttachment.mimeType || 'image/png',
+                url: imageAttachment.url
+              };
+              const editResult = await handleImageEditInternal(user.id, imageObject, sanitizedContent);
               
               if (editResult.success && editResult.url) {
                 fullContent = `![Edited Image](${editResult.url})\n\n✨ *Your image has been edited!*\n\n**Edit applied:** ${sanitizedContent}`;
