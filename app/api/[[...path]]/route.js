@@ -4140,21 +4140,18 @@ CLASSIFY THE INTENT - What does the user want?
    - "Animate this" (with image attached)
    - "Turn this into a video"
 
-3. **image_edit** - User wants to MODIFY an EXISTING image (requires attached image). Examples:
-   - "Remove the background" (with image)
-   - "Change the color to blue" (with image)
-   - "Add a hat to the person" (with image)
-   - "Make it look more vintage" (with image)
+3. **image_edit** - User wants to MODIFY/EDIT an EXISTING image. This includes:
+   - With attached image: "Remove the background", "Change the color", "Add a hat"
+   - For previous generated image: "make it more realistic", "make it look like a photograph", "edit it to be more natural", "change the style to photorealistic", "make it look more professional"
+   - Any request to CHANGE HOW THE IMAGE LOOKS (not just regenerate with settings)
 
-4. **image_regen** - User wants to REGENERATE the last image with different settings (requires recent image). Examples:
-   - "make it wider" / "make it landscape" / "try landscape"
-   - "make it portrait" / "make it vertical" / "try portrait"
-   - "make it square"
-   - "try natural style" / "more natural" / "less vivid"
-   - "try vivid style" / "more colorful" / "more vibrant"
-   - "try again" / "regenerate" / "another version"
-   - "make it bigger" / "make it smaller"
-   - These ONLY apply if there's a recent image in conversation!
+4. **image_regen** - User wants to REGENERATE the last image with DIFFERENT TECHNICAL SETTINGS (aspect ratio, style preset). Examples:
+   - "make it wider" / "make it landscape" / "try landscape" (changes aspect ratio)
+   - "make it portrait" / "make it vertical" / "try portrait" (changes aspect ratio)
+   - "make it square" (changes aspect ratio)
+   - "try natural style" / "try vivid style" (changes DALL-E style preset only)
+   - "try again" / "regenerate" / "another version" (same settings, new generation)
+   - NOTE: "make it more realistic" is image_edit, NOT image_regen!
 
 5. **video_regen** - User wants to REGENERATE the last video with different settings (requires recent video). Examples:
    - "make it longer" / "try 10 seconds"
@@ -4176,9 +4173,12 @@ IMPORTANT RULES:
 - If user is discussing features or making lists, return "text"
 - If user attached an image and wants to modify it, return "image_edit"
 - If user attached an image and wants to animate it, return "video"
+- If user wants to CHANGE THE APPEARANCE/STYLE of a previous image (make it realistic, photographic, vintage, etc.), return "image_edit"
+- If user wants to CHANGE TECHNICAL SETTINGS (aspect ratio, size, style preset), return "image_regen"
 - When in doubt, prefer "text" - only classify as media if intent is clear
 - Short confirmations ("yes", "do it", "create it") after discussing visual content = "image" or "video"
-- Adjustment requests ("make it wider", "try natural") ONLY work if recent media exists in conversation
+- "make it more realistic/photographic" = image_edit (NOT image_regen)
+- "make it wider/portrait/square" = image_regen (changes aspect ratio)
 
 Respond with ONLY a JSON object:
 {"intent": "text|image|video|image_edit|image_regen|video_regen", "confidence": "high|medium|low", "reason": "brief explanation", "settings": {"aspectRatio": "1:1|16:9|9:16", "style": "vivid|natural", "duration": 5|10}}`;
@@ -4256,6 +4256,18 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
     if (/\b(?:animate|animation|motion|moving|video)\b/i.test(lower)) {
       return { intent: 'video', confidence: 'high', reason: 'Animate attached image' };
     }
+  }
+  
+  // Conversational image edit patterns (edit previous image without attachment)
+  // These should trigger image_edit, not image_regen
+  const conversationalEditPatterns = [
+    /\b(?:make\s+it|make\s+the\s+image)\s+(?:more\s+)?(?:realistic|photorealistic|photograph|photo[-\s]?like|natural[-\s]?looking)\b/i,
+    /\b(?:edit|modify)\s+(?:the|that|it)\s+(?:to\s+)?(?:be|look)\s+/i,
+    /\b(?:change|transform)\s+(?:the|that|it)\s+(?:to\s+)?(?:look\s+)?(?:like|into)\s+/i,
+    /\b(?:make\s+it\s+look\s+like|convert\s+it\s+to)\s+(?:a\s+)?(?:photograph|photo|real)/i,
+  ];
+  if (conversationalEditPatterns.some(p => p.test(lower))) {
+    return { intent: 'image_edit', confidence: 'high', reason: 'Edit previous image to change appearance' };
   }
   
   return null; // No quick match, needs full AI classification
@@ -7673,21 +7685,60 @@ Style: Professional graphic design quality. Make it look like a skilled designer
         }
 
         // ── Handle image editing (Dynamic Intelligence detected image_edit intent) ───────────────────────────────────────
-        if (mediaIntent === 'image_edit' && hasImageAttachment) {
-          const imageAttachment = attachments.find(a => a.type === 'image');
-          if (imageAttachment && imageAttachment.base64) {
-            send({ type: 'delta', content: '✨ Editing your image...\n\n' });
-            try {
-              // Pass image object with base64 and mimeType properties
-              const imageObject = {
+        if (mediaIntent === 'image_edit') {
+          let imageToEdit = null;
+          
+          // First check if user attached an image
+          if (hasImageAttachment) {
+            const imageAttachment = attachments.find(a => a.type === 'image');
+            if (imageAttachment && imageAttachment.base64) {
+              imageToEdit = {
                 base64: imageAttachment.base64,
                 mimeType: imageAttachment.mimeType || 'image/png',
                 url: imageAttachment.url
               };
-              const editResult = await handleImageEditInternal(user.id, imageObject, sanitizedContent);
+            }
+          }
+          
+          // If no attached image, find the last generated image in the conversation
+          if (!imageToEdit) {
+            const recentImageMessages = await db.collection('messages')
+              .find({ 
+                conversation_id: convId, 
+                content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit'] },
+                $or: [
+                  { 'content': { $regex: /!\[.*\]\(https?:\/\// } },  // Has image markdown
+                  { 'image_url': { $exists: true, $ne: null } }
+                ]
+              })
+              .sort({ created_at: -1 })
+              .limit(1)
+              .toArray();
+            
+            if (recentImageMessages.length > 0) {
+              const lastImageMsg = recentImageMessages[0];
+              // Extract the image URL from the message
+              let imageUrl = lastImageMsg.image_url;
+              if (!imageUrl) {
+                // Try to extract from markdown content
+                const urlMatch = lastImageMsg.content?.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
+                if (urlMatch) imageUrl = urlMatch[1];
+              }
+              
+              if (imageUrl) {
+                console.log('[Image Edit] Found previous image to edit:', imageUrl.substring(0, 80));
+                imageToEdit = { url: imageUrl };
+              }
+            }
+          }
+          
+          if (imageToEdit) {
+            send({ type: 'delta', content: '✨ Editing the image...\n\n' });
+            try {
+              const editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent);
               
               if (editResult.success && editResult.url) {
-                fullContent = `![Edited Image](${editResult.url})\n\n✨ *Your image has been edited!*\n\n**Edit applied:** ${sanitizedContent}`;
+                fullContent = `![Edited Image](${editResult.url})\n\n✨ *Image edited!*\n\n**Edit applied:** ${sanitizedContent}`;
                 send({ type: 'image', url: editResult.url, contentType: 'image_edit', method: editResult.method });
                 send({ type: 'delta', content: fullContent });
               } else {
@@ -7695,7 +7746,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               }
             } catch (editErr) {
               console.error('[Image Edit] Exception:', editErr.message);
-              fullContent = `Sorry, I couldn't edit the image: ${editErr.message}\n\nWould you like me to try a different approach?`;
+              fullContent = `Sorry, I couldn't edit the image: ${editErr.message}\n\nWould you like me to try creating a new image instead?`;
               send({ type: 'delta', content: fullContent });
             }
             
@@ -7704,11 +7755,16 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               id: assistantMsgId, conversation_id: convId, user_id: user.id,
               role: 'assistant', content: fullContent, created_at: new Date(),
               model_used: 'gpt-image-1', provider_used: 'openai', content_type: 'image_edit',
+              image_url: editResult?.url,
             });
             await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
             send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
             controller.close();
             return;
+          } else {
+            // No image found to edit - inform user
+            send({ type: 'delta', content: "I don't see an image to edit in our conversation. Would you like me to create a new one? Just describe what you'd like to see!\n\n" });
+            // Fall through to regular chat
           }
         }
 
