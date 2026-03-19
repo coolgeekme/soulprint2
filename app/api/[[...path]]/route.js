@@ -7527,7 +7527,29 @@ async function handleChatStream(request) {
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
-      const send = (obj) => controller.enqueue(enc.encode(JSON.stringify(obj) + '\n'));
+      let isClosed = false;
+      
+      const send = (obj) => {
+        if (isClosed) return; // Don't send after controller is closed
+        try {
+          controller.enqueue(enc.encode(JSON.stringify(obj) + '\n'));
+        } catch (err) {
+          if (err.message?.includes('Controller is already closed')) {
+            isClosed = true;
+          }
+        }
+      };
+      
+      const closeStream = () => {
+        if (!isClosed) {
+          isClosed = true;
+          try {
+            closeStream();
+          } catch (err) {
+            // Already closed, ignore
+          }
+        }
+      };
 
       try {
         // Send meta first (include Dynamic Intelligence info if applicable)
@@ -7783,7 +7805,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           });
           await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
           send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-          controller.close();
+          closeStream();
           return;
         }
 
@@ -7863,7 +7885,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             });
             await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
             send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-            controller.close();
+            closeStream();
             return;
           } else {
             // No image found to edit - inform user
@@ -7951,7 +7973,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             });
             await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
             send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-            controller.close();
+            closeStream();
             return;
           } else {
             // No recent image found - fall through to regular chat
@@ -8205,7 +8227,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             }
           }
           send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-          controller.close();
+          closeStream();
           return;
         }
 
@@ -8244,7 +8266,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 });
                 await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
                 send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-                controller.close();
+                closeStream();
                 return;
               }
             } else {
@@ -8260,7 +8282,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 });
                 await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
                 send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-                controller.close();
+                closeStream();
                 return;
               }
               coords = { lat: geocoded.lat, lng: geocoded.lng };
@@ -8313,7 +8335,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           });
           await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
           send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-          controller.close();
+          closeStream();
           return;
         }
 
@@ -8617,10 +8639,10 @@ Style: Professional graphic design quality. Make it look like a skilled designer
         })();
 
         send({ type: 'done' });
-        controller.close();
+        closeStream();
       } catch (error) {
         send({ type: 'error', error: error.message });
-        controller.close();
+        closeStream();
       }
     },
   });
