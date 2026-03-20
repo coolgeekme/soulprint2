@@ -2553,9 +2553,9 @@ async function pollKieTaskResult(apiKey, taskId, timeoutMs = 60000) {
 }
 
 // Internal function for image editing (called from tool handler)
-// Prioritizes Kie.ai for cost-effective true inpainting, falls back to OpenAI
+// Priority: SeeDream v4 Edit → Flux Kontext → GPT-4o Vision + DALL-E 3
 async function handleImageEditInternal(userId, image, editInstruction) {
-  console.log('[ImageEdit] Starting edit with gpt-image-1 (ChatGPT-style):', editInstruction.substring(0, 100));
+  console.log('[ImageEdit] Starting edit:', editInstruction.substring(0, 100));
   
   // Get image as base64 or URL
   let mimeType = image.mimeType || 'image/png';
@@ -2571,9 +2571,40 @@ async function handleImageEditInternal(userId, image, editInstruction) {
     }
   }
   
-  console.log('[ImageEdit] Image info - base64 length:', imageBase64?.length || 0, 'url:', imageUrl?.substring(0, 50) || 'none');
+  console.log('[ImageEdit] Image info - base64 length:', imageBase64?.length || 0, 'url:', imageUrl?.substring(0, 80) || 'none');
   
-  // Fetch image from URL if needed
+  // We need a URL for Kie.ai APIs - if we only have base64, upload it first
+  const kieKey = process.env.KIE_API_KEY;
+  
+  if (!imageUrl && imageBase64 && kieKey) {
+    console.log('[ImageEdit] Uploading base64 image to get URL...');
+    try {
+      const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${kieKey}`
+        },
+        body: JSON.stringify({
+          base64Data: `data:${mimeType};base64,${imageBase64}`,
+          uploadPath: 'soulprint/source',
+          fileName: `source_${Date.now()}.png`
+        }),
+      });
+      
+      if (uploadRes.ok) {
+        const uploadData = await uploadRes.json();
+        if (uploadData.success && uploadData.data?.downloadUrl) {
+          imageUrl = uploadData.data.downloadUrl;
+          console.log('[ImageEdit] Uploaded source image to:', imageUrl);
+        }
+      }
+    } catch (uploadErr) {
+      console.log('[ImageEdit] Source upload failed:', uploadErr.message);
+    }
+  }
+  
+  // Fetch image from URL to get base64 if needed (for fallback methods)
   if (!imageBase64 && imageUrl) {
     console.log('[ImageEdit] Fetching image from URL:', imageUrl);
     try {
@@ -2592,223 +2623,192 @@ async function handleImageEditInternal(userId, image, editInstruction) {
     }
   }
   
-  if (!imageBase64) {
+  if (!imageBase64 && !imageUrl) {
     return { success: false, error: 'No image data provided' };
-  }
-  
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-  if (!openaiApiKey) {
-    return { success: false, error: 'OpenAI API key not configured' };
   }
   
   // Reformulate instruction for better results
   const safeEditInstruction = reformulateForSafety(editInstruction);
-  console.log('[ImageEdit] Using gpt-image-1 for text-based editing');
   
-  // METHOD 1: Use gpt-image-1 via Image API /images/edits endpoint (simpler, doesn't need Responses API)
-  try {
-    console.log('[ImageEdit] Attempting gpt-image-1 via /images/edits API');
-    
-    // Convert base64 to buffer for FormData upload
-    const imageBuffer = Buffer.from(imageBase64, 'base64');
-    const imageBlob = new Blob([imageBuffer], { type: mimeType });
-    
-    const formData = new FormData();
-    formData.append('image', imageBlob, 'image.png');
-    formData.append('prompt', safeEditInstruction);
-    formData.append('model', 'gpt-image-1');
-    formData.append('size', '1024x1024');
-    
-    const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
-      method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${openaiApiKey}`
-      },
-      body: formData
-    });
-    
-    if (editResponse.ok) {
-      const editData = await editResponse.json();
-      console.log('[ImageEdit] gpt-image-1 /images/edits response received');
-      
-      if (editData.data?.[0]) {
-        const result = editData.data[0];
-        const editedBase64 = result.b64_json;
-        
-        if (editedBase64) {
-          // Upload to temp storage to get a proper URL
-          let editedUrl = null;
-          const kieKey = process.env.KIE_API_KEY;
-          if (kieKey) {
-            try {
-              const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-                method: 'POST',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${kieKey}`
-                },
-                body: JSON.stringify({
-                  base64Data: `data:image/png;base64,${editedBase64}`,
-                  uploadPath: 'soulprint/edits',
-                  fileName: `edit_${Date.now()}.png`
-                }),
-              });
-              
-              if (uploadRes.ok) {
-                const uploadData = await uploadRes.json();
-                if (uploadData.success && uploadData.data?.downloadUrl) {
-                  editedUrl = uploadData.data.downloadUrl;
-                }
-              }
-            } catch (uploadErr) {
-              console.log('[ImageEdit] Upload failed:', uploadErr.message);
-            }
-          }
-          
-          if (!editedUrl) {
-            editedUrl = `data:image/png;base64,${editedBase64}`;
-          }
-          
-          console.log('[ImageEdit] Success with gpt-image-1!');
-          return {
-            success: true,
-            url: editedUrl,
-            base64: editedBase64,
-            edit: editInstruction,
-            method: 'gpt-image-1'
-          };
-        }
-      }
-    } else {
-      const err = await editResponse.json().catch(() => ({}));
-      console.log('[ImageEdit] gpt-image-1 /images/edits failed:', err.error?.message || JSON.stringify(err));
-    }
-  } catch (editErr) {
-    console.log('[ImageEdit] gpt-image-1 error:', editErr.message);
-  }
-  
-  // METHOD 2: Try dall-e-2 with images/edits endpoint (requires RGBA)
-  try {
-    console.log('[ImageEdit] Attempting dall-e-2 images/edits API');
-    console.log('[ImageEdit] Input base64 length:', imageBase64.length);
-    
-    // DALL-E 2 edit requires PNG with alpha channel (RGBA format)
-    // Convert the image to RGBA PNG using Sharp
-    let pngBuffer;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // METHOD 1: SeeDream v4 Edit (Primary - Best for preserving original image)
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (kieKey && imageUrl) {
     try {
-      const sharp = (await import('sharp')).default;
-      const inputBuffer = Buffer.from(imageBase64, 'base64');
-      console.log('[ImageEdit] Input buffer size:', inputBuffer.length);
+      console.log('[ImageEdit] METHOD 1: Attempting SeeDream v4 Edit via Kie.ai');
       
-      // Convert to PNG with alpha channel
-      pngBuffer = await sharp(inputBuffer)
-        .ensureAlpha()  // Add alpha channel if not present
-        .png()
-        .toBuffer();
+      // Create task for SeeDream v4 Edit
+      const createTaskRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${kieKey}`
+        },
+        body: JSON.stringify({
+          model: 'seedream-v4-edit',
+          prompt: safeEditInstruction,
+          image_urls: [imageUrl],
+          image_size: 'square_hd',
+          image_resolution: '2K',
+          nsfw_checker: false
+        })
+      });
       
-      console.log('[ImageEdit] Converted to RGBA PNG, size:', pngBuffer.length);
-    } catch (sharpErr) {
-      console.log('[ImageEdit] Sharp conversion failed:', sharpErr.message);
-      throw new Error(`Image conversion failed: ${sharpErr.message}`);
-    }
-    
-    // Create blob from the RGBA PNG
-    const imageBlob = new Blob([pngBuffer], { type: 'image/png' });
-    console.log('[ImageEdit] Created blob, size:', imageBlob.size);
-    
-    const formData = new FormData();
-    formData.append('image', imageBlob, 'image.png');
-    formData.append('prompt', `${safeEditInstruction}. Maintain all other details exactly as they are.`);
-    formData.append('model', 'dall-e-2');
-    formData.append('size', '1024x1024');
-    formData.append('response_format', 'b64_json');
-    
-    const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${openaiApiKey}` },
-      body: formData,
-    });
-    
-    if (editResponse.ok) {
-      const editData = await editResponse.json();
-      if (editData.data?.[0]) {
-        const result = editData.data[0];
-        const editedBase64 = result.b64_json;
+      if (createTaskRes.ok) {
+        const taskData = await createTaskRes.json();
+        const taskId = taskData.data?.taskId || taskData.taskId;
         
-        if (editedBase64) {
-          console.log('[ImageEdit] DALL-E 2 returned base64, uploading to get URL...');
+        if (taskId) {
+          console.log('[ImageEdit] SeeDream task created:', taskId);
           
-          // Upload to temp storage to get a proper URL
-          let editedUrl = null;
-          const kieKey = process.env.KIE_API_KEY;
-          if (kieKey) {
-            try {
-              const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-                method: 'POST',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${kieKey}`
-                },
-                body: JSON.stringify({
-                  base64Data: `data:image/png;base64,${editedBase64}`,
-                  uploadPath: 'soulprint/edits',
-                  fileName: `edit_${Date.now()}.png`
-                }),
-              });
+          // Poll for result (max 60 seconds)
+          const startTime = Date.now();
+          const maxWaitTime = 60000;
+          
+          while (Date.now() - startTime < maxWaitTime) {
+            await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds between polls
+            
+            const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+              headers: { 'Authorization': `Bearer ${kieKey}` }
+            });
+            
+            if (statusRes.ok) {
+              const statusData = await statusRes.json();
+              const status = statusData.data?.status || statusData.status;
               
-              if (uploadRes.ok) {
-                const uploadData = await uploadRes.json();
-                if (uploadData.success && uploadData.data?.downloadUrl) {
-                  editedUrl = uploadData.data.downloadUrl;
-                  console.log('[ImageEdit] Uploaded edited image to:', editedUrl);
+              console.log('[ImageEdit] SeeDream status:', status);
+              
+              if (status === 'completed' || status === 'success') {
+                const resultUrl = statusData.data?.resultUrl || 
+                                  statusData.data?.images?.[0] || 
+                                  statusData.data?.output?.[0]?.url ||
+                                  statusData.resultUrl;
+                
+                if (resultUrl) {
+                  console.log('[ImageEdit] SUCCESS with SeeDream v4 Edit!');
+                  return {
+                    success: true,
+                    url: resultUrl,
+                    edit: editInstruction,
+                    method: 'seedream-v4-edit'
+                  };
                 }
+              } else if (status === 'failed' || status === 'error') {
+                console.log('[ImageEdit] SeeDream task failed:', statusData.data?.error || 'Unknown error');
+                break;
               }
-            } catch (uploadErr) {
-              console.log('[ImageEdit] Upload failed:', uploadErr.message);
+              // Continue polling if still processing
             }
           }
-          
-          // Fallback to data URL if upload failed
-          if (!editedUrl) {
-            editedUrl = `data:image/png;base64,${editedBase64}`;
-            console.log('[ImageEdit] Using data URL (length:', editedUrl.length, ')');
-          }
-          
-          console.log('[ImageEdit] Success with dall-e-2!');
-          return {
-            success: true,
-            url: editedUrl,
-            base64: editedBase64,
-            edit: editInstruction,
-            method: 'dall-e-2'
-          };
+          console.log('[ImageEdit] SeeDream polling timeout or failed');
         }
+      } else {
+        const err = await createTaskRes.json().catch(() => ({}));
+        console.log('[ImageEdit] SeeDream createTask failed:', err.message || JSON.stringify(err));
       }
-    } else {
-      const err = await editResponse.json().catch(() => ({}));
-      console.log('[ImageEdit] dall-e-2 failed:', err.error?.message || 'Unknown error');
+    } catch (seedreamErr) {
+      console.log('[ImageEdit] SeeDream error:', seedreamErr.message);
     }
-  } catch (editErr) {
-    console.log('[ImageEdit] dall-e-2 error:', editErr.message);
   }
   
-  // METHOD 2: Fall back to DALL-E 3 via GPT-4o Vision analysis + regeneration
-  try {
-    console.log('[ImageEdit] Falling back to GPT-4o Vision + DALL-E 3');
-    
-    const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
-    
-    // Use GPT-4o Vision to analyze and create an edit prompt that PRESERVES the original
-    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: imageDataUrl, detail: 'high' } },
-            { type: 'text', text: `You must recreate this EXACT image with ONE modification: "${safeEditInstruction}"
+  // ═══════════════════════════════════════════════════════════════════════════
+  // METHOD 2: Flux Kontext (Fallback 1 - Also good for preserving original)
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (kieKey && imageUrl) {
+    try {
+      console.log('[ImageEdit] METHOD 2: Attempting Flux Kontext via Kie.ai');
+      
+      const createTaskRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${kieKey}`
+        },
+        body: JSON.stringify({
+          model: 'flux-kontext-pro',
+          prompt: safeEditInstruction,
+          image_url: imageUrl,
+          aspect_ratio: '1:1'
+        })
+      });
+      
+      if (createTaskRes.ok) {
+        const taskData = await createTaskRes.json();
+        const taskId = taskData.data?.taskId || taskData.taskId;
+        
+        if (taskId) {
+          console.log('[ImageEdit] Flux Kontext task created:', taskId);
+          
+          // Poll for result (max 60 seconds)
+          const startTime = Date.now();
+          const maxWaitTime = 60000;
+          
+          while (Date.now() - startTime < maxWaitTime) {
+            await new Promise(r => setTimeout(r, 2000));
+            
+            const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+              headers: { 'Authorization': `Bearer ${kieKey}` }
+            });
+            
+            if (statusRes.ok) {
+              const statusData = await statusRes.json();
+              const status = statusData.data?.status || statusData.status;
+              
+              console.log('[ImageEdit] Flux Kontext status:', status);
+              
+              if (status === 'completed' || status === 'success') {
+                const resultUrl = statusData.data?.resultUrl || 
+                                  statusData.data?.images?.[0] || 
+                                  statusData.data?.output?.[0]?.url ||
+                                  statusData.resultUrl;
+                
+                if (resultUrl) {
+                  console.log('[ImageEdit] SUCCESS with Flux Kontext!');
+                  return {
+                    success: true,
+                    url: resultUrl,
+                    edit: editInstruction,
+                    method: 'flux-kontext-pro'
+                  };
+                }
+              } else if (status === 'failed' || status === 'error') {
+                console.log('[ImageEdit] Flux Kontext task failed');
+                break;
+              }
+            }
+          }
+          console.log('[ImageEdit] Flux Kontext polling timeout or failed');
+        }
+      } else {
+        const err = await createTaskRes.json().catch(() => ({}));
+        console.log('[ImageEdit] Flux Kontext createTask failed:', err.message || JSON.stringify(err));
+      }
+    } catch (fluxErr) {
+      console.log('[ImageEdit] Flux Kontext error:', fluxErr.message);
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // METHOD 3: GPT-4o Vision + DALL-E 3 (Fallback 2 - Recreates image with edit)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  if (openaiApiKey && imageBase64) {
+    try {
+      console.log('[ImageEdit] METHOD 3: Falling back to GPT-4o Vision + DALL-E 3');
+      
+      const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
+      
+      // Use GPT-4o Vision to analyze and create an edit prompt that PRESERVES the original
+      const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: imageDataUrl, detail: 'high' } },
+              { type: 'text', text: `You must recreate this EXACT image with ONE modification: "${safeEditInstruction}"
 
 CRITICAL: The output must be the SAME image with only that one change. Preserve EVERYTHING else:
 
@@ -2829,52 +2829,55 @@ Describe the image with EXTREME precision:
 Then write a DALL-E prompt that recreates this EXACT scene with the modification applied.
 
 Output ONLY the DALL-E prompt. No explanations. The prompt must recreate the IDENTICAL composition.` }
-          ]
-        }],
-        max_tokens: 1000,
-        temperature: 0.2,
-      }),
-    });
-    
-    if (!analysisResponse.ok) throw new Error('Vision analysis failed');
-    
-    const analysisData = await analysisResponse.json();
-    const editPrompt = analysisData.choices?.[0]?.message?.content;
-    
-    if (editPrompt) {
-      // Generate with DALL-E 3
-      const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'dall-e-3',
-          prompt: editPrompt,
-          n: 1,
-          size: '1024x1024',
-          quality: 'hd',
-          style: 'natural',
+            ]
+          }],
+          max_tokens: 1000,
+          temperature: 0.2,
         }),
       });
       
-      if (generateResponse.ok) {
-        const generateData = await generateResponse.json();
-        const resultUrl = generateData.data?.[0]?.url;
-        if (resultUrl) {
-          console.log('[ImageEdit] Success with GPT-4o + DALL-E 3 fallback!');
-          return {
-            success: true,
-            url: resultUrl,
-            edit: editInstruction,
-            method: 'dall-e-3-vision'
-          };
+      if (!analysisResponse.ok) throw new Error('Vision analysis failed');
+      
+      const analysisData = await analysisResponse.json();
+      const editPrompt = analysisData.choices?.[0]?.message?.content;
+      
+      if (editPrompt) {
+        console.log('[ImageEdit] GPT-4o analysis complete, generating with DALL-E 3...');
+        
+        // Generate with DALL-E 3
+        const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'dall-e-3',
+            prompt: editPrompt,
+            n: 1,
+            size: '1024x1024',
+            quality: 'hd',
+            style: 'natural',
+          }),
+        });
+        
+        if (generateResponse.ok) {
+          const generateData = await generateResponse.json();
+          const resultUrl = generateData.data?.[0]?.url;
+          if (resultUrl) {
+            console.log('[ImageEdit] SUCCESS with GPT-4o + DALL-E 3!');
+            return {
+              success: true,
+              url: resultUrl,
+              edit: editInstruction,
+              method: 'gpt4o-dalle3'
+            };
+          }
         }
       }
+    } catch (fallbackErr) {
+      console.log('[ImageEdit] GPT-4o + DALL-E 3 error:', fallbackErr.message);
     }
-  } catch (fallbackErr) {
-    console.log('[ImageEdit] Fallback error:', fallbackErr.message);
   }
   
-  return { success: false, error: 'Image editing failed with all methods' };
+  return { success: false, error: 'Image editing failed with all methods (SeeDream, Flux Kontext, GPT-4o+DALL-E 3)' };
 }
 
 // Internal function for mockup generation (called from tool handler)
@@ -8258,7 +8261,13 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent);
                 
                 if (editResult.success && editResult.url) {
-                  const methodLabel = { 'dall-e-2': 'DALL-E 2', 'dall-e-3-vision': 'DALL-E 3' }[editResult.method] || editResult.method;
+                  const methodLabel = { 
+                    'seedream-v4-edit': 'SeeDream v4', 
+                    'flux-kontext-pro': 'Flux Kontext',
+                    'gpt4o-dalle3': 'DALL-E 3',
+                    'dall-e-2': 'DALL-E 2', 
+                    'dall-e-3-vision': 'DALL-E 3' 
+                  }[editResult.method] || editResult.method;
                   fullContent = `![Edited Image](${editResult.url})\n\n✨ *Image edited with ${methodLabel}!*\n\n**Edit applied:** ${sanitizedContent}`;
                   send({ type: 'image', url: editResult.url, contentType: 'image_edit', method: editResult.method });
                   send({ type: 'delta', content: fullContent });
