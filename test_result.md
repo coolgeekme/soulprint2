@@ -1714,13 +1714,40 @@ agent_communication:
         agent: "testing"
         comment: "✅ FRONTEND UI TESTING COMPLETE: Successfully verified API modularization works correctly in the frontend UI as requested in review. (1) ✅ Landing Page: Loads correctly with proper branding, navigation, and responsive design. (2) ✅ Login Flow: Auth page accessible at /auth with proper form fields, credentials processing, and Google OAuth integration visible. (3) ✅ Authentication Security: Both /admin and /chat pages properly redirect to authentication when not logged in, confirming security is working. (4) ✅ Google Integration: 'Continue with Google' button prominently displayed, ready for OAuth flow with correct callback URL structure. (5) ✅ No 404 Errors: All modular API routes accessible without routing failures during UI navigation. (6) ✅ Frontend Integration: Application loads smoothly with proper responsive design across all tested pages. The API modularization changes are fully functional in the UI - all expected pages load correctly, authentication flows properly, and the frontend successfully integrates with the refactored modular API structure."
 
+backend:
+  - task: "Admin User Details API (GET /api/admin/users/:userId)"
+    implemented: true
+    working: true
+    file: "app/api/admin/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented admin user details endpoint in modular admin route. Returns comprehensive user data including profile, stats, conversations, memories, assessment answers, imports, media, integrations, feedback, and soul profile."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Admin User Details API working perfectly! GET /api/admin/users/{userId} endpoint successfully tested with real user ID (f5ebfb9e-183f-4686-867e-9adcb0abee89). (1) ✅ Authentication: Requires admin/superadmin role - returns 403 for unauthorized users, 401 without token. (2) ✅ Complete Data Structure: Returns all expected sections (user, profile, stats, conversations, memories, assessment, imports, media, integrations, feedback, soul_profile). (3) ✅ User Info: Correctly shows user email (test@soulprint.com), role (superadmin), auth provider (legacy), created/last active timestamps. (4) ✅ Profile Data: Returns profile fields (display_name, assistant_name, onboarding/assessment status, field, help_with, descriptors, discovery_source). (5) ✅ Statistics: Accurate count of conversations (0), messages (0), memories (0), imports (0), media (0) with cost estimates. (6) ✅ Integrations: Shows Telegram linked status (false), Google connections (false). (7) ✅ Assessment Data: Displays answer count (0), type (none), empty answers array. Admin user details endpoint fully functional and production-ready with comprehensive user data retrieval."
+
+  - task: "Admin App Updates CRUD (GET/POST/PUT/DELETE /api/admin/app-updates/*)"
+    implemented: true
+    working: true
+    file: "app/api/admin/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented complete CRUD operations for app updates in modular admin route. Handlers: handleAdminGetAppUpdates, handleAdminCreateAppUpdate, handleAdminUpdateAppUpdate, handleAdminDeleteAppUpdate with proper routing in GET/POST/PUT/DELETE methods."
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Admin App Updates CRUD API working perfectly! All 4 CRUD operations successfully tested (100% success rate - 4/4 tests passed): (1) ✅ GET /api/admin/app-updates: Successfully retrieves all app updates (including drafts). Initially returns empty array [], correctly handles no updates scenario. (2) ✅ POST /api/admin/app-updates: Successfully creates new app updates with all fields (title, description, version, type, published, release_date). Returns complete update object with generated ID (fccf6200-5974-4451-958b-e8fecb5459fc), created_at, updated_at, created_by admin ID. (3) ✅ PUT /api/admin/app-updates/{id}: Successfully updates existing app updates. Modified title, description, published status from false→true. Returns {success: true} confirmation. (4) ✅ DELETE /api/admin/app-updates/{id}: Successfully deletes app updates. Returns {success: true} confirmation. (5) ✅ Authentication: All endpoints require admin/superadmin role authentication via Bearer token. (6) ✅ Error Handling: Proper 404 responses for non-existent update IDs, 403 for unauthorized access. (7) ✅ Data Validation: Title and description required fields properly validated. Complete CRUD functionality for app updates is production-ready with comprehensive validation, security, and error handling."
+
 test_plan:
-  current_focus:
-    - "Admin User Details API (GET /api/admin/users/:userId)"
-    - "Admin App Updates CRUD (GET/POST/PUT/DELETE /api/admin/app-updates/*)"
-  stuck_tasks: 
-    - "Admin User Details API (GET /api/admin/users/:userId)"
-    - "Admin App Updates CRUD (GET/POST/PUT/DELETE /api/admin/app-updates/*)"
+  current_focus: []
+  stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
@@ -1728,6 +1755,7 @@ agent_communication:
   - agent: "main"
     message: "IMAGE-TO-VIDEO FIX COMPLETE: Fixed the image-to-video generation feature in the chat stream. The issue was that the frontend sends base64 image data, but Kie.ai API requires URLs. Added two-step process: (1) Upload base64 to Kie.ai file-base64-upload API to get a downloadUrl, (2) Use that URL in the kling-3.0/video API. This enables users to upload an image, provide animation instructions, and generate a video from that image using Kling 3.0."
   - agent: "testing"
+    message: "🏆 ADMIN ENDPOINTS REVIEW REQUEST TESTING COMPLETE! Successfully tested all 5 admin endpoints as specified in review request with 100% success rate (7/7 tests passed): (1) ✅ ADMIN LOGIN: Successfully authenticated with test@soulprint.com/test123 (superadmin role) using Bearer token authentication. (2) ✅ GET /api/admin/users/:userId: Admin user details endpoint working perfectly! Returns comprehensive user data structure with all required sections (user, profile, stats, conversations, memories, assessment, imports, media, integrations, feedback, soul_profile). Tested with real user ID, proper authentication required, accurate data display. (3) ✅ GET /api/admin/app-updates: Successfully retrieves all app updates (including drafts). Initially returns empty array, handles no updates scenario correctly. (4) ✅ POST /api/admin/app-updates: Successfully creates new app updates with complete field validation (title, description, version, type, published, release_date). Returns generated ID and timestamps. (5) ✅ PUT /api/admin/app-updates/:id: Successfully updates existing app updates. Tested title, description, and published status changes with proper success confirmation. (6) ✅ DELETE /api/admin/app-updates/:id: Successfully deletes app updates with proper success confirmation. (7) ✅ COMPLETE CRUD CYCLE: Full create→update→delete cycle tested successfully for app updates. All endpoints require proper admin authentication, have comprehensive error handling (404/403 responses), and include proper data validation. Admin endpoints are fully functional and production-ready!"
   - agent: "testing"
     message: "🔍📊 ADMIN DASHBOARD API TESTING COMPLETE! Comprehensive testing of admin metrics and insights endpoints completed successfully (4/4 tests passed - 100% success rate): (1) ✅ GET /api/admin/metrics: All required fields verified present and properly typed including NEW computed fields (est_projected_monthly_cost, est_cost_per_active_user_30d, messages_per_active_user_30d, avg_cost_per_message_30d, etc.), NEW counts (media_count_total, media_count_30d), NEW totals (grand_total_cost, grand_total_cost_30d), telegram object with all sub-fields, platform_breakdown with web/telegram sections, and complete voice_chat structure with cost sub-fields. Sample metrics: WAU=3, Total Users=3, Grand Total Cost=$0.045. (2) ✅ Date Range Support: Successfully accepts startDate='2026-01-01' and endDate='2026-03-17' parameters. (3) ✅ GET /api/admin/insights: All required fields verified including NEW revenue_potential with if_free_tier_20_msgs/if_free_tier_50_msgs structures, NEW top_users array (1 entry with name/email/messages/estimated_cost), NEW model_popularity array, NEW feature_adoption object, NEW churn_indicators, NEW weekly_trends (4 entries), NEW media_insights. Generated_at valid ISO timestamp confirmed. (4) ✅ Authentication Security: Both endpoints correctly return 403 for unauthenticated requests. All number values are proper numbers (not NaN/undefined). Admin dashboard API endpoints are production ready and fully functional with comprehensive business intelligence data!"
     message: "🎬 IMAGE-TO-VIDEO GENERATION TESTING COMPLETE! Core functionality working but third-party API limitation found: ✅ CORE FEATURE WORKING: Image-to-Video generation correctly implemented and functional with URL attachments (taskId: 2e8b39661443c26310934f3e0a22a04a). ✅ TEXT-TO-VIDEO: Working perfectly as baseline (taskId: 9596d83609058ab8caee24d3193f850a). ✅ STATUS POLLING: GET /api/generate/video/{taskId} working correctly with proper JSON responses. ❌ BASE64 UPLOAD ISSUE: Kie.ai file-base64-upload endpoint returning 404 'Not Found' - this is a THIRD-PARTY SERVICE ISSUE, not backend implementation problem. Backend code is correctly implemented with proper error handling. SOLUTION OPTIONS: (1) Use image URLs instead of base64 (already working), (2) Find alternative file upload service, (3) Contact Kie.ai support for API access, or (4) Implement alternative base64-to-URL conversion service. Results: 3/4 tests passed - Image-to-Video feature is 75% functional with the critical path working."
