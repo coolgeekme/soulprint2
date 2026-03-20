@@ -1,7 +1,16 @@
 # SoulPrint Support Knowledge Base
-# Last Updated: 2026-03-18
+# Last Updated: 2026-03-20
 # This file is read by the AI at runtime to provide accurate in-app support.
 # Update this file whenever features are added, changed, or bugs are discovered.
+
+---
+
+## RECENT UPDATES (What's New)
+
+### March 2026
+- **User Analytics Dashboard** - Admins can click any user to see detailed analytics: LLM model usage, conversation topics, memory categories, platform usage, cost breakdowns
+- **Smart Chat Deletion** - Deleting from "All Chats" now only hides chats that belong to Projects (they remain in the Project). Deleting from within a Project permanently removes the chat.
+- **What's New Section** - Users can click the sparkles icon (✨) in the chat sidebar to see the latest app updates
 
 ---
 
@@ -201,6 +210,26 @@ A guided questionnaire that helps SoulPrint understand the user better.
 
 ---
 
+## PROJECTS & ORGANIZATION
+
+### Projects
+Users can organize conversations into Projects for better organization.
+
+**How to use:**
+1. Click "New Project" in the sidebar to create a project
+2. Move conversations to projects via the context menu (right-click or three dots)
+3. Click a project name to view only conversations in that project
+
+### Deleting Conversations
+**Smart Deletion Behavior:**
+- **From "All Chats" view**: If a chat belongs to a Project, it's only hidden from All Chats (still accessible in the Project)
+- **From Project view**: Permanently deletes the conversation
+- **Chat without a Project**: Permanently deletes from All Chats
+
+This prevents accidentally losing conversations that are organized into Projects.
+
+---
+
 ## ACCOUNT & AUTH
 
 ### Login Methods
@@ -237,11 +266,17 @@ A guided questionnaire that helps SoulPrint understand the user better.
 - **Imports**: Track user data imports
 - **Settings**: App-wide configuration
 
-### User Details Page
-- Click any user in the Users tab to view detailed profile
-- Shows: profile info, activity stats, conversations, memories, assessment answers, imports, media generated
-- Integrations status (Telegram, Google connections)
-- Cost estimates per user
+### User Details Page (User Analytics)
+- Click any user in the Users tab to view detailed analytics
+- **Usage Stats**: Conversations, messages, memories, media generated, voice minutes, total cost
+- **LLM Model Usage**: Which AI models the user prefers (with usage counts)
+- **Conversation Topics**: Smart analysis of what users discuss (e.g., Software Development, Business & Startups, Content Writing, etc.)
+- **Memory Categories**: Breakdown of saved memories by category
+- **Platform Usage**: Web vs Telegram vs Voice usage distribution
+- **Media Generation**: Images/videos created, by type and model
+- **Integrations**: Telegram, Google connection status
+- **Assessment Status**: Completion level and pillars covered
+- **Feedback Summary**: Thumbs up/down counts and satisfaction rate
 
 ### App Updates (What's New)
 - Admins can create updates to show users new features, improvements, bug fixes
