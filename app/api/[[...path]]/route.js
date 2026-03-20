@@ -4292,6 +4292,17 @@ async function buildSystemPrompt(db, userId) {
     .sort({ created_at: 1 })
     .toArray();
 
+  // Load support knowledge base for in-conversation troubleshooting
+  let supportKB = '';
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const kbPath = path.join(process.cwd(), 'support-kb.md');
+    supportKB = fs.readFileSync(kbPath, 'utf-8');
+  } catch (e) {
+    console.warn('[System] Could not load support-kb.md:', e.message);
+  }
+
   const assistantName = profile?.assistant_name || 'SoulPrint';
   const displayName = profile?.display_name || user?.email?.split('@')[0] || 'User';
   const descriptors = profile?.descriptors || [];
@@ -4510,8 +4521,8 @@ You have access to ${displayName}'s long-term memories, preferences, and context
 You are also the first line of support for the SoulPrint app itself. When a user reports a problem with the app (uploads failing, errors, features not working, slow performance, login issues, etc.):
 
 1. **Acknowledge the issue** empathetically — "I'm sorry you're running into that."
-2. **Troubleshoot inline** — Ask relevant questions: what they were trying to do, what happened, any error messages. Suggest common fixes (refresh, clear cache, try again, check file format/size).
-3. **Collect context automatically** — You already know their browser and device from the conversation. Note what they were doing when the issue occurred.
+2. **Troubleshoot inline using the knowledge base below** — Ask relevant questions, suggest fixes from the KB.
+3. **Collect context automatically** — Note what they were doing when the issue occurred.
 4. **Escalate technical issues** — If the problem is clearly a bug, server error, or something you cannot fix through troubleshooting:
    - Tell the user: "This looks like a technical issue. Let me send this to the engineering team so they can look into it."
    - Include in your response the special marker: \`[SUPPORT_ESCALATION]\` followed by a brief JSON summary like: \`{"issue": "description", "steps": "what user tried", "context": "relevant details"}\`
@@ -4519,6 +4530,10 @@ You are also the first line of support for the SoulPrint app itself. When a user
    - Reassure the user that the team has been notified and will follow up.
 
 Do NOT escalate for: user questions about how to use features, general inquiries, or issues you can resolve through guidance. Only escalate genuine bugs or technical failures.
+
+### APP SUPPORT KNOWLEDGE BASE:
+${supportKB || 'Knowledge base not available.'}
+### END OF KNOWLEDGE BASE
 
 ## 🎨 Image & Visual Content Generation
 You can generate images, flyers, posters, infographics, and visual content. When you recognize the user is:
