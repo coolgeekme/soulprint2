@@ -2599,11 +2599,11 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   
   // Reformulate instruction for better results
   const safeEditInstruction = reformulateForSafety(editInstruction);
-  console.log('[ImageEdit] Using OpenAI gpt-image-1 for best editing quality');
+  console.log('[ImageEdit] Using dall-e-2 for image editing');
   
-  // METHOD 1: Try gpt-image-1 with images/edits endpoint (best quality)
+  // METHOD 1: Try dall-e-2 with images/edits endpoint
   try {
-    console.log('[ImageEdit] Attempting gpt-image-1 images/edits API');
+    console.log('[ImageEdit] Attempting dall-e-2 images/edits API');
     
     // Convert base64 to blob for FormData upload
     const binaryString = atob(imageBase64);
@@ -2616,7 +2616,7 @@ async function handleImageEditInternal(userId, image, editInstruction) {
     const formData = new FormData();
     formData.append('image', imageBlob, 'image.png');
     formData.append('prompt', `${safeEditInstruction}. Maintain all other details exactly as they are.`);
-    formData.append('model', 'gpt-image-1');
+    formData.append('model', 'dall-e-2');
     formData.append('size', '1024x1024');
     formData.append('response_format', 'b64_json');
     
@@ -2633,22 +2633,22 @@ async function handleImageEditInternal(userId, image, editInstruction) {
         const editedBase64 = result.b64_json;
         const editedUrl = result.url || (editedBase64 ? `data:image/png;base64,${editedBase64}` : null);
         if (editedUrl) {
-          console.log('[ImageEdit] Success with gpt-image-1!');
+          console.log('[ImageEdit] Success with dall-e-2!');
           return {
             success: true,
             url: editedUrl,
             base64: editedBase64,
             edit: editInstruction,
-            method: 'gpt-image-1'
+            method: 'dall-e-2'
           };
         }
       }
     } else {
       const err = await editResponse.json().catch(() => ({}));
-      console.log('[ImageEdit] gpt-image-1 failed:', err.error?.message || 'Unknown error');
+      console.log('[ImageEdit] dall-e-2 failed:', err.error?.message || 'Unknown error');
     }
   } catch (editErr) {
-    console.log('[ImageEdit] gpt-image-1 error:', editErr.message);
+    console.log('[ImageEdit] dall-e-2 error:', editErr.message);
   }
   
   // METHOD 2: Fall back to DALL-E 3 via GPT-4o Vision analysis + regeneration
@@ -3999,7 +3999,7 @@ IMPORTANT RULES:
 - If user attached an image and wants to animate it, return "video"
 - If user wants to CHANGE THE APPEARANCE/STYLE of a previous image, return "image_edit"
 - If user wants to CHANGE TECHNICAL SETTINGS (aspect ratio), return "image_regen"
-- When in doubt, prefer "text" - only classify as media if intent is clear
+- When in doubt with RECENT IMAGE CONTEXT, prefer "image_edit" over "text"
 - "make it more realistic/photographic" = image_edit (NOT image_regen)
 - "put this on a shirt" = mockup (NOT image or image_edit)
 - "create a t-shirt with X design" = mockup (even WITHOUT attachment)
@@ -4010,6 +4010,9 @@ IMPORTANT RULES:
 - "add more colors" / "more patterns" / "change the colors" = image_edit (referencing previous image)
 - "can you give me more X" when referencing a previous image = image_edit
 - "make it X" (brighter, darker, more vibrant, different color) = image_edit
+- CRITICAL: User giving FEEDBACK about an image (e.g., "those are not mesh", "that's wrong", "needs more X") = image_edit
+- "they need to have X" / "should be X" / "needs X" = image_edit (user is requesting a modification)
+- ANY complaint or correction about a previous image = image_edit
 
 Respond with ONLY a JSON object:
 {"intent": "text|image|mockup|video|image_edit|image_regen|video_regen", "confidence": "high|medium|low", "reason": "brief explanation", "settings": {"aspectRatio": "1:1|16:9|9:16", "style": "vivid|natural", "duration": 5|10}}`;
@@ -4132,6 +4135,15 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
     /\bmake\s+(?:it|the\s+\w+)\s+(?:more\s+)?(?:colorful|vibrant|brighter|darker|different)/i,
     /\bsurprise\s+me\s+with/i,  // "surprise me with the colors"
     /\bupdate\s+(?:it|the\s+\w+|that)\s+(?:with|to)/i,
+    // NEW: Natural editing phrases - "they need to have X", "make it X", "add X texture"
+    /\b(?:they|it|those)\s+(?:need|should)\s+(?:to\s+)?(?:have|be|look)/i,
+    /\bmake\s+it\s+\w+/i,  // "make it mesh", "make it blue", etc.
+    /\badd\s+(?:\w+\s+)*(?:texture|effect|style|look)/i,  // "add mesh texture"
+    /\b(?:change|turn)\s+(?:it|them|those|that)\s+(?:to|into)\s+/i,  // "change it to mesh"
+    /\b(?:not|aren't|isn't|don't)\s+\w+.*(?:need|should|make)/i,  // "those are not mesh. they need..."
+    /\b(?:that's|those\s+are|it's)\s+(?:not|wrong)/i,  // feedback indicating edit needed
+    /\bgive\s+(?:it|them|those)\s+/i,  // "give it more texture"
+    /\b(?:should|needs?\s+to)\s+(?:be|have|look)\s+/i,  // "should be mesh", "needs to have holes"
   ];
   if (conversationalEditPatterns.some(p => p.test(lower))) {
     console.log('[Quick Intent] Detected image_edit from conversational patterns:', lower.substring(0, 50));
@@ -8004,13 +8016,13 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
           
           if (imageToEdit) {
-            send({ type: 'delta', content: '✨ Editing with OpenAI (best quality)...\n\n' });
+            send({ type: 'delta', content: '✨ Editing your image... Please hold on for a moment while I work on this.\n\n' });
             let editResult = null;
             try {
               editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent);
               
               if (editResult.success && editResult.url) {
-                const methodLabel = { 'gpt-image-1': 'GPT Image', 'dall-e-3-vision': 'DALL-E 3' }[editResult.method] || editResult.method;
+                const methodLabel = { 'dall-e-2': 'DALL-E 2', 'dall-e-3-vision': 'DALL-E 3' }[editResult.method] || editResult.method;
                 fullContent = `![Edited Image](${editResult.url})\n\n✨ *Image edited with ${methodLabel}!*\n\n**Edit applied:** ${sanitizedContent}`;
                 send({ type: 'image', url: editResult.url, contentType: 'image_edit', method: editResult.method });
                 send({ type: 'delta', content: fullContent });
