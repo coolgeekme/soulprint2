@@ -2731,70 +2731,76 @@ async function handleImageEditInternal(userId, image, editInstruction) {
     try {
       console.log('[ImageEdit] METHOD 2: Attempting Flux Kontext via Kie.ai');
       
+      const requestBody = {
+        model: 'flux-kontext-pro',
+        input: {
+          prompt: safeEditInstruction,
+          image_url: imageUrl,
+          aspect_ratio: '1:1'
+        }
+      };
+      console.log('[ImageEdit] Flux Kontext request body:', JSON.stringify(requestBody));
+      
       const createTaskRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${kieKey}`
         },
-        body: JSON.stringify({
-          model: 'flux-kontext-pro',
-          prompt: safeEditInstruction,
-          image_url: imageUrl,
-          aspect_ratio: '1:1'
-        })
+        body: JSON.stringify(requestBody)
       });
       
-      if (createTaskRes.ok) {
-        const taskData = await createTaskRes.json();
-        const taskId = taskData.data?.taskId || taskData.taskId;
+      const createTaskData = await createTaskRes.json();
+      console.log('[ImageEdit] Flux Kontext createTask response:', JSON.stringify(createTaskData).substring(0, 500));
+      
+      if (createTaskData.code === 200 && createTaskData.data?.taskId) {
+        const taskId = createTaskData.data.taskId;
+        console.log('[ImageEdit] Flux Kontext task created:', taskId);
         
-        if (taskId) {
-          console.log('[ImageEdit] Flux Kontext task created:', taskId);
+        // Poll for result (max 60 seconds)
+        const startTime = Date.now();
+        const maxWaitTime = 60000;
+        
+        while (Date.now() - startTime < maxWaitTime) {
+          await new Promise(r => setTimeout(r, 3000));
           
-          // Poll for result (max 60 seconds)
-          const startTime = Date.now();
-          const maxWaitTime = 60000;
+          const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+            headers: { 'Authorization': `Bearer ${kieKey}` }
+          });
           
-          while (Date.now() - startTime < maxWaitTime) {
-            await new Promise(r => setTimeout(r, 2000));
+          const statusData = await statusRes.json();
+          console.log('[ImageEdit] Flux Kontext status:', statusData.data?.state);
+          
+          if (statusData.code === 200) {
+            const state = statusData.data?.state;
             
-            const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
-              headers: { 'Authorization': `Bearer ${kieKey}` }
-            });
-            
-            if (statusRes.ok) {
-              const statusData = await statusRes.json();
-              const status = statusData.data?.status || statusData.status;
-              
-              console.log('[ImageEdit] Flux Kontext status:', status);
-              
-              if (status === 'completed' || status === 'success') {
-                const resultUrl = statusData.data?.resultUrl || 
-                                  statusData.data?.images?.[0] || 
-                                  statusData.data?.output?.[0]?.url ||
-                                  statusData.resultUrl;
-                
-                if (resultUrl) {
-                  console.log('[ImageEdit] SUCCESS with Flux Kontext!');
-                  return {
-                    success: true,
-                    url: resultUrl,
-                    edit: editInstruction,
-                    method: 'flux-kontext-pro'
-                  };
-                }
-              } else if (status === 'failed' || status === 'error') {
-                console.log('[ImageEdit] Flux Kontext task failed');
-                break;
+            if (state === 'success') {
+              let resultUrl = null;
+              try {
+                const resultJson = JSON.parse(statusData.data?.resultJson || '{}');
+                resultUrl = resultJson?.resultUrls?.[0] || resultJson?.url || resultJson?.image_url || resultJson?.images?.[0];
+              } catch (e) {
+                console.log('[ImageEdit] Flux Kontext parse error:', e.message);
               }
+              
+              if (resultUrl) {
+                console.log('[ImageEdit] SUCCESS with Flux Kontext! URL:', resultUrl);
+                return {
+                  success: true,
+                  url: resultUrl,
+                  edit: editInstruction,
+                  method: 'flux-kontext-pro'
+                };
+              }
+            } else if (state === 'fail') {
+              console.log('[ImageEdit] Flux Kontext task failed:', statusData.data?.failMsg);
+              break;
             }
           }
-          console.log('[ImageEdit] Flux Kontext polling timeout or failed');
         }
+        console.log('[ImageEdit] Flux Kontext polling timeout');
       } else {
-        const err = await createTaskRes.json().catch(() => ({}));
-        console.log('[ImageEdit] Flux Kontext createTask failed:', err.message || JSON.stringify(err));
+        console.log('[ImageEdit] Flux Kontext createTask failed:', createTaskData.msg);
       }
     } catch (fluxErr) {
       console.log('[ImageEdit] Flux Kontext error:', fluxErr.message);
