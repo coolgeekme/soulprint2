@@ -4144,6 +4144,14 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
     /\b(?:that's|those\s+are|it's)\s+(?:not|wrong)/i,  // feedback indicating edit needed
     /\bgive\s+(?:it|them|those)\s+/i,  // "give it more texture"
     /\b(?:should|needs?\s+to)\s+(?:be|have|look)\s+/i,  // "should be mesh", "needs to have holes"
+    // NEW: Correction phrases - "actually", "I meant", "no, make it"
+    /^actually\b/i,  // "actually a 200 subaru..." - correction
+    /\bactually\s+(?:it\s+)?(?:should|needs?\s+to)\s+be/i,
+    /\bi\s+meant\b/i,  // "I meant a different car"
+    /\bno,?\s+(?:it\s+)?(?:should|make|change)/i,  // "no, make it red"
+    /\bnot\s+(?:that|this),?\s+(?:a|the|make)/i,  // "not that, a different one"
+    /\binstead\s+(?:of|make\s+it)/i,  // "instead of that, make it..."
+    /\bwrong\s+(?:type|kind|one)/i,  // "wrong type of car"
   ];
   if (conversationalEditPatterns.some(p => p.test(lower))) {
     console.log('[Quick Intent] Detected image_edit from conversational patterns:', lower.substring(0, 50));
@@ -8016,23 +8024,126 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
           
           if (imageToEdit) {
-            send({ type: 'delta', content: '✨ Editing your image... Please hold on for a moment while I work on this.\n\n' });
-            let editResult = null;
-            try {
-              editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent);
+            // Check if this is a "replacement" request (completely different subject) vs an "edit" request
+            // Replacement: "actually a Subaru", "no, make it a cat", "I meant a different car"
+            // Edit: "make it red", "add more detail", "change the background"
+            const isReplacementRequest = /^actually\s+(?:a|an|the)\s+/i.test(sanitizedContent) ||
+                                          /\bi\s+meant\s+(?:a|an|the)\s+/i.test(sanitizedContent) ||
+                                          /\bno,?\s+(?:a|an|the|make\s+it\s+a|make\s+it\s+an)\s+/i.test(sanitizedContent);
+            
+            if (isReplacementRequest) {
+              // This is a replacement - generate a new image based on the correction
+              console.log('[Image Edit] Detected replacement request, generating new image instead');
+              send({ type: 'delta', content: '🎨 Creating a new image based on your correction...\n\n' });
               
-              if (editResult.success && editResult.url) {
-                const methodLabel = { 'dall-e-2': 'DALL-E 2', 'dall-e-3-vision': 'DALL-E 3' }[editResult.method] || editResult.method;
-                fullContent = `![Edited Image](${editResult.url})\n\n✨ *Image edited with ${methodLabel}!*\n\n**Edit applied:** ${sanitizedContent}`;
-                send({ type: 'image', url: editResult.url, contentType: 'image_edit', method: editResult.method });
+              // Extract what they want from the correction
+              let newSubject = sanitizedContent
+                .replace(/^actually\s+(?:a|an|the)?\s*/i, '')
+                .replace(/^i\s+meant\s+(?:a|an|the)?\s*/i, '')
+                .replace(/^no,?\s+(?:a|an|the|make\s+it)?\s*/i, '')
+                .trim();
+              
+              if (!newSubject) newSubject = sanitizedContent;
+              
+              try {
+                const openaiKey = process.env.OPENAI_API_KEY;
+                if (!openaiKey) throw new Error('OpenAI API key not configured');
+                
+                const generateRes = await fetch('https://api.openai.com/v1/images/generations', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    model: 'dall-e-3', 
+                    prompt: newSubject, 
+                    n: 1, 
+                    size: '1024x1024', 
+                    quality: 'hd', 
+                    style: 'natural' 
+                  }),
+                });
+                
+                const generateData = await generateRes.json();
+                const imageUrl = generateData.data?.[0]?.url;
+                const revisedPrompt = generateData.data?.[0]?.revised_prompt;
+                
+                if (!imageUrl) {
+                  throw new Error(generateData.error?.message || 'Image generation failed');
+                }
+                
+                fullContent = `![Generated Image](${imageUrl})\n\n🖼️ *Your image has been created!*\n\n*Prompt used: ${revisedPrompt || newSubject}*`;
+                send({ type: 'image', url: imageUrl, contentType: 'image', revised_prompt: revisedPrompt });
                 send({ type: 'delta', content: fullContent });
-              } else {
-                throw new Error(editResult.error || 'Image editing failed');
+                
+                await db.collection('messages').insertOne({
+                  id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                  role: 'assistant', content: fullContent, created_at: new Date(),
+                  model_used: 'dall-e-3', provider_used: 'openai', content_type: 'image',
+                  image_url: imageUrl, generation_prompt: newSubject,
+                });
+                await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+                send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+                closeStream();
+                return;
+              } catch (genErr) {
+                console.error('[Image Generation from Correction] Error:', genErr.message);
+                fullContent = `Sorry, I couldn't generate the image: ${genErr.message}`;
+                send({ type: 'delta', content: fullContent });
               }
-            } catch (editErr) {
-              console.error('[Image Edit] Exception:', editErr.message);
-              fullContent = `Sorry, I couldn't edit the image: ${editErr.message}\n\nWould you like me to try creating a new image instead?`;
-              send({ type: 'delta', content: fullContent });
+            } else {
+              // Regular edit request
+              send({ type: 'delta', content: '✨ Editing your image... Please hold on for a moment while I work on this.\n\n' });
+              let editResult = null;
+              try {
+                editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent);
+                
+                if (editResult.success && editResult.url) {
+                  const methodLabel = { 'dall-e-2': 'DALL-E 2', 'dall-e-3-vision': 'DALL-E 3' }[editResult.method] || editResult.method;
+                  fullContent = `![Edited Image](${editResult.url})\n\n✨ *Image edited with ${methodLabel}!*\n\n**Edit applied:** ${sanitizedContent}`;
+                  send({ type: 'image', url: editResult.url, contentType: 'image_edit', method: editResult.method });
+                  send({ type: 'delta', content: fullContent });
+                } else {
+                  throw new Error(editResult.error || 'Image editing failed');
+                }
+              } catch (editErr) {
+                console.error('[Image Edit] Exception:', editErr.message);
+                // If edit fails, try generating a new image based on the edit instruction
+                console.log('[Image Edit] Edit failed, attempting to generate new image based on instruction');
+                try {
+                  const openaiKey = process.env.OPENAI_API_KEY;
+                  if (openaiKey) {
+                    send({ type: 'delta', content: '\n\n🔄 Edit failed, generating a new version...\n' });
+                    
+                    const generateRes = await fetch('https://api.openai.com/v1/images/generations', {
+                      method: 'POST',
+                      headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ 
+                        model: 'dall-e-3', 
+                        prompt: `Based on this instruction: ${sanitizedContent}. Create an image that matches this description.`, 
+                        n: 1, 
+                        size: '1024x1024', 
+                        quality: 'hd', 
+                        style: 'natural' 
+                      }),
+                    });
+                    
+                    const generateData = await generateRes.json();
+                    const fallbackUrl = generateData.data?.[0]?.url;
+                    
+                    if (fallbackUrl) {
+                      fullContent = `![Generated Image](${fallbackUrl})\n\n🖼️ *Created a new image based on your request!*`;
+                      send({ type: 'image', url: fallbackUrl, contentType: 'image' });
+                      send({ type: 'delta', content: fullContent });
+                    } else {
+                      throw new Error('Fallback generation failed');
+                    }
+                  } else {
+                    throw new Error('No API key');
+                  }
+                } catch (fallbackErr) {
+                  fullContent = `Sorry, I couldn't edit the image. Would you like me to try creating a new image instead? Just describe what you'd like to see!`;
+                  send({ type: 'delta', content: fullContent });
+                }
+              }
             }
             
             // Save message
