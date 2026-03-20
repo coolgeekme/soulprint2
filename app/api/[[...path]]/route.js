@@ -2652,8 +2652,46 @@ async function handleImageEditInternal(userId, image, editInstruction) {
       if (editData.data?.[0]) {
         const result = editData.data[0];
         const editedBase64 = result.b64_json;
-        const editedUrl = result.url || (editedBase64 ? `data:image/png;base64,${editedBase64}` : null);
-        if (editedUrl) {
+        
+        if (editedBase64) {
+          console.log('[ImageEdit] DALL-E 2 returned base64, uploading to get URL...');
+          
+          // Upload to temp storage to get a proper URL
+          let editedUrl = null;
+          const kieKey = process.env.KIE_API_KEY;
+          if (kieKey) {
+            try {
+              const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${kieKey}`
+                },
+                body: JSON.stringify({
+                  base64Data: `data:image/png;base64,${editedBase64}`,
+                  uploadPath: 'soulprint/edits',
+                  fileName: `edit_${Date.now()}.png`
+                }),
+              });
+              
+              if (uploadRes.ok) {
+                const uploadData = await uploadRes.json();
+                if (uploadData.success && uploadData.data?.downloadUrl) {
+                  editedUrl = uploadData.data.downloadUrl;
+                  console.log('[ImageEdit] Uploaded edited image to:', editedUrl);
+                }
+              }
+            } catch (uploadErr) {
+              console.log('[ImageEdit] Upload failed:', uploadErr.message);
+            }
+          }
+          
+          // Fallback to data URL if upload failed
+          if (!editedUrl) {
+            editedUrl = `data:image/png;base64,${editedBase64}`;
+            console.log('[ImageEdit] Using data URL (length:', editedUrl.length, ')');
+          }
+          
           console.log('[ImageEdit] Success with dall-e-2!');
           return {
             success: true,
