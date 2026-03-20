@@ -10,7 +10,7 @@ import sys
 from datetime import datetime, timedelta
 
 # Test Configuration
-BASE_URL = "https://auth-verification-4.preview.emergentagent.com"
+BASE_URL = "https://dashboard-profiles.preview.emergentagent.com"
 BEARER_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI1MzI0NjQ1OC05NDRlLTRhNmEtYmYyZS00ODVjOGEyNjkxYWUiLCJpYXQiOjE3NzM3NTk3ODQsImV4cCI6MTc3NjM1MTc4NH0.Bo1J90Dk8JnmM4LoHsF2v6lZUU0jaTlMEcQ7Ow4-Ak8"
 
 def test_admin_metrics():
