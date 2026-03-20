@@ -2633,9 +2633,12 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   // ═══════════════════════════════════════════════════════════════════════════
   // METHOD 1: SeeDream v4 Edit (Primary - Best for preserving original image)
   // ═══════════════════════════════════════════════════════════════════════════
+  console.log('[ImageEdit] Checking METHOD 1 conditions - kieKey:', !!kieKey, 'imageUrl:', !!imageUrl);
   if (kieKey && imageUrl) {
     try {
       console.log('[ImageEdit] METHOD 1: Attempting SeeDream v4 Edit via Kie.ai');
+      console.log('[ImageEdit] Image URL:', imageUrl);
+      console.log('[ImageEdit] Prompt:', safeEditInstruction);
       
       // Create task for SeeDream v4 Edit
       const createTaskRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
@@ -2654,8 +2657,19 @@ async function handleImageEditInternal(userId, image, editInstruction) {
         })
       });
       
-      if (createTaskRes.ok) {
-        const taskData = await createTaskRes.json();
+      const createTaskText = await createTaskRes.text();
+      console.log('[ImageEdit] SeeDream createTask response status:', createTaskRes.status);
+      console.log('[ImageEdit] SeeDream createTask response:', createTaskText.substring(0, 500));
+      
+      let taskData;
+      try {
+        taskData = JSON.parse(createTaskText);
+      } catch (e) {
+        console.log('[ImageEdit] SeeDream response is not valid JSON');
+        throw new Error('Invalid response from SeeDream API');
+      }
+      
+      if (createTaskRes.ok && taskData) {
         const taskId = taskData.data?.taskId || taskData.taskId;
         
         if (taskId) {
@@ -2676,35 +2690,41 @@ async function handleImageEditInternal(userId, image, editInstruction) {
               const statusData = await statusRes.json();
               const status = statusData.data?.status || statusData.status;
               
-              console.log('[ImageEdit] SeeDream status:', status);
+              console.log('[ImageEdit] SeeDream status:', status, 'Full response:', JSON.stringify(statusData).substring(0, 300));
               
               if (status === 'completed' || status === 'success') {
                 const resultUrl = statusData.data?.resultUrl || 
                                   statusData.data?.images?.[0] || 
                                   statusData.data?.output?.[0]?.url ||
+                                  statusData.data?.result?.images?.[0] ||
                                   statusData.resultUrl;
                 
                 if (resultUrl) {
-                  console.log('[ImageEdit] SUCCESS with SeeDream v4 Edit!');
+                  console.log('[ImageEdit] SUCCESS with SeeDream v4 Edit! URL:', resultUrl);
                   return {
                     success: true,
                     url: resultUrl,
                     edit: editInstruction,
                     method: 'seedream-v4-edit'
                   };
+                } else {
+                  console.log('[ImageEdit] SeeDream completed but no result URL found in:', JSON.stringify(statusData));
                 }
               } else if (status === 'failed' || status === 'error') {
-                console.log('[ImageEdit] SeeDream task failed:', statusData.data?.error || 'Unknown error');
+                console.log('[ImageEdit] SeeDream task failed:', statusData.data?.error || statusData.error || 'Unknown error');
                 break;
               }
               // Continue polling if still processing
+            } else {
+              console.log('[ImageEdit] SeeDream status check failed:', statusRes.status);
             }
           }
           console.log('[ImageEdit] SeeDream polling timeout or failed');
+        } else {
+          console.log('[ImageEdit] SeeDream no taskId in response');
         }
       } else {
-        const err = await createTaskRes.json().catch(() => ({}));
-        console.log('[ImageEdit] SeeDream createTask failed:', err.message || JSON.stringify(err));
+        console.log('[ImageEdit] SeeDream createTask failed - status:', createTaskRes.status);
       }
     } catch (seedreamErr) {
       console.log('[ImageEdit] SeeDream error:', seedreamErr.message);
