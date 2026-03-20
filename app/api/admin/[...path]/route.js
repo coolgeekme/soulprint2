@@ -1300,21 +1300,64 @@ async function handleAdminGetUserDetails(request, userId) {
     .find({ user_id: userId })
     .toArray();
 
-  // Analyze LLM model usage
+  // Analyze LLM model usage - check both 'model' and 'model_used' fields
   const modelUsage = {};
   messages.forEach(m => {
-    if (m.model) {
-      modelUsage[m.model] = (modelUsage[m.model] || 0) + 1;
+    const modelName = m.model_used || m.model;
+    if (modelName) {
+      modelUsage[modelName] = (modelUsage[modelName] || 0) + 1;
     }
   });
   const modelUsageSorted = Object.entries(modelUsage)
     .sort((a, b) => b[1] - a[1])
     .map(([model, count]) => ({ model, count }));
 
-  // Analyze conversation topics/categories
+  // Derive conversation topics from titles and content
+  // Use existing topic_category if available, otherwise derive from title
   const topicBreakdown = {};
   conversations.forEach(c => {
-    const topic = c.topic_category || c.topic || 'Uncategorized';
+    let topic = c.topic_category || c.topic;
+    
+    // If no topic, try to derive from title
+    if (!topic || topic === 'Uncategorized') {
+      const title = (c.title || '').toLowerCase();
+      
+      // Common topic patterns
+      if (title.includes('code') || title.includes('programming') || title.includes('debug') || title.includes('function') || title.includes('api')) {
+        topic = 'Coding & Development';
+      } else if (title.includes('write') || title.includes('story') || title.includes('essay') || title.includes('article') || title.includes('content')) {
+        topic = 'Writing & Content';
+      } else if (title.includes('email') || title.includes('message') || title.includes('reply') || title.includes('draft')) {
+        topic = 'Communication';
+      } else if (title.includes('idea') || title.includes('brainstorm') || title.includes('creative') || title.includes('design')) {
+        topic = 'Creative & Ideas';
+      } else if (title.includes('plan') || title.includes('strategy') || title.includes('goal') || title.includes('project')) {
+        topic = 'Planning & Strategy';
+      } else if (title.includes('learn') || title.includes('explain') || title.includes('what is') || title.includes('how to') || title.includes('understand')) {
+        topic = 'Learning & Research';
+      } else if (title.includes('work') || title.includes('job') || title.includes('career') || title.includes('business') || title.includes('meeting')) {
+        topic = 'Work & Career';
+      } else if (title.includes('health') || title.includes('fitness') || title.includes('diet') || title.includes('exercise') || title.includes('wellness')) {
+        topic = 'Health & Wellness';
+      } else if (title.includes('money') || title.includes('finance') || title.includes('budget') || title.includes('invest') || title.includes('save')) {
+        topic = 'Finance & Money';
+      } else if (title.includes('image') || title.includes('picture') || title.includes('photo') || title.includes('generate') || title.includes('create')) {
+        topic = 'Image Generation';
+      } else if (title.includes('video') || title.includes('movie') || title.includes('animation')) {
+        topic = 'Video & Media';
+      } else if (title.includes('travel') || title.includes('trip') || title.includes('vacation') || title.includes('visit')) {
+        topic = 'Travel & Experiences';
+      } else if (title.includes('relationship') || title.includes('friend') || title.includes('family') || title.includes('dating')) {
+        topic = 'Relationships';
+      } else if (title.includes('help') || title.includes('assist') || title.includes('support') || title.includes('advice')) {
+        topic = 'General Assistance';
+      } else if (title.includes('chat') || title.includes('talk') || title.includes('conversation')) {
+        topic = 'General Chat';
+      } else {
+        topic = 'General';
+      }
+    }
+    
     topicBreakdown[topic] = (topicBreakdown[topic] || 0) + 1;
   });
   const topicsSorted = Object.entries(topicBreakdown)
@@ -1401,15 +1444,6 @@ async function handleAdminGetUserDetails(request, userId) {
     messagesBySource[source] = (messagesBySource[source] || 0) + 1;
   });
 
-  // Get recent conversation titles (topics without full content)
-  const recentConversations = conversations.slice(0, 10).map(c => ({
-    title: c.title || 'Untitled',
-    topic: c.topic_category || c.topic || null,
-    source: c.source || 'web',
-    message_count: messages.filter(m => m.conversation_id === c.id).length,
-    last_active: c.updated_at,
-  }));
-
   // Get soul profile summary
   const soulProfile = await db.collection('soul_profiles')
     .findOne({ user_id: userId });
@@ -1464,7 +1498,7 @@ async function handleAdminGetUserDetails(request, userId) {
     // Conversation Topics
     conversation_topics: {
       topics: topicsSorted,
-      recent_conversations: recentConversations,
+      total_conversations: conversations.length,
     },
     
     // Memory Categories (not content)

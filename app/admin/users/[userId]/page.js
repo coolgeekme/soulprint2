@@ -394,12 +394,12 @@ export default function UserDetailPage() {
             </Section>
 
             {/* Conversation Topics */}
-            <Section title="Conversation Topics" icon={Folder} badge={conversation_topics?.topics?.length} defaultOpen={true}>
+            <Section title="Conversation Topics" icon={Folder} badge={conversation_topics?.total_conversations} defaultOpen={true}>
               {conversation_topics?.topics?.length === 0 ? (
-                <p className="text-gray-500 text-xs text-center py-4">No categorized topics</p>
+                <p className="text-gray-500 text-xs text-center py-4">No conversations yet</p>
               ) : (
                 <div className="space-y-3">
-                  {conversation_topics?.topics?.slice(0, 8).map((t, i) => (
+                  {conversation_topics?.topics?.map((t, i) => (
                     <ProgressBar 
                       key={i} 
                       label={t.topic} 
@@ -407,43 +407,6 @@ export default function UserDetailPage() {
                       total={maxTopicCount}
                       color={i === 0 ? 'green' : i === 1 ? 'blue' : 'orange'}
                     />
-                  ))}
-                </div>
-              )}
-            </Section>
-
-            {/* Recent Conversations */}
-            <Section title="Recent Conversations" icon={MessageSquare} defaultOpen={true}>
-              {conversation_topics?.recent_conversations?.length === 0 ? (
-                <p className="text-gray-500 text-xs text-center py-4">No conversations yet</p>
-              ) : (
-                <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                  {conversation_topics?.recent_conversations?.map((conv, i) => (
-                    <div key={i} className="bg-white/5 rounded-lg p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white text-xs font-medium truncate">{conv.title}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={`px-1.5 py-0.5 text-[9px] rounded ${
-                              conv.source === 'telegram' 
-                                ? 'bg-[#229ED9]/20 text-[#229ED9]' 
-                                : conv.source === 'voice'
-                                ? 'bg-purple-500/20 text-purple-400'
-                                : 'bg-white/10 text-gray-400'
-                            }`}>
-                              {conv.source || 'web'}
-                            </span>
-                            {conv.topic && (
-                              <span className="text-[10px] text-gray-500">{conv.topic}</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <span className="text-orange-400 text-xs font-medium">{conv.message_count}</span>
-                          <p className="text-gray-600 text-[9px]">msgs</p>
-                        </div>
-                      </div>
-                    </div>
                   ))}
                 </div>
               )}
