@@ -89,7 +89,7 @@ const MODELS = [
 // Telegram model list — same as MODELS, used in Settings modal
 const TELEGRAM_MODELS = MODELS;
 
-const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.md,.csv,.json,.docx';
+const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // ─── Speech recognition hook ─────────────────────────────────────────────────
@@ -374,20 +374,36 @@ function TypingIndicator() {
 
 // Convert file to processable data
 async function processFile(file) {
-  const isImage = file.type.startsWith('image/');
+  const isHeic = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif';
+  const isImage = file.type.startsWith('image/') || isHeic;
   const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isDOCX = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
                  file.name.toLowerCase().endsWith('.docx');
   
   if (isImage) {
+    let fileToRead = file;
+    
+    // Convert HEIC/HEIF to JPEG for browser compatibility
+    if (isHeic) {
+      try {
+        const heic2any = (await import('heic2any')).default;
+        const blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+        fileToRead = Array.isArray(blob) ? blob[0] : blob;
+      } catch (err) {
+        console.error('HEIC conversion failed:', err);
+        // Fallback: try reading as-is
+      }
+    }
+    
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const base64 = e.target.result.split(',')[1];
-        resolve({ type: 'image', base64, mimeType: file.type, name: file.name });
+        const mimeType = isHeic ? 'image/jpeg' : file.type;
+        resolve({ type: 'image', base64, mimeType, name: file.name });
       };
       reader.onerror = reject;
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(fileToRead);
     });
   } else if (isPDF || isDOCX) {
     // Parse PDF/DOCX on the server
@@ -6997,7 +7013,8 @@ export default function ChatPage() {
     
     for (const file of files) {
       // Check if it's an accepted file type
-      const isImage = file.type.startsWith('image/');
+      const isHeicFile = file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+      const isImage = file.type.startsWith('image/') || isHeicFile;
       const isAccepted = ACCEPTED_FILE_TYPES.split(',').some(type => {
         const cleanType = type.trim();
         if (cleanType.startsWith('.')) {
