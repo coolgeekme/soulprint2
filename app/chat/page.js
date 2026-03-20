@@ -8373,17 +8373,25 @@ export default function ChatPage() {
   
   // Move conversation to project
   async function moveConversationToProject(convId, projectId) {
+    console.log('[UI] Moving conversation', convId, 'to project', projectId);
     try {
       const res = await fetch(`/api/conversations/${convId}/project`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ project_id: projectId }),
       });
+      console.log('[UI] Move response status:', res.status);
       if (res.ok) {
         // Update the local conversation's project_id immediately
         setConversations(prev => prev.map(c => 
           c.id === convId ? { ...c, project_id: projectId } : c
         ));
+        // Also refresh conversations from server to ensure sync
+        const convRes = await fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } });
+        if (convRes.ok) {
+          const convData = await convRes.json();
+          setConversations(Array.isArray(convData) ? convData : []);
+        }
         // Refresh projects
         const projRes = await fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } });
         const projData = await projRes.json();
@@ -8392,9 +8400,14 @@ export default function ChatPage() {
           ...(projData.shared || []).map(p => ({ ...p, is_shared: true }))
         ];
         setProjects(allProjects);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error('[UI] Move failed:', errData);
+        alert('Failed to move conversation: ' + (errData.error || 'Unknown error'));
       }
     } catch (err) {
       console.error('Move conversation error:', err);
+      alert('Failed to move conversation');
     }
     setShowMoveToProject(false);
     setMovingConversation(null);
