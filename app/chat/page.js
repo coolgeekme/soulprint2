@@ -8380,10 +8380,10 @@ export default function ChatPage() {
         body: JSON.stringify({ project_id: projectId }),
       });
       if (res.ok) {
-        // Refresh conversations
-        const convRes = await fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${token}` } });
-        const convData = await convRes.json();
-        setConversations(Array.isArray(convData) ? convData : []);
+        // Update the local conversation's project_id immediately
+        setConversations(prev => prev.map(c => 
+          c.id === convId ? { ...c, project_id: projectId } : c
+        ));
         // Refresh projects
         const projRes = await fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } });
         const projData = await projRes.json();

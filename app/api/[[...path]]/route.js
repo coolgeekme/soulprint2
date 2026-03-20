@@ -6096,9 +6096,13 @@ async function handleDeleteConversation(request, conversationId) {
   const conv = await db.collection('conversations').findOne({ id: conversationId, user_id: user.id });
   if (!conv) return err('Conversation not found', 404);
 
+  // Debug logging
+  console.log('[DELETE CONV] ID:', conversationId, '| project_id:', conv.project_id, '| fromProject:', fromProject);
+
   // If deleting from "All Chats" view and the conversation belongs to a project,
   // just hide it from All Chats instead of permanently deleting
   if (!fromProject && conv.project_id && conv.project_id !== 'general') {
+    console.log('[DELETE CONV] Hiding from All Chats (keeping in project)');
     await db.collection('conversations').updateOne(
       { id: conversationId },
       { $set: { hidden_from_all_chats: true, updated_at: new Date() } }
@@ -6107,6 +6111,7 @@ async function handleDeleteConversation(request, conversationId) {
   }
 
   // Otherwise, permanently delete the conversation
+  console.log('[DELETE CONV] Permanently deleting');
   await db.collection('conversations').deleteOne({ id: conversationId });
   
   // Delete all messages in the conversation
@@ -6435,6 +6440,8 @@ async function handleMoveConversationToProject(request, conversationId) {
     { id: conversationId },
     { $set: { project_id: project_id || null, updated_at: new Date() } }
   );
+
+  console.log('[MOVE CONV] Moved conversation', conversationId, 'to project', project_id);
 
   return ok({ success: true });
 }
