@@ -2575,16 +2575,20 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   
   // Fetch image from URL if needed
   if (!imageBase64 && imageUrl) {
+    console.log('[ImageEdit] Fetching image from URL:', imageUrl);
     try {
       const imgResponse = await fetch(imageUrl);
-      if (!imgResponse.ok) throw new Error('Failed to fetch image');
+      console.log('[ImageEdit] Fetch response status:', imgResponse.status);
+      if (!imgResponse.ok) throw new Error(`Failed to fetch image: ${imgResponse.status}`);
       const imgBuffer = await imgResponse.arrayBuffer();
+      console.log('[ImageEdit] Fetched image buffer size:', imgBuffer.byteLength);
       imageBase64 = Buffer.from(imgBuffer).toString('base64');
       const contentType = imgResponse.headers.get('content-type');
       if (contentType) mimeType = contentType;
+      console.log('[ImageEdit] Converted to base64, length:', imageBase64.length, 'mimeType:', mimeType);
     } catch (err) {
-      console.error('[ImageEdit] Failed to fetch image:', err);
-      return { success: false, error: 'Failed to fetch original image' };
+      console.error('[ImageEdit] Failed to fetch image:', err.message);
+      return { success: false, error: 'Failed to fetch original image: ' + err.message };
     }
   }
   
@@ -2604,23 +2608,31 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   // METHOD 1: Try dall-e-2 with images/edits endpoint
   try {
     console.log('[ImageEdit] Attempting dall-e-2 images/edits API');
+    console.log('[ImageEdit] Input base64 length:', imageBase64.length);
     
     // DALL-E 2 edit requires PNG with alpha channel (RGBA format)
     // Convert the image to RGBA PNG using Sharp
-    const sharp = (await import('sharp')).default;
-    const inputBuffer = Buffer.from(imageBase64, 'base64');
-    
-    // Convert to PNG with alpha channel
-    const pngBuffer = await sharp(inputBuffer)
-      .ensureAlpha()  // Add alpha channel if not present
-      .png()
-      .toBuffer();
-    
-    const pngBase64 = pngBuffer.toString('base64');
-    console.log('[ImageEdit] Converted to RGBA PNG, size:', pngBuffer.length);
+    let pngBuffer;
+    try {
+      const sharp = (await import('sharp')).default;
+      const inputBuffer = Buffer.from(imageBase64, 'base64');
+      console.log('[ImageEdit] Input buffer size:', inputBuffer.length);
+      
+      // Convert to PNG with alpha channel
+      pngBuffer = await sharp(inputBuffer)
+        .ensureAlpha()  // Add alpha channel if not present
+        .png()
+        .toBuffer();
+      
+      console.log('[ImageEdit] Converted to RGBA PNG, size:', pngBuffer.length);
+    } catch (sharpErr) {
+      console.log('[ImageEdit] Sharp conversion failed:', sharpErr.message);
+      throw new Error(`Image conversion failed: ${sharpErr.message}`);
+    }
     
     // Create blob from the RGBA PNG
     const imageBlob = new Blob([pngBuffer], { type: 'image/png' });
+    console.log('[ImageEdit] Created blob, size:', imageBlob.size);
     
     const formData = new FormData();
     formData.append('image', imageBlob, 'image.png');
