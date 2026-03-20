@@ -2605,13 +2605,22 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   try {
     console.log('[ImageEdit] Attempting dall-e-2 images/edits API');
     
-    // Convert base64 to blob for FormData upload
-    const binaryString = atob(imageBase64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    const imageBlob = new Blob([bytes], { type: mimeType });
+    // DALL-E 2 edit requires PNG with alpha channel (RGBA format)
+    // Convert the image to RGBA PNG using Sharp
+    const sharp = (await import('sharp')).default;
+    const inputBuffer = Buffer.from(imageBase64, 'base64');
+    
+    // Convert to PNG with alpha channel
+    const pngBuffer = await sharp(inputBuffer)
+      .ensureAlpha()  // Add alpha channel if not present
+      .png()
+      .toBuffer();
+    
+    const pngBase64 = pngBuffer.toString('base64');
+    console.log('[ImageEdit] Converted to RGBA PNG, size:', pngBuffer.length);
+    
+    // Create blob from the RGBA PNG
+    const imageBlob = new Blob([pngBuffer], { type: 'image/png' });
     
     const formData = new FormData();
     formData.append('image', imageBlob, 'image.png');
@@ -2657,7 +2666,7 @@ async function handleImageEditInternal(userId, image, editInstruction) {
     
     const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
     
-    // Use GPT-4o Vision to analyze and create an edit prompt
+    // Use GPT-4o Vision to analyze and create an edit prompt that PRESERVES the original
     const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
@@ -2667,14 +2676,31 @@ async function handleImageEditInternal(userId, image, editInstruction) {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: imageDataUrl, detail: 'high' } },
-            { type: 'text', text: `Analyze this image in detail and create a prompt to recreate it with this modification: "${safeEditInstruction}"
+            { type: 'text', text: `You must recreate this EXACT image with ONE modification: "${safeEditInstruction}"
 
-Describe the original image precisely (subject, style, colors, composition, background) and incorporate the requested change.
-Output ONLY the generation prompt, no explanations.` }
+CRITICAL: The output must be the SAME image with only that one change. Preserve EVERYTHING else:
+
+1. EXACT COMPOSITION - Same camera angle, same position of subject, same framing
+2. EXACT SUBJECT - Same object/person, same pose, same shape, same proportions  
+3. EXACT BACKGROUND - Same environment, same lighting direction, same shadows
+4. EXACT STYLE - Same artistic style, same level of realism, same color temperature
+5. ONLY CHANGE - Apply ONLY the requested modification: "${safeEditInstruction}"
+
+Describe the image with EXTREME precision:
+- Camera angle and perspective
+- Subject position, pose, and details
+- Background elements
+- Lighting direction and quality
+- Color palette
+- Artistic style
+
+Then write a DALL-E prompt that recreates this EXACT scene with the modification applied.
+
+Output ONLY the DALL-E prompt. No explanations. The prompt must recreate the IDENTICAL composition.` }
           ]
         }],
-        max_tokens: 800,
-        temperature: 0.3,
+        max_tokens: 1000,
+        temperature: 0.2,
       }),
     });
     
@@ -8090,9 +8116,12 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 send({ type: 'delta', content: fullContent });
               }
             } else {
-              // Regular edit request
+              // Regular edit request - PRESERVE THE ORIGINAL IMAGE
               send({ type: 'delta', content: '✨ Editing your image... Please hold on for a moment while I work on this.\n\n' });
               let editResult = null;
+              let finalImageUrl = null;
+              let editMethod = 'image-edit';
+              
               try {
                 editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent);
                 
@@ -8101,24 +8130,64 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                   fullContent = `![Edited Image](${editResult.url})\n\n✨ *Image edited with ${methodLabel}!*\n\n**Edit applied:** ${sanitizedContent}`;
                   send({ type: 'image', url: editResult.url, contentType: 'image_edit', method: editResult.method });
                   send({ type: 'delta', content: fullContent });
+                  finalImageUrl = editResult.url;
+                  editMethod = editResult.method;
                 } else {
                   throw new Error(editResult.error || 'Image editing failed');
                 }
               } catch (editErr) {
                 console.error('[Image Edit] Exception:', editErr.message);
-                // If edit fails, try generating a new image based on the edit instruction
-                console.log('[Image Edit] Edit failed, attempting to generate new image based on instruction');
+                // If edit fails, try generating a SIMILAR image with the edit applied
+                console.log('[Image Edit] Edit failed, attempting to recreate with changes');
                 try {
                   const openaiKey = process.env.OPENAI_API_KEY;
                   if (openaiKey) {
-                    send({ type: 'delta', content: '\n\n🔄 Edit failed, generating a new version...\n' });
+                    send({ type: 'delta', content: '\n\n🔄 Recreating image with your changes...\n' });
+                    
+                    // Use GPT-4o to analyze the original image and create a detailed prompt
+                    // that preserves the composition while applying the edit
+                    const analyzeResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${openaiKey}`,
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        model: 'gpt-4o',
+                        messages: [
+                          {
+                            role: 'system',
+                            content: `You analyze images and create DALL-E prompts. Your task:
+1. Describe the image in EXTREME detail (composition, angle, lighting, style, every element)
+2. Apply the user's requested edit to your description
+3. Output ONLY a DALL-E prompt that will recreate the SAME image with the edit applied
+
+Be very specific about camera angle, perspective, style, background, lighting. The goal is to recreate the SAME composition, not a completely different image.`
+                          },
+                          {
+                            role: 'user',
+                            content: [
+                              { type: 'text', text: `Analyze this image and create a DALL-E prompt that recreates it with this change: "${sanitizedContent}"` },
+                              { type: 'image_url', image_url: { url: imageToEdit.url || `data:image/png;base64,${imageToEdit.base64}` } }
+                            ]
+                          }
+                        ],
+                        max_tokens: 800,
+                        temperature: 0.3,
+                      }),
+                    });
+                    
+                    const analyzeData = await analyzeResponse.json();
+                    const recreatePrompt = analyzeData.choices?.[0]?.message?.content || sanitizedContent;
+                    
+                    console.log('[Image Edit] Recreate prompt:', recreatePrompt.substring(0, 200));
                     
                     const generateRes = await fetch('https://api.openai.com/v1/images/generations', {
                       method: 'POST',
                       headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
                       body: JSON.stringify({ 
                         model: 'dall-e-3', 
-                        prompt: `Based on this instruction: ${sanitizedContent}. Create an image that matches this description.`, 
+                        prompt: recreatePrompt, 
                         n: 1, 
                         size: '1024x1024', 
                         quality: 'hd', 
@@ -8130,33 +8199,36 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                     const fallbackUrl = generateData.data?.[0]?.url;
                     
                     if (fallbackUrl) {
-                      fullContent = `![Generated Image](${fallbackUrl})\n\n🖼️ *Created a new image based on your request!*`;
-                      send({ type: 'image', url: fallbackUrl, contentType: 'image' });
+                      fullContent = `![Edited Image](${fallbackUrl})\n\n✨ *Image recreated with your changes applied!*\n\n**Edit:** ${sanitizedContent}`;
+                      send({ type: 'image', url: fallbackUrl, contentType: 'image_edit' });
                       send({ type: 'delta', content: fullContent });
+                      finalImageUrl = fallbackUrl;
+                      editMethod = 'dall-e-3-recreate';
                     } else {
-                      throw new Error('Fallback generation failed');
+                      throw new Error('Recreation failed');
                     }
                   } else {
                     throw new Error('No API key');
                   }
                 } catch (fallbackErr) {
-                  fullContent = `Sorry, I couldn't edit the image. Would you like me to try creating a new image instead? Just describe what you'd like to see!`;
+                  console.error('[Image Edit Fallback] Error:', fallbackErr.message);
+                  fullContent = `Sorry, I couldn't edit the image: ${editErr.message}. Would you like me to try creating a new image instead?`;
                   send({ type: 'delta', content: fullContent });
                 }
               }
+              
+              // Save message
+              await db.collection('messages').insertOne({
+                id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                role: 'assistant', content: fullContent, created_at: new Date(),
+                model_used: editMethod, provider_used: 'openai', content_type: 'image_edit',
+                image_url: finalImageUrl,
+              });
+              await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+              send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+              closeStream();
+              return;
             }
-            
-            // Save message
-            await db.collection('messages').insertOne({
-              id: assistantMsgId, conversation_id: convId, user_id: user.id,
-              role: 'assistant', content: fullContent, created_at: new Date(),
-              model_used: editResult?.method || 'image-edit', provider_used: 'kie.ai', content_type: 'image_edit',
-              image_url: editResult?.url || null,
-            });
-            await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
-            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-            closeStream();
-            return;
           } else {
             // No image found to edit - inform user
             send({ type: 'delta', content: "I don't see an image to edit in our conversation. Would you like me to create a new one? Just describe what you'd like to see!\n\n" });
