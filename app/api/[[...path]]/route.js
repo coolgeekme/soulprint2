@@ -3959,6 +3959,14 @@ CLASSIFY THE INTENT - What does the user want?
    - With attached image: "Remove the background", "Change the color", "Add a hat"
    - For previous generated image: "make it more realistic", "make it look like a photograph", "edit it to be more natural", "change the style to photorealistic", "make it look more professional"
    - Any request to CHANGE HOW THE IMAGE LOOKS (not just regenerate with settings)
+   - IMPORTANT: If user asks to modify, adjust, add to, or change a PREVIOUSLY GENERATED image, this is image_edit!
+   - Examples that reference a previous image:
+     - "add more colors" / "more pattern" / "make it brighter" (modifying previous)
+     - "can you give me more X" (referencing previous generation)
+     - "add a logo to it" / "put text on it" (modifying previous)
+     - "change the background" / "make it darker"
+     - "edit that" / "modify it" / "adjust the colors"
+   - If user generated an image earlier and now asks for changes WITHOUT describing a new image from scratch = image_edit
 
 5. **image_regen** - User wants to REGENERATE the last image with DIFFERENT TECHNICAL SETTINGS (aspect ratio, style preset). Examples:
    - "make it wider" / "make it landscape" / "try landscape" (changes aspect ratio)
@@ -3998,6 +4006,10 @@ IMPORTANT RULES:
 - "make a mug with X" = mockup
 - "design a hoodie with X" = mockup
 - If user mentions a PRODUCT (shirt, mug, hoodie, cap, poster, phone case) AND a design/logo/pattern = mockup
+- CRITICAL: If user previously generated an image and now asks to ADD/CHANGE/MODIFY something about it = image_edit
+- "add more colors" / "more patterns" / "change the colors" = image_edit (referencing previous image)
+- "can you give me more X" when referencing a previous image = image_edit
+- "make it X" (brighter, darker, more vibrant, different color) = image_edit
 
 Respond with ONLY a JSON object:
 {"intent": "text|image|mockup|video|image_edit|image_regen|video_regen", "confidence": "high|medium|low", "reason": "brief explanation", "settings": {"aspectRatio": "1:1|16:9|9:16", "style": "vivid|natural", "duration": 5|10}}`;
@@ -4112,6 +4124,12 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
     /\b(?:edit|modify)\s+(?:the|that|it)\s+(?:to\s+)?(?:be|look)\s+/i,
     /\b(?:change|transform)\s+(?:the|that|it)\s+(?:to\s+)?(?:look\s+)?(?:like|into)\s+/i,
     /\b(?:make\s+it\s+look\s+like|convert\s+it\s+to)\s+(?:a\s+)?(?:photograph|photo|real)/i,
+    // Adding patterns for "add more", "more colors", etc.
+    /\b(?:add\s+more|more)\s+(?:color|colors|pattern|patterns|detail|details|vibrant|brightness)/i,
+    /\bcan\s+you\s+(?:give|add)\s+(?:me\s+)?more/i,
+    /\b(?:add|put)\s+(?:some|more)\s+(?:\w+\s+)?(?:to\s+it|on\s+it|there)/i,
+    /\b(?:change|update|modify)\s+(?:the\s+)?(?:colors?|pattern|design)/i,
+    /\bmake\s+(?:it|the\s+\w+)\s+(?:more\s+)?(?:colorful|vibrant|brighter|darker|different)/i,
   ];
   if (conversationalEditPatterns.some(p => p.test(lower))) {
     return { intent: 'image_edit', confidence: 'high', reason: 'Edit previous image to change appearance' };
@@ -7948,6 +7966,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           
           // If no attached image, find the last generated image in the conversation
           if (!imageToEdit) {
+            console.log('[Image Edit] Looking for previous image in conversation:', convId);
             const recentImageMessages = await db.collection('messages')
               .find({ 
                 conversation_id: convId, 
@@ -7961,8 +7980,11 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               .limit(1)
               .toArray();
             
+            console.log('[Image Edit] Found', recentImageMessages.length, 'recent image messages');
+            
             if (recentImageMessages.length > 0) {
               const lastImageMsg = recentImageMessages[0];
+              console.log('[Image Edit] Last image message content_type:', lastImageMsg.content_type, 'image_url:', lastImageMsg.image_url?.substring(0, 60));
               // Extract the image URL from the message
               let imageUrl = lastImageMsg.image_url;
               if (!imageUrl) {
