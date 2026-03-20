@@ -7494,20 +7494,40 @@ Professional studio lighting, white or neutral background. High resolution, clea
               send({ type: 'delta', content: '🖼️ Compositing your exact logo...\n' });
               
               const productResponse = await fetch(blankProductUrl);
-              const productBuffer = Buffer.from(await productResponse.arrayBuffer());
+              const productArrayBuffer = await productResponse.arrayBuffer();
+              const productBuffer = Buffer.from(productArrayBuffer);
               
               // Step 5: Prepare the logo (ensure it has transparency and proper size)
-              const logoBuffer = Buffer.from(logoBase64, 'base64');
+              // Clean the base64 string (remove data URL prefix if present)
+              const cleanLogoBase64 = logoBase64.replace(/^data:image\/[^;]+;base64,/, '');
+              const logoBuffer = Buffer.from(cleanLogoBase64, 'base64');
+              
+              // Convert both images to PNG format for consistent processing
+              let productPng, logoPng;
+              try {
+                productPng = await sharp(productBuffer).png().toBuffer();
+              } catch (e) {
+                console.log('[Mockup] Product image conversion error, trying with format detection');
+                productPng = await sharp(productBuffer, { failOnError: false }).png().toBuffer();
+              }
+              
+              try {
+                logoPng = await sharp(logoBuffer).png().toBuffer();
+              } catch (e) {
+                console.log('[Mockup] Logo image conversion error, trying with format detection');
+                logoPng = await sharp(logoBuffer, { failOnError: false }).png().toBuffer();
+              }
               
               // Get product image dimensions
-              const productMeta = await sharp(productBuffer).metadata();
+              const productMeta = await sharp(productPng).metadata();
               const productWidth = productMeta.width || 1024;
               const productHeight = productMeta.height || 1024;
               
               // Resize logo to fit nicely on the product (about 40% of product width)
               const logoTargetWidth = Math.round(productWidth * 0.4);
-              const resizedLogo = await sharp(logoBuffer)
+              const resizedLogo = await sharp(logoPng)
                 .resize(logoTargetWidth, null, { fit: 'inside' })
+                .png()
                 .toBuffer();
               
               const logoMeta = await sharp(resizedLogo).metadata();
@@ -7519,7 +7539,7 @@ Professional studio lighting, white or neutral background. High resolution, clea
               const logoTop = Math.round((productHeight - logoHeight) / 2) - Math.round(productHeight * 0.05);
               
               // Step 6: Composite the logo onto the product
-              const compositedBuffer = await sharp(productBuffer)
+              const compositedBuffer = await sharp(productPng)
                 .composite([{
                   input: resizedLogo,
                   top: Math.max(0, logoTop),
