@@ -7425,11 +7425,11 @@ async function handleChatStream(request) {
         }
 
         // ── Handle MOCKUP generation (logo on product) ───────────────────
-        // Two approaches: 1) Generate blank product, composite exact logo 2) AI approximation
+        // Use GPT-4o Vision to analyze the logo/design, then generate a realistic mockup
         if (mediaIntent === 'mockup' && hasImageAttachment) {
           const imageAttachment = attachments.find(a => a.type === 'image');
           if (imageAttachment) {
-            send({ type: 'delta', content: '🎨 Creating your mockup with your EXACT logo...\n\n' });
+            send({ type: 'delta', content: '🎨 Creating your product mockup...\n\n' });
             
             try {
               const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -7445,37 +7445,102 @@ async function handleChatStream(request) {
                 if (match) logoBase64 = match[1];
               }
               
-              // Import Sharp for image compositing
-              const sharp = (await import('sharp')).default;
+              // Build the data URL for GPT-4o Vision
+              const logoDataUrl = `data:${logoMimeType};base64,${logoBase64}`;
               
               // Step 1: Detect what product they want
               const productMatch = sanitizedContent.toLowerCase();
-              let productType = 'shirt';
-              if (/\b(mug|cup)\b/.test(productMatch)) productType = 'mug';
+              let productType = 't-shirt';
+              if (/\b(mug|cup)\b/.test(productMatch)) productType = 'coffee mug';
               else if (/\b(hoodie|sweatshirt)\b/.test(productMatch)) productType = 'hoodie';
-              else if (/\b(poster|banner)\b/.test(productMatch)) productType = 'poster';
-              else if (/\b(cap|hat)\b/.test(productMatch)) productType = 'cap';
+              else if (/\b(poster|banner|wall art)\b/.test(productMatch)) productType = 'poster';
+              else if (/\b(cap|hat)\b/.test(productMatch)) productType = 'baseball cap';
+              else if (/\b(tote|bag)\b/.test(productMatch)) productType = 'tote bag';
+              else if (/\b(phone|iphone|case)\b/.test(productMatch)) productType = 'phone case';
               
               // Step 2: Detect placement
               let placement = 'front';
               if (/\b(back)\b/.test(productMatch)) placement = 'back';
               
-              console.log(`[Mockup] Creating ${productType} mockup with logo on ${placement}`);
+              console.log(`[Mockup] Creating ${productType} mockup with design on ${placement}`);
               
-              // Step 3: Generate a BLANK product mockup (no logo)
-              send({ type: 'delta', content: '📦 Generating blank product mockup...\n' });
+              // Step 3: Use GPT-4o Vision to analyze the logo/design and create a detailed description
+              send({ type: 'delta', content: '👁️ Analyzing your design...\n' });
               
-              const blankProductPrompt = `Professional product photography of a plain black ${productType === 'shirt' ? 't-shirt' : productType} ${placement === 'back' ? 'shown from the back' : 'shown from the front'}. 
-Clean, simple mockup style. No text, no logos, no designs - completely blank.
-${productType === 'shirt' ? 'The shirt should be laid flat or on an invisible mannequin.' : ''}
-Professional studio lighting, white or neutral background. High resolution, clean and minimal.`;
+              const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${openaiApiKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: 'gpt-4o',
+                  messages: [
+                    {
+                      role: 'system',
+                      content: `You are an expert at describing logos and designs for mockup generation. 
+Your task is to analyze the uploaded image and create a DETAILED, ACCURATE description of the design that can be used to recreate it on a product mockup.
+
+Be EXTREMELY specific about:
+- Exact text/words shown (spelling, capitalization, font style)
+- Colors used (be specific: "flame orange", "crisp white", etc.)
+- Design elements (icons, shapes, illustrations)
+- Layout and composition
+- Style (modern, vintage, minimalist, bold, etc.)
+
+Output ONLY the description, no explanations.`
+                    },
+                    {
+                      role: 'user',
+                      content: [
+                        {
+                          type: 'text',
+                          text: 'Describe this logo/design in detail so it can be accurately recreated on a product mockup:'
+                        },
+                        {
+                          type: 'image_url',
+                          image_url: { url: logoDataUrl }
+                        }
+                      ]
+                    }
+                  ],
+                  max_tokens: 500,
+                  temperature: 0.3,
+                }),
+              });
               
-              const blankRes = await fetch('https://api.openai.com/v1/images/generations', {
+              const visionData = await visionResponse.json();
+              const designDescription = visionData.choices?.[0]?.message?.content || 'A custom logo design';
+              
+              console.log('[Mockup] Design description:', designDescription.substring(0, 200));
+              
+              // Step 4: Generate the mockup with DALL-E 3 using the analyzed design
+              send({ type: 'delta', content: '🖼️ Generating realistic mockup...\n' });
+              
+              const mockupPrompt = `Professional e-commerce product photography of a ${productType} with a printed design.
+
+THE DESIGN ON THE ${productType.toUpperCase()} (shown on the ${placement}):
+${designDescription}
+
+MOCKUP REQUIREMENTS:
+- The design must be clearly visible and printed/integrated naturally onto the ${productType}
+- The design should look like it's actually printed on the fabric/material, not floating on top
+- ${productType === 't-shirt' || productType === 'hoodie' ? `Show the ${productType} ${placement === 'back' ? 'from the back view' : 'from the front view'} on an invisible mannequin or laid flat` : ''}
+- Professional studio lighting with soft shadows
+- Clean white or light gray gradient background
+- High-quality, photorealistic mockup style
+- The printed design should have natural fabric texture and slight curves following the product shape
+
+Style: Clean, professional product photography. The kind you'd see on an e-commerce website or print-on-demand store.`;
+              
+              console.log('[Mockup] Generating with prompt:', mockupPrompt.substring(0, 300));
+              
+              const generateRes = await fetch('https://api.openai.com/v1/images/generations', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                   model: 'dall-e-3', 
-                  prompt: blankProductPrompt, 
+                  prompt: mockupPrompt, 
                   n: 1, 
                   size: '1024x1024', 
                   quality: 'hd', 
@@ -7483,125 +7548,26 @@ Professional studio lighting, white or neutral background. High resolution, clea
                 }),
               });
               
-              const blankData = await blankRes.json();
-              const blankProductUrl = blankData.data?.[0]?.url;
+              const generateData = await generateRes.json();
+              const mockupUrl = generateData.data?.[0]?.url;
+              const revisedPrompt = generateData.data?.[0]?.revised_prompt;
               
-              if (!blankProductUrl) {
-                throw new Error('Failed to generate blank product mockup');
+              if (!mockupUrl) {
+                throw new Error(generateData.error?.message || 'Failed to generate mockup');
               }
               
-              // Step 4: Download the blank product image
-              send({ type: 'delta', content: '🖼️ Compositing your exact logo...\n' });
+              console.log('[Mockup] Successfully generated realistic mockup!');
               
-              const productResponse = await fetch(blankProductUrl);
-              const productArrayBuffer = await productResponse.arrayBuffer();
-              const productBuffer = Buffer.from(productArrayBuffer);
-              
-              // Step 5: Prepare the logo (ensure it has transparency and proper size)
-              // Clean the base64 string (remove data URL prefix if present)
-              const cleanLogoBase64 = logoBase64.replace(/^data:image\/[^;]+;base64,/, '');
-              const logoBuffer = Buffer.from(cleanLogoBase64, 'base64');
-              
-              // Convert both images to PNG format for consistent processing
-              let productPng, logoPng;
-              try {
-                productPng = await sharp(productBuffer).png().toBuffer();
-              } catch (e) {
-                console.log('[Mockup] Product image conversion error, trying with format detection');
-                productPng = await sharp(productBuffer, { failOnError: false }).png().toBuffer();
-              }
-              
-              try {
-                logoPng = await sharp(logoBuffer).png().toBuffer();
-              } catch (e) {
-                console.log('[Mockup] Logo image conversion error, trying with format detection');
-                logoPng = await sharp(logoBuffer, { failOnError: false }).png().toBuffer();
-              }
-              
-              // Get product image dimensions
-              const productMeta = await sharp(productPng).metadata();
-              const productWidth = productMeta.width || 1024;
-              const productHeight = productMeta.height || 1024;
-              
-              // Resize logo to fit nicely on the product (about 40% of product width)
-              const logoTargetWidth = Math.round(productWidth * 0.4);
-              const resizedLogo = await sharp(logoPng)
-                .resize(logoTargetWidth, null, { fit: 'inside' })
-                .png()
-                .toBuffer();
-              
-              const logoMeta = await sharp(resizedLogo).metadata();
-              const logoWidth = logoMeta.width || logoTargetWidth;
-              const logoHeight = logoMeta.height || logoTargetWidth;
-              
-              // Calculate position (centered, slightly above center for shirts)
-              const logoLeft = Math.round((productWidth - logoWidth) / 2);
-              const logoTop = Math.round((productHeight - logoHeight) / 2) - Math.round(productHeight * 0.05);
-              
-              // Step 6: Composite the logo onto the product
-              const compositedBuffer = await sharp(productPng)
-                .composite([{
-                  input: resizedLogo,
-                  top: Math.max(0, logoTop),
-                  left: Math.max(0, logoLeft),
-                  blend: 'over'
-                }])
-                .png()
-                .toBuffer();
-              
-              // Step 7: Upload to temp storage for a proper URL
-              const compositedBase64 = compositedBuffer.toString('base64');
-              let imageUrl = null;
-              
-              // Try uploading to Kie.ai temp storage (3-day expiry)
-              const kieKey = process.env.KIE_API_KEY;
-              if (kieKey) {
-                try {
-                  const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-                    method: 'POST',
-                    headers: { 
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${kieKey}`
-                    },
-                    body: JSON.stringify({
-                      base64Data: `data:image/png;base64,${compositedBase64}`,
-                      uploadPath: 'soulprint/mockups',
-                      fileName: `mockup_${Date.now()}.png`
-                    }),
-                  });
-                  
-                  if (uploadRes.ok) {
-                    const uploadData = await uploadRes.json();
-                    console.log('[Mockup] Upload response:', JSON.stringify(uploadData).substring(0, 300));
-                    if (uploadData.success && uploadData.data?.downloadUrl) {
-                      imageUrl = uploadData.data.downloadUrl;
-                      console.log('[Mockup] Uploaded to:', imageUrl);
-                    }
-                  } else {
-                    console.log('[Mockup] Upload failed:', uploadRes.status, await uploadRes.text());
-                  }
-                } catch (uploadErr) {
-                  console.log('[Mockup] Upload to temp storage failed:', uploadErr.message);
-                }
-              }
-              
-              // Fallback to base64 data URL if upload failed
-              if (!imageUrl) {
-                imageUrl = `data:image/png;base64,${compositedBase64}`;
-                console.log('[Mockup] Using base64 data URL fallback (length:', imageUrl.length, ')');
-              }
-              
-              console.log('[Mockup] Successfully composited! URL type:', imageUrl.startsWith('data:') ? 'base64' : 'hosted', 'URL preview:', imageUrl.substring(0, 100));
-              
-              fullContent = `![Product Mockup](${imageUrl})\n\n🛍️ *Your product mockup is ready!*\n\n✅ **Your exact logo has been placed on the ${productType}!**\n\n_This uses true image compositing - your logo pixels are preserved exactly._`;
-              send({ type: 'image', url: imageUrl, contentType: 'mockup', model: 'sharp-composite' });
+              fullContent = `![Product Mockup](${mockupUrl})\n\n🛍️ *Your ${productType} mockup is ready!*\n\n_Design analyzed and recreated on the product using AI._`;
+              send({ type: 'image', url: mockupUrl, contentType: 'mockup', model: 'dall-e-3' });
               send({ type: 'delta', content: fullContent });
               
               await db.collection('messages').insertOne({
                 id: assistantMsgId, conversation_id: convId, user_id: user.id,
                 role: 'assistant', content: fullContent, created_at: new Date(),
-                model_used: 'dall-e-3+sharp', provider_used: 'openai', content_type: 'mockup',
-                image_url: imageUrl,
+                model_used: 'dall-e-3', provider_used: 'openai', content_type: 'mockup',
+                image_url: mockupUrl,
+                design_description: designDescription,
               });
               await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
               send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
