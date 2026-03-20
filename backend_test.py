@@ -1,409 +1,306 @@
 #!/usr/bin/env python3
+"""
+Backend API Testing Script for SoulPrint Engine
+Testing updated delete conversation logic with projects
+"""
 
 import requests
 import json
-import uuid
-from datetime import datetime
+import sys
+from typing import Dict, Any, Optional
 
-class AdminEndpointTester:
-    def __init__(self):
-        self.base_url = "https://dashboard-profiles.preview.emergentagent.com"
-        self.admin_token = None
-        self.created_user_id = None
-        self.created_update_ids = []
+class SoulPrintAPITester:
+    def __init__(self, base_url: str):
+        self.base_url = base_url.rstrip('/')
+        self.api_url = f"{self.base_url}/api"
+        self.session = requests.Session()
+        self.token = None
+        self.user_id = None
         
-    def login_admin(self):
-        """Login as admin and get JWT token"""
-        print("=" * 60)
-        print("LOGGING IN AS ADMIN")
-        print("=" * 60)
-        
+    def login(self, email: str, passcode: str) -> bool:
+        """Authenticate user and store token"""
         try:
-            url = f"{self.base_url}/api/auth/login"
-            payload = {
-                "email": "test@soulprint.com",
-                "passcode": "test123"
-            }
-            
-            response = requests.post(url, json=payload, timeout=30)
-            print(f"POST {url}")
-            print(f"Status Code: {response.status_code}")
-            print(f"Response: {response.text[:500]}")
+            response = self.session.post(f"{self.api_url}/auth/login", json={
+                "email": email,
+                "passcode": passcode
+            })
             
             if response.status_code == 200:
                 data = response.json()
-                self.admin_token = data.get('token')
-                print(f"✅ Admin login successful - Token acquired")
-                print(f"User Role: {data.get('role', 'N/A')}")
-                return True
-            else:
-                print(f"❌ Admin login failed - Status: {response.status_code}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Login error: {str(e)}")
-            return False
-    
-    def get_headers(self):
-        """Get headers with admin token"""
-        if not self.admin_token:
-            raise Exception("No admin token available")
-        return {
-            "Authorization": f"Bearer {self.admin_token}",
-            "Content-Type": "application/json"
-        }
-    
-    def test_get_admin_users(self):
-        """Test GET /api/admin/users to get a list of users"""
-        print("\n" + "=" * 60)
-        print("TESTING: GET /api/admin/users - Get Users List")
-        print("=" * 60)
-        
-        try:
-            url = f"{self.base_url}/api/admin/users"
-            response = requests.get(url, headers=self.get_headers(), timeout=30)
-            
-            print(f"GET {url}")
-            print(f"Status Code: {response.status_code}")
-            print(f"Response: {response.text[:800]}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                users = data.get('users', [])
-                print(f"✅ SUCCESS: Retrieved {len(users)} users")
-                
-                # Return the first user ID for detailed testing
-                if users:
-                    user_id = users[0]['id']
-                    print(f"🎯 Will test user details with ID: {user_id}")
-                    return user_id
-                else:
-                    print("⚠️  No users found to test with")
-                    return None
-                    
-            else:
-                print(f"❌ FAILED: Status {response.status_code}")
-                return None
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return None
-    
-    def test_get_user_details(self, user_id):
-        """Test GET /api/admin/users/:userId - Get detailed user info"""
-        print("\n" + "=" * 60)
-        print(f"TESTING: GET /api/admin/users/{user_id} - Get User Details")
-        print("=" * 60)
-        
-        try:
-            url = f"{self.base_url}/api/admin/users/{user_id}"
-            response = requests.get(url, headers=self.get_headers(), timeout=30)
-            
-            print(f"GET {url}")
-            print(f"Status Code: {response.status_code}")
-            print(f"Response: {response.text[:1000]}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                # Verify expected structure
-                required_fields = ['user', 'profile', 'stats', 'conversations', 'memories']
-                found_fields = [field for field in required_fields if field in data]
-                
-                print(f"✅ SUCCESS: User details retrieved")
-                print(f"📊 Found sections: {found_fields}")
-                
-                # Show some key stats
-                user_info = data.get('user', {})
-                stats_info = data.get('stats', {})
-                print(f"👤 User: {user_info.get('email', 'N/A')} | Role: {user_info.get('role', 'N/A')}")
-                print(f"📈 Stats: {stats_info.get('total_conversations', 0)} conversations, {stats_info.get('total_messages', 0)} messages")
-                
-                return True
-                
-            else:
-                print(f"❌ FAILED: Status {response.status_code}")
-                if response.status_code == 404:
-                    print("   User not found")
-                elif response.status_code == 403:
-                    print("   Forbidden - admin auth required")
-                return False
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return False
-    
-    def test_get_app_updates(self):
-        """Test GET /api/admin/app-updates - Get all app updates"""
-        print("\n" + "=" * 60)
-        print("TESTING: GET /api/admin/app-updates - Get App Updates")
-        print("=" * 60)
-        
-        try:
-            url = f"{self.base_url}/api/admin/app-updates"
-            response = requests.get(url, headers=self.get_headers(), timeout=30)
-            
-            print(f"GET {url}")
-            print(f"Status Code: {response.status_code}")
-            print(f"Response: {response.text[:800]}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                updates = data.get('updates', [])
-                print(f"✅ SUCCESS: Retrieved {len(updates)} app updates")
-                
-                for update in updates[:3]:  # Show first 3
-                    print(f"📄 Update: {update.get('title', 'N/A')} | Type: {update.get('type', 'N/A')} | Published: {update.get('published', False)}")
-                
-                return True
-                
-            else:
-                print(f"❌ FAILED: Status {response.status_code}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return False
-    
-    def test_create_app_update(self):
-        """Test POST /api/admin/app-updates - Create new app update"""
-        print("\n" + "=" * 60)
-        print("TESTING: POST /api/admin/app-updates - Create App Update")
-        print("=" * 60)
-        
-        try:
-            url = f"{self.base_url}/api/admin/app-updates"
-            
-            test_update = {
-                "title": "Test Feature Update",
-                "description": "This is a test app update created during backend testing. New advanced chat features added including improved memory system and better response quality.",
-                "version": "1.2.3",
-                "type": "feature",
-                "published": False,
-                "release_date": datetime.now().isoformat()
-            }
-            
-            response = requests.post(url, headers=self.get_headers(), json=test_update, timeout=30)
-            
-            print(f"POST {url}")
-            print(f"Payload: {json.dumps(test_update, indent=2)}")
-            print(f"Status Code: {response.status_code}")
-            print(f"Response: {response.text[:800]}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                created_update = data.get('update', {})
-                update_id = created_update.get('id')
-                
-                if update_id:
-                    self.created_update_ids.append(update_id)
-                    print(f"✅ SUCCESS: App update created with ID: {update_id}")
-                    print(f"📄 Title: {created_update.get('title', 'N/A')}")
-                    print(f"🏷️  Type: {created_update.get('type', 'N/A')}")
-                    return update_id
-                else:
-                    print("✅ SUCCESS: App update created but no ID returned")
+                self.token = data.get('token')
+                self.user_id = data.get('userId')
+                if self.token:
+                    self.session.headers.update({'Authorization': f'Bearer {self.token}'})
+                    print(f"✅ Authentication successful - Role: {data.get('role', 'N/A')}")
                     return True
-                
-            else:
-                print(f"❌ FAILED: Status {response.status_code}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
+            print(f"❌ Authentication failed: {response.status_code} - {response.text[:200]}")
             return False
-    
-    def test_update_app_update(self, update_id):
-        """Test PUT /api/admin/app-updates/:id - Update app update"""
-        print("\n" + "=" * 60)
-        print(f"TESTING: PUT /api/admin/app-updates/{update_id} - Update App Update")
-        print("=" * 60)
-        
-        try:
-            url = f"{self.base_url}/api/admin/app-updates/{update_id}"
-            
-            update_data = {
-                "title": "Updated Test Feature Update",
-                "description": "This app update has been modified during testing. Updated to include performance improvements and bug fixes in addition to new features.",
-                "published": True,
-                "type": "feature"
-            }
-            
-            response = requests.put(url, headers=self.get_headers(), json=update_data, timeout=30)
-            
-            print(f"PUT {url}")
-            print(f"Payload: {json.dumps(update_data, indent=2)}")
-            print(f"Status Code: {response.status_code}")
-            print(f"Response: {response.text[:500]}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                print(f"✅ SUCCESS: App update modified successfully")
-                if data.get('success'):
-                    print("📝 Update confirmed by response")
-                return True
-                
-            else:
-                print(f"❌ FAILED: Status {response.status_code}")
-                if response.status_code == 404:
-                    print("   Update not found")
-                elif response.status_code == 403:
-                    print("   Forbidden - admin auth required")
-                return False
-                
         except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
+            print(f"❌ Authentication error: {str(e)}")
             return False
-    
-    def test_delete_app_update(self, update_id):
-        """Test DELETE /api/admin/app-updates/:id - Delete app update"""
-        print("\n" + "=" * 60)
-        print(f"TESTING: DELETE /api/admin/app-updates/{update_id} - Delete App Update")
-        print("=" * 60)
-        
-        try:
-            url = f"{self.base_url}/api/admin/app-updates/{update_id}"
-            response = requests.delete(url, headers=self.get_headers(), timeout=30)
-            
-            print(f"DELETE {url}")
-            print(f"Status Code: {response.status_code}")
-            print(f"Response: {response.text[:500]}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                print(f"✅ SUCCESS: App update deleted successfully")
-                if data.get('success'):
-                    print("🗑️  Deletion confirmed by response")
-                return True
-                
-            else:
-                print(f"❌ FAILED: Status {response.status_code}")
-                if response.status_code == 404:
-                    print("   Update not found")
-                elif response.status_code == 403:
-                    print("   Forbidden - admin auth required")
-                return False
-                
-        except Exception as e:
-            print(f"❌ ERROR: {str(e)}")
-            return False
-    
-    def cleanup(self):
-        """Clean up any created test data"""
-        print("\n" + "=" * 60)
-        print("CLEANUP: Removing Test Data")
-        print("=" * 60)
-        
-        # Delete any remaining app updates
-        for update_id in self.created_update_ids:
-            try:
-                url = f"{self.base_url}/api/admin/app-updates/{update_id}"
-                response = requests.delete(url, headers=self.get_headers(), timeout=10)
-                print(f"🧹 Cleaned up app update: {update_id} (Status: {response.status_code})")
-            except:
-                print(f"⚠️  Could not clean up app update: {update_id}")
-        
-        print("🧹 Cleanup completed")
-    
-    def run_all_tests(self):
-        """Run all admin API tests"""
-        print("🚀 STARTING ADMIN ENDPOINT TESTING")
-        print("Review Request: Testing fixed admin endpoints")
-        print("Target endpoints:")
-        print("  1. GET /api/admin/users/:userId - Get detailed user info")
-        print("  2. GET /api/admin/app-updates - Get all app updates") 
-        print("  3. POST /api/admin/app-updates - Create new app update")
-        print("  4. PUT /api/admin/app-updates/:id - Update app update")
-        print("  5. DELETE /api/admin/app-updates/:id - Delete app update")
-        
-        results = {
-            "admin_login": False,
-            "get_users_list": False,
-            "get_user_details": False,
-            "get_app_updates": False,
-            "create_app_update": False,
-            "update_app_update": False,
-            "delete_app_update": False
-        }
-        
-        try:
-            # Step 1: Login as admin
-            results["admin_login"] = self.login_admin()
-            if not results["admin_login"]:
-                print("❌ Cannot proceed without admin authentication")
-                return results
-            
-            # Step 2: Get users list (to find a user ID)
-            test_user_id = self.test_get_admin_users()
-            results["get_users_list"] = test_user_id is not None
-            
-            # Step 3: Test user details endpoint with real user ID
-            if test_user_id:
-                results["get_user_details"] = self.test_get_user_details(test_user_id)
-            else:
-                print("⚠️  Skipping user details test - no user ID available")
-            
-            # Step 4: Test app updates CRUD operations
-            
-            # 4a: Get all app updates
-            results["get_app_updates"] = self.test_get_app_updates()
-            
-            # 4b: Create new app update
-            created_update_id = self.test_create_app_update()
-            results["create_app_update"] = created_update_id is not False
-            
-            # 4c: Update the app update (if created successfully)
-            if created_update_id and isinstance(created_update_id, str):
-                results["update_app_update"] = self.test_update_app_update(created_update_id)
-                
-                # 4d: Delete the app update
-                results["delete_app_update"] = self.test_delete_app_update(created_update_id)
-            else:
-                print("⚠️  Skipping update/delete tests - no update ID available")
-            
-        except Exception as e:
-            print(f"❌ Test execution error: {str(e)}")
-        
-        finally:
-            # Always try to clean up
-            self.cleanup()
-        
-        # Print summary
-        print("\n" + "=" * 60)
-        print("🏁 TEST SUMMARY")
-        print("=" * 60)
-        
-        passed = sum(1 for result in results.values() if result)
-        total = len(results)
-        
-        for test_name, result in results.items():
-            status = "✅ PASS" if result else "❌ FAIL"
-            print(f"{status} | {test_name}")
-        
-        print(f"\n🎯 Overall Result: {passed}/{total} tests passed")
-        
-        if passed == total:
-            print("🎉 ALL ADMIN ENDPOINTS WORKING CORRECTLY!")
-        elif passed >= total * 0.8:  # 80% pass rate
-            print("✅ MAJOR FUNCTIONALITY WORKING - Minor issues detected")
-        else:
-            print("❌ SIGNIFICANT ISSUES FOUND - Admin endpoints need attention")
-        
-        return results
 
-def main():
-    """Main function to run admin endpoint tests"""
-    tester = AdminEndpointTester()
-    results = tester.run_all_tests()
+    def create_project(self, name: str, description: str) -> Optional[str]:
+        """Create a project and return project ID"""
+        try:
+            response = self.session.post(f"{self.api_url}/projects", json={
+                "name": name,
+                "description": description
+            })
+            
+            if response.status_code == 200:
+                data = response.json()
+                project_id = data.get('id')
+                print(f"✅ Project created: {project_id} - {name}")
+                return project_id
+            else:
+                print(f"❌ Project creation failed: {response.status_code} - {response.text[:200]}")
+                return None
+        except Exception as e:
+            print(f"❌ Project creation error: {str(e)}")
+            return None
+
+    def create_conversation(self, title: str, project_id: Optional[str] = None) -> Optional[str]:
+        """Create a conversation and return conversation ID"""
+        try:
+            payload = {"title": title}
+            if project_id:
+                payload["project_id"] = project_id
+                
+            response = self.session.post(f"{self.api_url}/conversations", json=payload)
+            
+            if response.status_code == 200:
+                data = response.json()
+                conversation_id = data.get('id')
+                project_info = f" (Project: {project_id})" if project_id else " (No project)"
+                print(f"✅ Conversation created: {conversation_id} - {title}{project_info}")
+                return conversation_id
+            else:
+                print(f"❌ Conversation creation failed: {response.status_code} - {response.text[:200]}")
+                return None
+        except Exception as e:
+            print(f"❌ Conversation creation error: {str(e)}")
+            return None
+
+    def get_all_conversations(self) -> list:
+        """Get all conversations (All Chats view - should exclude hidden)"""
+        try:
+            response = self.session.get(f"{self.api_url}/conversations")
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Handle different response formats - could be array or object with conversations key
+                if isinstance(data, list):
+                    conversations = data
+                else:
+                    conversations = data.get('conversations', [])
+                print(f"✅ Retrieved {len(conversations)} conversations from All Chats")
+                return conversations
+            else:
+                print(f"❌ Get all conversations failed: {response.status_code} - {response.text[:200]}")
+                return []
+        except Exception as e:
+            print(f"❌ Get all conversations error: {str(e)}")
+            return []
+
+    def get_project_conversations(self, project_id: str) -> list:
+        """Get conversations for a specific project"""
+        try:
+            response = self.session.get(f"{self.api_url}/conversations?project_id={project_id}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Handle different response formats - could be array or object with conversations key
+                if isinstance(data, list):
+                    conversations = data
+                else:
+                    conversations = data.get('conversations', [])
+                print(f"✅ Retrieved {len(conversations)} conversations for project {project_id}")
+                return conversations
+            else:
+                print(f"❌ Get project conversations failed: {response.status_code} - {response.text[:200]}")
+                return []
+        except Exception as e:
+            print(f"❌ Get project conversations error: {str(e)}")
+            return []
+
+    def delete_conversation(self, conversation_id: str, from_project: bool = False) -> Dict[str, Any]:
+        """Delete a conversation (with optional from_project parameter)"""
+        try:
+            url = f"{self.api_url}/conversations/{conversation_id}"
+            if from_project:
+                url += "?from_project=true"
+                
+            response = self.session.delete(url)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('hidden'):
+                    print(f"✅ Conversation {conversation_id} hidden from All Chats")
+                elif data.get('deleted'):
+                    print(f"✅ Conversation {conversation_id} permanently deleted")
+                else:
+                    print(f"✅ Conversation {conversation_id} delete response: {data}")
+                return data
+            else:
+                print(f"❌ Delete conversation failed: {response.status_code} - {response.text[:200]}")
+                return {"error": response.status_code}
+        except Exception as e:
+            print(f"❌ Delete conversation error: {str(e)}")
+            return {"error": str(e)}
+
+    def cleanup_project(self, project_id: str):
+        """Clean up test project"""
+        try:
+            response = self.session.delete(f"{self.api_url}/projects/{project_id}")
+            if response.status_code == 200:
+                print(f"✅ Cleaned up project: {project_id}")
+            else:
+                print(f"⚠️ Project cleanup warning: {response.status_code}")
+        except Exception as e:
+            print(f"⚠️ Project cleanup error: {str(e)}")
+
+def run_conversation_delete_tests():
+    """Run comprehensive conversation delete logic tests"""
+    print("🧪 STARTING CONVERSATION DELETE LOGIC TESTS")
+    print("=" * 80)
     
-    # Return exit code based on results
-    passed = sum(1 for result in results.values() if result)
-    total = len(results)
+    # Initialize API tester
+    base_url = "https://dashboard-profiles.preview.emergentagent.com"
+    tester = SoulPrintAPITester(base_url)
     
-    if passed >= total * 0.8:  # Consider 80%+ as success
-        exit(0)
+    # Step 1: Authenticate
+    print("\n📝 STEP 1: Authentication")
+    if not tester.login("test@soulprint.com", "test123"):
+        print("❌ CRITICAL: Authentication failed - cannot proceed with tests")
+        return False
+    
+    # Step 2: Setup - Create test project
+    print("\n🏗️ STEP 2: Setup - Create Test Project")
+    project_id = tester.create_project("Delete Test Project", "Project for testing conversation delete logic")
+    if not project_id:
+        print("❌ CRITICAL: Project creation failed - cannot proceed with tests")
+        return False
+    
+    test_results = {
+        "test_case_1": False,  # Delete from All Chats (has project) → should hide
+        "test_case_2": False,  # Delete from Project view → should permanently delete  
+        "test_case_3": False   # Delete no-project conversation from All Chats → should permanently delete
+    }
+    
+    try:
+        # TEST CASE 1: Delete from "All Chats" (conversation has project) → should hide
+        print("\n🔬 TEST CASE 1: Delete from 'All Chats' (conversation has project)")
+        print("-" * 60)
+        
+        # Create conversation with project
+        conv1_id = tester.create_conversation("Test Conv 1 - Has Project", project_id)
+        if not conv1_id:
+            print("❌ Test Case 1 FAILED: Could not create conversation")
+        else:
+            # Delete from All Chats (without from_project param)
+            delete_result = tester.delete_conversation(conv1_id, from_project=False)
+            
+            if delete_result.get("hidden"):
+                # Verify: Should NOT appear in All Chats
+                all_convs = tester.get_all_conversations()
+                conv1_in_all = any(c.get("id") == conv1_id for c in all_convs)
+                
+                # Verify: Should STILL appear in Project view
+                project_convs = tester.get_project_conversations(project_id)
+                conv1_in_project = any(c.get("id") == conv1_id for c in project_convs)
+                
+                if not conv1_in_all and conv1_in_project:
+                    print("✅ TEST CASE 1 PASSED: Conversation hidden from All Chats but still in project")
+                    test_results["test_case_1"] = True
+                else:
+                    print(f"❌ TEST CASE 1 FAILED: In All Chats: {conv1_in_all}, In Project: {conv1_in_project}")
+            else:
+                print(f"❌ TEST CASE 1 FAILED: Expected hidden=True, got: {delete_result}")
+        
+        # TEST CASE 2: Delete from Project view → should permanently delete
+        print("\n🔬 TEST CASE 2: Delete from Project view")
+        print("-" * 60)
+        
+        # Create another conversation with project
+        conv2_id = tester.create_conversation("Test Conv 2 - Delete from Project", project_id)
+        if not conv2_id:
+            print("❌ Test Case 2 FAILED: Could not create conversation")
+        else:
+            # Delete from Project view (with from_project=true)
+            delete_result = tester.delete_conversation(conv2_id, from_project=True)
+            
+            if delete_result.get("deleted"):
+                # Verify: Should NOT appear in Project view
+                project_convs = tester.get_project_conversations(project_id)
+                conv2_in_project = any(c.get("id") == conv2_id for c in project_convs)
+                
+                if not conv2_in_project:
+                    print("✅ TEST CASE 2 PASSED: Conversation permanently deleted from project")
+                    test_results["test_case_2"] = True
+                else:
+                    print("❌ TEST CASE 2 FAILED: Conversation still appears in project view")
+            else:
+                print(f"❌ TEST CASE 2 FAILED: Expected deleted=True, got: {delete_result}")
+        
+        # TEST CASE 3: Delete conversation with no project from "All Chats" → should permanently delete
+        print("\n🔬 TEST CASE 3: Delete no-project conversation from 'All Chats'")
+        print("-" * 60)
+        
+        # Create conversation without project
+        conv3_id = tester.create_conversation("Test Conv 3 - No Project")
+        if not conv3_id:
+            print("❌ Test Case 3 FAILED: Could not create conversation")
+        else:
+            # Delete from All Chats (without from_project param, no project_id)
+            delete_result = tester.delete_conversation(conv3_id, from_project=False)
+            
+            if delete_result.get("deleted"):
+                # Verify: Should NOT appear in All Chats
+                all_convs = tester.get_all_conversations()
+                conv3_in_all = any(c.get("id") == conv3_id for c in all_convs)
+                
+                if not conv3_in_all:
+                    print("✅ TEST CASE 3 PASSED: No-project conversation permanently deleted")
+                    test_results["test_case_3"] = True
+                else:
+                    print("❌ TEST CASE 3 FAILED: Conversation still appears in All Chats")
+            else:
+                print(f"❌ TEST CASE 3 FAILED: Expected deleted=True, got: {delete_result}")
+    
+    finally:
+        # Cleanup
+        print("\n🧹 CLEANUP: Removing test project")
+        tester.cleanup_project(project_id)
+    
+    # Final Results
+    print("\n" + "=" * 80)
+    print("🏆 TEST RESULTS SUMMARY")
+    print("=" * 80)
+    
+    passed_tests = sum(test_results.values())
+    total_tests = len(test_results)
+    
+    for test_name, passed in test_results.items():
+        status = "✅ PASSED" if passed else "❌ FAILED"
+        print(f"{test_name.replace('_', ' ').title()}: {status}")
+    
+    success_rate = (passed_tests / total_tests) * 100
+    print(f"\n🎯 Overall Success Rate: {passed_tests}/{total_tests} ({success_rate:.1f}%)")
+    
+    if passed_tests == total_tests:
+        print("🎉 ALL CONVERSATION DELETE LOGIC TESTS PASSED!")
+        return True
     else:
-        exit(1)
+        print("⚠️ SOME TESTS FAILED - Review implementation needed")
+        return False
 
 if __name__ == "__main__":
-    main()
+    try:
+        success = run_conversation_delete_tests()
+        sys.exit(0 if success else 1)
+    except KeyboardInterrupt:
+        print("\n⚠️ Tests interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Test execution failed: {str(e)}")
+        sys.exit(1)

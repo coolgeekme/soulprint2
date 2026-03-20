@@ -5980,15 +5980,22 @@ async function handleGetConversations(request) {
     query = { project_id: projectId };
   } else {
     // Get all user's conversations + conversations in shared projects
+    // Exclude conversations hidden from "All Chats" view
     const sharedProjects = await db.collection('projects')
       .find({ 'shared_with.user_id': user.id, 'shared_with.accepted': true })
       .toArray();
     const sharedProjectIds = sharedProjects.map(p => p.id);
     
     query = {
-      $or: [
-        { user_id: user.id },
-        { project_id: { $in: sharedProjectIds } }
+      $and: [
+        {
+          $or: [
+            { user_id: user.id },
+            { project_id: { $in: sharedProjectIds } }
+          ]
+        },
+        // Exclude conversations that are hidden from All Chats
+        { $or: [{ hidden_from_all_chats: { $exists: false } }, { hidden_from_all_chats: false }] }
       ]
     };
   }
@@ -6017,6 +6024,7 @@ async function handleCreateConversation(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json().catch(() => ({}));
+  const { project_id } = body;
   const db = await getDb();
   const now = new Date();
 
@@ -6027,6 +6035,21 @@ async function handleCreateConversation(request) {
     created_at: now,
     updated_at: now,
   };
+
+  // If project_id is provided and valid (not 'general' or null), add it
+  if (project_id && project_id !== 'general') {
+    // Verify user has access to this project
+    const project = await db.collection('projects').findOne({
+      id: project_id,
+      $or: [
+        { owner_id: user.id },
+        { 'shared_with.user_id': user.id }
+      ]
+    });
+    if (project) {
+      conv.project_id = project_id;
+    }
+  }
 
   await db.collection('conversations').insertOne(conv);
   return ok({ id: conv.id, title: conv.title, created_at: conv.created_at });
@@ -6065,17 +6088,31 @@ async function handleDeleteConversation(request, conversationId) {
 
   const db = await getDb();
   
+  // Get context from query params (from_project=true means deleting from project view)
+  const { searchParams } = new URL(request.url);
+  const fromProject = searchParams.get('from_project') === 'true';
+  
   // Verify conversation belongs to user
   const conv = await db.collection('conversations').findOne({ id: conversationId, user_id: user.id });
   if (!conv) return err('Conversation not found', 404);
 
-  // Delete the conversation
+  // If deleting from "All Chats" view and the conversation belongs to a project,
+  // just hide it from All Chats instead of permanently deleting
+  if (!fromProject && conv.project_id && conv.project_id !== 'general') {
+    await db.collection('conversations').updateOne(
+      { id: conversationId },
+      { $set: { hidden_from_all_chats: true, updated_at: new Date() } }
+    );
+    return ok({ success: true, hidden: true });
+  }
+
+  // Otherwise, permanently delete the conversation
   await db.collection('conversations').deleteOne({ id: conversationId });
   
   // Delete all messages in the conversation
   await db.collection('messages').deleteMany({ conversation_id: conversationId });
 
-  return ok({ success: true });
+  return ok({ success: true, deleted: true });
 }
 
 // ============================================================

@@ -8177,9 +8177,26 @@ export default function ChatPage() {
 
   // Delete a conversation
   async function deleteConversation(convId) {
-    if (!confirm('Are you sure you want to delete this conversation? This cannot be undone.')) return;
+    // Find the conversation to check if it's in a project
+    const conv = conversations.find(c => c.id === convId);
+    const isInProject = conv?.project_id && conv.project_id !== 'general';
+    const isViewingProject = selectedProject && selectedProject !== 'general';
+    
+    // Different confirmation messages based on context
+    let confirmMsg = 'Are you sure you want to delete this conversation? This cannot be undone.';
+    if (!isViewingProject && isInProject) {
+      confirmMsg = 'This will remove the chat from "All Chats" but it will still be available in its Project. Continue?';
+    }
+    
+    if (!confirm(confirmMsg)) return;
+    
     try {
-      const res = await fetch(`/api/conversations/${convId}`, {
+      // Pass from_project=true when deleting from within a project view
+      const url = isViewingProject 
+        ? `/api/conversations/${convId}?from_project=true`
+        : `/api/conversations/${convId}`;
+        
+      const res = await fetch(url, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
