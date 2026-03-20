@@ -1312,54 +1312,104 @@ async function handleAdminGetUserDetails(request, userId) {
     .sort((a, b) => b[1] - a[1])
     .map(([model, count]) => ({ model, count }));
 
-  // Derive conversation topics from titles and content
-  // Use existing topic_category if available, otherwise derive from title
+  // Derive conversation topics by analyzing actual message content
+  // Get messages grouped by conversation for topic analysis
+  const conversationMessages = {};
+  messages.forEach(m => {
+    if (!conversationMessages[m.conversation_id]) {
+      conversationMessages[m.conversation_id] = [];
+    }
+    conversationMessages[m.conversation_id].push(m);
+  });
+
+  // Analyze each conversation to derive a meaningful topic
   const topicBreakdown = {};
-  conversations.forEach(c => {
-    let topic = c.topic_category || c.topic;
+  
+  for (const conv of conversations) {
+    let topic = conv.topic_category || conv.topic;
     
-    // If no topic, try to derive from title
-    if (!topic || topic === 'Uncategorized') {
-      const title = (c.title || '').toLowerCase();
+    // If no existing topic or it's too vague, analyze the content
+    if (!topic || topic === 'Uncategorized' || topic === 'General') {
+      const convMessages = conversationMessages[conv.id] || [];
+      // Get the first few user messages to understand context
+      const userMessages = convMessages
+        .filter(m => m.role === 'user')
+        .slice(0, 5)
+        .map(m => m.content || '')
+        .join(' ')
+        .toLowerCase();
       
-      // Common topic patterns
-      if (title.includes('code') || title.includes('programming') || title.includes('debug') || title.includes('function') || title.includes('api')) {
-        topic = 'Coding & Development';
-      } else if (title.includes('write') || title.includes('story') || title.includes('essay') || title.includes('article') || title.includes('content')) {
-        topic = 'Writing & Content';
-      } else if (title.includes('email') || title.includes('message') || title.includes('reply') || title.includes('draft')) {
-        topic = 'Communication';
-      } else if (title.includes('idea') || title.includes('brainstorm') || title.includes('creative') || title.includes('design')) {
-        topic = 'Creative & Ideas';
-      } else if (title.includes('plan') || title.includes('strategy') || title.includes('goal') || title.includes('project')) {
-        topic = 'Planning & Strategy';
-      } else if (title.includes('learn') || title.includes('explain') || title.includes('what is') || title.includes('how to') || title.includes('understand')) {
-        topic = 'Learning & Research';
-      } else if (title.includes('work') || title.includes('job') || title.includes('career') || title.includes('business') || title.includes('meeting')) {
-        topic = 'Work & Career';
-      } else if (title.includes('health') || title.includes('fitness') || title.includes('diet') || title.includes('exercise') || title.includes('wellness')) {
-        topic = 'Health & Wellness';
-      } else if (title.includes('money') || title.includes('finance') || title.includes('budget') || title.includes('invest') || title.includes('save')) {
-        topic = 'Finance & Money';
-      } else if (title.includes('image') || title.includes('picture') || title.includes('photo') || title.includes('generate') || title.includes('create')) {
+      const title = (conv.title || '').toLowerCase();
+      const combined = `${title} ${userMessages}`;
+      
+      // More specific topic detection based on actual content
+      if (/\b(python|javascript|react|node|api|code|function|debug|error|bug|deploy|git|database|sql|css|html|typescript|json)\b/.test(combined)) {
+        topic = 'Software Development';
+      } else if (/\b(soulprint|app features|settings|how do i|tutorial|onboarding)\b/.test(combined)) {
+        topic = 'App Usage & Features';
+      } else if (/\b(email|reply to|draft|message to|respond|correspondence)\b/.test(combined)) {
+        topic = 'Email & Messaging';
+      } else if (/\b(blog|article|write about|essay|content for|post about|copywriting)\b/.test(combined)) {
+        topic = 'Content Writing';
+      } else if (/\b(story|fiction|creative writing|poem|narrative|character)\b/.test(combined)) {
+        topic = 'Creative Writing';
+      } else if (/\b(business|startup|entrepreneur|company|revenue|customers|market|strategy)\b/.test(combined)) {
+        topic = 'Business & Startups';
+      } else if (/\b(marketing|social media|brand|campaign|audience|engagement|seo|ads)\b/.test(combined)) {
+        topic = 'Marketing & Social Media';
+      } else if (/\b(ai|machine learning|gpt|llm|model|prompt|chatbot|neural)\b/.test(combined)) {
+        topic = 'AI & Technology';
+      } else if (/\b(product|feature|ux|ui|design|user experience|prototype|wireframe)\b/.test(combined)) {
+        topic = 'Product & Design';
+      } else if (/\b(meeting|agenda|presentation|slides|pitch|deck)\b/.test(combined)) {
+        topic = 'Presentations & Meetings';
+      } else if (/\b(research|study|paper|academic|thesis|analyze|data)\b/.test(combined)) {
+        topic = 'Research & Analysis';
+      } else if (/\b(learn|explain|teach|understand|what is|how does|tutorial)\b/.test(combined)) {
+        topic = 'Learning & Education';
+      } else if (/\b(schedule|calendar|plan|organize|todo|task|reminder|deadline)\b/.test(combined)) {
+        topic = 'Planning & Organization';
+      } else if (/\b(image|generate.*picture|create.*image|dalle|photo|illustration|art)\b/.test(combined)) {
         topic = 'Image Generation';
-      } else if (title.includes('video') || title.includes('movie') || title.includes('animation')) {
-        topic = 'Video & Media';
-      } else if (title.includes('travel') || title.includes('trip') || title.includes('vacation') || title.includes('visit')) {
-        topic = 'Travel & Experiences';
-      } else if (title.includes('relationship') || title.includes('friend') || title.includes('family') || title.includes('dating')) {
-        topic = 'Relationships';
-      } else if (title.includes('help') || title.includes('assist') || title.includes('support') || title.includes('advice')) {
-        topic = 'General Assistance';
-      } else if (title.includes('chat') || title.includes('talk') || title.includes('conversation')) {
-        topic = 'General Chat';
+      } else if (/\b(video|animation|movie|clip|footage)\b/.test(combined)) {
+        topic = 'Video Creation';
+      } else if (/\b(money|budget|finance|invest|salary|expense|save|cost)\b/.test(combined)) {
+        topic = 'Personal Finance';
+      } else if (/\b(health|fitness|workout|diet|exercise|mental|therapy|wellness|sleep)\b/.test(combined)) {
+        topic = 'Health & Wellness';
+      } else if (/\b(relationship|dating|partner|friend|family|social|communication)\b/.test(combined)) {
+        topic = 'Relationships & Social';
+      } else if (/\b(travel|trip|vacation|flight|hotel|visit|destination)\b/.test(combined)) {
+        topic = 'Travel Planning';
+      } else if (/\b(recipe|cook|food|meal|restaurant|eat)\b/.test(combined)) {
+        topic = 'Food & Cooking';
+      } else if (/\b(career|job|resume|interview|hiring|work|profession|linkedin)\b/.test(combined)) {
+        topic = 'Career & Jobs';
+      } else if (/\b(legal|contract|agreement|terms|lawyer|law)\b/.test(combined)) {
+        topic = 'Legal & Contracts';
+      } else if (/\b(summarize|summary|tldr|key points|main ideas)\b/.test(combined)) {
+        topic = 'Summarization';
+      } else if (/\b(translate|translation|language|spanish|french|german|chinese)\b/.test(combined)) {
+        topic = 'Translation';
+      } else if (/\b(brainstorm|ideas|creative|innovate|concept|think of)\b/.test(combined)) {
+        topic = 'Brainstorming & Ideas';
+      } else if (/\b(feedback|review|critique|improve|edit|revise)\b/.test(combined)) {
+        topic = 'Feedback & Review';
+      } else if (/\b(personal|myself|my life|feeling|emotion|thought|reflect)\b/.test(combined)) {
+        topic = 'Personal Reflection';
+      } else if (combined.length > 50) {
+        // If we have substantial content but no match, use the conversation title or first few words
+        const firstUserMsg = convMessages.find(m => m.role === 'user')?.content || '';
+        const snippet = firstUserMsg.split(' ').slice(0, 5).join(' ');
+        topic = conv.title && conv.title.length > 3 ? conv.title.substring(0, 40) : snippet.substring(0, 40) || 'Miscellaneous';
       } else {
-        topic = 'General';
+        topic = 'Quick Chat';
       }
     }
     
     topicBreakdown[topic] = (topicBreakdown[topic] || 0) + 1;
-  });
+  }
+  
   const topicsSorted = Object.entries(topicBreakdown)
     .sort((a, b) => b[1] - a[1])
     .map(([topic, count]) => ({ topic, count }));
