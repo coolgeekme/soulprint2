@@ -1289,54 +1289,89 @@ async function handleAdminGetUserDetails(request, userId) {
   // Get profile
   const profile = await db.collection('profiles').findOne({ user_id: userId });
 
-  // Get conversations with message counts
+  // Get conversations
   const conversations = await db.collection('conversations')
     .find({ user_id: userId })
     .sort({ updated_at: -1 })
     .toArray();
   
-  // Get message counts per conversation
-  const conversationIds = conversations.map(c => c.id);
-  const messageCounts = await db.collection('messages').aggregate([
-    { $match: { conversation_id: { $in: conversationIds } } },
-    { $group: { _id: '$conversation_id', count: { $sum: 1 } } }
-  ]).toArray();
-  const messageCountMap = Object.fromEntries(messageCounts.map(m => [m._id, m.count]));
-
-  // Get total messages
-  const totalMessages = await db.collection('messages').countDocuments({ user_id: userId });
-
-  // Get memories
-  const memories = await db.collection('user_memories')
+  // Get all messages for this user to analyze LLM usage
+  const messages = await db.collection('messages')
     .find({ user_id: userId })
-    .sort({ created_at: -1 })
-    .limit(50)
     .toArray();
 
-  // Get assessment answers
+  // Analyze LLM model usage
+  const modelUsage = {};
+  messages.forEach(m => {
+    if (m.model) {
+      modelUsage[m.model] = (modelUsage[m.model] || 0) + 1;
+    }
+  });
+  const modelUsageSorted = Object.entries(modelUsage)
+    .sort((a, b) => b[1] - a[1])
+    .map(([model, count]) => ({ model, count }));
+
+  // Analyze conversation topics/categories
+  const topicBreakdown = {};
+  conversations.forEach(c => {
+    const topic = c.topic_category || c.topic || 'Uncategorized';
+    topicBreakdown[topic] = (topicBreakdown[topic] || 0) + 1;
+  });
+  const topicsSorted = Object.entries(topicBreakdown)
+    .sort((a, b) => b[1] - a[1])
+    .map(([topic, count]) => ({ topic, count }));
+
+  // Get memories and analyze by category
+  const memories = await db.collection('user_memories')
+    .find({ user_id: userId })
+    .toArray();
+  
+  const memoryCategories = {};
+  memories.forEach(m => {
+    const cat = m.category || 'general';
+    memoryCategories[cat] = (memoryCategories[cat] || 0) + 1;
+  });
+  const memoryCategoriesSorted = Object.entries(memoryCategories)
+    .sort((a, b) => b[1] - a[1])
+    .map(([category, count]) => ({ category, count }));
+
+  // Get assessment status (just completion info, not details)
   const assessmentAnswers = await db.collection('assessment_answers')
     .find({ user_id: userId })
     .toArray();
-
-  // Get questions to map answer IDs to actual questions
-  const questionIds = assessmentAnswers.map(a => a.question_id);
+  
+  // Get unique pillars answered
   const questions = await db.collection('assessment_questions')
-    .find({ id: { $in: questionIds } })
+    .find({ id: { $in: assessmentAnswers.map(a => a.question_id) } })
     .toArray();
-  const questionMap = Object.fromEntries(questions.map(q => [q.id, q]));
+  const pillarsAnswered = [...new Set(questions.map(q => q.pillar).filter(Boolean))];
 
-  // Get imports
+  // Get imports summary
   const imports = await db.collection('data_imports')
     .find({ user_id: userId })
     .sort({ created_at: -1 })
     .toArray();
 
-  // Get media generated
+  // Get media generated - analyze by type/model
   const mediaItems = await db.collection('media_gallery')
     .find({ user_id: userId })
-    .sort({ created_at: -1 })
-    .limit(20)
     .toArray();
+  
+  const mediaByType = {};
+  const mediaByModel = {};
+  mediaItems.forEach(m => {
+    const type = m.type || 'image';
+    const model = m.model || 'unknown';
+    mediaByType[type] = (mediaByType[type] || 0) + 1;
+    mediaByModel[model] = (mediaByModel[model] || 0) + 1;
+  });
+
+  // Get voice chat usage
+  const voiceSessions = await db.collection('voice_sessions')
+    .find({ user_id: userId })
+    .toArray();
+  
+  const totalVoiceMinutes = voiceSessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0) / 60;
 
   // Get telegram link
   const telegramLink = await db.collection('telegram_links')
@@ -1347,18 +1382,35 @@ async function handleAdminGetUserDetails(request, userId) {
     .find({ user_id: userId })
     .toArray();
 
-  // Calculate cost estimate (rough estimate based on messages)
-  const llmCostEstimate = totalMessages * 0.002;
+  // Calculate costs
+  const llmCostEstimate = messages.length * 0.002;
   const mediaCost = mediaItems.reduce((sum, m) => sum + (m.cost || 0), 0);
+  const voiceCost = voiceSessions.reduce((sum, s) => sum + (s.estimated_cost_usd || 0), 0);
 
-  // Get feedback given by this user
+  // Get feedback summary
   const feedback = await db.collection('user_feedback')
     .find({ user_id: userId })
-    .sort({ created_at: -1 })
-    .limit(20)
     .toArray();
+  const thumbsUp = feedback.filter(f => f.rating === 'up').length;
+  const thumbsDown = feedback.filter(f => f.rating === 'down').length;
 
-  // Get soul profile if exists
+  // Analyze usage patterns - messages by source
+  const messagesBySource = {};
+  messages.forEach(m => {
+    const source = m.source || 'web';
+    messagesBySource[source] = (messagesBySource[source] || 0) + 1;
+  });
+
+  // Get recent conversation titles (topics without full content)
+  const recentConversations = conversations.slice(0, 10).map(c => ({
+    title: c.title || 'Untitled',
+    topic: c.topic_category || c.topic || null,
+    source: c.source || 'web',
+    message_count: messages.filter(m => m.conversation_id === c.id).length,
+    last_active: c.updated_at,
+  }));
+
+  // Get soul profile summary
   const soulProfile = await db.collection('soul_profiles')
     .findOne({ user_id: userId });
 
@@ -1371,104 +1423,111 @@ async function handleAdminGetUserDetails(request, userId) {
       created_at: user.created_at,
       last_active_at: user.last_active_at,
       auth_provider: user.auth_provider,
-      firebase_uid: user.firebase_uid ? true : false,
+      firebase_linked: !!user.firebase_uid,
     },
     profile: profile ? {
       display_name: profile.display_name,
       assistant_name: profile.assistant_name,
       onboarding_complete: profile.onboarding_complete,
-      assessment_complete: profile.assessment_complete,
       field: profile.field,
       help_with: profile.help_with,
-      descriptors: profile.descriptors,
       discovery_source: profile.discovery_source,
       timezone: profile.timezone,
       location: profile.location,
     } : null,
-    stats: {
+    
+    // Usage Statistics
+    usage_stats: {
       total_conversations: conversations.length,
-      total_messages: totalMessages,
+      total_messages: messages.length,
       total_memories: memories.length,
+      total_media_generated: mediaItems.length,
+      total_voice_sessions: voiceSessions.length,
+      total_voice_minutes: Math.round(totalVoiceMinutes * 10) / 10,
       total_imports: imports.length,
-      total_media: mediaItems.length,
-      estimated_llm_cost: parseFloat(llmCostEstimate.toFixed(4)),
-      estimated_media_cost: parseFloat(mediaCost.toFixed(4)),
-      estimated_total_cost: parseFloat((llmCostEstimate + mediaCost).toFixed(4)),
     },
-    conversations: conversations.slice(0, 20).map(c => ({
-      id: c.id,
-      title: c.title || 'Untitled',
-      topic: c.topic_category,
-      source: c.source || 'web',
-      message_count: messageCountMap[c.id] || 0,
-      created_at: c.created_at,
-      updated_at: c.updated_at,
-    })),
-    memories: memories.map(m => ({
-      id: m.id,
-      content: m.content,
-      category: m.category,
-      importance: m.importance,
-      source: m.source,
-      created_at: m.created_at,
-    })),
-    assessment: {
-      answer_count: assessmentAnswers.length,
+    
+    // Cost Breakdown
+    costs: {
+      llm_cost: parseFloat(llmCostEstimate.toFixed(4)),
+      media_cost: parseFloat(mediaCost.toFixed(4)),
+      voice_cost: parseFloat(voiceCost.toFixed(4)),
+      total_cost: parseFloat((llmCostEstimate + mediaCost + voiceCost).toFixed(4)),
+    },
+    
+    // LLM Model Usage
+    llm_usage: {
+      models: modelUsageSorted,
+      total_llm_messages: messages.filter(m => m.role === 'assistant').length,
+    },
+    
+    // Conversation Topics
+    conversation_topics: {
+      topics: topicsSorted,
+      recent_conversations: recentConversations,
+    },
+    
+    // Memory Categories (not content)
+    memory_breakdown: {
+      categories: memoryCategoriesSorted,
+      total: memories.length,
+    },
+    
+    // Assessment Status (completion only)
+    assessment_status: {
+      completed: assessmentAnswers.length >= 10,
       type: assessmentAnswers.length >= 30 ? 'full' : assessmentAnswers.length >= 10 ? 'quick' : assessmentAnswers.length > 0 ? 'partial' : 'none',
-      answers: assessmentAnswers.map(a => ({
-        question_id: a.question_id,
-        question_text: questionMap[a.question_id]?.question || 'Unknown question',
-        pillar: questionMap[a.question_id]?.pillar,
-        answer: a.answer,
-        answered_at: a.created_at || a.answered_at,
-      })),
+      questions_answered: assessmentAnswers.length,
+      pillars_covered: pillarsAnswered,
     },
-    imports: imports.map(i => ({
-      id: i.id,
-      type: i.type || i.source,
-      status: i.status,
-      items_processed: i.items_processed || i.messages_count,
-      created_at: i.created_at,
-      completed_at: i.completed_at,
-    })),
-    media: mediaItems.map(m => ({
-      id: m.id,
-      type: m.type,
-      model: m.model,
-      prompt: m.prompt?.substring(0, 100),
-      url: m.url,
-      cost: m.cost,
-      created_at: m.created_at,
-    })),
+    
+    // Media Generation Usage
+    media_usage: {
+      by_type: Object.entries(mediaByType).map(([type, count]) => ({ type, count })),
+      by_model: Object.entries(mediaByModel).map(([model, count]) => ({ model, count })),
+      total: mediaItems.length,
+    },
+    
+    // Platform Usage (web vs telegram vs voice)
+    platform_usage: {
+      by_source: Object.entries(messagesBySource).map(([source, count]) => ({ source, count })),
+    },
+    
+    // Integrations
     integrations: {
       telegram: telegramLink ? {
         linked: true,
-        telegram_user_id: telegramLink.telegram_user_id,
-        telegram_username: telegramLink.telegram_username,
+        username: telegramLink.telegram_username,
         linked_at: telegramLink.created_at,
       } : { linked: false },
       google: googleConnections.length > 0 ? {
         connected: true,
-        accounts: googleConnections.map(g => ({
-          email: g.google_email,
-          scopes: g.scopes,
-          connected_at: g.created_at,
-        })),
+        account_count: googleConnections.length,
       } : { connected: false },
     },
-    feedback: feedback.map(f => ({
-      id: f.id,
-      rating: f.rating,
-      note: f.note,
-      message_id: f.message_id,
-      created_at: f.created_at,
+    
+    // Feedback Summary
+    feedback_summary: {
+      total: feedback.length,
+      thumbs_up: thumbsUp,
+      thumbs_down: thumbsDown,
+      satisfaction_rate: feedback.length > 0 ? Math.round((thumbsUp / feedback.length) * 100) : null,
+    },
+    
+    // Data Imports
+    imports: imports.map(i => ({
+      type: i.type || i.source,
+      status: i.status,
+      items_processed: i.items_processed || i.messages_count || 0,
+      date: i.created_at,
     })),
+    
+    // Soul Profile (high-level only)
     soul_profile: soulProfile ? {
-      summary: soulProfile.summary || soulProfile.soul_profile_summary,
-      communication_style: soulProfile.communication_style,
-      interests: soulProfile.interests,
+      has_profile: true,
+      interests_count: soulProfile.interests?.length || 0,
       updated_at: soulProfile.updated_at,
-    } : null,
+    } : { has_profile: false },
   });
 }
 

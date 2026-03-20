@@ -3,11 +3,11 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   ArrowLeft, User, Mail, Shield, Clock, MessageSquare, Brain, Upload,
-  Image, Video, Calendar, MapPin, Loader2, ExternalLink, Check, X,
-  ChevronDown, ChevronRight, Sparkles, Bot, Send as SendIcon, Heart, ThumbsUp, ThumbsDown,
-  Globe, Smartphone, Settings, FileText, AlertCircle, DollarSign, Zap
+  Image, Calendar, Loader2, Check, X, ChevronDown, ChevronRight, 
+  Sparkles, Bot, Send as SendIcon, Globe, Mic, DollarSign, Zap,
+  BarChart2, PieChart, Activity, ThumbsUp, ThumbsDown, Cpu, Folder,
+  AlertCircle
 } from 'lucide-react';
-import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 function StatCard({ label, value, sub, icon: Icon, color = 'orange' }) {
   const colors = {
@@ -49,6 +49,27 @@ function Section({ title, icon: Icon, children, defaultOpen = true, badge }) {
         {open ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
       </button>
       {open && <div className="border-t border-white/5 p-4">{children}</div>}
+    </div>
+  );
+}
+
+function ProgressBar({ label, value, total, color = 'orange' }) {
+  const pct = total > 0 ? (value / total) * 100 : 0;
+  const colors = {
+    orange: 'bg-orange-500',
+    blue: 'bg-blue-500',
+    green: 'bg-green-500',
+    purple: 'bg-purple-500',
+  };
+  return (
+    <div className="mb-2">
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-gray-400">{label}</span>
+        <span className="text-white font-medium">{value}</span>
+      </div>
+      <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+        <div className={`h-full ${colors[color]} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }
@@ -119,7 +140,7 @@ export default function UserDetailPage() {
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-orange-500 mx-auto mb-4" />
-          <p className="text-gray-500 text-sm">Loading user details...</p>
+          <p className="text-gray-500 text-sm">Loading user analytics...</p>
         </div>
       </div>
     );
@@ -142,7 +163,13 @@ export default function UserDetailPage() {
     );
   }
 
-  const { user, profile, stats, conversations, memories, assessment, imports, media, integrations, feedback, soul_profile } = data;
+  const { user, profile, usage_stats, costs, llm_usage, conversation_topics, memory_breakdown, 
+          assessment_status, media_usage, platform_usage, integrations, feedback_summary, imports, soul_profile } = data;
+
+  // Calculate max for progress bars
+  const maxModelUsage = Math.max(...(llm_usage?.models?.map(m => m.count) || [1]));
+  const maxTopicCount = Math.max(...(conversation_topics?.topics?.map(t => t.count) || [1]));
+  const maxMemoryCategory = Math.max(...(memory_breakdown?.categories?.map(c => c.count) || [1]));
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -184,22 +211,22 @@ export default function UserDetailPage() {
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
         {/* Stats Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-          <StatCard label="Conversations" value={stats.total_conversations} icon={MessageSquare} color="blue" />
-          <StatCard label="Messages" value={stats.total_messages} icon={SendIcon} color="green" />
-          <StatCard label="Memories" value={stats.total_memories} icon={Brain} color="purple" />
-          <StatCard label="Imports" value={stats.total_imports} icon={Upload} color="orange" />
-          <StatCard label="Media" value={stats.total_media} icon={Image} color="blue" />
+          <StatCard label="Conversations" value={usage_stats?.total_conversations || 0} icon={MessageSquare} color="blue" />
+          <StatCard label="Messages" value={usage_stats?.total_messages || 0} icon={SendIcon} color="green" />
+          <StatCard label="Memories" value={usage_stats?.total_memories || 0} icon={Brain} color="purple" />
+          <StatCard label="Media" value={usage_stats?.total_media_generated || 0} icon={Image} color="orange" />
+          <StatCard label="Voice (min)" value={usage_stats?.total_voice_minutes || 0} icon={Mic} color="blue" />
           <StatCard 
-            label="Est. Cost" 
-            value={`$${stats.estimated_total_cost.toFixed(2)}`} 
-            sub={`LLM: $${stats.estimated_llm_cost.toFixed(2)} | Media: $${stats.estimated_media_cost.toFixed(2)}`}
+            label="Total Cost" 
+            value={`$${(costs?.total_cost || 0).toFixed(2)}`} 
+            sub={`LLM: $${(costs?.llm_cost || 0).toFixed(2)} | Media: $${(costs?.media_cost || 0).toFixed(2)} | Voice: $${(costs?.voice_cost || 0).toFixed(2)}`}
             icon={DollarSign} 
             color="green" 
           />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - User Info */}
+          {/* Left Column - User Info & Integrations */}
           <div className="space-y-4">
             {/* Profile Info */}
             <Section title="Profile" icon={User} defaultOpen={true}>
@@ -229,10 +256,6 @@ export default function UserDetailPage() {
                   <span className="text-white text-sm">{profile?.timezone || '—'}</span>
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-white/5">
-                  <span className="text-gray-500 text-xs">Location</span>
-                  <span className="text-white text-sm">{profile?.location?.city ? `${profile.location.city}, ${profile.location.country}` : '—'}</span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-white/5">
                   <span className="text-gray-500 text-xs">Onboarding</span>
                   <span className={`text-xs font-medium ${profile?.onboarding_complete ? 'text-green-400' : 'text-gray-500'}`}>
                     {profile?.onboarding_complete ? '✓ Complete' : 'Incomplete'}
@@ -241,12 +264,6 @@ export default function UserDetailPage() {
                 <div className="flex items-center justify-between py-2 border-b border-white/5">
                   <span className="text-gray-500 text-xs">Auth Provider</span>
                   <span className="text-white text-sm">{user.auth_provider || 'email'}</span>
-                </div>
-                <div className="flex items-center justify-between py-2 border-b border-white/5">
-                  <span className="text-gray-500 text-xs">Firebase</span>
-                  <span className={`text-xs ${user.firebase_uid ? 'text-green-400' : 'text-gray-500'}`}>
-                    {user.firebase_uid ? '✓ Linked' : 'Not linked'}
-                  </span>
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-white/5">
                   <span className="text-gray-500 text-xs">Created</span>
@@ -262,7 +279,6 @@ export default function UserDetailPage() {
             {/* Integrations */}
             <Section title="Integrations" icon={Globe} defaultOpen={true}>
               <div className="space-y-3">
-                {/* Telegram */}
                 <div className="flex items-center justify-between py-2 border-b border-white/5">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-[#229ED9]/20 flex items-center justify-center">
@@ -270,19 +286,17 @@ export default function UserDetailPage() {
                     </div>
                     <span className="text-gray-400 text-xs">Telegram</span>
                   </div>
-                  {integrations.telegram.linked ? (
+                  {integrations?.telegram?.linked ? (
                     <div className="text-right">
                       <span className="text-green-400 text-xs font-medium">Connected</span>
-                      {integrations.telegram.telegram_username && (
-                        <p className="text-gray-500 text-[10px]">@{integrations.telegram.telegram_username}</p>
+                      {integrations.telegram.username && (
+                        <p className="text-gray-500 text-[10px]">@{integrations.telegram.username}</p>
                       )}
                     </div>
                   ) : (
                     <span className="text-gray-500 text-xs">Not connected</span>
                   )}
                 </div>
-
-                {/* Google */}
                 <div className="flex items-center justify-between py-2">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center">
@@ -290,13 +304,8 @@ export default function UserDetailPage() {
                     </div>
                     <span className="text-gray-400 text-xs">Google</span>
                   </div>
-                  {integrations.google.connected ? (
-                    <div className="text-right">
-                      <span className="text-green-400 text-xs font-medium">{integrations.google.accounts.length} account(s)</span>
-                      {integrations.google.accounts[0]?.email && (
-                        <p className="text-gray-500 text-[10px]">{integrations.google.accounts[0].email}</p>
-                      )}
-                    </div>
+                  {integrations?.google?.connected ? (
+                    <span className="text-green-400 text-xs font-medium">{integrations.google.account_count} account(s)</span>
                   ) : (
                     <span className="text-gray-500 text-xs">Not connected</span>
                   )}
@@ -304,49 +313,113 @@ export default function UserDetailPage() {
               </div>
             </Section>
 
-            {/* Soul Profile Summary */}
-            {soul_profile && (
-              <Section title="Soul Profile" icon={Sparkles} defaultOpen={true}>
-                <div className="space-y-3">
-                  {soul_profile.summary && (
-                    <div>
-                      <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Summary</p>
-                      <p className="text-gray-300 text-xs leading-relaxed">{soul_profile.summary}</p>
+            {/* Assessment Status */}
+            <Section title="Assessment Status" icon={Activity} defaultOpen={true}>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between py-2 border-b border-white/5">
+                  <span className="text-gray-500 text-xs">Status</span>
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                    assessment_status?.type === 'full' ? 'bg-green-500/20 text-green-400' :
+                    assessment_status?.type === 'quick' ? 'bg-blue-500/20 text-blue-400' :
+                    assessment_status?.type === 'partial' ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-gray-500/20 text-gray-400'
+                  }`}>
+                    {assessment_status?.type || 'none'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-white/5">
+                  <span className="text-gray-500 text-xs">Questions Answered</span>
+                  <span className="text-white text-sm">{assessment_status?.questions_answered || 0}</span>
+                </div>
+                {assessment_status?.pillars_covered?.length > 0 && (
+                  <div className="pt-2">
+                    <p className="text-gray-500 text-[10px] uppercase mb-2">Pillars Covered</p>
+                    <div className="flex flex-wrap gap-1">
+                      {assessment_status.pillars_covered.map((pillar, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] rounded-full">
+                          {pillar}
+                        </span>
+                      ))}
                     </div>
-                  )}
-                  {soul_profile.communication_style && (
-                    <div>
-                      <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Communication Style</p>
-                      <p className="text-gray-300 text-xs">{soul_profile.communication_style}</p>
-                    </div>
-                  )}
-                  {soul_profile.interests && soul_profile.interests.length > 0 && (
-                    <div>
-                      <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Interests</p>
-                      <div className="flex flex-wrap gap-1">
-                        {soul_profile.interests.slice(0, 10).map((interest, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] rounded-full">
-                            {interest}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                  </div>
+                )}
+              </div>
+            </Section>
+
+            {/* Feedback Summary */}
+            <Section title="Feedback Summary" icon={ThumbsUp} defaultOpen={true}>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between py-2 border-b border-white/5">
+                  <span className="text-gray-500 text-xs">Total Feedback</span>
+                  <span className="text-white text-sm">{feedback_summary?.total || 0}</span>
+                </div>
+                <div className="flex items-center gap-4 py-2">
+                  <div className="flex items-center gap-2">
+                    <ThumbsUp className="w-4 h-4 text-green-400" />
+                    <span className="text-green-400 text-sm font-medium">{feedback_summary?.thumbs_up || 0}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ThumbsDown className="w-4 h-4 text-red-400" />
+                    <span className="text-red-400 text-sm font-medium">{feedback_summary?.thumbs_down || 0}</span>
+                  </div>
+                  {feedback_summary?.satisfaction_rate !== null && (
+                    <span className="text-gray-400 text-xs ml-auto">
+                      {feedback_summary.satisfaction_rate}% satisfaction
+                    </span>
                   )}
                 </div>
-              </Section>
-            )}
+              </div>
+            </Section>
           </div>
 
-          {/* Middle Column - Conversations & Memories */}
+          {/* Middle Column - LLM Usage & Topics */}
           <div className="space-y-4">
-            {/* Conversations */}
-            <Section title="Conversations" icon={MessageSquare} badge={stats.total_conversations} defaultOpen={true}>
-              {conversations.length === 0 ? (
+            {/* LLM Model Usage */}
+            <Section title="LLM Model Usage" icon={Cpu} badge={llm_usage?.total_llm_messages} defaultOpen={true}>
+              {llm_usage?.models?.length === 0 ? (
+                <p className="text-gray-500 text-xs text-center py-4">No LLM usage yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {llm_usage?.models?.slice(0, 10).map((m, i) => (
+                    <ProgressBar 
+                      key={i} 
+                      label={m.model} 
+                      value={m.count} 
+                      total={maxModelUsage}
+                      color={i === 0 ? 'orange' : i === 1 ? 'blue' : 'purple'}
+                    />
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            {/* Conversation Topics */}
+            <Section title="Conversation Topics" icon={Folder} badge={conversation_topics?.topics?.length} defaultOpen={true}>
+              {conversation_topics?.topics?.length === 0 ? (
+                <p className="text-gray-500 text-xs text-center py-4">No categorized topics</p>
+              ) : (
+                <div className="space-y-3">
+                  {conversation_topics?.topics?.slice(0, 8).map((t, i) => (
+                    <ProgressBar 
+                      key={i} 
+                      label={t.topic} 
+                      value={t.count} 
+                      total={maxTopicCount}
+                      color={i === 0 ? 'green' : i === 1 ? 'blue' : 'orange'}
+                    />
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            {/* Recent Conversations */}
+            <Section title="Recent Conversations" icon={MessageSquare} defaultOpen={true}>
+              {conversation_topics?.recent_conversations?.length === 0 ? (
                 <p className="text-gray-500 text-xs text-center py-4">No conversations yet</p>
               ) : (
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {conversations.map(conv => (
-                    <div key={conv.id} className="bg-white/5 rounded-lg p-3 hover:bg-white/8 transition-colors">
+                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  {conversation_topics?.recent_conversations?.map((conv, i) => (
+                    <div key={i} className="bg-white/5 rounded-lg p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-white text-xs font-medium truncate">{conv.title}</p>
@@ -354,6 +427,8 @@ export default function UserDetailPage() {
                             <span className={`px-1.5 py-0.5 text-[9px] rounded ${
                               conv.source === 'telegram' 
                                 ? 'bg-[#229ED9]/20 text-[#229ED9]' 
+                                : conv.source === 'voice'
+                                ? 'bg-purple-500/20 text-purple-400'
                                 : 'bg-white/10 text-gray-400'
                             }`}>
                               {conv.source || 'web'}
@@ -368,60 +443,6 @@ export default function UserDetailPage() {
                           <p className="text-gray-600 text-[9px]">msgs</p>
                         </div>
                       </div>
-                      <p className="text-gray-600 text-[9px] mt-2">
-                        {conv.updated_at ? new Date(conv.updated_at).toLocaleDateString() : '—'}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-
-            {/* Memories */}
-            <Section title="Memories" icon={Brain} badge={stats.total_memories} defaultOpen={true}>
-              {memories.length === 0 ? (
-                <p className="text-gray-500 text-xs text-center py-4">No memories saved</p>
-              ) : (
-                <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                  {memories.map(mem => (
-                    <div key={mem.id} className="bg-white/5 rounded-lg p-3">
-                      <p className="text-gray-300 text-xs">{mem.content}</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className={`px-1.5 py-0.5 text-[9px] rounded ${
-                          mem.importance === 'high' ? 'bg-orange-500/20 text-orange-400' :
-                          mem.importance === 'medium' ? 'bg-blue-500/20 text-blue-400' :
-                          'bg-gray-500/20 text-gray-400'
-                        }`}>
-                          {mem.importance || 'normal'}
-                        </span>
-                        <span className="text-[9px] text-gray-600">{mem.category}</span>
-                        <span className="text-[9px] text-gray-600">{mem.source}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-
-            {/* Feedback */}
-            <Section title="Feedback Given" icon={Heart} badge={feedback.length} defaultOpen={false}>
-              {feedback.length === 0 ? (
-                <p className="text-gray-500 text-xs text-center py-4">No feedback given</p>
-              ) : (
-                <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                  {feedback.map(f => (
-                    <div key={f.id} className="bg-white/5 rounded-lg p-3 flex items-start gap-3">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                        f.rating === 'up' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                      }`}>
-                        {f.rating === 'up' ? <ThumbsUp className="w-3 h-3" /> : <ThumbsDown className="w-3 h-3" />}
-                      </div>
-                      <div className="flex-1">
-                        {f.note && <p className="text-gray-300 text-xs">{f.note}</p>}
-                        <p className="text-gray-600 text-[9px] mt-1">
-                          {f.created_at ? new Date(f.created_at).toLocaleDateString() : '—'}
-                        </p>
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -429,42 +450,109 @@ export default function UserDetailPage() {
             </Section>
           </div>
 
-          {/* Right Column - Assessment, Imports, Media */}
+          {/* Right Column - Memory, Media, Platform Usage */}
           <div className="space-y-4">
-            {/* Assessment */}
-            <Section 
-              title="Assessment" 
-              icon={FileText} 
-              badge={assessment.type !== 'none' ? `${assessment.type} (${assessment.answer_count})` : null}
-              defaultOpen={true}
-            >
-              {assessment.answer_count === 0 ? (
-                <p className="text-gray-500 text-xs text-center py-4">Assessment not completed</p>
+            {/* Memory Categories */}
+            <Section title="Memory Categories" icon={Brain} badge={memory_breakdown?.total} defaultOpen={true}>
+              {memory_breakdown?.categories?.length === 0 ? (
+                <p className="text-gray-500 text-xs text-center py-4">No memories saved</p>
               ) : (
-                <div className="space-y-2 max-h-[350px] overflow-y-auto">
-                  {assessment.answers.map((a, i) => (
-                    <div key={i} className="bg-white/5 rounded-lg p-3">
-                      <p className="text-gray-400 text-[10px] mb-1">{a.pillar}</p>
-                      <p className="text-white text-xs font-medium mb-2">{a.question_text}</p>
-                      <p className="text-orange-400 text-xs">{a.answer}</p>
-                    </div>
+                <div className="space-y-3">
+                  {memory_breakdown?.categories?.slice(0, 8).map((c, i) => (
+                    <ProgressBar 
+                      key={i} 
+                      label={c.category} 
+                      value={c.count} 
+                      total={maxMemoryCategory}
+                      color={i === 0 ? 'purple' : i === 1 ? 'blue' : 'green'}
+                    />
                   ))}
                 </div>
               )}
             </Section>
 
-            {/* Imports */}
-            <Section title="Data Imports" icon={Upload} badge={stats.total_imports} defaultOpen={true}>
-              {imports.length === 0 ? (
+            {/* Platform Usage */}
+            <Section title="Platform Usage" icon={BarChart2} defaultOpen={true}>
+              {platform_usage?.by_source?.length === 0 ? (
+                <p className="text-gray-500 text-xs text-center py-4">No usage data</p>
+              ) : (
+                <div className="space-y-3">
+                  {platform_usage?.by_source?.map((s, i) => {
+                    const total = platform_usage.by_source.reduce((sum, x) => sum + x.count, 0);
+                    const pct = total > 0 ? Math.round((s.count / total) * 100) : 0;
+                    return (
+                      <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                            s.source === 'telegram' ? 'bg-[#229ED9]/20' :
+                            s.source === 'voice' ? 'bg-purple-500/20' :
+                            'bg-white/10'
+                          }`}>
+                            {s.source === 'telegram' ? <SendIcon className="w-3 h-3 text-[#229ED9]" /> :
+                             s.source === 'voice' ? <Mic className="w-3 h-3 text-purple-400" /> :
+                             <Globe className="w-3 h-3 text-gray-400" />}
+                          </div>
+                          <span className="text-gray-400 text-xs capitalize">{s.source}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-white text-sm font-medium">{s.count}</span>
+                          <span className="text-gray-500 text-[10px] ml-1">({pct}%)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Section>
+
+            {/* Media Generation */}
+            <Section title="Media Generation" icon={Image} badge={media_usage?.total} defaultOpen={true}>
+              {media_usage?.total === 0 ? (
+                <p className="text-gray-500 text-xs text-center py-4">No media generated</p>
+              ) : (
+                <div className="space-y-4">
+                  {media_usage?.by_type?.length > 0 && (
+                    <div>
+                      <p className="text-gray-500 text-[10px] uppercase mb-2">By Type</p>
+                      <div className="flex flex-wrap gap-2">
+                        {media_usage.by_type.map((t, i) => (
+                          <span key={i} className="px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-xs">
+                            <span className="text-gray-400">{t.type}:</span>
+                            <span className="text-white ml-1 font-medium">{t.count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {media_usage?.by_model?.length > 0 && (
+                    <div>
+                      <p className="text-gray-500 text-[10px] uppercase mb-2">By Model</p>
+                      <div className="flex flex-wrap gap-2">
+                        {media_usage.by_model.map((m, i) => (
+                          <span key={i} className="px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-xs">
+                            <span className="text-gray-400">{m.model}:</span>
+                            <span className="text-white ml-1 font-medium">{m.count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Section>
+
+            {/* Data Imports */}
+            <Section title="Data Imports" icon={Upload} badge={imports?.length} defaultOpen={true}>
+              {imports?.length === 0 ? (
                 <p className="text-gray-500 text-xs text-center py-4">No imports</p>
               ) : (
                 <div className="space-y-2">
-                  {imports.map(imp => (
-                    <div key={imp.id} className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
+                  {imports?.map((imp, i) => (
+                    <div key={i} className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
                       <div>
                         <p className="text-white text-xs font-medium capitalize">{imp.type}</p>
                         <p className="text-gray-500 text-[10px]">
-                          {imp.items_processed || 0} items • {imp.status}
+                          {imp.items_processed || 0} items • {new Date(imp.date).toLocaleDateString()}
                         </p>
                       </div>
                       <span className={`px-2 py-0.5 text-[9px] rounded ${
@@ -480,39 +568,30 @@ export default function UserDetailPage() {
               )}
             </Section>
 
-            {/* Media Gallery */}
-            <Section title="Generated Media" icon={Image} badge={stats.total_media} defaultOpen={true}>
-              {media.length === 0 ? (
-                <p className="text-gray-500 text-xs text-center py-4">No media generated</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {media.slice(0, 8).map(m => (
-                    <div key={m.id} className="relative group">
-                      {m.type === 'video' ? (
-                        <div className="aspect-video bg-white/5 rounded-lg flex items-center justify-center">
-                          <Video className="w-6 h-6 text-gray-500" />
-                        </div>
-                      ) : m.url ? (
-                        <img 
-                          src={m.url} 
-                          alt={m.prompt || 'Generated image'} 
-                          className="aspect-square object-cover rounded-lg"
-                        />
-                      ) : (
-                        <div className="aspect-square bg-white/5 rounded-lg flex items-center justify-center">
-                          <Image className="w-6 h-6 text-gray-500" />
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex flex-col items-center justify-center p-2">
-                        <span className="text-white text-[9px] text-center line-clamp-2">{m.prompt}</span>
-                        {m.cost && (
-                          <span className="text-green-400 text-[9px] mt-1">${m.cost.toFixed(3)}</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+            {/* Soul Profile Status */}
+            <Section title="Soul Profile" icon={Sparkles} defaultOpen={true}>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between py-2 border-b border-white/5">
+                  <span className="text-gray-500 text-xs">Profile Generated</span>
+                  <span className={`text-xs font-medium ${soul_profile?.has_profile ? 'text-green-400' : 'text-gray-500'}`}>
+                    {soul_profile?.has_profile ? '✓ Yes' : 'No'}
+                  </span>
                 </div>
-              )}
+                {soul_profile?.has_profile && (
+                  <>
+                    <div className="flex items-center justify-between py-2 border-b border-white/5">
+                      <span className="text-gray-500 text-xs">Interests Identified</span>
+                      <span className="text-white text-sm">{soul_profile.interests_count || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between py-2">
+                      <span className="text-gray-500 text-xs">Last Updated</span>
+                      <span className="text-white text-sm">
+                        {soul_profile.updated_at ? new Date(soul_profile.updated_at).toLocaleDateString() : '—'}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
             </Section>
           </div>
         </div>
