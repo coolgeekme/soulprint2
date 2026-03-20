@@ -4506,6 +4506,20 @@ You can access ${displayName}'s connected Google accounts for:
 ## 🧠 Memory & Personalization
 You have access to ${displayName}'s long-term memories, preferences, and context. Use this to provide personalized responses.
 
+## 🛟 In-Conversation Support
+You are also the first line of support for the SoulPrint app itself. When a user reports a problem with the app (uploads failing, errors, features not working, slow performance, login issues, etc.):
+
+1. **Acknowledge the issue** empathetically — "I'm sorry you're running into that."
+2. **Troubleshoot inline** — Ask relevant questions: what they were trying to do, what happened, any error messages. Suggest common fixes (refresh, clear cache, try again, check file format/size).
+3. **Collect context automatically** — You already know their browser and device from the conversation. Note what they were doing when the issue occurred.
+4. **Escalate technical issues** — If the problem is clearly a bug, server error, or something you cannot fix through troubleshooting:
+   - Tell the user: "This looks like a technical issue. Let me send this to the engineering team so they can look into it."
+   - Include in your response the special marker: \`[SUPPORT_ESCALATION]\` followed by a brief JSON summary like: \`{"issue": "description", "steps": "what user tried", "context": "relevant details"}\`
+   - The system will automatically email the engineering team with the details.
+   - Reassure the user that the team has been notified and will follow up.
+
+Do NOT escalate for: user questions about how to use features, general inquiries, or issues you can resolve through guidance. Only escalate genuine bugs or technical failures.
+
 ## 🎨 Image & Visual Content Generation
 You can generate images, flyers, posters, infographics, and visual content. When you recognize the user is:
 - Drafting promotional content (event flyers, announcements, advertisements)
@@ -8140,20 +8154,46 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
         }
 
+        let escalationBuffer = '';
+        let inEscalation = false;
+        
         for await (const chunk of aiStream) {
-          // Handle both plain strings and objects with {delta, citations}
           if (chunk) {
-            if (typeof chunk === 'string') {
-              fullContent += chunk;
-              send({ type: 'delta', content: chunk });
-            } else if (typeof chunk === 'object' && chunk.delta) {
-              fullContent += chunk.delta;
-              send({ type: 'delta', content: chunk.delta });
-              // Extract Perplexity citations if available
-              if (chunk.citations && chunk.citations.length > 0 && sources.length === 0) {
-                sources = chunk.citations;
-                send({ type: 'sources', sources: sources.slice(0, 6) });
+            let text = typeof chunk === 'string' ? chunk : (chunk.delta || '');
+            fullContent += text;
+            
+            // Filter out [SUPPORT_ESCALATION] marker and its JSON from streamed output
+            if (inEscalation) {
+              escalationBuffer += text;
+              // Check if JSON object is complete (balanced braces)
+              const opens = (escalationBuffer.match(/{/g) || []).length;
+              const closes = (escalationBuffer.match(/}/g) || []).length;
+              if (opens > 0 && opens === closes) {
+                inEscalation = false;
+                escalationBuffer = '';
               }
+              text = ''; // Don't send this chunk to the user
+            } else if (text.includes('[SUPPORT_ESCALATION]')) {
+              inEscalation = true;
+              const parts = text.split('[SUPPORT_ESCALATION]');
+              text = parts[0]; // Send everything before the marker
+              escalationBuffer = parts[1] || '';
+              const opens = (escalationBuffer.match(/{/g) || []).length;
+              const closes = (escalationBuffer.match(/}/g) || []).length;
+              if (opens > 0 && opens === closes) {
+                inEscalation = false;
+                escalationBuffer = '';
+              }
+            }
+            
+            if (text) {
+              send({ type: 'delta', content: text });
+            }
+            
+            // Extract Perplexity citations if available
+            if (typeof chunk === 'object' && chunk.citations && chunk.citations.length > 0 && sources.length === 0) {
+              sources = chunk.citations;
+              send({ type: 'sources', sources: sources.slice(0, 6) });
             }
           }
         }
@@ -8179,6 +8219,53 @@ Style: Professional graphic design quality. Make it look like a skilled designer
         await db.collection('conversations').updateOne(
           { id: convId }, { $set: { updated_at: new Date() } }
         );
+
+        // ── Support Escalation Detection ──────────────────────────────
+        // If the AI flagged a technical issue for escalation, send email to engineering
+        if (fullContent.includes('[SUPPORT_ESCALATION]')) {
+          (async () => {
+            try {
+              const escalationMatch = fullContent.match(/\[SUPPORT_ESCALATION\]\s*(\{[\s\S]*?\})/);
+              const escalationData = escalationMatch ? JSON.parse(escalationMatch[1]) : { issue: 'Unknown issue flagged by AI' };
+              
+              const userEmail = user.email || 'unknown';
+              const userName = user.display_name || user.email || 'Unknown user';
+              
+              await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  from: process.env.SENDER_EMAIL || 'support@soulprintengine.ai',
+                  to: 'team@archeforge.com',
+                  subject: `[SoulPrint Support] ${escalationData.issue?.slice(0, 80) || 'User reported issue'}`,
+                  html: `
+                    <h2>Support Escalation from SoulPrint</h2>
+                    <p><strong>User:</strong> ${userName} (${userEmail})</p>
+                    <p><strong>Issue:</strong> ${escalationData.issue || 'N/A'}</p>
+                    <p><strong>Steps/Context:</strong> ${escalationData.steps || escalationData.context || 'N/A'}</p>
+                    <p><strong>Conversation ID:</strong> ${convId}</p>
+                    <p><strong>Model:</strong> ${model}</p>
+                    <p><strong>Time:</strong> ${new Date().toISOString()}</p>
+                    <hr>
+                    <p style="color:#888;font-size:12px;">This was auto-escalated by SoulPrint's in-conversation support system.</p>
+                  `,
+                }),
+              });
+              console.log(`[Support] Escalation email sent for user ${userEmail}, conv ${convId}`);
+            } catch (escErr) {
+              console.error('[Support] Failed to send escalation email:', escErr);
+            }
+          })();
+          
+          // Clean the marker from the stored message so users don't see raw JSON
+          const cleanContent = fullContent.replace(/\[SUPPORT_ESCALATION\]\s*\{[\s\S]*?\}/g, '').trim();
+          if (cleanContent !== fullContent) {
+            await db.collection('messages').updateOne(
+              { id: assistantMsgId },
+              { $set: { content: cleanContent, support_escalated: true } }
+            );
+          }
+        }
 
         // ── Long-Term Memory Extraction (async, non-blocking) ──────────────────
         // Extract and save important facts from this conversation exchange
