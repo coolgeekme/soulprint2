@@ -7458,13 +7458,60 @@ async function handleChatStream(request) {
     await db.collection('conversations').insertOne(newConv);
   }
 
-  // Save user message (text only for storage)
+  // Save user message (with image URL if attachment present)
   const userMsgId = uuidv4();
   const storedContent = content + (attachments.length > 0 ? ` [+${attachments.length} attachment(s)]` : '');
-  await db.collection('messages').insertOne({
+  
+  // If user attached an image, upload it to get a persistent URL for later editing
+  let userImageUrl = null;
+  const imageAttachmentForStorage = attachments.find(a => a.type === 'image' && a.base64);
+  if (imageAttachmentForStorage) {
+    const kieKeyForUpload = process.env.KIE_API_KEY;
+    if (kieKeyForUpload) {
+      try {
+        let base64DataForUpload = imageAttachmentForStorage.base64;
+        if (!base64DataForUpload.startsWith('data:')) {
+          base64DataForUpload = `data:${imageAttachmentForStorage.mimeType || 'image/png'};base64,${base64DataForUpload}`;
+        }
+        
+        const uploadResForStorage = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${kieKeyForUpload}`
+          },
+          body: JSON.stringify({
+            base64Data: base64DataForUpload,
+            uploadPath: 'soulprint/user-uploads',
+            fileName: `user_upload_${Date.now()}.png`
+          }),
+        });
+        
+        if (uploadResForStorage.ok) {
+          const uploadDataForStorage = await uploadResForStorage.json();
+          if (uploadDataForStorage.success && uploadDataForStorage.data?.downloadUrl) {
+            userImageUrl = uploadDataForStorage.data.downloadUrl;
+            console.log('[User Upload] Stored user image URL for future editing:', userImageUrl.substring(0, 60));
+          }
+        }
+      } catch (uploadErr) {
+        console.log('[User Upload] Failed to upload user image for storage:', uploadErr.message);
+      }
+    }
+  }
+  
+  const userMessageDoc = {
     id: userMsgId, conversation_id: convId, user_id: user.id,
     role: 'user', content: storedContent, created_at: new Date(), model_used: model,
-  });
+  };
+  
+  // If user uploaded an image, store the URL for later editing/compositing
+  if (userImageUrl) {
+    userMessageDoc.image_url = userImageUrl;
+    userMessageDoc.content_type = 'user_upload';
+  }
+  
+  await db.collection('messages').insertOne(userMessageDoc);
 
   // Check if user is explicitly asking to remember something
   let memoryToSave = null;
@@ -8186,19 +8233,32 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             return;
           }
           
-          // Find the previous generated image (target)
+          // Find the previous image (target) - including user-uploaded images
           const recentImageMessages = await db.collection('messages')
             .find({ 
               conversation_id: convId, 
-              content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit', 'composite_edit'] },
               $or: [
-                { 'content': { $regex: /!\[.*\]\(https?:\/\// } },
-                { 'image_url': { $exists: true, $ne: null } }
+                // AI-generated images (assistant messages)
+                { 
+                  content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit', 'composite_edit'] },
+                  $or: [
+                    { 'content': { $regex: /!\[.*\]\(https?:\/\// } },
+                    { 'image_url': { $exists: true, $ne: null } }
+                  ]
+                },
+                // User-uploaded images
+                { 
+                  role: 'user',
+                  content_type: 'user_upload',
+                  image_url: { $exists: true, $ne: null }
+                }
               ]
             })
             .sort({ created_at: -1 })
             .limit(1)
             .toArray();
+          
+          console.log('[Composite Edit] Found', recentImageMessages.length, 'recent image messages (including user uploads)');
           
           if (recentImageMessages.length === 0) {
             send({ type: 'delta', content: 'I don\'t see a previous image to add this to. Please generate or upload an image first, then I can add elements to it.' });
@@ -8208,6 +8268,9 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
           
           const lastImageMsg = recentImageMessages[0];
+          const isUserUploadTarget = lastImageMsg.role === 'user' && lastImageMsg.content_type === 'user_upload';
+          console.log('[Composite Edit] Target image - role:', lastImageMsg.role, 'content_type:', lastImageMsg.content_type, 'isUserUpload:', isUserUploadTarget);
+          
           let targetImageUrl = lastImageMsg.image_url;
           if (!targetImageUrl) {
             const urlMatch = lastImageMsg.content?.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
@@ -8462,27 +8525,39 @@ Output ONLY the DALL-E prompt.` }
             }
           }
           
-          // If no attached image, find the last generated image in the conversation
+          // If no attached image, find the last generated OR user-uploaded image in the conversation
           if (!imageToEdit) {
             console.log('[Image Edit] Looking for previous image in conversation:', convId);
             const recentImageMessages = await db.collection('messages')
               .find({ 
                 conversation_id: convId, 
-                content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit'] },
                 $or: [
-                  { 'content': { $regex: /!\[.*\]\(https?:\/\// } },  // Has image markdown
-                  { 'image_url': { $exists: true, $ne: null } }
+                  // AI-generated images
+                  {
+                    content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit'] },
+                    $or: [
+                      { 'content': { $regex: /!\[.*\]\(https?:\/\// } },  // Has image markdown
+                      { 'image_url': { $exists: true, $ne: null } }
+                    ]
+                  },
+                  // User-uploaded images
+                  {
+                    role: 'user',
+                    content_type: 'user_upload',
+                    image_url: { $exists: true, $ne: null }
+                  }
                 ]
               })
               .sort({ created_at: -1 })
               .limit(1)
               .toArray();
             
-            console.log('[Image Edit] Found', recentImageMessages.length, 'recent image messages');
+            console.log('[Image Edit] Found', recentImageMessages.length, 'recent image messages (including user uploads)');
             
             if (recentImageMessages.length > 0) {
               const lastImageMsg = recentImageMessages[0];
-              console.log('[Image Edit] Last image message content_type:', lastImageMsg.content_type, 'image_url:', lastImageMsg.image_url?.substring(0, 60));
+              const isUserUpload = lastImageMsg.role === 'user' && lastImageMsg.content_type === 'user_upload';
+              console.log('[Image Edit] Last image message - role:', lastImageMsg.role, 'content_type:', lastImageMsg.content_type, 'isUserUpload:', isUserUpload, 'image_url:', lastImageMsg.image_url?.substring(0, 60));
               // Extract the image URL from the message
               let imageUrl = lastImageMsg.image_url;
               if (!imageUrl) {

@@ -8,7 +8,7 @@ import requests
 import json
 
 # Configuration
-BASE_URL = "https://image-edit-preview.preview.emergentagent.com/api"
+BASE_URL = "https://chat-to-canvas.preview.emergentagent.com/api"
 LOGIN_EMAIL = "test@soulprint.com"
 LOGIN_PASSWORD = "test123"
 

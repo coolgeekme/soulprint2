@@ -9,7 +9,7 @@ import time
 import sys
 
 # Get the base URL from environment variable
-NEXT_PUBLIC_BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://image-edit-preview.preview.emergentagent.com')
+NEXT_PUBLIC_BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://chat-to-canvas.preview.emergentagent.com')
 BASE_URL = f"{NEXT_PUBLIC_BASE_URL}/api"
 
 class ChatGPTImportTester:

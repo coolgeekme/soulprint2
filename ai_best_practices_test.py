@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://image-edit-preview.preview.emergentagent.com"
+BASE_URL = "https://chat-to-canvas.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

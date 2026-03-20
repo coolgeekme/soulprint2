@@ -11,7 +11,7 @@ import sys
 import os
 
 # Test configuration
-BASE_URL = "https://image-edit-preview.preview.emergentagent.com"
+BASE_URL = "https://chat-to-canvas.preview.emergentagent.com"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 
