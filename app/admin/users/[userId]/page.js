@@ -64,12 +64,22 @@ export default function UserDetailPage() {
   const [token, setToken] = useState(null);
 
   useEffect(() => {
-    const t = localStorage.getItem('token');
+    const t = localStorage.getItem('sp_token');
     if (!t) {
       router.push('/auth');
       return;
     }
     setToken(t);
+    
+    // Verify admin role
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.json())
+      .then(d => {
+        if (!['admin', 'superadmin'].includes(d.role)) {
+          router.push('/chat');
+        }
+      })
+      .catch(() => router.push('/auth'));
   }, []);
 
   useEffect(() => {
