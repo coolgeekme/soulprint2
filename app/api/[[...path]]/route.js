@@ -2555,7 +2555,7 @@ async function pollKieTaskResult(apiKey, taskId, timeoutMs = 60000) {
 // Internal function for image editing (called from tool handler)
 // Prioritizes Kie.ai for cost-effective true inpainting, falls back to OpenAI
 async function handleImageEditInternal(userId, image, editInstruction) {
-  console.log('[ImageEdit] Starting edit with OpenAI (best editing quality):', editInstruction.substring(0, 100));
+  console.log('[ImageEdit] Starting edit with gpt-image-1 (ChatGPT-style):', editInstruction.substring(0, 100));
   
   // Get image as base64 or URL
   let mimeType = image.mimeType || 'image/png';
@@ -2603,9 +2603,98 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   
   // Reformulate instruction for better results
   const safeEditInstruction = reformulateForSafety(editInstruction);
-  console.log('[ImageEdit] Using dall-e-2 for image editing');
+  console.log('[ImageEdit] Using gpt-image-1 for text-based editing');
   
-  // METHOD 1: Try dall-e-2 with images/edits endpoint
+  // METHOD 1: Use OpenAI Responses API with gpt-image-1 (ChatGPT-style editing)
+  try {
+    console.log('[ImageEdit] Attempting gpt-image-1 via Responses API');
+    
+    // Build the image data URL
+    const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
+    
+    const editResponse = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1',
+        input: [{
+          role: 'user',
+          content: [
+            { type: 'input_text', text: safeEditInstruction },
+            { type: 'input_image', image_url: imageDataUrl }
+          ]
+        }],
+        tools: [{
+          type: 'image_generation',
+          input_fidelity: 'high',
+          action: 'edit'
+        }]
+      })
+    });
+    
+    if (editResponse.ok) {
+      const editData = await editResponse.json();
+      console.log('[ImageEdit] Responses API result:', JSON.stringify(editData).substring(0, 500));
+      
+      // Extract image from response
+      const imageOutput = editData.output?.find(o => o.type === 'image_generation_call');
+      if (imageOutput?.result) {
+        const editedBase64 = imageOutput.result;
+        
+        // Upload to get a proper URL
+        let editedUrl = null;
+        const kieKey = process.env.KIE_API_KEY;
+        if (kieKey) {
+          try {
+            const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${kieKey}`
+              },
+              body: JSON.stringify({
+                base64Data: `data:image/png;base64,${editedBase64}`,
+                uploadPath: 'soulprint/edits',
+                fileName: `edit_${Date.now()}.png`
+              }),
+            });
+            
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              if (uploadData.success && uploadData.data?.downloadUrl) {
+                editedUrl = uploadData.data.downloadUrl;
+              }
+            }
+          } catch (uploadErr) {
+            console.log('[ImageEdit] Upload failed:', uploadErr.message);
+          }
+        }
+        
+        if (!editedUrl) {
+          editedUrl = `data:image/png;base64,${editedBase64}`;
+        }
+        
+        console.log('[ImageEdit] Success with gpt-image-1!');
+        return {
+          success: true,
+          url: editedUrl,
+          base64: editedBase64,
+          edit: editInstruction,
+          method: 'gpt-image-1'
+        };
+      }
+    } else {
+      const err = await editResponse.json().catch(() => ({}));
+      console.log('[ImageEdit] gpt-image-1 Responses API failed:', err.error?.message || JSON.stringify(err));
+    }
+  } catch (editErr) {
+    console.log('[ImageEdit] gpt-image-1 error:', editErr.message);
+  }
+  
+  // METHOD 2: Try dall-e-2 with images/edits endpoint (requires RGBA)
   try {
     console.log('[ImageEdit] Attempting dall-e-2 images/edits API');
     console.log('[ImageEdit] Input base64 length:', imageBase64.length);
