@@ -7529,11 +7529,49 @@ Professional studio lighting, white or neutral background. High resolution, clea
                 .png()
                 .toBuffer();
               
-              // Step 7: Convert to base64 data URL
+              // Step 7: Upload to temp storage for a proper URL
               const compositedBase64 = compositedBuffer.toString('base64');
-              const imageUrl = `data:image/png;base64,${compositedBase64}`;
+              let imageUrl = null;
               
-              console.log('[Mockup] Successfully composited exact logo onto product!');
+              // Try uploading to Kie.ai temp storage (3-day expiry)
+              const kieKey = process.env.KIE_API_KEY;
+              if (kieKey) {
+                try {
+                  const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                    method: 'POST',
+                    headers: { 
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${kieKey}`
+                    },
+                    body: JSON.stringify({
+                      base64Data: `data:image/png;base64,${compositedBase64}`,
+                      uploadPath: 'soulprint/mockups',
+                      fileName: `mockup_${Date.now()}.png`
+                    }),
+                  });
+                  
+                  if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    console.log('[Mockup] Upload response:', JSON.stringify(uploadData).substring(0, 300));
+                    if (uploadData.success && uploadData.data?.downloadUrl) {
+                      imageUrl = uploadData.data.downloadUrl;
+                      console.log('[Mockup] Uploaded to:', imageUrl);
+                    }
+                  } else {
+                    console.log('[Mockup] Upload failed:', uploadRes.status, await uploadRes.text());
+                  }
+                } catch (uploadErr) {
+                  console.log('[Mockup] Upload to temp storage failed:', uploadErr.message);
+                }
+              }
+              
+              // Fallback to base64 data URL if upload failed
+              if (!imageUrl) {
+                imageUrl = `data:image/png;base64,${compositedBase64}`;
+                console.log('[Mockup] Using base64 data URL fallback (length:', imageUrl.length, ')');
+              }
+              
+              console.log('[Mockup] Successfully composited! URL type:', imageUrl.startsWith('data:') ? 'base64' : 'hosted', 'URL preview:', imageUrl.substring(0, 100));
               
               fullContent = `![Product Mockup](${imageUrl})\n\n🛍️ *Your product mockup is ready!*\n\n✅ **Your exact logo has been placed on the ${productType}!**\n\n_This uses true image compositing - your logo pixels are preserved exactly._`;
               send({ type: 'image', url: imageUrl, contentType: 'mockup', model: 'sharp-composite' });
