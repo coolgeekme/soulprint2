@@ -4124,14 +4124,17 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
     /\b(?:edit|modify)\s+(?:the|that|it)\s+(?:to\s+)?(?:be|look)\s+/i,
     /\b(?:change|transform)\s+(?:the|that|it)\s+(?:to\s+)?(?:look\s+)?(?:like|into)\s+/i,
     /\b(?:make\s+it\s+look\s+like|convert\s+it\s+to)\s+(?:a\s+)?(?:photograph|photo|real)/i,
-    // Adding patterns for "add more", "more colors", etc.
-    /\b(?:add\s+more|more)\s+(?:color|colors|pattern|patterns|detail|details|vibrant|brightness)/i,
-    /\bcan\s+you\s+(?:give|add)\s+(?:me\s+)?more/i,
-    /\b(?:add|put)\s+(?:some|more)\s+(?:\w+\s+)?(?:to\s+it|on\s+it|there)/i,
-    /\b(?:change|update|modify)\s+(?:the\s+)?(?:colors?|pattern|design)/i,
+    // Adding patterns for "add more X colors", "more X pattern", etc.
+    /\b(?:add|more)\s+(?:\w+\s+)*(?:color|colors|pattern|patterns|detail|details)\b/i,
+    /\bcan\s+you\s+(?:give|add)\s+(?:me\s+)?(?:\w+\s+)*more/i,
+    /\b(?:add|put)\s+(?:some|more)\s+/i,
+    /\b(?:change|update|modify)\s+(?:the\s+)?(?:\w+\s+)*(?:color|colors|pattern|design)/i,
     /\bmake\s+(?:it|the\s+\w+)\s+(?:more\s+)?(?:colorful|vibrant|brighter|darker|different)/i,
+    /\bsurprise\s+me\s+with/i,  // "surprise me with the colors"
+    /\bupdate\s+(?:it|the\s+\w+|that)\s+(?:with|to)/i,
   ];
   if (conversationalEditPatterns.some(p => p.test(lower))) {
+    console.log('[Quick Intent] Detected image_edit from conversational patterns:', lower.substring(0, 50));
     return { intent: 'image_edit', confidence: 'high', reason: 'Edit previous image to change appearance' };
   }
   
