@@ -10575,6 +10575,169 @@ async function handleRestoreAnnouncement(request) {
   return ok({ success: true });
 }
 
+// ============================================
+// APP UPDATES (What's New) - For logged-in users
+// ============================================
+
+// GET /api/app-updates - Get all published app updates for users
+async function handleGetAppUpdates(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  const { searchParams } = new URL(request.url);
+  const limit = parseInt(searchParams.get('limit') || '20');
+  
+  // Get published updates, sorted by date descending
+  const updates = await db.collection('app_updates')
+    .find({ published: true })
+    .sort({ release_date: -1 })
+    .limit(limit)
+    .toArray();
+
+  // Get user's last viewed timestamp
+  const userPrefs = await db.collection('user_preferences').findOne({ user_id: user.id });
+  const lastViewedAt = userPrefs?.app_updates_last_viewed || null;
+
+  // Count unread updates
+  const unreadCount = lastViewedAt 
+    ? updates.filter(u => new Date(u.created_at) > new Date(lastViewedAt)).length
+    : updates.length;
+
+  return ok({
+    updates: updates.map(u => ({
+      id: u.id,
+      title: u.title,
+      description: u.description,
+      version: u.version,
+      type: u.type, // 'feature' | 'improvement' | 'fix' | 'announcement'
+      release_date: u.release_date,
+      created_at: u.created_at,
+    })),
+    unread_count: unreadCount,
+    last_viewed_at: lastViewedAt,
+  });
+}
+
+// POST /api/app-updates/mark-viewed - Mark updates as viewed
+async function handleMarkAppUpdatesViewed(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  
+  await db.collection('user_preferences').updateOne(
+    { user_id: user.id },
+    { $set: { app_updates_last_viewed: new Date() } },
+    { upsert: true }
+  );
+
+  return ok({ success: true });
+}
+
+// ADMIN - Get all app updates (including unpublished)
+async function handleAdminGetAppUpdates(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  
+  const updates = await db.collection('app_updates')
+    .find({})
+    .sort({ created_at: -1 })
+    .toArray();
+
+  return ok({
+    updates: updates.map(u => ({
+      id: u.id,
+      title: u.title,
+      description: u.description,
+      version: u.version,
+      type: u.type,
+      published: u.published,
+      release_date: u.release_date,
+      created_at: u.created_at,
+      updated_at: u.updated_at,
+      created_by: u.created_by,
+    })),
+  });
+}
+
+// ADMIN - Create app update
+async function handleAdminCreateAppUpdate(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  const { title, description, version, type, published, release_date } = body;
+
+  if (!title || !description) {
+    return err('Title and description are required', 400);
+  }
+
+  const db = await getDb();
+  
+  const newUpdate = {
+    id: uuidv4(),
+    title,
+    description,
+    version: version || null,
+    type: type || 'feature',
+    published: published || false,
+    release_date: release_date ? new Date(release_date) : new Date(),
+    created_at: new Date(),
+    updated_at: new Date(),
+    created_by: admin.id,
+  };
+
+  await db.collection('app_updates').insertOne(newUpdate);
+
+  return ok({ success: true, update: newUpdate });
+}
+
+// ADMIN - Update app update
+async function handleAdminUpdateAppUpdate(request, updateId) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json();
+  const db = await getDb();
+
+  const existing = await db.collection('app_updates').findOne({ id: updateId });
+  if (!existing) return err('Update not found', 404);
+
+  const updates = {};
+  if (body.title !== undefined) updates.title = body.title;
+  if (body.description !== undefined) updates.description = body.description;
+  if (body.version !== undefined) updates.version = body.version;
+  if (body.type !== undefined) updates.type = body.type;
+  if (body.published !== undefined) updates.published = body.published;
+  if (body.release_date !== undefined) updates.release_date = new Date(body.release_date);
+  updates.updated_at = new Date();
+
+  await db.collection('app_updates').updateOne(
+    { id: updateId },
+    { $set: updates }
+  );
+
+  return ok({ success: true });
+}
+
+// ADMIN - Delete app update
+async function handleAdminDeleteAppUpdate(request, updateId) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+  
+  const existing = await db.collection('app_updates').findOne({ id: updateId });
+  if (!existing) return err('Update not found', 404);
+
+  await db.collection('app_updates').deleteOne({ id: updateId });
+
+  return ok({ success: true });
+}
+
 // PWA Install Prompt - Get user's install prompt preference
 async function handleGetInstallPromptStatus(request) {
   const user = await authenticate(request);
@@ -11243,6 +11406,205 @@ async function handleAdminDeleteUser(request, userId) {
   });
 
   return ok({ success: true });
+}
+
+// ADMIN - Get detailed user info
+async function handleAdminGetUserDetails(request, userId) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const db = await getDb();
+
+  // Get user
+  const user = await db.collection('users').findOne({ id: userId });
+  if (!user) {
+    return err('User not found', 404);
+  }
+
+  // Get profile
+  const profile = await db.collection('profiles').findOne({ user_id: userId });
+
+  // Get conversations with message counts
+  const conversations = await db.collection('conversations')
+    .find({ user_id: userId })
+    .sort({ updated_at: -1 })
+    .toArray();
+  
+  // Get message counts per conversation
+  const conversationIds = conversations.map(c => c.id);
+  const messageCounts = await db.collection('messages').aggregate([
+    { $match: { conversation_id: { $in: conversationIds } } },
+    { $group: { _id: '$conversation_id', count: { $sum: 1 } } }
+  ]).toArray();
+  const messageCountMap = Object.fromEntries(messageCounts.map(m => [m._id, m.count]));
+
+  // Get total messages
+  const totalMessages = await db.collection('messages').countDocuments({ user_id: userId });
+
+  // Get memories
+  const memories = await db.collection('user_memories')
+    .find({ user_id: userId })
+    .sort({ created_at: -1 })
+    .limit(50)
+    .toArray();
+
+  // Get assessment answers
+  const assessmentAnswers = await db.collection('assessment_answers')
+    .find({ user_id: userId })
+    .toArray();
+
+  // Get questions to map answer IDs to actual questions
+  const questionIds = assessmentAnswers.map(a => a.question_id);
+  const questions = await db.collection('assessment_questions')
+    .find({ id: { $in: questionIds } })
+    .toArray();
+  const questionMap = Object.fromEntries(questions.map(q => [q.id, q]));
+
+  // Get imports
+  const imports = await db.collection('data_imports')
+    .find({ user_id: userId })
+    .sort({ created_at: -1 })
+    .toArray();
+
+  // Get media generated
+  const mediaItems = await db.collection('media_gallery')
+    .find({ user_id: userId })
+    .sort({ created_at: -1 })
+    .limit(20)
+    .toArray();
+
+  // Get telegram link
+  const telegramLink = await db.collection('telegram_links')
+    .findOne({ user_id: userId });
+
+  // Get google connections
+  const googleConnections = await db.collection('google_tokens')
+    .find({ user_id: userId })
+    .toArray();
+
+  // Calculate cost estimate (rough estimate based on messages)
+  const llmCostEstimate = totalMessages * 0.002; // ~$0.002 per message average
+  const mediaCost = mediaItems.reduce((sum, m) => sum + (m.cost || 0), 0);
+
+  // Get feedback given by this user
+  const feedback = await db.collection('user_feedback')
+    .find({ user_id: userId })
+    .sort({ created_at: -1 })
+    .limit(20)
+    .toArray();
+
+  // Get soul profile if exists
+  const soulProfile = await db.collection('soul_profiles')
+    .findOne({ user_id: userId });
+
+  return ok({
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      accepted: user.accepted,
+      created_at: user.created_at,
+      last_active_at: user.last_active_at,
+      auth_provider: user.auth_provider,
+      firebase_uid: user.firebase_uid ? true : false,
+    },
+    profile: profile ? {
+      display_name: profile.display_name,
+      assistant_name: profile.assistant_name,
+      onboarding_complete: profile.onboarding_complete,
+      assessment_complete: profile.assessment_complete,
+      field: profile.field,
+      help_with: profile.help_with,
+      descriptors: profile.descriptors,
+      discovery_source: profile.discovery_source,
+      timezone: profile.timezone,
+      location: profile.location,
+    } : null,
+    stats: {
+      total_conversations: conversations.length,
+      total_messages: totalMessages,
+      total_memories: memories.length,
+      total_imports: imports.length,
+      total_media: mediaItems.length,
+      estimated_llm_cost: parseFloat(llmCostEstimate.toFixed(4)),
+      estimated_media_cost: parseFloat(mediaCost.toFixed(4)),
+      estimated_total_cost: parseFloat((llmCostEstimate + mediaCost).toFixed(4)),
+    },
+    conversations: conversations.slice(0, 20).map(c => ({
+      id: c.id,
+      title: c.title || 'Untitled',
+      topic: c.topic_category,
+      source: c.source || 'web',
+      message_count: messageCountMap[c.id] || 0,
+      created_at: c.created_at,
+      updated_at: c.updated_at,
+    })),
+    memories: memories.map(m => ({
+      id: m.id,
+      content: m.content,
+      category: m.category,
+      importance: m.importance,
+      source: m.source,
+      created_at: m.created_at,
+    })),
+    assessment: {
+      answer_count: assessmentAnswers.length,
+      type: assessmentAnswers.length >= 30 ? 'full' : assessmentAnswers.length >= 10 ? 'quick' : assessmentAnswers.length > 0 ? 'partial' : 'none',
+      answers: assessmentAnswers.map(a => ({
+        question_id: a.question_id,
+        question_text: questionMap[a.question_id]?.question || 'Unknown question',
+        pillar: questionMap[a.question_id]?.pillar,
+        answer: a.answer,
+        answered_at: a.created_at || a.answered_at,
+      })),
+    },
+    imports: imports.map(i => ({
+      id: i.id,
+      type: i.type || i.source,
+      status: i.status,
+      items_processed: i.items_processed || i.messages_count,
+      created_at: i.created_at,
+      completed_at: i.completed_at,
+    })),
+    media: mediaItems.map(m => ({
+      id: m.id,
+      type: m.type,
+      model: m.model,
+      prompt: m.prompt?.substring(0, 100),
+      url: m.url,
+      cost: m.cost,
+      created_at: m.created_at,
+    })),
+    integrations: {
+      telegram: telegramLink ? {
+        linked: true,
+        telegram_user_id: telegramLink.telegram_user_id,
+        telegram_username: telegramLink.telegram_username,
+        linked_at: telegramLink.created_at,
+      } : { linked: false },
+      google: googleConnections.length > 0 ? {
+        connected: true,
+        accounts: googleConnections.map(g => ({
+          email: g.google_email,
+          scopes: g.scopes,
+          connected_at: g.created_at,
+        })),
+      } : { connected: false },
+    },
+    feedback: feedback.map(f => ({
+      id: f.id,
+      rating: f.rating,
+      note: f.note,
+      message_id: f.message_id,
+      created_at: f.created_at,
+    })),
+    soul_profile: soulProfile ? {
+      summary: soulProfile.summary || soulProfile.soul_profile_summary,
+      communication_style: soulProfile.communication_style,
+      interests: soulProfile.interests,
+      updated_at: soulProfile.updated_at,
+    } : null,
+  });
 }
 
 async function handleAdminGetWaitlist(request) {
@@ -22330,6 +22692,11 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/users') return handleAdminGetUsers(request);
     if (pathStr === 'admin/users/export') return handleAdminExportUsers(request);
     if (pathStr === 'admin/users/export/filters') return handleAdminGetExportFilters(request);
+    // Admin user details: admin/users/:userId
+    if (pathStr.startsWith('admin/users/') && pathArr.length === 3 && !pathStr.includes('export')) {
+      const userId = pathArr[2];
+      return handleAdminGetUserDetails(request, userId);
+    }
     if (pathStr === 'admin/metrics') return handleAdminGetMetrics(request);
     if (pathStr === 'admin/questions') return handleAdminGetQuestions(request);
     if (pathStr === 'admin/conversations') return handleAdminGetConversations(request);
@@ -22352,6 +22719,8 @@ export async function GET(request, { params }) {
     if (pathStr === 'profile/soul') return handleGetSoulProfile(request);
     if (pathStr === 'announcements') return handleGetAnnouncements(request);
     if (pathStr === 'admin/announcements') return handleAdminGetAnnouncements(request);
+    if (pathStr === 'app-updates') return handleGetAppUpdates(request);
+    if (pathStr === 'admin/app-updates') return handleAdminGetAppUpdates(request);
     if (pathStr === 'media/gallery') return handleMediaGallery(request);
     if (pathStr === 'media/status') return handleMediaStatus(request);
     if (pathStr.startsWith('media/status/')) {
@@ -22508,6 +22877,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'admin/waitlist/approve') return handleAdminApproveWaitlist(request);
     if (pathStr === 'admin/feedback/summarize') return handleAdminSummarizeFeedback(request);
     if (pathStr === 'admin/announcements') return handleAdminCreateAnnouncement(request);
+    if (pathStr === 'admin/app-updates') return handleAdminCreateAppUpdate(request);
+    if (pathStr === 'app-updates/mark-viewed') return handleMarkAppUpdatesViewed(request);
     if (pathStr === 'admin/blog/posts') return handleAdminCreateBlogPost(request);
     if (pathStr === 'admin/beta-code') return handleAdminCreateBetaCode(request);
     if (pathStr === 'admin/beta-code/send') return handleAdminSendBetaCode(request);
@@ -22609,6 +22980,10 @@ export async function PUT(request, { params }) {
       const announcementId = pathArr[2];
       return handleAdminUpdateAnnouncement(request, announcementId);
     }
+    if (pathStr.startsWith('admin/app-updates/') && pathArr.length === 3) {
+      const updateId = pathArr[2];
+      return handleAdminUpdateAppUpdate(request, updateId);
+    }
     if (pathStr.startsWith('admin/blog/posts/') && pathArr.length === 4) {
       const postId = pathArr[3];
       return handleAdminUpdateBlogPost(request, postId);
@@ -22659,6 +23034,10 @@ export async function DELETE(request, { params }) {
     if (pathStr.startsWith('admin/announcements/') && pathArr.length === 3) {
       const announcementId = pathArr[2];
       return handleAdminDeleteAnnouncement(request, announcementId);
+    }
+    if (pathStr.startsWith('admin/app-updates/') && pathArr.length === 3) {
+      const updateId = pathArr[2];
+      return handleAdminDeleteAppUpdate(request, updateId);
     }
     if (pathStr.startsWith('admin/users/') && pathArr.length === 3) {
       const userId = pathArr[2];

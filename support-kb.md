@@ -227,17 +227,41 @@ A guided questionnaire that helps SoulPrint understand the user better.
 ### Tabs:
 - **Metrics**: Quick Stats, Costs (LLM + Voice + Media), Engagement
 - **Insights**: Business analytics, pricing recommendations, revenue potential, churn indicators
-- **Waitlist/Users**: User management
+- **Waitlist/Users**: User management with detailed user profiles
 - **Conversations**: Search and view conversation metadata (content is privacy-protected)
 - **Blog/Announcements**: Content management
+- **App Updates**: Manage "What's New" updates shown to users
 - **Feedback**: User feedback review
 - **Beta Codes**: Access code management
+- **Assessments**: View user assessment data
+- **Imports**: Track user data imports
 - **Settings**: App-wide configuration
+
+### User Details Page
+- Click any user in the Users tab to view detailed profile
+- Shows: profile info, activity stats, conversations, memories, assessment answers, imports, media generated
+- Integrations status (Telegram, Google connections)
+- Cost estimates per user
+
+### App Updates (What's New)
+- Admins can create updates to show users new features, improvements, bug fixes
+- Updates appear in the "What's New" modal (sparkles icon in user's sidebar)
+- Users see unread badge count
+- Support types: feature, improvement, fix, announcement
 
 ### Auto-Refresh
 - Dashboard metrics auto-refresh every 30 seconds when "Live" is enabled
 - Click the refresh icon for manual refresh
 - Toggle "Live" / "Paused" in the top-right corner
+
+---
+
+## WHAT'S NEW FEATURE (User-facing)
+
+Users can see app updates by clicking the sparkles (✨) icon in the chat sidebar:
+- Shows latest features, improvements, and bug fixes
+- Unread count badge appears for new updates
+- Click "Mark all as read" to clear the badge
 
 ---
 

@@ -19,6 +19,7 @@ const TABS = [
   { id: 'conversations', label: 'Conversations', icon: MessageSquare },
   { id: 'blog', label: 'Blog', icon: PenSquare },
   { id: 'announcements', label: 'Announcements', icon: Megaphone },
+  { id: 'appupdates', label: 'App Updates', icon: Sparkles },
   { id: 'feedback', label: 'Feedback', icon: MessageCircle },
   { id: 'betacodes', label: 'Beta Codes', icon: KeyRound },
   { id: 'assessments', label: 'Assessments', icon: FileText },
@@ -324,6 +325,7 @@ function WaitlistTab({ token, onCountChange }) {
 
 // Users Tab
 function UsersTab({ token, adminRole }) {
+  const router = useRouter();
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -992,12 +994,15 @@ function UsersTab({ token, adminRole }) {
             {loading ? (
               <tr><td colSpan={7} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
             ) : users.map(u => (
-              <tr key={u.id} className="border-b border-white/3">
+              <tr key={u.id} className="border-b border-white/3 hover:bg-white/5 transition-colors">
                 <td className="py-3 pr-4">
-                  <div>
-                    <p className="text-white text-xs">{u.email}</p>
+                  <button
+                    onClick={() => router.push(`/admin/users/${u.id}`)}
+                    className="text-left hover:text-orange-400 transition-colors group"
+                  >
+                    <p className="text-white text-xs group-hover:text-orange-400">{u.email}</p>
                     {u.display_name && <p className="text-gray-600 text-[10px]">{u.display_name}</p>}
-                  </div>
+                  </button>
                 </td>
                 <td className="py-3 pr-4">
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
@@ -1043,6 +1048,13 @@ function UsersTab({ token, adminRole }) {
                 </td>
                 <td className="py-3 pr-4">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <button 
+                      onClick={() => router.push(`/admin/users/${u.id}`)} 
+                      className="p-1.5 text-gray-500 hover:text-orange-400 hover:bg-orange-500/10 rounded-lg transition-colors"
+                      title="View user details"
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
                     {adminRole === 'superadmin' && (
                       <>
                         <select
@@ -1469,6 +1481,303 @@ function AnnouncementsTab({ token }) {
                   <button
                     onClick={() => handleDelete(ann.id)}
                     className="p-2 rounded-lg bg-white/5 text-gray-400 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// App Updates Tab (What's New management)
+function AppUpdatesTab({ token }) {
+  const [updates, setUpdates] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    version: '',
+    type: 'feature',
+    published: false,
+    release_date: new Date().toISOString().split('T')[0],
+  });
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/app-updates', { headers: { Authorization: `Bearer ${token}` } });
+      const d = await res.json();
+      setUpdates(d.updates || []);
+    } catch (e) {
+      console.error('Failed to load app updates:', e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleSave = async () => {
+    if (!formData.title.trim() || !formData.description.trim()) {
+      alert('Title and description are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (editing) {
+        await fetch(`/api/admin/app-updates/${editing}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(formData),
+        });
+      } else {
+        await fetch('/api/admin/app-updates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(formData),
+        });
+      }
+      setShowForm(false);
+      setEditing(null);
+      setFormData({
+        title: '',
+        description: '',
+        version: '',
+        type: 'feature',
+        published: false,
+        release_date: new Date().toISOString().split('T')[0],
+      });
+      load();
+    } catch (e) {
+      alert('Failed to save update');
+    }
+    setSaving(false);
+  };
+
+  const handleEdit = (upd) => {
+    setEditing(upd.id);
+    setFormData({
+      title: upd.title,
+      description: upd.description,
+      version: upd.version || '',
+      type: upd.type || 'feature',
+      published: upd.published,
+      release_date: upd.release_date ? new Date(upd.release_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+    });
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Are you sure you want to delete this update?')) return;
+    try {
+      await fetch(`/api/admin/app-updates/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      load();
+    } catch (e) {
+      alert('Failed to delete update');
+    }
+  };
+
+  const togglePublish = async (upd) => {
+    try {
+      await fetch(`/api/admin/app-updates/${upd.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ published: !upd.published }),
+      });
+      load();
+    } catch (e) {
+      alert('Failed to update');
+    }
+  };
+
+  const typeColors = {
+    feature: 'bg-green-500/20 text-green-400 border-green-500/30',
+    improvement: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    fix: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    announcement: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  };
+
+  const typeIcons = {
+    feature: '✨',
+    improvement: '🔧',
+    fix: '🐛',
+    announcement: '📢',
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-white">App Updates (What's New)</h2>
+          <p className="text-xs text-gray-500">Manage updates shown to users in the "What's New" section</p>
+        </div>
+        <button
+          onClick={() => { setShowForm(true); setEditing(null); setFormData({ title: '', description: '', version: '', type: 'feature', published: false, release_date: new Date().toISOString().split('T')[0] }); }}
+          className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-all"
+        >
+          <Plus className="w-4 h-4" /> New Update
+        </button>
+      </div>
+
+      {/* Form */}
+      {showForm && (
+        <div className="bg-[#111] border border-white/10 rounded-xl p-5 space-y-4">
+          <h3 className="text-white font-semibold">{editing ? 'Edit Update' : 'Create Update'}</h3>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-gray-500 text-xs mb-1">Title *</label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="e.g., New Voice Chat Feature"
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+              />
+            </div>
+            
+            <div className="sm:col-span-2">
+              <label className="block text-gray-500 text-xs mb-1">Description *</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Describe what's new..."
+                rows={4}
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none resize-none"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-gray-500 text-xs mb-1">Version (optional)</label>
+              <input
+                type="text"
+                value={formData.version}
+                onChange={(e) => setFormData({ ...formData, version: e.target.value })}
+                placeholder="e.g., v2.1.0"
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-gray-500 text-xs mb-1">Type</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+              >
+                <option value="feature">✨ Feature</option>
+                <option value="improvement">🔧 Improvement</option>
+                <option value="fix">🐛 Bug Fix</option>
+                <option value="announcement">📢 Announcement</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-gray-500 text-xs mb-1">Release Date</label>
+              <input
+                type="date"
+                value={formData.release_date}
+                onChange={(e) => setFormData({ ...formData, release_date: e.target.value })}
+                className="w-full bg-[#0a0a0a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/40 outline-none"
+              />
+            </div>
+            
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="updatePublished"
+                checked={formData.published}
+                onChange={(e) => setFormData({ ...formData, published: e.target.checked })}
+                className="w-4 h-4 rounded border-white/20 bg-[#0a0a0a]"
+              />
+              <label htmlFor="updatePublished" className="ml-2 text-gray-400 text-sm">Publish immediately</label>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : editing ? 'Update' : 'Create'}
+            </button>
+            <button
+              onClick={() => { setShowForm(false); setEditing(null); }}
+              className="px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg text-sm transition-all"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Updates List */}
+      {loading ? (
+        <div className="text-center py-8"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-600" /></div>
+      ) : updates.length === 0 ? (
+        <div className="text-center py-12 text-gray-600">
+          <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p>No app updates yet</p>
+          <p className="text-xs mt-1">Create your first update to show users what's new</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {updates.map(upd => (
+            <div key={upd.id} className={`bg-[#111] border rounded-xl p-4 ${upd.published ? 'border-green-500/30' : 'border-white/10'}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${typeColors[upd.type] || typeColors.feature}`}>
+                      {typeIcons[upd.type] || '✨'} {upd.type}
+                    </span>
+                    {upd.version && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-400 border border-white/10">
+                        {upd.version}
+                      </span>
+                    )}
+                    {upd.published ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">Published</span>
+                    ) : (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">Draft</span>
+                    )}
+                  </div>
+                  <h4 className="text-white font-medium text-sm mb-1">{upd.title}</h4>
+                  <p className="text-gray-400 text-xs line-clamp-2">{upd.description}</p>
+                  <p className="text-gray-600 text-[10px] mt-2">
+                    {upd.release_date ? new Date(upd.release_date).toLocaleDateString() : '—'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => togglePublish(upd)}
+                    className={`p-1.5 rounded-lg transition-colors ${upd.published ? 'text-green-400 hover:bg-green-500/10' : 'text-gray-500 hover:bg-white/10'}`}
+                    title={upd.published ? 'Unpublish' : 'Publish'}
+                  >
+                    {upd.published ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </button>
+                  <button
+                    onClick={() => handleEdit(upd)}
+                    className="p-1.5 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(upd.id)}
+                    className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                     title="Delete"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -5837,6 +6146,10 @@ export default function AdminPage() {
 
           {activeTab === 'announcements' && token && (
             <AnnouncementsTab token={token} />
+          )}
+
+          {activeTab === 'appupdates' && token && (
+            <AppUpdatesTab token={token} />
           )}
 
           {activeTab === 'feedback' && token && (

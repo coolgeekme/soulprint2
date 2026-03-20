@@ -6599,6 +6599,10 @@ export default function ChatPage() {
   // Latest news state
   const [latestNews, setLatestNews] = useState([]);
   const [showNewsExpanded, setShowNewsExpanded] = useState(false);
+  // What's New (App Updates) state
+  const [appUpdates, setAppUpdates] = useState([]);
+  const [appUpdatesUnread, setAppUpdatesUnread] = useState(0);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
   // Gradual assessment state
   const [gradualQuestion, setGradualQuestion] = useState(null);
   const [gradualAnswer, setGradualAnswer] = useState('');
@@ -6843,6 +6847,12 @@ export default function ChatPage() {
     // Fetch announcements
     fetch('/api/announcements', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json()).then(d => setAnnouncements(d.unread || [])).catch(() => {});
+    // Fetch app updates (What's New)
+    fetch('/api/app-updates', { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.json()).then(d => {
+        setAppUpdates(d.updates || []);
+        setAppUpdatesUnread(d.unread_count || 0);
+      }).catch(() => {});
     // Fetch latest news/blog posts
     fetch('/api/blog/posts?limit=3')
       .then(r => r.json()).then(d => setLatestNews(d.posts || [])).catch(() => {});
@@ -8928,6 +8938,19 @@ export default function ChatPage() {
                 <Shield className="w-5 h-5" />
               </a>
             )}
+            {/* What's New button with badge */}
+            <button 
+              onClick={() => setShowWhatsNew(true)} 
+              className="text-gray-500 hover:text-orange-400 transition-colors relative"
+              title="What's New"
+            >
+              <Sparkles className="w-5 h-5" />
+              {appUpdatesUnread > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {appUpdatesUnread > 9 ? '9+' : appUpdatesUnread}
+                </span>
+              )}
+            </button>
             <button onClick={() => setShowSettings(true)} className="text-gray-500 hover:text-white transition-colors">
               <Settings className="w-5 h-5" />
             </button>
@@ -9981,6 +10004,91 @@ export default function ChatPage() {
       
       {/* Feedback Modal */}
       {showFeedbackModal && <FeedbackModal onClose={() => setShowFeedbackModal(false)} token={token} />}
+      
+      {/* What's New Modal */}
+      {showWhatsNew && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowWhatsNew(false)}>
+          <div className="bg-[#111820] border border-white/10 rounded-2xl w-full max-w-lg max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-white/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-orange-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">What's New</h3>
+                    <p className="text-xs text-gray-500">Latest updates and features</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowWhatsNew(false)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-4 overflow-y-auto max-h-[60vh] space-y-3">
+              {appUpdates.length === 0 ? (
+                <div className="text-center py-12">
+                  <Sparkles className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-500">No updates yet</p>
+                  <p className="text-gray-600 text-xs mt-1">Check back soon for new features!</p>
+                </div>
+              ) : (
+                appUpdates.map(upd => (
+                  <div key={upd.id} className="bg-white/5 rounded-xl p-4 border border-white/5 hover:border-white/10 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        upd.type === 'feature' ? 'bg-green-500/20' :
+                        upd.type === 'improvement' ? 'bg-blue-500/20' :
+                        upd.type === 'fix' ? 'bg-orange-500/20' :
+                        'bg-purple-500/20'
+                      }`}>
+                        <span className="text-sm">
+                          {upd.type === 'feature' ? '✨' :
+                           upd.type === 'improvement' ? '🔧' :
+                           upd.type === 'fix' ? '🐛' : '📢'}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <h4 className="text-white font-medium text-sm">{upd.title}</h4>
+                          {upd.version && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-white/10 text-gray-400 rounded">
+                              {upd.version}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-gray-400 text-xs leading-relaxed">{upd.description}</p>
+                        <p className="text-gray-600 text-[10px] mt-2">
+                          {upd.release_date ? new Date(upd.release_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            
+            {appUpdates.length > 0 && (
+              <div className="p-4 border-t border-white/10">
+                <button 
+                  onClick={async () => {
+                    await fetch('/api/app-updates/mark-viewed', {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    setAppUpdatesUnread(0);
+                    setShowWhatsNew(false);
+                  }}
+                  className="w-full py-2.5 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded-xl text-sm font-medium transition-colors"
+                >
+                  Mark all as read
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Image JSON Generation Modal */}
       {showImageJsonModal && (
