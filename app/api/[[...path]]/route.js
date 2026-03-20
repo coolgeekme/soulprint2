@@ -8287,14 +8287,194 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           console.log('[Composite Edit] Target image URL:', targetImageUrl);
           console.log('[Composite Edit] Element attachment has base64:', !!elementAttachment.base64);
           
-          send({ type: 'delta', content: '🎨 Adding your element to the image...\n\n' });
+          send({ type: 'delta', content: '🎨 Adding your logo/element to the image...\n\n' });
           
+          const kieKey = process.env.KIE_API_KEY;
+          const openaiKey = process.env.OPENAI_API_KEY;
+          
+          // TRUE COMPOSITING: Use Sharp to actually overlay the logo onto the image
+          // Step 1: Get the element as base64 buffer
+          let elementBase64 = elementAttachment.base64;
+          if (elementBase64 && elementBase64.startsWith('data:')) {
+            elementBase64 = elementBase64.split(',')[1];
+          }
+          
+          if (!elementBase64) {
+            send({ type: 'delta', content: 'Failed to process the attached image. Please try again.' });
+            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+            closeStream();
+            return;
+          }
+          
+          try {
+            // Step 2: Download the target image
+            console.log('[Composite Edit] Downloading target image...');
+            const targetImageRes = await fetch(targetImageUrl);
+            if (!targetImageRes.ok) {
+              throw new Error('Failed to download target image');
+            }
+            const targetImageBuffer = Buffer.from(await targetImageRes.arrayBuffer());
+            console.log('[Composite Edit] Target image downloaded, size:', targetImageBuffer.length);
+            
+            // Step 3: Get target image dimensions
+            const targetMetadata = await sharp(targetImageBuffer).metadata();
+            const targetWidth = targetMetadata.width || 1024;
+            const targetHeight = targetMetadata.height || 1024;
+            console.log('[Composite Edit] Target dimensions:', targetWidth, 'x', targetHeight);
+            
+            // Step 4: Use GPT-4o Vision to determine logo placement based on user's instruction
+            let placementX = Math.round(targetWidth * 0.1);  // Default: 10% from left
+            let placementY = Math.round(targetHeight * 0.4); // Default: 40% from top
+            let logoScale = 0.15; // Default: 15% of image width
+            
+            if (openaiKey) {
+              try {
+                console.log('[Composite Edit] Asking GPT-4o Vision for placement coordinates...');
+                const elementDataUrl = `data:${elementAttachment.mimeType || 'image/png'};base64,${elementBase64}`;
+                
+                const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${openaiKey}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    model: 'gpt-4o',
+                    messages: [
+                      {
+                        role: 'user',
+                        content: [
+                          { type: 'text', text: `You are helping place a logo/element onto an image. The target image is ${targetWidth}x${targetHeight} pixels.
+
+User's instruction: "${sanitizedContent}"
+
+Analyze both images and determine the EXACT pixel coordinates where the logo should be placed, and what size it should be.
+
+IMPORTANT: 
+- The first image is the TARGET where the logo will be placed
+- The second image is the LOGO/ELEMENT to be placed
+- Consider the user's instruction carefully (e.g., "front passenger door", "hood", "side", "center")
+- For a vehicle, "front passenger door" means the right side door (from viewer's perspective looking at the front of the vehicle)
+- The logo should be appropriately sized (not too big, not too small)
+
+Respond ONLY with JSON in this exact format:
+{"x": <number>, "y": <number>, "width": <number>, "height": <number>}
+
+Where x,y are the top-left corner coordinates, and width,height are the logo dimensions in pixels.` },
+                          { type: 'image_url', image_url: { url: targetImageUrl, detail: 'high' } },
+                          { type: 'image_url', image_url: { url: elementDataUrl, detail: 'low' } }
+                        ]
+                      }
+                    ],
+                    max_tokens: 150,
+                    temperature: 0.1
+                  })
+                });
+                
+                if (visionResponse.ok) {
+                  const visionData = await visionResponse.json();
+                  const visionContent = visionData.choices?.[0]?.message?.content || '';
+                  console.log('[Composite Edit] GPT-4o Vision response:', visionContent);
+                  
+                  // Parse JSON from response
+                  const jsonMatch = visionContent.match(/\{[\s\S]*\}/);
+                  if (jsonMatch) {
+                    const placement = JSON.parse(jsonMatch[0]);
+                    if (placement.x !== undefined) placementX = Math.max(0, Math.min(targetWidth - 50, placement.x));
+                    if (placement.y !== undefined) placementY = Math.max(0, Math.min(targetHeight - 50, placement.y));
+                    if (placement.width) logoScale = placement.width / targetWidth;
+                    console.log('[Composite Edit] Using AI-determined placement:', placementX, placementY, 'scale:', logoScale);
+                  }
+                }
+              } catch (visionErr) {
+                console.log('[Composite Edit] Vision placement failed, using defaults:', visionErr.message);
+              }
+            }
+            
+            // Step 5: Resize logo to appropriate size
+            const logoWidth = Math.round(targetWidth * Math.min(0.3, Math.max(0.08, logoScale)));
+            const logoHeight = Math.round(logoWidth); // Keep aspect ratio will adjust this
+            
+            console.log('[Composite Edit] Resizing logo to approximately:', logoWidth, 'pixels wide');
+            
+            const elementBuffer = Buffer.from(elementBase64, 'base64');
+            const resizedLogoBuffer = await sharp(elementBuffer)
+              .resize(logoWidth, null, { fit: 'inside', withoutEnlargement: false })
+              .png()
+              .toBuffer();
+            
+            // Step 6: Composite the logo onto the target image using Sharp
+            console.log('[Composite Edit] Compositing logo at position:', placementX, placementY);
+            
+            const compositedBuffer = await sharp(targetImageBuffer)
+              .composite([
+                {
+                  input: resizedLogoBuffer,
+                  left: Math.round(placementX),
+                  top: Math.round(placementY),
+                  blend: 'over'
+                }
+              ])
+              .jpeg({ quality: 90 })
+              .toBuffer();
+            
+            console.log('[Composite Edit] Composited image size:', compositedBuffer.length);
+            
+            // Step 7: Upload the composited image
+            const compositedBase64 = `data:image/jpeg;base64,${compositedBuffer.toString('base64')}`;
+            
+            if (kieKey) {
+              const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${kieKey}`
+                },
+                body: JSON.stringify({
+                  base64Data: compositedBase64,
+                  uploadPath: 'soulprint/composites',
+                  fileName: `composite_${Date.now()}.jpg`
+                }),
+              });
+              
+              if (uploadRes.ok) {
+                const uploadData = await uploadRes.json();
+                if (uploadData.success && uploadData.data?.downloadUrl) {
+                  const resultUrl = uploadData.data.downloadUrl;
+                  console.log('[Composite Edit] SUCCESS! Uploaded to:', resultUrl);
+                  
+                  fullContent = `![Composite Image](${resultUrl})\n\n✨ *Your logo has been added to the image!*\n\n**Placement:** ${sanitizedContent}\n**Position:** (${placementX}, ${placementY})`;
+                  send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
+                  send({ type: 'delta', content: fullContent });
+                  
+                  await db.collection('messages').insertOne({
+                    id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                    role: 'assistant', content: fullContent, created_at: new Date(),
+                    model_used: 'sharp-composite', provider_used: 'local', content_type: 'composite_edit',
+                    image_url: resultUrl,
+                  });
+                  await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+                  send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+                  closeStream();
+                  return;
+                }
+              }
+            }
+            
+            throw new Error('Failed to upload composited image');
+            
+          } catch (compositeErr) {
+            console.error('[Composite Edit] Sharp compositing failed:', compositeErr.message);
+            // Fall back to AI-based editing if Sharp fails
+            send({ type: 'delta', content: '⏳ Trying AI-based compositing...\n\n' });
+          }
+          
+          // FALLBACK: Try AI-based editing if Sharp compositing fails
           // Upload the element image to get a URL if needed
           let elementUrl = elementAttachment.url;
-          const kieKey = process.env.KIE_API_KEY;
           
           if (!elementUrl && elementAttachment.base64 && kieKey) {
-            console.log('[Composite Edit] Uploading element to get URL...');
+            console.log('[Composite Edit] Uploading element to get URL for AI fallback...');
             try {
               let base64Data = elementAttachment.base64;
               if (!base64Data.startsWith('data:')) {
@@ -8335,8 +8515,10 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           
           // Build a composite edit prompt from the user's instruction
           // The user's message tells us WHERE to place the element
-          const compositePrompt = `Add this element/logo to the image. User's instruction: "${sanitizedContent}". 
-Place the element naturally on the specified location while preserving the rest of the image.`;
+          const compositePrompt = `Add THIS EXACT logo/element from the second image to the first image. 
+User's instruction for placement: "${sanitizedContent}". 
+IMPORTANT: Use the EXACT logo from the second image - do NOT generate a different logo. 
+Place it naturally on the specified location while preserving the rest of the image.`;
           
           console.log('[Composite Edit] Sending to SeeDream with two images');
           
