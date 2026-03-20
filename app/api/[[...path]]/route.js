@@ -2605,90 +2605,83 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   const safeEditInstruction = reformulateForSafety(editInstruction);
   console.log('[ImageEdit] Using gpt-image-1 for text-based editing');
   
-  // METHOD 1: Use OpenAI Responses API with gpt-image-1 (ChatGPT-style editing)
+  // METHOD 1: Use gpt-image-1 via Image API /images/edits endpoint (simpler, doesn't need Responses API)
   try {
-    console.log('[ImageEdit] Attempting gpt-image-1 via Responses API');
+    console.log('[ImageEdit] Attempting gpt-image-1 via /images/edits API');
     
-    // Build the image data URL
-    const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
+    // Convert base64 to buffer for FormData upload
+    const imageBuffer = Buffer.from(imageBase64, 'base64');
+    const imageBlob = new Blob([imageBuffer], { type: mimeType });
     
-    const editResponse = await fetch('https://api.openai.com/v1/responses', {
+    const formData = new FormData();
+    formData.append('image', imageBlob, 'image.png');
+    formData.append('prompt', safeEditInstruction);
+    formData.append('model', 'gpt-image-1');
+    formData.append('size', '1024x1024');
+    
+    const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
       headers: { 
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${openaiApiKey}`
       },
-      body: JSON.stringify({
-        model: 'gpt-4.1',
-        input: [{
-          role: 'user',
-          content: [
-            { type: 'input_text', text: safeEditInstruction },
-            { type: 'input_image', image_url: imageDataUrl }
-          ]
-        }],
-        tools: [{
-          type: 'image_generation',
-          input_fidelity: 'high',
-          action: 'edit'
-        }]
-      })
+      body: formData
     });
     
     if (editResponse.ok) {
       const editData = await editResponse.json();
-      console.log('[ImageEdit] Responses API result:', JSON.stringify(editData).substring(0, 500));
+      console.log('[ImageEdit] gpt-image-1 /images/edits response received');
       
-      // Extract image from response
-      const imageOutput = editData.output?.find(o => o.type === 'image_generation_call');
-      if (imageOutput?.result) {
-        const editedBase64 = imageOutput.result;
+      if (editData.data?.[0]) {
+        const result = editData.data[0];
+        const editedBase64 = result.b64_json;
         
-        // Upload to get a proper URL
-        let editedUrl = null;
-        const kieKey = process.env.KIE_API_KEY;
-        if (kieKey) {
-          try {
-            const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-              method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${kieKey}`
-              },
-              body: JSON.stringify({
-                base64Data: `data:image/png;base64,${editedBase64}`,
-                uploadPath: 'soulprint/edits',
-                fileName: `edit_${Date.now()}.png`
-              }),
-            });
-            
-            if (uploadRes.ok) {
-              const uploadData = await uploadRes.json();
-              if (uploadData.success && uploadData.data?.downloadUrl) {
-                editedUrl = uploadData.data.downloadUrl;
+        if (editedBase64) {
+          // Upload to temp storage to get a proper URL
+          let editedUrl = null;
+          const kieKey = process.env.KIE_API_KEY;
+          if (kieKey) {
+            try {
+              const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${kieKey}`
+                },
+                body: JSON.stringify({
+                  base64Data: `data:image/png;base64,${editedBase64}`,
+                  uploadPath: 'soulprint/edits',
+                  fileName: `edit_${Date.now()}.png`
+                }),
+              });
+              
+              if (uploadRes.ok) {
+                const uploadData = await uploadRes.json();
+                if (uploadData.success && uploadData.data?.downloadUrl) {
+                  editedUrl = uploadData.data.downloadUrl;
+                }
               }
+            } catch (uploadErr) {
+              console.log('[ImageEdit] Upload failed:', uploadErr.message);
             }
-          } catch (uploadErr) {
-            console.log('[ImageEdit] Upload failed:', uploadErr.message);
           }
+          
+          if (!editedUrl) {
+            editedUrl = `data:image/png;base64,${editedBase64}`;
+          }
+          
+          console.log('[ImageEdit] Success with gpt-image-1!');
+          return {
+            success: true,
+            url: editedUrl,
+            base64: editedBase64,
+            edit: editInstruction,
+            method: 'gpt-image-1'
+          };
         }
-        
-        if (!editedUrl) {
-          editedUrl = `data:image/png;base64,${editedBase64}`;
-        }
-        
-        console.log('[ImageEdit] Success with gpt-image-1!');
-        return {
-          success: true,
-          url: editedUrl,
-          base64: editedBase64,
-          edit: editInstruction,
-          method: 'gpt-image-1'
-        };
       }
     } else {
       const err = await editResponse.json().catch(() => ({}));
-      console.log('[ImageEdit] gpt-image-1 Responses API failed:', err.error?.message || JSON.stringify(err));
+      console.log('[ImageEdit] gpt-image-1 /images/edits failed:', err.error?.message || JSON.stringify(err));
     }
   } catch (editErr) {
     console.log('[ImageEdit] gpt-image-1 error:', editErr.message);
