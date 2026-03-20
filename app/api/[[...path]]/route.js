@@ -2640,6 +2640,18 @@ async function handleImageEditInternal(userId, image, editInstruction) {
       console.log('[ImageEdit] Image URL:', imageUrl);
       console.log('[ImageEdit] Prompt:', safeEditInstruction);
       
+      const requestBody = {
+        model: 'bytedance/seedream-v4-edit',
+        input: {
+          prompt: safeEditInstruction,
+          image_urls: [imageUrl],
+          image_size: 'square_hd',
+          image_resolution: '2K',
+          max_images: 1
+        }
+      };
+      console.log('[ImageEdit] SeeDream request body:', JSON.stringify(requestBody));
+      
       // Create task for SeeDream v4 Edit
       const createTaskRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
         method: 'POST',
@@ -2647,84 +2659,65 @@ async function handleImageEditInternal(userId, image, editInstruction) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${kieKey}`
         },
-        body: JSON.stringify({
-          model: 'seedream-v4-edit',
-          prompt: safeEditInstruction,
-          image_urls: [imageUrl],
-          image_size: 'square_hd',
-          image_resolution: '2K',
-          nsfw_checker: false
-        })
+        body: JSON.stringify(requestBody)
       });
       
-      const createTaskText = await createTaskRes.text();
-      console.log('[ImageEdit] SeeDream createTask response status:', createTaskRes.status);
-      console.log('[ImageEdit] SeeDream createTask response:', createTaskText.substring(0, 500));
+      const createTaskData = await createTaskRes.json();
+      console.log('[ImageEdit] SeeDream createTask response:', JSON.stringify(createTaskData).substring(0, 500));
       
-      let taskData;
-      try {
-        taskData = JSON.parse(createTaskText);
-      } catch (e) {
-        console.log('[ImageEdit] SeeDream response is not valid JSON');
-        throw new Error('Invalid response from SeeDream API');
-      }
-      
-      if (createTaskRes.ok && taskData) {
-        const taskId = taskData.data?.taskId || taskData.taskId;
+      if (createTaskData.code === 200 && createTaskData.data?.taskId) {
+        const taskId = createTaskData.data.taskId;
+        console.log('[ImageEdit] SeeDream task created:', taskId);
         
-        if (taskId) {
-          console.log('[ImageEdit] SeeDream task created:', taskId);
+        // Poll for result (max 60 seconds)
+        const startTime = Date.now();
+        const maxWaitTime = 60000;
+        
+        while (Date.now() - startTime < maxWaitTime) {
+          await new Promise(r => setTimeout(r, 3000)); // Wait 3 seconds between polls
           
-          // Poll for result (max 60 seconds)
-          const startTime = Date.now();
-          const maxWaitTime = 60000;
+          const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+            headers: { 'Authorization': `Bearer ${kieKey}` }
+          });
           
-          while (Date.now() - startTime < maxWaitTime) {
-            await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds between polls
+          const statusData = await statusRes.json();
+          console.log('[ImageEdit] SeeDream status response:', JSON.stringify(statusData).substring(0, 400));
+          
+          if (statusData.code === 200) {
+            const state = statusData.data?.state;
             
-            const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
-              headers: { 'Authorization': `Bearer ${kieKey}` }
-            });
-            
-            if (statusRes.ok) {
-              const statusData = await statusRes.json();
-              const status = statusData.data?.status || statusData.status;
-              
-              console.log('[ImageEdit] SeeDream status:', status, 'Full response:', JSON.stringify(statusData).substring(0, 300));
-              
-              if (status === 'completed' || status === 'success') {
-                const resultUrl = statusData.data?.resultUrl || 
-                                  statusData.data?.images?.[0] || 
-                                  statusData.data?.output?.[0]?.url ||
-                                  statusData.data?.result?.images?.[0] ||
-                                  statusData.resultUrl;
-                
-                if (resultUrl) {
-                  console.log('[ImageEdit] SUCCESS with SeeDream v4 Edit! URL:', resultUrl);
-                  return {
-                    success: true,
-                    url: resultUrl,
-                    edit: editInstruction,
-                    method: 'seedream-v4-edit'
-                  };
-                } else {
-                  console.log('[ImageEdit] SeeDream completed but no result URL found in:', JSON.stringify(statusData));
-                }
-              } else if (status === 'failed' || status === 'error') {
-                console.log('[ImageEdit] SeeDream task failed:', statusData.data?.error || statusData.error || 'Unknown error');
-                break;
+            if (state === 'success') {
+              // Parse resultJson to get image URL
+              let resultUrl = null;
+              try {
+                const resultJson = JSON.parse(statusData.data?.resultJson || '{}');
+                resultUrl = resultJson?.resultUrls?.[0] || resultJson?.url || resultJson?.image_url || resultJson?.images?.[0];
+                console.log('[ImageEdit] SeeDream resultJson:', JSON.stringify(resultJson).substring(0, 300));
+              } catch (e) {
+                console.log('[ImageEdit] Failed to parse resultJson:', e.message);
               }
-              // Continue polling if still processing
-            } else {
-              console.log('[ImageEdit] SeeDream status check failed:', statusRes.status);
+              
+              if (resultUrl) {
+                console.log('[ImageEdit] SUCCESS with SeeDream v4 Edit! URL:', resultUrl);
+                return {
+                  success: true,
+                  url: resultUrl,
+                  edit: editInstruction,
+                  method: 'seedream-v4-edit'
+                };
+              } else {
+                console.log('[ImageEdit] SeeDream success but no URL found');
+              }
+            } else if (state === 'fail') {
+              console.log('[ImageEdit] SeeDream task failed:', statusData.data?.failMsg);
+              break;
             }
+            // Continue polling if still waiting/queuing/generating
           }
-          console.log('[ImageEdit] SeeDream polling timeout or failed');
-        } else {
-          console.log('[ImageEdit] SeeDream no taskId in response');
         }
+        console.log('[ImageEdit] SeeDream polling timeout');
       } else {
-        console.log('[ImageEdit] SeeDream createTask failed - status:', createTaskRes.status);
+        console.log('[ImageEdit] SeeDream createTask failed - code:', createTaskData.code, 'msg:', createTaskData.msg);
       }
     } catch (seedreamErr) {
       console.log('[ImageEdit] SeeDream error:', seedreamErr.message);
