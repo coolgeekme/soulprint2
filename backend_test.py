@@ -1,306 +1,469 @@
 #!/usr/bin/env python3
-"""
-Backend API Testing Script for SoulPrint Engine
-Testing updated delete conversation logic with projects
-"""
 
 import requests
 import json
 import sys
+import time
 from typing import Dict, Any, Optional
 
-class SoulPrintAPITester:
-    def __init__(self, base_url: str):
-        self.base_url = base_url.rstrip('/')
-        self.api_url = f"{self.base_url}/api"
+# Configuration
+BASE_URL = "https://dashboard-profiles.preview.emergentagent.com"
+API_BASE = f"{BASE_URL}/api"
+
+class SoulPrintTester:
+    def __init__(self):
         self.session = requests.Session()
         self.token = None
         self.user_id = None
         
-    def login(self, email: str, passcode: str) -> bool:
-        """Authenticate user and store token"""
-        try:
-            response = self.session.post(f"{self.api_url}/auth/login", json={
-                "email": email,
-                "passcode": passcode
-            })
+    def log(self, message: str, level: str = "INFO"):
+        """Log test messages with timestamp"""
+        timestamp = time.strftime("%H:%M:%S")
+        print(f"[{timestamp}] {level}: {message}")
+        
+    def make_request(self, method: str, endpoint: str, data: Optional[Dict] = None, 
+                    params: Optional[Dict] = None, headers: Optional[Dict] = None) -> requests.Response:
+        """Make HTTP request with proper headers"""
+        url = f"{API_BASE}/{endpoint.lstrip('/')}"
+        
+        request_headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "SoulPrint-Backend-Tester/1.0"
+        }
+        
+        if self.token:
+            request_headers["Authorization"] = f"Bearer {self.token}"
             
-            if response.status_code == 200:
-                data = response.json()
-                self.token = data.get('token')
-                self.user_id = data.get('userId')
-                if self.token:
-                    self.session.headers.update({'Authorization': f'Bearer {self.token}'})
-                    print(f"✅ Authentication successful - Role: {data.get('role', 'N/A')}")
-                    return True
-            print(f"❌ Authentication failed: {response.status_code} - {response.text[:200]}")
-            return False
-        except Exception as e:
-            print(f"❌ Authentication error: {str(e)}")
-            return False
-
-    def create_project(self, name: str, description: str) -> Optional[str]:
-        """Create a project and return project ID"""
-        try:
-            response = self.session.post(f"{self.api_url}/projects", json={
-                "name": name,
-                "description": description
-            })
+        if headers:
+            request_headers.update(headers)
             
-            if response.status_code == 200:
-                data = response.json()
-                project_id = data.get('id')
-                print(f"✅ Project created: {project_id} - {name}")
-                return project_id
+        try:
+            if method.upper() == "GET":
+                response = self.session.get(url, params=params, headers=request_headers, timeout=30)
+            elif method.upper() == "POST":
+                response = self.session.post(url, json=data, params=params, headers=request_headers, timeout=30)
+            elif method.upper() == "PUT":
+                response = self.session.put(url, json=data, params=params, headers=request_headers, timeout=30)
+            elif method.upper() == "DELETE":
+                response = self.session.delete(url, params=params, headers=request_headers, timeout=30)
             else:
-                print(f"❌ Project creation failed: {response.status_code} - {response.text[:200]}")
-                return None
-        except Exception as e:
-            print(f"❌ Project creation error: {str(e)}")
-            return None
-
-    def create_conversation(self, title: str, project_id: Optional[str] = None) -> Optional[str]:
-        """Create a conversation and return conversation ID"""
-        try:
-            payload = {"title": title}
-            if project_id:
-                payload["project_id"] = project_id
+                raise ValueError(f"Unsupported HTTP method: {method}")
                 
-            response = self.session.post(f"{self.api_url}/conversations", json=payload)
+            self.log(f"{method.upper()} {url} -> {response.status_code}")
+            return response
             
-            if response.status_code == 200:
-                data = response.json()
-                conversation_id = data.get('id')
-                project_info = f" (Project: {project_id})" if project_id else " (No project)"
-                print(f"✅ Conversation created: {conversation_id} - {title}{project_info}")
-                return conversation_id
-            else:
-                print(f"❌ Conversation creation failed: {response.status_code} - {response.text[:200]}")
-                return None
-        except Exception as e:
-            print(f"❌ Conversation creation error: {str(e)}")
-            return None
-
-    def get_all_conversations(self) -> list:
-        """Get all conversations (All Chats view - should exclude hidden)"""
-        try:
-            response = self.session.get(f"{self.api_url}/conversations")
+        except requests.exceptions.RequestException as e:
+            self.log(f"Request failed: {e}", "ERROR")
+            raise
             
-            if response.status_code == 200:
-                data = response.json()
-                # Handle different response formats - could be array or object with conversations key
-                if isinstance(data, list):
-                    conversations = data
-                else:
-                    conversations = data.get('conversations', [])
-                print(f"✅ Retrieved {len(conversations)} conversations from All Chats")
-                return conversations
-            else:
-                print(f"❌ Get all conversations failed: {response.status_code} - {response.text[:200]}")
-                return []
-        except Exception as e:
-            print(f"❌ Get all conversations error: {str(e)}")
-            return []
-
-    def get_project_conversations(self, project_id: str) -> list:
-        """Get conversations for a specific project"""
+    def test_smart_chat_deletion(self):
+        """Test the smart chat deletion feature"""
+        self.log("=== SMART CHAT DELETION FEATURE TEST ===")
+        
         try:
-            response = self.session.get(f"{self.api_url}/conversations?project_id={project_id}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                # Handle different response formats - could be array or object with conversations key
-                if isinstance(data, list):
-                    conversations = data
-                else:
-                    conversations = data.get('conversations', [])
-                print(f"✅ Retrieved {len(conversations)} conversations for project {project_id}")
-                return conversations
-            else:
-                print(f"❌ Get project conversations failed: {response.status_code} - {response.text[:200]}")
-                return []
-        except Exception as e:
-            print(f"❌ Get project conversations error: {str(e)}")
-            return []
-
-    def delete_conversation(self, conversation_id: str, from_project: bool = False) -> Dict[str, Any]:
-        """Delete a conversation (with optional from_project parameter)"""
-        try:
-            url = f"{self.api_url}/conversations/{conversation_id}"
-            if from_project:
-                url += "?from_project=true"
+            # Step 1: Create test user and login
+            self.log("Step 1: Creating test user and logging in...")
+            success = self._create_and_login_user()
+            if not success:
+                return False
                 
-            response = self.session.delete(url)
+            # Step 2: Create a Project
+            self.log("Step 2: Creating a project...")
+            project_id = self._create_project()
+            if not project_id:
+                return False
+                
+            # Step 3: Create a conversation and assign it to the Project
+            self.log("Step 3: Creating conversation with project assignment...")
+            conversation_id = self._create_conversation_with_project(project_id)
+            if not conversation_id:
+                return False
+                
+            # Step 4: Verify the conversation has project_id set
+            self.log("Step 4: Verifying conversation has project_id set...")
+            if not self._verify_conversation_project_id(conversation_id, project_id):
+                return False
+                
+            # Step 5: Delete conversation WITHOUT from_project param (All Chats delete)
+            self.log("Step 5: Deleting conversation from All Chats (should hide, not delete)...")
+            if not self._delete_conversation_from_all_chats(conversation_id):
+                return False
+                
+            # Step 6: Verify conversation was NOT deleted but hidden
+            self.log("Step 6: Verifying conversation was hidden, not deleted...")
+            if not self._verify_conversation_hidden(conversation_id):
+                return False
+                
+            # Step 7: Verify conversation still appears in project view
+            self.log("Step 7: Verifying conversation still appears in project view...")
+            if not self._verify_conversation_in_project_view(project_id, conversation_id):
+                return False
+                
+            # Step 8: Verify conversation does NOT appear in All Chats
+            self.log("Step 8: Verifying conversation does NOT appear in All Chats...")
+            if not self._verify_conversation_not_in_all_chats(conversation_id):
+                return False
+                
+            # Bonus: Test permanent deletion with from_project=true
+            self.log("Bonus: Testing permanent deletion with from_project=true...")
+            if not self._test_permanent_deletion_from_project(project_id):
+                return False
+                
+            self.log("✅ ALL SMART CHAT DELETION TESTS PASSED!", "SUCCESS")
+            return True
             
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('hidden'):
-                    print(f"✅ Conversation {conversation_id} hidden from All Chats")
-                elif data.get('deleted'):
-                    print(f"✅ Conversation {conversation_id} permanently deleted")
-                else:
-                    print(f"✅ Conversation {conversation_id} delete response: {data}")
-                return data
-            else:
-                print(f"❌ Delete conversation failed: {response.status_code} - {response.text[:200]}")
-                return {"error": response.status_code}
         except Exception as e:
-            print(f"❌ Delete conversation error: {str(e)}")
-            return {"error": str(e)}
-
-    def cleanup_project(self, project_id: str):
-        """Clean up test project"""
+            self.log(f"❌ Test failed with exception: {e}", "ERROR")
+            return False
+            
+    def _create_and_login_user(self) -> bool:
+        """Create test user and login"""
         try:
-            response = self.session.delete(f"{self.api_url}/projects/{project_id}")
-            if response.status_code == 200:
-                print(f"✅ Cleaned up project: {project_id}")
+            # Use realistic test data
+            test_email = "smartchat.test@soulprint.com"
+            test_passcode = "SmartChat2026!"
+            
+            # Try to register (might fail if user exists, that's ok)
+            register_data = {
+                "email": test_email,
+                "passcode": test_passcode,
+                "display_name": "Smart Chat Tester"
+            }
+            
+            register_response = self.make_request("POST", "auth/register", register_data)
+            if register_response.status_code in [200, 201]:
+                self.log("✅ User registered successfully")
+                # Check if we got a token directly from registration
+                register_result = register_response.json()
+                if register_result.get("token"):
+                    self.token = register_result.get("token")
+                    self.user_id = register_result.get("userId")
+                    if self.token and self.user_id:
+                        self.log(f"✅ Got token from registration - User ID: {self.user_id}")
+                        return True
+            elif register_response.status_code == 400:
+                self.log("ℹ️ User already exists, proceeding with login")
             else:
-                print(f"⚠️ Project cleanup warning: {response.status_code}")
+                self.log(f"❌ Registration failed: {register_response.status_code} - {register_response.text}", "ERROR")
+                return False
+                
+            # Login
+            login_data = {
+                "email": test_email,
+                "passcode": test_passcode
+            }
+            
+            login_response = self.make_request("POST", "auth/login", login_data)
+            if login_response.status_code != 200:
+                self.log(f"❌ Login failed: {login_response.status_code} - {login_response.text}", "ERROR")
+                return False
+                
+            login_result = login_response.json()
+            self.token = login_result.get("token")
+            self.user_id = login_result.get("userId")
+            
+            if not self.token or not self.user_id:
+                self.log("❌ Login response missing token or userId", "ERROR")
+                return False
+                
+            self.log(f"✅ Login successful - User ID: {self.user_id}")
+            return True
+            
         except Exception as e:
-            print(f"⚠️ Project cleanup error: {str(e)}")
+            self.log(f"❌ Login process failed: {e}", "ERROR")
+            return False
+            
+    def _create_project(self) -> Optional[str]:
+        """Create a test project"""
+        try:
+            project_data = {
+                "name": "Smart Chat Test Project",
+                "description": "Test project for smart chat deletion feature",
+                "color": "#4f46e5",
+                "icon": "🧪"
+            }
+            
+            response = self.make_request("POST", "projects", project_data)
+            if response.status_code != 200:
+                self.log(f"❌ Project creation failed: {response.status_code} - {response.text}", "ERROR")
+                return None
+                
+            result = response.json()
+            project_id = result.get("id")
+            
+            if not project_id:
+                self.log("❌ Project creation response missing ID", "ERROR")
+                return None
+                
+            self.log(f"✅ Project created successfully - ID: {project_id}")
+            return project_id
+            
+        except Exception as e:
+            self.log(f"❌ Project creation failed: {e}", "ERROR")
+            return None
+            
+    def _create_conversation_with_project(self, project_id: str) -> Optional[str]:
+        """Create a conversation assigned to the project"""
+        try:
+            conversation_data = {
+                "title": "Smart Chat Test Conversation",
+                "project_id": project_id
+            }
+            
+            response = self.make_request("POST", "conversations", conversation_data)
+            if response.status_code != 200:
+                self.log(f"❌ Conversation creation failed: {response.status_code} - {response.text}", "ERROR")
+                return None
+                
+            result = response.json()
+            conversation_id = result.get("id")
+            
+            if not conversation_id:
+                self.log("❌ Conversation creation response missing ID", "ERROR")
+                return None
+                
+            self.log(f"✅ Conversation created with project assignment - ID: {conversation_id}")
+            return conversation_id
+            
+        except Exception as e:
+            self.log(f"❌ Conversation creation failed: {e}", "ERROR")
+            return None
+            
+    def _verify_conversation_project_id(self, conversation_id: str, expected_project_id: str) -> bool:
+        """Verify conversation has the correct project_id"""
+        try:
+            # Get all conversations and find our specific one
+            response = self.make_request("GET", "conversations")
+            if response.status_code != 200:
+                self.log(f"❌ Failed to fetch conversations: {response.status_code} - {response.text}", "ERROR")
+                return False
+                
+            conversations = response.json()
+            target_conversation = None
+            
+            for conv in conversations:
+                if conv.get("id") == conversation_id:
+                    target_conversation = conv
+                    break
+                    
+            if not target_conversation:
+                self.log(f"❌ Conversation {conversation_id} not found in conversations list", "ERROR")
+                return False
+                
+            actual_project_id = target_conversation.get("project_id")
+            if actual_project_id != expected_project_id:
+                self.log(f"❌ Project ID mismatch - Expected: {expected_project_id}, Got: {actual_project_id}", "ERROR")
+                return False
+                
+            self.log(f"✅ Conversation has correct project_id: {actual_project_id}")
+            return True
+            
+        except Exception as e:
+            self.log(f"❌ Project ID verification failed: {e}", "ERROR")
+            return False
+            
+    def _delete_conversation_from_all_chats(self, conversation_id: str) -> bool:
+        """Delete conversation from All Chats (without from_project param)"""
+        try:
+            # Delete WITHOUT from_project param - this should hide, not delete
+            response = self.make_request("DELETE", f"conversations/{conversation_id}")
+            if response.status_code != 200:
+                self.log(f"❌ Conversation deletion failed: {response.status_code} - {response.text}", "ERROR")
+                return False
+                
+            result = response.json()
+            
+            # Should return success=true and hidden=true (not deleted=true)
+            if not result.get("success"):
+                self.log("❌ Deletion response indicates failure", "ERROR")
+                return False
+                
+            if result.get("deleted"):
+                self.log("❌ Conversation was permanently deleted instead of hidden", "ERROR")
+                return False
+                
+            if not result.get("hidden"):
+                self.log("❌ Conversation was not marked as hidden", "ERROR")
+                return False
+                
+            self.log("✅ Conversation successfully hidden from All Chats")
+            return True
+            
+        except Exception as e:
+            self.log(f"❌ Conversation deletion failed: {e}", "ERROR")
+            return False
+            
+    def _verify_conversation_hidden(self, conversation_id: str) -> bool:
+        """Verify conversation is hidden but not deleted"""
+        try:
+            # Try to get the conversation directly from project view to verify it still exists
+            # We'll use the project conversations endpoint for this
+            response = self.make_request("GET", "conversations")
+            if response.status_code != 200:
+                self.log(f"❌ Failed to fetch conversations: {response.status_code} - {response.text}", "ERROR")
+                return False
+                
+            conversations = response.json()
+            
+            # The conversation should NOT appear in All Chats view
+            for conv in conversations:
+                if conv.get("id") == conversation_id:
+                    self.log(f"❌ Conversation {conversation_id} still appears in All Chats", "ERROR")
+                    return False
+                    
+            self.log("✅ Conversation correctly hidden from All Chats view")
+            return True
+            
+        except Exception as e:
+            self.log(f"❌ Hidden verification failed: {e}", "ERROR")
+            return False
+            
+    def _verify_conversation_in_project_view(self, project_id: str, conversation_id: str) -> bool:
+        """Verify conversation still appears when fetching with project_id"""
+        try:
+            # Get conversations for the specific project
+            params = {"project_id": project_id}
+            response = self.make_request("GET", "conversations", params=params)
+            if response.status_code != 200:
+                self.log(f"❌ Failed to fetch project conversations: {response.status_code} - {response.text}", "ERROR")
+                return False
+                
+            conversations = response.json()
+            
+            # The conversation SHOULD appear in project view
+            found = False
+            for conv in conversations:
+                if conv.get("id") == conversation_id:
+                    found = True
+                    break
+                    
+            if not found:
+                self.log(f"❌ Conversation {conversation_id} not found in project view", "ERROR")
+                return False
+                
+            self.log("✅ Conversation correctly appears in project view")
+            return True
+            
+        except Exception as e:
+            self.log(f"❌ Project view verification failed: {e}", "ERROR")
+            return False
+            
+    def _verify_conversation_not_in_all_chats(self, conversation_id: str) -> bool:
+        """Verify conversation does NOT appear in All Chats"""
+        try:
+            # Get all conversations (without project_id filter)
+            response = self.make_request("GET", "conversations")
+            if response.status_code != 200:
+                self.log(f"❌ Failed to fetch all conversations: {response.status_code} - {response.text}", "ERROR")
+                return False
+                
+            conversations = response.json()
+            
+            # The conversation should NOT appear
+            for conv in conversations:
+                if conv.get("id") == conversation_id:
+                    self.log(f"❌ Conversation {conversation_id} incorrectly appears in All Chats", "ERROR")
+                    return False
+                    
+            self.log("✅ Conversation correctly does NOT appear in All Chats")
+            return True
+            
+        except Exception as e:
+            self.log(f"❌ All Chats verification failed: {e}", "ERROR")
+            return False
+            
+    def _test_permanent_deletion_from_project(self, project_id: str) -> bool:
+        """Test permanent deletion with from_project=true"""
+        try:
+            # Create another conversation for permanent deletion test
+            conversation_data = {
+                "title": "Permanent Deletion Test Conversation",
+                "project_id": project_id
+            }
+            
+            response = self.make_request("POST", "conversations", conversation_data)
+            if response.status_code != 200:
+                self.log(f"❌ Test conversation creation failed: {response.status_code} - {response.text}", "ERROR")
+                return False
+                
+            result = response.json()
+            test_conversation_id = result.get("id")
+            
+            if not test_conversation_id:
+                self.log("❌ Test conversation creation response missing ID", "ERROR")
+                return False
+                
+            self.log(f"✅ Test conversation created - ID: {test_conversation_id}")
+            
+            # Delete WITH from_project=true - this should permanently delete
+            params = {"from_project": "true"}
+            response = self.make_request("DELETE", f"conversations/{test_conversation_id}", params=params)
+            if response.status_code != 200:
+                self.log(f"❌ Permanent deletion failed: {response.status_code} - {response.text}", "ERROR")
+                return False
+                
+            result = response.json()
+            
+            # Should return success=true and deleted=true (not hidden=true)
+            if not result.get("success"):
+                self.log("❌ Permanent deletion response indicates failure", "ERROR")
+                return False
+                
+            if not result.get("deleted"):
+                self.log("❌ Conversation was not permanently deleted", "ERROR")
+                return False
+                
+            if result.get("hidden"):
+                self.log("❌ Conversation was hidden instead of permanently deleted", "ERROR")
+                return False
+                
+            # Verify it doesn't appear in project view either
+            params = {"project_id": project_id}
+            response = self.make_request("GET", "conversations", params=params)
+            if response.status_code == 200:
+                conversations = response.json()
+                for conv in conversations:
+                    if conv.get("id") == test_conversation_id:
+                        self.log(f"❌ Permanently deleted conversation {test_conversation_id} still appears in project view", "ERROR")
+                        return False
+                        
+            self.log("✅ Permanent deletion with from_project=true works correctly")
+            return True
+            
+        except Exception as e:
+            self.log(f"❌ Permanent deletion test failed: {e}", "ERROR")
+            return False
 
-def run_conversation_delete_tests():
-    """Run comprehensive conversation delete logic tests"""
-    print("🧪 STARTING CONVERSATION DELETE LOGIC TESTS")
-    print("=" * 80)
+def main():
+    """Main test execution"""
+    print("🧪 SoulPrint Smart Chat Deletion Feature Test")
+    print("=" * 60)
     
-    # Initialize API tester
-    base_url = "https://dashboard-profiles.preview.emergentagent.com"
-    tester = SoulPrintAPITester(base_url)
-    
-    # Step 1: Authenticate
-    print("\n📝 STEP 1: Authentication")
-    if not tester.login("test@soulprint.com", "test123"):
-        print("❌ CRITICAL: Authentication failed - cannot proceed with tests")
-        return False
-    
-    # Step 2: Setup - Create test project
-    print("\n🏗️ STEP 2: Setup - Create Test Project")
-    project_id = tester.create_project("Delete Test Project", "Project for testing conversation delete logic")
-    if not project_id:
-        print("❌ CRITICAL: Project creation failed - cannot proceed with tests")
-        return False
-    
-    test_results = {
-        "test_case_1": False,  # Delete from All Chats (has project) → should hide
-        "test_case_2": False,  # Delete from Project view → should permanently delete  
-        "test_case_3": False   # Delete no-project conversation from All Chats → should permanently delete
-    }
+    tester = SoulPrintTester()
     
     try:
-        # TEST CASE 1: Delete from "All Chats" (conversation has project) → should hide
-        print("\n🔬 TEST CASE 1: Delete from 'All Chats' (conversation has project)")
-        print("-" * 60)
+        success = tester.test_smart_chat_deletion()
         
-        # Create conversation with project
-        conv1_id = tester.create_conversation("Test Conv 1 - Has Project", project_id)
-        if not conv1_id:
-            print("❌ Test Case 1 FAILED: Could not create conversation")
+        if success:
+            print("\n" + "=" * 60)
+            print("🎉 ALL TESTS PASSED! Smart Chat Deletion feature is working correctly.")
+            print("✅ Key features verified:")
+            print("   • Conversations in projects are hidden (not deleted) when deleted from All Chats")
+            print("   • Hidden conversations still appear in project views")
+            print("   • Hidden conversations do not appear in All Chats")
+            print("   • Permanent deletion works with from_project=true parameter")
+            sys.exit(0)
         else:
-            # Delete from All Chats (without from_project param)
-            delete_result = tester.delete_conversation(conv1_id, from_project=False)
+            print("\n" + "=" * 60)
+            print("❌ TESTS FAILED! Smart Chat Deletion feature has issues.")
+            sys.exit(1)
             
-            if delete_result.get("hidden"):
-                # Verify: Should NOT appear in All Chats
-                all_convs = tester.get_all_conversations()
-                conv1_in_all = any(c.get("id") == conv1_id for c in all_convs)
-                
-                # Verify: Should STILL appear in Project view
-                project_convs = tester.get_project_conversations(project_id)
-                conv1_in_project = any(c.get("id") == conv1_id for c in project_convs)
-                
-                if not conv1_in_all and conv1_in_project:
-                    print("✅ TEST CASE 1 PASSED: Conversation hidden from All Chats but still in project")
-                    test_results["test_case_1"] = True
-                else:
-                    print(f"❌ TEST CASE 1 FAILED: In All Chats: {conv1_in_all}, In Project: {conv1_in_project}")
-            else:
-                print(f"❌ TEST CASE 1 FAILED: Expected hidden=True, got: {delete_result}")
-        
-        # TEST CASE 2: Delete from Project view → should permanently delete
-        print("\n🔬 TEST CASE 2: Delete from Project view")
-        print("-" * 60)
-        
-        # Create another conversation with project
-        conv2_id = tester.create_conversation("Test Conv 2 - Delete from Project", project_id)
-        if not conv2_id:
-            print("❌ Test Case 2 FAILED: Could not create conversation")
-        else:
-            # Delete from Project view (with from_project=true)
-            delete_result = tester.delete_conversation(conv2_id, from_project=True)
-            
-            if delete_result.get("deleted"):
-                # Verify: Should NOT appear in Project view
-                project_convs = tester.get_project_conversations(project_id)
-                conv2_in_project = any(c.get("id") == conv2_id for c in project_convs)
-                
-                if not conv2_in_project:
-                    print("✅ TEST CASE 2 PASSED: Conversation permanently deleted from project")
-                    test_results["test_case_2"] = True
-                else:
-                    print("❌ TEST CASE 2 FAILED: Conversation still appears in project view")
-            else:
-                print(f"❌ TEST CASE 2 FAILED: Expected deleted=True, got: {delete_result}")
-        
-        # TEST CASE 3: Delete conversation with no project from "All Chats" → should permanently delete
-        print("\n🔬 TEST CASE 3: Delete no-project conversation from 'All Chats'")
-        print("-" * 60)
-        
-        # Create conversation without project
-        conv3_id = tester.create_conversation("Test Conv 3 - No Project")
-        if not conv3_id:
-            print("❌ Test Case 3 FAILED: Could not create conversation")
-        else:
-            # Delete from All Chats (without from_project param, no project_id)
-            delete_result = tester.delete_conversation(conv3_id, from_project=False)
-            
-            if delete_result.get("deleted"):
-                # Verify: Should NOT appear in All Chats
-                all_convs = tester.get_all_conversations()
-                conv3_in_all = any(c.get("id") == conv3_id for c in all_convs)
-                
-                if not conv3_in_all:
-                    print("✅ TEST CASE 3 PASSED: No-project conversation permanently deleted")
-                    test_results["test_case_3"] = True
-                else:
-                    print("❌ TEST CASE 3 FAILED: Conversation still appears in All Chats")
-            else:
-                print(f"❌ TEST CASE 3 FAILED: Expected deleted=True, got: {delete_result}")
-    
-    finally:
-        # Cleanup
-        print("\n🧹 CLEANUP: Removing test project")
-        tester.cleanup_project(project_id)
-    
-    # Final Results
-    print("\n" + "=" * 80)
-    print("🏆 TEST RESULTS SUMMARY")
-    print("=" * 80)
-    
-    passed_tests = sum(test_results.values())
-    total_tests = len(test_results)
-    
-    for test_name, passed in test_results.items():
-        status = "✅ PASSED" if passed else "❌ FAILED"
-        print(f"{test_name.replace('_', ' ').title()}: {status}")
-    
-    success_rate = (passed_tests / total_tests) * 100
-    print(f"\n🎯 Overall Success Rate: {passed_tests}/{total_tests} ({success_rate:.1f}%)")
-    
-    if passed_tests == total_tests:
-        print("🎉 ALL CONVERSATION DELETE LOGIC TESTS PASSED!")
-        return True
-    else:
-        print("⚠️ SOME TESTS FAILED - Review implementation needed")
-        return False
-
-if __name__ == "__main__":
-    try:
-        success = run_conversation_delete_tests()
-        sys.exit(0 if success else 1)
     except KeyboardInterrupt:
-        print("\n⚠️ Tests interrupted by user")
+        print("\n\n⚠️ Test interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Test execution failed: {str(e)}")
+        print(f"\n\n💥 Test suite crashed: {e}")
         sys.exit(1)
+
+if __name__ == "__main__":
+    main()
