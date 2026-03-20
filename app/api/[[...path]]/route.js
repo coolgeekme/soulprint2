@@ -4148,7 +4148,16 @@ CLASSIFY THE INTENT - What does the user want?
      - "edit that" / "modify it" / "adjust the colors"
    - If user generated an image earlier and now asks for changes WITHOUT describing a new image from scratch = image_edit
 
-5. **image_regen** - User wants to REGENERATE the last image with DIFFERENT TECHNICAL SETTINGS (aspect ratio, style preset). Examples:
+5. **composite_edit** - User attaches an image (logo/element) and wants to ADD IT to a PREVIOUS image in the conversation. Examples:
+   - User has a car image in conversation, attaches a logo, says "add this logo to the hood" → composite_edit
+   - User has a room image, attaches a picture, says "put this on the wall" → composite_edit
+   - User has a person image, attaches a hat image, says "add this hat" → composite_edit
+   - User has a product image, attaches a sticker, says "add this sticker" → composite_edit
+   - KEY: There's BOTH an attached image AND a previous generated image, and user wants to COMBINE them
+   - The attached image is the ELEMENT to add, the previous image is the TARGET
+   - CRITICAL: If user attaches something and says "add this to..." or "put this on..." referring to a previous image, this is composite_edit NOT mockup!
+
+6. **image_regen** - User wants to REGENERATE the last image with DIFFERENT TECHNICAL SETTINGS (aspect ratio, style preset). Examples:
    - "make it wider" / "make it landscape" / "try landscape" (changes aspect ratio)
    - "make it portrait" / "make it vertical" / "try portrait" (changes aspect ratio)
    - "make it square" (changes aspect ratio)
@@ -4195,7 +4204,7 @@ IMPORTANT RULES:
 - ANY complaint or correction about a previous image = image_edit
 
 Respond with ONLY a JSON object:
-{"intent": "text|image|mockup|video|image_edit|image_regen|video_regen", "confidence": "high|medium|low", "reason": "brief explanation", "settings": {"aspectRatio": "1:1|16:9|9:16", "style": "vivid|natural", "duration": 5|10}}`;
+{"intent": "text|image|mockup|video|image_edit|composite_edit|image_regen|video_regen", "confidence": "high|medium|low", "reason": "brief explanation", "settings": {"aspectRatio": "1:1|16:9|9:16", "style": "vivid|natural", "duration": 5|10}}`;
 
     const { getProvider } = await import('@/lib/llm/providers');
     const classifier = getProvider('openai', 'gpt-4o-mini');
@@ -4273,6 +4282,19 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
   // Image edit patterns (requires attachment)
   if (hasAttachment) {
     // First check: MOCKUP request (logo on product)
+    // FIRST CHECK: Composite edit (add attached image to previous image in conversation)
+    // This takes priority over mockup when there's a previous image in context
+    const compositeEditPatterns = [
+      /\b(?:add|put|place)\s+(?:this|the)\s+(?:logo|image|design|sticker|icon|graphic)\s+(?:to|on)\s+(?:the|it)\b/i,
+      /\b(?:add|put|place)\s+(?:this|it)\s+(?:to|on)\s+(?:the\s+)?(?:hood|car|vehicle|image|wall|background|shirt|top|side|front|back|left|right|center)\b/i,
+      /\bput\s+(?:this|it)\s+on\s+(?:there|it|the)\b/i,
+      /\b(?:add|place)\s+(?:this|it)\s+(?:here|there|to\s+(?:the|it))\b/i,
+    ];
+    if (compositeEditPatterns.some(p => p.test(lower))) {
+      return { intent: 'composite_edit', confidence: 'high', reason: 'Add attached element to previous image' };
+    }
+    
+    // Then check: Mockup (logo on product like shirt, mug)
     const mockupPatterns = [
       /\b(?:put|place|add)\s+(?:this|the|my)\s+(?:logo|design|image)\s+on\s+(?:a\s+)?(?:shirt|t-shirt|tshirt|hoodie|mug|cup|poster|banner|product|card|business\s*card|back|front)\b/i,
       /\bmockup\b/i,
@@ -8146,6 +8168,279 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
           });
           await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+          send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+          closeStream();
+          return;
+        }
+
+        // ── Handle COMPOSITE EDIT (add attached element to previous image) ───────────────────────────────────────
+        if (mediaIntent === 'composite_edit' && hasImageAttachment) {
+          console.log('[Composite Edit] User wants to add attached element to previous image');
+          
+          // Get the attached image (element to add)
+          const elementAttachment = attachments.find(a => a.type === 'image');
+          if (!elementAttachment) {
+            send({ type: 'delta', content: 'Please attach the image/logo you want to add.' });
+            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+            closeStream();
+            return;
+          }
+          
+          // Find the previous generated image (target)
+          const recentImageMessages = await db.collection('messages')
+            .find({ 
+              conversation_id: convId, 
+              content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit', 'composite_edit'] },
+              $or: [
+                { 'content': { $regex: /!\[.*\]\(https?:\/\// } },
+                { 'image_url': { $exists: true, $ne: null } }
+              ]
+            })
+            .sort({ created_at: -1 })
+            .limit(1)
+            .toArray();
+          
+          if (recentImageMessages.length === 0) {
+            send({ type: 'delta', content: 'I don\'t see a previous image to add this to. Please generate or upload an image first, then I can add elements to it.' });
+            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+            closeStream();
+            return;
+          }
+          
+          const lastImageMsg = recentImageMessages[0];
+          let targetImageUrl = lastImageMsg.image_url;
+          if (!targetImageUrl) {
+            const urlMatch = lastImageMsg.content?.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
+            if (urlMatch) targetImageUrl = urlMatch[1];
+          }
+          
+          if (!targetImageUrl) {
+            send({ type: 'delta', content: 'I couldn\'t find the previous image URL. Please try generating a new image first.' });
+            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+            closeStream();
+            return;
+          }
+          
+          console.log('[Composite Edit] Target image URL:', targetImageUrl);
+          console.log('[Composite Edit] Element attachment has base64:', !!elementAttachment.base64);
+          
+          send({ type: 'delta', content: '🎨 Adding your element to the image...\n\n' });
+          
+          // Upload the element image to get a URL if needed
+          let elementUrl = elementAttachment.url;
+          const kieKey = process.env.KIE_API_KEY;
+          
+          if (!elementUrl && elementAttachment.base64 && kieKey) {
+            console.log('[Composite Edit] Uploading element to get URL...');
+            try {
+              let base64Data = elementAttachment.base64;
+              if (!base64Data.startsWith('data:')) {
+                base64Data = `data:${elementAttachment.mimeType || 'image/png'};base64,${base64Data}`;
+              }
+              
+              const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${kieKey}`
+                },
+                body: JSON.stringify({
+                  base64Data: base64Data,
+                  uploadPath: 'soulprint/elements',
+                  fileName: `element_${Date.now()}.png`
+                }),
+              });
+              
+              if (uploadRes.ok) {
+                const uploadData = await uploadRes.json();
+                if (uploadData.success && uploadData.data?.downloadUrl) {
+                  elementUrl = uploadData.data.downloadUrl;
+                  console.log('[Composite Edit] Element uploaded to:', elementUrl);
+                }
+              }
+            } catch (uploadErr) {
+              console.log('[Composite Edit] Element upload failed:', uploadErr.message);
+            }
+          }
+          
+          if (!elementUrl) {
+            send({ type: 'delta', content: 'Failed to process the attached image. Please try again.' });
+            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+            closeStream();
+            return;
+          }
+          
+          // Build a composite edit prompt from the user's instruction
+          // The user's message tells us WHERE to place the element
+          const compositePrompt = `Add this element/logo to the image. User's instruction: "${sanitizedContent}". 
+Place the element naturally on the specified location while preserving the rest of the image.`;
+          
+          console.log('[Composite Edit] Sending to SeeDream with two images');
+          
+          // Use SeeDream with both images
+          try {
+            const requestBody = {
+              model: 'bytedance/seedream-v4-edit',
+              input: {
+                prompt: compositePrompt,
+                image_urls: [targetImageUrl, elementUrl],
+                image_size: 'square_hd',
+                image_resolution: '2K',
+                max_images: 1
+              }
+            };
+            
+            const createTaskRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${kieKey}`
+              },
+              body: JSON.stringify(requestBody)
+            });
+            
+            const createTaskData = await createTaskRes.json();
+            console.log('[Composite Edit] SeeDream response:', JSON.stringify(createTaskData).substring(0, 300));
+            
+            if (createTaskData.code === 200 && createTaskData.data?.taskId) {
+              const taskId = createTaskData.data.taskId;
+              
+              // Poll for result
+              const startTime = Date.now();
+              const maxWaitTime = 90000; // 90 seconds for composite
+              
+              while (Date.now() - startTime < maxWaitTime) {
+                await new Promise(r => setTimeout(r, 3000));
+                
+                const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+                  headers: { 'Authorization': `Bearer ${kieKey}` }
+                });
+                
+                const statusData = await statusRes.json();
+                
+                if (statusData.code === 200) {
+                  const state = statusData.data?.state;
+                  console.log('[Composite Edit] Status:', state);
+                  
+                  if (state === 'success') {
+                    let resultUrl = null;
+                    try {
+                      const resultJson = JSON.parse(statusData.data?.resultJson || '{}');
+                      resultUrl = resultJson?.resultUrls?.[0] || resultJson?.url;
+                    } catch (e) {}
+                    
+                    if (resultUrl) {
+                      console.log('[Composite Edit] SUCCESS! URL:', resultUrl);
+                      
+                      fullContent = `![Composite Image](${resultUrl})\n\n✨ *Element added to your image!*\n\n**Applied:** ${sanitizedContent}`;
+                      send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
+                      send({ type: 'delta', content: fullContent });
+                      
+                      await db.collection('messages').insertOne({
+                        id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                        role: 'assistant', content: fullContent, created_at: new Date(),
+                        model_used: 'seedream-v4-edit', provider_used: 'kie.ai', content_type: 'composite_edit',
+                        image_url: resultUrl,
+                      });
+                      await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+                      send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+                      closeStream();
+                      return;
+                    }
+                  } else if (state === 'fail') {
+                    console.log('[Composite Edit] Failed:', statusData.data?.failMsg);
+                    break;
+                  }
+                }
+              }
+            }
+            
+            // If SeeDream fails, fall back to GPT-4o Vision approach
+            console.log('[Composite Edit] SeeDream failed, trying GPT-4o + DALL-E 3 fallback');
+            send({ type: 'delta', content: '\n🔄 Trying alternative method...\n' });
+            
+            // Use GPT-4o to analyze both images and create a combined prompt
+            const openaiKey = process.env.OPENAI_API_KEY;
+            if (openaiKey) {
+              const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  model: 'gpt-4o',
+                  messages: [{
+                    role: 'user',
+                    content: [
+                      { type: 'image_url', image_url: { url: targetImageUrl } },
+                      { type: 'image_url', image_url: { url: elementUrl } },
+                      { type: 'text', text: `You have two images:
+1. The TARGET image (first image) - this is the main image
+2. The ELEMENT (second image) - this needs to be added to the target
+
+User's instruction: "${sanitizedContent}"
+
+Create a DALL-E prompt that recreates the TARGET image with the ELEMENT added according to the user's instruction. Be VERY specific about:
+- The exact composition of the target image
+- Where and how the element should be placed
+- Maintaining all other details of the target
+
+Output ONLY the DALL-E prompt.` }
+                    ]
+                  }],
+                  max_tokens: 1000,
+                  temperature: 0.3,
+                }),
+              });
+              
+              if (analysisResponse.ok) {
+                const analysisData = await analysisResponse.json();
+                const combinedPrompt = analysisData.choices?.[0]?.message?.content;
+                
+                if (combinedPrompt) {
+                  const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      model: 'dall-e-3',
+                      prompt: combinedPrompt,
+                      n: 1,
+                      size: '1024x1024',
+                      quality: 'hd',
+                      style: 'natural',
+                    }),
+                  });
+                  
+                  if (generateResponse.ok) {
+                    const generateData = await generateResponse.json();
+                    const fallbackUrl = generateData.data?.[0]?.url;
+                    
+                    if (fallbackUrl) {
+                      fullContent = `![Composite Image](${fallbackUrl})\n\n✨ *Element added to your image (using DALL-E 3)!*\n\n**Applied:** ${sanitizedContent}`;
+                      send({ type: 'image', url: fallbackUrl, contentType: 'composite_edit' });
+                      send({ type: 'delta', content: fullContent });
+                      
+                      await db.collection('messages').insertOne({
+                        id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                        role: 'assistant', content: fullContent, created_at: new Date(),
+                        model_used: 'dall-e-3', provider_used: 'openai', content_type: 'composite_edit',
+                        image_url: fallbackUrl,
+                      });
+                      await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+                      send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+                      closeStream();
+                      return;
+                    }
+                  }
+                }
+              }
+            }
+            
+            // If all methods fail
+            send({ type: 'delta', content: '\n\nSorry, I couldn\'t add the element to the image. Please try with a different description or upload the images separately.' });
+          } catch (compositeErr) {
+            console.error('[Composite Edit] Error:', compositeErr.message);
+            send({ type: 'delta', content: `\n\nError: ${compositeErr.message}` });
+          }
+          
           send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
           closeStream();
           return;
