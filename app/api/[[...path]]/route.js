@@ -8727,14 +8727,15 @@ Calculate x,y coordinates (top-left) and width for placing a logo. Output ONLY: 
               placementDesc = 'on the side of the vehicle';
             }
             
-            // Build AI composite prompt
-            const compositePrompt = `Add this logo/graphic to the image as a sticker or decal. 
+            // Build AI composite prompt (used for SeeDream fallback)
+            const compositePrompt = `Add the logo/graphic from the second image onto the vehicle as a realistic vinyl decal.
 Place it ${placementDesc}.
-The logo should:
-- Blend naturally with the surface (follow the contours and perspective)
-- Look like a real sticker/decal applied to the surface
-- Have appropriate size relative to the surface
-- Match the lighting and shadows of the scene
+
+CRITICAL:
+- Keep the EXACT design and colors of the original logo - do NOT modify it
+- Warp the logo to follow the 3D contours of the surface
+- Add realistic shadows and reflections
+- Make it look like a real sticker physically applied
 Keep everything else in the image exactly the same.`;
             
             console.log('[Composite Edit] Using AI compositing with prompt:', compositePrompt.substring(0, 100));
@@ -8768,17 +8769,26 @@ Keep everything else in the image exactly the same.`;
                 });
                 
                 formData.append('model', 'gpt-image-1');
-                formData.append('prompt', `Edit this image by adding the logo/graphic (from the second image) as a realistic sticker or decal.
-                
+                formData.append('prompt', `Add the logo from the second image onto the vehicle in the first image as a realistic vinyl decal/sticker.
+
 PLACEMENT: ${placementDesc}
 
-REQUIREMENTS:
-- The logo must look like a real sticker physically applied to the surface
-- Match the perspective and contours of the surface it's placed on
-- Blend with the lighting and shadows of the scene
-- Maintain the exact appearance of the logo but adjust for perspective
-- Keep everything else in the image exactly the same
-- The sticker should look professionally applied, not flat or pasted`);
+CRITICAL - PRESERVE THE LOGO:
+- Keep the EXACT design, colors, and appearance of the original logo
+- Do NOT change the logo colors or add new colors to it
+- Do NOT modify the logo artwork - use it exactly as provided
+
+MAKE IT LOOK REALISTIC:
+- Apply the logo as if it's a real vinyl decal physically stuck to the vehicle surface
+- Warp/distort the logo slightly to follow the 3D contours and curves of the door panel
+- Add subtle reflections that match the vehicle's paint finish
+- The logo should have slight edge shadows where it meets the surface
+- Match the lighting direction - brighter on one side, slightly shadowed on the other
+- The decal should look slightly glossy/matte to match the vehicle surface
+
+PRESERVE THE SCENE:
+- Keep the entire background, vehicle, and all other details exactly the same
+- Only add the logo decal - change nothing else`);
                 formData.append('n', '1');
                 formData.append('size', '1024x1024');
                 formData.append('quality', 'high');
