@@ -8739,7 +8739,123 @@ Keep everything else in the image exactly the same.`;
             
             console.log('[Composite Edit] Using AI compositing with prompt:', compositePrompt.substring(0, 100));
             
-            // Try SeeDream v4 Edit first for AI-powered compositing
+            // ═══════════════════════════════════════════════════════════════════════════
+            // PRIMARY METHOD: GPT-image-1 for natural compositing
+            // GPT-image-1 understands context and can blend logos naturally
+            // ═══════════════════════════════════════════════════════════════════════════
+            if (openaiKey) {
+              try {
+                console.log('[Composite Edit] PRIMARY: Using GPT-image-1 for intelligent compositing...');
+                send({ type: 'delta', content: '🎨 Using AI to naturally blend your logo into the image...\n\n' });
+                
+                // Download target image to get base64
+                const targetBase64 = targetImageBuffer.toString('base64');
+                
+                // Use GPT-image-1 edit endpoint with multipart form data
+                const FormData = (await import('form-data')).default;
+                const formData = new FormData();
+                
+                // Add the base image
+                formData.append('image', targetImageBuffer, {
+                  filename: 'base.png',
+                  contentType: 'image/png'
+                });
+                
+                // Add the second image (logo) as reference
+                formData.append('image', elementBuffer, {
+                  filename: 'logo.png', 
+                  contentType: 'image/png'
+                });
+                
+                formData.append('model', 'gpt-image-1');
+                formData.append('prompt', `Edit this image by adding the logo/graphic (from the second image) as a realistic sticker or decal.
+                
+PLACEMENT: ${placementDesc}
+
+REQUIREMENTS:
+- The logo must look like a real sticker physically applied to the surface
+- Match the perspective and contours of the surface it's placed on
+- Blend with the lighting and shadows of the scene
+- Maintain the exact appearance of the logo but adjust for perspective
+- Keep everything else in the image exactly the same
+- The sticker should look professionally applied, not flat or pasted`);
+                formData.append('n', '1');
+                formData.append('size', '1024x1024');
+                formData.append('quality', 'high');
+                
+                const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${openaiKey}`,
+                    ...formData.getHeaders()
+                  },
+                  body: formData
+                });
+                
+                const editData = await editResponse.json();
+                console.log('[Composite Edit] GPT-image-1 response status:', editResponse.status);
+                
+                if (editData.data?.[0]?.b64_json || editData.data?.[0]?.url) {
+                  let resultUrl = editData.data[0].url;
+                  
+                  // If we got base64, upload to get a persistent URL
+                  if (!resultUrl && editData.data[0].b64_json) {
+                    const resultBase64 = `data:image/png;base64,${editData.data[0].b64_json}`;
+                    const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                      method: 'POST',
+                      headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${kieKey}`
+                      },
+                      body: JSON.stringify({
+                        base64Data: resultBase64,
+                        uploadPath: 'soulprint/composites',
+                        fileName: `gpt_composite_${Date.now()}.png`
+                      }),
+                    });
+                    
+                    if (uploadRes.ok) {
+                      const uploadData = await uploadRes.json();
+                      if (uploadData.success && uploadData.data?.downloadUrl) {
+                        resultUrl = uploadData.data.downloadUrl;
+                      }
+                    }
+                  }
+                  
+                  if (resultUrl) {
+                    console.log('[Composite Edit] GPT-image-1 SUCCESS! URL:', resultUrl);
+                    
+                    fullContent = `![Composite Image](${resultUrl})\n\n✨ *Your logo has been naturally blended into the image!*\n\n**Placement:** ${sanitizedContent}`;
+                    send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
+                    send({ type: 'delta', content: fullContent });
+                    
+                    await db.collection('messages').insertOne({
+                      id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                      role: 'assistant', content: fullContent, created_at: new Date(),
+                      model_used: 'gpt-image-1', provider_used: 'openai', content_type: 'composite_edit',
+                      image_url: resultUrl,
+                    });
+                    await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+                    send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+                    closeStream();
+                    return;
+                  }
+                }
+                
+                if (editData.error) {
+                  console.log('[Composite Edit] GPT-image-1 error:', editData.error.message);
+                }
+              } catch (gptErr) {
+                console.log('[Composite Edit] GPT-image-1 failed:', gptErr.message);
+              }
+            }
+            
+            // ═══════════════════════════════════════════════════════════════════════════
+            // FALLBACK 1: SeeDream v4 Edit (if GPT-image-1 fails)
+            // ═══════════════════════════════════════════════════════════════════════════
+            console.log('[Composite Edit] FALLBACK: Trying SeeDream v4...');
+            send({ type: 'delta', content: '⏳ Trying alternative compositing method...\n\n' });
+            
             try {
               const requestBody = {
                 model: 'bytedance/seedream-v4-edit',
