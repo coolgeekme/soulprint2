@@ -2573,8 +2573,26 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   
   console.log('[ImageEdit] Image info - base64 length:', imageBase64?.length || 0, 'url:', imageUrl?.substring(0, 80) || 'none');
   
+  // ═══════════════════════════════════════════════════════════════════════════
+  // HYBRID ROUTING: Determine the best method based on edit type
+  // ═══════════════════════════════════════════════════════════════════════════
+  const editLower = editInstruction.toLowerCase();
+  
+  // Simple style/color edits → SeeDream (cheaper ~$0.025)
+  const isSimpleStyleEdit = /\b(make it|change to|turn it|more)\s*(red|blue|green|yellow|orange|purple|pink|black|white|gray|grey|colorful|vibrant|muted|darker|lighter|brighter|warmer|cooler)\b/i.test(editInstruction) ||
+    /\b(more|less)\s*(realistic|cartoon|artistic|vintage|modern|dramatic|subtle|saturated|contrast)/i.test(editInstruction) ||
+    /\b(add|more)\s*(sunset|sunrise|golden|warm|cool|neon|pastel)\s*(color|tone|light|glow)/i.test(editInstruction);
+  
+  // Complex edits requiring understanding → GPT Image (more accurate ~$0.04-0.17)
+  const isComplexEdit = /\b(add|put|place|insert|remove|delete|erase|change the|replace the|move the)\b/i.test(editInstruction) ||
+    /\b(specific|exactly|precise|logo|text|sign|symbol|element|object)\b/i.test(editInstruction) ||
+    /\b(door|hood|roof|window|wheel|side|front|back|top|bottom|left|right|corner)\b/i.test(editInstruction);
+  
+  console.log('[ImageEdit] Routing decision - isSimpleStyleEdit:', isSimpleStyleEdit, 'isComplexEdit:', isComplexEdit);
+  
   // We need a URL for Kie.ai APIs - if we only have base64, upload it first
   const kieKey = process.env.KIE_API_KEY;
+  const openaiApiKey = process.env.OPENAI_API_KEY;
   
   if (!imageUrl && imageBase64 && kieKey) {
     console.log('[ImageEdit] Uploading base64 image to get URL...');
@@ -2604,7 +2622,7 @@ async function handleImageEditInternal(userId, image, editInstruction) {
     }
   }
   
-  // Fetch image from URL to get base64 if needed (for fallback methods)
+  // Fetch image from URL to get base64 if needed (for GPT Image method)
   if (!imageBase64 && imageUrl) {
     console.log('[ImageEdit] Fetching image from URL:', imageUrl);
     try {
@@ -2631,7 +2649,97 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   const safeEditInstruction = reformulateForSafety(editInstruction);
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // METHOD 1: SeeDream v4 Edit (Primary - Best for preserving original image)
+  // METHOD 0: GPT Image (gpt-image-1) - For complex edits requiring understanding
+  // Cost: ~$0.04-0.17 per edit, but most accurate for complex instructions
+  // Note: gpt-image-1 requires multipart/form-data with binary image files
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (openaiApiKey && imageBase64 && isComplexEdit) {
+    try {
+      console.log('[ImageEdit] METHOD 0: Using GPT Image (gpt-image-1) for complex edit');
+      
+      // Convert base64 to binary buffer for multipart upload
+      const imageBuffer = Buffer.from(imageBase64, 'base64');
+      
+      // Create FormData for multipart/form-data request
+      const FormData = (await import('form-data')).default;
+      const formData = new FormData();
+      
+      // Append the image as a binary file
+      formData.append('image', imageBuffer, {
+        filename: 'image.png',
+        contentType: mimeType || 'image/png'
+      });
+      
+      // Append other parameters
+      formData.append('model', 'gpt-image-1');
+      formData.append('prompt', `Edit this image: ${safeEditInstruction}. Preserve the overall composition and style while making the requested change.`);
+      formData.append('n', '1');
+      formData.append('size', '1024x1024');
+      formData.append('quality', 'medium');
+      
+      const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          ...formData.getHeaders()
+        },
+        body: formData
+      });
+      
+      const editData = await editResponse.json();
+      console.log('[ImageEdit] GPT Image response status:', editResponse.status);
+      
+      if (editData.data?.[0]?.url || editData.data?.[0]?.b64_json) {
+        let resultUrl = editData.data[0].url;
+        
+        // If we got base64 back, upload to get a URL
+        if (!resultUrl && editData.data[0].b64_json && kieKey) {
+          const resultBase64 = `data:image/png;base64,${editData.data[0].b64_json}`;
+          const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${kieKey}`
+            },
+            body: JSON.stringify({
+              base64Data: resultBase64,
+              uploadPath: 'soulprint/edits',
+              fileName: `gpt_edit_${Date.now()}.png`
+            }),
+          });
+          
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            if (uploadData.success && uploadData.data?.downloadUrl) {
+              resultUrl = uploadData.data.downloadUrl;
+            }
+          }
+        }
+        
+        if (resultUrl) {
+          console.log('[ImageEdit] SUCCESS with GPT Image (gpt-image-1)! URL:', resultUrl);
+          return {
+            success: true,
+            url: resultUrl,
+            edit: editInstruction,
+            method: 'gpt-image-1'
+          };
+        }
+      }
+      
+      // Check for error
+      if (editData.error) {
+        console.log('[ImageEdit] GPT Image error:', editData.error.message);
+        // Fall through to other methods
+      }
+    } catch (gptImageErr) {
+      console.log('[ImageEdit] GPT Image error:', gptImageErr.message);
+      // Fall through to other methods
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // METHOD 1: SeeDream v4 Edit (Primary for style edits - Cheapest ~$0.025)
   // ═══════════════════════════════════════════════════════════════════════════
   console.log('[ImageEdit] Checking METHOD 1 conditions - kieKey:', !!kieKey, 'imageUrl:', !!imageUrl);
   if (kieKey && imageUrl) {
@@ -2808,9 +2916,8 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   }
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // METHOD 3: GPT-4o Vision + DALL-E 3 (Fallback 2 - Recreates image with edit)
+  // METHOD 3: GPT-4o Vision + DALL-E 3 (Final Fallback - Recreates image with edit)
   // ═══════════════════════════════════════════════════════════════════════════
-  const openaiApiKey = process.env.OPENAI_API_KEY;
   if (openaiApiKey && imageBase64) {
     try {
       console.log('[ImageEdit] METHOD 3: Falling back to GPT-4o Vision + DALL-E 3');
@@ -8835,6 +8942,7 @@ Output ONLY the DALL-E prompt.` }
                   const methodLabel = { 
                     'seedream-v4-edit': 'SeeDream v4', 
                     'flux-kontext-pro': 'Flux Kontext',
+                    'gpt-image-1': 'GPT Image',
                     'gpt4o-dalle3': 'DALL-E 3',
                     'dall-e-2': 'DALL-E 2', 
                     'dall-e-3-vision': 'DALL-E 3' 
