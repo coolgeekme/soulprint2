@@ -8440,15 +8440,66 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             const targetHeight = targetMetadata.height || 1024;
             console.log('[Composite Edit] Target dimensions:', targetWidth, 'x', targetHeight);
             
-            // Step 4: Use GPT-4o Vision to determine logo placement based on user's instruction
-            let placementX = Math.round(targetWidth * 0.1);  // Default: 10% from left
-            let placementY = Math.round(targetHeight * 0.4); // Default: 40% from top
-            let logoScale = 0.15; // Default: 15% of image width
+            // Step 4: Determine logo placement based on user's instruction
+            // Smart defaults based on instruction keywords
+            const instructionLower = sanitizedContent.toLowerCase();
+            let placementX, placementY, logoWidth;
             
+            // Keyword-based placement logic
+            if (instructionLower.includes('passenger') || instructionLower.includes('right side')) {
+              // Front passenger door - right side of vehicle
+              placementX = Math.round(targetWidth * 0.62);
+              placementY = Math.round(targetHeight * 0.42);
+              logoWidth = Math.round(targetWidth * 0.12);
+              console.log('[Composite Edit] Placement: PASSENGER SIDE (right)');
+            } else if (instructionLower.includes('driver') || instructionLower.includes('left side')) {
+              // Driver door - left side of vehicle
+              placementX = Math.round(targetWidth * 0.18);
+              placementY = Math.round(targetHeight * 0.42);
+              logoWidth = Math.round(targetWidth * 0.12);
+              console.log('[Composite Edit] Placement: DRIVER SIDE (left)');
+            } else if (instructionLower.includes('hood') || instructionLower.includes('bonnet')) {
+              // Hood/bonnet - front top
+              placementX = Math.round(targetWidth * 0.42);
+              placementY = Math.round(targetHeight * 0.28);
+              logoWidth = Math.round(targetWidth * 0.15);
+              console.log('[Composite Edit] Placement: HOOD');
+            } else if (instructionLower.includes('roof') || instructionLower.includes('top')) {
+              // Roof
+              placementX = Math.round(targetWidth * 0.42);
+              placementY = Math.round(targetHeight * 0.15);
+              logoWidth = Math.round(targetWidth * 0.15);
+              console.log('[Composite Edit] Placement: ROOF');
+            } else if (instructionLower.includes('back') || instructionLower.includes('rear') || instructionLower.includes('trunk')) {
+              // Back/rear
+              placementX = Math.round(targetWidth * 0.42);
+              placementY = Math.round(targetHeight * 0.50);
+              logoWidth = Math.round(targetWidth * 0.15);
+              console.log('[Composite Edit] Placement: REAR');
+            } else if (instructionLower.includes('center') || instructionLower.includes('middle')) {
+              // Center
+              placementX = Math.round(targetWidth * 0.42);
+              placementY = Math.round(targetHeight * 0.42);
+              logoWidth = Math.round(targetWidth * 0.15);
+              console.log('[Composite Edit] Placement: CENTER');
+            } else if (instructionLower.includes('door')) {
+              // Generic door - assume right side
+              placementX = Math.round(targetWidth * 0.55);
+              placementY = Math.round(targetHeight * 0.42);
+              logoWidth = Math.round(targetWidth * 0.12);
+              console.log('[Composite Edit] Placement: DOOR (default right)');
+            } else {
+              // Default placement - slightly right of center, middle height
+              placementX = Math.round(targetWidth * 0.55);
+              placementY = Math.round(targetHeight * 0.40);
+              logoWidth = Math.round(targetWidth * 0.15);
+              console.log('[Composite Edit] Placement: DEFAULT');
+            }
+            
+            // Try GPT-4o Vision for more precise placement (optional enhancement)
             if (openaiKey) {
               try {
-                console.log('[Composite Edit] Asking GPT-4o Vision for placement coordinates...');
-                const elementDataUrl = `data:${elementAttachment.mimeType || 'image/png'};base64,${elementBase64}`;
+                console.log('[Composite Edit] Asking GPT-4o Vision for precise coordinates...');
                 
                 const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
                   method: 'POST',
@@ -8460,32 +8511,22 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                     model: 'gpt-4o',
                     messages: [
                       {
+                        role: 'system',
+                        content: 'You are a graphics placement calculator. Given an image and placement instructions, output ONLY a JSON object with x, y coordinates and width. No explanations.'
+                      },
+                      {
                         role: 'user',
                         content: [
-                          { type: 'text', text: `You are helping place a logo/element onto an image. The target image is ${targetWidth}x${targetHeight} pixels.
+                          { type: 'text', text: `Image size: ${targetWidth}x${targetHeight} pixels.
+Placement request: "${sanitizedContent}"
 
-User's instruction: "${sanitizedContent}"
-
-Analyze both images and determine the EXACT pixel coordinates where the logo should be placed, and what size it should be.
-
-IMPORTANT: 
-- The first image is the TARGET where the logo will be placed
-- The second image is the LOGO/ELEMENT to be placed
-- Consider the user's instruction carefully (e.g., "front passenger door", "hood", "side", "center")
-- For a vehicle, "front passenger door" means the right side door (from viewer's perspective looking at the front of the vehicle)
-- The logo should be appropriately sized (not too big, not too small)
-
-Respond ONLY with JSON in this exact format:
-{"x": <number>, "y": <number>, "width": <number>, "height": <number>}
-
-Where x,y are the top-left corner coordinates, and width,height are the logo dimensions in pixels.` },
-                          { type: 'image_url', image_url: { url: targetImageUrl, detail: 'high' } },
-                          { type: 'image_url', image_url: { url: elementDataUrl, detail: 'low' } }
+Calculate x,y coordinates (top-left) and width for placing a logo. Output ONLY: {"x":NUMBER,"y":NUMBER,"width":NUMBER}` },
+                          { type: 'image_url', image_url: { url: targetImageUrl, detail: 'low' } }
                         ]
                       }
                     ],
-                    max_tokens: 150,
-                    temperature: 0.1
+                    max_tokens: 50,
+                    temperature: 0
                   })
                 });
                 
@@ -8494,26 +8535,34 @@ Where x,y are the top-left corner coordinates, and width,height are the logo dim
                   const visionContent = visionData.choices?.[0]?.message?.content || '';
                   console.log('[Composite Edit] GPT-4o Vision response:', visionContent);
                   
-                  // Parse JSON from response
-                  const jsonMatch = visionContent.match(/\{[\s\S]*\}/);
+                  const jsonMatch = visionContent.match(/\{[^}]+\}/);
                   if (jsonMatch) {
-                    const placement = JSON.parse(jsonMatch[0]);
-                    if (placement.x !== undefined) placementX = Math.max(0, Math.min(targetWidth - 50, placement.x));
-                    if (placement.y !== undefined) placementY = Math.max(0, Math.min(targetHeight - 50, placement.y));
-                    if (placement.width) logoScale = placement.width / targetWidth;
-                    console.log('[Composite Edit] Using AI-determined placement:', placementX, placementY, 'scale:', logoScale);
+                    try {
+                      const placement = JSON.parse(jsonMatch[0]);
+                      if (typeof placement.x === 'number' && placement.x > 0 && placement.x < targetWidth) {
+                        placementX = placement.x;
+                      }
+                      if (typeof placement.y === 'number' && placement.y > 0 && placement.y < targetHeight) {
+                        placementY = placement.y;
+                      }
+                      if (typeof placement.width === 'number' && placement.width > 30) {
+                        logoWidth = Math.min(placement.width, targetWidth * 0.35);
+                      }
+                      console.log('[Composite Edit] AI-refined placement: x=', placementX, 'y=', placementY, 'width=', logoWidth);
+                    } catch (e) {
+                      console.log('[Composite Edit] JSON parse failed, using keyword-based placement');
+                    }
                   }
                 }
               } catch (visionErr) {
-                console.log('[Composite Edit] Vision placement failed, using defaults:', visionErr.message);
+                console.log('[Composite Edit] Vision API failed, using keyword-based placement:', visionErr.message);
               }
             }
             
-            // Step 5: Resize logo to appropriate size
-            const logoWidth = Math.round(targetWidth * Math.min(0.3, Math.max(0.08, logoScale)));
-            const logoHeight = Math.round(logoWidth); // Keep aspect ratio will adjust this
+            console.log('[Composite Edit] Final placement: x=', placementX, 'y=', placementY, 'logoWidth=', logoWidth);
             
-            console.log('[Composite Edit] Resizing logo to approximately:', logoWidth, 'pixels wide');
+            // Step 5: Resize logo to appropriate size (logoWidth already calculated above)
+            console.log('[Composite Edit] Resizing logo to:', logoWidth, 'pixels wide');
             
             const elementBuffer = Buffer.from(elementBase64, 'base64');
             const resizedLogoBuffer = await sharp(elementBuffer)
