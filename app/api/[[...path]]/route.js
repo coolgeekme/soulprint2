@@ -4388,6 +4388,24 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
     return { intent: 'mockup', confidence: 'high', reason: 'Product mockup request (AI-generated design)' };
   }
   
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COMPOSITE RESIZE: Detect requests to resize/adjust a logo that was just added
+  // This takes priority over general image_edit for better results
+  // ═══════════════════════════════════════════════════════════════════════════
+  const compositeResizePatterns = [
+    /\b(?:make|resize|scale)\s+(?:the\s+)?(?:logo|sticker|decal|element|graphic)\s+(?:\d+%?\s+)?(?:smaller|bigger|larger|tiny|huge)/i,
+    /\b(?:logo|sticker|decal|element)\s+(?:\d+%?\s+)?(?:smaller|bigger|larger|tiny|huge)/i,
+    /\b(?:smaller|bigger|larger)\s+(?:logo|sticker|decal)/i,
+    /\b(\d+)%?\s+(?:smaller|bigger|larger)\b/i,
+    /\breduce\s+(?:the\s+)?(?:logo|sticker|decal)\s+size/i,
+    /\bincrease\s+(?:the\s+)?(?:logo|sticker|decal)\s+size/i,
+    /\b(?:shrink|enlarge)\s+(?:the\s+)?(?:logo|sticker|decal)/i,
+    /\blogo\s+(?:is\s+)?(?:too\s+)?(?:big|large|small)/i,
+  ];
+  if (compositeResizePatterns.some(p => p.test(lower))) {
+    return { intent: 'composite_resize', confidence: 'high', reason: 'Resize logo/element on existing composite' };
+  }
+  
   if (imagePatterns.some(p => p.test(lower))) {
     return { intent: 'image', confidence: 'high', reason: 'Direct image request' };
   }
@@ -8884,11 +8902,20 @@ PRESERVE THE SCENE:
                     send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
                     send({ type: 'delta', content: fullContent });
                     
+                    // Store composite context for potential follow-up resizes
                     await db.collection('messages').insertOne({
                       id: assistantMsgId, conversation_id: convId, user_id: user.id,
                       role: 'assistant', content: fullContent, created_at: new Date(),
                       model_used: 'gpt-image-1', provider_used: 'openai', content_type: 'composite_edit',
                       image_url: resultUrl,
+                      composite_context: {
+                        element_url: elementUrl,
+                        target_url: targetImageUrl,
+                        placement_desc: placementDesc,
+                        logo_width: logoWidth,
+                        placement_x: placementX,
+                        placement_y: placementY,
+                      }
                     });
                     await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
                     send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
@@ -8970,11 +8997,20 @@ PRESERVE THE SCENE:
                       send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
                       send({ type: 'delta', content: fullContent });
                       
+                      // Store composite context for potential follow-up resizes
                       await db.collection('messages').insertOne({
                         id: assistantMsgId, conversation_id: convId, user_id: user.id,
                         role: 'assistant', content: fullContent, created_at: new Date(),
                         model_used: 'seedream-v4-composite', provider_used: 'kie.ai', content_type: 'composite_edit',
                         image_url: resultUrl,
+                        composite_context: {
+                          element_url: elementUrl,
+                          target_url: targetImageUrl,
+                          placement_desc: placementDesc,
+                          logo_width: logoWidth,
+                          placement_x: placementX,
+                          placement_y: placementY,
+                        }
                       });
                       await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
                       send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
@@ -9039,11 +9075,20 @@ PRESERVE THE SCENE:
                 send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
                 send({ type: 'delta', content: fullContent });
                 
+                // Store composite context for follow-up resizes
                 await db.collection('messages').insertOne({
                   id: assistantMsgId, conversation_id: convId, user_id: user.id,
                   role: 'assistant', content: fullContent, created_at: new Date(),
                   model_used: 'sharp-composite', provider_used: 'local', content_type: 'composite_edit',
                   image_url: resultUrl,
+                  composite_context: {
+                    element_url: elementUrl,
+                    target_url: targetImageUrl,
+                    placement_desc: placementDesc,
+                    logo_width: logoWidth,
+                    placement_x: placementX,
+                    placement_y: placementY,
+                  }
                 });
                 await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
                 send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
@@ -9060,6 +9105,144 @@ PRESERVE THE SCENE:
             send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
             closeStream();
             return;
+          }
+        }
+
+        // ── Handle COMPOSITE RESIZE (resize/adjust logo on existing composite) ─────────────────────────────
+        if (mediaIntent === 'composite_resize') {
+          console.log('[Composite Resize] User wants to resize logo on existing composite');
+          
+          // Find the last composite edit in this conversation
+          const lastComposite = await db.collection('messages')
+            .find({ 
+              conversation_id: convId,
+              content_type: 'composite_edit',
+              composite_context: { $exists: true }
+            })
+            .sort({ created_at: -1 })
+            .limit(1)
+            .toArray();
+          
+          if (lastComposite.length === 0) {
+            // No composite context - fall through to regular image_edit
+            console.log('[Composite Resize] No composite context found, falling back to image_edit');
+            // Continue to image_edit handling below
+          } else {
+            const compositeData = lastComposite[0];
+            const ctx = compositeData.composite_context;
+            
+            console.log('[Composite Resize] Found composite context:', JSON.stringify(ctx).substring(0, 200));
+            
+            // Parse size adjustment from user's message
+            let sizeMultiplier = 1.0;
+            const percentMatch = sanitizedContent.match(/(\d+)%?\s*(?:smaller|bigger|larger)/i);
+            if (percentMatch) {
+              const percent = parseInt(percentMatch[1]);
+              if (/smaller/i.test(sanitizedContent)) {
+                sizeMultiplier = 1 - (percent / 100);
+              } else {
+                sizeMultiplier = 1 + (percent / 100);
+              }
+            } else if (/(?:much\s+)?smaller|tiny|shrink/i.test(sanitizedContent)) {
+              sizeMultiplier = 0.5;
+            } else if (/(?:much\s+)?(?:bigger|larger)|huge|enlarge/i.test(sanitizedContent)) {
+              sizeMultiplier = 1.5;
+            }
+            
+            // Calculate new logo width
+            const newLogoWidth = Math.round((ctx.logo_width || 100) * sizeMultiplier);
+            console.log('[Composite Resize] Original width:', ctx.logo_width, 'Multiplier:', sizeMultiplier, 'New width:', newLogoWidth);
+            
+            send({ type: 'delta', content: `🔄 Resizing logo (${Math.round(sizeMultiplier * 100)}% of original)...\n\n` });
+            
+            try {
+              const sharp = require('sharp');
+              const kieKey = process.env.KIE_API_KEY;
+              
+              // Download target image
+              const targetRes = await fetch(ctx.target_url);
+              if (!targetRes.ok) throw new Error('Failed to download target image');
+              const targetBuffer = Buffer.from(await targetRes.arrayBuffer());
+              
+              // Download element/logo
+              const elementRes = await fetch(ctx.element_url);
+              if (!elementRes.ok) throw new Error('Failed to download logo');
+              const elementBuffer = Buffer.from(await elementRes.arrayBuffer());
+              
+              // Resize logo
+              const resizedLogoBuffer = await sharp(elementBuffer)
+                .resize(newLogoWidth, null, { fit: 'inside' })
+                .png()
+                .toBuffer();
+              
+              // Composite with same position
+              const compositedBuffer = await sharp(targetBuffer)
+                .composite([{
+                  input: resizedLogoBuffer,
+                  left: Math.round(ctx.placement_x || 100),
+                  top: Math.round(ctx.placement_y || 100),
+                  blend: 'over'
+                }])
+                .jpeg({ quality: 90 })
+                .toBuffer();
+              
+              // Upload result
+              const compositedBase64 = `data:image/jpeg;base64,${compositedBuffer.toString('base64')}`;
+              
+              const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${kieKey}`
+                },
+                body: JSON.stringify({
+                  base64Data: compositedBase64,
+                  uploadPath: 'soulprint/composites',
+                  fileName: `resize_${Date.now()}.jpg`
+                }),
+              });
+              
+              if (uploadRes.ok) {
+                const uploadData = await uploadRes.json();
+                if (uploadData.success && uploadData.data?.downloadUrl) {
+                  const resultUrl = uploadData.data.downloadUrl;
+                  console.log('[Composite Resize] SUCCESS! New URL:', resultUrl);
+                  
+                  fullContent = `![Resized Composite](${resultUrl})\n\n✨ *Logo resized to ${Math.round(sizeMultiplier * 100)}% of original!*`;
+                  send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
+                  send({ type: 'delta', content: fullContent });
+                  
+                  // Save with updated context
+                  await db.collection('messages').insertOne({
+                    id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                    role: 'assistant', content: fullContent, created_at: new Date(),
+                    model_used: 'sharp-resize', provider_used: 'local', content_type: 'composite_edit',
+                    image_url: resultUrl,
+                    composite_context: {
+                      element_url: ctx.element_url,
+                      target_url: ctx.target_url,
+                      placement_desc: ctx.placement_desc,
+                      logo_width: newLogoWidth,
+                      placement_x: ctx.placement_x,
+                      placement_y: ctx.placement_y,
+                    }
+                  });
+                  await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+                  send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+                  closeStream();
+                  return;
+                }
+              }
+              
+              throw new Error('Failed to upload resized composite');
+              
+            } catch (resizeErr) {
+              console.error('[Composite Resize] Error:', resizeErr.message);
+              send({ type: 'delta', content: `\n❌ Failed to resize: ${resizeErr.message}. Try describing the change differently.` });
+              send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+              closeStream();
+              return;
+            }
           }
         }
 
