@@ -6983,6 +6983,11 @@ async function handleGetMessages(request) {
     created_at: m.created_at,
     model_used: m.model_used,
     sender_id: m.sender_id, // For collaboration - who sent this message
+    image_url: m.image_url, // For image display and mask editing
+    video_url: m.video_url, // For video display
+    video_task: m.video_task, // For video generation status
+    content_type: m.content_type, // For distinguishing edit types
+    generation_params: m.generation_params, // For regeneration
   })));
 }
 
