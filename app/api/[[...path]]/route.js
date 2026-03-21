@@ -8727,6 +8727,42 @@ Calculate x,y coordinates (top-left) and width for placing a logo. Output ONLY: 
               placementDesc = 'on the side of the vehicle';
             }
             
+            // ═══════════════════════════════════════════════════════════════════════════
+            // NATURAL LANGUAGE SIZE INTERPRETATION
+            // Parse size from user's instruction (e.g., "small logo", "10% of the door")
+            // ═══════════════════════════════════════════════════════════════════════════
+            let sizeDescription = 'medium-sized (about 15% of the door width)';
+            let sizeMultiplier = 1.0; // Default
+            
+            // Check for explicit size keywords
+            if (/\b(tiny|very small|really small)\b/i.test(sanitizedContent)) {
+              sizeDescription = 'very small (about 5-8% of the surface width)';
+              sizeMultiplier = 0.4;
+            } else if (/\b(small|little|compact)\b/i.test(sanitizedContent)) {
+              sizeDescription = 'small (about 8-12% of the surface width)';
+              sizeMultiplier = 0.6;
+            } else if (/\b(large|big)\b/i.test(sanitizedContent)) {
+              sizeDescription = 'large (about 25-30% of the surface width)';
+              sizeMultiplier = 1.5;
+            } else if (/\b(very large|huge|giant)\b/i.test(sanitizedContent)) {
+              sizeDescription = 'very large (about 35-40% of the surface width)';
+              sizeMultiplier = 2.0;
+            }
+            
+            // Check for percentage-based size (e.g., "10% of the door", "about 20%")
+            const percentMatch = sanitizedContent.match(/(\d+)\s*%/);
+            if (percentMatch) {
+              const percent = parseInt(percentMatch[1]);
+              sizeDescription = `about ${percent}% of the surface width`;
+              sizeMultiplier = percent / 15; // 15% is our default
+            }
+            
+            // Adjust logoWidth based on sizeMultiplier
+            logoWidth = Math.round(logoWidth * sizeMultiplier);
+            logoWidth = Math.max(30, Math.min(logoWidth, targetWidth * 0.5)); // Clamp between 30px and 50% of image
+            
+            console.log('[Composite Edit] Size interpretation:', sizeDescription, 'multiplier:', sizeMultiplier, 'final logoWidth:', logoWidth);
+            
             // Build AI composite prompt (used for SeeDream fallback)
             const compositePrompt = `Add the logo/graphic from the second image onto the vehicle as a realistic vinyl decal.
 Place it ${placementDesc}.
@@ -8777,6 +8813,10 @@ CRITICAL - PRESERVE THE LOGO:
 - Keep the EXACT design, colors, and appearance of the original logo
 - Do NOT change the logo colors or add new colors to it
 - Do NOT modify the logo artwork - use it exactly as provided
+
+SIZE:
+- Make the logo ${sizeDescription}
+- This is important - get the size right
 
 MAKE IT LOOK REALISTIC:
 - Apply the logo as if it's a real vinyl decal physically stuck to the vehicle surface
@@ -11585,6 +11625,164 @@ async function processVideoStatus(db, media, data) {
 
   return ok({ status: 'generating', progress: state || 'processing...' });
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MASK-BASED IMAGE EDITING
+// Allows users to select specific areas of an image and edit only those areas
+// Uses GPT-image-1 with mask for precise inpainting
+// ═══════════════════════════════════════════════════════════════════════════════
+async function handleMaskEdit(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const { imageBase64, maskBase64, prompt, conversationId } = await request.json();
+  
+  if (!imageBase64 || !maskBase64 || !prompt) {
+    return err('Missing required fields: imageBase64, maskBase64, prompt', 400);
+  }
+  
+  console.log('[MaskEdit] Starting mask-based edit for user:', user.id);
+  console.log('[MaskEdit] Prompt:', prompt.substring(0, 100));
+  
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const kieKey = process.env.KIE_API_KEY;
+  
+  if (!openaiKey) {
+    return err('OpenAI API key not configured', 500);
+  }
+  
+  try {
+    // Extract base64 data from data URLs
+    let imageData = imageBase64;
+    let maskData = maskBase64;
+    
+    if (imageData.startsWith('data:')) {
+      imageData = imageData.split(',')[1];
+    }
+    if (maskData.startsWith('data:')) {
+      maskData = maskData.split(',')[1];
+    }
+    
+    // Convert base64 to buffers
+    const imageBuffer = Buffer.from(imageData, 'base64');
+    const maskBuffer = Buffer.from(maskData, 'base64');
+    
+    console.log('[MaskEdit] Image buffer size:', imageBuffer.length, 'Mask buffer size:', maskBuffer.length);
+    
+    // Use GPT-image-1 with mask for inpainting
+    const FormData = (await import('form-data')).default;
+    const formData = new FormData();
+    
+    // Add the original image
+    formData.append('image', imageBuffer, {
+      filename: 'image.png',
+      contentType: 'image/png'
+    });
+    
+    // Add the mask (white = edit, black = keep)
+    formData.append('mask', maskBuffer, {
+      filename: 'mask.png',
+      contentType: 'image/png'
+    });
+    
+    formData.append('model', 'gpt-image-1');
+    formData.append('prompt', `In the masked (selected) area: ${prompt}. 
+Keep everything outside the masked area exactly the same.
+Make the edit blend naturally with the surrounding image.`);
+    formData.append('n', '1');
+    formData.append('size', '1024x1024');
+    formData.append('quality', 'high');
+    
+    console.log('[MaskEdit] Sending to GPT-image-1 inpainting API...');
+    
+    const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiKey}`,
+        ...formData.getHeaders()
+      },
+      body: formData
+    });
+    
+    const editData = await editResponse.json();
+    console.log('[MaskEdit] GPT-image-1 response status:', editResponse.status);
+    
+    if (editData.error) {
+      console.error('[MaskEdit] GPT-image-1 error:', editData.error.message);
+      return err('Image editing failed: ' + editData.error.message, 500);
+    }
+    
+    if (editData.data?.[0]?.b64_json || editData.data?.[0]?.url) {
+      let resultUrl = editData.data[0].url;
+      
+      // If we got base64, upload to get a persistent URL
+      if (!resultUrl && editData.data[0].b64_json && kieKey) {
+        const resultBase64 = `data:image/png;base64,${editData.data[0].b64_json}`;
+        const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${kieKey}`
+          },
+          body: JSON.stringify({
+            base64Data: resultBase64,
+            uploadPath: 'soulprint/mask-edits',
+            fileName: `mask_edit_${Date.now()}.png`
+          }),
+        });
+        
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          if (uploadData.success && uploadData.data?.downloadUrl) {
+            resultUrl = uploadData.data.downloadUrl;
+          }
+        }
+      }
+      
+      if (resultUrl) {
+        console.log('[MaskEdit] SUCCESS! URL:', resultUrl);
+        
+        // Save to conversation if provided
+        if (conversationId) {
+          const db = await getDb();
+          const messageId = uuidv4();
+          
+          await db.collection('messages').insertOne({
+            id: messageId,
+            conversation_id: conversationId,
+            user_id: user.id,
+            role: 'assistant',
+            content: `![Edited Image](${resultUrl})\n\n✨ *Mask edit applied!*\n\n**Edit:** ${prompt}`,
+            created_at: new Date(),
+            model_used: 'gpt-image-1',
+            provider_used: 'openai',
+            content_type: 'image_edit',
+            image_url: resultUrl,
+          });
+          
+          await db.collection('conversations').updateOne(
+            { id: conversationId },
+            { $set: { updated_at: new Date() } }
+          );
+        }
+        
+        return ok({
+          success: true,
+          url: resultUrl,
+          prompt: prompt
+        });
+      }
+    }
+    
+    return err('No result from image editing', 500);
+    
+  } catch (error) {
+    console.error('[MaskEdit] Error:', error);
+    return err('Mask editing failed: ' + error.message, 500);
+  }
+}
+
 
 // Get user's media gallery
 async function handleMediaGallery(request) {
@@ -24145,6 +24343,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'imports/extracted') return handleImportExtracted(request);
     if (pathStr === 'transcribe') return handleTranscribe(request);
     if (pathStr === 'realtime/session') return handleRealtimeSession(request);
+    if (pathStr === 'image/mask-edit') return handleMaskEdit(request);
     
     // Voice Chat APIs
     if (pathStr === 'tts/preview') return handleTTSPreview(request);

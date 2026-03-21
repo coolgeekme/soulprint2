@@ -33,6 +33,7 @@ import InstallPrompt from '@/app/components/InstallPrompt';
 import { useIsMobile } from '@/hooks/use-mobile';
 import MobileChat from '@/components/mobile/MobileChat';
 import { useTheme } from '@/lib/providers/ThemeProvider';
+import MaskEditor from '@/app/chat/components/MaskEditor';
 
 // Image Generation Models (sorted by cost - cheapest first)
 const IMAGE_MODELS = [
@@ -1211,7 +1212,7 @@ function MockupGenerator({ design, onClose, onGenerate, isGenerating, token }) {
 }
 
 // ── ImageCard: renders a generated image with download, edit, and regenerate options ─────────────────
-function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, onRegenerate, messageId }) {
+function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, onMaskEdit, onRegenerate, messageId }) {
   const [loaded, setLoaded] = useState(false);
   const [showJson, setShowJson] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
@@ -1293,6 +1294,15 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, o
                 title="Edit this image"
               >
                 <Pencil className="w-3.5 h-3.5" /> Edit
+              </button>
+            )}
+            {onMaskEdit && (
+              <button
+                onClick={() => onMaskEdit(url)}
+                className="px-3 py-1.5 bg-red-500/90 hover:bg-red-600 text-white text-xs rounded-lg flex items-center gap-1.5 shadow-lg"
+                title="Select area to edit (Mask Edit)"
+              >
+                <Square className="w-3.5 h-3.5" /> Mask Edit
               </button>
             )}
           </div>
@@ -6811,6 +6821,10 @@ export default function ChatPage() {
   const [showMockupGenerator, setShowMockupGenerator] = useState(false);
   const [mockupDesign, setMockupDesign] = useState(null);
   const [isGeneratingMockup, setIsGeneratingMockup] = useState(false);
+  // Mask editing state
+  const [showMaskEditor, setShowMaskEditor] = useState(false);
+  const [maskEditImageUrl, setMaskEditImageUrl] = useState(null);
+  const [isMaskEditing, setIsMaskEditing] = useState(false);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const streamingSourcesRef = useRef([]);
@@ -8185,6 +8199,61 @@ export default function ChatPage() {
     }
   }, [compareResponses, selectedCompareResponse, token]);
 
+  // ── Handle Mask Edit ──────────────────────────────────────────────
+  const handleOpenMaskEditor = useCallback((imageUrl) => {
+    setMaskEditImageUrl(imageUrl);
+    setShowMaskEditor(true);
+  }, []);
+  
+  const handleMaskEditSave = useCallback(async (imageBase64, maskBase64, editPrompt) => {
+    if (!token) return;
+    
+    setIsMaskEditing(true);
+    
+    try {
+      const response = await fetch('/api/image/mask-edit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          imageBase64,
+          maskBase64,
+          prompt: editPrompt,
+          conversationId,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Mask edit failed');
+      }
+      
+      // Add the edited image as a new message
+      const editMsg = {
+        id: `mask-edit-${Date.now()}`,
+        role: 'assistant',
+        content: `🎨 Mask edit applied!\n\n**Edit:** ${editPrompt}`,
+        created_at: new Date().toISOString(),
+        image_url: data.url,
+        is_edit: true,
+      };
+      
+      setMessages(prev => [...prev, editMsg]);
+      
+      // Close the mask editor
+      setShowMaskEditor(false);
+      setMaskEditImageUrl(null);
+      
+    } catch (err) {
+      alert('Mask edit failed: ' + err.message);
+    } finally {
+      setIsMaskEditing(false);
+    }
+  }, [token, conversationId]);
+
   // ── Media Generation Handler ──────────────────────────────────────────────
   const handleMediaGenerate = useCallback(async ({ type, model, prompt, aspectRatio }) => {
     setIsGeneratingMedia(true);
@@ -9440,6 +9509,7 @@ export default function ChatPage() {
                               setEditableImage({ ...imageData, messageId: msg.id });
                               setShowImageEditor(true);
                             }}
+                            onMaskEdit={handleOpenMaskEditor}
                             onRegenerate={(params) => handleRegenerateImage(params)}
                           />
                         )}
@@ -10247,6 +10317,29 @@ export default function ChatPage() {
           isGenerating={isGeneratingMockup}
           token={token}
         />
+      )}
+      
+      {/* Mask Editor Modal */}
+      {showMaskEditor && maskEditImageUrl && (
+        <MaskEditor
+          imageUrl={maskEditImageUrl}
+          onClose={() => {
+            setShowMaskEditor(false);
+            setMaskEditImageUrl(null);
+          }}
+          onSave={handleMaskEditSave}
+        />
+      )}
+      
+      {/* Loading overlay for mask editing */}
+      {isMaskEditing && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-[#111820] border border-white/10 rounded-2xl p-8 text-center">
+            <Loader2 className="w-10 h-10 animate-spin text-red-500 mx-auto mb-4" />
+            <p className="text-white font-medium">Applying mask edit...</p>
+            <p className="text-gray-400 text-sm mt-1">This may take a moment</p>
+          </div>
+        </div>
       )}
       
       {/* Location Modal - Manual Input Fallback */}
