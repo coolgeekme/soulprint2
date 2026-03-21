@@ -4396,6 +4396,9 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
       /\b(?:add|put|place)\s+(?:this|it)\s+(?:to|on)\s+(?:the\s+)?(?:hood|car|vehicle|image|wall|background|shirt|top|side|front|back|left|right|center)\b/i,
       /\bput\s+(?:this|it)\s+on\s+(?:there|it|the)\b/i,
       /\b(?:add|place)\s+(?:this|it)\s+(?:here|there|to\s+(?:the|it))\b/i,
+      /\b(?:swap|replace|change)\s+(?:the\s+)?(?:logo|image|design)?\s*(?:with|to)\s+(?:this|the)\b/i,
+      /\b(?:use|apply)\s+(?:this|the)\s+(?:logo|image|design)\s+(?:instead|on)\b/i,
+      /\bwith\s+this\s+(?:logo|image|one)\b/i,
     ];
     if (compositeEditPatterns.some(p => p.test(lower))) {
       return { intent: 'composite_edit', confidence: 'high', reason: 'Add attached element to previous image' };
@@ -8414,6 +8417,9 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
           
           try {
+            // Import sharp for image compositing
+            const sharp = require('sharp');
+            
             // Step 2: Download the target image
             console.log('[Composite Edit] Downloading target image...');
             const targetImageRes = await fetch(targetImageUrl);
