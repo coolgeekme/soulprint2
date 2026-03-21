@@ -8663,91 +8663,19 @@ Calculate x,y coordinates (top-left) and width for placing a logo. Output ONLY: 
             
             console.log('[Composite Edit] Final placement: x=', placementX, 'y=', placementY, 'logoWidth=', logoWidth);
             
-            // Step 5: Resize logo to appropriate size (logoWidth already calculated above)
-            console.log('[Composite Edit] Resizing logo to:', logoWidth, 'pixels wide');
+            // ═══════════════════════════════════════════════════════════════════════════
+            // AI-POWERED COMPOSITING: Use SeeDream or GPT Image for natural blending
+            // This creates realistic sticker/decal effects with proper perspective
+            // ═══════════════════════════════════════════════════════════════════════════
             
+            // First, upload the logo/element to get a URL
+            let elementUrl = null;
             const elementBuffer = Buffer.from(elementBase64, 'base64');
-            const resizedLogoBuffer = await sharp(elementBuffer)
-              .resize(logoWidth, null, { fit: 'inside', withoutEnlargement: false })
-              .png()
-              .toBuffer();
             
-            // Step 6: Composite the logo onto the target image using Sharp
-            console.log('[Composite Edit] Compositing logo at position:', placementX, placementY);
-            
-            const compositedBuffer = await sharp(targetImageBuffer)
-              .composite([
-                {
-                  input: resizedLogoBuffer,
-                  left: Math.round(placementX),
-                  top: Math.round(placementY),
-                  blend: 'over'
-                }
-              ])
-              .jpeg({ quality: 90 })
-              .toBuffer();
-            
-            console.log('[Composite Edit] Composited image size:', compositedBuffer.length);
-            
-            // Step 7: Upload the composited image
-            const compositedBase64 = `data:image/jpeg;base64,${compositedBuffer.toString('base64')}`;
-            
-            if (kieKey) {
-              const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-                method: 'POST',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${kieKey}`
-                },
-                body: JSON.stringify({
-                  base64Data: compositedBase64,
-                  uploadPath: 'soulprint/composites',
-                  fileName: `composite_${Date.now()}.jpg`
-                }),
-              });
-              
-              if (uploadRes.ok) {
-                const uploadData = await uploadRes.json();
-                if (uploadData.success && uploadData.data?.downloadUrl) {
-                  const resultUrl = uploadData.data.downloadUrl;
-                  console.log('[Composite Edit] SUCCESS! Uploaded to:', resultUrl);
-                  
-                  fullContent = `![Composite Image](${resultUrl})\n\n✨ *Your logo has been added to the image!*\n\n**Placement:** ${sanitizedContent}\n**Position:** (${placementX}, ${placementY})`;
-                  send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
-                  send({ type: 'delta', content: fullContent });
-                  
-                  await db.collection('messages').insertOne({
-                    id: assistantMsgId, conversation_id: convId, user_id: user.id,
-                    role: 'assistant', content: fullContent, created_at: new Date(),
-                    model_used: 'sharp-composite', provider_used: 'local', content_type: 'composite_edit',
-                    image_url: resultUrl,
-                  });
-                  await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
-                  send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-                  closeStream();
-                  return;
-                }
-              }
-            }
-            
-            throw new Error('Failed to upload composited image');
-            
-          } catch (compositeErr) {
-            console.error('[Composite Edit] Sharp compositing failed:', compositeErr.message);
-            // Fall back to AI-based editing if Sharp fails
-            send({ type: 'delta', content: '⏳ Trying AI-based compositing...\n\n' });
-          }
-          
-          // FALLBACK: Try AI-based editing if Sharp compositing fails
-          // Upload the element image to get a URL if needed
-          let elementUrl = elementAttachment.url;
-          
-          if (!elementUrl && elementAttachment.base64 && kieKey) {
-            console.log('[Composite Edit] Uploading element to get URL for AI fallback...');
             try {
-              let base64Data = elementAttachment.base64;
-              if (!base64Data.startsWith('data:')) {
-                base64Data = `data:${elementAttachment.mimeType || 'image/png'};base64,${base64Data}`;
+              let elementBase64Data = elementAttachment.base64;
+              if (!elementBase64Data.startsWith('data:')) {
+                elementBase64Data = `data:${elementAttachment.mimeType || 'image/png'};base64,${elementBase64Data}`;
               }
               
               const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
@@ -8757,7 +8685,7 @@ Calculate x,y coordinates (top-left) and width for placing a logo. Output ONLY: 
                   'Authorization': `Bearer ${kieKey}`
                 },
                 body: JSON.stringify({
-                  base64Data: base64Data,
+                  base64Data: elementBase64Data,
                   uploadPath: 'soulprint/elements',
                   fileName: `element_${Date.now()}.png`
                 }),
@@ -8773,68 +8701,89 @@ Calculate x,y coordinates (top-left) and width for placing a logo. Output ONLY: 
             } catch (uploadErr) {
               console.log('[Composite Edit] Element upload failed:', uploadErr.message);
             }
-          }
-          
-          if (!elementUrl) {
-            send({ type: 'delta', content: 'Failed to process the attached image. Please try again.' });
-            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-            closeStream();
-            return;
-          }
-          
-          // Build a composite edit prompt from the user's instruction
-          // The user's message tells us WHERE to place the element
-          const compositePrompt = `Add THIS EXACT logo/element from the second image to the first image. 
-User's instruction for placement: "${sanitizedContent}". 
-IMPORTANT: Use the EXACT logo from the second image - do NOT generate a different logo. 
-Place it naturally on the specified location while preserving the rest of the image.`;
-          
-          console.log('[Composite Edit] Sending to SeeDream with two images');
-          
-          // Use SeeDream with both images
-          try {
-            const requestBody = {
-              model: 'bytedance/seedream-v4-edit',
-              input: {
-                prompt: compositePrompt,
-                image_urls: [targetImageUrl, elementUrl],
-                image_size: 'square_hd',
-                image_resolution: '2K',
-                max_images: 1
+            
+            if (!elementUrl) {
+              send({ type: 'delta', content: 'Failed to process the attached logo. Please try again.' });
+              send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+              closeStream();
+              return;
+            }
+            
+            // Determine placement description for AI
+            let placementDesc = 'center of the image';
+            if (instructionLower.includes('door')) {
+              if (instructionLower.includes('front')) {
+                placementDesc = 'on the front door of the vehicle, like a sticker or decal';
+              } else if (instructionLower.includes('passenger')) {
+                placementDesc = 'on the passenger side door of the vehicle, like a sticker';
+              } else if (instructionLower.includes('driver')) {
+                placementDesc = 'on the driver side door of the vehicle, like a sticker';
+              } else {
+                placementDesc = 'on the door of the vehicle, like a sticker or decal';
               }
-            };
+            } else if (instructionLower.includes('hood')) {
+              placementDesc = 'on the hood of the vehicle';
+            } else if (instructionLower.includes('side')) {
+              placementDesc = 'on the side of the vehicle';
+            }
             
-            const createTaskRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${kieKey}`
-              },
-              body: JSON.stringify(requestBody)
-            });
+            // Build AI composite prompt
+            const compositePrompt = `Add this logo/graphic to the image as a sticker or decal. 
+Place it ${placementDesc}.
+The logo should:
+- Blend naturally with the surface (follow the contours and perspective)
+- Look like a real sticker/decal applied to the surface
+- Have appropriate size relative to the surface
+- Match the lighting and shadows of the scene
+Keep everything else in the image exactly the same.`;
             
-            const createTaskData = await createTaskRes.json();
-            console.log('[Composite Edit] SeeDream response:', JSON.stringify(createTaskData).substring(0, 300));
+            console.log('[Composite Edit] Using AI compositing with prompt:', compositePrompt.substring(0, 100));
             
-            if (createTaskData.code === 200 && createTaskData.data?.taskId) {
-              const taskId = createTaskData.data.taskId;
+            // Try SeeDream v4 Edit first for AI-powered compositing
+            try {
+              const requestBody = {
+                model: 'bytedance/seedream-v4-edit',
+                input: {
+                  prompt: compositePrompt,
+                  image_urls: [targetImageUrl, elementUrl],
+                  image_size: 'square_hd',
+                  image_resolution: '2K',
+                  max_images: 1
+                }
+              };
               
-              // Poll for result
-              const startTime = Date.now();
-              const maxWaitTime = 90000; // 90 seconds for composite
+              console.log('[Composite Edit] Sending to SeeDream v4 with two images...');
               
-              while (Date.now() - startTime < maxWaitTime) {
-                await new Promise(r => setTimeout(r, 3000));
+              const createTaskRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${kieKey}`
+                },
+                body: JSON.stringify(requestBody)
+              });
+              
+              const createTaskData = await createTaskRes.json();
+              console.log('[Composite Edit] SeeDream createTask response:', JSON.stringify(createTaskData).substring(0, 200));
+              
+              if (createTaskData.code === 200 && createTaskData.data?.taskId) {
+                const taskId = createTaskData.data.taskId;
+                console.log('[Composite Edit] SeeDream task created:', taskId);
                 
-                const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
-                  headers: { 'Authorization': `Bearer ${kieKey}` }
-                });
+                // Poll for result
+                const startTime = Date.now();
+                const maxWaitTime = 90000; // 90 seconds
                 
-                const statusData = await statusRes.json();
-                
-                if (statusData.code === 200) {
+                while (Date.now() - startTime < maxWaitTime) {
+                  await new Promise(r => setTimeout(r, 3000));
+                  
+                  const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+                    headers: { 'Authorization': `Bearer ${kieKey}` }
+                  });
+                  
+                  const statusData = await statusRes.json();
                   const state = statusData.data?.state;
-                  console.log('[Composite Edit] Status:', state);
+                  console.log('[Composite Edit] SeeDream status:', state);
                   
                   if (state === 'success') {
                     let resultUrl = null;
@@ -8844,16 +8793,16 @@ Place it naturally on the specified location while preserving the rest of the im
                     } catch (e) {}
                     
                     if (resultUrl) {
-                      console.log('[Composite Edit] SUCCESS! URL:', resultUrl);
+                      console.log('[Composite Edit] AI Composite SUCCESS! URL:', resultUrl);
                       
-                      fullContent = `![Composite Image](${resultUrl})\n\n✨ *Element added to your image!*\n\n**Applied:** ${sanitizedContent}`;
+                      fullContent = `![Composite Image](${resultUrl})\n\n✨ *Your logo has been naturally blended into the image!*\n\n**Placement:** ${sanitizedContent}`;
                       send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
                       send({ type: 'delta', content: fullContent });
                       
                       await db.collection('messages').insertOne({
                         id: assistantMsgId, conversation_id: convId, user_id: user.id,
                         role: 'assistant', content: fullContent, created_at: new Date(),
-                        model_used: 'seedream-v4-edit', provider_used: 'kie.ai', content_type: 'composite_edit',
+                        model_used: 'seedream-v4-composite', provider_used: 'kie.ai', content_type: 'composite_edit',
                         image_url: resultUrl,
                       });
                       await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
@@ -8862,102 +8811,85 @@ Place it naturally on the specified location while preserving the rest of the im
                       return;
                     }
                   } else if (state === 'fail') {
-                    console.log('[Composite Edit] Failed:', statusData.data?.failMsg);
+                    console.log('[Composite Edit] SeeDream failed:', statusData.data?.failMsg);
                     break;
                   }
                 }
               }
+            } catch (seedreamErr) {
+              console.log('[Composite Edit] SeeDream compositing failed:', seedreamErr.message);
             }
             
-            // If SeeDream fails, fall back to GPT-4o Vision approach
-            console.log('[Composite Edit] SeeDream failed, trying GPT-4o + DALL-E 3 fallback');
-            send({ type: 'delta', content: '\n🔄 Trying alternative method...\n' });
+            // FALLBACK: Simple Sharp overlay if AI compositing fails
+            console.log('[Composite Edit] Falling back to Sharp overlay...');
+            send({ type: 'delta', content: '⏳ Using basic compositing...\n\n' });
             
-            // Use GPT-4o to analyze both images and create a combined prompt
-            const openaiKey = process.env.OPENAI_API_KEY;
-            if (openaiKey) {
-              const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  model: 'gpt-4o',
-                  messages: [{
-                    role: 'user',
-                    content: [
-                      { type: 'image_url', image_url: { url: targetImageUrl } },
-                      { type: 'image_url', image_url: { url: elementUrl } },
-                      { type: 'text', text: `You have two images:
-1. The TARGET image (first image) - this is the main image
-2. The ELEMENT (second image) - this needs to be added to the target
-
-User's instruction: "${sanitizedContent}"
-
-Create a DALL-E prompt that recreates the TARGET image with the ELEMENT added according to the user's instruction. Be VERY specific about:
-- The exact composition of the target image
-- Where and how the element should be placed
-- Maintaining all other details of the target
-
-Output ONLY the DALL-E prompt.` }
-                    ]
-                  }],
-                  max_tokens: 1000,
-                  temperature: 0.3,
-                }),
-              });
-              
-              if (analysisResponse.ok) {
-                const analysisData = await analysisResponse.json();
-                const combinedPrompt = analysisData.choices?.[0]?.message?.content;
-                
-                if (combinedPrompt) {
-                  const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      model: 'dall-e-3',
-                      prompt: combinedPrompt,
-                      n: 1,
-                      size: '1024x1024',
-                      quality: 'hd',
-                      style: 'natural',
-                    }),
-                  });
-                  
-                  if (generateResponse.ok) {
-                    const generateData = await generateResponse.json();
-                    const fallbackUrl = generateData.data?.[0]?.url;
-                    
-                    if (fallbackUrl) {
-                      fullContent = `![Composite Image](${fallbackUrl})\n\n✨ *Element added to your image (using DALL-E 3)!*\n\n**Applied:** ${sanitizedContent}`;
-                      send({ type: 'image', url: fallbackUrl, contentType: 'composite_edit' });
-                      send({ type: 'delta', content: fullContent });
-                      
-                      await db.collection('messages').insertOne({
-                        id: assistantMsgId, conversation_id: convId, user_id: user.id,
-                        role: 'assistant', content: fullContent, created_at: new Date(),
-                        model_used: 'dall-e-3', provider_used: 'openai', content_type: 'composite_edit',
-                        image_url: fallbackUrl,
-                      });
-                      await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
-                      send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-                      closeStream();
-                      return;
-                    }
-                  }
+            const resizedLogoBuffer = await sharp(elementBuffer)
+              .resize(logoWidth, null, { fit: 'inside', withoutEnlargement: false })
+              .png()
+              .toBuffer();
+            
+            console.log('[Composite Edit] Sharp compositing at position:', placementX, placementY);
+            
+            const compositedBuffer = await sharp(targetImageBuffer)
+              .composite([
+                {
+                  input: resizedLogoBuffer,
+                  left: Math.round(placementX),
+                  top: Math.round(placementY),
+                  blend: 'over'
                 }
+              ])
+              .jpeg({ quality: 90 })
+              .toBuffer();
+            
+            const compositedBase64 = `data:image/jpeg;base64,${compositedBuffer.toString('base64')}`;
+            
+            const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${kieKey}`
+              },
+              body: JSON.stringify({
+                base64Data: compositedBase64,
+                uploadPath: 'soulprint/composites',
+                fileName: `composite_${Date.now()}.jpg`
+              }),
+            });
+            
+            if (uploadRes.ok) {
+              const uploadData = await uploadRes.json();
+              if (uploadData.success && uploadData.data?.downloadUrl) {
+                const resultUrl = uploadData.data.downloadUrl;
+                console.log('[Composite Edit] Sharp composite uploaded to:', resultUrl);
+                
+                fullContent = `![Composite Image](${resultUrl})\n\n✨ *Your logo has been added to the image!*\n\n**Placement:** ${sanitizedContent}\n**Position:** (${placementX}, ${placementY})`;
+                send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
+                send({ type: 'delta', content: fullContent });
+                
+                await db.collection('messages').insertOne({
+                  id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                  role: 'assistant', content: fullContent, created_at: new Date(),
+                  model_used: 'sharp-composite', provider_used: 'local', content_type: 'composite_edit',
+                  image_url: resultUrl,
+                });
+                await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+                send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+                closeStream();
+                return;
               }
             }
             
-            // If all methods fail
-            send({ type: 'delta', content: '\n\nSorry, I couldn\'t add the element to the image. Please try with a different description or upload the images separately.' });
+            throw new Error('All compositing methods failed');
+            
           } catch (compositeErr) {
-            console.error('[Composite Edit] Error:', compositeErr.message);
-            send({ type: 'delta', content: `\n\nError: ${compositeErr.message}` });
+            console.error('[Composite Edit] All compositing methods failed:', compositeErr.message);
+            send({ type: 'delta', content: '\n❌ Unable to add the logo to the image. Please try with a different instruction or simpler request.' });
+            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+            closeStream();
+            return;
           }
-          
-          send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-          closeStream();
-          return;
         }
 
         // ── Handle image editing (Dynamic Intelligence detected image_edit intent) ───────────────────────────────────────
