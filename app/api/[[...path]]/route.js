@@ -8334,62 +8334,149 @@ Style: Professional graphic design quality. Make it look like a skilled designer
         if (mediaIntent === 'composite_edit' && hasImageAttachment) {
           console.log('[Composite Edit] User wants to add attached element to previous image');
           
-          // Get the attached image (element to add)
-          const elementAttachment = attachments.find(a => a.type === 'image');
-          if (!elementAttachment) {
+          // Get ALL attached images
+          const imageAttachments = attachments.filter(a => a.type === 'image');
+          console.log('[Composite Edit] Found', imageAttachments.length, 'image attachments');
+          
+          if (imageAttachments.length === 0) {
             send({ type: 'delta', content: 'Please attach the image/logo you want to add.' });
             send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
             closeStream();
             return;
           }
           
-          // Find the previous image (target) - including user-uploaded AND AI-generated images
-          const recentImageMessages = await db.collection('messages')
-            .find({ 
-              conversation_id: convId, 
-              $or: [
-                // AI-generated images (assistant messages with image_url)
-                { 
-                  role: 'assistant',
-                  content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit', 'composite_edit', 'mockup'] },
-                  image_url: { $exists: true, $ne: null }
-                },
-                // AI-generated images detected via markdown pattern (fallback)
-                { 
-                  role: 'assistant',
-                  content: { $regex: /!\[.*\]\(https?:\/\// }
-                },
-                // User-uploaded images
-                { 
-                  role: 'user',
-                  content_type: 'user_upload',
-                  image_url: { $exists: true, $ne: null }
+          let elementAttachment = null;
+          let targetImageUrl = null;
+          
+          // CASE 1: User uploaded 2 images at once - need to determine which is base and which is logo
+          if (imageAttachments.length >= 2) {
+            console.log('[Composite Edit] Two images uploaded - determining base vs logo');
+            
+            // Heuristics to determine which is the logo:
+            // 1. Check filename for "logo" keyword
+            // 2. PNG files are often logos (transparency)
+            // 3. Smaller file size is often logo
+            
+            const img1 = imageAttachments[0];
+            const img2 = imageAttachments[1];
+            
+            const img1IsLogo = (img1.filename?.toLowerCase().includes('logo') || 
+                               img1.mimeType === 'image/png' ||
+                               (img1.base64?.length || 0) < (img2.base64?.length || 0) * 0.5);
+            const img2IsLogo = (img2.filename?.toLowerCase().includes('logo') || 
+                               img2.mimeType === 'image/png' ||
+                               (img2.base64?.length || 0) < (img1.base64?.length || 0) * 0.5);
+            
+            console.log('[Composite Edit] img1 filename:', img1.filename, 'mimeType:', img1.mimeType, 'isLogo:', img1IsLogo);
+            console.log('[Composite Edit] img2 filename:', img2.filename, 'mimeType:', img2.mimeType, 'isLogo:', img2IsLogo);
+            
+            // Determine which is the logo/element and which is the base/target
+            let baseAttachment;
+            if (img2IsLogo && !img1IsLogo) {
+              // img2 is logo, img1 is base
+              elementAttachment = img2;
+              baseAttachment = img1;
+              console.log('[Composite Edit] Detected: img1=BASE, img2=LOGO');
+            } else if (img1IsLogo && !img2IsLogo) {
+              // img1 is logo, img2 is base
+              elementAttachment = img1;
+              baseAttachment = img2;
+              console.log('[Composite Edit] Detected: img2=BASE, img1=LOGO');
+            } else {
+              // Can't determine - assume first is base, second is logo (common pattern)
+              baseAttachment = img1;
+              elementAttachment = img2;
+              console.log('[Composite Edit] Cannot determine - assuming: img1=BASE, img2=LOGO');
+            }
+            
+            // Upload the base image to get a URL
+            const kieKeyForBase = process.env.KIE_API_KEY;
+            if (kieKeyForBase && baseAttachment.base64) {
+              try {
+                let base64Data = baseAttachment.base64;
+                if (!base64Data.startsWith('data:')) {
+                  base64Data = `data:${baseAttachment.mimeType || 'image/jpeg'};base64,${base64Data}`;
                 }
-              ]
-            })
-            .sort({ created_at: -1 })
-            .limit(1)
-            .toArray();
-          
-          console.log('[Composite Edit] Found', recentImageMessages.length, 'recent image messages (user uploads + AI generated)');
-          
-          if (recentImageMessages.length === 0) {
-            send({ type: 'delta', content: 'I don\'t see a previous image to add this to. Please generate or upload an image first, then I can add elements to it.' });
-            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-            closeStream();
-            return;
+                
+                const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${kieKeyForBase}`
+                  },
+                  body: JSON.stringify({
+                    base64Data: base64Data,
+                    uploadPath: 'soulprint/base-images',
+                    fileName: `base_${Date.now()}.jpg`
+                  }),
+                });
+                
+                if (uploadRes.ok) {
+                  const uploadData = await uploadRes.json();
+                  if (uploadData.success && uploadData.data?.downloadUrl) {
+                    targetImageUrl = uploadData.data.downloadUrl;
+                    console.log('[Composite Edit] Uploaded base image to:', targetImageUrl);
+                  }
+                }
+              } catch (uploadErr) {
+                console.log('[Composite Edit] Base upload failed:', uploadErr.message);
+              }
+            }
+          } else {
+            // CASE 2: Only 1 image uploaded - it's the element, find target from history
+            elementAttachment = imageAttachments[0];
           }
           
-          const lastImageMsg = recentImageMessages[0];
-          const isUserUploadTarget = lastImageMsg.role === 'user' && lastImageMsg.content_type === 'user_upload';
-          const isAIGeneratedTarget = lastImageMsg.role === 'assistant';
-          console.log('[Composite Edit] Target image - role:', lastImageMsg.role, 'content_type:', lastImageMsg.content_type);
-          console.log('[Composite Edit] Target source:', isUserUploadTarget ? 'USER UPLOADED' : (isAIGeneratedTarget ? 'AI GENERATED' : 'UNKNOWN'));
-          
-          let targetImageUrl = lastImageMsg.image_url;
+          // If we don't have a target URL yet, find from conversation history
           if (!targetImageUrl) {
-            const urlMatch = lastImageMsg.content?.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
-            if (urlMatch) targetImageUrl = urlMatch[1];
+            // Find the previous image (target) - including user-uploaded AND AI-generated images
+            const recentImageMessages = await db.collection('messages')
+              .find({ 
+                conversation_id: convId, 
+                $or: [
+                  // AI-generated images (assistant messages with image_url)
+                  { 
+                    role: 'assistant',
+                    content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit', 'composite_edit', 'mockup'] },
+                    image_url: { $exists: true, $ne: null }
+                  },
+                  // AI-generated images detected via markdown pattern (fallback)
+                  { 
+                    role: 'assistant',
+                    content: { $regex: /!\[.*\]\(https?:\/\// }
+                  },
+                  // User-uploaded images
+                  { 
+                    role: 'user',
+                    content_type: 'user_upload',
+                    image_url: { $exists: true, $ne: null }
+                  }
+                ]
+              })
+              .sort({ created_at: -1 })
+              .limit(1)
+              .toArray();
+            
+            console.log('[Composite Edit] Found', recentImageMessages.length, 'recent image messages from history');
+            
+            if (recentImageMessages.length === 0) {
+              send({ type: 'delta', content: 'I don\'t see a previous image to add this to. Please generate or upload an image first, then I can add elements to it.' });
+              send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+              closeStream();
+              return;
+            }
+            
+            const lastImageMsg = recentImageMessages[0];
+            const isUserUploadTarget = lastImageMsg.role === 'user' && lastImageMsg.content_type === 'user_upload';
+            const isAIGeneratedTarget = lastImageMsg.role === 'assistant';
+            console.log('[Composite Edit] Target from history - role:', lastImageMsg.role, 'content_type:', lastImageMsg.content_type);
+            console.log('[Composite Edit] Target source:', isUserUploadTarget ? 'USER UPLOADED' : (isAIGeneratedTarget ? 'AI GENERATED' : 'UNKNOWN'));
+            
+            targetImageUrl = lastImageMsg.image_url;
+            if (!targetImageUrl) {
+              const urlMatch = lastImageMsg.content?.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
+              if (urlMatch) targetImageUrl = urlMatch[1];
+            }
           }
           
           if (!targetImageUrl) {
