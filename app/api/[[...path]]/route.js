@@ -4290,6 +4290,11 @@ CLASSIFY THE INTENT - What does the user want?
 IMPORTANT RULES:
 - If user is ASKING ABOUT images/videos (not requesting creation), return "text"
 - If user is discussing features or making lists, return "text"
+- CRITICAL: If user attached TWO images (e.g., a vehicle/photo AND a logo/graphic) and wants to ADD one TO the other = "composite_edit"
+- CRITICAL: If user attached a logo/element and wants to ADD IT to a previous image (vehicle, photo, etc.) = "composite_edit"
+- "add the logo to the minivan/car/vehicle" = composite_edit (NOT mockup!)
+- "put this logo on the door/hood/side" = composite_edit
+- "add this to the image" = composite_edit
 - If user attached an image and wants it ON A PRODUCT (shirt, mug, poster, etc.), return "mockup"
 - If user attached an image and wants to modify the IMAGE ITSELF, return "image_edit"
 - If user attached an image and wants to animate it, return "video"
@@ -4297,11 +4302,12 @@ IMPORTANT RULES:
 - If user wants to CHANGE TECHNICAL SETTINGS (aspect ratio), return "image_regen"
 - When in doubt with RECENT IMAGE CONTEXT, prefer "image_edit" over "text"
 - "make it more realistic/photographic" = image_edit (NOT image_regen)
-- "put this on a shirt" = mockup (NOT image or image_edit)
+- "put this on a shirt/mug/hoodie" = mockup (only for merchandise products)
 - "create a t-shirt with X design" = mockup (even WITHOUT attachment)
 - "make a mug with X" = mockup
 - "design a hoodie with X" = mockup
-- If user mentions a PRODUCT (shirt, mug, hoodie, cap, poster, phone case) AND a design/logo/pattern = mockup
+- If user mentions a MERCHANDISE PRODUCT (shirt, mug, hoodie, cap, poster, phone case) AND a design/logo/pattern = mockup
+- BUT: If user mentions a VEHICLE/PHOTO/IMAGE and wants to add a logo = composite_edit (NOT mockup!)
 - CRITICAL: If user previously generated an image and now asks to ADD/CHANGE/MODIFY something about it = image_edit
 - "add more colors" / "more patterns" / "change the colors" = image_edit (referencing previous image)
 - "can you give me more X" when referencing a previous image = image_edit
@@ -4392,13 +4398,22 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
     // FIRST CHECK: Composite edit (add attached image to previous image in conversation)
     // This takes priority over mockup when there's a previous image in context
     const compositeEditPatterns = [
-      /\b(?:add|put|place)\s+(?:this|the)\s+(?:logo|image|design|sticker|icon|graphic)\s+(?:to|on)\s+(?:the|it)\b/i,
-      /\b(?:add|put|place)\s+(?:this|it)\s+(?:to|on)\s+(?:the\s+)?(?:hood|car|vehicle|image|wall|background|shirt|top|side|front|back|left|right|center)\b/i,
+      /\b(?:add|put|place)\s+(?:this|the)\s+(?:logo|image|design|sticker|icon|graphic)\s+(?:to|on)\s+(?:the|it|a)\b/i,
+      /\b(?:add|put|place)\s+(?:this|it)\s+(?:to|on)\s+(?:the\s+)?(?:hood|car|vehicle|van|minivan|truck|bus|image|wall|background|door|side|front|back|left|right|center)\b/i,
       /\bput\s+(?:this|it)\s+on\s+(?:there|it|the)\b/i,
       /\b(?:add|place)\s+(?:this|it)\s+(?:here|there|to\s+(?:the|it))\b/i,
       /\b(?:swap|replace|change)\s+(?:the\s+)?(?:logo|image|design)?\s*(?:with|to)\s+(?:this|the)\b/i,
       /\b(?:use|apply)\s+(?:this|the)\s+(?:logo|image|design)\s+(?:instead|on)\b/i,
       /\bwith\s+this\s+(?:logo|image|one)\b/i,
+      // Catch "add [the] [X] logo to [the] Y" patterns
+      /\badd\s+(?:the\s+)?(?:\w+\s+)*?logo\s+to\s+(?:the\s+)?(?:minivan|van|car|vehicle|truck|bus|image|photo|picture)\b/i,
+      /\b(?:logo|design)\s+(?:to|on)\s+(?:the\s+)?(?:minivan|van|car|vehicle|truck|bus)\b/i,
+      /\bto\s+(?:the\s+)?(?:minivan|van|car|vehicle|truck|bus)\s+/i,
+      // Catch "add X to the Y" where X contains logo-related words
+      /\badd\s+(?:the\s+)?(?:\w+\s+)+(?:logo|emblem|badge|decal|graphic|sticker)\s+to\b/i,
+      // Catch vehicle-specific patterns
+      /\b(?:minivan|van|car|vehicle|truck|bus)\b.*\b(?:logo|emblem|badge)\b/i,
+      /\b(?:logo|emblem|badge)\b.*\b(?:minivan|van|car|vehicle|truck|bus)\b/i,
     ];
     if (compositeEditPatterns.some(p => p.test(lower))) {
       return { intent: 'composite_edit', confidence: 'high', reason: 'Add attached element to previous image' };
