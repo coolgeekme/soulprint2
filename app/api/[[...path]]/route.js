@@ -8343,18 +8343,21 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             return;
           }
           
-          // Find the previous image (target) - including user-uploaded images
+          // Find the previous image (target) - including user-uploaded AND AI-generated images
           const recentImageMessages = await db.collection('messages')
             .find({ 
               conversation_id: convId, 
               $or: [
-                // AI-generated images (assistant messages)
+                // AI-generated images (assistant messages with image_url)
                 { 
-                  content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit', 'composite_edit'] },
-                  $or: [
-                    { 'content': { $regex: /!\[.*\]\(https?:\/\// } },
-                    { 'image_url': { $exists: true, $ne: null } }
-                  ]
+                  role: 'assistant',
+                  content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit', 'composite_edit', 'mockup'] },
+                  image_url: { $exists: true, $ne: null }
+                },
+                // AI-generated images detected via markdown pattern (fallback)
+                { 
+                  role: 'assistant',
+                  content: { $regex: /!\[.*\]\(https?:\/\// }
                 },
                 // User-uploaded images
                 { 
@@ -8368,7 +8371,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             .limit(1)
             .toArray();
           
-          console.log('[Composite Edit] Found', recentImageMessages.length, 'recent image messages (including user uploads)');
+          console.log('[Composite Edit] Found', recentImageMessages.length, 'recent image messages (user uploads + AI generated)');
           
           if (recentImageMessages.length === 0) {
             send({ type: 'delta', content: 'I don\'t see a previous image to add this to. Please generate or upload an image first, then I can add elements to it.' });
@@ -8379,7 +8382,9 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           
           const lastImageMsg = recentImageMessages[0];
           const isUserUploadTarget = lastImageMsg.role === 'user' && lastImageMsg.content_type === 'user_upload';
-          console.log('[Composite Edit] Target image - role:', lastImageMsg.role, 'content_type:', lastImageMsg.content_type, 'isUserUpload:', isUserUploadTarget);
+          const isAIGeneratedTarget = lastImageMsg.role === 'assistant';
+          console.log('[Composite Edit] Target image - role:', lastImageMsg.role, 'content_type:', lastImageMsg.content_type);
+          console.log('[Composite Edit] Target source:', isUserUploadTarget ? 'USER UPLOADED' : (isAIGeneratedTarget ? 'AI GENERATED' : 'UNKNOWN'));
           
           let targetImageUrl = lastImageMsg.image_url;
           if (!targetImageUrl) {
@@ -8827,13 +8832,16 @@ Output ONLY the DALL-E prompt.` }
               .find({ 
                 conversation_id: convId, 
                 $or: [
-                  // AI-generated images
+                  // AI-generated images (assistant messages with image_url)
                   {
-                    content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit'] },
-                    $or: [
-                      { 'content': { $regex: /!\[.*\]\(https?:\/\// } },  // Has image markdown
-                      { 'image_url': { $exists: true, $ne: null } }
-                    ]
+                    role: 'assistant',
+                    content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit', 'composite_edit', 'mockup'] },
+                    image_url: { $exists: true, $ne: null }
+                  },
+                  // AI-generated images detected via markdown pattern (fallback)
+                  {
+                    role: 'assistant',
+                    content: { $regex: /!\[.*\]\(https?:\/\// }
                   },
                   // User-uploaded images
                   {
@@ -8847,7 +8855,7 @@ Output ONLY the DALL-E prompt.` }
               .limit(1)
               .toArray();
             
-            console.log('[Image Edit] Found', recentImageMessages.length, 'recent image messages (including user uploads)');
+            console.log('[Image Edit] Found', recentImageMessages.length, 'recent image messages (user uploads + AI generated)');
             
             if (recentImageMessages.length > 0) {
               const lastImageMsg = recentImageMessages[0];
