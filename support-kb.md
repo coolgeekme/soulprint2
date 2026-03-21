@@ -244,6 +244,33 @@ This prevents accidentally losing conversations that are organized into Projects
 
 ---
 
+## GOOGLE OAUTH SETUP (Admin Reference)
+
+**Production Domain:** https://soulprintengine.ai
+**Preview Domain:** https://dashboard-profiles.preview.emergentagent.com
+
+### Required Redirect URIs in Google Cloud Console:
+1. `https://soulprintengine.ai/api/auth/google/callback` (Production)
+2. `https://dashboard-profiles.preview.emergentagent.com/api/auth/google/callback` (Preview)
+
+### How to Update Google OAuth (after domain change):
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Select your project
+3. Navigate to **APIs & Services** → **Credentials**
+4. Click on the OAuth 2.0 Client ID
+5. Under **Authorized redirect URIs**, add the new callback URL:
+   - Format: `https://YOUR_DOMAIN/api/auth/google/callback`
+6. Under **Authorized JavaScript origins**, add:
+   - `https://YOUR_DOMAIN`
+7. Click **Save**
+
+### Troubleshooting Google OAuth:
+- **"redirect_uri_mismatch"** → The callback URL is not in Google's allowed list. Add it in Cloud Console.
+- **"access_denied"** → User denied permission or app not verified. Check OAuth consent screen.
+- **OAuth not working after deploy** → Ensure the new domain's redirect URI is added to Google Cloud Console.
+
+---
+
 ## KNOWN ISSUES & WORKAROUNDS
 
 1. **520 errors / "Connection error"** — Occasionally caused by CDN/proxy issues. Usually resolves on refresh. If persistent across multiple users → ESCALATE.

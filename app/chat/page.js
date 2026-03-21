@@ -10560,7 +10560,10 @@ export default function ChatPage() {
               {projects.map(project => (
                 <button
                   key={project.id}
-                  onClick={() => moveConversationToProject(movingConversation.id, project.id)}
+                  onClick={async () => {
+                    console.log('Clicked project:', project.id, project.name);
+                    await moveConversationToProject(movingConversation.id, project.id);
+                  }}
                   className={`w-full text-left p-3 rounded-xl transition-colors flex items-center gap-3 ${
                     movingConversation?.project_id === project.id 
                       ? 'bg-purple-500/20 border border-purple-500/30' 
