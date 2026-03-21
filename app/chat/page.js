@@ -636,18 +636,23 @@ function ImageEditor({ image, onClose, onEdit, isEditing }) {
   const [editPrompt, setEditPrompt] = useState('');
   const [canvasSize, setCanvasSize] = useState({ width: 512, height: 512 });
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [maskData, setMaskData] = useState(null);
+  const [loadedImageSrc, setLoadedImageSrc] = useState(null);
   const lastPos = useRef({ x: 0, y: 0 });
   
   // Load image and set up canvas
   useEffect(() => {
     if (!image?.url && !image?.base64) return;
     
+    const imgSrc = image.base64 ? `data:image/png;base64,${image.base64}` : image.url;
+    
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // Try without crossOrigin first for external URLs
+    
     img.onload = () => {
-      // Calculate canvas size (max 512px, maintain aspect ratio)
-      const maxSize = 512;
+      // Calculate canvas size (max 400px for mobile, maintain aspect ratio)
+      const maxSize = window.innerWidth < 768 ? Math.min(350, window.innerWidth - 40) : 512;
       let width = img.width;
       let height = img.height;
       
@@ -665,6 +670,7 @@ function ImageEditor({ image, onClose, onEdit, isEditing }) {
       
       setCanvasSize({ width: Math.round(width), height: Math.round(height) });
       setImageLoaded(true);
+      setLoadedImageSrc(imgSrc);
       
       // Initialize canvas with transparent overlay
       setTimeout(() => {
@@ -675,7 +681,15 @@ function ImageEditor({ image, onClose, onEdit, isEditing }) {
       }, 100);
     };
     
-    img.src = image.base64 ? `data:image/png;base64,${image.base64}` : image.url;
+    img.onerror = () => {
+      console.log('[ImageEditor] Image load failed, trying with proxy...');
+      setImageError(true);
+      // Still show the canvas area even if image doesn't load
+      setCanvasSize({ width: 400, height: 400 });
+      setImageLoaded(true);
+    };
+    
+    img.src = imgSrc;
   }, [image]);
   
   const getPos = (e) => {
@@ -791,20 +805,20 @@ function ImageEditor({ image, onClose, onEdit, isEditing }) {
     });
   };
   
-  const imgSrc = image?.base64 ? `data:image/png;base64,${image.base64}` : image?.url;
+  const imgSrc = loadedImageSrc || (image?.base64 ? `data:image/png;base64,${image.base64}` : image?.url);
   
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#111820] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-2 md:p-4" onClick={onClose}>
+      <div className="bg-[#111820] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-              <Pencil className="w-5 h-5 text-purple-400" />
+        <div className="p-3 md:p-4 border-b border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-2 md:gap-3">
+            <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+              <Pencil className="w-4 h-4 md:w-5 md:h-5 text-purple-400" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Edit Image</h3>
-              <p className="text-xs text-gray-500">Paint the areas you want to change</p>
+              <h3 className="text-base md:text-lg font-semibold text-white">Edit Image</h3>
+              <p className="text-xs text-gray-500 hidden md:block">Paint the areas you want to change</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
@@ -813,20 +827,30 @@ function ImageEditor({ image, onClose, onEdit, isEditing }) {
         </div>
         
         {/* Canvas Area */}
-        <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
+        <div className="p-2 md:p-4 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 180px)' }}>
           <div 
             ref={containerRef}
-            className="relative mx-auto rounded-xl overflow-hidden border border-white/20"
+            className="relative mx-auto rounded-xl overflow-hidden border border-white/20 bg-gray-900"
             style={{ width: canvasSize.width, height: canvasSize.height }}
           >
             {/* Background Image */}
-            {imgSrc && (
+            {imgSrc && !imageError && (
               <img 
                 src={imgSrc} 
                 alt="Edit" 
                 className="absolute inset-0 w-full h-full object-contain"
-                crossOrigin="anonymous"
+                onError={() => setImageError(true)}
               />
+            )}
+            
+            {/* Error message */}
+            {imageError && (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
+                <div className="text-center p-4">
+                  <p>Image preview unavailable</p>
+                  <p className="text-xs mt-1">You can still paint and describe your edit</p>
+                </div>
+              </div>
             )}
             
             {/* Drawing Canvas (overlay) */}
@@ -856,7 +880,7 @@ function ImageEditor({ image, onClose, onEdit, isEditing }) {
           </div>
           
           {/* Brush Controls */}
-          <div className="mt-4 flex items-center justify-center gap-4">
+          <div className="mt-3 md:mt-4 flex flex-wrap items-center justify-center gap-3 md:gap-4">
             <div className="flex items-center gap-2">
               <span className="text-gray-400 text-xs">Brush:</span>
               <input
@@ -865,7 +889,7 @@ function ImageEditor({ image, onClose, onEdit, isEditing }) {
                 max="80"
                 value={brushSize}
                 onChange={(e) => setBrushSize(Number(e.target.value))}
-                className="w-24 accent-purple-500"
+                className="w-20 md:w-24 accent-purple-500"
               />
               <span className="text-gray-500 text-xs w-8">{brushSize}px</span>
             </div>
@@ -878,26 +902,26 @@ function ImageEditor({ image, onClose, onEdit, isEditing }) {
           </div>
           
           <p className="text-center text-gray-600 text-xs mt-2">
-            Paint over the areas you want to modify (orange highlight shows selection)
+            Tip: For best results, paint the specific area and describe the change clearly
           </p>
         </div>
         
         {/* Edit Prompt & Actions */}
-        <div className="p-4 border-t border-white/10 bg-black/20">
-          <div className="flex gap-3">
+        <div className="p-3 md:p-4 border-t border-white/10 bg-black/20">
+          <div className="flex gap-2 md:gap-3">
             <input
               type="text"
               value={editPrompt}
               onChange={(e) => setEditPrompt(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleEdit()}
               placeholder="Describe the edit (e.g., 'remove the hat', 'change to blue shirt')"
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50"
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-purple-500/50"
               disabled={isEditing}
             />
             <button
               onClick={handleEdit}
               disabled={!editPrompt.trim() || isEditing}
-              className="px-6 py-3 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium flex items-center gap-2 transition-colors"
+              className="px-4 md:px-6 py-2.5 md:py-3 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium flex items-center gap-2 transition-colors text-sm"
             >
               {isEditing ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Editing...</>

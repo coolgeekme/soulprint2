@@ -7,12 +7,13 @@ import {
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
-  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon, MapPin, AudioWaveform
+  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon, MapPin, AudioWaveform, Pencil
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { MicrophoneIcon, SendIcon, SparklesIcon, AttachIcon, CloudUploadIcon } from '@/components/icons/SoulPrintIcons';
 import { useTheme } from '@/lib/providers/ThemeProvider';
+import MaskEditor from '@/app/chat/components/MaskEditor';
 
 // Full MODELS list matching desktop
 const MODELS = [
@@ -492,7 +493,7 @@ const ChatHeader = ({ assistantName, model, onModelClick, isOnline, webSearchEna
 );
 
 // Message Bubble with actions
-const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token }) => {
+const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onImageEdit, onMaskEdit }) => {
   const [showActions, setShowActions] = useState(false);
   const [feedback, setFeedback] = useState(message.feedback || null);
 
@@ -544,11 +545,32 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           {/* Show generated image */}
           {message.image_url && (
             <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
-              <img 
-                src={message.image_url} 
-                alt="Generated" 
-                className="w-full h-auto max-h-80 object-contain bg-black/20"
-              />
+              <div className="relative group">
+                <img 
+                  src={message.image_url} 
+                  alt="Generated" 
+                  className="w-full h-auto max-h-80 object-contain bg-black/20"
+                />
+                {/* Mobile edit buttons - always visible on mobile */}
+                <div className="absolute bottom-2 right-2 flex gap-2">
+                  {onImageEdit && (
+                    <button 
+                      onClick={() => onImageEdit({ url: message.image_url, source: 'generated' })}
+                      className="px-2.5 py-1.5 bg-purple-500/90 text-white text-xs rounded-lg flex items-center gap-1 shadow-lg"
+                    >
+                      <Pencil className="w-3 h-3" /> Edit
+                    </button>
+                  )}
+                  {onMaskEdit && (
+                    <button 
+                      onClick={() => onMaskEdit(message.image_url)}
+                      className="px-2.5 py-1.5 bg-red-500/90 text-white text-xs rounded-lg flex items-center gap-1 shadow-lg"
+                    >
+                      <Square className="w-3 h-3" /> Mask
+                    </button>
+                  )}
+                </div>
+              </div>
               {message.model_label && (
                 <div className="px-3 py-2 text-xs text-orange-400 flex items-center gap-1.5">
                   <ImageIcon className="w-3.5 h-3.5" /> Generated with {message.model_label}
@@ -2078,6 +2100,13 @@ export default function MobileChat({
   const [quickAspectRatio, setQuickAspectRatio] = useState('1:1');
   const [quickVideoLength, setQuickVideoLength] = useState('5');
   
+  // Image editing state (mask editor)
+  const [showMaskEditor, setShowMaskEditor] = useState(false);
+  const [maskEditImageUrl, setMaskEditImageUrl] = useState(null);
+  const [isMaskEditing, setIsMaskEditing] = useState(false);
+  const [showImageEditor, setShowImageEditor] = useState(false);
+  const [editableImage, setEditableImage] = useState(null);
+  
   // iOS Keyboard handling
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -2962,6 +2991,53 @@ export default function MobileChat({
       });
     } catch (err) {
       console.error('Feedback error:', err);
+    }
+  };
+
+  // Handle mask edit save
+  const handleMaskEditSave = async (imageBase64, maskBase64, editPrompt) => {
+    if (!token) return;
+    
+    setIsMaskEditing(true);
+    setShowMaskEditor(false);
+    
+    try {
+      const response = await fetch('/api/image/mask-edit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          imageBase64,
+          maskBase64,
+          prompt: editPrompt,
+          conversationId,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Mask edit failed');
+      }
+      
+      // Add the edited image as a new message
+      const editMsg = {
+        id: `mask-edit-${Date.now()}`,
+        role: 'assistant',
+        content: `🎨 Mask edit applied!\n\n**Edit:** ${editPrompt}`,
+        created_at: new Date().toISOString(),
+        image_url: data.url,
+      };
+      
+      setMessages(prev => [...prev, editMsg]);
+      setMaskEditImageUrl(null);
+      
+    } catch (err) {
+      alert('Mask edit failed: ' + err.message);
+    } finally {
+      setIsMaskEditing(false);
     }
   };
 
@@ -3971,6 +4047,14 @@ export default function MobileChat({
                   assistantName={assistantName}
                   onFeedback={handleFeedback}
                   token={token}
+                  onImageEdit={(imageData) => {
+                    setEditableImage(imageData);
+                    setShowImageEditor(true);
+                  }}
+                  onMaskEdit={(url) => {
+                    setMaskEditImageUrl(url);
+                    setShowMaskEditor(true);
+                  }}
                 />
               ))}
               
@@ -5406,6 +5490,29 @@ export default function MobileChat({
                 Get Started
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Mask Editor Modal */}
+      {showMaskEditor && maskEditImageUrl && (
+        <MaskEditor
+          imageUrl={maskEditImageUrl}
+          onClose={() => {
+            setShowMaskEditor(false);
+            setMaskEditImageUrl(null);
+          }}
+          onSave={handleMaskEditSave}
+        />
+      )}
+      
+      {/* Loading overlay for mask editing */}
+      {isMaskEditing && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-[#111820] border border-white/10 rounded-2xl p-6 text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-red-500 mx-auto mb-3" />
+            <p className="text-white text-sm font-medium">Applying mask edit...</p>
+            <p className="text-gray-400 text-xs mt-1">This may take a moment</p>
           </div>
         </div>
       )}
