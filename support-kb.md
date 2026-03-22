@@ -246,12 +246,17 @@ This prevents accidentally losing conversations that are organized into Projects
 
 ## GOOGLE OAUTH SETUP (Admin Reference)
 
-**Production Domain:** https://soulprintengine.ai
+**Production Domain:** https://soulprintengine.ai (HARDCODED in code)
 **Preview Domain:** https://dashboard-profiles.preview.emergentagent.com
 
+**IMPORTANT:** The production domain is now hardcoded in the backend code to prevent deployment issues.
+- File: `/app/app/api/[[...path]]/route.js`
+- Functions: `handleGoogleAuthStart` and `handleGoogleAuthCallback`
+- If the production domain changes, update the `PRODUCTION_DOMAIN` constant in both functions.
+
 ### Required Redirect URIs in Google Cloud Console:
-1. `https://soulprintengine.ai/api/auth/google/callback` (Production)
-2. `https://dashboard-profiles.preview.emergentagent.com/api/auth/google/callback` (Preview)
+1. `https://soulprintengine.ai/api/auth/google/callback` (Production - REQUIRED)
+2. `https://dashboard-profiles.preview.emergentagent.com/api/auth/google/callback` (Preview - optional)
 
 ### How to Update Google OAuth (after domain change):
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)

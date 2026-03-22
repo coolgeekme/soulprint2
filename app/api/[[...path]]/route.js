@@ -885,13 +885,10 @@ async function handleGoogleAuthStart(request) {
     
     console.log('Google Auth Start - User authenticated:', user.id);
     
-    // Use the environment variable for the base URL - this should be set correctly for each deployment
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    
-    if (!baseUrl) {
-      console.error('Google Auth - NEXT_PUBLIC_BASE_URL is not set!');
-      return err('Server configuration error: BASE_URL not set', 500);
-    }
+    // IMPORTANT: Always use the production domain for Google OAuth
+    // This ensures OAuth works correctly after any deployment
+    const PRODUCTION_DOMAIN = 'https://soulprintengine.ai';
+    const baseUrl = PRODUCTION_DOMAIN;
     
     console.log('Google Auth - Using base URL:', baseUrl);
     
@@ -930,13 +927,9 @@ async function handleGoogleAuthCallback(request) {
       errorDescription: errorDescription || 'none'
     });
     
-    // Use the environment variable for the base URL
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    
-    if (!baseUrl) {
-      console.error('Google Callback - NEXT_PUBLIC_BASE_URL is not set!');
-      return new NextResponse('Server configuration error', { status: 500 });
-    }
+    // IMPORTANT: Always use the production domain for Google OAuth
+    const PRODUCTION_DOMAIN = 'https://soulprintengine.ai';
+    const baseUrl = PRODUCTION_DOMAIN;
     
     console.log('Google Callback - Using base URL:', baseUrl);
     
