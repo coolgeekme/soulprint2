@@ -6526,6 +6526,8 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [streamingStalled, setStreamingStalled] = useState(false); // Track if streaming seems stalled
+  const [lastChunkTime, setLastChunkTime] = useState(null); // Track last chunk received time
   const [searchingWeb, setSearchingWeb] = useState(false);
   const [searchQueries, setSearchQueries] = useState([]);
   const [streamingSources, setStreamingSources] = useState([]);
@@ -6915,6 +6917,20 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingContent]);
+
+  // Detect stalled streaming - if no chunk received for 8 seconds while loading
+  useEffect(() => {
+    if (!loading || !lastChunkTime) return;
+    
+    const checkStall = setInterval(() => {
+      const timeSinceLastChunk = Date.now() - lastChunkTime;
+      if (timeSinceLastChunk > 8000 && streamingContent) {
+        setStreamingStalled(true);
+      }
+    }, 2000);
+    
+    return () => clearInterval(checkStall);
+  }, [loading, lastChunkTime, streamingContent]);
 
   // Close conversation menu when clicking outside
   useEffect(() => {
@@ -7616,6 +7632,8 @@ export default function ChatPage() {
               setStreamingVideoTask({ taskId: data.taskId, status: 'generating', prompt: data.prompt });
             } else if (data.type === 'delta') {
               setSearchingWeb(false);
+              setLastChunkTime(Date.now()); // Track when we last received content
+              setStreamingStalled(false); // Reset stall indicator
               // Skip the markdown content if it's an image (we render the image directly)
               if (!streamingImageUrlRef.current) {
                 fullContent += data.content;
@@ -7645,6 +7663,8 @@ export default function ChatPage() {
                 }
               }
             } else if (data.type === 'done') {
+              setStreamingStalled(false);
+              setLastChunkTime(null);
               const finalMsg = {
                 id: `a-${Date.now()}`,
                 role: 'assistant',
@@ -7667,6 +7687,8 @@ export default function ChatPage() {
               fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${token}` } })
                 .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : []));
             } else if (data.type === 'error') {
+              setStreamingStalled(false);
+              setLastChunkTime(null);
               setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: `Error: ${data.error}`, created_at: new Date().toISOString() }]);
               setStreamingContent('');
             }
@@ -9369,6 +9391,20 @@ export default function ChatPage() {
                       >
                         {copiedMessageId === msg.id ? <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
                       </button>
+                      {/* Continue Button - show for last assistant message if it might be truncated */}
+                      {idx === messages.length - 1 && msg.content && msg.content.length > 500 && !loading && (
+                        <button
+                          onClick={() => {
+                            setInput('Please continue from where you left off.');
+                            setTimeout(() => handleSend(), 100);
+                          }}
+                          className="transition-colors p-1 rounded text-gray-700 hover:text-orange-400 flex items-center gap-1"
+                          title="Continue response"
+                        >
+                          <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                          <span className="text-[9px] sm:text-[10px]">Continue</span>
+                        </button>
+                      )}
                       {msg.model_used && <span className="text-[9px] sm:text-[10px] text-gray-700 truncate max-w-[80px] sm:max-w-none">{msg.model_used}</span>}
                     </div>
                   )}
@@ -9428,6 +9464,18 @@ export default function ChatPage() {
                         {streamingContent}
                       </ReactMarkdown>
                       <span className="inline-block w-0.5 h-4 bg-orange-500 ml-0.5 animate-pulse" />
+                      
+                      {/* Show "still generating" indicator if stalled */}
+                      {streamingStalled && (
+                        <div className="mt-3 flex items-center gap-2 text-gray-400 text-xs">
+                          <div className="flex gap-1">
+                            <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </div>
+                          <span>Still generating, please wait...</span>
+                        </div>
+                      )}
                       
                       {/* Sources during streaming */}
                       {streamingSources.length > 0 && (
