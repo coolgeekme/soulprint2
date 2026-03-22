@@ -8466,34 +8466,37 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
           
           // If we don't have a target URL yet, find from conversation history
+          // IMPORTANT: Prioritize AI-generated images as targets, not user uploads
+          // (User uploads in composite_edit context are usually the ELEMENT to add, not the base)
           if (!targetImageUrl) {
-            // Find the previous image (target) - including user-uploaded AND AI-generated images
-            const recentImageMessages = await db.collection('messages')
+            // First, try to find an AI-generated image (most likely to be the base)
+            let recentImageMessages = await db.collection('messages')
               .find({ 
                 conversation_id: convId, 
+                role: 'assistant',
                 $or: [
-                  // AI-generated images (assistant messages with image_url)
-                  { 
-                    role: 'assistant',
-                    content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit', 'composite_edit', 'mockup'] },
-                    image_url: { $exists: true, $ne: null }
-                  },
-                  // AI-generated images detected via markdown pattern (fallback)
-                  { 
-                    role: 'assistant',
-                    content: { $regex: /!\[.*\]\(https?:\/\// }
-                  },
-                  // User-uploaded images
-                  { 
-                    role: 'user',
-                    content_type: 'user_upload',
-                    image_url: { $exists: true, $ne: null }
-                  }
+                  { content_type: { $in: ['image', 'infographic', 'flyer', 'image_edit', 'composite_edit', 'mockup'] }, image_url: { $exists: true, $ne: null } },
+                  { content: { $regex: /!\[.*\]\(https?:\/\// } }
                 ]
               })
               .sort({ created_at: -1 })
               .limit(1)
               .toArray();
+            
+            // If no AI-generated image, fall back to user uploads
+            if (recentImageMessages.length === 0) {
+              console.log('[Composite Edit] No AI-generated images found, checking user uploads...');
+              recentImageMessages = await db.collection('messages')
+                .find({ 
+                  conversation_id: convId, 
+                  role: 'user',
+                  content_type: 'user_upload',
+                  image_url: { $exists: true, $ne: null }
+                })
+                .sort({ created_at: -1 })
+                .limit(1)
+                .toArray();
+            }
             
             console.log('[Composite Edit] Found', recentImageMessages.length, 'recent image messages from history');
             
@@ -8800,143 +8803,95 @@ Keep everything else in the image exactly the same.`;
             console.log('[Composite Edit] Using AI compositing with prompt:', compositePrompt.substring(0, 100));
             
             // ═══════════════════════════════════════════════════════════════════════════
-            // PRIMARY METHOD: GPT-image-1 for natural compositing
-            // GPT-image-1 understands context and can blend logos naturally
+            // PRIMARY METHOD: Sharp for reliable pixel-perfect compositing
+            // This ensures the exact logo is placed at the correct position
             // ═══════════════════════════════════════════════════════════════════════════
-            if (openaiKey) {
-              try {
-                console.log('[Composite Edit] PRIMARY: Using GPT-image-1 for intelligent compositing...');
-                send({ type: 'delta', content: '🎨 Using AI to naturally blend your logo into the image...\n\n' });
-                
-                // Download target image to get base64
-                const targetBase64 = targetImageBuffer.toString('base64');
-                
-                // Use GPT-image-1 edit endpoint with multipart form data
-                const FormData = (await import('form-data')).default;
-                const formData = new FormData();
-                
-                // Add the base image
-                formData.append('image', targetImageBuffer, {
-                  filename: 'base.png',
-                  contentType: 'image/png'
-                });
-                
-                // Add the second image (logo) as reference
-                formData.append('image', elementBuffer, {
-                  filename: 'logo.png', 
-                  contentType: 'image/png'
-                });
-                
-                formData.append('model', 'gpt-image-1');
-                formData.append('prompt', `Add the logo from the second image onto the vehicle in the first image as a realistic vinyl decal/sticker.
-
-PLACEMENT: ${placementDesc}
-
-CRITICAL - PRESERVE THE LOGO:
-- Keep the EXACT design, colors, and appearance of the original logo
-- Do NOT change the logo colors or add new colors to it
-- Do NOT modify the logo artwork - use it exactly as provided
-
-SIZE:
-- Make the logo ${sizeDescription}
-- This is important - get the size right
-
-MAKE IT LOOK REALISTIC:
-- Apply the logo as if it's a real vinyl decal physically stuck to the vehicle surface
-- Warp/distort the logo slightly to follow the 3D contours and curves of the door panel
-- Add subtle reflections that match the vehicle's paint finish
-- The logo should have slight edge shadows where it meets the surface
-- Match the lighting direction - brighter on one side, slightly shadowed on the other
-- The decal should look slightly glossy/matte to match the vehicle surface
-
-PRESERVE THE SCENE:
-- Keep the entire background, vehicle, and all other details exactly the same
-- Only add the logo decal - change nothing else`);
-                formData.append('n', '1');
-                formData.append('size', '1024x1024');
-                formData.append('quality', 'high');
-                
-                const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${openaiKey}`,
-                    ...formData.getHeaders()
-                  },
-                  body: formData
-                });
-                
-                const editData = await editResponse.json();
-                console.log('[Composite Edit] GPT-image-1 response status:', editResponse.status);
-                
-                if (editData.data?.[0]?.b64_json || editData.data?.[0]?.url) {
-                  let resultUrl = editData.data[0].url;
+            console.log('[Composite Edit] PRIMARY: Using Sharp for reliable compositing');
+            
+            try {
+              const sharp = require('sharp');
+              
+              // Resize logo to the calculated size
+              const resizedLogoBuffer = await sharp(elementBuffer)
+                .resize(logoWidth, null, { fit: 'inside', withoutEnlargement: false })
+                .png()
+                .toBuffer();
+              
+              console.log('[Composite Edit] Logo resized to width:', logoWidth, 'px');
+              console.log('[Composite Edit] Compositing at position: x=', placementX, 'y=', placementY);
+              
+              // Composite the logo onto the target image
+              const compositedBuffer = await sharp(targetImageBuffer)
+                .composite([{
+                  input: resizedLogoBuffer,
+                  left: Math.round(placementX),
+                  top: Math.round(placementY),
+                  blend: 'over'
+                }])
+                .jpeg({ quality: 92 })
+                .toBuffer();
+              
+              console.log('[Composite Edit] Sharp composite complete, size:', compositedBuffer.length);
+              
+              // Upload the result
+              const compositedBase64 = `data:image/jpeg;base64,${compositedBuffer.toString('base64')}`;
+              
+              const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${kieKey}`
+                },
+                body: JSON.stringify({
+                  base64Data: compositedBase64,
+                  uploadPath: 'soulprint/composites',
+                  fileName: `composite_${Date.now()}.jpg`
+                }),
+              });
+              
+              if (uploadRes.ok) {
+                const uploadData = await uploadRes.json();
+                if (uploadData.success && uploadData.data?.downloadUrl) {
+                  const resultUrl = uploadData.data.downloadUrl;
+                  console.log('[Composite Edit] Sharp SUCCESS! URL:', resultUrl);
                   
-                  // If we got base64, upload to get a persistent URL
-                  if (!resultUrl && editData.data[0].b64_json) {
-                    const resultBase64 = `data:image/png;base64,${editData.data[0].b64_json}`;
-                    const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-                      method: 'POST',
-                      headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${kieKey}`
-                      },
-                      body: JSON.stringify({
-                        base64Data: resultBase64,
-                        uploadPath: 'soulprint/composites',
-                        fileName: `gpt_composite_${Date.now()}.png`
-                      }),
-                    });
-                    
-                    if (uploadRes.ok) {
-                      const uploadData = await uploadRes.json();
-                      if (uploadData.success && uploadData.data?.downloadUrl) {
-                        resultUrl = uploadData.data.downloadUrl;
-                      }
+                  fullContent = `![Composite Image](${resultUrl})\n\n✨ *Your logo has been added to the image!*\n\n**Placement:** ${sanitizedContent}`;
+                  send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
+                  send({ type: 'delta', content: fullContent });
+                  
+                  // Store composite context for potential follow-up resizes
+                  await db.collection('messages').insertOne({
+                    id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                    role: 'assistant', content: fullContent, created_at: new Date(),
+                    model_used: 'sharp-composite', provider_used: 'local', content_type: 'composite_edit',
+                    image_url: resultUrl,
+                    composite_context: {
+                      element_url: elementUrl,
+                      target_url: targetImageUrl,
+                      placement_desc: placementDesc,
+                      logo_width: logoWidth,
+                      placement_x: placementX,
+                      placement_y: placementY,
                     }
-                  }
-                  
-                  if (resultUrl) {
-                    console.log('[Composite Edit] GPT-image-1 SUCCESS! URL:', resultUrl);
-                    
-                    fullContent = `![Composite Image](${resultUrl})\n\n✨ *Your logo has been naturally blended into the image!*\n\n**Placement:** ${sanitizedContent}`;
-                    send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
-                    send({ type: 'delta', content: fullContent });
-                    
-                    // Store composite context for potential follow-up resizes
-                    await db.collection('messages').insertOne({
-                      id: assistantMsgId, conversation_id: convId, user_id: user.id,
-                      role: 'assistant', content: fullContent, created_at: new Date(),
-                      model_used: 'gpt-image-1', provider_used: 'openai', content_type: 'composite_edit',
-                      image_url: resultUrl,
-                      composite_context: {
-                        element_url: elementUrl,
-                        target_url: targetImageUrl,
-                        placement_desc: placementDesc,
-                        logo_width: logoWidth,
-                        placement_x: placementX,
-                        placement_y: placementY,
-                      }
-                    });
-                    await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
-                    send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-                    closeStream();
-                    return;
-                  }
+                  });
+                  await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+                  send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+                  closeStream();
+                  return;
                 }
-                
-                if (editData.error) {
-                  console.log('[Composite Edit] GPT-image-1 error:', editData.error.message);
-                }
-              } catch (gptErr) {
-                console.log('[Composite Edit] GPT-image-1 failed:', gptErr.message);
               }
+              
+              throw new Error('Failed to upload Sharp composite');
+              
+            } catch (sharpErr) {
+              console.error('[Composite Edit] Sharp compositing failed:', sharpErr.message);
+              send({ type: 'delta', content: '⏳ Sharp compositing failed, trying AI method...\n\n' });
             }
             
             // ═══════════════════════════════════════════════════════════════════════════
-            // FALLBACK 1: SeeDream v4 Edit (if GPT-image-1 fails)
+            // FALLBACK: SeeDream v4 for AI-based compositing (less precise but more creative)
             // ═══════════════════════════════════════════════════════════════════════════
             console.log('[Composite Edit] FALLBACK: Trying SeeDream v4...');
-            send({ type: 'delta', content: '⏳ Trying alternative compositing method...\n\n' });
             
             try {
               const requestBody = {
