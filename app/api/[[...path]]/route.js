@@ -8624,11 +8624,53 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               console.log('[Composite Edit] Placement: DEFAULT');
             }
             
-            // Try GPT-4o Vision for more precise placement (optional enhancement)
+            // Try GPT-4o Vision for more precise placement with spatial awareness
+            let visibilityWarning = null;
             if (openaiKey) {
               try {
-                console.log('[Composite Edit] Asking GPT-4o Vision for precise coordinates...');
+                console.log('[Composite Edit] Asking GPT-4o Vision for precise coordinates with spatial awareness...');
                 
+                // Enhanced vision prompt with vehicle orientation analysis
+                const visionPrompt = `You are an expert graphics placement calculator for vehicle wraps and decals.
+
+TASK: Analyze this vehicle image and calculate coordinates for placing a logo/decal.
+
+IMAGE SIZE: ${targetWidth}x${targetHeight} pixels
+USER REQUEST: "${sanitizedContent}"
+
+CRITICAL SPATIAL ANALYSIS STEPS:
+1. VEHICLE ORIENTATION: First, determine which sides of the vehicle are visible in this 2D image:
+   - Is the driver's side (left side when facing the front of the car) visible?
+   - Is the passenger's side (right side when facing the front of the car) visible?
+   - Is the front visible? Is the rear visible?
+   - Note: In most angled shots, only ONE side of the vehicle is clearly visible.
+
+2. VISIBILITY CHECK: Based on the user's request "${sanitizedContent}":
+   - If they ask for "driver's side" but only the passenger side is visible, this is a problem.
+   - If they ask for "passenger side" but only the driver side is visible, this is a problem.
+   - "Front door" typically means the door nearest the front of the car on whichever side is visible.
+
+3. COORDINATE CALCULATION:
+   - If the requested surface IS visible: Calculate precise x, y (top-left corner) and width in pixels.
+   - If the requested surface is NOT visible: Still provide coordinates for the VISIBLE equivalent surface, but set "visibility_issue" to true.
+
+OUTPUT FORMAT (JSON only, no explanations):
+{
+  "x": NUMBER,
+  "y": NUMBER, 
+  "width": NUMBER,
+  "visible_sides": ["list of visible sides: driver/passenger/front/rear"],
+  "requested_side_visible": true/false,
+  "visibility_issue": true/false,
+  "placed_on": "description of where logo will actually be placed",
+  "user_note": "optional note if placement differs from request"
+}
+
+IMPORTANT: 
+- x,y are pixel coordinates from top-left of image
+- width is the logo width in pixels (typically 10-20% of the target surface)
+- If the user asks for a side that isn't visible, place on the visible equivalent and flag it`;
+
                 const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
                   method: 'POST',
                   headers: {
@@ -8640,20 +8682,17 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                     messages: [
                       {
                         role: 'system',
-                        content: 'You are a graphics placement calculator. Given an image and placement instructions, output ONLY a JSON object with x, y coordinates and width. No explanations.'
+                        content: 'You are a precise graphics placement calculator. Analyze vehicle orientation carefully before calculating coordinates. Always output valid JSON.'
                       },
                       {
                         role: 'user',
                         content: [
-                          { type: 'text', text: `Image size: ${targetWidth}x${targetHeight} pixels.
-Placement request: "${sanitizedContent}"
-
-Calculate x,y coordinates (top-left) and width for placing a logo. Output ONLY: {"x":NUMBER,"y":NUMBER,"width":NUMBER}` },
-                          { type: 'image_url', image_url: { url: targetImageUrl, detail: 'low' } }
+                          { type: 'text', text: visionPrompt },
+                          { type: 'image_url', image_url: { url: targetImageUrl, detail: 'high' } }
                         ]
                       }
                     ],
-                    max_tokens: 50,
+                    max_tokens: 300,
                     temperature: 0
                   })
                 });
@@ -8663,24 +8702,54 @@ Calculate x,y coordinates (top-left) and width for placing a logo. Output ONLY: 
                   const visionContent = visionData.choices?.[0]?.message?.content || '';
                   console.log('[Composite Edit] GPT-4o Vision response:', visionContent);
                   
-                  const jsonMatch = visionContent.match(/\{[^}]+\}/);
-                  if (jsonMatch) {
-                    try {
-                      const placement = JSON.parse(jsonMatch[0]);
-                      if (typeof placement.x === 'number' && placement.x > 0 && placement.x < targetWidth) {
-                        placementX = placement.x;
-                      }
-                      if (typeof placement.y === 'number' && placement.y > 0 && placement.y < targetHeight) {
-                        placementY = placement.y;
-                      }
-                      if (typeof placement.width === 'number' && placement.width > 30) {
-                        logoWidth = Math.min(placement.width, targetWidth * 0.35);
-                      }
-                      console.log('[Composite Edit] AI-refined placement: x=', placementX, 'y=', placementY, 'width=', logoWidth);
-                    } catch (e) {
-                      console.log('[Composite Edit] JSON parse failed, using keyword-based placement');
+                  // Extract JSON from response (may be wrapped in markdown code blocks)
+                  let jsonStr = visionContent;
+                  const codeBlockMatch = visionContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+                  if (codeBlockMatch) {
+                    jsonStr = codeBlockMatch[1].trim();
+                  } else {
+                    const jsonMatch = visionContent.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                      jsonStr = jsonMatch[0];
                     }
                   }
+                  
+                  try {
+                    const placement = JSON.parse(jsonStr);
+                    console.log('[Composite Edit] Parsed placement:', JSON.stringify(placement));
+                    
+                    // Apply coordinates if valid
+                    if (typeof placement.x === 'number' && placement.x >= 0 && placement.x < targetWidth) {
+                      placementX = Math.round(placement.x);
+                    }
+                    if (typeof placement.y === 'number' && placement.y >= 0 && placement.y < targetHeight) {
+                      placementY = Math.round(placement.y);
+                    }
+                    if (typeof placement.width === 'number' && placement.width > 30) {
+                      logoWidth = Math.min(Math.round(placement.width), Math.round(targetWidth * 0.4));
+                    }
+                    
+                    // Check for visibility issues and prepare user warning
+                    if (placement.visibility_issue === true || placement.requested_side_visible === false) {
+                      const visibleSides = placement.visible_sides?.join(', ') || 'unknown';
+                      const placedOn = placement.placed_on || 'the visible side';
+                      const userNote = placement.user_note || '';
+                      
+                      visibilityWarning = `⚠️ **Note:** The requested "${sanitizedContent}" surface isn't fully visible in this image angle. ` +
+                        `Visible sides: ${visibleSides}. ` +
+                        `Logo has been placed on ${placedOn}. ${userNote}\n\n` +
+                        `*Tip: For precise placement on a specific side, please provide an image where that side is clearly visible.*`;
+                      
+                      console.log('[Composite Edit] Visibility warning generated:', visibilityWarning);
+                    }
+                    
+                    console.log('[Composite Edit] AI-refined placement: x=', placementX, 'y=', placementY, 'width=', logoWidth);
+                  } catch (e) {
+                    console.log('[Composite Edit] JSON parse failed, using keyword-based placement. Error:', e.message);
+                  }
+                } else {
+                  const errText = await visionResponse.text();
+                  console.log('[Composite Edit] Vision API returned non-OK:', visionResponse.status, errText);
                 }
               } catch (visionErr) {
                 console.log('[Composite Edit] Vision API failed, using keyword-based placement:', visionErr.message);
@@ -8855,7 +8924,12 @@ Keep everything else in the image exactly the same.`;
                   const resultUrl = uploadData.data.downloadUrl;
                   console.log('[Composite Edit] Sharp SUCCESS! URL:', resultUrl);
                   
-                  fullContent = `![Composite Image](${resultUrl})\n\n✨ *Your logo has been added to the image!*\n\n**Placement:** ${sanitizedContent}`;
+                  // Build response content with visibility warning if applicable
+                  let responseContent = `![Composite Image](${resultUrl})\n\n✨ *Your logo has been added to the image!*\n\n**Placement:** ${sanitizedContent}`;
+                  if (visibilityWarning) {
+                    responseContent += `\n\n${visibilityWarning}`;
+                  }
+                  fullContent = responseContent;
                   send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
                   send({ type: 'delta', content: fullContent });
                   
@@ -8872,6 +8946,7 @@ Keep everything else in the image exactly the same.`;
                       logo_width: logoWidth,
                       placement_x: placementX,
                       placement_y: placementY,
+                      had_visibility_warning: !!visibilityWarning,
                     }
                   });
                   await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });

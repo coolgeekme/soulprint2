@@ -9,7 +9,7 @@ import io
 import base64
 import time
 
-BASE_URL = "https://chat-to-canvas.preview.emergentagent.com/api"
+BASE_URL = "https://chat-composite-edit.preview.emergentagent.com/api"
 EMAIL = "test@soulprint.com"
 PASSWORD = "test123"
 

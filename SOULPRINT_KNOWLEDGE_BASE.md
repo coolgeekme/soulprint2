@@ -32,7 +32,7 @@
 - **Bot Integration**: Telegram
 
 ### Key URLs
-- **Production**: https://chat-to-canvas.preview.emergentagent.com
+- **Production**: https://chat-composite-edit.preview.emergentagent.com
 - **API Base**: `/api/*`
 - **Admin Dashboard**: `/admin`
 

@@ -15,7 +15,7 @@ import time
 import sys
 
 # Configuration
-BASE_URL = "https://chat-to-canvas.preview.emergentagent.com/api"
+BASE_URL = "https://chat-composite-edit.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSCODE = "test123"
 

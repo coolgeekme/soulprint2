@@ -9,7 +9,7 @@ import json
 import time
 
 # Configuration
-BASE_URL = "https://chat-to-canvas.preview.emergentagent.com/api"
+BASE_URL = "https://chat-composite-edit.preview.emergentagent.com/api"
 LOGIN_EMAIL = "test@soulprint.com"
 LOGIN_PASSWORD = "test123"
 

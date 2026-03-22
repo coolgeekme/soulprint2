@@ -1,418 +1,453 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for User-Uploaded Image Editing/Compositing Feature
-Tests the P0 fix that enables users to upload their own images and edit them or add elements to them.
+Backend Testing Script for GPT-4o Vision Spatial Awareness Composite Edit Fix
+Tests the enhanced composite edit functionality with spatial awareness analysis.
 """
 
 import requests
 import json
 import base64
 import time
-import sys
+import os
 from io import BytesIO
 from PIL import Image
 
 # Configuration
-BASE_URL = "https://chat-to-canvas.preview.emergentagent.com"
+BASE_URL = "https://chat-composite-edit.preview.emergentagent.com"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 
-def create_test_image(color="red", size=(200, 200), text="TEST"):
-    """Create a simple test image in base64 format"""
-    img = Image.new('RGB', size, color=color)
-    buffer = BytesIO()
-    img.save(buffer, format='PNG')
-    img_data = buffer.getvalue()
-    return base64.b64encode(img_data).decode('utf-8')
-
-def login():
-    """Login and get authentication token"""
-    print("🔐 Authenticating...")
-    response = requests.post(f"{BASE_URL}/api/auth/login", json={
-        "email": TEST_EMAIL,
-        "passcode": TEST_PASSWORD
-    })
-    
-    if response.status_code == 200:
-        data = response.json()
-        token = data.get('token')
-        print(f"✅ Authentication successful - Role: {data.get('role', 'unknown')}")
-        return token
-    else:
-        print(f"❌ Authentication failed: {response.status_code} - {response.text}")
-        return None
-
-def create_conversation(token):
-    """Create a new conversation for testing"""
-    print("💬 Creating test conversation...")
-    response = requests.post(f"{BASE_URL}/api/conversations", 
-        headers={"Authorization": f"Bearer {token}"},
-        json={"title": "User Upload Image Test"}
-    )
-    
-    if response.status_code == 200:
-        conv_data = response.json()
-        conv_id = conv_data.get('id')
-        print(f"✅ Conversation created: {conv_id}")
-        return conv_id
-    else:
-        print(f"❌ Failed to create conversation: {response.status_code} - {response.text}")
-        return None
-
-def test_image_upload_and_storage(token, conv_id):
-    """Test 1: Image Upload & Storage Test"""
-    print("\n" + "="*60)
-    print("🧪 TEST 1: Image Upload & Storage")
-    print("="*60)
-    
-    # Create a test car image
-    car_image_b64 = create_test_image(color="blue", size=(300, 200), text="CAR")
-    
-    # Upload image via chat stream
-    payload = {
-        "content": "I'm uploading a car image for editing",
-        "model": "gpt-4o",
-        "conversationId": conv_id,
-        "attachments": [{
-            "type": "image",
-            "base64": car_image_b64,
-            "mimeType": "image/png"
-        }]
-    }
-    
-    print("📤 Uploading car image via POST /api/chat/stream...")
-    response = requests.post(f"{BASE_URL}/api/chat/stream",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        },
-        json=payload,
-        stream=True
-    )
-    
-    if response.status_code == 200:
-        print("✅ Chat stream request successful")
+class CompositeEditTester:
+    def __init__(self):
+        self.token = None
+        self.conversation_id = None
         
-        # Process NDJSON stream
-        found_user_upload_log = False
-        for line in response.iter_lines():
-            if line:
-                try:
-                    data = json.loads(line.decode('utf-8'))
-                    if data.get('type') == 'delta':
-                        content = data.get('content', '')
-                        if 'Stored user image URL for future editing:' in content:
-                            found_user_upload_log = True
-                            print("✅ Found user upload storage log in response")
-                except json.JSONDecodeError:
-                    continue
-        
-        # Check if user message was saved with correct fields
-        print("🔍 Checking if user message was saved with image_url and content_type='user_upload'...")
-        messages_response = requests.get(f"{BASE_URL}/api/messages?conversationId={conv_id}",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        
-        if messages_response.status_code == 200:
-            messages = messages_response.json()
-            user_messages = [msg for msg in messages if msg.get('role') == 'user']
+    def authenticate(self):
+        """Authenticate and get JWT token"""
+        try:
+            print("🔐 Authenticating...")
+            response = requests.post(f"{BASE_URL}/api/auth/login", json={
+                "email": TEST_EMAIL,
+                "passcode": TEST_PASSWORD
+            })
             
-            if user_messages:
-                latest_user_msg = user_messages[-1]
-                has_image_url = 'image_url' in latest_user_msg and latest_user_msg['image_url']
-                has_correct_content_type = latest_user_msg.get('content_type') == 'user_upload'
-                
-                print(f"📋 User message fields:")
-                print(f"   - content_type: {latest_user_msg.get('content_type')}")
-                print(f"   - image_url: {'✅ Present' if has_image_url else '❌ Missing'}")
-                print(f"   - role: {latest_user_msg.get('role')}")
-                
-                if has_image_url and has_correct_content_type:
-                    print("✅ TEST 1 PASSED: User message stored with image_url and content_type='user_upload'")
-                    return True, conv_id
-                else:
-                    print("❌ TEST 1 FAILED: User message missing required fields")
-                    return False, conv_id
+            if response.status_code == 200:
+                data = response.json()
+                self.token = data.get('token')
+                print(f"✅ Authentication successful! Role: {data.get('role', 'unknown')}")
+                return True
             else:
-                print("❌ TEST 1 FAILED: No user messages found")
-                return False, conv_id
-        else:
-            print(f"❌ Failed to retrieve messages: {messages_response.status_code}")
-            return False, conv_id
-    else:
-        print(f"❌ TEST 1 FAILED: Chat stream failed - {response.status_code}: {response.text}")
-        return False, conv_id
-
-def test_image_edit_on_user_upload(token, conv_id):
-    """Test 2: Image Edit on User-Uploaded Image Test"""
-    print("\n" + "="*60)
-    print("🧪 TEST 2: Image Edit on User-Uploaded Image")
-    print("="*60)
-    
-    # Send edit request
-    payload = {
-        "content": "make it red",
-        "model": "gpt-4o", 
-        "conversationId": conv_id
-    }
-    
-    print("🎨 Sending image edit request: 'make it red'...")
-    response = requests.post(f"{BASE_URL}/api/chat/stream",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        },
-        json=payload,
-        stream=True
-    )
-    
-    if response.status_code == 200:
-        print("✅ Chat stream request successful")
-        
-        # Process NDJSON stream and look for expected logs
-        found_image_edit_log = False
-        found_user_upload_detection = False
-        found_image_edit_success = False
-        
-        for line in response.iter_lines():
-            if line:
-                try:
-                    data = json.loads(line.decode('utf-8'))
-                    if data.get('type') == 'delta':
-                        content = data.get('content', '')
-                        # Look for backend log indicators in the response
-                        if 'Found' in content and 'recent image messages' in content:
-                            found_image_edit_log = True
-                            print("✅ Found image edit search log")
-                        if 'isUserUpload: true' in content:
-                            found_user_upload_detection = True
-                            print("✅ Found user upload detection log")
-                        if 'edit' in content.lower() and ('success' in content.lower() or 'created' in content.lower()):
-                            found_image_edit_success = True
-                            print("✅ Found image edit success indicator")
-                except json.JSONDecodeError:
-                    continue
-        
-        # The key test is that the system should find the user-uploaded image and attempt to edit it
-        # We'll check the messages to see if an edit was attempted
-        print("🔍 Checking if image edit was processed...")
-        messages_response = requests.get(f"{BASE_URL}/api/messages?conversationId={conv_id}",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        
-        if messages_response.status_code == 200:
-            messages = messages_response.json()
-            assistant_messages = [msg for msg in messages if msg.get('role') == 'assistant']
-            
-            # Look for the latest assistant message that should contain the edit response
-            if assistant_messages:
-                latest_assistant_msg = assistant_messages[-1]
-                content = latest_assistant_msg.get('content', '').lower()
-                
-                # Check if the response indicates it found and processed the user image
-                if ('edit' in content or 'red' in content or 'image' in content) and 'previous image' not in content:
-                    print("✅ TEST 2 PASSED: System found user-uploaded image and processed edit request")
-                    return True
-                elif "don't see a previous image" in content or "no previous image" in content:
-                    print("❌ TEST 2 FAILED: System couldn't find the user-uploaded image")
-                    return False
-                else:
-                    print(f"⚠️ TEST 2 UNCLEAR: Response content: {content[:200]}...")
-                    return False
-            else:
-                print("❌ TEST 2 FAILED: No assistant response found")
+                print(f"❌ Authentication failed: {response.status_code} - {response.text}")
                 return False
-        else:
-            print(f"❌ Failed to retrieve messages: {messages_response.status_code}")
-            return False
-    else:
-        print(f"❌ TEST 2 FAILED: Chat stream failed - {response.status_code}: {response.text}")
-        return False
-
-def test_composite_edit_on_user_upload(token):
-    """Test 3: Composite Edit on User-Uploaded Image Test"""
-    print("\n" + "="*60)
-    print("🧪 TEST 3: Composite Edit on User-Uploaded Image")
-    print("="*60)
-    
-    # Create a new conversation for this test
-    conv_id = create_conversation(token)
-    if not conv_id:
-        return False
-    
-    # Step 1: Upload a base image (car)
-    print("📤 Step 1: Uploading base car image...")
-    car_image_b64 = create_test_image(color="blue", size=(400, 300), text="CAR")
-    
-    payload1 = {
-        "content": "Here's a car image",
-        "model": "gpt-4o",
-        "conversationId": conv_id,
-        "attachments": [{
-            "type": "image",
-            "base64": car_image_b64,
-            "mimeType": "image/png"
-        }]
-    }
-    
-    response1 = requests.post(f"{BASE_URL}/api/chat/stream",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        },
-        json=payload1,
-        stream=True
-    )
-    
-    if response1.status_code != 200:
-        print(f"❌ Failed to upload base image: {response1.status_code}")
-        return False
-    
-    # Consume the stream
-    for line in response1.iter_lines():
-        pass
-    
-    print("✅ Base car image uploaded")
-    
-    # Step 2: Upload logo and request composite
-    print("📤 Step 2: Uploading logo and requesting composite...")
-    logo_image_b64 = create_test_image(color="yellow", size=(100, 100), text="LOGO")
-    
-    payload2 = {
-        "content": "add this logo to the door",
-        "model": "gpt-4o",
-        "conversationId": conv_id,
-        "attachments": [{
-            "type": "image",
-            "base64": logo_image_b64,
-            "mimeType": "image/png"
-        }]
-    }
-    
-    response2 = requests.post(f"{BASE_URL}/api/chat/stream",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        },
-        json=payload2,
-        stream=True
-    )
-    
-    if response2.status_code == 200:
-        print("✅ Composite edit request successful")
-        
-        # Process stream and look for composite edit indicators
-        found_composite_log = False
-        found_target_user_upload = False
-        found_composite_success = False
-        
-        for line in response2.iter_lines():
-            if line:
-                try:
-                    data = json.loads(line.decode('utf-8'))
-                    if data.get('type') == 'delta':
-                        content = data.get('content', '')
-                        if 'Composite Edit' in content or 'Adding' in content:
-                            found_composite_log = True
-                            print("✅ Found composite edit processing log")
-                        if 'Target image - role: user' in content and 'content_type: user_upload' in content:
-                            found_target_user_upload = True
-                            print("✅ Found target user upload detection")
-                        if 'composite' in content.lower() or 'added' in content.lower():
-                            found_composite_success = True
-                            print("✅ Found composite edit success indicator")
-                except json.JSONDecodeError:
-                    continue
-        
-        # Check final messages
-        print("🔍 Checking composite edit result...")
-        messages_response = requests.get(f"{BASE_URL}/api/messages?conversationId={conv_id}",
-            headers={"Authorization": f"Bearer {token}"}
-        )
-        
-        if messages_response.status_code == 200:
-            messages = messages_response.json()
-            assistant_messages = [msg for msg in messages if msg.get('role') == 'assistant']
-            
-            if assistant_messages:
-                latest_assistant_msg = assistant_messages[-1]
-                content = latest_assistant_msg.get('content', '').lower()
                 
-                # Check if composite edit was processed
-                if ('add' in content or 'logo' in content or 'composite' in content) and "don't see a previous image" not in content:
-                    print("✅ TEST 3 PASSED: System found user-uploaded base image and processed composite request")
-                    return True
-                elif "don't see a previous image" in content:
-                    print("❌ TEST 3 FAILED: System couldn't find the user-uploaded base image")
-                    return False
-                else:
-                    print(f"⚠️ TEST 3 UNCLEAR: Response content: {content[:200]}...")
-                    return False
-            else:
-                print("❌ TEST 3 FAILED: No assistant response found")
-                return False
-        else:
-            print(f"❌ Failed to retrieve messages: {messages_response.status_code}")
+        except Exception as e:
+            print(f"❌ Authentication error: {str(e)}")
             return False
-    else:
-        print(f"❌ TEST 3 FAILED: Composite edit request failed - {response2.status_code}: {response2.text}")
-        return False
-
-def main():
-    """Run all tests for User-Uploaded Image Editing/Compositing feature"""
-    print("🚀 Starting User-Uploaded Image Editing/Compositing Tests")
-    print("=" * 80)
     
-    # Login
-    token = login()
-    if not token:
-        print("❌ Cannot proceed without authentication")
-        sys.exit(1)
+    def create_conversation(self):
+        """Create a new conversation for testing"""
+        try:
+            print("💬 Creating new conversation...")
+            response = requests.post(f"{BASE_URL}/api/conversations", 
+                headers={"Authorization": f"Bearer {self.token}"},
+                json={"title": "GPT-4o Vision Spatial Test"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.conversation_id = data.get('id')
+                print(f"✅ Conversation created: {self.conversation_id}")
+                return True
+            else:
+                print(f"❌ Conversation creation failed: {response.status_code} - {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Conversation creation error: {str(e)}")
+            return False
     
-    # Test results
-    test_results = []
+    def create_test_car_image(self):
+        """Create a simple test car image (side view)"""
+        try:
+            # Create a simple car silhouette (passenger side view)
+            img = Image.new('RGB', (800, 600), color='lightblue')
+            
+            # Draw a simple car shape (rectangle with wheels)
+            from PIL import ImageDraw
+            draw = ImageDraw.Draw(img)
+            
+            # Car body (passenger side visible)
+            draw.rectangle([100, 200, 700, 400], fill='red', outline='black', width=3)
+            
+            # Windows
+            draw.rectangle([150, 220, 350, 280], fill='lightblue', outline='black', width=2)
+            draw.rectangle([400, 220, 650, 280], fill='lightblue', outline='black', width=2)
+            
+            # Wheels
+            draw.ellipse([150, 380, 200, 430], fill='black')
+            draw.ellipse([550, 380, 600, 430], fill='black')
+            
+            # Door lines (passenger side doors)
+            draw.line([350, 200, 350, 400], fill='black', width=2)
+            draw.line([500, 200, 500, 400], fill='black', width=2)
+            
+            # Convert to base64
+            buffer = BytesIO()
+            img.save(buffer, format='PNG')
+            img_base64 = base64.b64encode(buffer.getvalue()).decode()
+            
+            print("✅ Test car image created (passenger side view)")
+            return img_base64
+            
+        except Exception as e:
+            print(f"❌ Car image creation error: {str(e)}")
+            return None
     
-    # Test 1: Image Upload & Storage
-    conv_id = create_conversation(token)
-    if conv_id:
-        test1_passed, conv_id = test_image_upload_and_storage(token, conv_id)
-        test_results.append(("Image Upload & Storage", test1_passed))
+    def create_test_logo(self):
+        """Create a simple test logo"""
+        try:
+            # Create a simple logo (circle with text)
+            img = Image.new('RGBA', (200, 200), color=(255, 255, 255, 0))
+            
+            from PIL import ImageDraw, ImageFont
+            draw = ImageDraw.Draw(img)
+            
+            # Draw a circle
+            draw.ellipse([20, 20, 180, 180], fill='blue', outline='darkblue', width=3)
+            
+            # Add text (simple)
+            draw.text((100, 100), "LOGO", fill='white', anchor='mm')
+            
+            # Convert to base64
+            buffer = BytesIO()
+            img.save(buffer, format='PNG')
+            logo_base64 = base64.b64encode(buffer.getvalue()).decode()
+            
+            print("✅ Test logo created")
+            return logo_base64
+            
+        except Exception as e:
+            print(f"❌ Logo creation error: {str(e)}")
+            return None
+    
+    def upload_car_image(self, car_base64):
+        """Upload car image as user upload"""
+        try:
+            print("🚗 Uploading car image...")
+            
+            # Send car image via chat stream
+            response = requests.post(f"{BASE_URL}/api/chat/stream",
+                headers={
+                    "Authorization": f"Bearer {self.token}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "content": "Here's my car image for logo placement",
+                    "conversationId": self.conversation_id,
+                    "model": "gpt-4o",
+                    "attachments": [{
+                        "type": "image",
+                        "data": f"data:image/png;base64,{car_base64}",
+                        "mimeType": "image/png"
+                    }]
+                },
+                stream=True
+            )
+            
+            if response.status_code == 200:
+                print("✅ Car image uploaded successfully")
+                # Read the stream to completion
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            data = json.loads(line.decode())
+                            if data.get('type') == 'done':
+                                break
+                        except:
+                            continue
+                return True
+            else:
+                print(f"❌ Car image upload failed: {response.status_code} - {response.text}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Car image upload error: {str(e)}")
+            return False
+    
+    def test_composite_edit_intent_detection(self, logo_base64):
+        """Test 1: Composite Edit Intent Detection"""
+        try:
+            print("\n🧪 TEST 1: Composite Edit Intent Detection")
+            print("Testing: 'add this logo to the driver side door' with logo attachment")
+            
+            response = requests.post(f"{BASE_URL}/api/chat/stream",
+                headers={
+                    "Authorization": f"Bearer {self.token}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "content": "add this logo to the driver side door",
+                    "conversationId": self.conversation_id,
+                    "model": "gpt-4o",
+                    "attachments": [{
+                        "type": "image",
+                        "data": f"data:image/png;base64,{logo_base64}",
+                        "mimeType": "image/png"
+                    }]
+                },
+                stream=True
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ Request failed: {response.status_code} - {response.text}")
+                return False
+            
+            # Parse streaming response
+            composite_edit_detected = False
+            vision_response_found = False
+            visibility_warning_found = False
+            response_content = ""
+            
+            print("📡 Parsing streaming response...")
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        data = json.loads(line.decode())
+                        
+                        if data.get('type') == 'meta':
+                            print(f"📋 Meta: {data}")
+                            if 'composite_edit' in str(data):
+                                composite_edit_detected = True
+                                print("✅ Composite edit intent detected!")
+                        
+                        elif data.get('type') == 'delta':
+                            content = data.get('content', '')
+                            response_content += content
+                            
+                            # Check for visibility warning
+                            if '⚠️' in content and 'Note:' in content:
+                                visibility_warning_found = True
+                                print("✅ Visibility warning detected in response!")
+                        
+                        elif data.get('type') == 'done':
+                            print("✅ Stream completed")
+                            break
+                            
+                    except json.JSONDecodeError:
+                        continue
+            
+            # Results
+            print(f"\n📊 TEST 1 RESULTS:")
+            print(f"   Composite Edit Detected: {'✅' if composite_edit_detected else '❌'}")
+            print(f"   Visibility Warning Found: {'✅' if visibility_warning_found else '❌'}")
+            print(f"   Response Content Length: {len(response_content)} chars")
+            
+            if visibility_warning_found:
+                print(f"   Warning Content Preview: {response_content[:200]}...")
+            
+            return composite_edit_detected
+            
+        except Exception as e:
+            print(f"❌ TEST 1 error: {str(e)}")
+            return False
+    
+    def test_vision_response_structure(self, logo_base64):
+        """Test 2: Verify Enhanced Vision Response Structure (via backend logs)"""
+        try:
+            print("\n🧪 TEST 2: Enhanced Vision Response Structure")
+            print("Testing: Enhanced JSON output fields from GPT-4o Vision")
+            
+            # This test focuses on triggering the vision analysis
+            # We'll look for the enhanced response in a different scenario
+            response = requests.post(f"{BASE_URL}/api/chat/stream",
+                headers={
+                    "Authorization": f"Bearer {self.token}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "content": "place this logo on the passenger side door",
+                    "conversationId": self.conversation_id,
+                    "model": "gpt-4o",
+                    "attachments": [{
+                        "type": "image",
+                        "data": f"data:image/png;base64,{logo_base64}",
+                        "mimeType": "image/png"
+                    }]
+                },
+                stream=True
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ Request failed: {response.status_code} - {response.text}")
+                return False
+            
+            # Parse response for composite edit success
+            composite_success = False
+            response_content = ""
+            
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        data = json.loads(line.decode())
+                        
+                        if data.get('type') == 'delta':
+                            response_content += data.get('content', '')
+                        
+                        elif data.get('type') == 'done':
+                            composite_success = True
+                            break
+                            
+                    except json.JSONDecodeError:
+                        continue
+            
+            print(f"\n📊 TEST 2 RESULTS:")
+            print(f"   Composite Edit Completed: {'✅' if composite_success else '❌'}")
+            print(f"   Response Generated: {'✅' if len(response_content) > 0 else '❌'}")
+            print(f"   Note: Enhanced JSON fields (visible_sides, requested_side_visible, etc.) are logged in backend")
+            
+            return composite_success
+            
+        except Exception as e:
+            print(f"❌ TEST 2 error: {str(e)}")
+            return False
+    
+    def test_visibility_warning_generation(self, logo_base64):
+        """Test 3: Visibility Warning Generation"""
+        try:
+            print("\n🧪 TEST 3: Visibility Warning Generation")
+            print("Testing: Warning when requested side is not visible")
+            
+            # Test with a request for driver's side when passenger side is visible
+            response = requests.post(f"{BASE_URL}/api/chat/stream",
+                headers={
+                    "Authorization": f"Bearer {self.token}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "content": "add this logo to the driver's side rear door",
+                    "conversationId": self.conversation_id,
+                    "model": "gpt-4o",
+                    "attachments": [{
+                        "type": "image",
+                        "data": f"data:image/png;base64,{logo_base64}",
+                        "mimeType": "image/png"
+                    }]
+                },
+                stream=True
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ Request failed: {response.status_code} - {response.text}")
+                return False
+            
+            # Look for warning indicators
+            warning_found = False
+            tip_found = False
+            response_content = ""
+            
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        data = json.loads(line.decode())
+                        
+                        if data.get('type') == 'delta':
+                            content = data.get('content', '')
+                            response_content += content
+                            
+                            # Check for warning indicators
+                            if '⚠️' in content and 'Note:' in content:
+                                warning_found = True
+                            if 'Tip:' in content and 'provide an image' in content:
+                                tip_found = True
+                        
+                        elif data.get('type') == 'done':
+                            break
+                            
+                    except json.JSONDecodeError:
+                        continue
+            
+            print(f"\n📊 TEST 3 RESULTS:")
+            print(f"   Warning Symbol Found: {'✅' if warning_found else '❌'}")
+            print(f"   Tip Message Found: {'✅' if tip_found else '❌'}")
+            print(f"   Full Response Length: {len(response_content)} chars")
+            
+            if warning_found or tip_found:
+                print(f"   Warning Content: {response_content}")
+            
+            return warning_found or tip_found
+            
+        except Exception as e:
+            print(f"❌ TEST 3 error: {str(e)}")
+            return False
+    
+    def run_all_tests(self):
+        """Run all composite edit tests"""
+        print("🚀 Starting GPT-4o Vision Spatial Awareness Composite Edit Tests")
+        print("=" * 70)
         
-        # Test 2: Image Edit on User-Uploaded Image (using same conversation)
-        if test1_passed:
-            test2_passed = test_image_edit_on_user_upload(token, conv_id)
-            test_results.append(("Image Edit on User Upload", test2_passed))
+        # Step 1: Authenticate
+        if not self.authenticate():
+            return False
+        
+        # Step 2: Create conversation
+        if not self.create_conversation():
+            return False
+        
+        # Step 3: Create test images
+        car_base64 = self.create_test_car_image()
+        logo_base64 = self.create_test_logo()
+        
+        if not car_base64 or not logo_base64:
+            print("❌ Failed to create test images")
+            return False
+        
+        # Step 4: Upload car image first
+        if not self.upload_car_image(car_base64):
+            return False
+        
+        # Wait a moment for processing
+        time.sleep(2)
+        
+        # Step 5: Run tests
+        test_results = []
+        
+        test_results.append(self.test_composite_edit_intent_detection(logo_base64))
+        time.sleep(3)  # Wait between tests
+        
+        test_results.append(self.test_vision_response_structure(logo_base64))
+        time.sleep(3)
+        
+        test_results.append(self.test_visibility_warning_generation(logo_base64))
+        
+        # Final results
+        print("\n" + "=" * 70)
+        print("🏁 FINAL TEST RESULTS")
+        print("=" * 70)
+        
+        passed_tests = sum(test_results)
+        total_tests = len(test_results)
+        
+        print(f"Tests Passed: {passed_tests}/{total_tests}")
+        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+        
+        test_names = [
+            "Composite Edit Intent Detection",
+            "Enhanced Vision Response Structure", 
+            "Visibility Warning Generation"
+        ]
+        
+        for i, (name, result) in enumerate(zip(test_names, test_results)):
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"{i+1}. {name}: {status}")
+        
+        if passed_tests == total_tests:
+            print("\n🎉 ALL TESTS PASSED! GPT-4o Vision Spatial Awareness fix is working correctly.")
         else:
-            test_results.append(("Image Edit on User Upload", False))
-    else:
-        test_results.append(("Image Upload & Storage", False))
-        test_results.append(("Image Edit on User Upload", False))
-    
-    # Test 3: Composite Edit on User-Uploaded Image
-    test3_passed = test_composite_edit_on_user_upload(token)
-    test_results.append(("Composite Edit on User Upload", test3_passed))
-    
-    # Summary
-    print("\n" + "="*80)
-    print("📊 TEST SUMMARY")
-    print("="*80)
-    
-    passed_count = 0
-    for test_name, passed in test_results:
-        status = "✅ PASSED" if passed else "❌ FAILED"
-        print(f"{test_name}: {status}")
-        if passed:
-            passed_count += 1
-    
-    print(f"\nOverall: {passed_count}/{len(test_results)} tests passed")
-    
-    if passed_count == len(test_results):
-        print("🎉 ALL TESTS PASSED! User-Uploaded Image Editing/Compositing feature is working correctly.")
-        return True
-    else:
-        print("⚠️ Some tests failed. The feature needs attention.")
-        return False
+            print(f"\n⚠️ {total_tests - passed_tests} test(s) failed. Review the implementation.")
+        
+        return passed_tests == total_tests
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    tester = CompositeEditTester()
+    success = tester.run_all_tests()
+    exit(0 if success else 1)

@@ -13,7 +13,7 @@ import sys
 import os
 
 # Configuration
-BASE_URL = "https://chat-to-canvas.preview.emergentagent.com"
+BASE_URL = "https://chat-composite-edit.preview.emergentagent.com"
 LOGIN_EMAIL = "test@soulprint.com"
 LOGIN_PASSWORD = "test123"
 
