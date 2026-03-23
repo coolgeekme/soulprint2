@@ -7444,6 +7444,7 @@ export default function ChatPage() {
             aspectRatio: quickAspectRatio,
             quality: 'standard',
             style: 'vivid',
+            conversationId: currentConversationId,
           }),
         });
         
@@ -7472,6 +7473,7 @@ export default function ChatPage() {
             prompt: content,
             aspectRatio: quickAspectRatio === '1:1' ? '16:9' : quickAspectRatio,
             duration: parseInt(quickVideoLength) || 5,
+            conversationId: currentConversationId,
           }),
         });
         

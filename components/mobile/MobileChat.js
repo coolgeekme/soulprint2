@@ -2722,6 +2722,7 @@ export default function MobileChat({
             aspectRatio: quickAspectRatio,
             quality: 'standard',
             style: 'vivid',
+            conversationId,
           }),
         });
         
@@ -2750,6 +2751,7 @@ export default function MobileChat({
             prompt: content,
             aspectRatio: quickAspectRatio === '1:1' ? '16:9' : quickAspectRatio,
             duration: parseInt(quickVideoLength) || 5,
+            conversationId,
           }),
         });
         
@@ -2884,6 +2886,9 @@ export default function MobileChat({
             } else if (data.type === 'sources') {
               // Received sources from web search
               setStreamingSources(data.sources || []);
+            } else if (data.type === 'continuation') {
+              // Backend is auto-continuing a truncated response — keep streaming
+              console.log(`[Chat] Auto-continuation ${data.count}/${data.max}`);
             } else if (data.type === 'done') {
               // Message complete
             }
