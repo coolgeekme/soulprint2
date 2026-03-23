@@ -25,7 +25,7 @@ import {
   MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, AudioWaveform,
   GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal,
   Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, ChevronRight, LogOut, Copy, Edit3, Square, ArrowRight,
-  Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code
+  Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code, Bot
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { CloudUploadIcon, RobotIcon, FeedbackIcon, MicrophoneIcon, SendIcon, SparklesIcon, ImagePlusIcon, VideoIcon, LocationIcon, StopIcon, AttachIcon, PlusIcon } from '@/components/icons/SoulPrintIcons';
