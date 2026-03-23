@@ -7915,14 +7915,19 @@ export default function ChatPage() {
                 // Detect if AI is about to generate visual content
                 const lowerContent = fullContent.toLowerCase();
                 const generatingPhrases = [
+                  // Infographic/Flyer/Poster generation
                   'generating the infographic', 'generate the infographic', 'create the infographic', 'creating the infographic',
                   'generating the flyer', 'generate the flyer', 'create the flyer', 'creating the flyer',
                   'generating the poster', 'generate the poster', 'create the poster', 'creating the poster',
+                  // Image generation - common phrases
                   'generating this image', 'generate this image', 'creating this image',
+                  'generating your image', 'creating your image',
+                  'generating an image', 'creating an image',
+                  // Intent phrases
                   'i\'ll generate', 'i will generate', 'let me generate', 'let me create',
                   'hold on for a moment', 'please hold', 'one moment while i',
                   'working on your', 'designing your', 'crafting your',
-                  // NEW: More phrases for editing and generation
+                  // Design phrases
                   'i\'ll create a design', 'let me create a design', 'creating a design',
                   'i\'ll update', 'let me update', 'updating the',
                   'i\'ll edit', 'let me edit', 'editing the',
@@ -7930,7 +7935,15 @@ export default function ChatPage() {
                   'give me a moment', 'moment while i work', 'while i generate',
                   'working on this', 'work on this', 'creating this for you',
                   'hold on while', 'wait while', 'please wait',
-                  'incorporating', 'applying the changes', 'making the changes'
+                  'incorporating', 'applying the changes', 'making the changes',
+                  // Edit-specific phrases
+                  'editing your image', 'editing the image', 'applying the edit',
+                  'adding your logo', 'adding the logo', 'composite',
+                  // Model names indicate image generation in progress
+                  'nano banana', 'dall-e', 'seedream', 'gpt-image',
+                  // Emoji prefixed messages from backend
+                  '🎨 generating', '✨ generating', '🖼️ generating',
+                  '🎨 creating', '✨ creating', '🖼️ creating',
                 ];
                 const isGeneratingVisualContent = generatingPhrases.some(phrase => lowerContent.includes(phrase));
                 
