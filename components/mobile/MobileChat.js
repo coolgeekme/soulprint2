@@ -2002,6 +2002,7 @@ export default function MobileChat({
   const [conversationId, setConversationId] = useState(initialConversationId);
   const [selectedModel, setSelectedModel] = useState('smart'); // Default to Dynamic Intelligence
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [defaultModelSaved, setDefaultModelSaved] = useState(null); // persisted default model
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
   const [showFlyerGenSheet, setShowFlyerGenSheet] = useState(false);
@@ -2482,6 +2483,14 @@ export default function MobileChat({
       .then(r => r.json())
       .then(data => {
         if (data.profile) setProfile(data.profile);
+        // Load saved default model
+        if (data.profile?.default_model) {
+          const validModel = MODELS.find(m => m.value === data.profile.default_model && !m.comingSoon);
+          if (validModel) {
+            setSelectedModel(data.profile.default_model);
+            setDefaultModelSaved(data.profile.default_model);
+          }
+        }
         // Check if new user (show onboarding if they haven't seen it)
         const hasSeenOnboarding = localStorage.getItem('sp_onboarding_seen');
         if (!hasSeenOnboarding && !data.profile?.onboarding_completed) {
@@ -4852,7 +4861,6 @@ export default function MobileChat({
               <button
                 onClick={() => { 
                   setSelectedModel('smart'); 
-                  setShowModelPicker(false); 
                 }}
                 className={`w-full p-4 rounded-xl text-left transition-colors ${
                   selectedModel === 'smart'
@@ -4865,9 +4873,23 @@ export default function MobileChat({
                     <span className={`font-semibold text-sm flex items-center gap-2 ${selectedModel === 'smart' ? 'text-purple-400' : 'text-white'}`}>
                       🧠 Dynamic Intelligence
                       {selectedModel === 'smart' && <span className="text-[10px] bg-purple-500 text-white px-1.5 py-0.5 rounded-full">Active</span>}
+                      {defaultModelSaved === 'smart' && <span className="text-[10px] text-green-400">★ default</span>}
                     </span>
                     <p className="text-gray-400 text-xs mt-1">AI automatically picks the best model for your query</p>
                   </div>
+                  {selectedModel === 'smart' && defaultModelSaved !== 'smart' && (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fetch('/api/user/profile', {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ default_model: 'smart' }),
+                        }).then(r => { if (r.ok) { setDefaultModelSaved('smart'); setShowModelPicker(false); } });
+                      }}
+                      className="text-xs text-gray-500 hover:text-green-400 cursor-pointer transition-colors bg-white/10 px-3 py-1.5 rounded-lg shrink-0"
+                    >set default</span>
+                  )}
                 </div>
                 {lastSmartSelection && selectedModel === 'smart' && (
                   <div className="mt-2 text-[10px] text-gray-500">
@@ -4889,7 +4911,6 @@ export default function MobileChat({
                       onClick={() => { 
                         if (!model.comingSoon) {
                           setSelectedModel(model.value); 
-                          setShowModelPicker(false); 
                         }
                       }}
                       disabled={model.comingSoon}
@@ -4903,10 +4924,26 @@ export default function MobileChat({
                     >
                       <span className={`font-medium text-sm ${selectedModel === model.value ? 'text-orange-400' : 'text-white'}`}>
                         {model.label}
+                        {defaultModelSaved === model.value && <span className="ml-1.5 text-[10px] text-green-400">★ default</span>}
                       </span>
-                      {model.comingSoon && (
-                        <span className="text-[10px] text-gray-500 bg-white/10 px-2 py-0.5 rounded-full">Soon</span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {model.comingSoon && (
+                          <span className="text-[10px] text-gray-500 bg-white/10 px-2 py-0.5 rounded-full">Soon</span>
+                        )}
+                        {selectedModel === model.value && !model.comingSoon && defaultModelSaved !== model.value && (
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              fetch('/api/user/profile', {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                body: JSON.stringify({ default_model: model.value }),
+                              }).then(r => { if (r.ok) { setDefaultModelSaved(model.value); setShowModelPicker(false); } });
+                            }}
+                            className="text-xs text-gray-500 hover:text-green-400 cursor-pointer transition-colors bg-white/10 px-3 py-1.5 rounded-lg"
+                          >set default</span>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -4916,7 +4953,7 @@ export default function MobileChat({
               onClick={() => setShowModelPicker(false)}
               className="w-full mt-4 p-4 text-gray-500 text-sm"
             >
-              Cancel
+              Done
             </button>
           </div>
         </div>
