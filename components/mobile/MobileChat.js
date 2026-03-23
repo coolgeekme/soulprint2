@@ -2413,7 +2413,11 @@ export default function MobileChat({
       .catch(() => {});
   }, [token]);
 
-  // Watch input for media intent
+  // Watch input for media intent - DISABLED: Now uses Dynamic Intelligence like desktop
+  // The popup for selecting image/video models has been removed.
+  // All image/video generation now goes through the normal chat stream
+  // and Dynamic Intelligence selects the appropriate model automatically.
+  /*
   useEffect(() => {
     const intent = detectMediaIntent(input);
     if (intent !== detectedMediaIntent) {
@@ -2423,6 +2427,7 @@ export default function MobileChat({
       }
     }
   }, [input, detectMediaIntent, detectedMediaIntent]);
+  */
 
   // Capture the beforeinstallprompt event for PWA install
   useEffect(() => {
