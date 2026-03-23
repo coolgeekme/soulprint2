@@ -10776,6 +10776,7 @@ async function handleAdminGetAppUpdates(request) {
       version: u.version,
       type: u.type,
       published: u.published,
+      auto_generated: u.auto_generated || false,
       release_date: u.release_date,
       created_at: u.created_at,
       updated_at: u.updated_at,
@@ -10857,6 +10858,181 @@ async function handleAdminDeleteAppUpdate(request, updateId) {
   await db.collection('app_updates').deleteOne({ id: updateId });
 
   return ok({ success: true });
+}
+
+// ── AUTO-GENERATE RELEASE NOTES ON DEPLOYMENT ──────────────────────────────
+// This runs automatically on first request after a new deployment.
+// It checks git for new commits since the last generated update, then uses
+// an LLM to create user-friendly release notes saved as a draft.
+
+let _deploymentCheckDone = false;
+
+async function checkAndGenerateReleaseNotes() {
+  if (_deploymentCheckDone) return;
+  _deploymentCheckDone = true;
+
+  try {
+    const { execSync } = require('child_process');
+    const currentHash = execSync('git rev-parse HEAD', { cwd: '/app', encoding: 'utf8' }).trim();
+
+    const db = await getDb();
+    const meta = await db.collection('deployment_meta').findOne({ key: 'last_release_notes_hash' });
+    
+    if (meta?.value === currentHash) {
+      console.log('[ReleaseNotes] No new deployment detected, skipping.');
+      return;
+    }
+
+    console.log('[ReleaseNotes] New deployment detected! Generating release notes...');
+    console.log('[ReleaseNotes] Current hash:', currentHash, '| Last processed:', meta?.value || 'none');
+
+    // Get git changes since last processed hash
+    let gitLog = '';
+    let gitDiffStat = '';
+    try {
+      if (meta?.value) {
+        gitLog = execSync(`git log --oneline ${meta.value}..HEAD 2>/dev/null || git log --oneline -30`, { cwd: '/app', encoding: 'utf8' }).trim();
+        gitDiffStat = execSync(`git diff --stat ${meta.value}..HEAD -- '*.js' '*.jsx' '*.css' 2>/dev/null || echo "N/A"`, { cwd: '/app', encoding: 'utf8' }).trim();
+      } else {
+        // First time: get last 30 commits
+        gitLog = execSync('git log --oneline -30', { cwd: '/app', encoding: 'utf8' }).trim();
+        gitDiffStat = execSync("git diff --stat HEAD~30..HEAD -- '*.js' '*.jsx' '*.css' 2>/dev/null || echo 'N/A'", { cwd: '/app', encoding: 'utf8' }).trim();
+      }
+    } catch (gitErr) {
+      console.error('[ReleaseNotes] Git command failed:', gitErr.message);
+      gitLog = 'Unable to retrieve git log';
+      gitDiffStat = 'N/A';
+    }
+
+    // Read support KB for context about existing features
+    let kbContext = '';
+    try {
+      kbContext = fs.readFileSync('/app/support-kb.md', 'utf8').substring(0, 3000);
+    } catch (e) {
+      kbContext = 'Support KB not available';
+    }
+
+    // Get list of recently changed files with details
+    let changedFiles = '';
+    try {
+      if (meta?.value) {
+        changedFiles = execSync(`git diff --name-only ${meta.value}..HEAD -- '*.js' '*.jsx' '*.css' 2>/dev/null | head -40`, { cwd: '/app', encoding: 'utf8' }).trim();
+      } else {
+        changedFiles = execSync("git diff --name-only HEAD~30..HEAD -- '*.js' '*.jsx' '*.css' 2>/dev/null | head -40", { cwd: '/app', encoding: 'utf8' }).trim();
+      }
+    } catch (e) {
+      changedFiles = 'N/A';
+    }
+
+    // Use LLM to generate release notes
+    const provider = getProvider('openai', 'gpt-4o-mini');
+    const prompt = `You are a product manager writing release notes for a consumer AI app called "SoulPrint". 
+Based on the code changes below, generate a concise, user-friendly "What's New" update.
+
+RULES:
+- Write 2-5 bullet points of the most impactful USER-FACING changes
+- Use simple, non-technical language
+- Focus on what users can DO, not how it was built
+- Skip infrastructure, refactoring, or test changes
+- Each bullet should be 1-2 sentences max
+- If changes are minor (bug fixes, small tweaks), just write 1-2 bullets
+- If no meaningful user-facing changes can be identified, respond with exactly: NO_UPDATES
+- Do NOT mention git, commits, code, APIs, or technical details
+
+FORMAT YOUR RESPONSE AS:
+TITLE: [A catchy 3-6 word title for this update]
+TYPE: [feature|improvement|fix]
+NOTES:
+- [bullet 1]
+- [bullet 2]
+...
+
+GIT LOG (recent commits):
+${gitLog}
+
+FILES CHANGED:
+${changedFiles}
+
+DIFF STATS:
+${gitDiffStat}
+
+EXISTING APP CONTEXT:
+${kbContext}`;
+
+    const response = await provider.generateChatCompletion({
+      systemPrompt: 'You are a concise product copywriter. Output only the requested format.',
+      messages: [{ role: 'user', content: prompt }],
+      model: 'gpt-4o-mini',
+      temperature: 0.4,
+    });
+
+    if (!response || response.includes('NO_UPDATES')) {
+      console.log('[ReleaseNotes] No meaningful user-facing updates detected. Storing hash only.');
+      await db.collection('deployment_meta').updateOne(
+        { key: 'last_release_notes_hash' },
+        { $set: { value: currentHash, updated_at: new Date() } },
+        { upsert: true }
+      );
+      return;
+    }
+
+    // Parse the LLM response
+    const titleMatch = response.match(/TITLE:\s*(.+)/i);
+    const typeMatch = response.match(/TYPE:\s*(\w+)/i);
+    const notesMatch = response.match(/NOTES:\s*([\s\S]+)/i);
+
+    const title = titleMatch?.[1]?.trim() || 'Latest Updates';
+    const type = ['feature', 'improvement', 'fix', 'announcement'].includes(typeMatch?.[1]?.trim().toLowerCase()) 
+      ? typeMatch[1].trim().toLowerCase() 
+      : 'improvement';
+    const notes = notesMatch?.[1]?.trim() || response;
+
+    // Save as draft app_update
+    const newUpdate = {
+      id: uuidv4(),
+      title,
+      description: notes,
+      version: null,
+      type,
+      published: false, // Draft — admin reviews and publishes
+      auto_generated: true,
+      deployment_hash: currentHash,
+      release_date: new Date(),
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: 'system',
+    };
+
+    await db.collection('app_updates').insertOne(newUpdate);
+
+    // Update the deployment hash
+    await db.collection('deployment_meta').updateOne(
+      { key: 'last_release_notes_hash' },
+      { $set: { value: currentHash, updated_at: new Date() } },
+      { upsert: true }
+    );
+
+    console.log(`[ReleaseNotes] ✅ Auto-generated release notes: "${title}" (${type}) — saved as draft`);
+  } catch (error) {
+    console.error('[ReleaseNotes] Failed to auto-generate release notes:', error.message);
+    // Don't prevent the app from working
+  }
+}
+
+// ADMIN - Manually trigger release notes generation
+async function handleAdminGenerateReleaseNotes(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  // Reset the check flag to force regeneration
+  _deploymentCheckDone = false;
+  
+  try {
+    await checkAndGenerateReleaseNotes();
+    return ok({ success: true, message: 'Release notes generation triggered' });
+  } catch (error) {
+    return err('Failed to generate release notes: ' + error.message, 500);
+  }
 }
 
 // PWA Install Prompt - Get user's install prompt preference
@@ -22758,10 +22934,15 @@ export async function GET(request, { params }) {
 
   // Health check endpoint for deployment/monitoring
   if (pathStr === 'health') {
+    // Trigger release notes generation check on health checks (non-blocking)
+    checkAndGenerateReleaseNotes().catch(() => {});
     return NextResponse.json({ status: 'ok', timestamp: new Date().toISOString() }, { status: 200 });
   }
 
   try {
+    // Trigger auto-release-notes check on first request (non-blocking)
+    checkAndGenerateReleaseNotes().catch(() => {});
+
     if (pathStr === 'auth/me') return handleMe(request);
     if (pathStr === 'assessment/questions') return handleGetQuestions(request);
     if (pathStr === 'assessment/progress') return handleGetProgress(request);
@@ -22999,6 +23180,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'admin/feedback/summarize') return handleAdminSummarizeFeedback(request);
     if (pathStr === 'admin/announcements') return handleAdminCreateAnnouncement(request);
     if (pathStr === 'admin/app-updates') return handleAdminCreateAppUpdate(request);
+    if (pathStr === 'admin/app-updates/generate') return handleAdminGenerateReleaseNotes(request);
     if (pathStr === 'app-updates/mark-viewed') return handleMarkAppUpdatesViewed(request);
     if (pathStr === 'admin/blog/posts') return handleAdminCreateBlogPost(request);
     if (pathStr === 'admin/beta-code') return handleAdminCreateBetaCode(request);

@@ -1510,6 +1510,7 @@ function AppUpdatesTab({ token }) {
     release_date: new Date().toISOString().split('T')[0],
   });
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -1524,6 +1525,25 @@ function AppUpdatesTab({ token }) {
   };
 
   useEffect(() => { load(); }, []);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/admin/app-updates/generate', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await res.json();
+      if (d.success) {
+        load(); // Reload to show the new auto-generated update
+      } else {
+        alert(d.error || 'Failed to generate release notes');
+      }
+    } catch (e) {
+      alert('Failed to generate release notes');
+    }
+    setGenerating(false);
+  };
 
   const handleSave = async () => {
     if (!formData.title.trim() || !formData.description.trim()) {
@@ -1621,14 +1641,25 @@ function AppUpdatesTab({ token }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-white">App Updates (What's New)</h2>
-          <p className="text-xs text-gray-500">Manage updates shown to users in the "What's New" section</p>
+          <p className="text-xs text-gray-500">Auto-generated on each deployment. Review, edit, and publish.</p>
         </div>
-        <button
-          onClick={() => { setShowForm(true); setEditing(null); setFormData({ title: '', description: '', version: '', type: 'feature', published: false, release_date: new Date().toISOString().split('T')[0] }); }}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-all"
-        >
-          <Plus className="w-4 h-4" /> New Update
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50"
+          >
+            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {generating ? 'Generating...' : 'Generate Release Notes'}
+          </button>
+          <button
+            onClick={() => { setShowForm(true); setEditing(null); setFormData({ title: '', description: '', version: '', type: 'feature', published: false, release_date: new Date().toISOString().split('T')[0] }); }}
+            className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg text-sm transition-all"
+            title="Create a manual update"
+          >
+            <Plus className="w-4 h-4" /> Manual
+          </button>
+        </div>
       </div>
 
       {/* Form */}
@@ -1731,7 +1762,7 @@ function AppUpdatesTab({ token }) {
         <div className="text-center py-12 text-gray-600">
           <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30" />
           <p>No app updates yet</p>
-          <p className="text-xs mt-1">Create your first update to show users what's new</p>
+          <p className="text-xs mt-1">Release notes are auto-generated on each deployment, or click "Generate Release Notes" above</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -1752,6 +1783,9 @@ function AppUpdatesTab({ token }) {
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">Published</span>
                     ) : (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">Draft</span>
+                    )}
+                    {upd.auto_generated && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">🤖 Auto</span>
                     )}
                   </div>
                   <h4 className="text-white font-medium text-sm mb-1">{upd.title}</h4>
