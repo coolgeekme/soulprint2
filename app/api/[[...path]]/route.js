@@ -2646,7 +2646,86 @@ async function handleImageEditInternal(userId, image, editInstruction) {
   }
   
   // Reformulate instruction for better results
-  const safeEditInstruction = reformulateForSafety(editInstruction);
+  let safeEditInstruction = reformulateForSafety(editInstruction);
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SPATIAL ENHANCEMENT: Use GPT-4o Vision to understand spatial instructions
+  // For requests like "add flames to the back of the minivan", we need to 
+  // analyze the image to understand what "back" means in this specific angle
+  // ═══════════════════════════════════════════════════════════════════════════
+  const hasSpatialInstruction = /\b(back|front|side|left|right|top|bottom|rear|hood|door|roof|trunk|half|part|portion|area|section)\b/i.test(editInstruction);
+  
+  if (hasSpatialInstruction && openaiApiKey && (imageUrl || imageBase64)) {
+    try {
+      console.log('[ImageEdit] Detected spatial instruction, using GPT-4o Vision for enhancement...');
+      
+      // Build image URL for vision API
+      const visionImageUrl = imageUrl || `data:${mimeType};base64,${imageBase64}`;
+      
+      const spatialAnalysisRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: `You are an expert at translating user image editing instructions into precise, unambiguous prompts for AI image editors.
+
+When a user says things like "back of the car" or "left side", you need to analyze the image and translate this into specific visual terms that an AI image editor can understand.
+
+For example:
+- "add flames to the back of the minivan" → You look at the image, see the minivan from a 3/4 angle, and specify: "Add flames starting from the rear wheel area extending to the back bumper, visible on the right portion of the vehicle as shown in this angle"
+- "put logo on the front door" → "Add the logo to the door panel closest to the front wheel, on the visible side of the vehicle"
+
+Your job is to create a CLEAR, DETAILED prompt that specifies EXACTLY where in the visible image the edit should occur, using visual references from the current camera angle.`
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `User's edit request: "${editInstruction}"
+
+Analyze this image and create a PRECISE, DETAILED edit prompt that an AI image editor can understand without confusion.
+
+Your response should:
+1. Describe exactly which part of the image to modify based on the current viewing angle
+2. Use clear visual references (e.g., "the area from the middle of the vehicle to the rear bumper")
+3. Maintain the original intent but remove ambiguity about "front/back/left/right"
+4. Include any specific details about HOW to apply the edit (style, coverage, etc.)
+
+Respond with ONLY the enhanced prompt, nothing else.`
+                },
+                {
+                  type: 'image_url',
+                  image_url: { url: visionImageUrl, detail: 'high' }
+                }
+              ]
+            }
+          ],
+          max_tokens: 300,
+          temperature: 0.3
+        })
+      });
+      
+      if (spatialAnalysisRes.ok) {
+        const spatialData = await spatialAnalysisRes.json();
+        const enhancedPrompt = spatialData.choices?.[0]?.message?.content;
+        
+        if (enhancedPrompt && enhancedPrompt.length > 20) {
+          console.log('[ImageEdit] Original instruction:', editInstruction);
+          console.log('[ImageEdit] Enhanced spatial prompt:', enhancedPrompt);
+          safeEditInstruction = enhancedPrompt;
+        }
+      }
+    } catch (spatialErr) {
+      console.log('[ImageEdit] Spatial enhancement failed, using original instruction:', spatialErr.message);
+    }
+  }
   
   // ═══════════════════════════════════════════════════════════════════════════
   // METHOD 0: GPT Image (gpt-image-1) - For complex edits requiring understanding
