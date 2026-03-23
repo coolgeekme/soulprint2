@@ -2741,10 +2741,11 @@ Respond with ONLY the enhanced prompt, nothing else.`
       
       // Use OpenAI SDK for proper handling
       const OpenAI = (await import('openai')).default;
+      const { toFile } = await import('openai/uploads');
       const openai = new OpenAI({ apiKey: openaiApiKey });
       
       // toFile helper converts buffer to proper File format
-      const imageFile = await openai.toFile(imageBuffer, 'image.png', { type: mimeType || 'image/png' });
+      const imageFile = await toFile(imageBuffer, 'image.png', { type: mimeType || 'image/png' });
       
       console.log('[ImageEdit] GPT Image - calling images.edit...');
       const editResult = await openai.images.edit({
@@ -4541,6 +4542,7 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
     ];
     
     if (strongCompositePatterns.some(p => p.test(lower))) {
+      console.log('[Quick Intent] Detected composite_edit from strong composite patterns:', lower.substring(0, 60));
       return { intent: 'composite_edit', confidence: 'high', reason: 'Add to existing image in conversation' };
     }
     
