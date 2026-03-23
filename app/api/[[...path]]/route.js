@@ -2730,50 +2730,43 @@ Respond with ONLY the enhanced prompt, nothing else.`
   // ═══════════════════════════════════════════════════════════════════════════
   // METHOD 0: GPT Image (gpt-image-1) - For complex edits requiring understanding
   // Cost: ~$0.04-0.17 per edit, but most accurate for complex instructions
-  // Note: gpt-image-1 requires multipart/form-data with binary image files
+  // Uses OpenAI SDK for proper multipart/form-data handling
   // ═══════════════════════════════════════════════════════════════════════════
   if (openaiApiKey && imageBase64 && isComplexEdit) {
     try {
       console.log('[ImageEdit] METHOD 0: Using GPT Image (gpt-image-1) for complex edit');
       
-      // Convert base64 to binary buffer for multipart upload
+      // Convert base64 to a Blob-like object for the SDK
       const imageBuffer = Buffer.from(imageBase64, 'base64');
       
-      // Create FormData for multipart/form-data request
-      const FormData = (await import('form-data')).default;
-      const formData = new FormData();
+      // Create a File-like object that the OpenAI SDK can handle
+      const { Readable } = await import('stream');
+      const imageStream = Readable.from(imageBuffer);
+      imageStream.name = 'image.png'; // OpenAI SDK needs the name property
       
-      // Append the image as a binary file
-      formData.append('image', imageBuffer, {
-        filename: 'image.png',
-        contentType: mimeType || 'image/png'
+      // Use OpenAI SDK for proper handling
+      const OpenAI = (await import('openai')).default;
+      const openai = new OpenAI({ apiKey: openaiApiKey });
+      
+      // Create a File object from the buffer
+      const imageFile = await openai.files.toFile(imageBuffer, 'image.png', { type: mimeType || 'image/png' });
+      
+      const editResult = await openai.images.edit({
+        model: 'gpt-image-1',
+        image: imageFile,
+        prompt: `Edit this image: ${safeEditInstruction}. Preserve the overall composition, subject identity, and style while making the requested change.`,
+        n: 1,
+        size: '1024x1024',
       });
       
-      // Append other parameters
-      formData.append('model', 'gpt-image-1');
-      formData.append('prompt', `Edit this image: ${safeEditInstruction}. Preserve the overall composition and style while making the requested change.`);
-      formData.append('n', '1');
-      formData.append('size', '1024x1024');
-      formData.append('quality', 'medium');
+      console.log('[ImageEdit] GPT Image edit completed');
       
-      const editResponse = await fetch('https://api.openai.com/v1/images/edits', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          ...formData.getHeaders()
-        },
-        body: formData
-      });
-      
-      const editData = await editResponse.json();
-      console.log('[ImageEdit] GPT Image response status:', editResponse.status);
-      
-      if (editData.data?.[0]?.url || editData.data?.[0]?.b64_json) {
-        let resultUrl = editData.data[0].url;
+      if (editResult.data?.[0]?.url || editResult.data?.[0]?.b64_json) {
+        let resultUrl = editResult.data[0].url;
         
         // If we got base64 back, upload to get a URL
-        if (!resultUrl && editData.data[0].b64_json && kieKey) {
-          const resultBase64 = `data:image/png;base64,${editData.data[0].b64_json}`;
+        if (!resultUrl && editResult.data[0].b64_json && kieKey) {
+          const resultBase64 = `data:image/png;base64,${editResult.data[0].b64_json}`;
           const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
             method: 'POST',
             headers: { 
@@ -2804,12 +2797,6 @@ Respond with ONLY the enhanced prompt, nothing else.`
             method: 'gpt-image-1'
           };
         }
-      }
-      
-      // Check for error
-      if (editData.error) {
-        console.log('[ImageEdit] GPT Image error:', editData.error.message);
-        // Fall through to other methods
       }
     } catch (gptImageErr) {
       console.log('[ImageEdit] GPT Image error:', gptImageErr.message);
