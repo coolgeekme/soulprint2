@@ -1757,50 +1757,59 @@ async function handleAdminGenerateReleaseNotes(request) {
   if (!admin) return err('Forbidden', 403);
 
   try {
-    const { execSync } = require('child_process');
-    const currentHash = execSync('git rev-parse HEAD', { cwd: '/app', encoding: 'utf8' }).trim();
-
     const db = await getDb();
-    const meta = await db.collection('deployment_meta').findOne({ key: 'last_release_notes_hash' });
+    
+    // Use a deployment identifier based on build time / current time
+    const deploymentId = new Date().toISOString().split('T')[0]; // date-based
 
-    // Get git changes
-    let gitLog = '';
-    let changedFiles = '';
+    // Read support KB for context about features
+    let kbContent = '';
     try {
-      if (meta?.value) {
-        gitLog = execSync(`git log --oneline ${meta.value}..HEAD 2>/dev/null || git log --oneline -30`, { cwd: '/app', encoding: 'utf8' }).trim();
-        changedFiles = execSync(`git diff --name-only ${meta.value}..HEAD -- '*.js' '*.jsx' '*.css' 2>/dev/null | head -40`, { cwd: '/app', encoding: 'utf8' }).trim();
-      } else {
-        gitLog = execSync('git log --oneline -30', { cwd: '/app', encoding: 'utf8' }).trim();
-        changedFiles = execSync("git diff --name-only HEAD~30..HEAD -- '*.js' '*.jsx' '*.css' 2>/dev/null | head -40", { cwd: '/app', encoding: 'utf8' }).trim();
+      // Try multiple paths (works in both dev and production)
+      const possiblePaths = [
+        '/app/support-kb.md',
+        require('path').join(process.cwd(), 'support-kb.md'),
+      ];
+      for (const p of possiblePaths) {
+        try {
+          kbContent = fs.readFileSync(p, 'utf8');
+          break;
+        } catch (e) { continue; }
       }
-    } catch (gitErr) {
-      gitLog = 'Unable to retrieve git log';
-      changedFiles = 'N/A';
-    }
-
-    // Read support KB for context
-    let kbContext = '';
-    try {
-      kbContext = fs.readFileSync('/app/support-kb.md', 'utf8').substring(0, 3000);
     } catch (e) {
-      kbContext = 'Support KB not available';
+      kbContent = '';
     }
 
-    // Use LLM to generate release notes
+    if (!kbContent) {
+      return err('Could not read support knowledge base. Please ensure support-kb.md exists.', 400);
+    }
+
+    // Get existing published updates to avoid duplicating
+    const existingUpdates = await db.collection('app_updates')
+      .find({})
+      .sort({ created_at: -1 })
+      .limit(10)
+      .toArray();
+    
+    const existingTitles = existingUpdates.map(u => u.title).join(', ');
+    const lastUpdateDate = existingUpdates[0]?.created_at 
+      ? new Date(existingUpdates[0].created_at).toLocaleDateString()
+      : 'never';
+
+    // Use LLM to generate release notes from the knowledge base
     const provider = getProvider('openai', 'gpt-4o-mini');
     const prompt = `You are a product manager writing release notes for a consumer AI app called "SoulPrint". 
-Based on the code changes below, generate a concise, user-friendly "What's New" update.
+Based on the knowledge base below, generate a fresh "What's New" update covering the most important recent features and improvements.
 
 RULES:
-- Write 2-5 bullet points of the most impactful USER-FACING changes
-- Use simple, non-technical language
+- Write 2-5 bullet points of the most impactful USER-FACING features
+- Use simple, non-technical language that excites users
 - Focus on what users can DO, not how it was built
-- Skip infrastructure, refactoring, or test changes
+- Do NOT repeat these already-published updates: ${existingTitles}
 - Each bullet should be 1-2 sentences max
-- If changes are minor (bug fixes, small tweaks), just write 1-2 bullets
-- If no meaningful user-facing changes can be identified, respond with exactly: NO_UPDATES
-- Do NOT mention git, commits, code, APIs, or technical details
+- If there's nothing new to announce beyond existing updates, respond with exactly: NO_UPDATES
+- Do NOT mention code, APIs, git, deployments, or technical details
+- Last update was published: ${lastUpdateDate}
 
 FORMAT YOUR RESPONSE AS:
 TITLE: [A catchy 3-6 word title for this update]
@@ -1810,14 +1819,8 @@ NOTES:
 - [bullet 2]
 ...
 
-GIT LOG (recent commits):
-${gitLog}
-
-FILES CHANGED:
-${changedFiles}
-
-EXISTING APP CONTEXT:
-${kbContext}`;
+KNOWLEDGE BASE (current features and recent changes):
+${kbContent.substring(0, 6000)}`;
 
     const response = await provider.generateChatCompletion({
       systemPrompt: 'You are a concise product copywriter. Output only the requested format.',
@@ -1827,13 +1830,7 @@ ${kbContext}`;
     });
 
     if (!response || response.includes('NO_UPDATES')) {
-      // Still update the hash so we don't re-check
-      await db.collection('deployment_meta').updateOne(
-        { key: 'last_release_notes_hash' },
-        { $set: { value: currentHash, updated_at: new Date() } },
-        { upsert: true }
-      );
-      return ok({ success: true, message: 'No meaningful user-facing updates detected.' });
+      return ok({ success: true, message: 'No new updates to announce beyond what\'s already published.' });
     }
 
     // Parse the LLM response
@@ -1856,7 +1853,6 @@ ${kbContext}`;
       type,
       published: false,
       auto_generated: true,
-      deployment_hash: currentHash,
       release_date: new Date(),
       created_at: new Date(),
       updated_at: new Date(),
@@ -1864,13 +1860,6 @@ ${kbContext}`;
     };
 
     await db.collection('app_updates').insertOne(newUpdate);
-
-    // Update the deployment hash
-    await db.collection('deployment_meta').updateOne(
-      { key: 'last_release_notes_hash' },
-      { $set: { value: currentHash, updated_at: new Date() } },
-      { upsert: true }
-    );
 
     console.log(`[ReleaseNotes] Admin-triggered generation: "${title}" (${type})`);
     return ok({ success: true, message: `Generated: "${title}"`, update: newUpdate });
