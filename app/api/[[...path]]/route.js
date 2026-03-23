@@ -2736,21 +2736,17 @@ Respond with ONLY the enhanced prompt, nothing else.`
     try {
       console.log('[ImageEdit] METHOD 0: Using GPT Image (gpt-image-1) for complex edit');
       
-      // Convert base64 to a Blob-like object for the SDK
+      // Convert base64 to buffer
       const imageBuffer = Buffer.from(imageBase64, 'base64');
-      
-      // Create a File-like object that the OpenAI SDK can handle
-      const { Readable } = await import('stream');
-      const imageStream = Readable.from(imageBuffer);
-      imageStream.name = 'image.png'; // OpenAI SDK needs the name property
       
       // Use OpenAI SDK for proper handling
       const OpenAI = (await import('openai')).default;
       const openai = new OpenAI({ apiKey: openaiApiKey });
       
-      // Create a File object from the buffer
-      const imageFile = await openai.files.toFile(imageBuffer, 'image.png', { type: mimeType || 'image/png' });
+      // toFile helper converts buffer to proper File format
+      const imageFile = await openai.toFile(imageBuffer, 'image.png', { type: mimeType || 'image/png' });
       
+      console.log('[ImageEdit] GPT Image - calling images.edit...');
       const editResult = await openai.images.edit({
         model: 'gpt-image-1',
         image: imageFile,
@@ -4621,6 +4617,13 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
     /\bnot\s+(?:that|this),?\s+(?:a|the|make)/i,  // "not that, a different one"
     /\binstead\s+(?:of|make\s+it)/i,  // "instead of that, make it..."
     /\bwrong\s+(?:type|kind|one)/i,  // "wrong type of car"
+    // NEW: Add something to existing image patterns (conversational follow-up)
+    /\badd\s+(?:\w+\s+)?(?:flames?|fire|design|wrap|decal|sticker|graphic|logo|text|words?)\s+(?:to|on)\s+(?:the|it)/i,
+    /\b(?:add|put)\s+(?:a\s+)?(?:\w+\s+)*(?:design|wrap|decal|graphic)\s+(?:to|on)\s+(?:the\s+)?(?:back|front|side|hood|door)/i,
+    /\badd\s+\w+\s+to\s+(?:the\s+)?(?:back|front|side|hood|door|roof)\s+(?:of|part)/i,  // "add flames to the back part"
+    /\blet'?s?\s+(?:add|put|make|change)/i,  // "let's add flames", "lets make it blue"
+    /\bcan\s+you\s+add\s+/i,  // "can you add flames"
+    /\b(?:add|put)\s+(?:\w+\s+)+to\s+(?:the\s+)?(?:minivan|van|car|truck|vehicle)/i,  // "add flames to the minivan"
   ];
   if (conversationalEditPatterns.some(p => p.test(lower))) {
     console.log('[Quick Intent] Detected image_edit from conversational patterns:', lower.substring(0, 50));
