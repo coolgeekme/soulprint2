@@ -4,6 +4,8 @@ import { getDb } from '@/lib/mongodb';
 import { ok, err, requireAdmin, authenticate } from '@/lib/api-utils';
 import { hashPassword } from '@/lib/auth';
 import { sendWelcomeEmail, sendAcceptedEmail, sendBetaCodeEmail } from '@/lib/email';
+import { getProvider } from '@/lib/llm/providers';
+import fs from 'fs';
 
 // ============================================================
 // MODEL PRICING CONSTANTS
@@ -1749,6 +1751,136 @@ export async function GET(request, { params }) {
   }
 }
 
+// ── AUTO-GENERATE RELEASE NOTES ──────────────────────────────────────────────
+async function handleAdminGenerateReleaseNotes(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  try {
+    const { execSync } = require('child_process');
+    const currentHash = execSync('git rev-parse HEAD', { cwd: '/app', encoding: 'utf8' }).trim();
+
+    const db = await getDb();
+    const meta = await db.collection('deployment_meta').findOne({ key: 'last_release_notes_hash' });
+
+    // Get git changes
+    let gitLog = '';
+    let changedFiles = '';
+    try {
+      if (meta?.value) {
+        gitLog = execSync(`git log --oneline ${meta.value}..HEAD 2>/dev/null || git log --oneline -30`, { cwd: '/app', encoding: 'utf8' }).trim();
+        changedFiles = execSync(`git diff --name-only ${meta.value}..HEAD -- '*.js' '*.jsx' '*.css' 2>/dev/null | head -40`, { cwd: '/app', encoding: 'utf8' }).trim();
+      } else {
+        gitLog = execSync('git log --oneline -30', { cwd: '/app', encoding: 'utf8' }).trim();
+        changedFiles = execSync("git diff --name-only HEAD~30..HEAD -- '*.js' '*.jsx' '*.css' 2>/dev/null | head -40", { cwd: '/app', encoding: 'utf8' }).trim();
+      }
+    } catch (gitErr) {
+      gitLog = 'Unable to retrieve git log';
+      changedFiles = 'N/A';
+    }
+
+    // Read support KB for context
+    let kbContext = '';
+    try {
+      kbContext = fs.readFileSync('/app/support-kb.md', 'utf8').substring(0, 3000);
+    } catch (e) {
+      kbContext = 'Support KB not available';
+    }
+
+    // Use LLM to generate release notes
+    const provider = getProvider('openai', 'gpt-4o-mini');
+    const prompt = `You are a product manager writing release notes for a consumer AI app called "SoulPrint". 
+Based on the code changes below, generate a concise, user-friendly "What's New" update.
+
+RULES:
+- Write 2-5 bullet points of the most impactful USER-FACING changes
+- Use simple, non-technical language
+- Focus on what users can DO, not how it was built
+- Skip infrastructure, refactoring, or test changes
+- Each bullet should be 1-2 sentences max
+- If changes are minor (bug fixes, small tweaks), just write 1-2 bullets
+- If no meaningful user-facing changes can be identified, respond with exactly: NO_UPDATES
+- Do NOT mention git, commits, code, APIs, or technical details
+
+FORMAT YOUR RESPONSE AS:
+TITLE: [A catchy 3-6 word title for this update]
+TYPE: [feature|improvement|fix]
+NOTES:
+- [bullet 1]
+- [bullet 2]
+...
+
+GIT LOG (recent commits):
+${gitLog}
+
+FILES CHANGED:
+${changedFiles}
+
+EXISTING APP CONTEXT:
+${kbContext}`;
+
+    const response = await provider.generateChatCompletion({
+      systemPrompt: 'You are a concise product copywriter. Output only the requested format.',
+      messages: [{ role: 'user', content: prompt }],
+      model: 'gpt-4o-mini',
+      temperature: 0.4,
+    });
+
+    if (!response || response.includes('NO_UPDATES')) {
+      // Still update the hash so we don't re-check
+      await db.collection('deployment_meta').updateOne(
+        { key: 'last_release_notes_hash' },
+        { $set: { value: currentHash, updated_at: new Date() } },
+        { upsert: true }
+      );
+      return ok({ success: true, message: 'No meaningful user-facing updates detected.' });
+    }
+
+    // Parse the LLM response
+    const titleMatch = response.match(/TITLE:\s*(.+)/i);
+    const typeMatch = response.match(/TYPE:\s*(\w+)/i);
+    const notesMatch = response.match(/NOTES:\s*([\s\S]+)/i);
+
+    const title = titleMatch?.[1]?.trim() || 'Latest Updates';
+    const type = ['feature', 'improvement', 'fix', 'announcement'].includes(typeMatch?.[1]?.trim().toLowerCase()) 
+      ? typeMatch[1].trim().toLowerCase() 
+      : 'improvement';
+    const notes = notesMatch?.[1]?.trim() || response;
+
+    // Save as draft app_update
+    const newUpdate = {
+      id: uuidv4(),
+      title,
+      description: notes,
+      version: null,
+      type,
+      published: false,
+      auto_generated: true,
+      deployment_hash: currentHash,
+      release_date: new Date(),
+      created_at: new Date(),
+      updated_at: new Date(),
+      created_by: 'system',
+    };
+
+    await db.collection('app_updates').insertOne(newUpdate);
+
+    // Update the deployment hash
+    await db.collection('deployment_meta').updateOne(
+      { key: 'last_release_notes_hash' },
+      { $set: { value: currentHash, updated_at: new Date() } },
+      { upsert: true }
+    );
+
+    console.log(`[ReleaseNotes] Admin-triggered generation: "${title}" (${type})`);
+    return ok({ success: true, message: `Generated: "${title}"`, update: newUpdate });
+  } catch (error) {
+    console.error('[ReleaseNotes] Admin generate failed:', error.message);
+    return err('Failed to generate release notes: ' + error.message, 500);
+  }
+}
+
+
 export async function POST(request, { params }) {
   const pathArr = params?.path || [];
   const pathStr = pathArr.join('/');
@@ -1761,6 +1893,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'beta-codes/send') return handleAdminSendBetaCode(request);
     if (pathStr === 'blog/posts') return handleAdminCreateBlogPost(request);
     if (pathStr === 'app-updates') return handleAdminCreateAppUpdate(request);
+    if (pathStr === 'app-updates/generate') return handleAdminGenerateReleaseNotes(request);
 
     return err('Admin endpoint not found', 404);
   } catch (error) {
