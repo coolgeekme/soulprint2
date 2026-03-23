@@ -611,6 +611,15 @@ html.light body {
   color: #0D1217 !important;
 }
 
+/* Chat input text color - ensure visibility in both modes */
+.chat-input-text {
+  color: white;
+}
+
+.light .chat-input-text {
+  color: #0D1217 !important;
+}
+
 .light input::placeholder,
 .light textarea::placeholder {
   color: #94a3b8 !important;

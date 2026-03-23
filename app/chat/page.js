@@ -10032,7 +10032,7 @@ export default function ChatPage() {
                     // Shift+Enter creates new line (default textarea behavior)
                   }}
                   placeholder={speech.isListening ? (speech.mode === 'whisper' ? 'Recording…' : 'Listening…') : attachments.length > 0 ? 'Add message…' : 'Message…'}
-                  className={`w-full bg-transparent text-[13px] sm:text-sm placeholder-gray-600 focus:outline-none py-1 sm:py-1.5 resize-none overflow-hidden ${speech.isListening ? 'text-orange-300' : 'text-white'}`}
+                  className={`w-full bg-transparent text-[13px] sm:text-sm placeholder-gray-600 focus:outline-none py-1 sm:py-1.5 resize-none overflow-hidden chat-input-text ${speech.isListening ? 'text-orange-300' : ''}`}
                   disabled={loading}
                   readOnly={speech.isListening}
                   rows={1}
