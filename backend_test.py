@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for GPT-4o Vision Spatial Awareness Composite Edit Fix
-Tests the enhanced composite edit functionality with spatial awareness analysis.
+Backend Testing Suite for Scene-Based Lifestyle Mockup Feature
+Tests the new scene-based mockup detection and generation functionality
 """
 
 import requests
@@ -10,444 +10,492 @@ import base64
 import time
 import os
 from io import BytesIO
-from PIL import Image
+from PIL import Image, ImageDraw
 
 # Configuration
 BASE_URL = "https://chat-composite-edit.preview.emergentagent.com"
+API_BASE = f"{BASE_URL}/api"
+
+# Test credentials
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 
-class CompositeEditTester:
+class MockupTester:
     def __init__(self):
-        self.token = None
-        self.conversation_id = None
+        self.session = requests.Session()
+        self.auth_token = None
+        self.user_id = None
         
     def authenticate(self):
-        """Authenticate and get JWT token"""
-        try:
-            print("🔐 Authenticating...")
-            response = requests.post(f"{BASE_URL}/api/auth/login", json={
-                "email": TEST_EMAIL,
-                "passcode": TEST_PASSWORD
+        """Authenticate with test credentials"""
+        print("🔐 Authenticating...")
+        
+        login_data = {
+            "email": TEST_EMAIL,
+            "passcode": TEST_PASSWORD
+        }
+        
+        response = self.session.post(f"{API_BASE}/auth/login", json=login_data)
+        
+        if response.status_code == 200:
+            data = response.json()
+            self.auth_token = data.get('token')
+            self.user_id = data.get('userId')
+            
+            # Set authorization header for future requests
+            self.session.headers.update({
+                'Authorization': f'Bearer {self.auth_token}'
             })
             
-            if response.status_code == 200:
-                data = response.json()
-                self.token = data.get('token')
-                print(f"✅ Authentication successful! Role: {data.get('role', 'unknown')}")
-                return True
-            else:
-                print(f"❌ Authentication failed: {response.status_code} - {response.text}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Authentication error: {str(e)}")
+            print(f"✅ Authentication successful - User ID: {self.user_id}")
+            return True
+        else:
+            print(f"❌ Authentication failed: {response.status_code} - {response.text}")
             return False
     
-    def create_conversation(self):
-        """Create a new conversation for testing"""
-        try:
-            print("💬 Creating new conversation...")
-            response = requests.post(f"{BASE_URL}/api/conversations", 
-                headers={"Authorization": f"Bearer {self.token}"},
-                json={"title": "GPT-4o Vision Spatial Test"}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.conversation_id = data.get('id')
-                print(f"✅ Conversation created: {self.conversation_id}")
-                return True
-            else:
-                print(f"❌ Conversation creation failed: {response.status_code} - {response.text}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Conversation creation error: {str(e)}")
+    def create_test_logo(self, text="LOGO", size=(200, 200)):
+        """Create a simple test logo image"""
+        img = Image.new('RGB', size, color='white')
+        draw = ImageDraw.Draw(img)
+        
+        # Draw a simple logo with text
+        draw.rectangle([10, 10, size[0]-10, size[1]-10], outline='black', width=3)
+        
+        # Calculate text position (center)
+        bbox = draw.textbbox((0, 0), text)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        x = (size[0] - text_width) // 2
+        y = (size[1] - text_height) // 2
+        
+        draw.text((x, y), text, fill='black')
+        
+        # Convert to base64
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+        
+        return base64.b64encode(buffer.getvalue()).decode('utf-8')
+    
+    def test_scene_based_mockup(self):
+        """Test Scene-based mockup request with campfire scenario"""
+        print("\n🎬 Testing Scene-based Lifestyle Mockup...")
+        
+        # Create test logo
+        logo_base64 = self.create_test_logo("CAMP LOGO")
+        
+        # Test data for scene-based mockup
+        test_data = {
+            "content": "can you add this logo to the back of a tshirt that someone is wearing that is sitting around campfire? maybe add the logo to the other outfits, a well? make this a photorealistic image.",
+            "model": "gpt-4o",
+            "conversationId": None,
+            "attachments": [
+                {
+                    "base64": logo_base64,
+                    "mimeType": "image/png",
+                    "fileName": "camp_logo.png"
+                }
+            ]
+        }
+        
+        print("📤 Sending scene-based mockup request...")
+        print(f"Content: {test_data['content'][:100]}...")
+        
+        response = self.session.post(
+            f"{API_BASE}/chat/stream",
+            json=test_data,
+            stream=True
+        )
+        
+        if response.status_code != 200:
+            print(f"❌ Request failed: {response.status_code} - {response.text}")
             return False
-    
-    def create_test_car_image(self):
-        """Create a simple test car image (side view)"""
-        try:
-            # Create a simple car silhouette (passenger side view)
-            img = Image.new('RGB', (800, 600), color='lightblue')
-            
-            # Draw a simple car shape (rectangle with wheels)
-            from PIL import ImageDraw
-            draw = ImageDraw.Draw(img)
-            
-            # Car body (passenger side visible)
-            draw.rectangle([100, 200, 700, 400], fill='red', outline='black', width=3)
-            
-            # Windows
-            draw.rectangle([150, 220, 350, 280], fill='lightblue', outline='black', width=2)
-            draw.rectangle([400, 220, 650, 280], fill='lightblue', outline='black', width=2)
-            
-            # Wheels
-            draw.ellipse([150, 380, 200, 430], fill='black')
-            draw.ellipse([550, 380, 600, 430], fill='black')
-            
-            # Door lines (passenger side doors)
-            draw.line([350, 200, 350, 400], fill='black', width=2)
-            draw.line([500, 200, 500, 400], fill='black', width=2)
-            
-            # Convert to base64
-            buffer = BytesIO()
-            img.save(buffer, format='PNG')
-            img_base64 = base64.b64encode(buffer.getvalue()).decode()
-            
-            print("✅ Test car image created (passenger side view)")
-            return img_base64
-            
-        except Exception as e:
-            print(f"❌ Car image creation error: {str(e)}")
-            return None
-    
-    def create_test_logo(self):
-        """Create a simple test logo"""
-        try:
-            # Create a simple logo (circle with text)
-            img = Image.new('RGBA', (200, 200), color=(255, 255, 255, 0))
-            
-            from PIL import ImageDraw, ImageFont
-            draw = ImageDraw.Draw(img)
-            
-            # Draw a circle
-            draw.ellipse([20, 20, 180, 180], fill='blue', outline='darkblue', width=3)
-            
-            # Add text (simple)
-            draw.text((100, 100), "LOGO", fill='white', anchor='mm')
-            
-            # Convert to base64
-            buffer = BytesIO()
-            img.save(buffer, format='PNG')
-            logo_base64 = base64.b64encode(buffer.getvalue()).decode()
-            
-            print("✅ Test logo created")
-            return logo_base64
-            
-        except Exception as e:
-            print(f"❌ Logo creation error: {str(e)}")
-            return None
-    
-    def upload_car_image(self, car_base64):
-        """Upload car image as user upload"""
-        try:
-            print("🚗 Uploading car image...")
-            
-            # Send car image via chat stream
-            response = requests.post(f"{BASE_URL}/api/chat/stream",
-                headers={
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "content": "Here's my car image for logo placement",
-                    "conversationId": self.conversation_id,
-                    "model": "gpt-4o",
-                    "attachments": [{
-                        "type": "image",
-                        "data": f"data:image/png;base64,{car_base64}",
-                        "mimeType": "image/png"
-                    }]
-                },
-                stream=True
-            )
-            
-            if response.status_code == 200:
-                print("✅ Car image uploaded successfully")
-                # Read the stream to completion
-                for line in response.iter_lines():
-                    if line:
-                        try:
-                            data = json.loads(line.decode())
-                            if data.get('type') == 'done':
-                                break
-                        except:
-                            continue
-                return True
-            else:
-                print(f"❌ Car image upload failed: {response.status_code} - {response.text}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Car image upload error: {str(e)}")
-            return False
-    
-    def test_composite_edit_intent_detection(self, logo_base64):
-        """Test 1: Composite Edit Intent Detection"""
-        try:
-            print("\n🧪 TEST 1: Composite Edit Intent Detection")
-            print("Testing: 'add this logo to the driver side door' with logo attachment")
-            
-            response = requests.post(f"{BASE_URL}/api/chat/stream",
-                headers={
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "content": "add this logo to the driver side door",
-                    "conversationId": self.conversation_id,
-                    "model": "gpt-4o",
-                    "attachments": [{
-                        "type": "image",
-                        "data": f"data:image/png;base64,{logo_base64}",
-                        "mimeType": "image/png"
-                    }]
-                },
-                stream=True
-            )
-            
-            if response.status_code != 200:
-                print(f"❌ Request failed: {response.status_code} - {response.text}")
-                return False
-            
-            # Parse streaming response
-            composite_edit_detected = False
-            vision_response_found = False
-            visibility_warning_found = False
-            response_content = ""
-            
-            print("📡 Parsing streaming response...")
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line.decode())
+        
+        # Parse NDJSON stream response
+        scene_detected = False
+        multiple_outfits_detected = False
+        campfire_scene_detected = False
+        lifestyle_message_found = False
+        mockup_generated = False
+        
+        print("📡 Processing stream response...")
+        
+        for line in response.iter_lines():
+            if line:
+                try:
+                    data = json.loads(line.decode('utf-8'))
+                    
+                    if data.get('type') == 'meta':
+                        print(f"📋 Meta: {data}")
+                    
+                    elif data.get('type') == 'delta':
+                        content = data.get('content', '')
+                        print(f"📝 Delta: {content[:100]}...")
                         
-                        if data.get('type') == 'meta':
-                            print(f"📋 Meta: {data}")
-                            if 'composite_edit' in str(data):
-                                composite_edit_detected = True
-                                print("✅ Composite edit intent detected!")
+                        # Check for scene-based indicators
+                        if 'lifestyle scene mockup' in content.lower():
+                            lifestyle_message_found = True
+                            print("✅ Found 'lifestyle scene mockup' message")
                         
-                        elif data.get('type') == 'delta':
-                            content = data.get('content', '')
-                            response_content += content
-                            
-                            # Check for visibility warning
-                            if '⚠️' in content and 'Note:' in content:
-                                visibility_warning_found = True
-                                print("✅ Visibility warning detected in response!")
+                        if 'campfire' in content.lower():
+                            campfire_scene_detected = True
+                            print("✅ Campfire scene detected in response")
+                    
+                    elif data.get('type') == 'image':
+                        mockup_generated = True
+                        image_url = data.get('url')
+                        content_type = data.get('contentType')
+                        print(f"🖼️ Image generated: {content_type} - {image_url[:50]}...")
                         
-                        elif data.get('type') == 'done':
-                            print("✅ Stream completed")
-                            break
-                            
-                    except json.JSONDecodeError:
-                        continue
-            
-            # Results
-            print(f"\n📊 TEST 1 RESULTS:")
-            print(f"   Composite Edit Detected: {'✅' if composite_edit_detected else '❌'}")
-            print(f"   Visibility Warning Found: {'✅' if visibility_warning_found else '❌'}")
-            print(f"   Response Content Length: {len(response_content)} chars")
-            
-            if visibility_warning_found:
-                print(f"   Warning Content Preview: {response_content[:200]}...")
-            
-            return composite_edit_detected
-            
-        except Exception as e:
-            print(f"❌ TEST 1 error: {str(e)}")
-            return False
+                        if content_type == 'mockup':
+                            print("✅ Mockup content type confirmed")
+                    
+                    elif data.get('type') == 'done':
+                        print("✅ Stream completed")
+                        break
+                        
+                except json.JSONDecodeError:
+                    continue
+        
+        # Verify expected behaviors
+        success = True
+        
+        if not mockup_generated:
+            print("❌ No mockup image was generated")
+            success = False
+        
+        if not lifestyle_message_found:
+            print("❌ 'lifestyle scene mockup' message not found")
+            success = False
+        
+        if not campfire_scene_detected:
+            print("❌ Campfire scene not detected in response")
+            success = False
+        
+        if success:
+            print("✅ Scene-based mockup test PASSED")
+        else:
+            print("❌ Scene-based mockup test FAILED")
+        
+        return success
     
-    def test_vision_response_structure(self, logo_base64):
-        """Test 2: Verify Enhanced Vision Response Structure (via backend logs)"""
-        try:
-            print("\n🧪 TEST 2: Enhanced Vision Response Structure")
-            print("Testing: Enhanced JSON output fields from GPT-4o Vision")
-            
-            # This test focuses on triggering the vision analysis
-            # We'll look for the enhanced response in a different scenario
-            response = requests.post(f"{BASE_URL}/api/chat/stream",
-                headers={
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "content": "place this logo on the passenger side door",
-                    "conversationId": self.conversation_id,
-                    "model": "gpt-4o",
-                    "attachments": [{
-                        "type": "image",
-                        "data": f"data:image/png;base64,{logo_base64}",
-                        "mimeType": "image/png"
-                    }]
-                },
-                stream=True
-            )
-            
-            if response.status_code != 200:
-                print(f"❌ Request failed: {response.status_code} - {response.text}")
-                return False
-            
-            # Parse response for composite edit success
-            composite_success = False
-            response_content = ""
-            
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line.decode())
-                        
-                        if data.get('type') == 'delta':
-                            response_content += data.get('content', '')
-                        
-                        elif data.get('type') == 'done':
-                            composite_success = True
-                            break
-                            
-                    except json.JSONDecodeError:
-                        continue
-            
-            print(f"\n📊 TEST 2 RESULTS:")
-            print(f"   Composite Edit Completed: {'✅' if composite_success else '❌'}")
-            print(f"   Response Generated: {'✅' if len(response_content) > 0 else '❌'}")
-            print(f"   Note: Enhanced JSON fields (visible_sides, requested_side_visible, etc.) are logged in backend")
-            
-            return composite_success
-            
-        except Exception as e:
-            print(f"❌ TEST 2 error: {str(e)}")
+    def test_traditional_product_mockup(self):
+        """Test Traditional product mockup request"""
+        print("\n🛍️ Testing Traditional Product Mockup...")
+        
+        # Create test logo
+        logo_base64 = self.create_test_logo("BRAND")
+        
+        # Test data for traditional product mockup
+        test_data = {
+            "content": "put this logo on a t-shirt mockup",
+            "model": "gpt-4o", 
+            "conversationId": None,
+            "attachments": [
+                {
+                    "base64": logo_base64,
+                    "mimeType": "image/png",
+                    "fileName": "brand_logo.png"
+                }
+            ]
+        }
+        
+        print("📤 Sending traditional mockup request...")
+        print(f"Content: {test_data['content']}")
+        
+        response = self.session.post(
+            f"{API_BASE}/chat/stream",
+            json=test_data,
+            stream=True
+        )
+        
+        if response.status_code != 200:
+            print(f"❌ Request failed: {response.status_code} - {response.text}")
             return False
+        
+        # Parse NDJSON stream response
+        traditional_message_found = False
+        mockup_generated = False
+        no_lifestyle_message = True
+        
+        print("📡 Processing stream response...")
+        
+        for line in response.iter_lines():
+            if line:
+                try:
+                    data = json.loads(line.decode('utf-8'))
+                    
+                    if data.get('type') == 'delta':
+                        content = data.get('content', '')
+                        print(f"📝 Delta: {content[:100]}...")
+                        
+                        # Check for traditional mockup indicators
+                        if 'your t-shirt mockup is ready' in content.lower():
+                            traditional_message_found = True
+                            print("✅ Found traditional mockup ready message")
+                        
+                        # Should NOT contain lifestyle indicators
+                        if 'lifestyle scene mockup' in content.lower():
+                            no_lifestyle_message = False
+                            print("❌ Found unexpected lifestyle message")
+                    
+                    elif data.get('type') == 'image':
+                        mockup_generated = True
+                        image_url = data.get('url')
+                        content_type = data.get('contentType')
+                        print(f"🖼️ Image generated: {content_type} - {image_url[:50]}...")
+                    
+                    elif data.get('type') == 'done':
+                        print("✅ Stream completed")
+                        break
+                        
+                except json.JSONDecodeError:
+                    continue
+        
+        # Verify expected behaviors
+        success = True
+        
+        if not mockup_generated:
+            print("❌ No mockup image was generated")
+            success = False
+        
+        if not traditional_message_found:
+            print("❌ Traditional mockup ready message not found")
+            success = False
+        
+        if not no_lifestyle_message:
+            print("❌ Unexpected lifestyle message found in traditional mockup")
+            success = False
+        
+        if success:
+            print("✅ Traditional product mockup test PASSED")
+        else:
+            print("❌ Traditional product mockup test FAILED")
+        
+        return success
     
-    def test_visibility_warning_generation(self, logo_base64):
-        """Test 3: Visibility Warning Generation"""
-        try:
-            print("\n🧪 TEST 3: Visibility Warning Generation")
-            print("Testing: Warning when requested side is not visible")
-            
-            # Test with a request for driver's side when passenger side is visible
-            response = requests.post(f"{BASE_URL}/api/chat/stream",
-                headers={
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "content": "add this logo to the driver's side rear door",
-                    "conversationId": self.conversation_id,
-                    "model": "gpt-4o",
-                    "attachments": [{
-                        "type": "image",
-                        "data": f"data:image/png;base64,{logo_base64}",
-                        "mimeType": "image/png"
-                    }]
-                },
-                stream=True
-            )
-            
-            if response.status_code != 200:
-                print(f"❌ Request failed: {response.status_code} - {response.text}")
-                return False
-            
-            # Look for warning indicators
-            warning_found = False
-            tip_found = False
-            response_content = ""
-            
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line.decode())
-                        
-                        if data.get('type') == 'delta':
-                            content = data.get('content', '')
-                            response_content += content
-                            
-                            # Check for warning indicators
-                            if '⚠️' in content and 'Note:' in content:
-                                warning_found = True
-                            if 'Tip:' in content and 'provide an image' in content:
-                                tip_found = True
-                        
-                        elif data.get('type') == 'done':
-                            break
-                            
-                    except json.JSONDecodeError:
-                        continue
-            
-            print(f"\n📊 TEST 3 RESULTS:")
-            print(f"   Warning Symbol Found: {'✅' if warning_found else '❌'}")
-            print(f"   Tip Message Found: {'✅' if tip_found else '❌'}")
-            print(f"   Full Response Length: {len(response_content)} chars")
-            
-            if warning_found or tip_found:
-                print(f"   Warning Content: {response_content}")
-            
-            return warning_found or tip_found
-            
-        except Exception as e:
-            print(f"❌ TEST 3 error: {str(e)}")
-            return False
-    
-    def run_all_tests(self):
-        """Run all composite edit tests"""
-        print("🚀 Starting GPT-4o Vision Spatial Awareness Composite Edit Tests")
-        print("=" * 70)
+    def test_scene_detection_patterns(self):
+        """Test various scene detection patterns"""
+        print("\n🔍 Testing Scene Detection Patterns...")
         
-        # Step 1: Authenticate
-        if not self.authenticate():
-            return False
-        
-        # Step 2: Create conversation
-        if not self.create_conversation():
-            return False
-        
-        # Step 3: Create test images
-        car_base64 = self.create_test_car_image()
-        logo_base64 = self.create_test_logo()
-        
-        if not car_base64 or not logo_base64:
-            print("❌ Failed to create test images")
-            return False
-        
-        # Step 4: Upload car image first
-        if not self.upload_car_image(car_base64):
-            return False
-        
-        # Wait a moment for processing
-        time.sleep(2)
-        
-        # Step 5: Run tests
-        test_results = []
-        
-        test_results.append(self.test_composite_edit_intent_detection(logo_base64))
-        time.sleep(3)  # Wait between tests
-        
-        test_results.append(self.test_vision_response_structure(logo_base64))
-        time.sleep(3)
-        
-        test_results.append(self.test_visibility_warning_generation(logo_base64))
-        
-        # Final results
-        print("\n" + "=" * 70)
-        print("🏁 FINAL TEST RESULTS")
-        print("=" * 70)
-        
-        passed_tests = sum(test_results)
-        total_tests = len(test_results)
-        
-        print(f"Tests Passed: {passed_tests}/{total_tests}")
-        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
-        
-        test_names = [
-            "Composite Edit Intent Detection",
-            "Enhanced Vision Response Structure", 
-            "Visibility Warning Generation"
+        test_patterns = [
+            {
+                "content": "someone wearing this logo sitting at a beach",
+                "expected_scene": "beach",
+                "description": "Beach scene pattern"
+            },
+            {
+                "content": "people at a park wearing shirts with this design",
+                "expected_scene": "park", 
+                "description": "Park scene pattern"
+            },
+            {
+                "content": "person standing by a cafe with this logo on their hoodie",
+                "expected_scene": "cafe",
+                "description": "Cafe scene pattern"
+            },
+            {
+                "content": "lifestyle photo of someone in this t-shirt",
+                "expected_scene": "lifestyle",
+                "description": "Lifestyle keyword pattern"
+            }
         ]
         
-        for i, (name, result) in enumerate(zip(test_names, test_results)):
-            status = "✅ PASS" if result else "❌ FAIL"
-            print(f"{i+1}. {name}: {status}")
+        logo_base64 = self.create_test_logo("TEST")
         
-        if passed_tests == total_tests:
-            print("\n🎉 ALL TESTS PASSED! GPT-4o Vision Spatial Awareness fix is working correctly.")
+        all_passed = True
+        
+        for i, pattern in enumerate(test_patterns):
+            print(f"\n🧪 Test {i+1}: {pattern['description']}")
+            print(f"Content: {pattern['content']}")
+            
+            test_data = {
+                "content": pattern['content'],
+                "model": "gpt-4o",
+                "conversationId": None,
+                "attachments": [
+                    {
+                        "base64": logo_base64,
+                        "mimeType": "image/png",
+                        "fileName": "test_logo.png"
+                    }
+                ]
+            }
+            
+            response = self.session.post(
+                f"{API_BASE}/chat/stream",
+                json=test_data,
+                stream=True
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ Request failed: {response.status_code}")
+                all_passed = False
+                continue
+            
+            scene_detected = False
+            expected_scene_found = False
+            
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        data = json.loads(line.decode('utf-8'))
+                        
+                        if data.get('type') == 'delta':
+                            content = data.get('content', '').lower()
+                            
+                            if 'lifestyle scene mockup' in content or 'lifestyle' in content:
+                                scene_detected = True
+                                print("✅ Scene-based mockup detected")
+                            
+                            if pattern['expected_scene'].lower() in content:
+                                expected_scene_found = True
+                                print(f"✅ Expected scene '{pattern['expected_scene']}' found")
+                        
+                        elif data.get('type') == 'done':
+                            break
+                            
+                    except json.JSONDecodeError:
+                        continue
+            
+            if scene_detected and expected_scene_found:
+                print(f"✅ Pattern test {i+1} PASSED")
+            else:
+                print(f"❌ Pattern test {i+1} FAILED")
+                all_passed = False
+            
+            # Small delay between tests
+            time.sleep(1)
+        
+        if all_passed:
+            print("\n✅ All scene detection pattern tests PASSED")
         else:
-            print(f"\n⚠️ {total_tests - passed_tests} test(s) failed. Review the implementation.")
+            print("\n❌ Some scene detection pattern tests FAILED")
         
-        return passed_tests == total_tests
+        return all_passed
+    
+    def test_multiple_outfits_detection(self):
+        """Test multiple outfits detection"""
+        print("\n👥 Testing Multiple Outfits Detection...")
+        
+        logo_base64 = self.create_test_logo("MULTI")
+        
+        test_data = {
+            "content": "add this logo to a t-shirt that people are wearing around a campfire, maybe add the logo to the other outfits as well",
+            "model": "gpt-4o",
+            "conversationId": None,
+            "attachments": [
+                {
+                    "base64": logo_base64,
+                    "mimeType": "image/png",
+                    "fileName": "multi_logo.png"
+                }
+            ]
+        }
+        
+        print("📤 Sending multiple outfits request...")
+        print(f"Content: {test_data['content']}")
+        
+        response = self.session.post(
+            f"{API_BASE}/chat/stream",
+            json=test_data,
+            stream=True
+        )
+        
+        if response.status_code != 200:
+            print(f"❌ Request failed: {response.status_code}")
+            return False
+        
+        multiple_outfits_detected = False
+        group_people_mentioned = False
+        
+        for line in response.iter_lines():
+            if line:
+                try:
+                    data = json.loads(line.decode('utf-8'))
+                    
+                    if data.get('type') == 'delta':
+                        content = data.get('content', '').lower()
+                        
+                        if 'other outfits' in content or 'multiple' in content or 'group' in content:
+                            multiple_outfits_detected = True
+                            print("✅ Multiple outfits reference detected")
+                        
+                        if 'group of people' in content or 'people' in content:
+                            group_people_mentioned = True
+                            print("✅ Group of people mentioned")
+                    
+                    elif data.get('type') == 'done':
+                        break
+                        
+                except json.JSONDecodeError:
+                    continue
+        
+        success = multiple_outfits_detected or group_people_mentioned
+        
+        if success:
+            print("✅ Multiple outfits detection test PASSED")
+        else:
+            print("❌ Multiple outfits detection test FAILED")
+        
+        return success
+    
+    def run_all_tests(self):
+        """Run all mockup tests"""
+        print("🚀 Starting Scene-Based Lifestyle Mockup Testing Suite")
+        print("=" * 60)
+        
+        if not self.authenticate():
+            print("❌ Authentication failed - cannot proceed with tests")
+            return False
+        
+        test_results = []
+        
+        # Test 1: Scene-based mockup (main feature)
+        test_results.append(("Scene-based Mockup", self.test_scene_based_mockup()))
+        
+        # Test 2: Traditional product mockup (should still work)
+        test_results.append(("Traditional Product Mockup", self.test_traditional_product_mockup()))
+        
+        # Test 3: Scene detection patterns
+        test_results.append(("Scene Detection Patterns", self.test_scene_detection_patterns()))
+        
+        # Test 4: Multiple outfits detection
+        test_results.append(("Multiple Outfits Detection", self.test_multiple_outfits_detection()))
+        
+        # Summary
+        print("\n" + "=" * 60)
+        print("📊 TEST RESULTS SUMMARY")
+        print("=" * 60)
+        
+        passed = 0
+        total = len(test_results)
+        
+        for test_name, result in test_results:
+            status = "✅ PASSED" if result else "❌ FAILED"
+            print(f"{test_name:<30} {status}")
+            if result:
+                passed += 1
+        
+        print("-" * 60)
+        print(f"Total: {passed}/{total} tests passed ({(passed/total)*100:.1f}%)")
+        
+        if passed == total:
+            print("🎉 ALL TESTS PASSED - Scene-based lifestyle mockup feature is working correctly!")
+            return True
+        else:
+            print("⚠️ SOME TESTS FAILED - Please review the failed tests above")
+            return False
+
+def main():
+    """Main test execution"""
+    tester = MockupTester()
+    success = tester.run_all_tests()
+    
+    if success:
+        exit(0)
+    else:
+        exit(1)
 
 if __name__ == "__main__":
-    tester = CompositeEditTester()
-    success = tester.run_all_tests()
-    exit(0 if success else 1)
+    main()

@@ -4445,6 +4445,13 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
       /\bwearing\s+(?:shirts?|t-shirts?)\s+with\s+(?:this|the|my)\s+logo\b/i,
       /\blogo\s+on\s+(?:the\s+)?(?:back|front)\s+(?:of)?\s+(?:a\s+)?(?:shirt|t-shirt)\b/i,
       /\bshow\s+(?:this|my)\s+(?:logo|design)\s+on\b/i,
+      // NEW: Scene-based mockups - people wearing shirts, lifestyle mockups
+      /\b(?:add|put)\s+(?:this|the|my)\s+logo\s+(?:to|on)\s+(?:the\s+)?(?:back|front)\s+of\s+(?:a\s+)?(?:t-?shirt|shirt|hoodie)\b/i,
+      /\blogo\s+(?:to|on)\s+(?:the\s+)?(?:back|front)\s+of\s+(?:a\s+)?(?:t-?shirt|shirt|hoodie)\s+(?:that\s+)?(?:someone|people|a\s+person)\b/i,
+      /\b(?:someone|people|person)\s+(?:is\s+)?wearing\s+(?:a\s+)?(?:t-?shirt|shirt|hoodie)\s+(?:with|featuring)\b/i,
+      /\bwearing\s+(?:that\s+)?(?:has|have|with)\s+(?:this|my|the)\s+logo\b/i,
+      /\b(?:t-?shirt|shirt|hoodie)\s+that\s+(?:someone|people)\s+(?:is\s+)?wearing\b/i,
+      /\b(?:add|put)\s+(?:this|the)\s+logo\s+to\s+(?:the\s+)?(?:outfits?|clothes|clothing)\b/i,
     ];
     if (mockupPatterns.some(p => p.test(lower))) {
       return { intent: 'mockup', confidence: 'high', reason: 'Product mockup with logo/design' };
@@ -7900,7 +7907,45 @@ async function handleChatStream(request) {
               let placement = 'front';
               if (/\b(back)\b/.test(productMatch)) placement = 'back';
               
+              // Step 2.5: Detect if this is a SCENE/LIFESTYLE request vs. product-only mockup
+              // User wants people wearing the product in a specific setting
+              const scenePatterns = [
+                /\b(?:someone|people|person|group|man|woman|guy|girl)\s+(?:is\s+)?(?:wearing|in|with)\b/i,
+                /\bwearing\s+(?:that|who|which)\s+(?:is\s+)?(?:sitting|standing|walking|at|around|by|near)\b/i,
+                /\b(?:sitting|standing|walking)\s+(?:at|around|by|near|in)\s+(?:a\s+)?(?:\w+\s+)*(?:campfire|beach|park|cafe|street|office|studio)\b/i,
+                /\bphotorealistic\s+(?:image|photo|scene)\b/i,
+                /\blifestyle\b/i,
+                /\b(?:at|around|by)\s+(?:a\s+)?(?:campfire|bonfire|fire|beach|park|bar|cafe|restaurant|office|party)\b/i,
+                /\b(?:add|put)\s+(?:the\s+)?logo\s+to\s+(?:the\s+)?(?:other\s+)?(?:outfits?|clothes|clothing)\b/i,
+                /\bmaybe\s+add\s+(?:the\s+)?logo\s+to\b/i,
+              ];
+              const isSceneRequest = scenePatterns.some(p => p.test(productMatch));
+              
+              // Extract scene description if this is a scene request
+              let sceneDescription = '';
+              if (isSceneRequest) {
+                // Try to extract the scene context
+                const sceneMatch = productMatch.match(/(?:sitting|standing|walking|at|around|by|near)\s+(?:a\s+)?(.+?)(?:\.|$|maybe|also|and\s+add)/i);
+                if (sceneMatch) {
+                  sceneDescription = sceneMatch[1].replace(/\s+that\s+is\b.*/, '').trim();
+                }
+                // Check for specific scene keywords
+                if (/campfire|bonfire|fire/.test(productMatch)) sceneDescription = sceneDescription || 'campfire';
+                if (/beach/.test(productMatch)) sceneDescription = sceneDescription || 'beach';
+                if (/park/.test(productMatch)) sceneDescription = sceneDescription || 'park';
+                if (/bar|pub/.test(productMatch)) sceneDescription = sceneDescription || 'bar';
+                if (/cafe|coffee\s*shop/.test(productMatch)) sceneDescription = sceneDescription || 'cafe';
+                if (/office|work/.test(productMatch)) sceneDescription = sceneDescription || 'office';
+                if (/party/.test(productMatch)) sceneDescription = sceneDescription || 'party';
+                if (/outdoor|outside|nature/.test(productMatch)) sceneDescription = sceneDescription || 'outdoor setting';
+              }
+              
+              // Check if user wants logo on multiple people/outfits
+              const multipleOutfits = /\b(?:other\s+)?(?:outfits?|people|everyone|all)\b/i.test(productMatch) || 
+                                       /\bmaybe\s+add\s+(?:the\s+)?logo\s+to\b/i.test(productMatch);
+              
               console.log(`[Mockup] Creating ${productType} mockup with design on ${placement}`);
+              console.log(`[Mockup] Scene request: ${isSceneRequest}, Scene: "${sceneDescription}", Multiple outfits: ${multipleOutfits}`);
               
               // Step 3: Use GPT-4o Vision to analyze the logo/design and create a detailed description
               send({ type: 'delta', content: '👁️ Analyzing your design...\n' });
@@ -7955,7 +8000,30 @@ Output ONLY the description, no explanations.`
               // Step 4: Generate the mockup with DALL-E 3 using the analyzed design
               send({ type: 'delta', content: '🖼️ Generating realistic mockup...\n' });
               
-              const mockupPrompt = `Professional e-commerce product photography of a ${productType} with a printed design.
+              let mockupPrompt;
+              
+              if (isSceneRequest) {
+                // SCENE-BASED / LIFESTYLE MOCKUP
+                // Generate people wearing the product in a specific setting
+                mockupPrompt = `Photorealistic lifestyle photography of ${multipleOutfits ? 'a group of people' : 'a person'} wearing ${productType}${multipleOutfits ? 's' : ''} with a printed design${sceneDescription ? ` ${sceneDescription.includes('campfire') || sceneDescription.includes('fire') ? 'sitting around a cozy campfire at night' : 'in a ' + sceneDescription}` : ''}.
+
+THE DESIGN/LOGO PRINTED ON THE ${productType.toUpperCase()}${multipleOutfits ? 'S' : ''} (shown on the ${placement}):
+${designDescription}
+
+SCENE REQUIREMENTS:
+- ${multipleOutfits ? 'Multiple people (3-4) all wearing ' + productType + 's' : 'One person wearing a ' + productType}
+- The ${productType}${multipleOutfits ? 's' : ''} ${multipleOutfits ? 'each have' : 'has'} the EXACT logo/design clearly visible and printed on the ${placement}
+- The design must look naturally printed/screen-printed on the fabric, following the contours of the body
+- ${sceneDescription ? (sceneDescription.includes('campfire') || sceneDescription.includes('fire') ? 'Warm, cozy campfire scene with natural firelight illumination. Evening/night setting with the fire providing ambient orange glow.' : 'Natural ' + sceneDescription + ' environment with appropriate lighting') : 'Outdoor lifestyle setting'}
+- ${placement === 'back' ? 'Show the person(s) from BEHIND so the back of the shirt is clearly visible' : 'Show the person(s) from the front with the design visible'}
+- Photorealistic quality - like a real photograph, not illustration
+- Natural poses and expressions
+- High detail on the printed design - it should be clearly readable/visible
+
+Style: Authentic lifestyle/brand photography. The kind you'd see in a brand campaign or social media marketing. Photorealistic, warm, inviting atmosphere.`;
+              } else {
+                // PRODUCT-ONLY / E-COMMERCE MOCKUP
+                mockupPrompt = `Professional e-commerce product photography of a ${productType} with a printed design.
 
 THE DESIGN ON THE ${productType.toUpperCase()} (shown on the ${placement}):
 ${designDescription}
@@ -7970,6 +8038,7 @@ MOCKUP REQUIREMENTS:
 - The printed design should have natural fabric texture and slight curves following the product shape
 
 Style: Clean, professional product photography. The kind you'd see on an e-commerce website or print-on-demand store.`;
+              }
               
               console.log('[Mockup] Generating with prompt:', mockupPrompt.substring(0, 300));
               
@@ -7996,16 +8065,23 @@ Style: Clean, professional product photography. The kind you'd see on an e-comme
               
               console.log('[Mockup] Successfully generated realistic mockup!');
               
-              fullContent = `![Product Mockup](${mockupUrl})\n\n🛍️ *Your ${productType} mockup is ready!*\n\n_Design analyzed and recreated on the product using AI._`;
+              // Different response message for scene vs product mockup
+              if (isSceneRequest) {
+                fullContent = `![Lifestyle Mockup](${mockupUrl})\n\n🎬 *Your lifestyle scene mockup is ready!*\n\n_Your logo/design has been integrated onto the ${productType}${multipleOutfits ? 's' : ''} in the scene._${sceneDescription ? `\n\n**Scene:** ${sceneDescription}` : ''}`;
+              } else {
+                fullContent = `![Product Mockup](${mockupUrl})\n\n🛍️ *Your ${productType} mockup is ready!*\n\n_Design analyzed and recreated on the product using AI._`;
+              }
               send({ type: 'image', url: mockupUrl, contentType: 'mockup', model: 'dall-e-3' });
               send({ type: 'delta', content: fullContent });
               
               await db.collection('messages').insertOne({
                 id: assistantMsgId, conversation_id: convId, user_id: user.id,
                 role: 'assistant', content: fullContent, created_at: new Date(),
-                model_used: 'dall-e-3', provider_used: 'openai', content_type: 'mockup',
+                model_used: 'dall-e-3', provider_used: 'openai', content_type: isSceneRequest ? 'lifestyle_mockup' : 'mockup',
                 image_url: mockupUrl,
                 design_description: designDescription,
+                mockup_type: isSceneRequest ? 'lifestyle_scene' : 'product_only',
+                scene_description: sceneDescription || null,
               });
               await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
               send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
