@@ -2050,6 +2050,10 @@ export default function MobileChat({
   // Visual content generation state (flyers, infographics, images)
   const [isGeneratingVisual, setIsGeneratingVisual] = useState(false);
   const [visualGenerationType, setVisualGenerationType] = useState(''); // 'flyer', 'infographic', 'image'
+  const [streamingImageUrl, setStreamingImageUrl] = useState(null);
+  const [streamingVideoTask, setStreamingVideoTask] = useState(null);
+  const streamingImageUrlRef = useRef(null);
+  const streamingVideoTaskRef = useRef(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renamingConversation, setRenamingConversation] = useState(null);
   const [renameTitle, setRenameTitle] = useState('');
@@ -2876,9 +2880,26 @@ export default function MobileChat({
                 dynamicIntelligenceReason = data.modelReason;
                 setLastSmartSelection({ model: data.selectedModel, reason: data.modelReason });
               }
+            } else if (data.type === 'image') {
+              // Image generated – store url for rendering
+              setStreamingImageUrl(data.url);
+              streamingImageUrlRef.current = data.url;
+              // Reset visual generation state since image arrived
+              setIsGeneratingVisual(false);
+              setVisualGenerationType('');
+            } else if (data.type === 'video_task') {
+              // Video job started – store taskId for polling
+              const videoTask = { taskId: data.taskId, status: 'generating', prompt: data.prompt };
+              setStreamingVideoTask(videoTask);
+              streamingVideoTaskRef.current = videoTask;
             } else if (data.type === 'delta') {
-              fullContent += data.content;
-              setStreamingContent(fullContent);
+              // Skip the markdown content if it's an image (we render the image directly)
+              if (!streamingImageUrlRef.current) {
+                fullContent += data.content;
+                setStreamingContent(fullContent);
+              } else {
+                fullContent += data.content;
+              }
               
               // Detect if AI is about to generate visual content
               const lowerContent = fullContent.toLowerCase();
@@ -2889,7 +2910,9 @@ export default function MobileChat({
                 'generating this image', 'generate this image', 'creating this image',
                 'i\'ll generate', 'i will generate', 'let me generate', 'let me create',
                 'hold on for a moment', 'please hold', 'one moment while i',
-                'working on your', 'designing your', 'crafting your'
+                'working on your', 'designing your', 'crafting your',
+                'editing your image', 'editing the image', 'applying the edit',
+                'adding your logo', 'adding the logo', 'composite'
               ];
               const isGeneratingVisualContent = generatingPhrases.some(phrase => lowerContent.includes(phrase));
               
@@ -2898,6 +2921,7 @@ export default function MobileChat({
                 if (lowerContent.includes('infographic')) type = 'infographic';
                 else if (lowerContent.includes('flyer')) type = 'flyer';
                 else if (lowerContent.includes('poster')) type = 'poster';
+                else if (lowerContent.includes('edit')) type = 'edit';
                 setIsGeneratingVisual(true);
                 setVisualGenerationType(type);
               }
@@ -2920,11 +2944,17 @@ export default function MobileChat({
           smart_mode: selectedModel === 'smart',
           smart_reason: dynamicIntelligenceReason,
           sources: streamingSources.length > 0 ? [...streamingSources] : undefined,
+          image_url: streamingImageUrlRef.current || undefined,
+          video_task: streamingVideoTaskRef.current || undefined,
         }]);
       }
 
       setStreamingContent('');
       setStreamingSources([]);
+      setStreamingImageUrl(null);
+      setStreamingVideoTask(null);
+      streamingImageUrlRef.current = null;
+      streamingVideoTaskRef.current = null;
       setIsGeneratingVisual(false);
       setVisualGenerationType('');
       if (newConvId && newConvId !== conversationId) {
