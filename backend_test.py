@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for Intent Detection Order Fix
-Tests the updated intent detection order for mockup vs composite_edit
+Backend Testing Script for SoulPrint Engine
+Testing NEW SMART Intent Detection for Mockup vs Composite Edit
 """
 
 import requests
@@ -9,8 +9,7 @@ import json
 import base64
 import time
 import sys
-from io import BytesIO
-from PIL import Image
+from typing import Dict, Any, Optional
 
 # Configuration
 BASE_URL = "https://chat-composite-edit.preview.emergentagent.com"
@@ -23,10 +22,10 @@ TEST_PASSWORD = "test123"
 class BackendTester:
     def __init__(self):
         self.session = requests.Session()
-        self.token = None
+        self.auth_token = None
         self.user_id = None
         
-    def authenticate(self):
+    def authenticate(self) -> bool:
         """Authenticate with test credentials"""
         try:
             print("🔐 Authenticating...")
@@ -37,233 +36,265 @@ class BackendTester:
             
             if response.status_code == 200:
                 data = response.json()
-                self.token = data.get('token')
+                self.auth_token = data.get('token')
                 self.user_id = data.get('userId')
-                self.session.headers.update({'Authorization': f'Bearer {self.token}'})
+                self.session.headers.update({'Authorization': f'Bearer {self.auth_token}'})
                 print(f"✅ Authentication successful! User ID: {self.user_id}")
                 return True
             else:
                 print(f"❌ Authentication failed: {response.status_code} - {response.text}")
                 return False
+                
         except Exception as e:
-            print(f"❌ Authentication error: {e}")
+            print(f"❌ Authentication error: {str(e)}")
             return False
     
-    def create_test_logo_image(self):
-        """Create a simple test logo image as base64"""
-        try:
-            # Create a simple logo image (100x100 red circle)
-            img = Image.new('RGBA', (100, 100), (255, 255, 255, 0))
-            from PIL import ImageDraw
-            draw = ImageDraw.Draw(img)
-            draw.ellipse([10, 10, 90, 90], fill=(255, 0, 0, 255))
-            
-            # Convert to base64
-            buffer = BytesIO()
-            img.save(buffer, format='PNG')
-            img_data = buffer.getvalue()
-            base64_data = base64.b64encode(img_data).decode('utf-8')
-            
-            return f"data:image/png;base64,{base64_data}"
-        except Exception as e:
-            print(f"❌ Error creating test logo: {e}")
-            return None
+    def create_test_image_attachment(self) -> str:
+        """Create a simple test image as base64 for attachment testing"""
+        # Simple 1x1 PNG image in base64
+        png_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77zgAAAABJRU5ErkJggg=="
+        return f"data:image/png;base64,{png_data}"
     
-    def test_intent_detection(self, content, attachment_data=None, expected_intent=None, test_name=""):
+    def test_intent_detection(self, message: str, expected_intent: str, test_name: str, has_attachment: bool = False) -> bool:
         """Test intent detection via chat stream"""
         try:
             print(f"\n🧪 Testing: {test_name}")
-            print(f"📝 Content: {content}")
-            print(f"📎 Has attachment: {'Yes' if attachment_data else 'No'}")
-            print(f"🎯 Expected intent: {expected_intent}")
+            print(f"📝 Message: '{message}'")
+            print(f"🎯 Expected Intent: {expected_intent}")
             
             # Prepare request payload
             payload = {
-                "content": content,
+                "content": message,
                 "model": "gpt-4o",
                 "conversationId": f"test-{int(time.time())}"
             }
             
-            # Add attachment if provided
-            if attachment_data:
+            # Add attachment if needed
+            if has_attachment:
                 payload["attachments"] = [{
                     "type": "image",
-                    "data": attachment_data,
-                    "mimeType": "image/png"
+                    "data": self.create_test_image_attachment(),
+                    "name": "test-logo.png"
                 }]
+                print("📎 Attachment: Test logo image added")
             
             # Make request to chat stream
-            response = self.session.post(f"{API_BASE}/chat/stream", 
-                                       json=payload,
-                                       stream=True)
+            response = self.session.post(
+                f"{API_BASE}/chat/stream",
+                json=payload,
+                stream=True,
+                headers={'Accept': 'text/plain'}
+            )
             
             if response.status_code != 200:
                 print(f"❌ Request failed: {response.status_code} - {response.text}")
                 return False
             
-            # Parse NDJSON stream to find intent detection
+            # Parse NDJSON stream to find intent detection logs
             detected_intent = None
             backend_logs = []
             
-            for line in response.iter_lines():
-                if line:
+            for line in response.iter_lines(decode_unicode=True):
+                if line.strip():
                     try:
-                        data = json.loads(line.decode('utf-8'))
+                        data = json.loads(line)
                         
-                        # Look for meta information with intent
+                        # Look for meta information that might contain intent
                         if data.get('type') == 'meta':
                             meta = data.get('meta', {})
                             if 'mediaIntent' in meta:
                                 detected_intent = meta['mediaIntent']
-                                print(f"🔍 Detected intent: {detected_intent}")
+                                print(f"🎯 Detected Intent: {detected_intent}")
                         
                         # Look for delta content that might contain backend logs
                         if data.get('type') == 'delta':
-                            content_chunk = data.get('content', '')
-                            if '[Mockup]' in content_chunk or '[Composite Edit]' in content_chunk:
-                                backend_logs.append(content_chunk)
-                                print(f"📋 Backend log: {content_chunk.strip()}")
+                            content = data.get('content', '')
+                            if '[Mockup]' in content or '[Composite Edit]' in content:
+                                backend_logs.append(content)
+                                print(f"📋 Backend Log: {content}")
                         
-                        # Stop after getting the intent and some content
-                        if detected_intent and len(backend_logs) > 0:
+                        # Stop after getting done signal
+                        if data.get('type') == 'done':
                             break
                             
                     except json.JSONDecodeError:
                         continue
             
-            # Verify results
-            if expected_intent:
-                if detected_intent == expected_intent:
-                    print(f"✅ PASS: Intent correctly detected as '{detected_intent}'")
-                    return True
-                else:
-                    print(f"❌ FAIL: Expected '{expected_intent}' but got '{detected_intent}'")
-                    return False
-            else:
-                print(f"ℹ️  Intent detected: {detected_intent}")
+            # Check if intent matches expectation
+            if detected_intent == expected_intent:
+                print(f"✅ PASS: Intent correctly detected as '{detected_intent}'")
+                if backend_logs:
+                    print(f"📋 Backend logs confirm: {backend_logs}")
                 return True
+            else:
+                print(f"❌ FAIL: Expected '{expected_intent}' but got '{detected_intent}'")
+                if backend_logs:
+                    print(f"📋 Backend logs: {backend_logs}")
+                return False
                 
         except Exception as e:
-            print(f"❌ Test error: {e}")
+            print(f"❌ Test error: {str(e)}")
             return False
     
-    def run_critical_test(self):
-        """Run the critical test from the review request"""
+    def run_mockup_tests(self) -> Dict[str, bool]:
+        """Run all mockup intent detection tests"""
         print("\n" + "="*80)
-        print("🚨 CRITICAL TEST - Must Pass")
+        print("🎨 TESTING MOCKUP INTENT DETECTION")
         print("="*80)
         
-        logo_data = self.create_test_logo_image()
-        if not logo_data:
-            print("❌ Failed to create test logo")
-            return False
-        
-        # The critical test case
-        content = "can you add this logo to the back of a tshirt that someone is wearing that is sitting around campfire?"
-        
-        result = self.test_intent_detection(
-            content=content,
-            attachment_data=logo_data,
-            expected_intent="mockup",
-            test_name="Critical Test - T-shirt with scene context"
-        )
-        
-        return result
-    
-    def run_additional_tests(self):
-        """Run additional test cases"""
-        print("\n" + "="*80)
-        print("🧪 ADDITIONAL TESTS")
-        print("="*80)
-        
-        logo_data = self.create_test_logo_image()
-        if not logo_data:
-            print("❌ Failed to create test logo")
-            return False
-        
-        test_cases = [
+        mockup_tests = [
             {
-                "content": "put this logo on a hoodie",
-                "attachment": logo_data,
+                "message": "add this logo to the back of a tshirt that someone is wearing at a campfire",
                 "expected": "mockup",
-                "name": "Simple hoodie mockup"
+                "name": "Scene-based mockup with lifestyle context",
+                "attachment": True
             },
             {
-                "content": "add this logo to the car",
-                "attachment": logo_data,
-                "expected": "composite_edit",
-                "name": "Car composite edit"
+                "message": "put this logo on a surfboard that someone is holding at the beach",
+                "expected": "mockup", 
+                "name": "Beach lifestyle mockup",
+                "attachment": True
             },
             {
-                "content": "add this logo to the minivan door",
-                "attachment": logo_data,
-                "expected": "composite_edit",
-                "name": "Minivan door composite edit"
+                "message": "add this design to a jacket that people are wearing at a concert",
+                "expected": "mockup",
+                "name": "Concert scene mockup",
+                "attachment": True
+            },
+            {
+                "message": "create a mockup of this logo on a skateboard",
+                "expected": "mockup",
+                "name": "Direct mockup request",
+                "attachment": True
+            },
+            {
+                "message": "put this on a coffee mug",
+                "expected": "mockup",
+                "name": "Product mockup with indefinite article",
+                "attachment": True
+            },
+            {
+                "message": "add this logo to a laptop someone is using in an office",
+                "expected": "mockup",
+                "name": "Office lifestyle mockup",
+                "attachment": True
             }
         ]
         
-        results = []
-        for test_case in test_cases:
-            result = self.test_intent_detection(
-                content=test_case["content"],
-                attachment_data=test_case["attachment"],
-                expected_intent=test_case["expected"],
-                test_name=test_case["name"]
+        results = {}
+        for test in mockup_tests:
+            success = self.test_intent_detection(
+                test["message"], 
+                test["expected"], 
+                test["name"],
+                test["attachment"]
             )
-            results.append(result)
+            results[test["name"]] = success
+            time.sleep(1)  # Brief pause between tests
         
-        return all(results)
+        return results
+    
+    def run_composite_edit_tests(self) -> Dict[str, bool]:
+        """Run all composite edit intent detection tests"""
+        print("\n" + "="*80)
+        print("🔧 TESTING COMPOSITE_EDIT INTENT DETECTION")
+        print("="*80)
+        
+        composite_tests = [
+            {
+                "message": "add this logo to the car",
+                "expected": "composite_edit",
+                "name": "Definite article existing item",
+                "attachment": True
+            },
+            {
+                "message": "put this on the image",
+                "expected": "composite_edit",
+                "name": "Reference to existing image",
+                "attachment": True
+            },
+            {
+                "message": "add it there",
+                "expected": "composite_edit",
+                "name": "Spatial reference to existing",
+                "attachment": True
+            },
+            {
+                "message": "put this logo on that picture",
+                "expected": "composite_edit",
+                "name": "Reference to specific picture",
+                "attachment": True
+            }
+        ]
+        
+        results = {}
+        for test in composite_tests:
+            success = self.test_intent_detection(
+                test["message"],
+                test["expected"],
+                test["name"], 
+                test["attachment"]
+            )
+            results[test["name"]] = success
+            time.sleep(1)  # Brief pause between tests
+        
+        return results
     
     def run_all_tests(self):
-        """Run all tests"""
-        print("🚀 Starting Intent Detection Order Testing")
-        print("="*80)
+        """Run complete test suite"""
+        print("🚀 Starting NEW SMART Intent Detection Testing")
+        print(f"🌐 Base URL: {BASE_URL}")
+        print(f"👤 Test User: {TEST_EMAIL}")
         
         # Authenticate first
         if not self.authenticate():
-            return False
+            print("❌ Cannot proceed without authentication")
+            return
         
-        # Run critical test
-        critical_passed = self.run_critical_test()
+        # Run mockup tests
+        mockup_results = self.run_mockup_tests()
         
-        # Run additional tests
-        additional_passed = self.run_additional_tests()
+        # Run composite edit tests  
+        composite_results = self.run_composite_edit_tests()
         
         # Summary
         print("\n" + "="*80)
-        print("📊 TEST SUMMARY")
+        print("📊 TEST RESULTS SUMMARY")
         print("="*80)
         
-        if critical_passed:
-            print("✅ CRITICAL TEST: PASSED")
+        all_results = {**mockup_results, **composite_results}
+        passed = sum(1 for result in all_results.values() if result)
+        total = len(all_results)
+        
+        print(f"\n🎯 MOCKUP TESTS:")
+        for test_name, result in mockup_results.items():
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"  {status}: {test_name}")
+        
+        print(f"\n🔧 COMPOSITE_EDIT TESTS:")
+        for test_name, result in composite_results.items():
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"  {status}: {test_name}")
+        
+        print(f"\n📈 OVERALL RESULTS: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+        
+        if passed == total:
+            print("🎉 ALL TESTS PASSED! NEW SMART Intent Detection is working correctly!")
         else:
-            print("❌ CRITICAL TEST: FAILED")
+            print("⚠️  Some tests failed. Intent detection may need adjustment.")
         
-        if additional_passed:
-            print("✅ ADDITIONAL TESTS: PASSED")
-        else:
-            print("❌ ADDITIONAL TESTS: FAILED")
-        
-        overall_success = critical_passed and additional_passed
-        
-        if overall_success:
-            print("\n🎉 ALL TESTS PASSED! Intent detection order fix is working correctly.")
-        else:
-            print("\n⚠️  SOME TESTS FAILED! Intent detection order needs attention.")
-        
-        return overall_success
+        return all_results
 
 def main():
     """Main test execution"""
     tester = BackendTester()
-    success = tester.run_all_tests()
+    results = tester.run_all_tests()
     
-    if success:
-        print("\n✅ Backend testing completed successfully!")
-        sys.exit(0)
+    # Exit with appropriate code
+    if all(results.values()):
+        sys.exit(0)  # Success
     else:
-        print("\n❌ Backend testing failed!")
-        sys.exit(1)
+        sys.exit(1)  # Some tests failed
 
 if __name__ == "__main__":
     main()

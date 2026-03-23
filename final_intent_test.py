@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simplified Backend Test for NEW SMART Intent Detection
+Fixed Backend Test for NEW SMART Intent Detection
 Testing specific test cases from review request
 """
 
@@ -76,6 +76,7 @@ def test_single_intent(message, expected_intent, test_name, token, has_attachmen
         
         # Parse stream for intent detection
         detected_intent = None
+        intent_reason = None
         backend_logs = []
         
         for line in response.iter_lines(decode_unicode=True):
@@ -83,12 +84,12 @@ def test_single_intent(message, expected_intent, test_name, token, has_attachmen
                 try:
                     data = json.loads(line)
                     
-                    # Look for mediaIntent in meta
-                    if data.get('type') == 'meta':
-                        meta = data.get('meta', {})
-                        if 'mediaIntent' in meta:
-                            detected_intent = meta['mediaIntent']
-                            print(f"🎯 Detected: {detected_intent}")
+                    # Look for mediaIntent in the JSON object directly (not in meta)
+                    if data.get('type') == 'meta' and 'mediaIntent' in data:
+                        detected_intent = data.get('mediaIntent')
+                        intent_reason = data.get('mediaIntentReason', '')
+                        print(f"🎯 Detected: {detected_intent}")
+                        print(f"📋 Reason: {intent_reason}")
                     
                     # Look for backend logs in delta content
                     if data.get('type') == 'delta':
@@ -107,9 +108,13 @@ def test_single_intent(message, expected_intent, test_name, token, has_attachmen
         # Check result
         if detected_intent == expected_intent:
             print(f"✅ PASS: Correctly detected '{detected_intent}'")
+            if intent_reason:
+                print(f"   Reason: {intent_reason}")
             return True
         else:
             print(f"❌ FAIL: Expected '{expected_intent}' but got '{detected_intent}'")
+            if intent_reason:
+                print(f"   Reason: {intent_reason}")
             return False
             
     except Exception as e:
@@ -117,7 +122,7 @@ def test_single_intent(message, expected_intent, test_name, token, has_attachmen
         return False
 
 def main():
-    """Run key test cases from review request"""
+    """Run comprehensive test cases from review request"""
     print("🚀 Testing NEW SMART Intent Detection")
     print("="*60)
     
@@ -126,25 +131,43 @@ def main():
     if not token:
         return
     
-    # Key test cases from review request
+    # Comprehensive test cases from review request
     test_cases = [
         # MOCKUP tests (should detect as mockup)
         {
             "message": "add this logo to the back of a tshirt that someone is wearing at a campfire",
             "expected": "mockup",
-            "name": "Critical Test: T-shirt at campfire (MOCKUP)",
+            "name": "🔥 Critical Test: T-shirt at campfire (MOCKUP)",
             "attachment": True
         },
         {
             "message": "put this logo on a surfboard that someone is holding at the beach", 
             "expected": "mockup",
-            "name": "Beach lifestyle mockup",
+            "name": "🏄 Beach lifestyle mockup",
+            "attachment": True
+        },
+        {
+            "message": "add this design to a jacket that people are wearing at a concert",
+            "expected": "mockup",
+            "name": "🎵 Concert scene mockup",
+            "attachment": True
+        },
+        {
+            "message": "create a mockup of this logo on a skateboard",
+            "expected": "mockup",
+            "name": "🛹 Direct mockup request",
             "attachment": True
         },
         {
             "message": "put this on a coffee mug",
             "expected": "mockup", 
-            "name": "Product mockup (indefinite 'a')",
+            "name": "☕ Product mockup (indefinite 'a')",
+            "attachment": True
+        },
+        {
+            "message": "add this logo to a laptop someone is using in an office",
+            "expected": "mockup",
+            "name": "💻 Office lifestyle mockup",
             "attachment": True
         },
         
@@ -152,25 +175,34 @@ def main():
         {
             "message": "add this logo to the car",
             "expected": "composite_edit",
-            "name": "Definite 'the' + existing item",
+            "name": "🚗 Definite 'the' + existing item",
             "attachment": True
         },
         {
             "message": "put this on the image",
             "expected": "composite_edit",
-            "name": "Reference to existing image", 
+            "name": "🖼️ Reference to existing image", 
             "attachment": True
         },
         {
             "message": "add it there",
             "expected": "composite_edit",
-            "name": "Spatial reference",
+            "name": "📍 Spatial reference",
+            "attachment": True
+        },
+        {
+            "message": "put this logo on that picture",
+            "expected": "composite_edit",
+            "name": "🖼️ Reference to specific picture",
             "attachment": True
         }
     ]
     
     # Run tests
     results = {}
+    mockup_results = {}
+    composite_results = {}
+    
     for test in test_cases:
         success = test_single_intent(
             test["message"],
@@ -180,26 +212,57 @@ def main():
             test["attachment"]
         )
         results[test["name"]] = success
+        
+        # Categorize results
+        if test["expected"] == "mockup":
+            mockup_results[test["name"]] = success
+        else:
+            composite_results[test["name"]] = success
+            
         time.sleep(2)  # Pause between tests
     
     # Summary
     print("\n" + "="*60)
-    print("📊 RESULTS SUMMARY")
+    print("📊 TEST RESULTS SUMMARY")
     print("="*60)
     
+    # Mockup results
+    print(f"\n🎨 MOCKUP TESTS:")
+    mockup_passed = sum(1 for result in mockup_results.values() if result)
+    mockup_total = len(mockup_results)
+    for test_name, result in mockup_results.items():
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"  {status}: {test_name}")
+    print(f"  📈 Mockup Results: {mockup_passed}/{mockup_total} passed")
+    
+    # Composite edit results
+    print(f"\n🔧 COMPOSITE_EDIT TESTS:")
+    composite_passed = sum(1 for result in composite_results.values() if result)
+    composite_total = len(composite_results)
+    for test_name, result in composite_results.items():
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"  {status}: {test_name}")
+    print(f"  📈 Composite Results: {composite_passed}/{composite_total} passed")
+    
+    # Overall results
     passed = sum(1 for result in results.values() if result)
     total = len(results)
     
-    for test_name, result in results.items():
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{status}: {test_name}")
-    
-    print(f"\n📈 Overall: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+    print(f"\n🎯 OVERALL RESULTS: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
     
     if passed == total:
-        print("🎉 NEW SMART Intent Detection working correctly!")
+        print("🎉 ALL TESTS PASSED! NEW SMART Intent Detection is working correctly!")
+        print("✨ Context-aware detection successfully distinguishes mockup vs composite_edit")
+    elif mockup_passed == mockup_total:
+        print("🎨 MOCKUP detection working perfectly!")
+        print("⚠️  COMPOSITE_EDIT detection needs review")
+    elif composite_passed == composite_total:
+        print("🔧 COMPOSITE_EDIT detection working perfectly!")
+        print("⚠️  MOCKUP detection needs review")
     else:
-        print("⚠️  Some tests failed - intent detection needs review")
+        print("⚠️  Both mockup and composite_edit detection need review")
+    
+    return results
 
 if __name__ == "__main__":
     main()

@@ -4413,61 +4413,86 @@ function quickMediaIntentCheck(text, hasAttachment = false) {
   // Image edit patterns (requires attachment)
   if (hasAttachment) {
     // ═══════════════════════════════════════════════════════════════════════════
-    // FIRST CHECK: Mockup (logo on product like shirt, mug, hoodie)
-    // This takes priority because users often say "add this logo to a shirt"
-    // which should NOT be treated as composite_edit (adding to existing image)
+    // SMART INTENT DETECTION: Mockup vs Composite Edit
+    // 
+    // MOCKUP = Generate a NEW image with the logo (create scene from scratch)
+    // COMPOSITE_EDIT = Add logo to an EXISTING image in the conversation
+    //
+    // Key distinction: Is user describing a NEW scene to create, or referring
+    // to an existing image they want to modify?
     // ═══════════════════════════════════════════════════════════════════════════
-    const mockupPatterns = [
-      // Scene-based mockups - people wearing shirts, lifestyle mockups (HIGHEST PRIORITY)
-      /\b(?:add|put)\s+(?:this|the|my)\s+logo\s+(?:to|on)\s+(?:the\s+)?(?:back|front)\s+of\s+(?:a\s+)?(?:t-?shirt|shirt|hoodie|tshirt)\b/i,
-      /\blogo\s+(?:to|on)\s+(?:the\s+)?(?:back|front)\s+of\s+(?:a\s+)?(?:t-?shirt|shirt|hoodie|tshirt)\b/i,
-      /\b(?:someone|people|person|group)\s+(?:is\s+)?(?:wearing|in)\s+(?:a\s+)?(?:t-?shirt|shirt|hoodie|tshirt)\b/i,
-      /\bwearing\s+(?:that|which|who)\s+(?:is\s+)?(?:sitting|standing|at|around)\b/i,
-      /\b(?:t-?shirt|shirt|hoodie|tshirt)\s+that\s+(?:someone|people|a\s+person)\s+(?:is\s+)?wearing\b/i,
-      /\b(?:add|put)\s+(?:this|the)\s+logo\s+to\s+(?:the\s+)?(?:outfits?|clothes|clothing)\b/i,
-      /\blifestyle\s+(?:photo|image|mockup|scene)\b/i,
-      /\bphotorealistic\s+(?:image|photo|scene)\b/i,
-      // Clothing/product keywords with logo context
-      /\b(?:t-?shirt|shirt|hoodie|tshirt|mug|cup|poster|cap|hat|tote\s*bag)\b.*\b(?:logo|design)\b/i,
-      /\b(?:logo|design)\b.*\b(?:t-?shirt|shirt|hoodie|tshirt|mug|cup|poster|cap|hat|tote\s*bag)\b/i,
-      // Direct product mockup patterns
-      /\b(?:put|place|add)\s+(?:this|the|my)\s+(?:logo|design|image)\s+on\s+(?:a\s+)?(?:shirt|t-shirt|tshirt|hoodie|mug|cup|poster|banner|product|card|business\s*card)\b/i,
+    
+    // STRONG MOCKUP INDICATORS (user wants to GENERATE a new scene)
+    // These always indicate mockup regardless of what item they mention
+    const strongMockupPatterns = [
+      // Scene/lifestyle generation requests
+      /\b(?:someone|people|person|group|man|woman|guy|girl|kid|child)\s+(?:is\s+)?(?:wearing|holding|using|carrying|riding|standing|sitting)\b/i,
+      /\b(?:wearing|holding|using)\s+(?:that|which|who)\s+(?:is\s+)?(?:at|in|on|around|by|near)\b/i,
+      /\b(?:sitting|standing|walking|running|posing)\s+(?:at|in|on|around|by|near)\b/i,
+      /\blifestyle\s+(?:photo|image|mockup|scene|shot)\b/i,
+      /\bphotorealistic\s+(?:image|photo|scene|picture)\b/i,
+      /\b(?:create|generate|make)\s+(?:a\s+)?(?:scene|photo|image)\s+(?:of|with|showing)\b/i,
+      /\b(?:show|imagine|visualize)\s+(?:someone|people|a\s+person)\b/i,
       /\bmockup\b/i,
-      /\b(?:on\s+(?:a|the)\s+)?(?:shirt|t-shirt|tshirt|hoodie|mug|cup)\s+(?:with|showing)\b/i,
-      /\bwearing\s+(?:shirts?|t-shirts?|hoodies?)\s+(?:with|featuring)\s+(?:this|the|my)\s+(?:logo|design)\b/i,
-      /\blogo\s+on\s+(?:the\s+)?(?:back|front)\s+(?:of)?\s+(?:a\s+)?(?:shirt|t-shirt|tshirt|hoodie)\b/i,
-      /\bshow\s+(?:this|my)\s+(?:logo|design)\s+on\b/i,
+      // Scene context descriptors (locations/situations)
+      /\b(?:at|around|near|by)\s+(?:a\s+)?(?:campfire|bonfire|beach|park|cafe|bar|restaurant|office|party|concert|festival|gym|street|store|shop)\b/i,
+      /\b(?:in|at)\s+(?:a\s+)?(?:meeting|presentation|outdoor|indoor|studio|nature|city|urban)\b/i,
+      // Product mockup requests (new product image)
+      /\b(?:create|make|design|generate)\s+(?:a\s+)?(?:\w+\s+)?mockup\b/i,
+      /\bon\s+(?:a\s+)?(?:\w+\s+)?(?:that|which)\s+(?:someone|people|a\s+person)\b/i,
+      // "add logo to the back of a [item]" (describing new item to create, not existing)
+      /\b(?:add|put)\s+(?:this|the|my)\s+(?:logo|design)\s+(?:to|on)\s+(?:the\s+)?(?:back|front|side)\s+of\s+(?:a|an)\s+/i,
     ];
-    if (mockupPatterns.some(p => p.test(lower))) {
-      return { intent: 'mockup', confidence: 'high', reason: 'Product mockup with logo/design' };
+    
+    if (strongMockupPatterns.some(p => p.test(lower))) {
+      return { intent: 'mockup', confidence: 'high', reason: 'Scene generation / lifestyle mockup request' };
     }
     
-    // ═══════════════════════════════════════════════════════════════════════════
-    // SECOND CHECK: Composite edit (add attached image to previous image)
-    // Only for VEHICLES, EXISTING IMAGES - not for clothing/products
-    // ═══════════════════════════════════════════════════════════════════════════
-    const compositeEditPatterns = [
-      // Vehicle-specific patterns (NOT clothing)
-      /\b(?:add|put|place)\s+(?:this|the)\s+(?:logo|image|design|sticker|icon|graphic)\s+(?:to|on)\s+(?:the\s+)?(?:hood|car|vehicle|van|minivan|truck|bus|door|side)\b/i,
-      /\b(?:add|put|place)\s+(?:this|it)\s+(?:to|on)\s+(?:the\s+)?(?:hood|car|vehicle|van|minivan|truck|bus|image|wall|background|door|side|front|back|left|right|center)\b/i,
-      /\bput\s+(?:this|it)\s+on\s+(?:there|it|the)\b/i,
-      /\b(?:add|place)\s+(?:this|it)\s+(?:here|there|to\s+(?:the|it))\b/i,
+    // STRONG COMPOSITE_EDIT INDICATORS (user referring to EXISTING image)
+    // These suggest user wants to modify a previous image, not create new
+    const strongCompositePatterns = [
+      // Referring to existing/previous image
+      /\b(?:add|put|place)\s+(?:this|it)\s+(?:to|on)\s+(?:the|that)\s+(?:image|photo|picture|one)\b/i,
+      /\b(?:add|put|place)\s+(?:this|it)\s+(?:there|here)\b/i,
+      /\bput\s+(?:this|it)\s+on\s+(?:there|it|that)\b/i,
+      /\b(?:to|on)\s+(?:the|that)\s+(?:same|previous|last|existing)\s+(?:image|photo|picture)\b/i,
       /\b(?:swap|replace|change)\s+(?:the\s+)?(?:logo|image|design)?\s*(?:with|to)\s+(?:this|the)\b/i,
-      /\b(?:use|apply)\s+(?:this|the)\s+(?:logo|image|design)\s+(?:instead|on)\b/i,
-      /\bwith\s+this\s+(?:logo|image|one)\b/i,
-      // Catch "add [the] [X] logo to [the] Y" patterns for VEHICLES
-      /\badd\s+(?:the\s+)?(?:\w+\s+)*?logo\s+to\s+(?:the\s+)?(?:minivan|van|car|vehicle|truck|bus|image|photo|picture)\b/i,
-      /\b(?:logo|design)\s+(?:to|on)\s+(?:the\s+)?(?:minivan|van|car|vehicle|truck|bus)\b/i,
-      /\bto\s+(?:the\s+)?(?:minivan|van|car|vehicle|truck|bus)\s+/i,
-      // Catch vehicle-specific patterns
-      /\b(?:minivan|van|car|vehicle|truck|bus)\b.*\b(?:logo|emblem|badge)\b/i,
-      /\b(?:logo|emblem|badge)\b.*\b(?:minivan|van|car|vehicle|truck|bus)\b/i,
+      /\b(?:use|apply)\s+(?:this|the)\s+(?:logo|image|design)\s+(?:instead|on\s+(?:it|that|the))\b/i,
+      // Definite article "the" + item suggests existing item (not "a" which suggests new)
+      /\b(?:add|put|place)\s+(?:this|the|my)\s+(?:logo|design|image)\s+(?:to|on)\s+the\s+(?!back\s+of\s+a)(?!front\s+of\s+a)/i,
     ];
-    if (compositeEditPatterns.some(p => p.test(lower))) {
-      return { intent: 'composite_edit', confidence: 'high', reason: 'Add attached element to previous image' };
+    
+    if (strongCompositePatterns.some(p => p.test(lower))) {
+      return { intent: 'composite_edit', confidence: 'high', reason: 'Add to existing image in conversation' };
     }
     
-    // Then check: Edit existing image
+    // MEDIUM CONFIDENCE: Check for product/mockup keywords without strong scene indicators
+    // If user mentions typical mockup products with "a/an" (indefinite), likely mockup
+    const mockupProductPatterns = [
+      /\b(?:put|place|add)\s+(?:this|the|my)\s+(?:logo|design|image)\s+on\s+(?:a|an)\s+/i,
+      /\b(?:logo|design)\s+on\s+(?:a|an)\s+/i,
+      /\b(?:on|to)\s+(?:a|an)\s+(?:\w+\s+)*(?:shirt|hoodie|jacket|hat|cap|mug|cup|bag|case|poster|banner|sign|board|wall|surface)\b/i,
+    ];
+    
+    if (mockupProductPatterns.some(p => p.test(lower))) {
+      return { intent: 'mockup', confidence: 'medium', reason: 'Product mockup request (new product)' };
+    }
+    
+    // FALLBACK: If user says "add this logo to the [X]" without clear indicators,
+    // check if they're likely referring to a previous image context
+    // Pattern: "add [logo] to the [specific item]" - could be either, lean toward composite
+    // if the context suggests an existing image, otherwise mockup
+    const ambiguousAddPattern = /\b(?:add|put|place)\s+(?:this|the|my)\s+(?:logo|design|image|sticker)\s+(?:to|on)\s+/i;
+    if (ambiguousAddPattern.test(lower)) {
+      // Check if "the" + noun (suggests existing) vs "a" + noun (suggests new)
+      if (/\b(?:to|on)\s+the\s+\w+\b/i.test(lower) && !/\b(?:to|on)\s+the\s+(?:back|front|side)\s+of\s+(?:a|an)\b/i.test(lower)) {
+        return { intent: 'composite_edit', confidence: 'medium', reason: 'Likely referring to existing image' };
+      }
+      // Default to mockup for ambiguous cases with attachment
+      return { intent: 'mockup', confidence: 'medium', reason: 'Logo placement request - defaulting to mockup' };
+    }
+    
+    // Then check: Edit existing image (not adding logo, but modifying)
     const editPatterns = [
       /\b(?:edit|modify|change|remove|replace|adjust|fix|enhance|improve)\b/i,
       /\b(?:make\s+it|turn\s+it)\b/i,
