@@ -220,6 +220,29 @@ Users can organize conversations into Projects for better organization.
 2. Move conversations to projects via the context menu (right-click or three dots)
 3. Click a project name to view only conversations in that project
 
+### Project-Specific AI Instructions
+Each project can have custom AI instructions that apply to all chats within that project:
+
+**Setting up custom instructions:**
+1. When creating a new project, add instructions in the "Custom AI Instructions" field
+2. Or edit an existing project (click the pencil icon) to add/update instructions
+3. Instructions can include: AI persona, tone, specific knowledge domains, rules, etc.
+
+**How it works:**
+- Instructions are prepended to the AI's system prompt for all chats in that project
+- A "Custom AI" badge appears in the breadcrumb when viewing a project with instructions
+- Different projects can have different AI personas/behaviors
+
+**Example use cases:**
+- Create a project with an expert persona (e.g., legal advisor, fitness coach)
+- Set specific tone/style requirements for business communications
+- Define domain-specific knowledge or terminology
+
+### Project Navigation
+- **Breadcrumb bar**: When viewing a project, a purple breadcrumb bar shows which project you're in
+- **New Chat button**: Click "New Chat" in the breadcrumb bar to start a new conversation in the current project
+- **Back to All Chats**: Click "All Chats" in the breadcrumb to exit project view
+
 ### Deleting Conversations
 **Smart Deletion Behavior:**
 - **From "All Chats" view**: If a chat belongs to a Project, it's only hidden from All Chats (still accessible in the Project)

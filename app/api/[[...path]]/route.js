@@ -6187,7 +6187,7 @@ async function handleCreateProject(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
 
-  const { name, description, color, icon } = await request.json();
+  const { name, description, color, icon, instructions } = await request.json();
   if (!name) return err('Project name is required');
 
   const db = await getDb();
@@ -6197,6 +6197,7 @@ async function handleCreateProject(request) {
     id: uuidv4(),
     name: name.trim(),
     description: description || '',
+    instructions: instructions || '', // Custom AI instructions for this project
     color: color || '#6366f1', // Default indigo
     icon: icon || '📁',
     owner_id: user.id,
@@ -6215,7 +6216,7 @@ async function handleUpdateProject(request, projectId) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
 
-  const { name, description, color, icon } = await request.json();
+  const { name, description, color, icon, instructions } = await request.json();
   const db = await getDb();
 
   // Verify ownership
@@ -6225,6 +6226,7 @@ async function handleUpdateProject(request, projectId) {
   const updates = { updated_at: new Date() };
   if (name) updates.name = name.trim();
   if (description !== undefined) updates.description = description;
+  if (instructions !== undefined) updates.instructions = instructions;
   if (color) updates.color = color;
   if (icon) updates.icon = icon;
 
@@ -7328,6 +7330,17 @@ async function handleChatStream(request) {
 
   // ── Best Practice: Cached System Prompt ──────────────────────────────────────
   let systemPrompt = await getSystemPrompt(db, user.id);
+  
+  // ── Project-Specific Instructions ───────────────────────────────────────────
+  // If the conversation belongs to a project with custom instructions, prepend them
+  const actualConv = conv || await db.collection('conversations').findOne({ id: convId });
+  if (actualConv?.project_id) {
+    const project = await db.collection('projects').findOne({ id: actualConv.project_id });
+    if (project?.instructions && project.instructions.trim()) {
+      systemPrompt = `[PROJECT INSTRUCTIONS - "${project.name}"]\n${project.instructions.trim()}\n\n[END PROJECT INSTRUCTIONS]\n\n${systemPrompt}`;
+      console.log(`Applied project instructions from "${project.name}" (${project.instructions.length} chars)`);
+    }
+  }
   
   // ── Fetch Google Context if user has connected Google ──────────────────────────
   const googleContext = await fetchGoogleContextForChat(user.id, content || '');

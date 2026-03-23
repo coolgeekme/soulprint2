@@ -6571,6 +6571,7 @@ export default function ChatPage() {
   const [editingProject, setEditingProject] = useState(null);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [newProjectInstructions, setNewProjectInstructions] = useState(''); // Custom AI instructions for project
   const [shareEmail, setShareEmail] = useState('');
   const [shareRole, setShareRole] = useState('collaborator');
   const [projectShareLink, setProjectShareLink] = useState(null);
@@ -8256,7 +8257,8 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ 
           name: newProjectName.trim(), 
-          description: newProjectDescription.trim() 
+          description: newProjectDescription.trim(),
+          instructions: newProjectInstructions.trim()
         }),
       });
       if (res.ok) {
@@ -8265,6 +8267,7 @@ export default function ChatPage() {
         setShowProjectModal(false);
         setNewProjectName('');
         setNewProjectDescription('');
+        setNewProjectInstructions('');
       }
     } catch (err) {
       console.error('Create project error:', err);
@@ -8280,19 +8283,21 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ 
           name: newProjectName.trim(), 
-          description: newProjectDescription.trim() 
+          description: newProjectDescription.trim(),
+          instructions: newProjectInstructions.trim()
         }),
       });
       if (res.ok) {
         setProjects(prev => prev.map(p => 
           p.id === editingProject.id 
-            ? { ...p, name: newProjectName.trim(), description: newProjectDescription.trim() } 
+            ? { ...p, name: newProjectName.trim(), description: newProjectDescription.trim(), instructions: newProjectInstructions.trim() } 
             : p
         ));
         setShowProjectModal(false);
         setEditingProject(null);
         setNewProjectName('');
         setNewProjectDescription('');
+        setNewProjectInstructions('');
       }
     } catch (err) {
       console.error('Update project error:', err);
@@ -8327,6 +8332,7 @@ export default function ChatPage() {
     setEditingProject(project);
     setNewProjectName(project.name);
     setNewProjectDescription(project.description || '');
+    setNewProjectInstructions(project.instructions || '');
     setProjectModalMode('edit');
     setShowProjectModal(true);
   }
@@ -9009,6 +9015,44 @@ export default function ChatPage() {
             </button>
           </div>
         </div>
+
+        {/* Project Breadcrumb Bar - shows when viewing a project */}
+        {selectedProject && selectedProject !== 'general' && (
+          <div className="flex items-center justify-between px-4 py-2 bg-purple-500/5 border-b border-purple-500/20 flex-shrink-0">
+            <div className="flex items-center gap-2 text-sm">
+              <button 
+                onClick={() => setSelectedProject(null)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                All Chats
+              </button>
+              <ChevronRight className="w-4 h-4 text-gray-600" />
+              <div className="flex items-center gap-1.5">
+                <Folder className="w-4 h-4 text-purple-400" />
+                <span className="text-purple-400 font-medium">
+                  {projects.find(p => p.id === selectedProject)?.name || 'Project'}
+                </span>
+                {projects.find(p => p.id === selectedProject)?.instructions && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-purple-500/20 text-purple-300 text-[9px] rounded">
+                    Custom AI
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                // Start a new conversation in this project
+                setConversationId(null);
+                setMessages([]);
+                setInput('');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg text-xs font-medium transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New Chat
+            </button>
+          </div>
+        )}
 
         {/* Announcements Banner */}
         {announcements.length > 0 && (
@@ -10423,8 +10467,22 @@ export default function ChatPage() {
                     onChange={(e) => setNewProjectDescription(e.target.value)}
                     placeholder="Description (optional)"
                     rows={2}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-purple-500/40 outline-none resize-none mb-4"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-purple-500/40 outline-none resize-none mb-3"
                   />
+                  <div className="mb-4">
+                    <label className="text-xs text-gray-400 mb-1.5 block flex items-center gap-1.5">
+                      <Bot className="w-3.5 h-3.5" />
+                      Custom AI Instructions (optional)
+                    </label>
+                    <textarea
+                      value={newProjectInstructions}
+                      onChange={(e) => setNewProjectInstructions(e.target.value)}
+                      placeholder="Enter custom instructions for AI in this project... (e.g., persona, tone, specific knowledge, rules)"
+                      rows={4}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-purple-500/40 outline-none resize-none text-sm"
+                    />
+                    <p className="text-[10px] text-gray-600 mt-1">These instructions will be applied to all chats in this project.</p>
+                  </div>
                   <div className="flex gap-3">
                     <button
                       onClick={() => setShowProjectModal(false)}
@@ -10464,8 +10522,22 @@ export default function ChatPage() {
                     onChange={(e) => setNewProjectDescription(e.target.value)}
                     placeholder="Description (optional)"
                     rows={2}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-orange-500/40 outline-none resize-none mb-4"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-orange-500/40 outline-none resize-none mb-3"
                   />
+                  <div className="mb-4">
+                    <label className="text-xs text-gray-400 mb-1.5 block flex items-center gap-1.5">
+                      <Bot className="w-3.5 h-3.5" />
+                      Custom AI Instructions
+                    </label>
+                    <textarea
+                      value={newProjectInstructions}
+                      onChange={(e) => setNewProjectInstructions(e.target.value)}
+                      placeholder="Enter custom instructions for AI in this project... (e.g., persona, tone, specific knowledge, rules)"
+                      rows={4}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-orange-500/40 outline-none resize-none text-sm"
+                    />
+                    <p className="text-[10px] text-gray-600 mt-1">These instructions will be applied to all chats in this project.</p>
+                  </div>
                   <div className="flex gap-3">
                     <button
                       onClick={() => deleteProject(editingProject?.id)}
