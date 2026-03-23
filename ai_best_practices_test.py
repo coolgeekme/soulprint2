@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://dashboard-profiles.preview.emergentagent.com"
+BASE_URL = "https://soulprint-ai-1.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

@@ -1,222 +1,125 @@
-<analysis>
-<original_problem_statement>
-The user is facing multiple critical issues with their application, which seems to be a full-stack Next.js app named Soul-print.
+<analysis>**User's preferred language**: English (INSTRUCT next agent to respond in English)
 
-**Initial Bug Reports:**
-- The application crashes or becomes unresponsive, showing a 520 error or connection error. please try again.
-- Firebase not configured error appearing on the login page.
-- The admin dashboard has a lot of missing or incorrect metrics and a broken Insights tab.
-- Google OAuth login fails with a JSON parsing error: .
-
-**Core User Goal:**
-The user's primary objective is to export the data from their **production** MongoDB database so they can import it into a backup/cloned version of the site. They have provided the production database connection string.
-
-**Deployment Issues:**
-The user also provided deployment logs showing that the application fails to start in the production environment, timing out while waiting for the app to become ready on its port. The goal is to fix the application code to ensure a successful deployment.
-
-**PRODUCT REQUIREMENTS:**
-1.  **Fix Application Stability**: Resolve the intermittent crashes, 520 errors, and chat connection failures.
-2.  **Fix Firebase Auth**: Resolve the Firebase not configured error and ensure Google login works.
-3.  **Fix Admin Dashboard**: Ensure all metrics on the admin dashboard and the Insights tab display correctly with production data.
-4.  **Resolve Deployment Failures**: Modify the application to fix the startup timeout issue preventing deployment.
-5.  **Export Production Database**: The most critical task is to provide the user with a complete backup of their production MongoDB database.
-</original_problem_statement>
-**User's preferred language**: English
-
-**what currently exists?**
-The application is a full-stack Next.js 14 app with a modular API structure and a MongoDB backend. The agent has successfully addressed several critical code-level bugs, including deployment blockers. Key fixes include implementing lazy loading for the MongoDB connection to prevent startup timeouts, correcting Google OAuth redirect URIs to be dynamic, adding keep-alive headers to streaming endpoints to prevent CDN timeouts, and fixing client-side errors in the admin dashboard.
-
-The application code is now considered deployment-ready from the agent's perspective. However, major **platform-level** and **access-related** issues remain unresolved. The agent is operating in a development container with a local, near-empty MongoDB instance, while the user's actual data resides on a production MongoDB Atlas instance that is currently inaccessible due to a firewall.
+**what currently exists?** 
+A full-stack Next.js web application utilizing MongoDB, featuring a multi-model AI chat interface (SoulPrint Engine). It includes an admin dashboard for user tracking and app insights, project-based organization for chats, an internal knowledge base, Google/Firebase authentication, and features like custom AI personas per project, usage analytics, and Telegram integration.
 
 **Last working item**:
-- Last item agent was working: The agent was fixing critical deployment-blocking issues. This involved:
-    1.  Modifying the MongoDB connection logic in  to be lazy (i.e., connect on the first query) instead of connecting at module load time. This resolved the deployment timeout error.
-    2.  Fixing hardcoded Google OAuth redirect URLs in  to be dynamic based on the request's origin. This was another deployment blocker.
-- Status: USER VERIFICATION PENDING
-- Agent Testing Done: Y
-- Which testing method agent to use? NA (The next step is for the user to trigger a new deployment to verify the fixes.)
-- User Testing Done: N
+- **Last item agent was working**: Generating a detailed technical specification document () outlining how a multi-agent autonomous system could be built on top of the existing SoulPrint architecture based on user's query.
+- **Status**: COMPLETED
+- **Agent Testing Done**: N (Documentation task)
+- **Which testing method agent to use?**: NA
+- **User Testing Done**: N
 
-**All Pending/In progress Issue list**:
-- Issue 1: **Production Database Access Blocked (P0)**
-- Issue 2: **Platform-Level DNS/Routing Error (P1)**
-- Issue 3: **Admin Dashboard Shows No Data (P2)**
-- Issue 4: **Persistent Chat Connection Errors &amp; 520s (P1)**
-- Issue 5: **Google OAuth Login Failure (P1)**
-
-Issues Detail:
-- Issue 1:
-  - **Description**: The primary user goal to export the production MongoDB data is blocked. The agent's container IP is not whitelisted in the production MongoDB Atlas firewall.
-  - **Attempted fixes**: The agent tried connecting using the provided production . The connection was refused. The agent then provided the container's IP address for the user to whitelist, but the user stated they do not have direct access to the MongoDB Atlas account as it is managed by Emergent.
-  - **Next debug checklist**: This issue cannot be resolved via code changes. The next step is to guide the user to contact Emergent support to either:
-    1.  Whitelist the agent's container IP address ().
-    2.  Use Emergent's platform features to export the database.
-  - **Why fix this issue and what will be achieved with the fix?** This is the user's main request. Fixing this will allow the user to back up their production data.
-  - **Status**: BLOCKED
-  - **Is recurring issue?** Y
-  - **Should Test frontend/backend/both after fix?** Backend (to verify DB connection and run export).
-  - **Blocked on other issue**: Blocked on external action from the user/Emergent support.
-
-- Issue 2:
-  - **Description**: The agent and support agent diagnosed that the user's domain ( or preview URLs) is being incorrectly routed by the platform's DNS/CDN to an old or incorrect deployment (). This is the likely root cause of the user-facing 520 errors and many connection issues.
-  - **Attempted fixes**: The agent identified the issue but cannot fix it from within the container. Code-level fixes for streaming () were implemented, but the underlying routing problem persists.
-  - **Next debug checklist**: Guide the user to contact Emergent support to correct the DNS/routing configuration for their domain.
-  - **Why fix this issue and what will be achieved with the fix?** This will resolve the 520 errors and make the application accessible and stable for end-users.
-  - **Status**: BLOCKED
-  - **Is recurring issue?** Y
-  - **Should Test frontend/backend/both after fix?** Both.
-  - **Blocked on other issue**: Blocked on external action from Emergent support.
-
-- Issue 3:
-  - **Description**: The user reported that the admin dashboard is missing data. The agent confirmed the dashboard UI is working, but it correctly shows zeros because the connected database is a local, empty test database.
-  - **Attempted fixes**: The agent fixed client-side rendering bugs in the dashboard, but the data missing issue remains.
-  - **Next debug checklist**: This issue is entirely dependent on fixing Issue 1: Production Database Access Blocked. Once connected to the production DB, the dashboard should populate with data.
-  - **Why fix this issue and what will be achieved with the fix?** This will provide the user with the correct operational metrics for their application.
-  - **Status**: BLOCKED
-  - **Is recurring issue?** Y
-  - **Should Test frontend/backend/both after fix?** Frontend.
-  - **Blocked on other issue**: Issue 1: Production Database Access Blocked.
-
-- Issue 4:
-  - **Description**: The user is still reporting connection error in the chat.
-  - **Attempted fixes**: The agent implemented a keep-alive mechanism and added the  header to streaming endpoints. While these are correct fixes for streaming over proxies, the root cause is likely the platform routing issue (Issue 2).
-  - **Next debug checklist**: This issue is likely a symptom of Issue 2. The next step is to have the user re-test after Issue 2 is resolved by Emergent support.
-  - **Why fix this issue and what will be achieved with the fix?** This will restore core chat functionality for users.
-  - **Status**: BLOCKED
-  - **Is recurring issue?** Y
-  - **Should Test frontend/backend/both after fix?** Both.
-  - **Blocked on other issue**: Issue 2: Platform-Level DNS/Routing Error.
-
-- Issue 5:
-  - **Description**: The user reported a JSON parsing error during Google OAuth login. This indicates the auth callback endpoint is returning HTML (an error page) instead of JSON.
-  - **Attempted fixes**: The agent added better error handling on the client side. The root cause is almost certainly the platform routing issue (Issue 2) causing the backend to be unreachable and a Cloudflare 520 error page (HTML) to be returned instead.
-  - **Next debug checklist**: This issue should be re-tested after Issue 2 is resolved by Emergent support.
-  - **Why fix this issue and what will be achieved with the fix?** This will allow users to log in to the application.
-  - **Status**: BLOCKED
-  - **Is recurring issue?** Y
-  - **Should Test frontend/backend/both after fix?** Frontend.
-  - **Blocked on other issue**: Issue 2: Platform-Level DNS/Routing Error.
+**All Pending/In progress Issue list**: 
+*(No critical pending issues remain from this session. All user-reported bugs were resolved.)*
 
 **In progress Task List**:
-There are no active coding tasks in progress. All planned code-level fixes have been completed. The agent is blocked pending external actions.
+*(No tasks currently in progress.)*
 
-**Upcoming and Future Tasks**
-- **P0: Export Production Database**: Once access is granted (Issue 1 resolved), run  against the production  and provide the backup file to the user.
+**Upcoming and Future Tasks**:
+P1: **Autonomous Multi-Agent System (Agency Mode)** 
+- File: 
+- Phases:
+  1. Agent Templates/Marketplace & Memory Scopes
+  2. Orchestration Layer / Task Queues (Redis/Bull) & Inter-Agent Messaging
+  3. Tool/Action System Integrations (emails, posts) & Human Checkpoints
 
-**Completed work in this session**
-- **Deployment-Blocking Fixes**:
-  - Implemented lazy-loading for MongoDB connection in  to prevent startup timeouts.
-  - Fixed hardcoded Google OAuth redirect URIs in  to use dynamic request headers.
-- **Application Stability Fixes**:
-  - Added  header to all streaming endpoints (, , etc. in ) to prevent CDN/proxy buffering issues.
-  - Added a keep-alive (ping) mechanism to the chat streaming function ( in ) to prevent timeouts.
-  - Increased the Node.js memory limit to  via  in .
-- **Admin Dashboard Fixes**:
-  - Created missing API endpoints  and  in .
-  - Fixed client-side crashes in the  component () by removing references to non-existent data (, ) and adding defensive checks.
-- **Auth Fixes**:
-  - Restored missing Firebase and other secrets to  from git history.
-  - Added graceful error handling to the Google Sign-In button on the auth page () for when Firebase is not configured.
-- **Database Backup**:
-  - Created a script and process to back up the *local* MongoDB database, though this was not the user's final goal.
+**Completed work in this session**:
+- **Admin User Details Page**: Rebuilt  to display usage analytics (LLM models, topic derivations via regex, memory categories) instead of raw messages.
+- **What's New App Updates**: Added CRUD operations for  and integrated an update modal into the Chat UI sidebar.
+- **Smart Chat Deletion**: Fixed behavior in  so deleting a chat from the All Chats view only hides it from that view if it belongs to a project, but deleting inside a project deletes it permanently.
+- **Project-Specific AI Instructions**: Added  field to projects allowing users to define custom AI personas per project. Updated  to prepend these instructions to the system prompt.
+- **Chat UI Project Navigation**: Added a Breadcrumb bar and New Chat button when viewing specific projects. 
+- **Google OAuth Fixes**: Corrected redirect URIs to use the hardcoded production domain fallback and added  to force account selection.
+- **Streaming Response Continuation**: Added a Still generating... visual indicator and a Continue button for long AI replies that get cut off.
+- **Light Mode Input Styling**: Forced black text in textareas for light mode utilizing React state () and specific CSS rules to resolve iPhone PWA visibility issues.
+- **Knowledge Base Update**: Continuously updated  with new features.
+- **Crash Fix**: Fixed missing  icon import in  causing a client-side crash on editing projects.
 
-**Earlier issues found/mentioned but not fixed**
-All known issues have been categorized under the **All Pending/In progress Issue list**. The core theme is that code-level bugs have been addressed, but the remaining problems are external (platform routing, database firewall) and block further progress.
+**Earlier issues found/mentioned but not fixed**:
+*(None. Agent systematically fixed all user-raised issues during the session.)*
 
-**Known issue recurrence from previous fork**
-- The user has consistently reported connection error and 520 error. The agent has applied multiple code-level fixes (keep-alives, headers, memory increase), but the issue persists because the root cause is a platform-level DNS/routing misconfiguration that is outside the agent's control.
+**Known issue recurrence from previous fork**:
+- None detected from the previous fork.
 
-**Code Architecture**
+**Code Architecture**:
+-  (Next.js App Router front-end)
+  -  (Main chat interface, contains massive component logic & modals)
+  -  (Main Admin dashboard, tabs)
+  -  (User analytics profile view)
+  -  (Tailwind & custom global styling)
+- 
+  -  (Massive catch-all routing file managing almost all chat, project, and user endpoints)
+  -  (Modular catch-all for admin-specific endpoints)
+  -  (Authentication handlers)
 
+**Key Technical Concepts**:
+- Next.js (App Router), React Client/Server components
+- MongoDB (using UUIDs exclusively instead of native ObjectIDs)
+- Edge streaming for AI responses ()
+- Firebase & Google OAuth for Authentication
+- UI styling via Tailwind CSS & shadcn/ui components
 
-**Key Technical Concepts**
-- **Backend**: Next.js 14 (App Router), Node.js, Mongoose
-- **Frontend**: React, Tailwind CSS, shadcn/ui
-- **Database**: MongoDB (connecting to both local and attempting to connect to Atlas)
-- **Authentication**: Firebase Authentication (for client-side flow), Google OAuth (for server-side flow), JWT
-- **Real-time**: Server-Sent Events (SSE) for chat streaming
-- **Deployment**: Emergent platform (Kubernetes-based), Docker, Supervisor
+**key DB schema**:
+- : id, email, role, accepted
+- : id, user_id, project_id, title, hidden_from_all_chats
+- : id, conversation_id, content, role, model_used
+- : id, user_id, name, description, instructions
+- : id, title, content, version
 
-**key DB schema**
-- **users**: Stores user profiles, roles (e.g., ), and status ().
-- **messages**: Stores chat history, differentiating between  and  roles.
-- **assessment_answers**: Stores user responses to assessments.
-- **jobs**: Tracks background jobs like data imports.
-- **media_jobs**: Tracks media generation tasks.
-- **logs**: Application logging.
+**changes in tech stack**:
+- None.
 
-**changes in tech stack**
-- No changes to the tech stack were made.
+**All files of reference**:
+-  (Newly created specification for future multi-agent expansion)
+-  (Updated with latest feature documentation for AI contextual support)
+-  (Updated logic for Smart Deletion, topic extraction, and system prompt generation)
+-  (Updated User profile detailed analytics query)
+-  (Updated project creation/edit modals, message streaming UI, and breadcrumbs)
+-  (Recreated file for the new analytical profile view)
 
-**All files of reference**
-- : **Crucially updated** to use a lazy connection pattern to fix deployment timeouts.
-- : **Updated** to remove hardcoded redirect URLs.
-- : **Updated** to add the  header and a keep-alive interval for streaming endpoints. This is a very large monolithic file.
-- : **Updated** to add missing metric/insight endpoints and fix calculations.
-- : **Updated** to fix client-side crashes on the Insights tab.
-- : Restored from git history and temporarily modified to attempt production DB connection.
-- : **Updated** to increase the Node.js memory limit.
+**Areas that need refactoring**:
+- **Critical Refactor Need**:  is over 23,000 lines long and handles almost all backend routes in a monolithic  path structure. It needs to be broken out into modular route directories (, , etc.).
+-  is nearly 11,000 lines. Modals (Settings, Feedback, Projects) should be extracted into separate component files.
 
-**Areas that need refactoring**
-- The main API route file, , is extremely large and complex, particularly the  function. While some API modularization has occurred, this central file remains a significant piece of technical debt and makes debugging difficult. It should be broken down further.
+**key api endpoints**:
+-  - Fetches user usage analytics
+-  - Creates a new conversation (accepts )
+-  - Smart deletion logic
+-  - Assigns conversation to a project
+-  - OAuth handling
 
-**key api endpoints**
-- : Health check endpoint.
-- : Core chat streaming endpoint (SSE).
-- : Syncs a client-side Firebase token with the backend.
-- : Initiates the Google OAuth flow.
-- : The callback endpoint for Google OAuth.
-- : Provides data for the admin dashboard.
-- : Provides data for the admin Insights tab.
+**Critical Info for New Agent**:
+- **Environment Variables vs URLs**:  dictates routing. However, for Google OAuth callbacks, it's explicitly hardcoded to fallback to  if issues arise to prevent Kubernetes internal URLs from breaking OAuth.
+- **Styling**: Chat textarea text color relies dynamically on the React  context variable passed as an inline style. Do not replace this with just CSS classes ( / ), as iOS PWA environments override them.
+- **Database IDs**: The application strictly avoids Mongo's . All primary keys are .
 
-**Critical Info for New Agent**
-1.  **Environment Mismatch**: You are in a **development container** connected to a **local, test MongoDB**. The user's issues and data relate to a **production environment** with a separate, firewalled MongoDB Atlas database. Do not be confused by the empty database; it is expected in this container.
-2.  **External Blockers**: The two most critical user-facing issues are **BLOCKED** by external factors.
-    *   **520 Errors / Connection Issues**: Caused by a platform-level DNS/routing problem. Do NOT attempt to fix this with more code changes. Guide the user to contact Emergent support.
-    *   **Production DB Export**: Blocked by a MongoDB Atlas firewall. The user must contact Emergent support to get your container's IP () whitelisted or use a platform-native export tool.
-3.  **Deployment Readiness**: The code has been fixed to resolve deployment timeout issues (lazy DB connection). The application is ready for a new deployment attempt from a code perspective.
-4.  **Primary Goal**: The user's highest priority is exporting their production database. All your efforts should be focused on guiding them to resolve the external blocker (Issue #1).
+**documents and test reports created in this job**:
+- 
 
-**documents created in this job**
-- : Attempted backup file (contains only local test data).
-- Various summary/status update markdown files were created and then deleted.
+**Last 10 User Messages and any pending HUMAN messages**:
+1. *User*: Asked if building custom AI autonomous agents on the platform is possible.
+2. *User*: Asked if multiple agents could work autonomously together (like a marketing agency).
+3. *User*: Requested an  file detailing the technical specs for the autonomous multi-agent system. (COMPLETED)
 
-**Last 10 User Messages and any pending HUMAN messages**
-1.  : User reiterates their main goal. (Pending)
-2.  : User asks about server status. (Resolved, agent confirmed server is fine, issue is platform routing).
-3.  : User reports recurring chat issue. (Pending, blocked by platform issue).
-4.  : User reports Google OAuth JSON error. (Pending, blocked by platform issue).
-5.  : User sends screenshot of Cloudflare 520 error. (Identified as platform issue).
-6.  : User asks how to back up the database. (Agent provided a method for the local DB).
-7.  : User provides deployment failure logs. (Resolved, agent fixed code).
-8.  : User chooses to proceed with attempting the production DB backup. (Attempted and failed due to firewall).
-9.  : User raises a valid security concern about a proposed (and incorrect) solution. (Agent acknowledged and corrected course).
-10. : User clarifies that Emergent manages their DB. (Key info for the agent).
+**Project Health Check**:
+- Healthy. (No mock integrations, all tests passed, deployment check completed with successful status).
 
-**Project Health Check:**
-- **Broken**:
-  - **Production DB Connection**: The application cannot connect to the production database due to a firewall.
-  - **Platform Routing**: The public-facing URL is misconfigured at the DNS/CDN level, causing 520 errors and making the app unstable for external users.
-- **Mocked**: None.
+**3rd Party Integrations**:
+- OpenAI / LLM APIs (Uses Emergent LLM Key & direct provider keys)
+- Firebase / Google OAuth (Requires User API Keys)
+- Telegram Bot API (Requires User API Keys)
 
-**3rd Party Integrations**
-- **LLMs**: OpenAI, Anthropic, Perplexity, Gemini, Kimi (via API keys in )
-- **Databases**: MongoDB
-- **Authentication**: Firebase, Google OAuth
-- **Search**: Google Places, Brave Search, Tavily
-- **Communication**: Telegram, Resend (Email), Slack
-- **Security**: Google reCAPTCHA v3
+**Testing status**:
+- Testing agent used after significant changes: YES (Deep Backend tests for Smart Deletion and Admin routes passed)
+- Troubleshoot agent used after agent stuck in loop: NO
+- Test files created: None explicitly in this session
+- Known regressions: None
 
-**Testing status**
-- **Testing agent used after significant changes**: YES (The agent used  and  to diagnose issues).
-- **Troubleshoot agent used after agent stuck in loop**: YES
-- **Test files created**: None.
-- **Known regressions**: The application is largely unusable from the public internet due to the platform-level routing issue (520 errors), which manifests as connection errors and login failures.
+**Credentials to test flow**:
+- Email: 
+- Password: 
+- Role: 
 
-**Credentials to test flow:**
-The  file contains all necessary API keys for testing features within the local container. However, testing the primary user-facing issues is not possible as they are caused by external platform problems.
-
-**What agent forgot to execute**
-The agent did not forget but was **blocked** from executing the user's primary request: exporting the production MongoDB. It correctly identified the firewall as the blocker and determined it could not be solved with code, which is the correct procedure.
-
-</analysis>
+**What agent forgot to execute**:
+- The agent successfully executed all user requests, bug fixes, and feature additions raised during the session. No tasks were overlooked.</analysis>

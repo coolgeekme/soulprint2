@@ -8263,6 +8263,77 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
         }
 
+        // ── Auto-continuation for truncated responses ──────────────────────────
+        // If the LLM hit its output token limit, automatically continue generating
+        const MAX_CONTINUATIONS = 3;
+        let continuationCount = 0;
+        
+        while (
+          provider.getLastFinishReason?.() === 'length' &&
+          continuationCount < MAX_CONTINUATIONS &&
+          fullContent.length > 100 // Only continue if there's substantial content
+        ) {
+          continuationCount++;
+          console.log(`[Chat] Auto-continuation ${continuationCount}/${MAX_CONTINUATIONS} — response was truncated (finish_reason=length)`);
+          
+          // Notify the client that we're auto-continuing
+          send({ type: 'continuation', count: continuationCount, max: MAX_CONTINUATIONS });
+          
+          try {
+            // Build continuation messages: include the partial response and ask to continue
+            const continuationMessages = [
+              ...historyMessages,
+              { role: 'assistant', content: fullContent },
+              { role: 'user', content: 'Your previous response was cut off due to length limits. Continue EXACTLY from where you stopped. Do NOT repeat any text that was already written. Do NOT add any preamble like "Continuing from..." — just seamlessly pick up from the exact point the text was cut off.' },
+            ];
+            
+            // Use streamContinuation (lightweight, no tools/search)
+            const contStream = await provider.streamContinuation({
+              systemPrompt,
+              messages: continuationMessages,
+              model,
+              temperature: 0.7,
+            });
+            
+            for await (const chunk of contStream) {
+              if (chunk) {
+                let text = typeof chunk === 'string' ? chunk : (chunk.delta || '');
+                fullContent += text;
+                
+                // Filter escalation markers from continuations too
+                if (inEscalation) {
+                  escalationBuffer += text;
+                  const opens = (escalationBuffer.match(/{/g) || []).length;
+                  const closes = (escalationBuffer.match(/}/g) || []).length;
+                  if (opens > 0 && opens === closes) { inEscalation = false; escalationBuffer = ''; }
+                  text = '';
+                } else if (text.includes('[SUPPORT_ESCALATION]')) {
+                  inEscalation = true;
+                  const parts = text.split('[SUPPORT_ESCALATION]');
+                  text = parts[0];
+                  escalationBuffer = parts[1] || '';
+                  const opens = (escalationBuffer.match(/{/g) || []).length;
+                  const closes = (escalationBuffer.match(/}/g) || []).length;
+                  if (opens > 0 && opens === closes) { inEscalation = false; escalationBuffer = ''; }
+                }
+                
+                if (text) {
+                  send({ type: 'delta', content: text });
+                }
+              }
+            }
+            
+            console.log(`[Chat] Continuation ${continuationCount} complete — total length: ${fullContent.length} chars`);
+          } catch (contErr) {
+            console.error(`[Chat] Auto-continuation ${continuationCount} failed:`, contErr.message);
+            break; // Stop trying to continue on error
+          }
+        }
+        
+        if (continuationCount > 0) {
+          console.log(`[Chat] Completed ${continuationCount} auto-continuation(s). Final response: ${fullContent.length} chars (~${Math.round(fullContent.length / 4)} tokens)`);
+        }
+
         // Estimate token usage (chars / 4 is a reasonable approximation)
         const inputText = systemPrompt + historyMessages.map(m =>
           typeof m.content === 'string' ? m.content : JSON.stringify(m.content)

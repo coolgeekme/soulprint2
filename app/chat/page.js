@@ -7664,6 +7664,11 @@ export default function ChatPage() {
                   setVisualGenerationType(type);
                 }
               }
+            } else if (data.type === 'continuation') {
+              // Backend is auto-continuing a truncated response
+              console.log(`[Chat] Auto-continuation ${data.count}/${data.max}`);
+              setStreamingStalled(false);
+              setLastChunkTime(Date.now());
             } else if (data.type === 'done') {
               setStreamingStalled(false);
               setLastChunkTime(null);
@@ -9441,7 +9446,7 @@ export default function ChatPage() {
                         <button
                           onClick={() => {
                             setInput('Please continue from where you left off.');
-                            setTimeout(() => handleSend(), 100);
+                            setTimeout(() => sendMessage(), 100);
                           }}
                           className="transition-colors p-1 rounded text-gray-700 hover:text-orange-400 flex items-center gap-1"
                           title="Continue response"

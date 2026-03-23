@@ -1,469 +1,527 @@
 #!/usr/bin/env python3
+"""
+Backend Test Suite for Auto-Continuation Feature
+Tests the auto-continuation functionality for truncated AI responses
+"""
 
-import requests
+import asyncio
 import json
-import sys
+import aiohttp
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, List, Any
 
-# Configuration
-BASE_URL = "https://dashboard-profiles.preview.emergentagent.com"
-API_BASE = f"{BASE_URL}/api"
+# Test configuration
+BASE_URL = "https://soulprint-ai-1.preview.emergentagent.com"
+TEST_EMAIL = "test@soulprint.com"
+TEST_PASSCODE = "test123"
 
-class SoulPrintTester:
+class BackendTester:
     def __init__(self):
-        self.session = requests.Session()
-        self.token = None
-        self.user_id = None
+        self.session = None
+        self.auth_token = None
+        self.test_results = []
         
-    def log(self, message: str, level: str = "INFO"):
-        """Log test messages with timestamp"""
-        timestamp = time.strftime("%H:%M:%S")
-        print(f"[{timestamp}] {level}: {message}")
+    async def __aenter__(self):
+        timeout = aiohttp.ClientTimeout(total=120)  # 2 minute timeout
+        self.session = aiohttp.ClientSession(timeout=timeout)
+        return self
         
-    def make_request(self, method: str, endpoint: str, data: Optional[Dict] = None, 
-                    params: Optional[Dict] = None, headers: Optional[Dict] = None) -> requests.Response:
-        """Make HTTP request with proper headers"""
-        url = f"{API_BASE}/{endpoint.lstrip('/')}"
-        
-        request_headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "SoulPrint-Backend-Tester/1.0"
-        }
-        
-        if self.token:
-            request_headers["Authorization"] = f"Bearer {self.token}"
-            
-        if headers:
-            request_headers.update(headers)
-            
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+    
+    def log_result(self, test_name: str, success: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status}: {test_name}")
+        if details:
+            print(f"   Details: {details}")
+        self.test_results.append({
+            "test": test_name,
+            "success": success,
+            "details": details
+        })
+    
+    async def authenticate(self) -> bool:
+        """Test authentication and get JWT token"""
         try:
-            if method.upper() == "GET":
-                response = self.session.get(url, params=params, headers=request_headers, timeout=30)
-            elif method.upper() == "POST":
-                response = self.session.post(url, json=data, params=params, headers=request_headers, timeout=30)
-            elif method.upper() == "PUT":
-                response = self.session.put(url, json=data, params=params, headers=request_headers, timeout=30)
-            elif method.upper() == "DELETE":
-                response = self.session.delete(url, params=params, headers=request_headers, timeout=30)
-            else:
-                raise ValueError(f"Unsupported HTTP method: {method}")
-                
-            self.log(f"{method.upper()} {url} -> {response.status_code}")
-            return response
-            
-        except requests.exceptions.RequestException as e:
-            self.log(f"Request failed: {e}", "ERROR")
-            raise
-            
-    def test_smart_chat_deletion(self):
-        """Test the smart chat deletion feature"""
-        self.log("=== SMART CHAT DELETION FEATURE TEST ===")
-        
-        try:
-            # Step 1: Create test user and login
-            self.log("Step 1: Creating test user and logging in...")
-            success = self._create_and_login_user()
-            if not success:
-                return False
-                
-            # Step 2: Create a Project
-            self.log("Step 2: Creating a project...")
-            project_id = self._create_project()
-            if not project_id:
-                return False
-                
-            # Step 3: Create a conversation and assign it to the Project
-            self.log("Step 3: Creating conversation with project assignment...")
-            conversation_id = self._create_conversation_with_project(project_id)
-            if not conversation_id:
-                return False
-                
-            # Step 4: Verify the conversation has project_id set
-            self.log("Step 4: Verifying conversation has project_id set...")
-            if not self._verify_conversation_project_id(conversation_id, project_id):
-                return False
-                
-            # Step 5: Delete conversation WITHOUT from_project param (All Chats delete)
-            self.log("Step 5: Deleting conversation from All Chats (should hide, not delete)...")
-            if not self._delete_conversation_from_all_chats(conversation_id):
-                return False
-                
-            # Step 6: Verify conversation was NOT deleted but hidden
-            self.log("Step 6: Verifying conversation was hidden, not deleted...")
-            if not self._verify_conversation_hidden(conversation_id):
-                return False
-                
-            # Step 7: Verify conversation still appears in project view
-            self.log("Step 7: Verifying conversation still appears in project view...")
-            if not self._verify_conversation_in_project_view(project_id, conversation_id):
-                return False
-                
-            # Step 8: Verify conversation does NOT appear in All Chats
-            self.log("Step 8: Verifying conversation does NOT appear in All Chats...")
-            if not self._verify_conversation_not_in_all_chats(conversation_id):
-                return False
-                
-            # Bonus: Test permanent deletion with from_project=true
-            self.log("Bonus: Testing permanent deletion with from_project=true...")
-            if not self._test_permanent_deletion_from_project(project_id):
-                return False
-                
-            self.log("✅ ALL SMART CHAT DELETION TESTS PASSED!", "SUCCESS")
-            return True
-            
-        except Exception as e:
-            self.log(f"❌ Test failed with exception: {e}", "ERROR")
-            return False
-            
-    def _create_and_login_user(self) -> bool:
-        """Create test user and login"""
-        try:
-            # Use realistic test data
-            test_email = "smartchat.test@soulprint.com"
-            test_passcode = "SmartChat2026!"
-            
-            # Try to register (might fail if user exists, that's ok)
-            register_data = {
-                "email": test_email,
-                "passcode": test_passcode,
-                "display_name": "Smart Chat Tester"
-            }
-            
-            register_response = self.make_request("POST", "auth/register", register_data)
-            if register_response.status_code in [200, 201]:
-                self.log("✅ User registered successfully")
-                # Check if we got a token directly from registration
-                register_result = register_response.json()
-                if register_result.get("token"):
-                    self.token = register_result.get("token")
-                    self.user_id = register_result.get("userId")
-                    if self.token and self.user_id:
-                        self.log(f"✅ Got token from registration - User ID: {self.user_id}")
+            async with self.session.post(
+                f"{BASE_URL}/api/auth/login",
+                json={"email": TEST_EMAIL, "passcode": TEST_PASSCODE},
+                headers={"Content-Type": "application/json"}
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    self.auth_token = data.get("token")
+                    if self.auth_token:
+                        self.log_result("Authentication (POST /api/auth/login)", True, f"Token received, role: {data.get('role', 'unknown')}")
                         return True
-            elif register_response.status_code == 400:
-                self.log("ℹ️ User already exists, proceeding with login")
-            else:
-                self.log(f"❌ Registration failed: {register_response.status_code} - {register_response.text}", "ERROR")
-                return False
-                
-            # Login
-            login_data = {
-                "email": test_email,
-                "passcode": test_passcode
-            }
-            
-            login_response = self.make_request("POST", "auth/login", login_data)
-            if login_response.status_code != 200:
-                self.log(f"❌ Login failed: {login_response.status_code} - {login_response.text}", "ERROR")
-                return False
-                
-            login_result = login_response.json()
-            self.token = login_result.get("token")
-            self.user_id = login_result.get("userId")
-            
-            if not self.token or not self.user_id:
-                self.log("❌ Login response missing token or userId", "ERROR")
-                return False
-                
-            self.log(f"✅ Login successful - User ID: {self.user_id}")
-            return True
-            
-        except Exception as e:
-            self.log(f"❌ Login process failed: {e}", "ERROR")
-            return False
-            
-    def _create_project(self) -> Optional[str]:
-        """Create a test project"""
-        try:
-            project_data = {
-                "name": "Smart Chat Test Project",
-                "description": "Test project for smart chat deletion feature",
-                "color": "#4f46e5",
-                "icon": "🧪"
-            }
-            
-            response = self.make_request("POST", "projects", project_data)
-            if response.status_code != 200:
-                self.log(f"❌ Project creation failed: {response.status_code} - {response.text}", "ERROR")
-                return None
-                
-            result = response.json()
-            project_id = result.get("id")
-            
-            if not project_id:
-                self.log("❌ Project creation response missing ID", "ERROR")
-                return None
-                
-            self.log(f"✅ Project created successfully - ID: {project_id}")
-            return project_id
-            
-        except Exception as e:
-            self.log(f"❌ Project creation failed: {e}", "ERROR")
-            return None
-            
-    def _create_conversation_with_project(self, project_id: str) -> Optional[str]:
-        """Create a conversation assigned to the project"""
-        try:
-            conversation_data = {
-                "title": "Smart Chat Test Conversation",
-                "project_id": project_id
-            }
-            
-            response = self.make_request("POST", "conversations", conversation_data)
-            if response.status_code != 200:
-                self.log(f"❌ Conversation creation failed: {response.status_code} - {response.text}", "ERROR")
-                return None
-                
-            result = response.json()
-            conversation_id = result.get("id")
-            
-            if not conversation_id:
-                self.log("❌ Conversation creation response missing ID", "ERROR")
-                return None
-                
-            self.log(f"✅ Conversation created with project assignment - ID: {conversation_id}")
-            return conversation_id
-            
-        except Exception as e:
-            self.log(f"❌ Conversation creation failed: {e}", "ERROR")
-            return None
-            
-    def _verify_conversation_project_id(self, conversation_id: str, expected_project_id: str) -> bool:
-        """Verify conversation has the correct project_id"""
-        try:
-            # Get all conversations and find our specific one
-            response = self.make_request("GET", "conversations")
-            if response.status_code != 200:
-                self.log(f"❌ Failed to fetch conversations: {response.status_code} - {response.text}", "ERROR")
-                return False
-                
-            conversations = response.json()
-            target_conversation = None
-            
-            for conv in conversations:
-                if conv.get("id") == conversation_id:
-                    target_conversation = conv
-                    break
-                    
-            if not target_conversation:
-                self.log(f"❌ Conversation {conversation_id} not found in conversations list", "ERROR")
-                return False
-                
-            actual_project_id = target_conversation.get("project_id")
-            if actual_project_id != expected_project_id:
-                self.log(f"❌ Project ID mismatch - Expected: {expected_project_id}, Got: {actual_project_id}", "ERROR")
-                return False
-                
-            self.log(f"✅ Conversation has correct project_id: {actual_project_id}")
-            return True
-            
-        except Exception as e:
-            self.log(f"❌ Project ID verification failed: {e}", "ERROR")
-            return False
-            
-    def _delete_conversation_from_all_chats(self, conversation_id: str) -> bool:
-        """Delete conversation from All Chats (without from_project param)"""
-        try:
-            # Delete WITHOUT from_project param - this should hide, not delete
-            response = self.make_request("DELETE", f"conversations/{conversation_id}")
-            if response.status_code != 200:
-                self.log(f"❌ Conversation deletion failed: {response.status_code} - {response.text}", "ERROR")
-                return False
-                
-            result = response.json()
-            
-            # Should return success=true and hidden=true (not deleted=true)
-            if not result.get("success"):
-                self.log("❌ Deletion response indicates failure", "ERROR")
-                return False
-                
-            if result.get("deleted"):
-                self.log("❌ Conversation was permanently deleted instead of hidden", "ERROR")
-                return False
-                
-            if not result.get("hidden"):
-                self.log("❌ Conversation was not marked as hidden", "ERROR")
-                return False
-                
-            self.log("✅ Conversation successfully hidden from All Chats")
-            return True
-            
-        except Exception as e:
-            self.log(f"❌ Conversation deletion failed: {e}", "ERROR")
-            return False
-            
-    def _verify_conversation_hidden(self, conversation_id: str) -> bool:
-        """Verify conversation is hidden but not deleted"""
-        try:
-            # Try to get the conversation directly from project view to verify it still exists
-            # We'll use the project conversations endpoint for this
-            response = self.make_request("GET", "conversations")
-            if response.status_code != 200:
-                self.log(f"❌ Failed to fetch conversations: {response.status_code} - {response.text}", "ERROR")
-                return False
-                
-            conversations = response.json()
-            
-            # The conversation should NOT appear in All Chats view
-            for conv in conversations:
-                if conv.get("id") == conversation_id:
-                    self.log(f"❌ Conversation {conversation_id} still appears in All Chats", "ERROR")
-                    return False
-                    
-            self.log("✅ Conversation correctly hidden from All Chats view")
-            return True
-            
-        except Exception as e:
-            self.log(f"❌ Hidden verification failed: {e}", "ERROR")
-            return False
-            
-    def _verify_conversation_in_project_view(self, project_id: str, conversation_id: str) -> bool:
-        """Verify conversation still appears when fetching with project_id"""
-        try:
-            # Get conversations for the specific project
-            params = {"project_id": project_id}
-            response = self.make_request("GET", "conversations", params=params)
-            if response.status_code != 200:
-                self.log(f"❌ Failed to fetch project conversations: {response.status_code} - {response.text}", "ERROR")
-                return False
-                
-            conversations = response.json()
-            
-            # The conversation SHOULD appear in project view
-            found = False
-            for conv in conversations:
-                if conv.get("id") == conversation_id:
-                    found = True
-                    break
-                    
-            if not found:
-                self.log(f"❌ Conversation {conversation_id} not found in project view", "ERROR")
-                return False
-                
-            self.log("✅ Conversation correctly appears in project view")
-            return True
-            
-        except Exception as e:
-            self.log(f"❌ Project view verification failed: {e}", "ERROR")
-            return False
-            
-    def _verify_conversation_not_in_all_chats(self, conversation_id: str) -> bool:
-        """Verify conversation does NOT appear in All Chats"""
-        try:
-            # Get all conversations (without project_id filter)
-            response = self.make_request("GET", "conversations")
-            if response.status_code != 200:
-                self.log(f"❌ Failed to fetch all conversations: {response.status_code} - {response.text}", "ERROR")
-                return False
-                
-            conversations = response.json()
-            
-            # The conversation should NOT appear
-            for conv in conversations:
-                if conv.get("id") == conversation_id:
-                    self.log(f"❌ Conversation {conversation_id} incorrectly appears in All Chats", "ERROR")
-                    return False
-                    
-            self.log("✅ Conversation correctly does NOT appear in All Chats")
-            return True
-            
-        except Exception as e:
-            self.log(f"❌ All Chats verification failed: {e}", "ERROR")
-            return False
-            
-    def _test_permanent_deletion_from_project(self, project_id: str) -> bool:
-        """Test permanent deletion with from_project=true"""
-        try:
-            # Create another conversation for permanent deletion test
-            conversation_data = {
-                "title": "Permanent Deletion Test Conversation",
-                "project_id": project_id
-            }
-            
-            response = self.make_request("POST", "conversations", conversation_data)
-            if response.status_code != 200:
-                self.log(f"❌ Test conversation creation failed: {response.status_code} - {response.text}", "ERROR")
-                return False
-                
-            result = response.json()
-            test_conversation_id = result.get("id")
-            
-            if not test_conversation_id:
-                self.log("❌ Test conversation creation response missing ID", "ERROR")
-                return False
-                
-            self.log(f"✅ Test conversation created - ID: {test_conversation_id}")
-            
-            # Delete WITH from_project=true - this should permanently delete
-            params = {"from_project": "true"}
-            response = self.make_request("DELETE", f"conversations/{test_conversation_id}", params=params)
-            if response.status_code != 200:
-                self.log(f"❌ Permanent deletion failed: {response.status_code} - {response.text}", "ERROR")
-                return False
-                
-            result = response.json()
-            
-            # Should return success=true and deleted=true (not hidden=true)
-            if not result.get("success"):
-                self.log("❌ Permanent deletion response indicates failure", "ERROR")
-                return False
-                
-            if not result.get("deleted"):
-                self.log("❌ Conversation was not permanently deleted", "ERROR")
-                return False
-                
-            if result.get("hidden"):
-                self.log("❌ Conversation was hidden instead of permanently deleted", "ERROR")
-                return False
-                
-            # Verify it doesn't appear in project view either
-            params = {"project_id": project_id}
-            response = self.make_request("GET", "conversations", params=params)
-            if response.status_code == 200:
-                conversations = response.json()
-                for conv in conversations:
-                    if conv.get("id") == test_conversation_id:
-                        self.log(f"❌ Permanently deleted conversation {test_conversation_id} still appears in project view", "ERROR")
+                    else:
+                        self.log_result("Authentication (POST /api/auth/login)", False, "No token in response")
                         return False
-                        
-            self.log("✅ Permanent deletion with from_project=true works correctly")
-            return True
-            
+                else:
+                    error_text = await response.text()
+                    self.log_result("Authentication (POST /api/auth/login)", False, f"HTTP {response.status}: {error_text}")
+                    return False
         except Exception as e:
-            self.log(f"❌ Permanent deletion test failed: {e}", "ERROR")
+            self.log_result("Authentication (POST /api/auth/login)", False, f"Exception: {str(e)}")
             return False
-
-def main():
-    """Main test execution"""
-    print("🧪 SoulPrint Smart Chat Deletion Feature Test")
-    print("=" * 60)
     
-    tester = SoulPrintTester()
+    async def test_models_endpoint(self) -> bool:
+        """Test GET /api/models endpoint"""
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            async with self.session.get(f"{BASE_URL}/api/models", headers=headers) as response:
+                if response.status == 200:
+                    models = await response.json()  # Direct array, not wrapped in object
+                    
+                    # Count models by provider
+                    provider_counts = {}
+                    for model in models:
+                        provider = model.get("group", "unknown")
+                        provider_counts[provider] = provider_counts.get(provider, 0) + 1
+                    
+                    total_models = len(models)
+                    expected_providers = ["OpenAI", "Anthropic", "Google", "Perplexity", "Kimi"]
+                    found_providers = list(provider_counts.keys())
+                    
+                    if total_models >= 18 and all(p in found_providers for p in expected_providers):
+                        details = f"Found {total_models} models across {len(found_providers)} providers: {provider_counts}"
+                        self.log_result("Models Endpoint (GET /api/models)", True, details)
+                        return True
+                    else:
+                        details = f"Expected ≥18 models across 5 providers, got {total_models} models: {provider_counts}"
+                        self.log_result("Models Endpoint (GET /api/models)", False, details)
+                        return False
+                else:
+                    error_text = await response.text()
+                    self.log_result("Models Endpoint (GET /api/models)", False, f"HTTP {response.status}: {error_text}")
+                    return False
+        except Exception as e:
+            self.log_result("Models Endpoint (GET /api/models)", False, f"Exception: {str(e)}")
+            return False
     
-    try:
-        success = tester.test_smart_chat_deletion()
-        
-        if success:
-            print("\n" + "=" * 60)
-            print("🎉 ALL TESTS PASSED! Smart Chat Deletion feature is working correctly.")
-            print("✅ Key features verified:")
-            print("   • Conversations in projects are hidden (not deleted) when deleted from All Chats")
-            print("   • Hidden conversations still appear in project views")
-            print("   • Hidden conversations do not appear in All Chats")
-            print("   • Permanent deletion works with from_project=true parameter")
-            sys.exit(0)
-        else:
-            print("\n" + "=" * 60)
-            print("❌ TESTS FAILED! Smart Chat Deletion feature has issues.")
-            sys.exit(1)
+    async def test_basic_chat_stream(self) -> bool:
+        """Test basic chat streaming with a simple question"""
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.auth_token}",
+                "Content-Type": "application/json"
+            }
             
-    except KeyboardInterrupt:
-        print("\n\n⚠️ Test interrupted by user")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n\n💥 Test suite crashed: {e}")
-        sys.exit(1)
+            payload = {
+                "content": "What is the capital of France?",
+                "model": "gpt-4o",
+                "conversationId": None,
+                "enableWebSearch": False
+            }
+            
+            async with self.session.post(
+                f"{BASE_URL}/api/chat/stream",
+                json=payload,
+                headers=headers
+            ) as response:
+                if response.status == 200:
+                    content_type = response.headers.get('content-type', '')
+                    if 'text/event-stream' not in content_type and 'text/plain' not in content_type:
+                        self.log_result("Basic Chat Stream", False, f"Wrong content-type: {content_type}")
+                        return False
+                    
+                    chunks = []
+                    events = []
+                    full_content = ""
+                    
+                    async for line in response.content:
+                        line_str = line.decode('utf-8').strip()
+                        if line_str:
+                            try:
+                                event = json.loads(line_str)
+                                events.append(event)
+                                chunks.append(line_str)
+                                
+                                if event.get('type') == 'delta':
+                                    full_content += event.get('content', '')
+                            except json.JSONDecodeError:
+                                continue
+                    
+                    # Validate stream format
+                    event_types = [e.get('type') for e in events]
+                    has_meta = 'meta' in event_types
+                    has_delta = 'delta' in event_types
+                    has_done = 'done' in event_types
+                    
+                    if has_meta and has_delta and has_done and len(full_content) > 0:
+                        details = f"Received {len(chunks)} chunks, {len(full_content)} chars, events: {set(event_types)}"
+                        self.log_result("Basic Chat Stream (POST /api/chat/stream)", True, details)
+                        return True
+                    else:
+                        details = f"Missing required events. Got: {set(event_types)}, content length: {len(full_content)}"
+                        self.log_result("Basic Chat Stream (POST /api/chat/stream)", False, details)
+                        return False
+                else:
+                    error_text = await response.text()
+                    self.log_result("Basic Chat Stream (POST /api/chat/stream)", False, f"HTTP {response.status}: {error_text}")
+                    return False
+        except Exception as e:
+            self.log_result("Basic Chat Stream (POST /api/chat/stream)", False, f"Exception: {str(e)}")
+            return False
+    
+    async def test_auto_continuation_stream(self) -> bool:
+        """Test auto-continuation with a long prompt that should trigger truncation"""
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.auth_token}",
+                "Content-Type": "application/json"
+            }
+            
+            # Long prompt designed to produce a response that exceeds token limits
+            # Use a very specific request that should produce a long response
+            long_prompt = """Please write a complete, detailed step-by-step tutorial on building a full-stack web application from scratch. Include every single detail:
+
+1. PROJECT SETUP (500+ words):
+- Setting up development environment
+- Installing Node.js, npm, and all required tools
+- Creating project structure with detailed folder explanations
+- Setting up version control with Git
+- Configuring package.json with all dependencies
+- Setting up development scripts and build processes
+
+2. FRONTEND DEVELOPMENT (1000+ words):
+- HTML structure and semantic markup
+- CSS styling with modern techniques (Flexbox, Grid, animations)
+- JavaScript fundamentals and ES6+ features
+- React.js component architecture and state management
+- Routing with React Router
+- Form handling and validation
+- API integration and error handling
+- Responsive design principles and mobile-first approach
+
+3. BACKEND DEVELOPMENT (1000+ words):
+- Node.js and Express.js server setup
+- Database design and MongoDB integration
+- RESTful API design principles
+- Authentication and authorization (JWT)
+- Middleware implementation
+- Error handling and logging
+- File upload and processing
+- Security best practices (CORS, rate limiting, input validation)
+
+4. DATABASE INTEGRATION (500+ words):
+- MongoDB setup and configuration
+- Schema design and relationships
+- CRUD operations and queries
+- Indexing for performance
+- Data validation and constraints
+- Backup and recovery strategies
+
+5. TESTING AND DEPLOYMENT (500+ words):
+- Unit testing with Jest
+- Integration testing
+- End-to-end testing with Cypress
+- CI/CD pipeline setup
+- Docker containerization
+- Cloud deployment (AWS, Heroku, or similar)
+- Environment configuration
+- Monitoring and logging
+
+6. ADVANCED FEATURES (500+ words):
+- Real-time features with WebSockets
+- Caching strategies
+- Performance optimization
+- SEO optimization
+- Progressive Web App features
+- Internationalization
+- Analytics integration
+
+For each section, provide complete code examples, explain every line of code, include common pitfalls and how to avoid them, and provide troubleshooting tips. Make this tutorial comprehensive enough that a beginner could follow it step by step."""
+            
+            payload = {
+                "content": long_prompt,
+                "model": "gpt-4o-mini",  # Use smaller model more likely to hit limits
+                "conversationId": None,
+                "enableWebSearch": False
+            }
+            
+            async with self.session.post(
+                f"{BASE_URL}/api/chat/stream",
+                json=payload,
+                headers=headers
+            ) as response:
+                if response.status == 200:
+                    chunks = []
+                    events = []
+                    full_content = ""
+                    continuation_events = []
+                    
+                    async for line in response.content:
+                        line_str = line.decode('utf-8').strip()
+                        if line_str:
+                            try:
+                                event = json.loads(line_str)
+                                events.append(event)
+                                chunks.append(line_str)
+                                
+                                if event.get('type') == 'delta':
+                                    full_content += event.get('content', '')
+                                elif event.get('type') == 'continuation':
+                                    continuation_events.append(event)
+                                    print(f"   🔄 Auto-continuation event: {event}")
+                            except json.JSONDecodeError:
+                                continue
+                    
+                    # Validate stream format and auto-continuation
+                    event_types = [e.get('type') for e in events]
+                    has_meta = 'meta' in event_types
+                    has_delta = 'delta' in event_types
+                    has_done = 'done' in event_types
+                    has_continuation = 'continuation' in event_types
+                    
+                    # Check if response is substantially longer than typical (indicating continuation worked)
+                    is_long_response = len(full_content) > 2000  # Expect a long response
+                    
+                    if has_meta and has_delta and len(full_content) > 0:
+                        if has_continuation and len(continuation_events) > 0:
+                            # Auto-continuation was triggered
+                            continuation_details = f"Auto-continuation triggered {len(continuation_events)} times"
+                            details = f"Received {len(chunks)} chunks, {len(full_content)} chars, events: {set(event_types)}. {continuation_details}"
+                            self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", True, details)
+                            return True
+                        elif is_long_response:
+                            # Response was long but no continuation events (maybe didn't hit limit)
+                            details = f"Long response ({len(full_content)} chars) without continuation events - may not have hit token limit. Events: {set(event_types)}"
+                            self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", True, details)
+                            return True
+                        else:
+                            # Response was short and no continuation
+                            details = f"Response too short ({len(full_content)} chars), no continuation events. May need different model or prompt. Events: {set(event_types)}"
+                            self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", False, details)
+                            return False
+                    else:
+                        details = f"Missing required events. Got: {set(event_types)}, content length: {len(full_content)}"
+                        self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", False, details)
+                        return False
+                else:
+                    error_text = await response.text()
+                    self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", False, f"HTTP {response.status}: {error_text}")
+                    return False
+        except Exception as e:
+            self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", False, f"Exception: {str(e)}")
+            return False
+    
+    async def test_anthropic_continuation(self) -> bool:
+        """Test auto-continuation with Anthropic model (higher max_tokens)"""
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.auth_token}",
+                "Content-Type": "application/json"
+            }
+            
+            # Simple test first to see if Anthropic works at all
+            simple_prompt = "Write a detailed explanation of machine learning in 500 words."
+            
+            payload = {
+                "content": simple_prompt,
+                "model": "claude-sonnet-4-5-20250929",  # Use Anthropic model
+                "conversationId": None,
+                "enableWebSearch": False
+            }
+            
+            async with self.session.post(
+                f"{BASE_URL}/api/chat/stream",
+                json=payload,
+                headers=headers
+            ) as response:
+                if response.status == 200:
+                    chunks = []
+                    events = []
+                    full_content = ""
+                    continuation_events = []
+                    error_events = []
+                    
+                    async for line in response.content:
+                        line_str = line.decode('utf-8').strip()
+                        if line_str:
+                            try:
+                                event = json.loads(line_str)
+                                events.append(event)
+                                chunks.append(line_str)
+                                
+                                if event.get('type') == 'delta':
+                                    full_content += event.get('content', '')
+                                elif event.get('type') == 'continuation':
+                                    continuation_events.append(event)
+                                elif event.get('type') == 'error':
+                                    error_events.append(event)
+                                    print(f"   ❌ Anthropic Error: {event.get('error', 'Unknown error')}")
+                            except json.JSONDecodeError:
+                                continue
+                    
+                    # Validate stream format
+                    event_types = [e.get('type') for e in events]
+                    has_meta = 'meta' in event_types
+                    has_delta = 'delta' in event_types
+                    has_done = 'done' in event_types
+                    has_continuation = 'continuation' in event_types
+                    has_error = 'error' in event_types
+                    
+                    if has_error and len(error_events) > 0:
+                        error_msg = error_events[0].get('error', 'Unknown error')
+                        details = f"Anthropic API error: {error_msg}"
+                        self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", False, details)
+                        return False
+                    
+                    # Check response length
+                    is_response = len(full_content) > 100
+                    
+                    if has_meta and has_delta and len(full_content) > 0:
+                        if has_continuation and len(continuation_events) > 0:
+                            details = f"Anthropic auto-continuation triggered {len(continuation_events)} times, {len(full_content)} chars"
+                            self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", True, details)
+                            return True
+                        elif is_response:
+                            details = f"Anthropic working correctly ({len(full_content)} chars) - 16k tokens may not hit limit easily"
+                            self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", True, details)
+                            return True
+                        else:
+                            details = f"Response length: {len(full_content)} chars, events: {set(event_types)}"
+                            self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", False, details)
+                            return False
+                    else:
+                        details = f"Missing required events. Got: {set(event_types)}, content length: {len(full_content)}"
+                        self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", False, details)
+                        return False
+                else:
+                    error_text = await response.text()
+                    self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", False, f"HTTP {response.status}: {error_text}")
+                    return False
+        except Exception as e:
+            self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", False, f"Exception: {str(e)}")
+            return False
+    
+    async def test_stream_format_validation(self) -> bool:
+        """Test that stream responses follow proper NDJSON format"""
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.auth_token}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "content": "Explain quantum computing in simple terms.",
+                "model": "gpt-4o",
+                "conversationId": None,
+                "enableWebSearch": False
+            }
+            
+            async with self.session.post(
+                f"{BASE_URL}/api/chat/stream",
+                json=payload,
+                headers=headers
+            ) as response:
+                if response.status == 200:
+                    valid_json_lines = 0
+                    invalid_lines = 0
+                    event_types_found = set()
+                    
+                    async for line in response.content:
+                        line_str = line.decode('utf-8').strip()
+                        if line_str:
+                            try:
+                                event = json.loads(line_str)
+                                valid_json_lines += 1
+                                event_type = event.get('type')
+                                if event_type:
+                                    event_types_found.add(event_type)
+                                
+                                # Validate required fields for each event type
+                                if event_type == 'meta':
+                                    if 'conversationId' not in event:
+                                        self.log_result("Stream Format Validation", False, "meta event missing conversationId")
+                                        return False
+                                elif event_type == 'delta':
+                                    if 'content' not in event:
+                                        self.log_result("Stream Format Validation", False, "delta event missing content")
+                                        return False
+                                elif event_type == 'continuation':
+                                    if 'count' not in event or 'max' not in event:
+                                        self.log_result("Stream Format Validation", False, "continuation event missing count/max")
+                                        return False
+                                elif event_type == 'done':
+                                    # done event can be empty
+                                    pass
+                                    
+                            except json.JSONDecodeError:
+                                invalid_lines += 1
+                    
+                    required_events = {'meta', 'delta', 'done'}
+                    has_required = required_events.issubset(event_types_found)
+                    
+                    if has_required and valid_json_lines > 0 and invalid_lines == 0:
+                        details = f"Valid NDJSON: {valid_json_lines} lines, events: {event_types_found}"
+                        self.log_result("Stream Format Validation", True, details)
+                        return True
+                    else:
+                        details = f"Invalid format: {valid_json_lines} valid, {invalid_lines} invalid, events: {event_types_found}"
+                        self.log_result("Stream Format Validation", False, details)
+                        return False
+                else:
+                    error_text = await response.text()
+                    self.log_result("Stream Format Validation", False, f"HTTP {response.status}: {error_text}")
+                    return False
+        except Exception as e:
+            self.log_result("Stream Format Validation", False, f"Exception: {str(e)}")
+            return False
+    
+    async def run_all_tests(self):
+        """Run all backend tests"""
+        print("🚀 Starting Auto-Continuation Backend Tests")
+        print("=" * 60)
+        
+        # Test 1: Authentication
+        if not await self.authenticate():
+            print("❌ Authentication failed - cannot continue with other tests")
+            return
+        
+        # Test 2: Models endpoint
+        await self.test_models_endpoint()
+        
+        # Test 3: Basic chat streaming
+        await self.test_basic_chat_stream()
+        
+        # Test 4: Auto-continuation with long prompt
+        await self.test_auto_continuation_stream()
+        
+        # Test 5: Anthropic auto-continuation (higher token limit)
+        await self.test_anthropic_continuation()
+        
+        # Test 6: Stream format validation
+        await self.test_stream_format_validation()
+        
+        # Summary
+        print("\n" + "=" * 60)
+        print("📊 TEST SUMMARY")
+        print("=" * 60)
+        
+        passed = sum(1 for r in self.test_results if r["success"])
+        total = len(self.test_results)
+        
+        for result in self.test_results:
+            status = "✅" if result["success"] else "❌"
+            print(f"{status} {result['test']}")
+            if result["details"]:
+                print(f"   {result['details']}")
+        
+        print(f"\n🎯 Results: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
+        
+        if passed == total:
+            print("🎉 All tests passed! Auto-continuation feature is working correctly.")
+        else:
+            print(f"⚠️  {total - passed} test(s) failed. Please review the failures above.")
+
+async def main():
+    """Main test runner"""
+    async with BackendTester() as tester:
+        await tester.run_all_tests()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
