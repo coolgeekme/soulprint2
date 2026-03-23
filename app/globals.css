@@ -608,7 +608,15 @@ html.light body {
 .light select {
   background-color: #f8fafc !important;
   border-color: rgba(13, 18, 23, 0.15) !important;
-  color: #0D1217 !important;
+  color: #000000 !important;
+}
+
+/* Chat input specifically - override any color */
+.light textarea,
+.light input[type="text"],
+.light input:not([type]) {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
 }
 
 /* Chat input text color - ensure visibility in both modes */
@@ -617,12 +625,20 @@ html.light body {
 }
 
 .light .chat-input-text {
-  color: #0D1217 !important;
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+/* Force text color on inputs with transparent background */
+.light .bg-transparent {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
 }
 
 .light input::placeholder,
 .light textarea::placeholder {
-  color: #94a3b8 !important;
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b !important;
 }
 
 /* Light mode focus rings */

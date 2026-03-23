@@ -10037,7 +10037,11 @@ export default function ChatPage() {
                   disabled={loading}
                   readOnly={speech.isListening}
                   rows={1}
-                  style={{ minHeight: '24px', maxHeight: '150px' }}
+                  style={{ 
+                    minHeight: '24px', 
+                    maxHeight: '150px',
+                    color: speech.isListening ? '#fdba74' : isDark ? '#ffffff' : '#000000'
+                  }}
                 />
               </div>
 
