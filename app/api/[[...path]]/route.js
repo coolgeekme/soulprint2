@@ -8902,61 +8902,222 @@ Keep everything else in the image exactly the same.`;
               
               console.log('[Composite Edit] Sharp composite complete, size:', compositedBuffer.length);
               
-              // Upload the result
-              const compositedBase64 = `data:image/jpeg;base64,${compositedBuffer.toString('base64')}`;
+              // Upload the sharp composite first (for AI enhancement input)
+              const sharpCompositeBase64 = `data:image/jpeg;base64,${compositedBuffer.toString('base64')}`;
               
-              const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+              const sharpUploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
                 method: 'POST',
                 headers: { 
                   'Content-Type': 'application/json',
                   'Authorization': `Bearer ${kieKey}`
                 },
                 body: JSON.stringify({
-                  base64Data: compositedBase64,
+                  base64Data: sharpCompositeBase64,
                   uploadPath: 'soulprint/composites',
-                  fileName: `composite_${Date.now()}.jpg`
+                  fileName: `sharp_composite_${Date.now()}.jpg`
                 }),
               });
               
-              if (uploadRes.ok) {
-                const uploadData = await uploadRes.json();
-                if (uploadData.success && uploadData.data?.downloadUrl) {
-                  const resultUrl = uploadData.data.downloadUrl;
-                  console.log('[Composite Edit] Sharp SUCCESS! URL:', resultUrl);
-                  
-                  // Build response content with visibility warning if applicable
-                  let responseContent = `![Composite Image](${resultUrl})\n\n✨ *Your logo has been added to the image!*\n\n**Placement:** ${sanitizedContent}`;
-                  if (visibilityWarning) {
-                    responseContent += `\n\n${visibilityWarning}`;
-                  }
-                  fullContent = responseContent;
-                  send({ type: 'image', url: resultUrl, contentType: 'composite_edit' });
-                  send({ type: 'delta', content: fullContent });
-                  
-                  // Store composite context for potential follow-up resizes
-                  await db.collection('messages').insertOne({
-                    id: assistantMsgId, conversation_id: convId, user_id: user.id,
-                    role: 'assistant', content: fullContent, created_at: new Date(),
-                    model_used: 'sharp-composite', provider_used: 'local', content_type: 'composite_edit',
-                    image_url: resultUrl,
-                    composite_context: {
-                      element_url: elementUrl,
-                      target_url: targetImageUrl,
-                      placement_desc: placementDesc,
-                      logo_width: logoWidth,
-                      placement_x: placementX,
-                      placement_y: placementY,
-                      had_visibility_warning: !!visibilityWarning,
-                    }
-                  });
-                  await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
-                  send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-                  closeStream();
-                  return;
+              let sharpCompositeUrl = null;
+              if (sharpUploadRes.ok) {
+                const sharpUploadData = await sharpUploadRes.json();
+                if (sharpUploadData.success && sharpUploadData.data?.downloadUrl) {
+                  sharpCompositeUrl = sharpUploadData.data.downloadUrl;
+                  console.log('[Composite Edit] Sharp composite uploaded:', sharpCompositeUrl);
                 }
               }
               
-              throw new Error('Failed to upload Sharp composite');
+              if (!sharpCompositeUrl) {
+                throw new Error('Failed to upload Sharp composite for AI enhancement');
+              }
+              
+              // ═══════════════════════════════════════════════════════════════════════════
+              // HYBRID APPROACH: AI Enhancement Pass for Realistic Sticker Integration
+              // Takes the sharp composite and adds realistic shadows, lighting, contours
+              // ═══════════════════════════════════════════════════════════════════════════
+              console.log('[Composite Edit] HYBRID: Starting AI enhancement pass for realistic integration...');
+              send({ type: 'delta', content: '🎨 *Adding realistic sticker effects (shadows, contours, lighting)...*\n\n' });
+              
+              const enhancementPrompt = `This image shows a sticker/decal that has been placed on a vehicle surface. 
+Your task is to make the sticker look REALISTICALLY INTEGRATED with the surface.
+
+CRITICAL INSTRUCTIONS:
+1. DO NOT change the sticker's design, colors, text, or graphics in ANY way
+2. DO NOT move the sticker's position
+3. DO NOT alter the rest of the image (vehicle, background, etc.)
+
+ONLY add these realistic effects to the sticker:
+- Add a subtle drop shadow underneath the sticker edges (as if it's slightly raised from the surface)
+- Add subtle lighting/highlights that match the vehicle's ambient lighting
+- Make the sticker follow the surface contours slightly (subtle perspective warp if the surface is curved)
+- Add very subtle surface texture interaction (slight reflection from paint finish)
+- Make edges look naturally adhered to the surface
+
+The goal is to make it look like a real vinyl decal professionally applied to the vehicle, not a flat digital overlay.
+Keep EVERYTHING about the sticker's actual design exactly the same - only add integration effects.`;
+
+              let finalResultUrl = sharpCompositeUrl; // Default to sharp composite if AI enhancement fails
+              let enhancementMethod = 'sharp-only';
+              
+              // Try SeeDream v4 for enhancement
+              try {
+                console.log('[Composite Edit] Trying SeeDream v4 for realistic enhancement...');
+                
+                const enhanceRequestBody = {
+                  model: 'bytedance/seedream-v4-edit',
+                  input: {
+                    prompt: enhancementPrompt,
+                    image_urls: [sharpCompositeUrl],
+                    image_size: 'auto',
+                    image_resolution: '2K',
+                    max_images: 1
+                  }
+                };
+                
+                const enhanceTaskRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${kieKey}`
+                  },
+                  body: JSON.stringify(enhanceRequestBody)
+                });
+                
+                const enhanceTaskData = await enhanceTaskRes.json();
+                console.log('[Composite Edit] SeeDream enhancement task:', JSON.stringify(enhanceTaskData).substring(0, 200));
+                
+                if (enhanceTaskData.code === 200 && enhanceTaskData.data?.taskId) {
+                  const enhanceTaskId = enhanceTaskData.data.taskId;
+                  console.log('[Composite Edit] Enhancement task created:', enhanceTaskId);
+                  
+                  // Poll for result
+                  const startTime = Date.now();
+                  const maxWaitTime = 60000; // 60 seconds for enhancement
+                  
+                  while (Date.now() - startTime < maxWaitTime) {
+                    await new Promise(r => setTimeout(r, 3000));
+                    
+                    const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${enhanceTaskId}`, {
+                      headers: { 'Authorization': `Bearer ${kieKey}` }
+                    });
+                    
+                    const statusData = await statusRes.json();
+                    const state = statusData.data?.state;
+                    console.log('[Composite Edit] Enhancement status:', state);
+                    
+                    if (state === 'success') {
+                      let enhancedUrl = null;
+                      try {
+                        const resultJson = JSON.parse(statusData.data?.resultJson || '{}');
+                        enhancedUrl = resultJson?.resultUrls?.[0] || resultJson?.url;
+                      } catch (e) {}
+                      
+                      if (enhancedUrl) {
+                        finalResultUrl = enhancedUrl;
+                        enhancementMethod = 'sharp+seedream-enhancement';
+                        console.log('[Composite Edit] AI Enhancement SUCCESS! URL:', enhancedUrl);
+                      }
+                      break;
+                    } else if (state === 'failed' || state === 'error') {
+                      console.log('[Composite Edit] AI Enhancement failed, using sharp composite');
+                      break;
+                    }
+                  }
+                }
+              } catch (enhanceErr) {
+                console.error('[Composite Edit] SeeDream enhancement failed:', enhanceErr.message);
+              }
+              
+              // If SeeDream failed, try GPT-image-1 as backup enhancement
+              if (enhancementMethod === 'sharp-only' && openaiKey) {
+                try {
+                  console.log('[Composite Edit] Trying GPT-image-1 for enhancement...');
+                  
+                  const gptEnhanceRes = await fetch('https://api.openai.com/v1/images/edits', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${openaiKey}`,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      model: 'gpt-image-1',
+                      image: sharpCompositeUrl,
+                      prompt: enhancementPrompt,
+                      n: 1,
+                      size: '1024x1024'
+                    })
+                  });
+                  
+                  if (gptEnhanceRes.ok) {
+                    const gptEnhanceData = await gptEnhanceRes.json();
+                    const enhancedB64 = gptEnhanceData.data?.[0]?.b64_json;
+                    
+                    if (enhancedB64) {
+                      // Upload the enhanced result
+                      const enhancedUploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                        method: 'POST',
+                        headers: { 
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${kieKey}`
+                        },
+                        body: JSON.stringify({
+                          base64Data: `data:image/png;base64,${enhancedB64}`,
+                          uploadPath: 'soulprint/composites',
+                          fileName: `enhanced_composite_${Date.now()}.png`
+                        }),
+                      });
+                      
+                      if (enhancedUploadRes.ok) {
+                        const enhancedUploadData = await enhancedUploadRes.json();
+                        if (enhancedUploadData.success && enhancedUploadData.data?.downloadUrl) {
+                          finalResultUrl = enhancedUploadData.data.downloadUrl;
+                          enhancementMethod = 'sharp+gpt-image-enhancement';
+                          console.log('[Composite Edit] GPT-image-1 Enhancement SUCCESS! URL:', finalResultUrl);
+                        }
+                      }
+                    }
+                  }
+                } catch (gptEnhanceErr) {
+                  console.error('[Composite Edit] GPT-image-1 enhancement failed:', gptEnhanceErr.message);
+                }
+              }
+              
+              console.log('[Composite Edit] Final result using method:', enhancementMethod, 'URL:', finalResultUrl);
+              
+              // Build response content with visibility warning if applicable
+              let responseContent = `![Composite Image](${finalResultUrl})\n\n✨ *Your logo has been added to the image!*\n\n**Placement:** ${sanitizedContent}`;
+              if (enhancementMethod !== 'sharp-only') {
+                responseContent += `\n\n🎨 *Enhanced with realistic sticker effects (shadows, lighting, contours)*`;
+              }
+              if (visibilityWarning) {
+                responseContent += `\n\n${visibilityWarning}`;
+              }
+              fullContent = responseContent;
+              send({ type: 'image', url: finalResultUrl, contentType: 'composite_edit' });
+              send({ type: 'delta', content: fullContent });
+              
+              // Store composite context for potential follow-up resizes
+              await db.collection('messages').insertOne({
+                id: assistantMsgId, conversation_id: convId, user_id: user.id,
+                role: 'assistant', content: fullContent, created_at: new Date(),
+                model_used: enhancementMethod, provider_used: 'hybrid', content_type: 'composite_edit',
+                image_url: finalResultUrl,
+                composite_context: {
+                  element_url: elementUrl,
+                  target_url: targetImageUrl,
+                  sharp_composite_url: sharpCompositeUrl,
+                  placement_desc: placementDesc,
+                  logo_width: logoWidth,
+                  placement_x: placementX,
+                  placement_y: placementY,
+                  had_visibility_warning: !!visibilityWarning,
+                  enhancement_method: enhancementMethod,
+                }
+              });
+              await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+              send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+              closeStream();
+              return;
               
             } catch (sharpErr) {
               console.error('[Composite Edit] Sharp compositing failed:', sharpErr.message);
