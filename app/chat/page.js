@@ -6649,6 +6649,7 @@ export default function ChatPage() {
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const abortControllerRef = useRef(null); // For stopping requests
+  const modelPickerRef = useRef(null); // For click-outside detection on model dropdown
   const [interimText, setInterimText] = useState('');
 
   // Keep refs in sync with state
@@ -6941,6 +6942,24 @@ export default function ChatPage() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [convMenuId]);
+
+  // Close model picker when clicking outside
+  useEffect(() => {
+    if (!showModelPicker) return;
+    const handleClickOutside = (e) => {
+      if (modelPickerRef.current && !modelPickerRef.current.contains(e.target)) {
+        setShowModelPicker(false);
+      }
+    };
+    // Use timeout so the current click event that opened the picker doesn't immediately close it
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showModelPicker]);
 
   // Dismiss announcement
   async function dismissAnnouncement(announcementId, permanent = false) {
@@ -9740,7 +9759,7 @@ export default function ChatPage() {
 
               {/* Single Model Selector (when not in compare mode) */}
               {!compareMode && (
-                <div className="relative">
+                <div className="relative" ref={modelPickerRef}>
                   <button onClick={() => setShowModelPicker(!showModelPicker)}
                     className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300 transition-colors bg-white/4 border border-white/8 px-3 py-1.5 rounded-full">
                     <span className="text-orange-400/80">{currentModel.group}</span>
@@ -9762,7 +9781,6 @@ export default function ChatPage() {
                                 onClick={() => { 
                                   if (!m.comingSoon) {
                                     setSelectedModel(m.value); 
-                                    setShowModelPicker(false); 
                                   }
                                 }}
                                 disabled={m.comingSoon}
@@ -9787,7 +9805,7 @@ export default function ChatPage() {
                                         method: 'PUT',
                                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                         body: JSON.stringify({ default_model: m.value }),
-                                      }).then(r => { if (r.ok) setDefaultModelSaved(m.value); });
+                                      }).then(r => { if (r.ok) { setDefaultModelSaved(m.value); setShowModelPicker(false); } });
                                     }}
                                     className="text-[9px] text-gray-500 hover:text-green-400 cursor-pointer transition-colors"
                                     data-testid="set-default-model-btn"
