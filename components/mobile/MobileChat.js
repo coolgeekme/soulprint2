@@ -2913,11 +2913,15 @@ export default function MobileChat({
                 'generating the flyer', 'generate the flyer', 'create the flyer', 'creating the flyer',
                 'generating the poster', 'generate the poster', 'create the poster', 'creating the poster',
                 'generating this image', 'generate this image', 'creating this image',
+                'generating your image', 'creating your image', // Common phrases from backend
+                'generating an image', 'creating an image',
                 'i\'ll generate', 'i will generate', 'let me generate', 'let me create',
                 'hold on for a moment', 'please hold', 'one moment while i',
                 'working on your', 'designing your', 'crafting your',
                 'editing your image', 'editing the image', 'applying the edit',
-                'adding your logo', 'adding the logo', 'composite'
+                'adding your logo', 'adding the logo', 'composite',
+                'nano banana', 'dall-e', 'seedream', 'gpt-image', // Model names indicate image gen
+                '🎨 generating', '✨ generating', '🖼️ generating', // Emoji prefixed messages
               ];
               const isGeneratingVisualContent = generatingPhrases.some(phrase => lowerContent.includes(phrase));
               
