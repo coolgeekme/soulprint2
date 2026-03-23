@@ -2554,7 +2554,7 @@ async function pollKieTaskResult(apiKey, taskId, timeoutMs = 60000) {
 
 // Internal function for image editing (called from tool handler)
 // Priority: SeeDream v4 Edit → Flux Kontext → GPT-4o Vision + DALL-E 3
-async function handleImageEditInternal(userId, image, editInstruction) {
+async function handleImageEditInternal(userId, image, editInstruction, onProgress = null) {
   console.log('[ImageEdit] Starting edit:', editInstruction.substring(0, 100));
   
   // Get image as base64 or URL
@@ -2859,9 +2859,17 @@ Respond with ONLY the enhanced prompt, nothing else.`
         // Poll for result (max 60 seconds)
         const startTime = Date.now();
         const maxWaitTime = 60000;
+        let pollCount = 0;
         
         while (Date.now() - startTime < maxWaitTime) {
           await new Promise(r => setTimeout(r, 3000)); // Wait 3 seconds between polls
+          pollCount++;
+          
+          // Send progress update to keep connection alive
+          if (onProgress && pollCount % 2 === 0) {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            onProgress({ type: 'progress', message: `Still processing... (${elapsed}s)`, elapsed });
+          }
           
           const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
             headers: { 'Authorization': `Bearer ${kieKey}` }
@@ -2947,9 +2955,17 @@ Respond with ONLY the enhanced prompt, nothing else.`
         // Poll for result (max 60 seconds)
         const startTime = Date.now();
         const maxWaitTime = 60000;
+        let pollCount = 0;
         
         while (Date.now() - startTime < maxWaitTime) {
           await new Promise(r => setTimeout(r, 3000));
+          pollCount++;
+          
+          // Send progress update to keep connection alive
+          if (onProgress && pollCount % 2 === 0) {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            onProgress({ type: 'progress', message: `Still processing... (${elapsed}s)`, elapsed });
+          }
           
           const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
             headers: { 'Authorization': `Bearer ${kieKey}` }
@@ -9767,8 +9783,16 @@ Keep EVERYTHING about the sticker's actual design exactly the same - only add in
               let finalImageUrl = null;
               let editMethod = 'image-edit';
               
+              // Progress callback to keep SSE connection alive during long operations
+              const progressCallback = (progress) => {
+                if (progress.type === 'progress') {
+                  send({ type: 'delta', content: '' }); // Send empty delta to keep connection alive
+                  console.log('[Image Edit] Progress:', progress.message);
+                }
+              };
+              
               try {
-                editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent);
+                editResult = await handleImageEditInternal(user.id, imageToEdit, sanitizedContent, progressCallback);
                 
                 if (editResult.success && editResult.url) {
                   const methodLabel = { 
