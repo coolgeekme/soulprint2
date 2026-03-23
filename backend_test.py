@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Backend Testing Suite for Scene-Based Lifestyle Mockup Feature
-Tests the new scene-based mockup detection and generation functionality
+Backend Testing Script for Intent Detection Order Fix
+Tests the updated intent detection order for mockup vs composite_edit
 """
 
 import requests
 import json
 import base64
 import time
-import os
+import sys
 from io import BytesIO
-from PIL import Image, ImageDraw
+from PIL import Image
 
 # Configuration
 BASE_URL = "https://chat-composite-edit.preview.emergentagent.com"
@@ -20,482 +20,250 @@ API_BASE = f"{BASE_URL}/api"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 
-class MockupTester:
+class BackendTester:
     def __init__(self):
         self.session = requests.Session()
-        self.auth_token = None
+        self.token = None
         self.user_id = None
         
     def authenticate(self):
         """Authenticate with test credentials"""
-        print("🔐 Authenticating...")
-        
-        login_data = {
-            "email": TEST_EMAIL,
-            "passcode": TEST_PASSWORD
-        }
-        
-        response = self.session.post(f"{API_BASE}/auth/login", json=login_data)
-        
-        if response.status_code == 200:
-            data = response.json()
-            self.auth_token = data.get('token')
-            self.user_id = data.get('userId')
-            
-            # Set authorization header for future requests
-            self.session.headers.update({
-                'Authorization': f'Bearer {self.auth_token}'
+        try:
+            print("🔐 Authenticating...")
+            response = self.session.post(f"{API_BASE}/auth/login", json={
+                "email": TEST_EMAIL,
+                "passcode": TEST_PASSWORD
             })
             
-            print(f"✅ Authentication successful - User ID: {self.user_id}")
-            return True
-        else:
-            print(f"❌ Authentication failed: {response.status_code} - {response.text}")
+            if response.status_code == 200:
+                data = response.json()
+                self.token = data.get('token')
+                self.user_id = data.get('userId')
+                self.session.headers.update({'Authorization': f'Bearer {self.token}'})
+                print(f"✅ Authentication successful! User ID: {self.user_id}")
+                return True
+            else:
+                print(f"❌ Authentication failed: {response.status_code} - {response.text}")
+                return False
+        except Exception as e:
+            print(f"❌ Authentication error: {e}")
             return False
     
-    def create_test_logo(self, text="LOGO", size=(200, 200)):
-        """Create a simple test logo image"""
-        img = Image.new('RGB', size, color='white')
-        draw = ImageDraw.Draw(img)
-        
-        # Draw a simple logo with text
-        draw.rectangle([10, 10, size[0]-10, size[1]-10], outline='black', width=3)
-        
-        # Calculate text position (center)
-        bbox = draw.textbbox((0, 0), text)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        x = (size[0] - text_width) // 2
-        y = (size[1] - text_height) // 2
-        
-        draw.text((x, y), text, fill='black')
-        
-        # Convert to base64
-        buffer = BytesIO()
-        img.save(buffer, format='PNG')
-        buffer.seek(0)
-        
-        return base64.b64encode(buffer.getvalue()).decode('utf-8')
-    
-    def test_scene_based_mockup(self):
-        """Test Scene-based mockup request with campfire scenario"""
-        print("\n🎬 Testing Scene-based Lifestyle Mockup...")
-        
-        # Create test logo
-        logo_base64 = self.create_test_logo("CAMP LOGO")
-        
-        # Test data for scene-based mockup
-        test_data = {
-            "content": "can you add this logo to the back of a tshirt that someone is wearing that is sitting around campfire? maybe add the logo to the other outfits, a well? make this a photorealistic image.",
-            "model": "gpt-4o",
-            "conversationId": None,
-            "attachments": [
-                {
-                    "base64": logo_base64,
-                    "mimeType": "image/png",
-                    "fileName": "camp_logo.png"
-                }
-            ]
-        }
-        
-        print("📤 Sending scene-based mockup request...")
-        print(f"Content: {test_data['content'][:100]}...")
-        
-        response = self.session.post(
-            f"{API_BASE}/chat/stream",
-            json=test_data,
-            stream=True
-        )
-        
-        if response.status_code != 200:
-            print(f"❌ Request failed: {response.status_code} - {response.text}")
-            return False
-        
-        # Parse NDJSON stream response
-        scene_detected = False
-        multiple_outfits_detected = False
-        campfire_scene_detected = False
-        lifestyle_message_found = False
-        mockup_generated = False
-        
-        print("📡 Processing stream response...")
-        
-        for line in response.iter_lines():
-            if line:
-                try:
-                    data = json.loads(line.decode('utf-8'))
-                    
-                    if data.get('type') == 'meta':
-                        print(f"📋 Meta: {data}")
-                    
-                    elif data.get('type') == 'delta':
-                        content = data.get('content', '')
-                        print(f"📝 Delta: {content[:100]}...")
-                        
-                        # Check for scene-based indicators
-                        if 'lifestyle scene mockup' in content.lower():
-                            lifestyle_message_found = True
-                            print("✅ Found 'lifestyle scene mockup' message")
-                        
-                        if 'campfire' in content.lower():
-                            campfire_scene_detected = True
-                            print("✅ Campfire scene detected in response")
-                    
-                    elif data.get('type') == 'image':
-                        mockup_generated = True
-                        image_url = data.get('url')
-                        content_type = data.get('contentType')
-                        print(f"🖼️ Image generated: {content_type} - {image_url[:50]}...")
-                        
-                        if content_type == 'mockup':
-                            print("✅ Mockup content type confirmed")
-                    
-                    elif data.get('type') == 'done':
-                        print("✅ Stream completed")
-                        break
-                        
-                except json.JSONDecodeError:
-                    continue
-        
-        # Verify expected behaviors
-        success = True
-        
-        if not mockup_generated:
-            print("❌ No mockup image was generated")
-            success = False
-        
-        if not lifestyle_message_found:
-            print("❌ 'lifestyle scene mockup' message not found")
-            success = False
-        
-        if not campfire_scene_detected:
-            print("❌ Campfire scene not detected in response")
-            success = False
-        
-        if success:
-            print("✅ Scene-based mockup test PASSED")
-        else:
-            print("❌ Scene-based mockup test FAILED")
-        
-        return success
-    
-    def test_traditional_product_mockup(self):
-        """Test Traditional product mockup request"""
-        print("\n🛍️ Testing Traditional Product Mockup...")
-        
-        # Create test logo
-        logo_base64 = self.create_test_logo("BRAND")
-        
-        # Test data for traditional product mockup
-        test_data = {
-            "content": "put this logo on a t-shirt mockup",
-            "model": "gpt-4o", 
-            "conversationId": None,
-            "attachments": [
-                {
-                    "base64": logo_base64,
-                    "mimeType": "image/png",
-                    "fileName": "brand_logo.png"
-                }
-            ]
-        }
-        
-        print("📤 Sending traditional mockup request...")
-        print(f"Content: {test_data['content']}")
-        
-        response = self.session.post(
-            f"{API_BASE}/chat/stream",
-            json=test_data,
-            stream=True
-        )
-        
-        if response.status_code != 200:
-            print(f"❌ Request failed: {response.status_code} - {response.text}")
-            return False
-        
-        # Parse NDJSON stream response
-        traditional_message_found = False
-        mockup_generated = False
-        no_lifestyle_message = True
-        
-        print("📡 Processing stream response...")
-        
-        for line in response.iter_lines():
-            if line:
-                try:
-                    data = json.loads(line.decode('utf-8'))
-                    
-                    if data.get('type') == 'delta':
-                        content = data.get('content', '')
-                        print(f"📝 Delta: {content[:100]}...")
-                        
-                        # Check for traditional mockup indicators
-                        if 'your t-shirt mockup is ready' in content.lower():
-                            traditional_message_found = True
-                            print("✅ Found traditional mockup ready message")
-                        
-                        # Should NOT contain lifestyle indicators
-                        if 'lifestyle scene mockup' in content.lower():
-                            no_lifestyle_message = False
-                            print("❌ Found unexpected lifestyle message")
-                    
-                    elif data.get('type') == 'image':
-                        mockup_generated = True
-                        image_url = data.get('url')
-                        content_type = data.get('contentType')
-                        print(f"🖼️ Image generated: {content_type} - {image_url[:50]}...")
-                    
-                    elif data.get('type') == 'done':
-                        print("✅ Stream completed")
-                        break
-                        
-                except json.JSONDecodeError:
-                    continue
-        
-        # Verify expected behaviors
-        success = True
-        
-        if not mockup_generated:
-            print("❌ No mockup image was generated")
-            success = False
-        
-        if not traditional_message_found:
-            print("❌ Traditional mockup ready message not found")
-            success = False
-        
-        if not no_lifestyle_message:
-            print("❌ Unexpected lifestyle message found in traditional mockup")
-            success = False
-        
-        if success:
-            print("✅ Traditional product mockup test PASSED")
-        else:
-            print("❌ Traditional product mockup test FAILED")
-        
-        return success
-    
-    def test_scene_detection_patterns(self):
-        """Test various scene detection patterns"""
-        print("\n🔍 Testing Scene Detection Patterns...")
-        
-        test_patterns = [
-            {
-                "content": "someone wearing this logo sitting at a beach",
-                "expected_scene": "beach",
-                "description": "Beach scene pattern"
-            },
-            {
-                "content": "people at a park wearing shirts with this design",
-                "expected_scene": "park", 
-                "description": "Park scene pattern"
-            },
-            {
-                "content": "person standing by a cafe with this logo on their hoodie",
-                "expected_scene": "cafe",
-                "description": "Cafe scene pattern"
-            },
-            {
-                "content": "lifestyle photo of someone in this t-shirt",
-                "expected_scene": "lifestyle",
-                "description": "Lifestyle keyword pattern"
-            }
-        ]
-        
-        logo_base64 = self.create_test_logo("TEST")
-        
-        all_passed = True
-        
-        for i, pattern in enumerate(test_patterns):
-            print(f"\n🧪 Test {i+1}: {pattern['description']}")
-            print(f"Content: {pattern['content']}")
+    def create_test_logo_image(self):
+        """Create a simple test logo image as base64"""
+        try:
+            # Create a simple logo image (100x100 red circle)
+            img = Image.new('RGBA', (100, 100), (255, 255, 255, 0))
+            from PIL import ImageDraw
+            draw = ImageDraw.Draw(img)
+            draw.ellipse([10, 10, 90, 90], fill=(255, 0, 0, 255))
             
-            test_data = {
-                "content": pattern['content'],
+            # Convert to base64
+            buffer = BytesIO()
+            img.save(buffer, format='PNG')
+            img_data = buffer.getvalue()
+            base64_data = base64.b64encode(img_data).decode('utf-8')
+            
+            return f"data:image/png;base64,{base64_data}"
+        except Exception as e:
+            print(f"❌ Error creating test logo: {e}")
+            return None
+    
+    def test_intent_detection(self, content, attachment_data=None, expected_intent=None, test_name=""):
+        """Test intent detection via chat stream"""
+        try:
+            print(f"\n🧪 Testing: {test_name}")
+            print(f"📝 Content: {content}")
+            print(f"📎 Has attachment: {'Yes' if attachment_data else 'No'}")
+            print(f"🎯 Expected intent: {expected_intent}")
+            
+            # Prepare request payload
+            payload = {
+                "content": content,
                 "model": "gpt-4o",
-                "conversationId": None,
-                "attachments": [
-                    {
-                        "base64": logo_base64,
-                        "mimeType": "image/png",
-                        "fileName": "test_logo.png"
-                    }
-                ]
+                "conversationId": f"test-{int(time.time())}"
             }
             
-            response = self.session.post(
-                f"{API_BASE}/chat/stream",
-                json=test_data,
-                stream=True
-            )
+            # Add attachment if provided
+            if attachment_data:
+                payload["attachments"] = [{
+                    "type": "image",
+                    "data": attachment_data,
+                    "mimeType": "image/png"
+                }]
+            
+            # Make request to chat stream
+            response = self.session.post(f"{API_BASE}/chat/stream", 
+                                       json=payload,
+                                       stream=True)
             
             if response.status_code != 200:
-                print(f"❌ Request failed: {response.status_code}")
-                all_passed = False
-                continue
+                print(f"❌ Request failed: {response.status_code} - {response.text}")
+                return False
             
-            scene_detected = False
-            expected_scene_found = False
+            # Parse NDJSON stream to find intent detection
+            detected_intent = None
+            backend_logs = []
             
             for line in response.iter_lines():
                 if line:
                     try:
                         data = json.loads(line.decode('utf-8'))
                         
-                        if data.get('type') == 'delta':
-                            content = data.get('content', '').lower()
-                            
-                            if 'lifestyle scene mockup' in content or 'lifestyle' in content:
-                                scene_detected = True
-                                print("✅ Scene-based mockup detected")
-                            
-                            if pattern['expected_scene'].lower() in content:
-                                expected_scene_found = True
-                                print(f"✅ Expected scene '{pattern['expected_scene']}' found")
+                        # Look for meta information with intent
+                        if data.get('type') == 'meta':
+                            meta = data.get('meta', {})
+                            if 'mediaIntent' in meta:
+                                detected_intent = meta['mediaIntent']
+                                print(f"🔍 Detected intent: {detected_intent}")
                         
-                        elif data.get('type') == 'done':
+                        # Look for delta content that might contain backend logs
+                        if data.get('type') == 'delta':
+                            content_chunk = data.get('content', '')
+                            if '[Mockup]' in content_chunk or '[Composite Edit]' in content_chunk:
+                                backend_logs.append(content_chunk)
+                                print(f"📋 Backend log: {content_chunk.strip()}")
+                        
+                        # Stop after getting the intent and some content
+                        if detected_intent and len(backend_logs) > 0:
                             break
                             
                     except json.JSONDecodeError:
                         continue
             
-            if scene_detected and expected_scene_found:
-                print(f"✅ Pattern test {i+1} PASSED")
+            # Verify results
+            if expected_intent:
+                if detected_intent == expected_intent:
+                    print(f"✅ PASS: Intent correctly detected as '{detected_intent}'")
+                    return True
+                else:
+                    print(f"❌ FAIL: Expected '{expected_intent}' but got '{detected_intent}'")
+                    return False
             else:
-                print(f"❌ Pattern test {i+1} FAILED")
-                all_passed = False
-            
-            # Small delay between tests
-            time.sleep(1)
-        
-        if all_passed:
-            print("\n✅ All scene detection pattern tests PASSED")
-        else:
-            print("\n❌ Some scene detection pattern tests FAILED")
-        
-        return all_passed
+                print(f"ℹ️  Intent detected: {detected_intent}")
+                return True
+                
+        except Exception as e:
+            print(f"❌ Test error: {e}")
+            return False
     
-    def test_multiple_outfits_detection(self):
-        """Test multiple outfits detection"""
-        print("\n👥 Testing Multiple Outfits Detection...")
+    def run_critical_test(self):
+        """Run the critical test from the review request"""
+        print("\n" + "="*80)
+        print("🚨 CRITICAL TEST - Must Pass")
+        print("="*80)
         
-        logo_base64 = self.create_test_logo("MULTI")
+        logo_data = self.create_test_logo_image()
+        if not logo_data:
+            print("❌ Failed to create test logo")
+            return False
         
-        test_data = {
-            "content": "add this logo to a t-shirt that people are wearing around a campfire, maybe add the logo to the other outfits as well",
-            "model": "gpt-4o",
-            "conversationId": None,
-            "attachments": [
-                {
-                    "base64": logo_base64,
-                    "mimeType": "image/png",
-                    "fileName": "multi_logo.png"
-                }
-            ]
-        }
+        # The critical test case
+        content = "can you add this logo to the back of a tshirt that someone is wearing that is sitting around campfire?"
         
-        print("📤 Sending multiple outfits request...")
-        print(f"Content: {test_data['content']}")
-        
-        response = self.session.post(
-            f"{API_BASE}/chat/stream",
-            json=test_data,
-            stream=True
+        result = self.test_intent_detection(
+            content=content,
+            attachment_data=logo_data,
+            expected_intent="mockup",
+            test_name="Critical Test - T-shirt with scene context"
         )
         
-        if response.status_code != 200:
-            print(f"❌ Request failed: {response.status_code}")
+        return result
+    
+    def run_additional_tests(self):
+        """Run additional test cases"""
+        print("\n" + "="*80)
+        print("🧪 ADDITIONAL TESTS")
+        print("="*80)
+        
+        logo_data = self.create_test_logo_image()
+        if not logo_data:
+            print("❌ Failed to create test logo")
             return False
         
-        multiple_outfits_detected = False
-        group_people_mentioned = False
+        test_cases = [
+            {
+                "content": "put this logo on a hoodie",
+                "attachment": logo_data,
+                "expected": "mockup",
+                "name": "Simple hoodie mockup"
+            },
+            {
+                "content": "add this logo to the car",
+                "attachment": logo_data,
+                "expected": "composite_edit",
+                "name": "Car composite edit"
+            },
+            {
+                "content": "add this logo to the minivan door",
+                "attachment": logo_data,
+                "expected": "composite_edit",
+                "name": "Minivan door composite edit"
+            }
+        ]
         
-        for line in response.iter_lines():
-            if line:
-                try:
-                    data = json.loads(line.decode('utf-8'))
-                    
-                    if data.get('type') == 'delta':
-                        content = data.get('content', '').lower()
-                        
-                        if 'other outfits' in content or 'multiple' in content or 'group' in content:
-                            multiple_outfits_detected = True
-                            print("✅ Multiple outfits reference detected")
-                        
-                        if 'group of people' in content or 'people' in content:
-                            group_people_mentioned = True
-                            print("✅ Group of people mentioned")
-                    
-                    elif data.get('type') == 'done':
-                        break
-                        
-                except json.JSONDecodeError:
-                    continue
+        results = []
+        for test_case in test_cases:
+            result = self.test_intent_detection(
+                content=test_case["content"],
+                attachment_data=test_case["attachment"],
+                expected_intent=test_case["expected"],
+                test_name=test_case["name"]
+            )
+            results.append(result)
         
-        success = multiple_outfits_detected or group_people_mentioned
-        
-        if success:
-            print("✅ Multiple outfits detection test PASSED")
-        else:
-            print("❌ Multiple outfits detection test FAILED")
-        
-        return success
+        return all(results)
     
     def run_all_tests(self):
-        """Run all mockup tests"""
-        print("🚀 Starting Scene-Based Lifestyle Mockup Testing Suite")
-        print("=" * 60)
+        """Run all tests"""
+        print("🚀 Starting Intent Detection Order Testing")
+        print("="*80)
         
+        # Authenticate first
         if not self.authenticate():
-            print("❌ Authentication failed - cannot proceed with tests")
             return False
         
-        test_results = []
+        # Run critical test
+        critical_passed = self.run_critical_test()
         
-        # Test 1: Scene-based mockup (main feature)
-        test_results.append(("Scene-based Mockup", self.test_scene_based_mockup()))
-        
-        # Test 2: Traditional product mockup (should still work)
-        test_results.append(("Traditional Product Mockup", self.test_traditional_product_mockup()))
-        
-        # Test 3: Scene detection patterns
-        test_results.append(("Scene Detection Patterns", self.test_scene_detection_patterns()))
-        
-        # Test 4: Multiple outfits detection
-        test_results.append(("Multiple Outfits Detection", self.test_multiple_outfits_detection()))
+        # Run additional tests
+        additional_passed = self.run_additional_tests()
         
         # Summary
-        print("\n" + "=" * 60)
-        print("📊 TEST RESULTS SUMMARY")
-        print("=" * 60)
+        print("\n" + "="*80)
+        print("📊 TEST SUMMARY")
+        print("="*80)
         
-        passed = 0
-        total = len(test_results)
-        
-        for test_name, result in test_results:
-            status = "✅ PASSED" if result else "❌ FAILED"
-            print(f"{test_name:<30} {status}")
-            if result:
-                passed += 1
-        
-        print("-" * 60)
-        print(f"Total: {passed}/{total} tests passed ({(passed/total)*100:.1f}%)")
-        
-        if passed == total:
-            print("🎉 ALL TESTS PASSED - Scene-based lifestyle mockup feature is working correctly!")
-            return True
+        if critical_passed:
+            print("✅ CRITICAL TEST: PASSED")
         else:
-            print("⚠️ SOME TESTS FAILED - Please review the failed tests above")
-            return False
+            print("❌ CRITICAL TEST: FAILED")
+        
+        if additional_passed:
+            print("✅ ADDITIONAL TESTS: PASSED")
+        else:
+            print("❌ ADDITIONAL TESTS: FAILED")
+        
+        overall_success = critical_passed and additional_passed
+        
+        if overall_success:
+            print("\n🎉 ALL TESTS PASSED! Intent detection order fix is working correctly.")
+        else:
+            print("\n⚠️  SOME TESTS FAILED! Intent detection order needs attention.")
+        
+        return overall_success
 
 def main():
     """Main test execution"""
-    tester = MockupTester()
+    tester = BackendTester()
     success = tester.run_all_tests()
     
     if success:
-        exit(0)
+        print("\n✅ Backend testing completed successfully!")
+        sys.exit(0)
     else:
-        exit(1)
+        print("\n❌ Backend testing failed!")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
