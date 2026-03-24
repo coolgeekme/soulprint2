@@ -4180,11 +4180,7 @@ export default function MobileChat({
                 ) : (
                   <button 
                     onClick={() => {
-                      if (detectedMediaIntent && showMediaOptions) {
-                        generateMediaWithOptions();
-                      } else {
-                        sendMessage();
-                      }
+                      sendMessage();
                     }}
                     disabled={!input.trim() && !attachments.length}
                     className={`p-2 rounded-full transition-all flex-shrink-0 ${
