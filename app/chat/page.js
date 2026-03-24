@@ -8421,7 +8421,9 @@ export default function ChatPage() {
   // Copy share link
   function copyShareLink() {
     if (!projectShareLink?.code) return;
-    const link = `${window.location.origin}/join/${projectShareLink.code}`;
+    // Use /shared/ for public links, /join/ for registered-only links
+    const prefix = projectShareLink?.public_view ? '/shared/' : '/join/';
+    const link = `${window.location.origin}${prefix}${projectShareLink.code}`;
     navigator.clipboard.writeText(link);
     alert('Share link copied!');
   }
@@ -10605,15 +10607,48 @@ export default function ChatPage() {
                       <div className="flex items-center gap-2 text-purple-400 text-xs mb-2">
                         <Link2 className="w-3.5 h-3.5" /> Share Link
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 mb-3">
                         <code className="flex-1 text-[10px] text-gray-400 truncate bg-black/20 rounded px-2 py-1">
-                          {window.location.origin}/join/{projectShareLink.code}
+                          {window.location.origin}/{projectShareLink.public_view ? 'shared' : 'join'}/{projectShareLink.code}
                         </code>
                         <button
                           onClick={copyShareLink}
                           className="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg text-purple-400 text-xs"
                         >
                           Copy
+                        </button>
+                      </div>
+                      
+                      {/* Public access toggle */}
+                      <div className="flex items-center justify-between bg-black/20 rounded-lg p-2.5">
+                        <div>
+                          <p className="text-white text-xs font-medium">Public access</p>
+                          <p className="text-gray-500 text-[10px]">Anyone with the link can view (read-only)</p>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            const newPublicView = !projectShareLink.public_view;
+                            try {
+                              const res = await fetch(`/api/projects/${editingProject.id}/share-link`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                body: JSON.stringify({ enabled: true, public_view: newPublicView }),
+                              });
+                              if (res.ok) {
+                                const data = await res.json();
+                                setProjectShareLink(data.share_link);
+                              }
+                            } catch (err) {
+                              console.error('Error toggling public view:', err);
+                            }
+                          }}
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                            projectShareLink.public_view ? 'bg-green-500' : 'bg-gray-600'
+                          }`}
+                        >
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                            projectShareLink.public_view ? 'translate-x-4.5' : 'translate-x-0.5'
+                          }`} />
                         </button>
                       </div>
                     </div>

@@ -6322,7 +6322,7 @@ async function handleProjectShareLink(request, projectId) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
 
-  const { enabled, role } = await request.json();
+  const { enabled, role, public_view } = await request.json();
   const db = await getDb();
 
   // Verify ownership
@@ -6336,7 +6336,8 @@ async function handleProjectShareLink(request, projectId) {
     shareLink = {
       code: shareLink?.code || generateShareCode(),
       enabled: true,
-      role: role || 'collaborator',
+      role: role || shareLink?.role || 'collaborator',
+      public_view: public_view !== undefined ? public_view : (shareLink?.public_view || false),
       created_at: shareLink?.created_at || new Date(),
     };
   } else {
@@ -6394,6 +6395,104 @@ async function handleJoinProject(request) {
 
   return ok({ success: true, project: { id: project.id, name: project.name } });
 }
+
+// ── PUBLIC PROJECT VIEW (no auth required) ──────────────────────────────────
+// Allows non-registered users to view a shared project if public_view is enabled
+async function handlePublicProjectView(request, shareCode) {
+  const db = await getDb();
+
+  // Find project with this share code that has public_view enabled
+  const project = await db.collection('projects').findOne({
+    'share_link.code': shareCode,
+    'share_link.enabled': true,
+    'share_link.public_view': true,
+  });
+
+  if (!project) return err('Project not found or not publicly shared', 404);
+
+  // Get owner info
+  const owner = await db.collection('users').findOne({ id: project.owner_id });
+
+  // Get conversations in this project
+  const conversations = await db.collection('conversations')
+    .find({ project_id: project.id })
+    .sort({ updated_at: -1 })
+    .toArray();
+
+  // Get messages for each conversation (limited to most recent for preview)
+  const conversationIds = conversations.map(c => c.id);
+  const messageCounts = await db.collection('messages').aggregate([
+    { $match: { conversation_id: { $in: conversationIds } } },
+    { $group: { _id: '$conversation_id', count: { $sum: 1 } } }
+  ]).toArray();
+  const countMap = Object.fromEntries(messageCounts.map(c => [c._id, c.count]));
+
+  return ok({
+    project: {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      icon: project.icon,
+      color: project.color,
+      created_at: project.created_at,
+      owner_name: owner?.email?.split('@')[0] || 'Unknown',
+    },
+    conversations: conversations.map(c => ({
+      id: c.id,
+      title: c.title || 'Untitled',
+      message_count: countMap[c.id] || 0,
+      created_at: c.created_at,
+      updated_at: c.updated_at,
+    })),
+  });
+}
+
+// Get messages for a public project conversation (no auth required)
+async function handlePublicConversationMessages(request, shareCode, conversationId) {
+  const db = await getDb();
+
+  // Verify the project is public
+  const project = await db.collection('projects').findOne({
+    'share_link.code': shareCode,
+    'share_link.enabled': true,
+    'share_link.public_view': true,
+  });
+
+  if (!project) return err('Project not found or not publicly shared', 404);
+
+  // Verify the conversation belongs to this project
+  const conversation = await db.collection('conversations').findOne({
+    id: conversationId,
+    project_id: project.id,
+  });
+
+  if (!conversation) return err('Conversation not found in this project', 404);
+
+  // Get all messages
+  const messages = await db.collection('messages')
+    .find({ conversation_id: conversationId })
+    .sort({ created_at: 1 })
+    .toArray();
+
+  return ok({
+    conversation: {
+      id: conversation.id,
+      title: conversation.title || 'Untitled',
+      created_at: conversation.created_at,
+    },
+    messages: messages.map(m => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      model_used: m.model_used,
+      image_url: m.image_url,
+      video_url: m.video_url,
+      created_at: m.created_at,
+    })),
+  });
+}
+
+
 
 // Move conversation to project
 async function handleMoveConversationToProject(request, conversationId) {
@@ -22882,6 +22981,16 @@ export async function GET(request, { params }) {
   try {
     // Trigger auto-release-notes check on first request (non-blocking)
     checkAndGenerateReleaseNotes().catch(() => {});
+
+    // ── PUBLIC ROUTES (no auth required) ──────────────────────────────────
+    // Public project view: GET /api/public/project/:shareCode
+    if (pathStr.match(/^public\/project\/[^\/]+$/) && pathArr.length === 3) {
+      return handlePublicProjectView(request, pathArr[2]);
+    }
+    // Public conversation messages: GET /api/public/project/:shareCode/conversation/:convId
+    if (pathStr.match(/^public\/project\/[^\/]+\/conversation\/[^\/]+$/) && pathArr.length === 5) {
+      return handlePublicConversationMessages(request, pathArr[2], pathArr[4]);
+    }
 
     if (pathStr === 'auth/me') return handleMe(request);
     if (pathStr === 'assessment/questions') return handleGetQuestions(request);
