@@ -7686,8 +7686,9 @@ async function handleChatStream(request) {
       /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?banner/i,
       /(?:please\s+)?(?:can you\s+)?(?:generate|create|make|design|build)\s+(?:a\s+)?(?:beautiful\s+)?brochure/i,
       // User confirmation patterns (when AI offered and user said yes)
-      // These must be SHORT confirmation responses, not general messages starting with "please"
-      /^(?:yes|yeah|sure|ok|okay|go ahead|do it|create it|make it|generate it)[,!\s.]*(?:generate|create|make)?(?:\s+(?:the|that|this|it))?\s*(?:infographic|flyer|poster|image)?[,!\s.]*$/i,
+      // These must be SHORT confirmation responses that EXPLICITLY mention what to generate
+      // Bare "ok" or "yes" should NOT trigger - they could be confirming anything
+      /^(?:yes|yeah|sure|ok|okay|go ahead|do it|create it|make it|generate it)[,!\s.]*(?:generate|create|make)\s+(?:the|that|this|it\s+)?(?:infographic|flyer|poster|image)[,!\s.]*$/i,
       /^please\s+(?:generate|create|make|design)\s+(?:(?:the|an?)\s+)?(?:infographic|flyer|poster|image|banner|brochure)/i,
       // Direct keyword triggers - only if short message (under 200 chars)
       ...(lower.length < 200 ? [
@@ -7720,7 +7721,7 @@ async function handleChatStream(request) {
       // Short confirmation/request patterns for image generation (after discussing a design)
       /^image[!.\s]*$/i,  // Just "Image" or "Image!"
       /^(?:generate|create|make)\s+(?:the\s+)?(?:image|picture|logo|design)[!.\s]*$/i,  // "generate the image"
-      /^(?:yes|yeah|ok|okay|please|go ahead)[,!\s]*(?:generate|create|make)?\s*(?:the\s+)?(?:image|picture|logo|design)?[!.\s]*$/i,  // "yes, generate it"
+      /^(?:yes|yeah|please|go ahead)[,!\s]*(?:generate|create|make)\s+(?:the\s+)?(?:image|picture|logo|design)[!.\s]*$/i,  // "yes, generate the image" - must mention what to generate
     ];
     if (imagePatterns.some(p => p.test(lower))) return 'image';
     return null;
@@ -7762,6 +7763,99 @@ async function handleChatStream(request) {
         // Send memory confirmation if we saved one
         if (memoryToSave) {
           send({ type: 'delta', content: '✅ **Saved to your memories:** "' + memoryToSave + '"\n\n---\n\n' });
+        }
+
+        // ── Handle image EDIT requests ────────────────────────────────────
+        // Detect when user wants to modify/edit a previously generated image
+        // This must come BEFORE new image generation to intercept edit requests
+        const editImagePatterns = [
+          /\b(add|put|place|insert|overlay|stick|apply)\b.*\b(to|on|onto|around|over)\b.*\b(the|that|this|my|it|image|picture|photo|minivan|car|van|truck)\b/i,
+          /\b(add|put|place)\b.*\b(flames|fire|stickers?|decals?|logo|text|wings|stripes?|pattern|decoration|border|frame|hat|glasses|sunglasses|crown|stars?|sparkles?|flowers?|hearts?)\b/i,
+          /\b(remove|delete|erase|take off|take away|get rid of)\b.*\b(from|off|out of)?\b.*\b(the|that|this|my|it|image|picture|photo)\b/i,
+          /\b(change|modify|alter|update|edit|transform)\b.*\b(the|that|this|my|it|image|picture|photo|color|background|style)\b/i,
+          /\b(make|turn)\b.*\b(the|that|this|my|it|image|picture|photo|minivan|car)\b.*\b(red|blue|green|black|white|bigger|smaller|brighter|darker)\b/i,
+          /\b(edit|modify|change|update|alter)\b.*\b(the|that|this|my|previous|last|original)\b.*\b(image|picture|photo|generated)\b/i,
+          /\b(on|to|around)\b.*\b(the|that|this|my|original|previous|last)\b.*\b(image|picture|photo|one)\b/i,
+          /\b(flames?|fire|stickers?|decals?)\b.*\b(on|to|around|over)\b/i,
+        ];
+        
+        const isEditRequest = editImagePatterns.some(p => p.test(sanitizedContent));
+        
+        if (isEditRequest && attachments.length === 0) {
+          // Look for a previously generated image in the conversation
+          const recentMessages = await db.collection('messages')
+            .find({ conversation_id: convId })
+            .sort({ created_at: -1 })
+            .limit(10)
+            .toArray();
+          
+          // Find the most recent image URL in messages
+          let lastImageUrl = null;
+          for (const msg of recentMessages) {
+            if (msg.image_url) {
+              lastImageUrl = msg.image_url;
+              break;
+            }
+            // Check content for markdown image references
+            if (msg.content && typeof msg.content === 'string') {
+              const imgMatch = msg.content.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
+              if (imgMatch) {
+                lastImageUrl = imgMatch[1];
+                break;
+              }
+            }
+          }
+          
+          if (lastImageUrl) {
+            console.log('[Image Edit] Detected edit request for existing image:', lastImageUrl.substring(0, 80));
+            console.log('[Image Edit] Edit instruction:', sanitizedContent.substring(0, 100));
+            
+            send({ type: 'delta', content: '✏️ Editing your image...\n\n' });
+            
+            try {
+              const editResult = await handleImageEditInternal(
+                user.id,
+                { url: lastImageUrl },
+                sanitizedContent,
+                (progress) => {
+                  // Send progress updates to the frontend
+                  send({ type: 'delta', content: '' }); // keepalive
+                }
+              );
+              
+              if (editResult.success && editResult.url) {
+                console.log(`[Image Edit] Success with ${editResult.method}! URL:`, editResult.url.substring(0, 80));
+                
+                fullContent = `![Edited Image](${editResult.url})\n\n✏️ *Image edited using ${editResult.method}!*`;
+                send({ type: 'image', url: editResult.url, revised_prompt: sanitizedContent, contentType: 'edit' });
+                send({ type: 'delta', content: fullContent });
+              } else {
+                console.error('[Image Edit] Failed:', editResult.error);
+                fullContent = `Sorry, I couldn't edit the image: ${editResult.error}`;
+                send({ type: 'delta', content: fullContent });
+              }
+            } catch (editErr) {
+              console.error('[Image Edit] Exception:', editErr.message);
+              fullContent = `Sorry, image editing failed: ${editErr.message}`;
+              send({ type: 'delta', content: fullContent });
+            }
+            
+            // Save message
+            const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+            await db.collection('messages').insertOne({
+              id: assistantMsgId, conversation_id: convId, user_id: user.id,
+              role: 'assistant', content: fullContent, created_at: new Date(),
+              model_used: 'image-edit', provider_used: 'multi', content_type: 'image-edit',
+              est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
+            });
+            await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+            clearInterval(keepaliveInterval);
+            controller.close();
+            return;
+          } else {
+            console.log('[Image Edit] Edit request detected but no previous image found in conversation, falling through to normal flow');
+          }
         }
 
         // ── Handle image generation ───────────────────────────────────────
