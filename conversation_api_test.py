@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://soulprint-ai-1.preview.emergentagent.com/api"
+BASE_URL = "https://multi-model-llm.preview.emergentagent.com/api"
 TEST_EMAIL = "reggie@coolgeek.me"
 TEST_PASSCODE = "testpasscode123"
 
