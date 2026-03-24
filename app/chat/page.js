@@ -7665,13 +7665,44 @@ export default function ChatPage() {
                 // Detect if AI is about to generate visual content
                 const lowerContent = fullContent.toLowerCase();
                 const generatingPhrases = [
+                  // Infographic/Flyer/Poster generation
                   'generating the infographic', 'generate the infographic', 'create the infographic', 'creating the infographic',
                   'generating the flyer', 'generate the flyer', 'create the flyer', 'creating the flyer',
                   'generating the poster', 'generate the poster', 'create the poster', 'creating the poster',
+                  // Image generation - common phrases
                   'generating this image', 'generate this image', 'creating this image',
+                  'generating your image', 'creating your image',
+                  'generating an image', 'creating an image',
+                  // Video generation - common phrases
+                  'generating your video', 'creating your video',
+                  'generating a video', 'creating a video',
+                  'generating the video', 'creating the video',
+                  'video generation started', 'video is being generated',
+                  'working on your video', 'crafting your video',
+                  // Intent phrases
                   'i\'ll generate', 'i will generate', 'let me generate', 'let me create',
                   'hold on for a moment', 'please hold', 'one moment while i',
-                  'working on your', 'designing your', 'crafting your'
+                  'working on your', 'designing your', 'crafting your',
+                  // Design phrases
+                  'i\'ll create a design', 'let me create a design', 'creating a design',
+                  'i\'ll update', 'let me update', 'updating the',
+                  'i\'ll edit', 'let me edit', 'editing the',
+                  'generating a new', 'creating a new', 'making a new',
+                  'give me a moment', 'moment while i work', 'while i generate',
+                  'working on this', 'work on this', 'creating this for you',
+                  'hold on while', 'wait while', 'please wait',
+                  'incorporating', 'applying the changes', 'making the changes',
+                  // Edit-specific phrases
+                  'editing your image', 'editing the image', 'applying the edit',
+                  'adding your logo', 'adding the logo', 'composite',
+                  // Model names indicate image generation in progress
+                  'nano banana', 'dall-e', 'seedream', 'gpt-image',
+                  // Video model names
+                  'kling', 'minimax', 'luma', 'runway',
+                  // Emoji prefixed messages from backend
+                  '🎨 generating', '✨ generating', '🖼️ generating',
+                  '🎨 creating', '✨ creating', '🖼️ creating',
+                  '🎬 generating', '🎬 creating', '🎬 video',
                 ];
                 const isGeneratingVisualContent = generatingPhrases.some(phrase => lowerContent.includes(phrase));
                 
@@ -7681,6 +7712,8 @@ export default function ChatPage() {
                   if (lowerContent.includes('infographic')) type = 'infographic';
                   else if (lowerContent.includes('flyer')) type = 'flyer';
                   else if (lowerContent.includes('poster')) type = 'poster';
+                  else if (lowerContent.includes('edit')) type = 'edit';
+                  else if (lowerContent.includes('video') || lowerContent.includes('🎬')) type = 'video';
                   setIsGeneratingVisual(true);
                   setVisualGenerationType(type);
                 }
@@ -9687,9 +9720,15 @@ export default function ChatPage() {
                           {visualGenerationType === 'infographic' ? '📊 Creating your infographic...' :
                            visualGenerationType === 'flyer' ? '📄 Designing your flyer...' :
                            visualGenerationType === 'poster' ? '🖼️ Creating your poster...' :
+                           visualGenerationType === 'edit' ? '✏️ Editing your image...' :
+                           visualGenerationType === 'video' ? '🎬 Generating your video...' :
                            '✨ Generating your image...'}
                         </p>
-                        <p className="text-gray-400 text-sm">This may take 15-30 seconds. We're crafting something beautiful!</p>
+                        <p className="text-gray-400 text-sm">
+                          {visualGenerationType === 'video' 
+                            ? 'This may take 1-3 minutes. Creating cinematic magic!' 
+                            : 'This may take 15-30 seconds. We\'re crafting something beautiful!'}
+                        </p>
                       </div>
                     </div>
                     
