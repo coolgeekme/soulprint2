@@ -9901,135 +9901,7 @@ export default function ChatPage() {
             )}
             {fileError && <p className="text-red-400 text-xs mb-1 px-1">{fileError}</p>}
 
-            {/* Media Intent Detection Banner */}
-            {detectedMediaIntent && showMediaOptions && (
-              <div className="mb-3 media-intent-banner">
-                <div className="bg-gradient-to-r from-orange-500/10 to-purple-500/10 border border-orange-500/30 rounded-2xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      {detectedMediaIntent === 'image' ? (
-                        <ImageIcon className="w-5 h-5 text-orange-400" />
-                      ) : (
-                        <Video className="w-5 h-5 text-purple-400" />
-                      )}
-                      <span className="text-white text-sm font-medium">
-                        {detectedMediaIntent === 'image' ? '🎨 Image generation detected' : '🎬 Video generation detected'}
-                      </span>
-                    </div>
-                    <button 
-                      onClick={() => setShowMediaOptions(false)}
-                      className="text-gray-500 hover:text-white p-1"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  
-                  {/* Quick Options */}
-                  <div className="flex flex-wrap items-center gap-4 mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-400 text-sm">Aspect:</span>
-                      <div className="flex gap-1">
-                        {[
-                          { value: '1:1', label: 'Square' },
-                          { value: '16:9', label: 'Landscape' },
-                          { value: '9:16', label: 'Portrait' },
-                        ].map(ratio => (
-                          <button
-                            key={ratio.value}
-                            onClick={() => setQuickAspectRatio(ratio.value)}
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
-                              quickAspectRatio === ratio.value
-                                ? 'bg-orange-500 text-white'
-                                : 'bg-white/10 text-gray-400 hover:bg-white/20'
-                            }`}
-                          >
-                            {ratio.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Video-specific options */}
-                    {detectedMediaIntent === 'video' && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-400 text-sm">Length:</span>
-                        <div className="flex gap-1">
-                          {['5', '10'].map(len => (
-                            <button
-                              key={len}
-                              onClick={() => setQuickVideoLength(len)}
-                              className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
-                                quickVideoLength === len
-                                  ? 'bg-purple-500 text-white'
-                                  : 'bg-white/10 text-gray-400 hover:bg-white/20'
-                              }`}
-                            >
-                              {len}s
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Advanced toggle */}
-                    <button
-                      onClick={() => setMediaOptionsExpanded(!mediaOptionsExpanded)}
-                      className="text-gray-500 text-xs flex items-center gap-1 hover:text-gray-300"
-                    >
-                      <ChevronRight className={`w-3 h-3 transition-transform ${mediaOptionsExpanded ? 'rotate-90' : ''}`} />
-                      Advanced
-                    </button>
-                  </div>
-                  
-                  {/* Advanced Options Panel */}
-                  {mediaOptionsExpanded && (
-                    <div className="mb-3 p-3 bg-white/5 rounded-xl media-options-panel">
-                      <div className="text-gray-400 text-xs mb-2">Model:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {(detectedMediaIntent === 'image' ? IMAGE_MODELS : VIDEO_MODELS).map(model => (
-                          <button
-                            key={model.value}
-                            onClick={() => detectedMediaIntent === 'image' 
-                              ? setSelectedImageModel(model.value) 
-                              : setSelectedVideoModel(model.value)
-                            }
-                            className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
-                              (detectedMediaIntent === 'image' ? selectedImageModel : selectedVideoModel) === model.value
-                                ? 'bg-orange-500 text-white'
-                                : 'bg-white/10 text-gray-400 hover:bg-white/20'
-                            }`}
-                          >
-                            {model.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={generateMediaWithOptions}
-                      disabled={loading || isGeneratingMedia}
-                      className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white py-2.5 px-4 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      Generate {detectedMediaIntent === 'image' ? 'Image' : 'Video'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowMediaOptions(false);
-                        setDetectedMediaIntent(null);
-                        sendMessage();
-                      }}
-                      className="bg-white/10 hover:bg-white/20 text-gray-300 py-2.5 px-4 rounded-xl text-sm transition-colors"
-                    >
-                      Just Chat
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Media generation handled dynamically through chat - no manual controls needed */}
 
             {/* Input bar */}
             <div className={`flex items-center gap-1.5 sm:gap-2 bg-[#141a21] border rounded-2xl px-2 sm:px-3 py-2 transition-colors ${speech.isListening ? 'border-orange-500/60 shadow-[0_0_20px_rgba(249,115,22,0.15)]' : 'border-white/10 focus-within:border-orange-500/30'}`}>
@@ -10080,8 +9952,7 @@ export default function ChatPage() {
                 </button>
               )}
 
-              {/* Create (Image/Video) button */}
-              <CreateMenu onGenerate={handleMediaGenerate} isGenerating={isGeneratingMedia} />
+              {/* Image/Video generation removed - handled dynamically through chat */}
 
               {/* Edit Image button - shows when there's an image attachment or editable image */}
               {(attachments.some(a => a.type === 'image') || editableImage) && (

@@ -7771,7 +7771,15 @@ async function handleChatStream(request) {
           const isInfographic = /\binfographic\b/i.test(lowerContent);
           const isFlyer = /\b(flyer|poster|banner|brochure)\b/i.test(lowerContent);
           
-          let displayMessage = '🎨 Generating your image with DALL-E 3...\n\n';
+          // Dynamic model selection based on prompt content
+          const modelSelection = selectBestImageModel(content);
+          const selectedModelKey = modelSelection.model;
+          const modelConfig = KIE_IMAGE_MODELS[selectedModelKey];
+          const modelDisplayName = selectedModelKey.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          
+          console.log(`[Image Generation] Dynamic Intelligence selected: ${selectedModelKey} - ${modelSelection.reason}`);
+          
+          let displayMessage = `🎨 Generating your image with ${modelDisplayName}...\n\n`;
           let enhancedPrompt = content;
           
           // If the request is very short (e.g., just "Image" or "generate the image"),
@@ -7793,8 +7801,7 @@ async function handleChatStream(request) {
           }
           
           if (isInfographic) {
-            displayMessage = '📊 Creating your professional infographic...\n\n';
-            // Enhance the prompt for infographic generation
+            displayMessage = `📊 Creating your professional infographic with ${modelDisplayName}...\n\n`;
             enhancedPrompt = `Create a stunning, professional infographic design. The infographic should have:
 - A cohesive, modern color palette (3-5 colors maximum)
 - Clear visual hierarchy with bold, impactful headlines
@@ -7809,8 +7816,7 @@ ${content}
 
 Style: Modern, clean, professional infographic design. Make it visually stunning and engaging.`;
           } else if (isFlyer) {
-            displayMessage = '🎨 Designing your professional flyer...\n\n';
-            // Enhance the prompt for flyer generation
+            displayMessage = `🎨 Designing your professional flyer with ${modelDisplayName}...\n\n`;
             enhancedPrompt = `Create a stunning, professional promotional flyer/poster design. The design should have:
 - Eye-catching visual composition using the rule of thirds
 - Bold, attention-grabbing headline typography
@@ -7829,42 +7835,110 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
           
           send({ type: 'delta', content: displayMessage });
+          
+          let imageUrl = null;
+          let revisedPrompt = content;
+          let usedModel = selectedModelKey;
+          
           try {
-            const apiKey = process.env.OPENAI_API_KEY;
-            if (!apiKey) {
-              throw new Error('OpenAI API key not configured');
+            const kieKey = process.env.KIE_API_KEY;
+            const openaiApiKey = process.env.OPENAI_API_KEY;
+            
+            // ── PRIMARY: Use Kie.ai with dynamically selected model ──
+            if (kieKey && modelConfig) {
+              console.log(`[Image Generation] Using Kie.ai model: ${modelConfig.model} for prompt:`, enhancedPrompt.substring(0, 150));
+              
+              const inputParams = modelConfig.formatInput 
+                ? modelConfig.formatInput(enhancedPrompt, '1:1') 
+                : { prompt: enhancedPrompt, image_size: 'square_hd' };
+              
+              const requestBody = {
+                model: modelConfig.model,
+                input: inputParams,
+              };
+              
+              const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json', 
+                  'Authorization': `Bearer ${kieKey}` 
+                },
+                body: JSON.stringify(requestBody),
+              });
+              
+              const createData = await createRes.json();
+              
+              if (createData.code === 200 && createData.data?.taskId) {
+                const taskId = createData.data.taskId;
+                console.log(`[Image Generation] Kie.ai task created: ${taskId}, polling...`);
+                
+                // Poll for result
+                const startTime = Date.now();
+                const maxWaitTime = 90000; // 90s timeout
+                let attempts = 0;
+                
+                while (Date.now() - startTime < maxWaitTime) {
+                  await new Promise(r => setTimeout(r, 3000));
+                  attempts++;
+                  
+                  const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+                    headers: { 'Authorization': `Bearer ${kieKey}` },
+                  });
+                  const statusData = await statusRes.json();
+                  
+                  if (statusData.code === 200) {
+                    const state = statusData.data?.state;
+                    
+                    if (state === 'success') {
+                      try {
+                        const resultJson = JSON.parse(statusData.data?.resultJson || '{}');
+                        imageUrl = resultJson?.resultUrls?.[0] || resultJson?.url || resultJson?.image_url || resultJson?.images?.[0];
+                      } catch (e) {
+                        console.error('[Image Generation] Failed to parse resultJson:', e);
+                      }
+                      break;
+                    } else if (state === 'fail') {
+                      console.log('[Image Generation] Kie.ai task failed:', statusData.data?.failMsg);
+                      break;
+                    }
+                    // Still processing - continue polling
+                  }
+                }
+                
+                if (imageUrl) {
+                  console.log(`[Image Generation] Success with ${selectedModelKey}! URL:`, imageUrl.substring(0, 80));
+                }
+              } else {
+                console.log('[Image Generation] Kie.ai createTask failed:', createData.msg || createData.code);
+              }
             }
             
-            console.log('[Image Generation] Starting DALL-E 3 request for prompt:', enhancedPrompt.substring(0, 150));
-            console.log('[Image Generation] Type:', isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'general image'));
-            
-            const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-              body: JSON.stringify({ model: 'dall-e-3', prompt: enhancedPrompt, n: 1, size: '1024x1024', quality: 'hd', style: 'vivid' }),
-            });
-            
-            const imgData = await imgRes.json();
-            
-            if (!imgRes.ok) {
-              console.error('[Image Generation] API Error:', imgRes.status, JSON.stringify(imgData));
-              throw new Error(imgData.error?.message || `API returned status ${imgRes.status}`);
+            // ── FALLBACK: Use DALL-E 3 if Kie.ai failed or unavailable ──
+            if (!imageUrl && openaiApiKey) {
+              console.log('[Image Generation] Falling back to DALL-E 3');
+              usedModel = 'dall-e-3';
+              
+              const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiApiKey}` },
+                body: JSON.stringify({ model: 'dall-e-3', prompt: enhancedPrompt, n: 1, size: '1024x1024', quality: 'hd', style: 'vivid' }),
+              });
+              
+              const imgData = await imgRes.json();
+              
+              if (!imgRes.ok) {
+                throw new Error(imgData.error?.message || `DALL-E 3 API returned status ${imgRes.status}`);
+              }
+              
+              imageUrl = imgData.data?.[0]?.url;
+              revisedPrompt = imgData.data?.[0]?.revised_prompt || content;
             }
-            
-            if (imgData.error) {
-              console.error('[Image Generation] Response Error:', JSON.stringify(imgData.error));
-              throw new Error(imgData.error.message);
-            }
-            
-            const imageUrl = imgData.data?.[0]?.url;
-            const revisedPrompt = imgData.data?.[0]?.revised_prompt || content;
             
             if (!imageUrl) {
-              console.error('[Image Generation] No URL in response:', JSON.stringify(imgData));
-              throw new Error('No image URL returned from API');
+              throw new Error('No image generation API available or all methods failed');
             }
             
-            console.log('[Image Generation] Success! URL:', imageUrl.substring(0, 80) + '...');
+            console.log(`[Image Generation] Final success with ${usedModel}! URL:`, imageUrl.substring(0, 80) + '...');
 
             // Customize the output message based on content type
             const contentTypeLabel = isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'image');
@@ -7884,7 +7958,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           await db.collection('messages').insertOne({
             id: assistantMsgId, conversation_id: convId, user_id: user.id,
             role: 'assistant', content: fullContent, created_at: new Date(),
-            model_used: 'dall-e-3', provider_used: 'openai', content_type: storedContentType,
+            model_used: usedModel, provider_used: usedModel === 'dall-e-3' ? 'openai' : 'kie-ai', content_type: storedContentType,
             est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
           });
           await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
