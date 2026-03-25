@@ -9765,12 +9765,15 @@ export default function ChatPage() {
                            visualGenerationType === 'flyer' ? '📄 Designing your flyer...' :
                            visualGenerationType === 'poster' ? '🖼️ Creating your poster...' :
                            visualGenerationType === 'edit' ? '✏️ Editing your image...' :
+                           visualGenerationType === 'composite' ? '🎨 Creating realistic mockup...' :
                            visualGenerationType === 'video' ? '🎬 Generating your video...' :
                            '✨ Generating your image...'}
                         </p>
                         <p className="text-gray-400 text-sm">
                           {visualGenerationType === 'video' 
                             ? 'This may take 1-3 minutes. Creating cinematic magic!' 
+                            : visualGenerationType === 'composite'
+                            ? 'AI is blending your design into the image naturally. ~15-20 seconds.'
                             : 'This may take 15-30 seconds. We\'re crafting something beautiful!'}
                         </p>
                       </div>

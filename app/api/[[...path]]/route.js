@@ -9007,7 +9007,7 @@ async function handleChatStream(request) {
               }
               baseBuffer = Buffer.from(await baseResp.arrayBuffer());
               
-              send({ type: 'delta', content: '🎨 Compositing your design onto the image — your logo will be preserved pixel-perfect...\n\n' });
+              send({ type: 'delta', content: '🎨 Preparing to composite your design onto the image...\n\n' });
             }
             
             if (!baseBuffer || !overlayBuffer) {
@@ -9021,8 +9021,11 @@ async function handleChatStream(request) {
               /\b(logo|image|graphic|design|text|brand)\b.*\b(swap|replace|change|switch|with)\b/i.test(sanitizedContent)
             );
             
-            if (isSwapRequest) {
-              console.log('[Composite] Swap detected — cleaning base image of existing logos first');
+            // Skip GPT-image-1 cleanup when Gemini is available — Gemini handles replacement natively
+            const hasGemini = !!process.env.GEMINI_API_KEY;
+            
+            if (isSwapRequest && !hasGemini) {
+              console.log('[Composite] Swap detected — cleaning base image of existing logos first (no Gemini)');
               send({ type: 'delta', content: '🧹 Removing existing logos from the image first...\n\n' });
               
               try {
@@ -9060,10 +9063,37 @@ async function handleChatStream(request) {
             }
             
             // ── Call the Smart Composite function ──
-            // AI provides placement intelligence only, Sharp does pixel-perfect compositing
-            const compositeResult = await handleSmartComposite(
-              baseBuffer, overlayBuffer, overlayMime, sanitizedContent
-            );
+            // Gemini handles the compositing natively when available (much better results)
+            // Falls back to GPT-4o Vision analysis + Sharp programmatic compositing
+            send({ type: 'generating_visual', visualType: 'composite' });
+            send({ type: 'delta', content: '⏳ *Generating realistic mockup with AI — this takes 10-20 seconds...*\n\n' });
+            
+            // Send visible progress updates to keep user informed
+            let compositeProgressCount = 0;
+            const compositeProgressMessages = [
+              '🔄 Analyzing image composition...',
+              '🎨 Blending logo into the scene...',
+              '✨ Matching lighting and texture...',
+              '🖼️ Finalizing mockup...',
+            ];
+            const compositeProgressInterval = setInterval(() => {
+              try { 
+                const msg = compositeProgressMessages[compositeProgressCount % compositeProgressMessages.length];
+                send({ type: 'delta', content: msg + '\n' }); 
+                compositeProgressCount++;
+              } catch(e) {}
+            }, 4000);
+            
+            let compositeResult;
+            try {
+              compositeResult = await handleSmartComposite(
+                baseBuffer, overlayBuffer, overlayMime, sanitizedContent
+              );
+            } finally {
+              clearInterval(compositeProgressInterval);
+              // Clear the progress dots by sending a newline
+              try { send({ type: 'delta', content: '\n\n' }); } catch(e) {}
+            }
             
             if (compositeResult.success && compositeResult.url) {
               const placementInfo = compositeResult.placement;
