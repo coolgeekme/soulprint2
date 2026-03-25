@@ -3546,67 +3546,174 @@ RULES:
     console.log('[SmartComposite] Rotated logo by', placementData.rotation_degrees, 'degrees');
   }
   
-  // Apply opacity if less than 1
-  if (placementData.opacity < 1.0) {
-    try {
-      const { data: logoData, info: logoInfo } = await sharp(resizedLogo)
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-      
-      const logoPixels = new Uint8Array(logoData);
-      const opacityFactor = placementData.opacity;
-      
-      for (let i = 3; i < logoPixels.length; i += 4) {
-        logoPixels[i] = Math.round(logoPixels[i] * opacityFactor);
-      }
-      
-      resizedLogo = await sharp(Buffer.from(logoPixels), {
-        raw: { width: logoInfo.width, height: logoInfo.height, channels: 4 }
-      }).png().toBuffer();
-      
-      console.log('[SmartComposite] Applied opacity:', opacityFactor);
-    } catch (opErr) {
-      console.log('[SmartComposite] Opacity adjustment failed:', opErr.message);
-    }
+  // ── Step 4: Surface integration — make the logo look like it BELONGS on the surface ──
+  // Instead of just pasting on top, we blend it into the surface using multiple layers
+  
+  const finalLogoMeta = await sharp(resizedLogo).metadata();
+  const logoW = finalLogoMeta.width;
+  const logoH = finalLogoMeta.height;
+  
+  // Clamp position
+  targetX = Math.max(0, Math.min(baseMeta.width - logoW, targetX));
+  targetY = Math.max(0, Math.min(baseMeta.height - logoH, targetY));
+  
+  // Extract the region of the base image where the logo will go (for texture sampling)
+  let surfacePatch = null;
+  try {
+    surfacePatch = await sharp(basePng)
+      .extract({ left: targetX, top: targetY, width: logoW, height: logoH })
+      .png()
+      .toBuffer();
+  } catch (e) {
+    console.log('[SmartComposite] Could not extract surface patch:', e.message);
   }
   
-  // ── Step 4: Clamp position to ensure logo stays within bounds ──
-  const finalLogoMeta = await sharp(resizedLogo).metadata();
-  targetX = Math.max(0, Math.min(baseMeta.width - (finalLogoMeta.width || 1), targetX));
-  targetY = Math.max(0, Math.min(baseMeta.height - (finalLogoMeta.height || 1), targetY));
+  // Apply slight edge softening to logo (makes edges blend more naturally)
+  let softLogo = resizedLogo;
+  try {
+    // Create a version with very subtle blur on the alpha edges only
+    const { data: logoRaw, info: logoInfo } = await sharp(resizedLogo)
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const lp = new Uint8Array(logoRaw);
+    
+    // Soften alpha edges: find pixels where alpha transitions from 0 to >0
+    // and reduce their alpha slightly for a feathered edge
+    const lw = logoInfo.width;
+    const lh = logoInfo.height;
+    for (let y = 1; y < lh - 1; y++) {
+      for (let x = 1; x < lw - 1; x++) {
+        const idx = (y * lw + x) * 4;
+        if (lp[idx + 3] > 0) {
+          // Check if any neighbor is transparent
+          const neighbors = [
+            ((y-1) * lw + x) * 4, ((y+1) * lw + x) * 4,
+            (y * lw + (x-1)) * 4, (y * lw + (x+1)) * 4,
+          ];
+          let hasTransparentNeighbor = false;
+          for (const ni of neighbors) {
+            if (ni >= 0 && ni + 3 < lp.length && lp[ni + 3] === 0) {
+              hasTransparentNeighbor = true;
+              break;
+            }
+          }
+          if (hasTransparentNeighbor) {
+            // Edge pixel — reduce alpha for feathered edge
+            lp[idx + 3] = Math.round(lp[idx + 3] * 0.7);
+          }
+        }
+      }
+    }
+    
+    softLogo = await sharp(Buffer.from(lp), {
+      raw: { width: lw, height: lh, channels: 4 }
+    }).png().toBuffer();
+  } catch (e) {
+    console.log('[SmartComposite] Edge softening failed:', e.message);
+    softLogo = resizedLogo;
+  }
   
-  // ── Step 5: Composite logo onto base image ──
-  // Always use 'over' blend to preserve EXACT logo colors/pixels
-  // For fabric surfaces, we add a subtle texture hint using a secondary multiply layer
+  // ── Step 5: Multi-layer composite for natural surface integration ──
   const compositeOps = [];
   
-  // For fabric/curved surfaces, add a subtle shadow for depth
-  if (['fabric', 'curved', 'vehicle'].includes(placementData.surface_type)) {
-    try {
-      // Create a very subtle darkened version underneath for shadow/depth effect
-      const shadowLogo = await sharp(resizedLogo)
-        .blur(4)
-        .modulate({ brightness: 0.5 })
-        .png()
-        .toBuffer();
-      
-      compositeOps.push({
-        input: shadowLogo,
-        left: Math.min(baseMeta.width - 1, targetX + 3),
-        top: Math.min(baseMeta.height - 1, targetY + 3),
-        blend: 'multiply',
-      });
-    } catch (e) { /* shadow is optional, skip if fails */ }
+  // Layer 1: Drop shadow (anchors the logo to the surface)
+  try {
+    const shadowLogo = await sharp(softLogo)
+      .blur(3)
+      .modulate({ brightness: 0.3 })
+      .png()
+      .toBuffer();
+    
+    compositeOps.push({
+      input: shadowLogo,
+      left: Math.min(baseMeta.width - 1, targetX + 2),
+      top: Math.min(baseMeta.height - 1, targetY + 2),
+      blend: 'multiply',
+    });
+  } catch (e) { /* shadow is optional */ }
+  
+  // Layer 2: Multiply blend layer — makes surface texture bleed through the logo
+  // This is what makes it look "printed on" rather than "pasted on top"
+  try {
+    // Reduce opacity of the logo for the multiply layer
+    const { data: mulRaw, info: mulInfo } = await sharp(softLogo)
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const mp = new Uint8Array(mulRaw);
+    
+    // Set multiply layer to ~30% opacity
+    for (let i = 3; i < mp.length; i += 4) {
+      mp[i] = Math.round(mp[i] * 0.35);
+    }
+    
+    const multiplyLayer = await sharp(Buffer.from(mp), {
+      raw: { width: mulInfo.width, height: mulInfo.height, channels: 4 }
+    }).png().toBuffer();
+    
+    compositeOps.push({
+      input: multiplyLayer,
+      left: targetX,
+      top: targetY,
+      blend: 'multiply',
+    });
+  } catch (e) {
+    console.log('[SmartComposite] Multiply layer failed:', e.message);
   }
   
-  // Main logo overlay — uses 'over' blend to preserve exact pixels
-  compositeOps.push({
-    input: resizedLogo,
-    left: targetX,
-    top: targetY,
-    blend: 'over',
-  });
+  // Layer 3: Main logo — 'over' blend but at reduced opacity so surface shows through
+  try {
+    const { data: mainRaw, info: mainInfo } = await sharp(softLogo)
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const mainPx = new Uint8Array(mainRaw);
+    
+    // Set main layer to ~75% opacity (surface texture peeks through)
+    const mainOpacity = 0.75;
+    for (let i = 3; i < mainPx.length; i += 4) {
+      mainPx[i] = Math.round(mainPx[i] * mainOpacity);
+    }
+    
+    const mainLayer = await sharp(Buffer.from(mainPx), {
+      raw: { width: mainInfo.width, height: mainInfo.height, channels: 4 }
+    }).png().toBuffer();
+    
+    compositeOps.push({
+      input: mainLayer,
+      left: targetX,
+      top: targetY,
+      blend: 'over',
+    });
+  } catch (e) {
+    // Fallback: use softLogo directly
+    compositeOps.push({
+      input: softLogo,
+      left: targetX,
+      top: targetY,
+      blend: 'over',
+    });
+  }
+  
+  // Layer 4: Soft-light highlight — adds subtle lighting interaction
+  try {
+    const { data: hlRaw, info: hlInfo } = await sharp(softLogo)
+      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const hp = new Uint8Array(hlRaw);
+    
+    // Very subtle soft-light at ~15% opacity
+    for (let i = 3; i < hp.length; i += 4) {
+      hp[i] = Math.round(hp[i] * 0.15);
+    }
+    
+    const highlightLayer = await sharp(Buffer.from(hp), {
+      raw: { width: hlInfo.width, height: hlInfo.height, channels: 4 }
+    }).png().toBuffer();
+    
+    compositeOps.push({
+      input: highlightLayer,
+      left: targetX,
+      top: targetY,
+      blend: 'soft-light',
+    });
+  } catch (e) { /* highlight is optional */ }
+  
+  console.log('[SmartComposite] Compositing with', compositeOps.length, 'layers');
   
   const result = await sharp(basePng)
     .composite(compositeOps)
