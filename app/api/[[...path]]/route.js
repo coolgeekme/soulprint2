@@ -7858,20 +7858,17 @@ async function handleChatStream(request) {
             }
             
             const overlayBuffer = Buffer.from(overlayBase64, 'base64');
-            
-            // Get image dimensions
             const baseMeta = await sharp(baseBuffer).metadata();
             const overlayMeta = await sharp(overlayBuffer).metadata();
-            console.log('[Composite] Base:', baseMeta.width, 'x', baseMeta.height);
-            console.log('[Composite] Overlay:', overlayMeta.width, 'x', overlayMeta.height);
+            console.log('[Composite] Base:', baseMeta.width, 'x', baseMeta.height, 'Overlay:', overlayMeta.width, 'x', overlayMeta.height);
             
-            // ── Step 1: GPT-4o Vision — get exact pixel placements ──
-            console.log('[Composite] Step 1: AI placement analysis...');
+            // ══════════════════════════════════════════════════════════════
+            // REFERENCE SHEET: Combine base + logo into one image so 
+            // GPT-image-1 can SEE both and do realistic compositing
+            // ══════════════════════════════════════════════════════════════
             
-            const baseB64 = baseBuffer.toString('base64');
-            const overlayB64 = overlayBuffer.toString('base64');
-            let placements = [];
-            
+            // Step 1: GPT-4o Vision — get precise compositing instruction
+            let compositeInstruction = sanitizedContent;
             try {
               const analysisRes = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
@@ -7880,157 +7877,121 @@ async function handleChatStream(request) {
                   model: 'gpt-4o',
                   messages: [{
                     role: 'system',
-                    content: `You are a pixel-precise image compositor. You will analyze a BASE image and determine EXACTLY where to place an OVERLAY image.
-
-BASE IMAGE: ${baseMeta.width}x${baseMeta.height} pixels.
-OVERLAY IMAGE: ${overlayMeta.width}x${overlayMeta.height} pixels.
-
-CRITICAL INSTRUCTIONS:
-1. LOOK CAREFULLY at the base image. Find ALL existing logos, text, graphics, or designs that should be replaced.
-2. For EACH existing logo/graphic you find, create a placement that FULLY COVERS it with the overlay.
-3. Measure the EXACT pixel boundaries of each existing logo - the overlay must be AT LEAST as large to completely hide the old one.
-4. If user says "2 shirts" or "both", you MUST return 2 separate placements - one for each shirt.
-5. Position overlays EXACTLY where the old logos are — NOT in the center of the image.
-
-Return JSON: {"placements": [{...}, {...}]}
-
-Each placement object:
-- "x": left pixel coordinate (0 = left edge of image)
-- "y": top pixel coordinate (0 = top edge of image)  
-- "width": width in pixels — MUST fully cover the existing logo/text
-- "height": height in pixels — maintain overlay aspect ratio
-- "opacity": 0.85-1.0
-- "blend": "multiply" for fabric/clothing, "over" for flat surfaces
-- "invert": true if overlay would be invisible (same color as surface)
-- "cover_color": if there's text/logo to remove first, specify the background color to paint over it (e.g., "#4a4a4a" for dark gray shirt). Use null if not needed.
-- "reason": what this placement covers
-
-EXAMPLE for t-shirt logo swap:
-If a shirt shows "COOL BRAND" text at roughly pixels 200-400 horizontally, 300-500 vertically, return:
-{"x": 190, "y": 290, "width": 220, "height": 220, "blend": "multiply", "cover_color": "#555555"}`
+                    content: `You create precise compositing instructions. Given a base image and a logo, describe EXACTLY how to composite them. Be specific about: what to REMOVE, WHERE to place the logo, HOW to blend it naturally (match fabric/surface texture, perspective, lighting). Under 200 words. Be direct.`
                   }, {
                     role: 'user',
                     content: [
-                      { type: 'text', text: `User request: "${sanitizedContent}"\n\nImage 1 = BASE IMAGE (${baseMeta.width}x${baseMeta.height}px). Look carefully at it and find ALL existing logos, text, or graphics.\nImage 2 = NEW OVERLAY to place at each location (${overlayMeta.width}x${overlayMeta.height}px).\n\nIMPORTANT: If there are 2 shirts with logos, return 2 placements. Position each overlay EXACTLY over each existing logo. The overlay must be large enough to FULLY COVER the old logo.` },
-                      { type: 'image_url', image_url: { url: `data:image/png;base64,${baseB64}`, detail: 'high' } },
-                      { type: 'image_url', image_url: { url: `data:${overlayMime};base64,${overlayB64}`, detail: 'high' } }
+                      { type: 'text', text: `Request: "${sanitizedContent}"\nImage 1 = base. Image 2 = logo to add.` },
+                      { type: 'image_url', image_url: { url: `data:image/png;base64,${baseBuffer.toString('base64')}`, detail: 'high' } },
+                      { type: 'image_url', image_url: { url: `data:${overlayMime};base64,${overlayBase64}`, detail: 'high' } }
                     ]
                   }],
-                  max_tokens: 800,
-                  temperature: 0.1,
-                  response_format: { type: 'json_object' }
+                  max_tokens: 400, temperature: 0.2
                 })
               });
-              
               if (analysisRes.ok) {
-                const analysisData = await analysisRes.json();
-                const content = analysisData.choices?.[0]?.message?.content;
-                console.log('[Composite] AI response:', content?.substring(0, 400));
-                if (content) {
-                  const parsed = JSON.parse(content);
-                  placements = Array.isArray(parsed) ? parsed : (parsed.placements || [parsed]);
+                const d = await analysisRes.json();
+                const enhanced = d.choices?.[0]?.message?.content;
+                if (enhanced && enhanced.length > 30) {
+                  compositeInstruction = enhanced;
+                  console.log('[Composite] Enhanced:', compositeInstruction.substring(0, 200));
                 }
               }
-            } catch (analysisErr) {
-              console.log('[Composite] AI analysis failed:', analysisErr.message);
-            }
+            } catch (e) { console.log('[Composite] Analysis failed:', e.message); }
             
-            // Fallback: center placement
-            if (!placements.length) {
-              const tW = Math.round(baseMeta.width * 0.3);
-              const tH = Math.round(tW * (overlayMeta.height / overlayMeta.width));
-              placements = [{ x: Math.round((baseMeta.width - tW) / 2), y: Math.round((baseMeta.height - tH) / 2), width: tW, height: tH, opacity: 0.9, blend: 'over', invert: false }];
-            }
+            // Step 2: Create reference sheet (base image + logo strip at bottom)
+            const targetSize = 1024;
+            const refH = 200;
+            const mainH = targetSize - refH;
             
-            console.log('[Composite] Placements:', JSON.stringify(placements).substring(0, 400));
+            const resizedBase = await sharp(baseBuffer).resize(targetSize, mainH, { fit: 'cover' }).png().toBuffer();
+            const logoResized = await sharp(overlayBuffer).resize(refH - 20, refH - 20, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 255 } }).png().toBuffer();
+            const refStrip = await sharp({ create: { width: targetSize, height: refH, channels: 4, background: { r: 240, g: 240, b: 240, alpha: 255 } } }).composite([{ input: logoResized, left: 10, top: 10 }]).png().toBuffer();
+            const referenceSheet = await sharp({ create: { width: targetSize, height: targetSize, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 255 } } }).composite([{ input: resizedBase, left: 0, top: 0 }, { input: refStrip, left: 0, top: mainH }]).png().toBuffer();
             
-            // ── Step 2: Programmatic compositing with Sharp ──
-            console.log('[Composite] Step 2: Compositing with Sharp...');
+            console.log('[Composite] Reference sheet created:', referenceSheet.length, 'bytes');
             
-            const compositeOps = [];
-            
-            for (const p of placements) {
-              const tW = Math.min(Math.max(p.width || 100, 20), baseMeta.width);
-              const tH = Math.min(Math.max(p.height || 100, 20), baseMeta.height);
-              const left = Math.max(0, Math.min(Math.round(p.x || 0), baseMeta.width - 10));
-              const top = Math.max(0, Math.min(Math.round(p.y || 0), baseMeta.height - 10));
-              
-              // Step 2a: If cover_color specified, first paint over old logo/text
-              if (p.cover_color) {
-                try {
-                  // Parse hex color
-                  const hex = p.cover_color.replace('#', '');
-                  const r = parseInt(hex.substring(0, 2), 16) || 128;
-                  const g = parseInt(hex.substring(2, 4), 16) || 128;
-                  const b = parseInt(hex.substring(4, 6), 16) || 128;
-                  
-                  // Create a solid color rectangle to cover old logo
-                  const coverPatch = await sharp({
-                    create: { width: tW + 10, height: tH + 10, channels: 4, background: { r, g, b, alpha: 255 } }
-                  }).png().toBuffer();
-                  
-                  compositeOps.push({
-                    input: coverPatch,
-                    left: Math.max(0, left - 5),
-                    top: Math.max(0, top - 5),
-                    blend: 'over',
-                  });
-                  console.log(`[Composite] → Cover patch at ${left-5},${top-5} size:${tW+10}x${tH+10} color:${p.cover_color}`);
-                } catch (coverErr) {
-                  console.log('[Composite] Cover patch failed:', coverErr.message);
-                }
-              }
-              
-              // Step 2b: Overlay the new logo
-              let proc = sharp(overlayBuffer);
-              proc = proc.resize(tW, tH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } });
-              
-              if (p.invert) proc = proc.negate({ alpha: false });
-              proc = proc.ensureAlpha();
-              
-              if (p.opacity && p.opacity < 1) {
-                const buf = await proc.raw().toBuffer({ resolveWithObject: true });
-                for (let i = 3; i < buf.data.length; i += 4) {
-                  buf.data[i] = Math.round(buf.data[i] * p.opacity);
-                }
-                proc = sharp(buf.data, { raw: { width: buf.info.width, height: buf.info.height, channels: 4 } }).png();
-              }
-              
-              const processedBuf = await proc.toBuffer();
-              compositeOps.push({
-                input: processedBuf, left, top,
-                blend: p.blend === 'multiply' ? 'multiply' : (p.blend === 'screen' ? 'screen' : 'over'),
-              });
-              console.log(`[Composite] → Logo at ${left},${top} size:${tW}x${tH} blend:${p.blend || 'over'} invert:${!!p.invert}`);
-            }
-            
-            const resultBuffer = await sharp(baseBuffer).composite(compositeOps).png().toBuffer();
-            console.log('[Composite] Result size:', resultBuffer.length);
-            
-            // Upload result
+            // Step 3: Send to GPT-image-1
             let resultUrl = null;
-            if (kieKey) {
+            try {
+              const OpenAI = (await import('openai')).default;
+              const { toFile } = await import('openai/uploads');
+              const openai = new OpenAI({ apiKey: openaiApiKey });
+              const refFile = await toFile(referenceSheet, 'reference.png', { type: 'image/png' });
+              
+              const editResult = await openai.images.edit({
+                model: 'gpt-image-1',
+                image: refFile,
+                prompt: `This image has two parts: MAIN IMAGE on top (${targetSize}x${mainH}px) and a REFERENCE LOGO in the gray strip at bottom.
+
+TASK: ${compositeInstruction}
+
+RULES:
+1. Take the EXACT logo from the bottom reference strip and place it naturally in the main image
+2. The logo must look PRINTED on the surface — match fabric wrinkles, perspective, lighting
+3. REMOVE any existing logos/text that should be replaced
+4. Output ONLY the main scene — DO NOT include the gray reference strip
+5. Preserve the exact design, text, and colors of the reference logo`,
+                n: 1, size: '1024x1024',
+              });
+              
+              if (editResult.data?.[0]?.b64_json) {
+                const resultB64 = editResult.data[0].b64_json;
+                const fullResult = Buffer.from(resultB64, 'base64');
+                
+                // Crop reference strip if still present
+                const resMeta = await sharp(fullResult).metadata();
+                let finalBuf = fullResult;
+                try {
+                  const cropH = Math.round(resMeta.height * mainH / targetSize);
+                  finalBuf = await sharp(fullResult).extract({ left: 0, top: 0, width: resMeta.width, height: cropH }).resize(targetSize, targetSize, { fit: 'cover' }).png().toBuffer();
+                } catch (e) { /* use full result */ }
+                
+                if (kieKey) {
+                  const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
+                    body: JSON.stringify({ base64Data: `data:image/png;base64,${finalBuf.toString('base64')}`, uploadPath: 'soulprint/composites', fileName: `composite_${Date.now()}.png` }),
+                  });
+                  if (upRes.ok) { const d = await upRes.json(); if (d.success && d.data?.downloadUrl) resultUrl = d.data.downloadUrl; }
+                }
+                if (!resultUrl) resultUrl = `data:image/png;base64,${finalBuf.toString('base64')}`;
+                console.log('[Composite] GPT-image-1 success!');
+              } else if (editResult.data?.[0]?.url) {
+                resultUrl = editResult.data[0].url;
+              }
+            } catch (gptErr) {
+              console.log('[Composite] GPT-image-1 failed:', gptErr.message);
+            }
+            
+            // Fallback: SeeDream
+            if (!resultUrl && kieKey) {
               try {
-                const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                const cr = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
-                  body: JSON.stringify({
-                    base64Data: `data:image/png;base64,${resultBuffer.toString('base64')}`,
-                    uploadPath: 'soulprint/composites',
-                    fileName: `composite_${Date.now()}.png`
-                  }),
+                  body: JSON.stringify({ model: 'bytedance/seedream-v4-edit', input: { prompt: compositeInstruction, image_urls: [lastImageUrlInConversation], image_size: 'square_hd', image_resolution: '2K', max_images: 1 } }),
                 });
-                if (uploadRes.ok) {
-                  const d = await uploadRes.json();
-                  if (d.success && d.data?.downloadUrl) resultUrl = d.data.downloadUrl;
+                const cd = await cr.json();
+                if (cd.code === 200 && cd.data?.taskId) {
+                  const st = Date.now();
+                  while (Date.now() - st < 60000) {
+                    await new Promise(r => setTimeout(r, 3000));
+                    const sr = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${cd.data.taskId}`, { headers: { 'Authorization': `Bearer ${kieKey}` } });
+                    const sd = await sr.json();
+                    if (sd.code === 200) { if (sd.data?.state === 'success') { const rj = JSON.parse(sd.data?.resultJson || '{}'); resultUrl = rj?.resultUrls?.[0] || rj?.url; break; } else if (sd.data?.state === 'fail') break; }
+                  }
                 }
-              } catch (e) { console.log('[Composite] Upload failed:', e.message); }
+              } catch (e) { console.log('[Composite] SeeDream failed:', e.message); }
             }
-            if (!resultUrl) resultUrl = `data:image/png;base64,${resultBuffer.toString('base64')}`;
             
-            fullContent = `![Composited Image](${resultUrl})\n\n🎨 *Your logo has been composited onto the image!*`;
-            send({ type: 'image', url: resultUrl, revised_prompt: sanitizedContent, contentType: 'composite' });
-            send({ type: 'delta', content: fullContent });
+            if (resultUrl) {
+              fullContent = `![Composited Image](${resultUrl})\n\n🎨 *Your logo has been composited onto the image!*`;
+              send({ type: 'image', url: resultUrl, revised_prompt: sanitizedContent, contentType: 'composite' });
+              send({ type: 'delta', content: fullContent });
+            } else {
+              throw new Error('Compositing failed with all methods');
+            }
           } catch (compErr) {
             console.error('[Composite] Error:', compErr.message, compErr.stack);
             fullContent = `Sorry, compositing failed: ${compErr.message}`;
@@ -8042,7 +8003,7 @@ If a shirt shows "COOL BRAND" text at roughly pixels 200-400 horizontally, 300-5
           await db.collection('messages').insertOne({
             id: assistantMsgId, conversation_id: convId, user_id: user.id,
             role: 'assistant', content: fullContent, created_at: new Date(),
-            model_used: 'composite', provider_used: 'multi', content_type: 'composite',
+            model_used: 'composite-ref-sheet', provider_used: 'openai+sharp', content_type: 'composite',
             image_url: fullContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/)?.[1] || undefined,
             est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
           });
@@ -8056,6 +8017,7 @@ If a shirt shows "COOL BRAND" text at roughly pixels 200-400 horizontally, 300-5
         // Broad edit detection - if there's a recent image AND user asks to modify something
         const editImagePatterns = [
           // Direct edit verbs
+          /\b(add|put|place|insert|overlay|stick|apply|remove|delete|erase|crop|rotate)\b/i,
           /\b(add|put|place|insert|overlay|stick|apply|remove|delete|erase|crop|rotate)\b/i,
           // Swap/replace/change
           /\b(swap|replace|change|switch|modify|alter|update|edit|transform|convert|adjust)\b/i,
