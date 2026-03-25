@@ -3155,6 +3155,8 @@ Placement Guidelines:
 - If the user specifies a location (e.g., "on the door", "on the back"), honor that`;
 
   let placementData = null;
+  
+  // Try GPT-4o Vision analysis
   try {
     const analysisRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -3188,15 +3190,63 @@ Placement Guidelines:
     console.log('[SmartComposite] GPT-4o analysis error:', e.message);
   }
   
-  // Fallback defaults if analysis failed
+  // Fallback: Smart defaults based on instruction keywords (when GPT-4o unavailable)
   if (!placementData || typeof placementData.x_percent !== 'number') {
-    console.log('[SmartComposite] Using fallback placement defaults');
+    console.log('[SmartComposite] Using smart keyword-based placement defaults');
+    const instr = userInstruction.toLowerCase();
+    
+    // Detect surface type from keywords
+    let surfaceType = 'flat';
+    let xp = 25, yp = 20, wp = 50, hp = 40, rot = 0, opacity = 1.0;
+    
+    if (/t-?shirt|hoodie|sweater|jacket|jersey|clothing|apparel|garment|dress/i.test(instr)) {
+      surfaceType = 'fabric';
+      xp = 30; yp = 25; wp = 40; hp = 35; // Center chest area
+    } else if (/mug|cup|glass|bottle|can|tumbler/i.test(instr)) {
+      surfaceType = 'curved';
+      xp = 25; yp = 20; wp = 50; hp = 45; rot = 0;
+    } else if (/van|car|truck|vehicle|bus|minivan|suv/i.test(instr)) {
+      surfaceType = 'vehicle';
+      xp = 30; yp = 25; wp = 35; hp = 30;
+    } else if (/bag|tote|backpack|purse/i.test(instr)) {
+      surfaceType = 'fabric';
+      xp = 25; yp = 20; wp = 50; hp = 45;
+    } else if (/box|package|card|paper|poster|sign|banner|billboard/i.test(instr)) {
+      surfaceType = 'flat';
+      xp = 20; yp = 15; wp = 60; hp = 50;
+    } else if (/phone|case|cover|laptop|tablet/i.test(instr)) {
+      surfaceType = 'flat';
+      xp = 20; yp = 20; wp = 60; hp = 50;
+    } else if (/wall|door|window/i.test(instr)) {
+      surfaceType = 'flat';
+      xp = 25; yp = 20; wp = 50; hp = 40;
+    }
+    
+    // Position adjustments based on specific location keywords
+    if (/center|middle|centered/i.test(instr)) {
+      xp = 30; yp = 25;
+    } else if (/top|upper/i.test(instr)) {
+      yp = 5;
+    } else if (/bottom|lower/i.test(instr)) {
+      yp = 60;
+    } else if (/left/i.test(instr)) {
+      xp = 5;
+    } else if (/right/i.test(instr)) {
+      xp = 55;
+    }
+    if (/side|door panel/i.test(instr) && surfaceType === 'vehicle') {
+      xp = 35; yp = 30; wp = 30; hp = 25;
+    }
+    if (/chest/i.test(instr)) {
+      xp = 30; yp = 25; wp = 40; hp = 35;
+    }
+    
     placementData = {
-      x_percent: 25, y_percent: 20,
-      width_percent: 50, height_percent: 40,
-      rotation_degrees: 0,
-      surface_type: 'flat',
-      opacity: 1.0,
+      x_percent: xp, y_percent: yp,
+      width_percent: wp, height_percent: hp,
+      rotation_degrees: rot,
+      surface_type: surfaceType,
+      opacity: opacity,
       remove_background: true,
       background_color: 'white'
     };
