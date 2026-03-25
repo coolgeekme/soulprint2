@@ -1188,6 +1188,31 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
     URL.revokeObjectURL(downloadUrl);
   };
   
+  const saveToGallery = async () => {
+    if (saving || savedToGallery) return;
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/media/save-to-gallery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          url,
+          prompt: revisedPrompt || '',
+          model: generationParams?.model || modelLabel || 'unknown',
+          modelLabel: modelLabel || 'AI Generated',
+        }),
+      });
+      if (res.ok) {
+        setSavedToGallery(true);
+      }
+    } catch (e) {
+      console.error('Failed to save to gallery:', e);
+    } finally {
+      setSaving(false);
+    }
+  };
+  
   return (
     <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
       <div className="relative group">
@@ -1221,6 +1246,19 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
             {revisedPrompt && <p className="text-[10px] text-gray-600 mt-0.5 truncate">{revisedPrompt}</p>}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={saveToGallery}
+              disabled={saving || savedToGallery}
+              className={`flex items-center gap-1.5 px-3 py-1.5 border text-xs rounded-lg transition-colors whitespace-nowrap ${
+                savedToGallery 
+                  ? 'bg-green-500/20 border-green-500/30 text-green-400' 
+                  : saving
+                    ? 'bg-white/5 border-white/10 text-gray-500 cursor-wait'
+                    : 'bg-purple-500/15 border-purple-500/30 text-purple-400 hover:bg-purple-500/25'
+              }`}
+            >
+              {savedToGallery ? <><Check className="w-3.5 h-3.5" /> Saved</> : saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><GalleryHorizontal className="w-3.5 h-3.5" /> Gallery</>}
+            </button>
             <button
               onClick={() => setShowJson(!showJson)}
               className={`flex items-center gap-1.5 px-3 py-1.5 border text-xs rounded-lg transition-colors whitespace-nowrap ${

@@ -46,6 +46,55 @@ const MODELS = [
 const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.md,.csv,.json,.docx';
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+// ── MobileImageCard: image display with Save to Gallery button ─────────────
+function MobileImageCard({ url, modelLabel, token }) {
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  
+  const saveToGallery = async () => {
+    if (saving || saved) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/media/save-to-gallery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ url, model: modelLabel || 'unknown', modelLabel: modelLabel || 'AI Generated' }),
+      });
+      if (res.ok) setSaved(true);
+    } catch (e) {
+      console.error('Failed to save to gallery:', e);
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  return (
+    <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
+      <img src={url} alt="Generated" className="w-full h-auto max-h-80 object-contain bg-black/20" />
+      <div className="px-3 py-2 flex items-center justify-between">
+        <div className="text-xs text-orange-400 flex items-center gap-1.5">
+          <ImageIcon className="w-3.5 h-3.5" /> {modelLabel ? `Generated with ${modelLabel}` : 'AI Generated'}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={saveToGallery}
+            disabled={saving || saved}
+            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-lg transition-colors ${
+              saved ? 'bg-green-500/20 text-green-400' : saving ? 'text-gray-500' : 'bg-purple-500/15 text-purple-400 active:bg-purple-500/25'
+            }`}
+          >
+            {saved ? '✓ Saved' : saving ? '...' : '📁 Gallery'}
+          </button>
+          <a href={url} target="_blank" rel="noopener noreferrer" download
+            className="flex items-center gap-1 px-2.5 py-1 bg-orange-500/15 text-orange-400 text-[11px] rounded-lg">
+            ↓ Save
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── MobileVideoCard: handles video generation with polling ─────────────────
 function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
   const [status, setStatus] = useState(initialStatus);
@@ -543,18 +592,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
         >
           {/* Show generated image */}
           {message.image_url && (
-            <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
-              <img 
-                src={message.image_url} 
-                alt="Generated" 
-                className="w-full h-auto max-h-80 object-contain bg-black/20"
-              />
-              {message.model_label && (
-                <div className="px-3 py-2 text-xs text-orange-400 flex items-center gap-1.5">
-                  <ImageIcon className="w-3.5 h-3.5" /> Generated with {message.model_label}
-                </div>
-              )}
-            </div>
+            <MobileImageCard url={message.image_url} modelLabel={message.model_label} token={token} />
           )}
           
           {/* Show generated video */}

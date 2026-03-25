@@ -7851,24 +7851,6 @@ async function handleChatStream(request) {
               fullContent = `![Edited Image](${editResult.url})\n\n✏️ *Image edited using ${editResult.method}!*`;
               send({ type: 'image', url: editResult.url, revised_prompt: sanitizedContent, contentType: 'edit' });
               send({ type: 'delta', content: fullContent });
-              
-              // Auto-save edited image to gallery
-              try {
-                const mediaId = uuidv4();
-                await db.collection('media_gallery').insertOne({
-                  id: mediaId, user_id: user.id, type: 'image',
-                  model: editResult.method || 'image-edit',
-                  model_label: `Edit (${editResult.method || 'AI'})`,
-                  prompt: sanitizedContent, url: editResult.url,
-                  aspect_ratio: '1:1', conversation_id: convId,
-                  credits_used: 0, cost_usd: 0,
-                  created_at: new Date(),
-                  expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-                });
-                console.log('[Image Edit] Saved to gallery:', mediaId);
-              } catch (galErr) {
-                console.log('[Image Edit] Gallery save failed:', galErr.message);
-              }
             } else {
               console.error('[Image Edit] Failed:', editResult.error);
               fullContent = `Sorry, I couldn't edit the image: ${editResult.error}`;
@@ -8083,24 +8065,6 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             fullContent = `![Generated ${contentTypeLabel.charAt(0).toUpperCase() + contentTypeLabel.slice(1)}](${imageUrl})\n\n${successEmoji} *Your ${contentTypeLabel} has been created!*`;
             send({ type: 'image', url: imageUrl, revised_prompt: revisedPrompt, contentType: contentTypeLabel });
             send({ type: 'delta', content: fullContent });
-            
-            // Auto-save generated image to gallery
-            try {
-              const mediaId = uuidv4();
-              await db.collection('media_gallery').insertOne({
-                id: mediaId, user_id: user.id, type: 'image',
-                model: usedModel,
-                model_label: modelDisplayName || usedModel,
-                prompt: content, url: imageUrl,
-                aspect_ratio: '1:1', conversation_id: convId,
-                credits_used: 0, cost_usd: 0,
-                created_at: new Date(),
-                expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-              });
-              console.log('[Image Generation] Auto-saved to gallery:', mediaId);
-            } catch (galErr) {
-              console.log('[Image Generation] Gallery save failed:', galErr.message);
-            }
           } catch (imgErr) {
             console.error('[Image Generation] Exception:', imgErr.message, imgErr.stack);
             fullContent = `Sorry, image generation failed: ${imgErr.message}`;

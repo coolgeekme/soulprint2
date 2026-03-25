@@ -655,6 +655,45 @@ async function handleDeleteMedia(request, mediaId) {
 }
 
 // ============================================================
+// SAVE TO GALLERY (manual save from chat)
+// ============================================================
+
+async function handleSaveToGallery(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { url, prompt, model, modelLabel, conversationId } = body;
+  if (!url) return err('url required');
+
+  try {
+    const db = await getDb();
+    const mediaId = uuidv4();
+    
+    await db.collection('media_gallery').insertOne({
+      id: mediaId,
+      user_id: user.id,
+      type: 'image',
+      model: model || 'unknown',
+      model_label: modelLabel || model || 'AI Generated',
+      prompt: prompt || '',
+      url: url,
+      aspect_ratio: '1:1',
+      conversation_id: conversationId || null,
+      credits_used: 0,
+      cost_usd: 0,
+      created_at: new Date(),
+      expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+    });
+
+    return ok({ success: true, mediaId });
+  } catch (error) {
+    console.error('[SaveToGallery] Error:', error);
+    return err(error.message || 'Failed to save to gallery', 500);
+  }
+}
+
+// ============================================================
 // ROUTE HANDLERS
 // ============================================================
 
@@ -686,6 +725,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'image/edit') return handleImageEdit(request);
     if (pathStr === 'mockup/generate') return handleMockupGenerate(request);
     if (pathStr === 'video/generate') return handleGenerateVideo(request);
+    if (pathStr === 'save-to-gallery') return handleSaveToGallery(request);
     
     return err('Media endpoint not found', 404);
   } catch (error) {
