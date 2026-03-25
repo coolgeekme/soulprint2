@@ -3160,6 +3160,8 @@ Respond ONLY with valid JSON (no markdown, no code fences):
   "height_percent": <number 3-60, logo height as % of image height>,
   "rotation_degrees": <number -45 to 45>,
   "surface_type": <"flat"|"fabric"|"curved"|"vehicle"|"paper"|"metal"|"glass"|"plastic">,
+  "surface_angle": <number 0-60, angle of the target surface relative to the camera. 0 = facing camera directly, 30 = angled 30 degrees away, 45 = at steep angle. For a 3/4 view vehicle door, this is typically 20-35 degrees>,
+  "perspective_direction": <"left"|"right"|"none", which side of the surface is closer to the camera. "left" means left edge is closer, "right" means right edge is closer>,
   "opacity": <number 0.7-1.0>,
   "remove_background": <true|false>,
   "background_color": <"white"|"black"|"light"|"dark"|"none">
@@ -3544,6 +3546,38 @@ RULES:
       .png()
       .toBuffer();
     console.log('[SmartComposite] Rotated logo by', placementData.rotation_degrees, 'degrees');
+  }
+  
+  // ── Step 3b: Apply perspective transform to match the surface angle ──
+  // This makes the logo look like it's actually ON the angled surface
+  const surfaceAngle = placementData.surface_angle || 0;
+  const perspDir = placementData.perspective_direction || 'none';
+  
+  if (surfaceAngle > 3) {
+    try {
+      const angleRad = (surfaceAngle * Math.PI) / 180;
+      const scaleX = Math.cos(angleRad); // Horizontal foreshortening
+      const shearFactor = Math.sin(angleRad) * 0.2; // Vertical shear for perspective
+      
+      // Determine shear direction based on which side is closer
+      const shearY = perspDir === 'right' ? shearFactor : (perspDir === 'left' ? -shearFactor : 0);
+      
+      // Apply affine transform: [scaleX, 0, shearY, 1]
+      // scaleX compresses horizontally (surface is angled away)
+      // shearY adds vertical skew (one side appears taller than the other)
+      resizedLogo = await sharp(resizedLogo)
+        .affine(
+          [scaleX, 0, shearY, 1],
+          { background: { r: 0, g: 0, b: 0, alpha: 0 } }
+        )
+        .png()
+        .toBuffer();
+      
+      console.log('[SmartComposite] Perspective transform: angle=' + surfaceAngle + '° dir=' + perspDir + 
+        ' scaleX=' + scaleX.toFixed(3) + ' shearY=' + shearY.toFixed(3));
+    } catch (perspErr) {
+      console.log('[SmartComposite] Perspective transform failed:', perspErr.message);
+    }
   }
   
   // ── Step 4: Surface integration — make the logo look like it BELONGS on the surface ──
