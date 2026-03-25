@@ -3131,10 +3131,53 @@ async function handleSmartComposite(baseBuffer, overlayBuffer, overlayMime, user
   
   // Create analysis versions — use 1024px for better detail detection
   const analysisMaxDim = 1024;
-  const baseForAnalysis = await sharp(basePng)
+  let baseForAnalysis = await sharp(basePng)
     .resize(analysisMaxDim, analysisMaxDim, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 85 })
+    .png()
     .toBuffer();
+  
+  // ── Draw a visual grid overlay on the analysis image ──
+  // This gives GPT-4o Vision precise reference points for coordinate estimation
+  try {
+    const analysisMeta = await sharp(baseForAnalysis).metadata();
+    const aw = analysisMeta.width;
+    const ah = analysisMeta.height;
+    
+    // Create grid overlay SVG with 10% interval lines and labels
+    const gridLines = [];
+    const gridLabels = [];
+    
+    // Vertical lines at 10%, 20%, ..., 90%
+    for (let pct = 10; pct <= 90; pct += 10) {
+      const x = Math.round(aw * pct / 100);
+      gridLines.push(`<line x1="${x}" y1="0" x2="${x}" y2="${ah}" stroke="rgba(255,255,0,0.4)" stroke-width="1"/>`);
+      gridLabels.push(`<text x="${x + 2}" y="14" fill="rgba(255,255,0,0.8)" font-size="11" font-family="monospace">${pct}%</text>`);
+    }
+    // Horizontal lines at 10%, 20%, ..., 90%
+    for (let pct = 10; pct <= 90; pct += 10) {
+      const y = Math.round(ah * pct / 100);
+      gridLines.push(`<line x1="0" y1="${y}" x2="${aw}" y2="${y}" stroke="rgba(255,255,0,0.4)" stroke-width="1"/>`);
+      gridLabels.push(`<text x="2" y="${y - 2}" fill="rgba(255,255,0,0.8)" font-size="11" font-family="monospace">${pct}%</text>`);
+    }
+    
+    const gridSvg = Buffer.from(
+      `<svg width="${aw}" height="${ah}" xmlns="http://www.w3.org/2000/svg">
+        ${gridLines.join('\n')}
+        ${gridLabels.join('\n')}
+      </svg>`
+    );
+    
+    baseForAnalysis = await sharp(baseForAnalysis)
+      .composite([{ input: gridSvg, left: 0, top: 0, blend: 'over' }])
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    
+    console.log('[SmartComposite] Grid overlay added to analysis image (' + aw + 'x' + ah + ')');
+  } catch (gridErr) {
+    console.log('[SmartComposite] Grid overlay failed:', gridErr.message, '- using plain image');
+    baseForAnalysis = await sharp(baseForAnalysis).jpeg({ quality: 85 }).toBuffer();
+  }
+  
   const overlayForAnalysis = await sharp(overlayPng)
     .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
     .jpeg({ quality: 85 })
@@ -3148,6 +3191,8 @@ async function handleSmartComposite(baseBuffer, overlayBuffer, overlayMime, user
   
   // ── Step 1: AI Vision — Analyze base image and get placement JSON ──
   const analysisPrompt = `You are an expert image compositor. Given a BASE IMAGE and a LOGO/DESIGN image, analyze the base image carefully and determine EXACTLY where to place the logo.
+
+THE BASE IMAGE HAS A YELLOW GRID OVERLAY with percentage labels (10%, 20%, ... 90%) on both axes. USE THIS GRID to give precise coordinates. The grid lines show exact percentage positions — reference them when determining x_percent and y_percent.
 
 CRITICAL: Look at the BASE IMAGE very carefully. Identify what objects/surfaces are in it, and WHERE specifically the logo should go based on the user's instructions.
 
