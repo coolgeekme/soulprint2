@@ -3129,80 +3129,85 @@ async function handleSmartComposite(baseBuffer, overlayBuffer, overlayMime, user
   console.log('[SmartComposite] Base:', baseMeta.width, 'x', baseMeta.height);
   console.log('[SmartComposite] Logo:', overlayMeta.width, 'x', overlayMeta.height);
   
-  // Create smaller versions for AI analysis (saves tokens and avoids timeouts)
-  // Use 768px for good balance of quality and speed
-  const analysisMaxDim = 768;
+  // Create analysis versions — use 1024px for better detail detection
+  const analysisMaxDim = 1024;
   const baseForAnalysis = await sharp(basePng)
     .resize(analysisMaxDim, analysisMaxDim, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 80 })
+    .jpeg({ quality: 85 })
     .toBuffer();
   const overlayForAnalysis = await sharp(overlayPng)
-    .resize(analysisMaxDim, analysisMaxDim, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 80 })
+    .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 85 })
     .toBuffer();
   
   console.log('[SmartComposite] Analysis images:', baseForAnalysis.length, 'bytes,', overlayForAnalysis.length, 'bytes');
   
-  // ── Step 1: GPT-4o Vision — Analyze base image and get precise placement JSON ──
-  const analysisPrompt = `You are a product mockup placement expert. Given a BASE IMAGE and a LOGO/DESIGN image, determine EXACTLY where and how to place the logo onto the base image.
+  // Detect if this is a replace/swap instruction (needs to find existing graphics)
+  const isReplaceRequest = /\b(swap|replace|change|switch)\b/i.test(userInstruction);
+  const wantsMultiple = /\b(both|all|each|every|t-?shirts|shirts|items|products|logos|doors|sides)\b/i.test(userInstruction);
+  
+  // ── Step 1: AI Vision — Analyze base image and get placement JSON ──
+  const analysisPrompt = `You are an expert image compositor. Given a BASE IMAGE and a LOGO/DESIGN image, analyze the base image carefully and determine EXACTLY where to place the logo.
 
-CRITICAL INSTRUCTIONS:
-1. Look at the ACTUAL base image very carefully
-2. Identify the SPECIFIC surface/area the user wants the logo on
-3. For vehicles: the "door panel" is the flat metal area BELOW the windows and ABOVE the wheel wells — NOT the windshield, NOT the hood, NOT the roof
-4. Coordinates are PERCENTAGES of the full image dimensions (0% = left/top edge, 100% = right/bottom edge)
+CRITICAL: Look at the BASE IMAGE very carefully. Identify what objects/surfaces are in it, and WHERE specifically the logo should go based on the user's instructions.
+
+${isReplaceRequest ? `REPLACE/SWAP MODE: The user wants to REPLACE existing graphics/logos/designs with the new logo. You MUST:
+1. Look at the base image and identify ALL visible logos, graphics, text designs, or printed artwork
+2. Return the EXACT position and size of EACH existing graphic that should be replaced
+3. Each placement should match the size and position of the existing graphic it replaces
+4. If there are multiple items (e.g., two t-shirts), return a placement for EACH one` : ''}
+
+${wantsMultiple ? `MULTIPLE TARGETS: The user specifically wants the logo placed on MULTIPLE items/surfaces. Return ALL placement positions as separate entries in the placements array.` : ''}
 
 Respond ONLY with valid JSON (no markdown, no code fences):
 {
-  "x_percent": <number 0-100, left edge of logo placement as % of image width>,
-  "y_percent": <number 0-100, top edge of logo placement as % of image height>,
-  "width_percent": <number 3-60, logo width as % of image width>,
-  "height_percent": <number 3-60, logo height as % of image height>,
-  "rotation_degrees": <number -45 to 45, the visual TILT of the placement surface's baseline compared to a perfect horizontal line. Look at the horizontal edges or lines on the target surface in the image and measure how many degrees they deviate from true horizontal. Positive = clockwise tilt (right side higher than left), Negative = counter-clockwise tilt (left side higher than right). For a vehicle seen from a 3/4 front-left angle, the door beltline typically tilts -2 to -6 degrees (right side slightly lower). For a 3/4 front-right view, it tilts +2 to +6 degrees. For flat surfaces facing camera directly: 0>,
-  "surface_type": <"flat"|"fabric"|"curved"|"vehicle"|"paper"|"metal"|"glass"|"plastic">,
-  "surface_angle": <number 0-60, angle of the target surface relative to the camera. 0 = facing camera directly, 30 = angled 30 degrees away, 45 = at steep angle. For a 3/4 view vehicle door, this is typically 20-35 degrees>,
-  "perspective_direction": <"left"|"right"|"none", which side of the surface is closer to the camera. "left" means left edge is closer, "right" means right edge is closer>,
-  "opacity": <number 0.7-1.0>,
-  "remove_background": <true|false>,
-  "background_color": <"white"|"black"|"light"|"dark"|"none">
+  "scene_description": "<brief 1-line description of what you see in the base image>",
+  "placements": [
+    {
+      "target_description": "<what surface/object this placement is on, e.g. 'left person t-shirt back graphic'>",
+      "x_percent": <number 0-100, left edge of placement as % of image width>,
+      "y_percent": <number 0-100, top edge of placement as % of image height>,
+      "width_percent": <number 3-60, logo width as % of image width>,
+      "height_percent": <number 3-60, logo height as % of image height>,
+      "rotation_degrees": <number -45 to 45, tilt of the surface baseline vs horizontal. Positive=clockwise, Negative=counter-clockwise. For angled surfaces, measure the visual slope of the edges>,
+      "surface_type": <"flat"|"fabric"|"curved"|"vehicle"|"paper"|"metal"|"glass"|"plastic">,
+      "surface_angle": <number 0-60, how angled the surface is from the camera. 0=facing directly, 30=moderate angle>,
+      "perspective_direction": <"left"|"right"|"none", which side is closer to camera>,
+      "opacity": <number 0.7-1.0>,
+      "brightness_adjust": <number 0.5-1.5, adjust logo brightness to match the surface lighting. 1.0=no change, <1=darken for dark surfaces, >1=brighten for bright surfaces>
+    }
+  ],
+  "remove_background": <true|false, whether the logo has a background that should be removed>
 }
 
-SIZE REFERENCE (match real-world scale):
-- STICKER/DECAL on vehicle: 8-15% of image width (small, like a real bumper sticker)
-- LOGO on t-shirt chest: 25-35% of image width
-- WRAP on vehicle: 30-50% of image width
-- Logo on mug: 30-40% of image width
-- If user says "sticker" or "decal" → use SMALL size (8-12%)
+${isReplaceRequest ? `REPLACE RULES:
+- Find EVERY existing graphic/logo/printed design visible on the target surfaces
+- Return one placement per existing graphic, matching its approximate position and size
+- Even if graphics are partially hidden or at an angle, include them
+- For clothing: look for printed designs, screen prints, embroidered logos, text, symbols` : ''}
 
-VEHICLE PLACEMENT (look at the actual vehicle in the image):
-- "front door" / "driver's door" → place on the BODY PANEL of the front door, between the front wheel well and the B-pillar
-- "rear door" / "back door" → place on the body panel behind the B-pillar
-- "side" → center of the visible body panels
-- Door panels are the FLAT METAL SURFACES below the window line
-- NEVER place on windshield, windows, wheels, or roof
-- Match the perspective angle of the vehicle body
+PLACEMENT ACCURACY:
+- x_percent and y_percent define the TOP-LEFT corner of where the logo goes
+- Look at the ACTUAL pixels in the base image to determine positions
+- For fabric/clothing: the logo should cover the area where a real screen print would go
+- Match the SIZE of the logo to what looks natural on the surface (not too big, not too small)
+- For t-shirt backs: typical print area is 20-35% of the person's torso width
 
-ROTATION MEASUREMENT (CRITICAL - examine the actual surface edges in the image):
-- Look at the TOP and BOTTOM edges of the target placement surface
-- Trace the line where the surface meets adjacent areas (e.g., the door beltline on a vehicle)
-- If these lines are NOT perfectly horizontal, the logo MUST be rotated to match
-- Vehicle 3/4 front-left view: the beltline/door bottom usually slopes slightly DOWN to the right → rotation_degrees = -2 to -6
-- Vehicle 3/4 front-right view: the beltline usually slopes slightly DOWN to the left → rotation_degrees = +2 to +6
-- Vehicle side-on view: beltline is roughly horizontal → rotation_degrees = 0 to ±2
-- Curved surfaces (mugs, bottles): rotation follows the surface curvature → typically 0
-- NEVER return rotation_degrees = 0 for a vehicle in 3/4 view — the surface ALWAYS has some visual slope
+SURFACE MATCHING:
+- For dark surfaces: set brightness_adjust < 1.0 (e.g., 0.6-0.8 for dark shirts)
+- For bright surfaces: set brightness_adjust > 1.0
+- For fabric: the logo should look PRINTED, not stickered
+- Rotation should match any visible tilt of the surface
 
-RULES:
-- Keep logo proportional
-- Honor the user's specified location EXACTLY
-- For angled/3D views, adjust x/y to match the perspective`;
+IMPORTANT: Return 1 placement if there's 1 target, or MULTIPLE placements if the user wants the logo on multiple items. Look at the image carefully!`;
 
   let placementData = null;
+  let placements = [];
   
   // Try GPT-4o Vision analysis first, then Gemini as fallback
   const geminiApiKey = process.env.GEMINI_API_KEY;
   
-  // Attempt 1: GPT-4o Vision
+  // Attempt 1: GPT-4o Vision with high detail for better scene understanding
   try {
     const analysisRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -3213,11 +3218,11 @@ RULES:
           role: 'user',
           content: [
             { type: 'text', text: `User request: "${userInstruction}"\n\nImage 1 = BASE IMAGE (where logo goes).\nImage 2 = LOGO/DESIGN (to be placed on the base).\n\n${analysisPrompt}` },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${baseForAnalysis.toString('base64')}`, detail: 'auto' } },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${overlayForAnalysis.toString('base64')}`, detail: 'auto' } }
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${baseForAnalysis.toString('base64')}`, detail: 'high' } },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${overlayForAnalysis.toString('base64')}`, detail: 'low' } }
           ]
         }],
-        max_tokens: 500,
+        max_tokens: 1500,
         temperature: 0.1,
         response_format: { type: 'json_object' }
       })
@@ -3230,10 +3235,10 @@ RULES:
         const rawText = d.choices?.[0]?.message?.content || '';
         if (rawText) {
           placementData = JSON.parse(rawText);
-          console.log('[SmartComposite] GPT-4o placement:', JSON.stringify(placementData));
+          console.log('[SmartComposite] GPT-4o response:', JSON.stringify(placementData).substring(0, 500));
         }
       } catch (parseErr) {
-        console.log('[SmartComposite] GPT-4o parse error:', parseErr.message, '| Raw:', rawBody.substring(0, 200));
+        console.log('[SmartComposite] GPT-4o parse error:', parseErr.message, '| Raw:', rawBody.substring(0, 300));
       }
     } else {
       try {
@@ -3247,8 +3252,8 @@ RULES:
     console.log('[SmartComposite] GPT-4o error:', e.message);
   }
   
-  // Attempt 2: Gemini Vision fallback (if GPT-4o failed)
-  if ((!placementData || typeof placementData.x_percent !== 'number') && geminiApiKey) {
+  // Attempt 2: Gemini Vision fallback
+  if (!placementData && geminiApiKey) {
     console.log('[SmartComposite] Trying Gemini Vision fallback...');
     try {
       const geminiRes = await fetch(
@@ -3266,7 +3271,7 @@ RULES:
             }],
             generationConfig: {
               temperature: 0.1,
-              maxOutputTokens: 500,
+              maxOutputTokens: 1500,
               responseMimeType: 'application/json'
             }
           })
@@ -3279,250 +3284,87 @@ RULES:
           const geminiData = JSON.parse(geminiRawBody);
           const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
           if (rawText) {
-            const parsed = JSON.parse(rawText);
-            if (typeof parsed.x_percent === 'number') {
-              placementData = parsed;
-              console.log('[SmartComposite] Gemini placement:', JSON.stringify(placementData));
-            }
+            placementData = JSON.parse(rawText);
+            console.log('[SmartComposite] Gemini response:', JSON.stringify(placementData).substring(0, 500));
           }
         } catch (parseErr) {
-          console.log('[SmartComposite] Gemini parse error:', parseErr.message, '| Raw:', geminiRawBody.substring(0, 200));
+          console.log('[SmartComposite] Gemini parse error:', parseErr.message);
         }
       } else {
         const errBody = await geminiRes.text().catch(() => '');
-        try {
-          const errData = JSON.parse(errBody);
-          console.log('[SmartComposite] Gemini failed:', errData.error?.message || geminiRes.status);
-        } catch (e) {
-          console.log('[SmartComposite] Gemini failed:', geminiRes.status, errBody.substring(0, 200));
-        }
+        console.log('[SmartComposite] Gemini failed:', geminiRes.status, errBody.substring(0, 200));
       }
     } catch (e) {
       console.log('[SmartComposite] Gemini error:', e.message);
     }
   }
   
-  // Fallback: Smart defaults based on instruction keywords (when GPT-4o and Gemini both unavailable)
-  if (!placementData || typeof placementData.x_percent !== 'number') {
-    console.log('[SmartComposite] Using smart keyword-based placement defaults');
+  // ── Parse placements from AI response ──
+  // Support both new format (placements array) and old format (single object)
+  if (placementData) {
+    if (Array.isArray(placementData.placements) && placementData.placements.length > 0) {
+      placements = placementData.placements;
+    } else if (typeof placementData.x_percent === 'number') {
+      // Old format: single placement object
+      placements = [placementData];
+    }
+  }
+  
+  // Fallback: Smart defaults when AI fails
+  if (placements.length === 0) {
+    console.log('[SmartComposite] Using keyword-based placement defaults');
     const instr = userInstruction.toLowerCase();
     
-    // Detect surface type from keywords — check instruction AND consider common scenarios
     let surfaceType = 'flat';
-    let xp = 30, yp = 25, wp = 30, hp = 25, rot = 0, opacity = 1.0;
+    let xp = 30, yp = 25, wp = 30, hp = 25, rot = 0, opacity = 1.0, brightness = 1.0;
     
     if (/t-?shirt|hoodie|sweater|jacket|jersey|clothing|apparel|garment|dress|shirt/i.test(instr)) {
       surfaceType = 'fabric';
-      xp = 30; yp = 30; wp = 35; hp = 25; // Center chest area
+      xp = 30; yp = 30; wp = 30; hp = 22;
+      brightness = /dark|black/i.test(instr) ? 0.75 : 1.0;
+      // Check if multiple items mentioned
+      if (wantsMultiple) {
+        placements = [
+          { target_description: 'left item', x_percent: 15, y_percent: 30, width_percent: 22, height_percent: 20, rotation_degrees: 0, surface_type: 'fabric', surface_angle: 5, perspective_direction: 'none', opacity: 1.0, brightness_adjust: brightness },
+          { target_description: 'right item', x_percent: 55, y_percent: 30, width_percent: 22, height_percent: 20, rotation_degrees: 0, surface_type: 'fabric', surface_angle: 5, perspective_direction: 'none', opacity: 1.0, brightness_adjust: brightness },
+        ];
+      }
     } else if (/mug|cup|glass|bottle|can|tumbler/i.test(instr)) {
-      surfaceType = 'curved';
-      xp = 25; yp = 25; wp = 40; hp = 35;
+      surfaceType = 'curved'; xp = 25; yp = 25; wp = 40; hp = 35;
     } else if (/van|car|truck|vehicle|bus|minivan|suv|door\s*panel|fender|hood|bumper|windshield/i.test(instr)) {
-      surfaceType = 'vehicle';
-      xp = 15; yp = 30; wp = 25; hp = 20;
-      rot = -4; // Default slight slope for 3/4 view vehicles
-    } else if (/bag|tote|backpack|purse/i.test(instr)) {
-      surfaceType = 'fabric';
-      xp = 25; yp = 20; wp = 40; hp = 35;
+      surfaceType = 'vehicle'; xp = 15; yp = 30; wp = 25; hp = 20; rot = -4;
     } else if (/box|package|card|paper|poster|sign|banner|billboard/i.test(instr)) {
-      surfaceType = 'flat';
-      xp = 20; yp = 15; wp = 50; hp = 40;
+      surfaceType = 'flat'; xp = 20; yp = 15; wp = 50; hp = 40;
     } else if (/phone|case|cover|laptop|tablet/i.test(instr)) {
-      surfaceType = 'flat';
-      xp = 20; yp = 20; wp = 50; hp = 40;
-    } else if (/wall|door|window/i.test(instr)) {
-      surfaceType = 'flat';
-      xp = 25; yp = 20; wp = 40; hp = 35;
+      surfaceType = 'flat'; xp = 20; yp = 20; wp = 50; hp = 40;
     }
     
-    // Position adjustments based on specific location keywords
-    if (/center|middle|centered/i.test(instr)) {
-      xp = 35; yp = 30;
-    } else if (/\btop\b|upper/i.test(instr)) {
-      yp = 5;
-    } else if (/bottom|lower/i.test(instr)) {
-      yp = 65;
-    } else if (/\bleft\b/i.test(instr)) {
-      xp = 5;
-    } else if (/\bright\b/i.test(instr)) {
-      xp = 60;
+    if (placements.length === 0) {
+      placements = [{
+        target_description: 'main surface',
+        x_percent: xp, y_percent: yp,
+        width_percent: wp, height_percent: hp,
+        rotation_degrees: rot,
+        surface_type: surfaceType,
+        surface_angle: surfaceType === 'vehicle' ? 25 : 0,
+        perspective_direction: surfaceType === 'vehicle' ? 'left' : 'none',
+        opacity: opacity,
+        brightness_adjust: brightness,
+      }];
     }
-    // Vehicle-specific location adjustments
-    if (/driver.*side|driver.*door/i.test(instr)) {
-      xp = 10; yp = 30; wp = 20; hp = 18;
-    } else if (/passenger.*side|passenger.*door/i.test(instr)) {
-      xp = 60; yp = 30; wp = 20; hp = 18;
-    } else if (/side.*door|door.*panel|front.*door/i.test(instr)) {
-      surfaceType = 'vehicle';
-      xp = 15; yp = 30; wp = 20; hp = 18;
-    }
-    if (/chest/i.test(instr)) {
-      xp = 30; yp = 25; wp = 35; hp = 25;
-    }
-    if (/\bsticker\b|\bdecal\b/i.test(instr)) {
-      wp = Math.max(8, Math.min(15, wp)); hp = Math.max(6, Math.min(12, hp));
-    }
-    if (/\bsmall\b/i.test(instr)) {
-      wp = Math.max(8, wp - 10); hp = Math.max(6, hp - 8);
-    }
-    if (/\blarge\b|\bbig\b/i.test(instr)) {
-      wp = Math.min(60, wp + 10); hp = Math.min(50, hp + 10);
-    }
-    
-    placementData = {
-      x_percent: xp, y_percent: yp,
-      width_percent: wp, height_percent: hp,
-      rotation_degrees: rot,
-      surface_type: surfaceType,
-      surface_angle: surfaceType === 'vehicle' ? 25 : 0,
-      perspective_direction: surfaceType === 'vehicle' ? 'left' : 'none',
-      opacity: opacity,
-      remove_background: true,
-      background_color: 'white'
-    };
   }
   
-  // Clamp values to safe ranges
-  placementData.x_percent = Math.max(0, Math.min(95, placementData.x_percent));
-  placementData.y_percent = Math.max(0, Math.min(95, placementData.y_percent));
-  placementData.width_percent = Math.max(5, Math.min(80, placementData.width_percent));
-  placementData.height_percent = Math.max(5, Math.min(80, placementData.height_percent));
-  placementData.opacity = Math.max(0.5, Math.min(1.0, placementData.opacity || 1.0));
-  placementData.rotation_degrees = Math.max(-45, Math.min(45, placementData.rotation_degrees || 0));
+  // Determine if background should be removed
+  const shouldRemoveBg = placementData?.remove_background !== false;
   
-  console.log('[SmartComposite] Final placement params:', JSON.stringify({
-    x: placementData.x_percent, y: placementData.y_percent,
-    w: placementData.width_percent, h: placementData.height_percent,
-    rotation: placementData.rotation_degrees,
-    surface: placementData.surface_type,
-    angle: placementData.surface_angle,
-    perspDir: placementData.perspective_direction
-  }));
+  console.log('[SmartComposite] Processing', placements.length, 'placement(s)');
   
   // ── Step 2: Process the logo — remove background if needed ──
   let processedLogo = overlayPng;
   
-  if (placementData.remove_background) {
+  if (shouldRemoveBg) {
     try {
-      const { data, info } = await sharp(overlayPng)
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-      
-      const pixels = new Uint8Array(data);
-      const w = info.width;
-      const h = info.height;
-      
-      // Sample edge pixels (top, bottom, left, right edges) to detect background color
-      const edgeSamples = [];
-      for (let x = 0; x < w; x += Math.max(1, Math.floor(w / 20))) {
-        edgeSamples.push((0 * w + x) * 4);           // top edge
-        edgeSamples.push(((h - 1) * w + x) * 4);     // bottom edge
-      }
-      for (let y = 0; y < h; y += Math.max(1, Math.floor(h / 20))) {
-        edgeSamples.push((y * w + 0) * 4);            // left edge
-        edgeSamples.push((y * w + (w - 1)) * 4);      // right edge
-      }
-      
-      let sumR = 0, sumG = 0, sumB = 0, count = 0;
-      for (const idx of edgeSamples) {
-        if (idx + 3 < pixels.length) {
-          sumR += pixels[idx]; sumG += pixels[idx + 1]; sumB += pixels[idx + 2];
-          count++;
-        }
-      }
-      const bgR = count > 0 ? Math.round(sumR / count) : 0;
-      const bgG = count > 0 ? Math.round(sumG / count) : 0;
-      const bgB = count > 0 ? Math.round(sumB / count) : 0;
-      
-      // Use flood-fill from edges to mark background pixels
-      // This is better than global threshold because it only removes connected background
-      const visited = new Uint8Array(w * h); // 0 = not visited, 1 = background, 2 = foreground
-      const threshold = 50; // Color distance threshold
-      
-      const colorDist = (i) => {
-        return Math.sqrt(
-          Math.pow(pixels[i] - bgR, 2) + 
-          Math.pow(pixels[i + 1] - bgG, 2) + 
-          Math.pow(pixels[i + 2] - bgB, 2)
-        );
-      };
-      
-      // BFS flood fill from all edge pixels
-      const queue = [];
-      // Add all edge pixels to queue
-      for (let x = 0; x < w; x++) {
-        queue.push(x); // top row
-        queue.push((h - 1) * w + x); // bottom row
-      }
-      for (let y = 0; y < h; y++) {
-        queue.push(y * w); // left column
-        queue.push(y * w + (w - 1)); // right column
-      }
-      
-      // Mark edge pixels as background candidates
-      for (const pixelIdx of queue) {
-        if (pixelIdx >= 0 && pixelIdx < w * h) {
-          const rgba = pixelIdx * 4;
-          if (rgba + 3 < pixels.length && colorDist(rgba) < threshold) {
-            visited[pixelIdx] = 1;
-          }
-        }
-      }
-      
-      // BFS flood fill
-      let queueStart = 0;
-      const floodQueue = queue.filter(idx => visited[idx] === 1);
-      let fqi = 0;
-      while (fqi < floodQueue.length) {
-        const pos = floodQueue[fqi++];
-        const x = pos % w;
-        const y = Math.floor(pos / w);
-        
-        const neighbors = [];
-        if (x > 0) neighbors.push(pos - 1);
-        if (x < w - 1) neighbors.push(pos + 1);
-        if (y > 0) neighbors.push(pos - w);
-        if (y < h - 1) neighbors.push(pos + w);
-        
-        for (const n of neighbors) {
-          if (n >= 0 && n < w * h && visited[n] === 0) {
-            const rgba = n * 4;
-            if (rgba + 3 < pixels.length && colorDist(rgba) < threshold) {
-              visited[n] = 1;
-              floodQueue.push(n);
-            }
-          }
-        }
-      }
-      
-      // Apply transparency to background pixels
-      let bgPixelCount = 0;
-      for (let i = 0; i < w * h; i++) {
-        const rgba = i * 4;
-        if (visited[i] === 1) {
-          pixels[rgba + 3] = 0; // Make background fully transparent
-          bgPixelCount++;
-        } else {
-          // Check if this non-flood pixel is VERY close to bg color (isolated bg patches)
-          const dist = colorDist(rgba);
-          if (dist < threshold * 0.5) {
-            pixels[rgba + 3] = 0;
-            bgPixelCount++;
-          } else if (dist < threshold) {
-            // Feather the edges
-            const alpha = Math.round((dist / threshold) * 255);
-            pixels[rgba + 3] = Math.min(pixels[rgba + 3], alpha);
-          }
-        }
-      }
-      
-      processedLogo = await sharp(Buffer.from(pixels), {
-        raw: { width: w, height: h, channels: 4 }
-      }).png().toBuffer();
-      
-      const bgPercent = ((bgPixelCount / (w * h)) * 100).toFixed(1);
-      console.log('[SmartComposite] Background removed: ' + bgPercent + '% pixels (bg color: ' + bgR + ',' + bgG + ',' + bgB + ')');
+      processedLogo = await removeLogoBackground(sharp, overlayPng);
     } catch (bgErr) {
       console.log('[SmartComposite] Background removal failed:', bgErr.message, '- using original');
       processedLogo = await sharp(overlayPng).ensureAlpha().png().toBuffer();
@@ -3531,313 +3373,34 @@ RULES:
     processedLogo = await sharp(overlayPng).ensureAlpha().png().toBuffer();
   }
   
-  // ── Step 3: Calculate actual pixel coordinates and resize logo ──
-  const targetW = Math.round(baseMeta.width * placementData.width_percent / 100);
-  const targetH = Math.round(baseMeta.height * placementData.height_percent / 100);
-  let targetX = Math.round(baseMeta.width * placementData.x_percent / 100);
-  let targetY = Math.round(baseMeta.height * placementData.y_percent / 100);
+  // ── Step 3: Composite the logo at EACH placement position ──
+  let currentBase = basePng;
   
-  console.log('[SmartComposite] Placement: x=' + targetX + ' y=' + targetY + ' w=' + targetW + ' h=' + targetH);
-  
-  // Resize logo to target dimensions (maintain aspect ratio)
-  let resizedLogo = await sharp(processedLogo)
-    .resize(targetW, targetH, { 
-      fit: 'contain', 
-      background: { r: 0, g: 0, b: 0, alpha: 0 } 
-    })
-    .png()
-    .toBuffer();
-  
-  // Get actual dimensions after resize (may be smaller due to aspect ratio)
-  const resizedMeta = await sharp(resizedLogo).metadata();
-  
-  // Center the logo within the target area if it didn't fill completely
-  if (resizedMeta.width < targetW) {
-    targetX += Math.round((targetW - resizedMeta.width) / 2);
-  }
-  if (resizedMeta.height < targetH) {
-    targetY += Math.round((targetH - resizedMeta.height) / 2);
-  }
-  
-  // Apply rotation if needed — this tilts the logo to match the surface slope
-  if (placementData.rotation_degrees && Math.abs(placementData.rotation_degrees) > 0.5) {
-    // Remember pre-rotation dimensions so we can correct the position offset
-    const preRotMeta = await sharp(resizedLogo).metadata();
-    const preW = preRotMeta.width;
-    const preH = preRotMeta.height;
+  for (let i = 0; i < placements.length; i++) {
+    const pl = placements[i];
+    console.log('[SmartComposite] Placement', (i+1) + '/' + placements.length + ':', pl.target_description || 'unknown',
+      'at', pl.x_percent + '%,' + pl.y_percent + '%', 'size', pl.width_percent + '%x' + pl.height_percent + '%',
+      'rot', pl.rotation_degrees || 0, 'surface', pl.surface_type);
     
-    // Calculate center of placement area BEFORE rotation
-    const centerX = targetX + Math.round(preW / 2);
-    const centerY = targetY + Math.round(preH / 2);
+    // Clamp values
+    pl.x_percent = Math.max(0, Math.min(95, pl.x_percent || 30));
+    pl.y_percent = Math.max(0, Math.min(95, pl.y_percent || 30));
+    pl.width_percent = Math.max(5, Math.min(70, pl.width_percent || 25));
+    pl.height_percent = Math.max(5, Math.min(70, pl.height_percent || 20));
+    pl.rotation_degrees = Math.max(-45, Math.min(45, pl.rotation_degrees || 0));
+    pl.brightness_adjust = Math.max(0.3, Math.min(1.8, pl.brightness_adjust || 1.0));
     
-    resizedLogo = await sharp(resizedLogo)
-      .rotate(placementData.rotation_degrees, { 
-        background: { r: 0, g: 0, b: 0, alpha: 0 } 
-      })
-      .png()
-      .toBuffer();
-    
-    // sharp.rotate() expands canvas to fit rotated content — recalculate position
-    // so the CENTER of the rotated logo stays at the same spot
-    const postRotMeta = await sharp(resizedLogo).metadata();
-    const postW = postRotMeta.width;
-    const postH = postRotMeta.height;
-    
-    targetX = centerX - Math.round(postW / 2);
-    targetY = centerY - Math.round(postH / 2);
-    
-    console.log('[SmartComposite] Rotated logo by', placementData.rotation_degrees, 'degrees.',
-      'Size:', preW + 'x' + preH, '->', postW + 'x' + postH,
-      'Position adjusted to:', targetX + ',' + targetY);
-  }
-  
-  // ── Step 3b: Apply perspective transform to match the surface angle ──
-  // Creates a trapezoid effect: closer side taller, far side shorter
-  const surfaceAngle = placementData.surface_angle || 0;
-  const perspDir = placementData.perspective_direction || 'none';
-  
-  if (surfaceAngle > 3 && perspDir !== 'none') {
     try {
-      const logoMeta = await sharp(resizedLogo).metadata();
-      const logoW = logoMeta.width;
-      const logoH = logoMeta.height;
-      
-      // Calculate perspective factor: how much smaller the far side should be
-      const angleRad = (surfaceAngle * Math.PI) / 180;
-      const perspFactor = Math.cos(angleRad); // 0.85 for 30°, 0.91 for 25°
-      
-      const nearScale = 1.0;
-      const farScale = perspFactor;
-      const horzScale = (nearScale + farScale) / 2;
-      const newW = Math.round(logoW * horzScale);
-      
-      // Get raw pixel data
-      const { data: srcData, info: srcInfo } = await sharp(resizedLogo)
-        .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      const src = new Uint8Array(srcData);
-      const srcW = srcInfo.width;
-      const srcH = srcInfo.height;
-      
-      // Create output: same height, compressed width with per-column height scaling
-      const dstW = newW;
-      const dstH = srcH;
-      const dst = new Uint8Array(dstW * dstH * 4);
-      
-      for (let x = 0; x < dstW; x++) {
-        const srcX = Math.min(srcW - 1, Math.round((x / dstW) * srcW));
-        let t = x / dstW;
-        let colScale;
-        if (perspDir === 'left') {
-          colScale = nearScale - (nearScale - farScale) * t;
-        } else {
-          colScale = farScale + (nearScale - farScale) * t;
-        }
-        
-        const colH = Math.round(srcH * colScale);
-        const yOffset = Math.round((srcH - colH) / 2);
-        
-        for (let y = 0; y < dstH; y++) {
-          const dstIdx = (y * dstW + x) * 4;
-          const localY = y - yOffset;
-          if (localY < 0 || localY >= colH) {
-            dst[dstIdx] = 0; dst[dstIdx+1] = 0; dst[dstIdx+2] = 0; dst[dstIdx+3] = 0;
-          } else {
-            const srcY = Math.min(srcH - 1, Math.round((localY / colH) * srcH));
-            const srcIdx = (srcY * srcW + srcX) * 4;
-            dst[dstIdx] = src[srcIdx]; dst[dstIdx+1] = src[srcIdx+1];
-            dst[dstIdx+2] = src[srcIdx+2]; dst[dstIdx+3] = src[srcIdx+3];
-          }
-        }
-      }
-      
-      resizedLogo = await sharp(Buffer.from(dst), {
-        raw: { width: dstW, height: dstH, channels: 4 }
-      }).png().toBuffer();
-      
-      console.log('[SmartComposite] Perspective: angle=' + surfaceAngle + '° dir=' + perspDir +
-        ' near=' + nearScale.toFixed(2) + ' far=' + farScale.toFixed(2) + ' size=' + dstW + 'x' + dstH);
-    } catch (perspErr) {
-      console.log('[SmartComposite] Perspective failed:', perspErr.message);
+      currentBase = await compositeLogoAtPlacement(sharp, currentBase, processedLogo, baseMeta, pl);
+    } catch (compErr) {
+      console.log('[SmartComposite] Placement', (i+1), 'failed:', compErr.message);
     }
   }
   
-  // ── Step 4: Surface integration — make the logo look like it BELONGS on the surface ──
-  // Instead of just pasting on top, we blend it into the surface using multiple layers
+  console.log('[SmartComposite] All placements done');
   
-  const finalLogoMeta = await sharp(resizedLogo).metadata();
-  const logoW = finalLogoMeta.width;
-  const logoH = finalLogoMeta.height;
-  
-  // Clamp position
-  targetX = Math.max(0, Math.min(baseMeta.width - logoW, targetX));
-  targetY = Math.max(0, Math.min(baseMeta.height - logoH, targetY));
-  
-  // Extract the region of the base image where the logo will go (for texture sampling)
-  let surfacePatch = null;
-  try {
-    surfacePatch = await sharp(basePng)
-      .extract({ left: targetX, top: targetY, width: logoW, height: logoH })
-      .png()
-      .toBuffer();
-  } catch (e) {
-    console.log('[SmartComposite] Could not extract surface patch:', e.message);
-  }
-  
-  // Apply slight edge softening to logo (makes edges blend more naturally)
-  let softLogo = resizedLogo;
-  try {
-    // Create a version with very subtle blur on the alpha edges only
-    const { data: logoRaw, info: logoInfo } = await sharp(resizedLogo)
-      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const lp = new Uint8Array(logoRaw);
-    
-    // Soften alpha edges: find pixels where alpha transitions from 0 to >0
-    // and reduce their alpha slightly for a feathered edge
-    const lw = logoInfo.width;
-    const lh = logoInfo.height;
-    for (let y = 1; y < lh - 1; y++) {
-      for (let x = 1; x < lw - 1; x++) {
-        const idx = (y * lw + x) * 4;
-        if (lp[idx + 3] > 0) {
-          // Check if any neighbor is transparent
-          const neighbors = [
-            ((y-1) * lw + x) * 4, ((y+1) * lw + x) * 4,
-            (y * lw + (x-1)) * 4, (y * lw + (x+1)) * 4,
-          ];
-          let hasTransparentNeighbor = false;
-          for (const ni of neighbors) {
-            if (ni >= 0 && ni + 3 < lp.length && lp[ni + 3] === 0) {
-              hasTransparentNeighbor = true;
-              break;
-            }
-          }
-          if (hasTransparentNeighbor) {
-            // Edge pixel — reduce alpha for feathered edge
-            lp[idx + 3] = Math.round(lp[idx + 3] * 0.7);
-          }
-        }
-      }
-    }
-    
-    softLogo = await sharp(Buffer.from(lp), {
-      raw: { width: lw, height: lh, channels: 4 }
-    }).png().toBuffer();
-  } catch (e) {
-    console.log('[SmartComposite] Edge softening failed:', e.message);
-    softLogo = resizedLogo;
-  }
-  
-  // ── Step 5: Multi-layer composite for natural surface integration ──
-  const compositeOps = [];
-  
-  // Layer 1: Drop shadow (anchors the logo to the surface)
-  try {
-    const shadowLogo = await sharp(softLogo)
-      .blur(3)
-      .modulate({ brightness: 0.3 })
-      .png()
-      .toBuffer();
-    
-    compositeOps.push({
-      input: shadowLogo,
-      left: Math.min(baseMeta.width - 1, targetX + 2),
-      top: Math.min(baseMeta.height - 1, targetY + 2),
-      blend: 'multiply',
-    });
-  } catch (e) { /* shadow is optional */ }
-  
-  // Layer 2: Multiply blend layer — makes surface texture bleed through the logo
-  // This is what makes it look "printed on" rather than "pasted on top"
-  try {
-    // Reduce opacity of the logo for the multiply layer
-    const { data: mulRaw, info: mulInfo } = await sharp(softLogo)
-      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const mp = new Uint8Array(mulRaw);
-    
-    // Set multiply layer to ~30% opacity
-    for (let i = 3; i < mp.length; i += 4) {
-      mp[i] = Math.round(mp[i] * 0.35);
-    }
-    
-    const multiplyLayer = await sharp(Buffer.from(mp), {
-      raw: { width: mulInfo.width, height: mulInfo.height, channels: 4 }
-    }).png().toBuffer();
-    
-    compositeOps.push({
-      input: multiplyLayer,
-      left: targetX,
-      top: targetY,
-      blend: 'multiply',
-    });
-  } catch (e) {
-    console.log('[SmartComposite] Multiply layer failed:', e.message);
-  }
-  
-  // Layer 3: Main logo — 'over' blend but at reduced opacity so surface shows through
-  try {
-    const { data: mainRaw, info: mainInfo } = await sharp(softLogo)
-      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const mainPx = new Uint8Array(mainRaw);
-    
-    // Set main layer to ~75% opacity (surface texture peeks through)
-    const mainOpacity = 0.75;
-    for (let i = 3; i < mainPx.length; i += 4) {
-      mainPx[i] = Math.round(mainPx[i] * mainOpacity);
-    }
-    
-    const mainLayer = await sharp(Buffer.from(mainPx), {
-      raw: { width: mainInfo.width, height: mainInfo.height, channels: 4 }
-    }).png().toBuffer();
-    
-    compositeOps.push({
-      input: mainLayer,
-      left: targetX,
-      top: targetY,
-      blend: 'over',
-    });
-  } catch (e) {
-    // Fallback: use softLogo directly
-    compositeOps.push({
-      input: softLogo,
-      left: targetX,
-      top: targetY,
-      blend: 'over',
-    });
-  }
-  
-  // Layer 4: Soft-light highlight — adds subtle lighting interaction
-  try {
-    const { data: hlRaw, info: hlInfo } = await sharp(softLogo)
-      .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const hp = new Uint8Array(hlRaw);
-    
-    // Very subtle soft-light at ~15% opacity
-    for (let i = 3; i < hp.length; i += 4) {
-      hp[i] = Math.round(hp[i] * 0.15);
-    }
-    
-    const highlightLayer = await sharp(Buffer.from(hp), {
-      raw: { width: hlInfo.width, height: hlInfo.height, channels: 4 }
-    }).png().toBuffer();
-    
-    compositeOps.push({
-      input: highlightLayer,
-      left: targetX,
-      top: targetY,
-      blend: 'soft-light',
-    });
-  } catch (e) { /* highlight is optional */ }
-  
-  console.log('[SmartComposite] Compositing with', compositeOps.length, 'layers');
-  
-  const result = await sharp(basePng)
-    .composite(compositeOps)
-    .png()
-    .toBuffer();
-  
-  console.log('[SmartComposite] Final result:', result.length, 'bytes');
-  
-  // ── Step 6: Upload result to storage ──
+  // ── Step 4: Upload result to storage ──
+  const result = currentBase;
   let resultUrl = null;
   if (kieKey) {
     try {
@@ -3869,9 +3432,304 @@ RULES:
   return {
     success: true,
     url: resultUrl,
-    placement: placementData,
+    placement: placements,
+    scene_description: placementData?.scene_description || 'Scene analysis completed',
+    remove_background: shouldRemoveBg,
     method: 'smart-composite-programmatic'
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER: Remove logo background using flood-fill from edges
+// ═══════════════════════════════════════════════════════════════════════════
+async function removeLogoBackground(sharp, logoPng) {
+  const { data, info } = await sharp(logoPng)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  
+  const pixels = new Uint8Array(data);
+  const w = info.width;
+  const h = info.height;
+  
+  // Sample edge pixels to detect background color
+  const edgeSamples = [];
+  for (let x = 0; x < w; x += Math.max(1, Math.floor(w / 20))) {
+    edgeSamples.push((0 * w + x) * 4);
+    edgeSamples.push(((h - 1) * w + x) * 4);
+  }
+  for (let y = 0; y < h; y += Math.max(1, Math.floor(h / 20))) {
+    edgeSamples.push((y * w + 0) * 4);
+    edgeSamples.push((y * w + (w - 1)) * 4);
+  }
+  
+  let sumR = 0, sumG = 0, sumB = 0, count = 0;
+  for (const idx of edgeSamples) {
+    if (idx + 3 < pixels.length) {
+      sumR += pixels[idx]; sumG += pixels[idx + 1]; sumB += pixels[idx + 2];
+      count++;
+    }
+  }
+  const bgR = count > 0 ? Math.round(sumR / count) : 0;
+  const bgG = count > 0 ? Math.round(sumG / count) : 0;
+  const bgB = count > 0 ? Math.round(sumB / count) : 0;
+  
+  const threshold = 50;
+  const colorDist = (i) => Math.sqrt(
+    Math.pow(pixels[i] - bgR, 2) + Math.pow(pixels[i + 1] - bgG, 2) + Math.pow(pixels[i + 2] - bgB, 2)
+  );
+  
+  // BFS flood fill from edges
+  const visited = new Uint8Array(w * h);
+  const queue = [];
+  for (let x = 0; x < w; x++) { queue.push(x); queue.push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { queue.push(y * w); queue.push(y * w + (w - 1)); }
+  
+  for (const pixelIdx of queue) {
+    if (pixelIdx >= 0 && pixelIdx < w * h) {
+      const rgba = pixelIdx * 4;
+      if (rgba + 3 < pixels.length && colorDist(rgba) < threshold) visited[pixelIdx] = 1;
+    }
+  }
+  
+  const floodQueue = queue.filter(idx => visited[idx] === 1);
+  let fqi = 0;
+  while (fqi < floodQueue.length) {
+    const pos = floodQueue[fqi++];
+    const x = pos % w, y = Math.floor(pos / w);
+    const neighbors = [];
+    if (x > 0) neighbors.push(pos - 1);
+    if (x < w - 1) neighbors.push(pos + 1);
+    if (y > 0) neighbors.push(pos - w);
+    if (y < h - 1) neighbors.push(pos + w);
+    for (const n of neighbors) {
+      if (n >= 0 && n < w * h && visited[n] === 0) {
+        const rgba = n * 4;
+        if (rgba + 3 < pixels.length && colorDist(rgba) < threshold) {
+          visited[n] = 1;
+          floodQueue.push(n);
+        }
+      }
+    }
+  }
+  
+  let bgPixelCount = 0;
+  for (let i = 0; i < w * h; i++) {
+    const rgba = i * 4;
+    if (visited[i] === 1) {
+      pixels[rgba + 3] = 0;
+      bgPixelCount++;
+    } else {
+      const dist = colorDist(rgba);
+      if (dist < threshold * 0.5) { pixels[rgba + 3] = 0; bgPixelCount++; }
+      else if (dist < threshold) { pixels[rgba + 3] = Math.min(pixels[rgba + 3], Math.round((dist / threshold) * 255)); }
+    }
+  }
+  
+  const result = await sharp(Buffer.from(pixels), { raw: { width: w, height: h, channels: 4 } }).png().toBuffer();
+  console.log('[SmartComposite] Background removed:', ((bgPixelCount / (w * h)) * 100).toFixed(1) + '% pixels (bg:', bgR + ',' + bgG + ',' + bgB + ')');
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER: Composite logo at a single placement position with full blending
+// ═══════════════════════════════════════════════════════════════════════════
+async function compositeLogoAtPlacement(sharp, baseBuffer, processedLogo, baseMeta, pl) {
+  const targetW = Math.round(baseMeta.width * pl.width_percent / 100);
+  const targetH = Math.round(baseMeta.height * pl.height_percent / 100);
+  let targetX = Math.round(baseMeta.width * pl.x_percent / 100);
+  let targetY = Math.round(baseMeta.height * pl.y_percent / 100);
+  
+  // Resize logo to target dimensions (maintain aspect ratio)
+  let resizedLogo = await sharp(processedLogo)
+    .resize(targetW, targetH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+  
+  const resizedMeta = await sharp(resizedLogo).metadata();
+  if (resizedMeta.width < targetW) targetX += Math.round((targetW - resizedMeta.width) / 2);
+  if (resizedMeta.height < targetH) targetY += Math.round((targetH - resizedMeta.height) / 2);
+  
+  // Apply brightness adjustment to match surface lighting
+  if (pl.brightness_adjust && Math.abs(pl.brightness_adjust - 1.0) > 0.05) {
+    resizedLogo = await sharp(resizedLogo)
+      .modulate({ brightness: pl.brightness_adjust })
+      .png()
+      .toBuffer();
+  }
+  
+  // Apply rotation if needed
+  if (pl.rotation_degrees && Math.abs(pl.rotation_degrees) > 0.5) {
+    const preRotMeta = await sharp(resizedLogo).metadata();
+    const centerX = targetX + Math.round(preRotMeta.width / 2);
+    const centerY = targetY + Math.round(preRotMeta.height / 2);
+    
+    resizedLogo = await sharp(resizedLogo)
+      .rotate(pl.rotation_degrees, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+    
+    const postRotMeta = await sharp(resizedLogo).metadata();
+    targetX = centerX - Math.round(postRotMeta.width / 2);
+    targetY = centerY - Math.round(postRotMeta.height / 2);
+  }
+  
+  // Apply perspective transform for angled surfaces
+  const surfaceAngle = pl.surface_angle || 0;
+  const perspDir = pl.perspective_direction || 'none';
+  
+  if (surfaceAngle > 3 && perspDir !== 'none') {
+    try {
+      const logoMeta = await sharp(resizedLogo).metadata();
+      const logoW = logoMeta.width;
+      const logoH = logoMeta.height;
+      const angleRad = (surfaceAngle * Math.PI) / 180;
+      const perspFactor = Math.cos(angleRad);
+      const nearScale = 1.0, farScale = perspFactor;
+      const horzScale = (nearScale + farScale) / 2;
+      const newW = Math.round(logoW * horzScale);
+      
+      const { data: srcData, info: srcInfo } = await sharp(resizedLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const src = new Uint8Array(srcData);
+      const srcW = srcInfo.width, srcH = srcInfo.height;
+      const dstW = newW, dstH = srcH;
+      const dst = new Uint8Array(dstW * dstH * 4);
+      
+      for (let x = 0; x < dstW; x++) {
+        const srcX = Math.min(srcW - 1, Math.round((x / dstW) * srcW));
+        let t = x / dstW;
+        let colScale = perspDir === 'left' ? nearScale - (nearScale - farScale) * t : farScale + (nearScale - farScale) * t;
+        const colH = Math.round(srcH * colScale);
+        const yOffset = Math.round((srcH - colH) / 2);
+        for (let y = 0; y < dstH; y++) {
+          const dstIdx = (y * dstW + x) * 4;
+          const localY = y - yOffset;
+          if (localY < 0 || localY >= colH) {
+            dst[dstIdx] = 0; dst[dstIdx+1] = 0; dst[dstIdx+2] = 0; dst[dstIdx+3] = 0;
+          } else {
+            const srcY = Math.min(srcH - 1, Math.round((localY / colH) * srcH));
+            const srcIdx = (srcY * srcW + srcX) * 4;
+            dst[dstIdx] = src[srcIdx]; dst[dstIdx+1] = src[srcIdx+1]; dst[dstIdx+2] = src[srcIdx+2]; dst[dstIdx+3] = src[srcIdx+3];
+          }
+        }
+      }
+      
+      resizedLogo = await sharp(Buffer.from(dst), { raw: { width: dstW, height: dstH, channels: 4 } }).png().toBuffer();
+      console.log('[SmartComposite] Perspective: angle=' + surfaceAngle + '° dir=' + perspDir);
+    } catch (perspErr) {
+      console.log('[SmartComposite] Perspective failed:', perspErr.message);
+    }
+  }
+  
+  // Get final logo dimensions
+  const finalLogoMeta = await sharp(resizedLogo).metadata();
+  const logoW = finalLogoMeta.width;
+  const logoH = finalLogoMeta.height;
+  
+  // Clamp position to stay within image bounds
+  targetX = Math.max(0, Math.min(baseMeta.width - logoW, targetX));
+  targetY = Math.max(0, Math.min(baseMeta.height - logoH, targetY));
+  
+  // ── Edge softening: feather alpha at logo edges for natural blending ──
+  let softLogo = resizedLogo;
+  try {
+    const { data: logoRaw, info: logoInfo } = await sharp(resizedLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const lp = new Uint8Array(logoRaw);
+    const lw = logoInfo.width, lh = logoInfo.height;
+    
+    for (let y = 1; y < lh - 1; y++) {
+      for (let x = 1; x < lw - 1; x++) {
+        const idx = (y * lw + x) * 4;
+        if (lp[idx + 3] > 0) {
+          const neighbors = [((y-1)*lw+x)*4, ((y+1)*lw+x)*4, (y*lw+(x-1))*4, (y*lw+(x+1))*4];
+          let hasTransparent = false;
+          for (const ni of neighbors) {
+            if (ni >= 0 && ni + 3 < lp.length && lp[ni + 3] === 0) { hasTransparent = true; break; }
+          }
+          if (hasTransparent) lp[idx + 3] = Math.round(lp[idx + 3] * 0.65);
+        }
+      }
+    }
+    softLogo = await sharp(Buffer.from(lp), { raw: { width: lw, height: lh, channels: 4 } }).png().toBuffer();
+  } catch (e) {
+    softLogo = resizedLogo;
+  }
+  
+  // ── Multi-layer composite for realistic surface integration ──
+  // Blending strength varies by surface type — fabric needs stronger blending
+  const isFabric = (pl.surface_type === 'fabric');
+  const isVehicle = (pl.surface_type === 'vehicle' || pl.surface_type === 'metal');
+  
+  // Multiply blend strength: how much surface texture bleeds through
+  const multiplyOpacity = isFabric ? 0.50 : (isVehicle ? 0.35 : 0.30);
+  // Main layer opacity: how solid the logo appears  
+  const mainOpacity = isFabric ? 0.65 : 0.78;
+  // Soft-light opacity: subtle lighting interaction
+  const softLightOpacity = isFabric ? 0.25 : 0.15;
+  
+  const compositeOps = [];
+  
+  // Layer 1: Drop shadow
+  try {
+    const shadowLogo = await sharp(softLogo).blur(3).modulate({ brightness: 0.3 }).png().toBuffer();
+    compositeOps.push({
+      input: shadowLogo,
+      left: Math.min(baseMeta.width - 1, targetX + 2),
+      top: Math.min(baseMeta.height - 1, targetY + 2),
+      blend: 'multiply',
+    });
+  } catch (e) { /* shadow optional */ }
+  
+  // Layer 2: Multiply blend — makes surface texture bleed through
+  try {
+    const { data: mulRaw, info: mulInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const mp = new Uint8Array(mulRaw);
+    for (let i = 3; i < mp.length; i += 4) { mp[i] = Math.round(mp[i] * multiplyOpacity); }
+    const multiplyLayer = await sharp(Buffer.from(mp), { raw: { width: mulInfo.width, height: mulInfo.height, channels: 4 } }).png().toBuffer();
+    compositeOps.push({ input: multiplyLayer, left: targetX, top: targetY, blend: 'multiply' });
+  } catch (e) {
+    console.log('[SmartComposite] Multiply layer failed:', e.message);
+  }
+  
+  // Layer 3: Main logo — 'over' blend with surface-appropriate opacity
+  try {
+    const { data: mainRaw, info: mainInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const mainPx = new Uint8Array(mainRaw);
+    for (let i = 3; i < mainPx.length; i += 4) { mainPx[i] = Math.round(mainPx[i] * mainOpacity); }
+    const mainLayer = await sharp(Buffer.from(mainPx), { raw: { width: mainInfo.width, height: mainInfo.height, channels: 4 } }).png().toBuffer();
+    compositeOps.push({ input: mainLayer, left: targetX, top: targetY, blend: 'over' });
+  } catch (e) {
+    compositeOps.push({ input: softLogo, left: targetX, top: targetY, blend: 'over' });
+  }
+  
+  // Layer 4: Soft-light for lighting interaction
+  try {
+    const { data: hlRaw, info: hlInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const hp = new Uint8Array(hlRaw);
+    for (let i = 3; i < hp.length; i += 4) { hp[i] = Math.round(hp[i] * softLightOpacity); }
+    const highlightLayer = await sharp(Buffer.from(hp), { raw: { width: hlInfo.width, height: hlInfo.height, channels: 4 } }).png().toBuffer();
+    compositeOps.push({ input: highlightLayer, left: targetX, top: targetY, blend: 'soft-light' });
+  } catch (e) { /* highlight optional */ }
+  
+  // Layer 5 (fabric only): Extra darken blend to push logo INTO the fabric
+  if (isFabric) {
+    try {
+      const { data: darkRaw, info: darkInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const dp = new Uint8Array(darkRaw);
+      for (let i = 3; i < dp.length; i += 4) { dp[i] = Math.round(dp[i] * 0.20); }
+      const darkenLayer = await sharp(Buffer.from(dp), { raw: { width: darkInfo.width, height: darkInfo.height, channels: 4 } }).png().toBuffer();
+      compositeOps.push({ input: darkenLayer, left: targetX, top: targetY, blend: 'darken' });
+    } catch (e) { /* optional */ }
+  }
+  
+  console.log('[SmartComposite] Compositing with', compositeOps.length, 'layers at', targetX + ',' + targetY);
+  
+  const result = await sharp(baseBuffer)
+    .composite(compositeOps)
+    .png()
+    .toBuffer();
+  
+  return result;
 }
 
 
@@ -8842,7 +8700,9 @@ async function handleChatStream(request) {
             
             if (compositeResult.success && compositeResult.url) {
               const placementInfo = compositeResult.placement;
-              fullContent = `![Composited Image](${compositeResult.url})\n\n🎨 *Your design has been composited onto the image!*\n*Surface: ${placementInfo?.surface_type || 'auto'} | Method: pixel-perfect overlay*`;
+              const placementCount = Array.isArray(placementInfo) ? placementInfo.length : 1;
+              const surfaceType = Array.isArray(placementInfo) ? (placementInfo[0]?.surface_type || 'auto') : (placementInfo?.surface_type || 'auto');
+              fullContent = `![Composited Image](${compositeResult.url})\n\n🎨 *Your design has been composited onto the image!*\n*${placementCount > 1 ? placementCount + ' placements' : 'Surface: ' + surfaceType} | Method: pixel-perfect overlay*`;
               send({ type: 'image', url: compositeResult.url, revised_prompt: sanitizedContent, contentType: 'composite' });
               send({ type: 'delta', content: fullContent });
             } else {
