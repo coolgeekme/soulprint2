@@ -3378,7 +3378,7 @@ RULES:
   // ── Step 2: Process the logo — remove background if needed ──
   let processedLogo = overlayPng;
   
-  if (placementData.remove_background && placementData.background_color !== 'none') {
+  if (placementData.remove_background) {
     try {
       const { data, info } = await sharp(overlayPng)
         .ensureAlpha()
