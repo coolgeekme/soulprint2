@@ -3156,7 +3156,10 @@ Placement Guidelines:
 
   let placementData = null;
   
-  // Try GPT-4o Vision analysis
+  // Try GPT-4o Vision analysis first, then Gemini as fallback
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  
+  // Attempt 1: GPT-4o Vision
   try {
     const analysisRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -3184,10 +3187,53 @@ Placement Guidelines:
       console.log('[SmartComposite] GPT-4o placement:', JSON.stringify(placementData));
     } else {
       const errData = await analysisRes.json().catch(() => ({}));
-      console.log('[SmartComposite] GPT-4o analysis failed:', errData.error?.message || analysisRes.status);
+      console.log('[SmartComposite] GPT-4o failed:', errData.error?.message || analysisRes.status);
     }
   } catch (e) {
-    console.log('[SmartComposite] GPT-4o analysis error:', e.message);
+    console.log('[SmartComposite] GPT-4o error:', e.message);
+  }
+  
+  // Attempt 2: Gemini Vision fallback (if GPT-4o failed)
+  if ((!placementData || typeof placementData.x_percent !== 'number') && geminiApiKey) {
+    console.log('[SmartComposite] Trying Gemini Vision fallback...');
+    try {
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: `User request: "${userInstruction}"\n\nImage 1 = BASE IMAGE (where the logo should be placed).\nImage 2 = LOGO/DESIGN (to be placed on the base image).\n\n${analysisPrompt}` },
+                { inline_data: { mime_type: 'image/png', data: baseBuffer.toString('base64') } },
+                { inline_data: { mime_type: overlayMime || 'image/png', data: overlayBuffer.toString('base64') } }
+              ]
+            }],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 500,
+              responseMimeType: 'application/json'
+            }
+          })
+        }
+      );
+      
+      if (geminiRes.ok) {
+        const geminiData = await geminiRes.json();
+        const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const parsed = JSON.parse(rawText);
+        if (typeof parsed.x_percent === 'number') {
+          placementData = parsed;
+          console.log('[SmartComposite] Gemini placement:', JSON.stringify(placementData));
+        }
+      } else {
+        const errData = await geminiRes.json().catch(() => ({}));
+        console.log('[SmartComposite] Gemini failed:', errData.error?.message || geminiRes.status);
+      }
+    } catch (e) {
+      console.log('[SmartComposite] Gemini error:', e.message);
+    }
   }
   
   // Fallback: Smart defaults based on instruction keywords (when GPT-4o unavailable)
@@ -8230,6 +8276,46 @@ async function handleChatStream(request) {
             
             if (!baseBuffer || !overlayBuffer) {
               throw new Error('Could not load base and overlay images');
+            }
+            
+            // ── Detect if this is a SWAP/REPLACE operation ──
+            // If user wants to swap existing logos, first clean the base image
+            const isSwapRequest = /\b(swap|replace|change|switch)\b.*\b(logo|image|graphic|design|text|brand)\b/i.test(sanitizedContent) ||
+              /\b(logo|image|graphic|design|text|brand)\b.*\b(swap|replace|change|switch|with)\b/i.test(sanitizedContent);
+            
+            if (isSwapRequest) {
+              console.log('[Composite] Swap detected — cleaning base image of existing logos first');
+              send({ type: 'delta', content: '🧹 Removing existing logos from the image first...\n\n' });
+              
+              try {
+                // Use GPT-image-1 to erase existing logos/text from the base image
+                const OpenAI = (await import('openai')).default;
+                const { toFile } = await import('openai/uploads');
+                const openai = new OpenAI({ apiKey: openaiApiKey });
+                
+                const baseFile = await toFile(baseBuffer, 'base.png', { type: 'image/png' });
+                
+                const cleanResult = await openai.images.edit({
+                  model: 'gpt-image-1',
+                  image: baseFile,
+                  prompt: `Remove ALL logos, text, graphics, designs, and branding from the clothing/products in this image. Make all surfaces clean and plain. Keep the rest of the scene EXACTLY the same — same people, same poses, same lighting, same background. Only erase printed designs and logos.`,
+                  n: 1,
+                  size: '1024x1024',
+                });
+                
+                if (cleanResult.data?.[0]?.b64_json) {
+                  baseBuffer = Buffer.from(cleanResult.data[0].b64_json, 'base64');
+                  console.log('[Composite] Base image cleaned successfully');
+                  send({ type: 'delta', content: '✅ Existing logos removed. Now placing your design...\n\n' });
+                } else if (cleanResult.data?.[0]?.url) {
+                  const cleanResp = await fetch(cleanResult.data[0].url);
+                  baseBuffer = Buffer.from(await cleanResp.arrayBuffer());
+                  console.log('[Composite] Base image cleaned (from URL)');
+                }
+              } catch (cleanErr) {
+                console.log('[Composite] Logo removal failed:', cleanErr.message, '— proceeding with original base');
+                // Continue with original base — the composite will just overlay on top
+              }
             }
             
             // ── Call the Smart Composite function ──
