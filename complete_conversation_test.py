@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://smart-mockup.preview.emergentagent.com/api"
+BASE_URL = "https://smart-composite.preview.emergentagent.com/api"
 
 def main():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 Complete Conversation API Test (Rename + Delete)")

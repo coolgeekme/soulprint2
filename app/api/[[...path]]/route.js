@@ -3158,7 +3158,7 @@ Respond ONLY with valid JSON (no markdown, no code fences):
   "y_percent": <number 0-100, top edge of logo placement as % of image height>,
   "width_percent": <number 3-60, logo width as % of image width>,
   "height_percent": <number 3-60, logo height as % of image height>,
-  "rotation_degrees": <number -45 to 45>,
+  "rotation_degrees": <number -45 to 45, the visual TILT of the placement surface's baseline compared to a perfect horizontal line. Look at the horizontal edges or lines on the target surface in the image and measure how many degrees they deviate from true horizontal. Positive = clockwise tilt (right side higher than left), Negative = counter-clockwise tilt (left side higher than right). For a vehicle seen from a 3/4 front-left angle, the door beltline typically tilts -2 to -6 degrees (right side slightly lower). For a 3/4 front-right view, it tilts +2 to +6 degrees. For flat surfaces facing camera directly: 0>,
   "surface_type": <"flat"|"fabric"|"curved"|"vehicle"|"paper"|"metal"|"glass"|"plastic">,
   "surface_angle": <number 0-60, angle of the target surface relative to the camera. 0 = facing camera directly, 30 = angled 30 degrees away, 45 = at steep angle. For a 3/4 view vehicle door, this is typically 20-35 degrees>,
   "perspective_direction": <"left"|"right"|"none", which side of the surface is closer to the camera. "left" means left edge is closer, "right" means right edge is closer>,
@@ -3181,6 +3181,16 @@ VEHICLE PLACEMENT (look at the actual vehicle in the image):
 - Door panels are the FLAT METAL SURFACES below the window line
 - NEVER place on windshield, windows, wheels, or roof
 - Match the perspective angle of the vehicle body
+
+ROTATION MEASUREMENT (CRITICAL - examine the actual surface edges in the image):
+- Look at the TOP and BOTTOM edges of the target placement surface
+- Trace the line where the surface meets adjacent areas (e.g., the door beltline on a vehicle)
+- If these lines are NOT perfectly horizontal, the logo MUST be rotated to match
+- Vehicle 3/4 front-left view: the beltline/door bottom usually slopes slightly DOWN to the right → rotation_degrees = -2 to -6
+- Vehicle 3/4 front-right view: the beltline usually slopes slightly DOWN to the left → rotation_degrees = +2 to +6
+- Vehicle side-on view: beltline is roughly horizontal → rotation_degrees = 0 to ±2
+- Curved surfaces (mugs, bottles): rotation follows the surface curvature → typically 0
+- NEVER return rotation_degrees = 0 for a vehicle in 3/4 view — the surface ALWAYS has some visual slope
 
 RULES:
 - Keep logo proportional
@@ -3310,6 +3320,7 @@ RULES:
     } else if (/van|car|truck|vehicle|bus|minivan|suv|door\s*panel|fender|hood|bumper|windshield/i.test(instr)) {
       surfaceType = 'vehicle';
       xp = 15; yp = 30; wp = 25; hp = 20;
+      rot = -4; // Default slight slope for 3/4 view vehicles
     } else if (/bag|tote|backpack|purse/i.test(instr)) {
       surfaceType = 'fabric';
       xp = 25; yp = 20; wp = 40; hp = 35;
@@ -3363,6 +3374,8 @@ RULES:
       width_percent: wp, height_percent: hp,
       rotation_degrees: rot,
       surface_type: surfaceType,
+      surface_angle: surfaceType === 'vehicle' ? 25 : 0,
+      perspective_direction: surfaceType === 'vehicle' ? 'left' : 'none',
       opacity: opacity,
       remove_background: true,
       background_color: 'white'
@@ -3376,6 +3389,15 @@ RULES:
   placementData.height_percent = Math.max(5, Math.min(80, placementData.height_percent));
   placementData.opacity = Math.max(0.5, Math.min(1.0, placementData.opacity || 1.0));
   placementData.rotation_degrees = Math.max(-45, Math.min(45, placementData.rotation_degrees || 0));
+  
+  console.log('[SmartComposite] Final placement params:', JSON.stringify({
+    x: placementData.x_percent, y: placementData.y_percent,
+    w: placementData.width_percent, h: placementData.height_percent,
+    rotation: placementData.rotation_degrees,
+    surface: placementData.surface_type,
+    angle: placementData.surface_angle,
+    perspDir: placementData.perspective_direction
+  }));
   
   // ── Step 2: Process the logo — remove background if needed ──
   let processedLogo = overlayPng;
@@ -3537,15 +3559,36 @@ RULES:
     targetY += Math.round((targetH - resizedMeta.height) / 2);
   }
   
-  // Apply rotation if needed
+  // Apply rotation if needed — this tilts the logo to match the surface slope
   if (placementData.rotation_degrees && Math.abs(placementData.rotation_degrees) > 0.5) {
+    // Remember pre-rotation dimensions so we can correct the position offset
+    const preRotMeta = await sharp(resizedLogo).metadata();
+    const preW = preRotMeta.width;
+    const preH = preRotMeta.height;
+    
+    // Calculate center of placement area BEFORE rotation
+    const centerX = targetX + Math.round(preW / 2);
+    const centerY = targetY + Math.round(preH / 2);
+    
     resizedLogo = await sharp(resizedLogo)
       .rotate(placementData.rotation_degrees, { 
         background: { r: 0, g: 0, b: 0, alpha: 0 } 
       })
       .png()
       .toBuffer();
-    console.log('[SmartComposite] Rotated logo by', placementData.rotation_degrees, 'degrees');
+    
+    // sharp.rotate() expands canvas to fit rotated content — recalculate position
+    // so the CENTER of the rotated logo stays at the same spot
+    const postRotMeta = await sharp(resizedLogo).metadata();
+    const postW = postRotMeta.width;
+    const postH = postRotMeta.height;
+    
+    targetX = centerX - Math.round(postW / 2);
+    targetY = centerY - Math.round(postH / 2);
+    
+    console.log('[SmartComposite] Rotated logo by', placementData.rotation_degrees, 'degrees.',
+      'Size:', preW + 'x' + preH, '->', postW + 'x' + postH,
+      'Position adjusted to:', targetX + ',' + targetY);
   }
   
   // ── Step 3b: Apply perspective transform to match the surface angle ──

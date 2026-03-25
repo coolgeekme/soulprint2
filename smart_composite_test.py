@@ -13,7 +13,7 @@ from io import BytesIO
 from PIL import Image
 
 # Configuration
-BASE_URL = "https://smart-mockup.preview.emergentagent.com"
+BASE_URL = "https://smart-composite.preview.emergentagent.com"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 

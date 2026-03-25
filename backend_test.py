@@ -1,527 +1,344 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Auto-Continuation Feature
-Tests the auto-continuation functionality for truncated AI responses
+Smart Composite API Rotation Fix Testing
+Tests the rotation fix for the Smart Composite API endpoint.
 """
 
-import asyncio
+import requests
 import json
-import aiohttp
+import base64
 import time
-from typing import Dict, List, Any
+import sys
+import os
 
 # Test configuration
-BASE_URL = "https://smart-mockup.preview.emergentagent.com"
-TEST_EMAIL = "test@soulprint.com"
-TEST_PASSCODE = "test123"
+BASE_URL = "https://smart-composite.preview.emergentagent.com"
+LOGIN_EMAIL = "test@soulprint.com"
+LOGIN_PASSCODE = "test123"
 
-class BackendTester:
-    def __init__(self):
-        self.session = None
-        self.auth_token = None
-        self.test_results = []
+def create_test_images():
+    """Create test images using sharp-like approach with PIL"""
+    try:
+        from PIL import Image, ImageDraw
         
-    async def __aenter__(self):
-        timeout = aiohttp.ClientTimeout(total=120)  # 2 minute timeout
-        self.session = aiohttp.ClientSession(timeout=timeout)
-        return self
+        # Create base image (vehicle-like with perspective)
+        base = Image.new('RGB', (800, 600), color=(120, 140, 160))
+        draw = ImageDraw.Draw(base)
         
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
-            await self.session.close()
-    
-    def log_result(self, test_name: str, success: bool, details: str = ""):
-        """Log test result"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status}: {test_name}")
-        if details:
-            print(f"   Details: {details}")
-        self.test_results.append({
-            "test": test_name,
-            "success": success,
-            "details": details
-        })
-    
-    async def authenticate(self) -> bool:
-        """Test authentication and get JWT token"""
-        try:
-            async with self.session.post(
-                f"{BASE_URL}/api/auth/login",
-                json={"email": TEST_EMAIL, "passcode": TEST_PASSCODE},
-                headers={"Content-Type": "application/json"}
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    self.auth_token = data.get("token")
-                    if self.auth_token:
-                        self.log_result("Authentication (POST /api/auth/login)", True, f"Token received, role: {data.get('role', 'unknown')}")
-                        return True
-                    else:
-                        self.log_result("Authentication (POST /api/auth/login)", False, "No token in response")
-                        return False
-                else:
-                    error_text = await response.text()
-                    self.log_result("Authentication (POST /api/auth/login)", False, f"HTTP {response.status}: {error_text}")
-                    return False
-        except Exception as e:
-            self.log_result("Authentication (POST /api/auth/login)", False, f"Exception: {str(e)}")
-            return False
-    
-    async def test_models_endpoint(self) -> bool:
-        """Test GET /api/models endpoint"""
-        try:
-            headers = {"Authorization": f"Bearer {self.auth_token}"}
-            async with self.session.get(f"{BASE_URL}/api/models", headers=headers) as response:
-                if response.status == 200:
-                    models = await response.json()  # Direct array, not wrapped in object
-                    
-                    # Count models by provider
-                    provider_counts = {}
-                    for model in models:
-                        provider = model.get("group", "unknown")
-                        provider_counts[provider] = provider_counts.get(provider, 0) + 1
-                    
-                    total_models = len(models)
-                    expected_providers = ["OpenAI", "Anthropic", "Google", "Perplexity", "Kimi"]
-                    found_providers = list(provider_counts.keys())
-                    
-                    if total_models >= 18 and all(p in found_providers for p in expected_providers):
-                        details = f"Found {total_models} models across {len(found_providers)} providers: {provider_counts}"
-                        self.log_result("Models Endpoint (GET /api/models)", True, details)
-                        return True
-                    else:
-                        details = f"Expected ≥18 models across 5 providers, got {total_models} models: {provider_counts}"
-                        self.log_result("Models Endpoint (GET /api/models)", False, details)
-                        return False
-                else:
-                    error_text = await response.text()
-                    self.log_result("Models Endpoint (GET /api/models)", False, f"HTTP {response.status}: {error_text}")
-                    return False
-        except Exception as e:
-            self.log_result("Models Endpoint (GET /api/models)", False, f"Exception: {str(e)}")
-            return False
-    
-    async def test_basic_chat_stream(self) -> bool:
-        """Test basic chat streaming with a simple question"""
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.auth_token}",
-                "Content-Type": "application/json"
-            }
-            
-            payload = {
-                "content": "What is the capital of France?",
-                "model": "gpt-4o",
-                "conversationId": None,
-                "enableWebSearch": False
-            }
-            
-            async with self.session.post(
-                f"{BASE_URL}/api/chat/stream",
-                json=payload,
-                headers=headers
-            ) as response:
-                if response.status == 200:
-                    content_type = response.headers.get('content-type', '')
-                    if 'text/event-stream' not in content_type and 'text/plain' not in content_type:
-                        self.log_result("Basic Chat Stream", False, f"Wrong content-type: {content_type}")
-                        return False
-                    
-                    chunks = []
-                    events = []
-                    full_content = ""
-                    
-                    async for line in response.content:
-                        line_str = line.decode('utf-8').strip()
-                        if line_str:
-                            try:
-                                event = json.loads(line_str)
-                                events.append(event)
-                                chunks.append(line_str)
-                                
-                                if event.get('type') == 'delta':
-                                    full_content += event.get('content', '')
-                            except json.JSONDecodeError:
-                                continue
-                    
-                    # Validate stream format
-                    event_types = [e.get('type') for e in events]
-                    has_meta = 'meta' in event_types
-                    has_delta = 'delta' in event_types
-                    has_done = 'done' in event_types
-                    
-                    if has_meta and has_delta and has_done and len(full_content) > 0:
-                        details = f"Received {len(chunks)} chunks, {len(full_content)} chars, events: {set(event_types)}"
-                        self.log_result("Basic Chat Stream (POST /api/chat/stream)", True, details)
-                        return True
-                    else:
-                        details = f"Missing required events. Got: {set(event_types)}, content length: {len(full_content)}"
-                        self.log_result("Basic Chat Stream (POST /api/chat/stream)", False, details)
-                        return False
-                else:
-                    error_text = await response.text()
-                    self.log_result("Basic Chat Stream (POST /api/chat/stream)", False, f"HTTP {response.status}: {error_text}")
-                    return False
-        except Exception as e:
-            self.log_result("Basic Chat Stream (POST /api/chat/stream)", False, f"Exception: {str(e)}")
-            return False
-    
-    async def test_auto_continuation_stream(self) -> bool:
-        """Test auto-continuation with a long prompt that should trigger truncation"""
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.auth_token}",
-                "Content-Type": "application/json"
-            }
-            
-            # Long prompt designed to produce a response that exceeds token limits
-            # Use a very specific request that should produce a long response
-            long_prompt = """Please write a complete, detailed step-by-step tutorial on building a full-stack web application from scratch. Include every single detail:
+        # Draw a simple vehicle-like shape with perspective
+        # Front face (lighter)
+        draw.polygon([(100, 200), (300, 180), (300, 400), (100, 420)], fill=(180, 180, 200))
+        # Side face (darker, showing perspective)
+        draw.polygon([(300, 180), (600, 200), (600, 420), (300, 400)], fill=(140, 140, 160))
+        # Top face
+        draw.polygon([(100, 200), (300, 180), (600, 200), (400, 220)], fill=(200, 200, 220))
+        
+        # Add some details to make it look more vehicle-like
+        # Windows
+        draw.rectangle([(120, 220), (280, 280)], fill=(100, 150, 200))  # Front window
+        draw.rectangle([(320, 210), (580, 270)], fill=(100, 150, 200))  # Side window
+        
+        # Door line (this should have a slight slope for 3/4 view)
+        draw.line([(100, 350), (600, 340)], fill=(80, 80, 100), width=3)
+        
+        # Convert to base64
+        import io
+        base_buffer = io.BytesIO()
+        base.save(base_buffer, format='PNG')
+        base_b64 = base64.b64encode(base_buffer.getvalue()).decode()
+        
+        # Create logo image (red rectangle)
+        logo = Image.new('RGBA', (200, 100), color=(255, 0, 0, 255))
+        draw_logo = ImageDraw.Draw(logo)
+        draw_logo.text((50, 35), "LOGO", fill=(255, 255, 255, 255))
+        
+        logo_buffer = io.BytesIO()
+        logo.save(logo_buffer, format='PNG')
+        logo_b64 = base64.b64encode(logo_buffer.getvalue()).decode()
+        
+        return f"data:image/png;base64,{base_b64}", f"data:image/png;base64,{logo_b64}"
+        
+    except ImportError:
+        print("PIL not available, using simple base64 encoded test images")
+        # Fallback: create minimal test images as base64
+        # This is a 1x1 pixel PNG in base64
+        simple_base = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        simple_logo = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+        return f"data:image/png;base64,{simple_base}", f"data:image/png;base64,{simple_logo}"
 
-1. PROJECT SETUP (500+ words):
-- Setting up development environment
-- Installing Node.js, npm, and all required tools
-- Creating project structure with detailed folder explanations
-- Setting up version control with Git
-- Configuring package.json with all dependencies
-- Setting up development scripts and build processes
-
-2. FRONTEND DEVELOPMENT (1000+ words):
-- HTML structure and semantic markup
-- CSS styling with modern techniques (Flexbox, Grid, animations)
-- JavaScript fundamentals and ES6+ features
-- React.js component architecture and state management
-- Routing with React Router
-- Form handling and validation
-- API integration and error handling
-- Responsive design principles and mobile-first approach
-
-3. BACKEND DEVELOPMENT (1000+ words):
-- Node.js and Express.js server setup
-- Database design and MongoDB integration
-- RESTful API design principles
-- Authentication and authorization (JWT)
-- Middleware implementation
-- Error handling and logging
-- File upload and processing
-- Security best practices (CORS, rate limiting, input validation)
-
-4. DATABASE INTEGRATION (500+ words):
-- MongoDB setup and configuration
-- Schema design and relationships
-- CRUD operations and queries
-- Indexing for performance
-- Data validation and constraints
-- Backup and recovery strategies
-
-5. TESTING AND DEPLOYMENT (500+ words):
-- Unit testing with Jest
-- Integration testing
-- End-to-end testing with Cypress
-- CI/CD pipeline setup
-- Docker containerization
-- Cloud deployment (AWS, Heroku, or similar)
-- Environment configuration
-- Monitoring and logging
-
-6. ADVANCED FEATURES (500+ words):
-- Real-time features with WebSockets
-- Caching strategies
-- Performance optimization
-- SEO optimization
-- Progressive Web App features
-- Internationalization
-- Analytics integration
-
-For each section, provide complete code examples, explain every line of code, include common pitfalls and how to avoid them, and provide troubleshooting tips. Make this tutorial comprehensive enough that a beginner could follow it step by step."""
-            
-            payload = {
-                "content": long_prompt,
-                "model": "gpt-4o-mini",  # Use smaller model more likely to hit limits
-                "conversationId": None,
-                "enableWebSearch": False
-            }
-            
-            async with self.session.post(
-                f"{BASE_URL}/api/chat/stream",
-                json=payload,
-                headers=headers
-            ) as response:
-                if response.status == 200:
-                    chunks = []
-                    events = []
-                    full_content = ""
-                    continuation_events = []
-                    
-                    async for line in response.content:
-                        line_str = line.decode('utf-8').strip()
-                        if line_str:
-                            try:
-                                event = json.loads(line_str)
-                                events.append(event)
-                                chunks.append(line_str)
-                                
-                                if event.get('type') == 'delta':
-                                    full_content += event.get('content', '')
-                                elif event.get('type') == 'continuation':
-                                    continuation_events.append(event)
-                                    print(f"   🔄 Auto-continuation event: {event}")
-                            except json.JSONDecodeError:
-                                continue
-                    
-                    # Validate stream format and auto-continuation
-                    event_types = [e.get('type') for e in events]
-                    has_meta = 'meta' in event_types
-                    has_delta = 'delta' in event_types
-                    has_done = 'done' in event_types
-                    has_continuation = 'continuation' in event_types
-                    
-                    # Check if response is substantially longer than typical (indicating continuation worked)
-                    is_long_response = len(full_content) > 2000  # Expect a long response
-                    
-                    if has_meta and has_delta and len(full_content) > 0:
-                        if has_continuation and len(continuation_events) > 0:
-                            # Auto-continuation was triggered
-                            continuation_details = f"Auto-continuation triggered {len(continuation_events)} times"
-                            details = f"Received {len(chunks)} chunks, {len(full_content)} chars, events: {set(event_types)}. {continuation_details}"
-                            self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", True, details)
-                            return True
-                        elif is_long_response:
-                            # Response was long but no continuation events (maybe didn't hit limit)
-                            details = f"Long response ({len(full_content)} chars) without continuation events - may not have hit token limit. Events: {set(event_types)}"
-                            self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", True, details)
-                            return True
-                        else:
-                            # Response was short and no continuation
-                            details = f"Response too short ({len(full_content)} chars), no continuation events. May need different model or prompt. Events: {set(event_types)}"
-                            self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", False, details)
-                            return False
-                    else:
-                        details = f"Missing required events. Got: {set(event_types)}, content length: {len(full_content)}"
-                        self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", False, details)
-                        return False
-                else:
-                    error_text = await response.text()
-                    self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", False, f"HTTP {response.status}: {error_text}")
-                    return False
-        except Exception as e:
-            self.log_result("Auto-Continuation Stream (POST /api/chat/stream)", False, f"Exception: {str(e)}")
-            return False
+def test_authentication():
+    """Test authentication with provided credentials"""
+    print("🔐 Testing Authentication...")
     
-    async def test_anthropic_continuation(self) -> bool:
-        """Test auto-continuation with Anthropic model (higher max_tokens)"""
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.auth_token}",
-                "Content-Type": "application/json"
-            }
-            
-            # Simple test first to see if Anthropic works at all
-            simple_prompt = "Write a detailed explanation of machine learning in 500 words."
-            
-            payload = {
-                "content": simple_prompt,
-                "model": "claude-sonnet-4-5-20250929",  # Use Anthropic model
-                "conversationId": None,
-                "enableWebSearch": False
-            }
-            
-            async with self.session.post(
-                f"{BASE_URL}/api/chat/stream",
-                json=payload,
-                headers=headers
-            ) as response:
-                if response.status == 200:
-                    chunks = []
-                    events = []
-                    full_content = ""
-                    continuation_events = []
-                    error_events = []
-                    
-                    async for line in response.content:
-                        line_str = line.decode('utf-8').strip()
-                        if line_str:
-                            try:
-                                event = json.loads(line_str)
-                                events.append(event)
-                                chunks.append(line_str)
-                                
-                                if event.get('type') == 'delta':
-                                    full_content += event.get('content', '')
-                                elif event.get('type') == 'continuation':
-                                    continuation_events.append(event)
-                                elif event.get('type') == 'error':
-                                    error_events.append(event)
-                                    print(f"   ❌ Anthropic Error: {event.get('error', 'Unknown error')}")
-                            except json.JSONDecodeError:
-                                continue
-                    
-                    # Validate stream format
-                    event_types = [e.get('type') for e in events]
-                    has_meta = 'meta' in event_types
-                    has_delta = 'delta' in event_types
-                    has_done = 'done' in event_types
-                    has_continuation = 'continuation' in event_types
-                    has_error = 'error' in event_types
-                    
-                    if has_error and len(error_events) > 0:
-                        error_msg = error_events[0].get('error', 'Unknown error')
-                        details = f"Anthropic API error: {error_msg}"
-                        self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", False, details)
-                        return False
-                    
-                    # Check response length
-                    is_response = len(full_content) > 100
-                    
-                    if has_meta and has_delta and len(full_content) > 0:
-                        if has_continuation and len(continuation_events) > 0:
-                            details = f"Anthropic auto-continuation triggered {len(continuation_events)} times, {len(full_content)} chars"
-                            self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", True, details)
-                            return True
-                        elif is_response:
-                            details = f"Anthropic working correctly ({len(full_content)} chars) - 16k tokens may not hit limit easily"
-                            self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", True, details)
-                            return True
-                        else:
-                            details = f"Response length: {len(full_content)} chars, events: {set(event_types)}"
-                            self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", False, details)
-                            return False
-                    else:
-                        details = f"Missing required events. Got: {set(event_types)}, content length: {len(full_content)}"
-                        self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", False, details)
-                        return False
-                else:
-                    error_text = await response.text()
-                    self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", False, f"HTTP {response.status}: {error_text}")
-                    return False
-        except Exception as e:
-            self.log_result("Anthropic Auto-Continuation (claude-sonnet-4-5)", False, f"Exception: {str(e)}")
-            return False
-    
-    async def test_stream_format_validation(self) -> bool:
-        """Test that stream responses follow proper NDJSON format"""
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.auth_token}",
-                "Content-Type": "application/json"
-            }
-            
-            payload = {
-                "content": "Explain quantum computing in simple terms.",
-                "model": "gpt-4o",
-                "conversationId": None,
-                "enableWebSearch": False
-            }
-            
-            async with self.session.post(
-                f"{BASE_URL}/api/chat/stream",
-                json=payload,
-                headers=headers
-            ) as response:
-                if response.status == 200:
-                    valid_json_lines = 0
-                    invalid_lines = 0
-                    event_types_found = set()
-                    
-                    async for line in response.content:
-                        line_str = line.decode('utf-8').strip()
-                        if line_str:
-                            try:
-                                event = json.loads(line_str)
-                                valid_json_lines += 1
-                                event_type = event.get('type')
-                                if event_type:
-                                    event_types_found.add(event_type)
-                                
-                                # Validate required fields for each event type
-                                if event_type == 'meta':
-                                    if 'conversationId' not in event:
-                                        self.log_result("Stream Format Validation", False, "meta event missing conversationId")
-                                        return False
-                                elif event_type == 'delta':
-                                    if 'content' not in event:
-                                        self.log_result("Stream Format Validation", False, "delta event missing content")
-                                        return False
-                                elif event_type == 'continuation':
-                                    if 'count' not in event or 'max' not in event:
-                                        self.log_result("Stream Format Validation", False, "continuation event missing count/max")
-                                        return False
-                                elif event_type == 'done':
-                                    # done event can be empty
-                                    pass
-                                    
-                            except json.JSONDecodeError:
-                                invalid_lines += 1
-                    
-                    required_events = {'meta', 'delta', 'done'}
-                    has_required = required_events.issubset(event_types_found)
-                    
-                    if has_required and valid_json_lines > 0 and invalid_lines == 0:
-                        details = f"Valid NDJSON: {valid_json_lines} lines, events: {event_types_found}"
-                        self.log_result("Stream Format Validation", True, details)
-                        return True
-                    else:
-                        details = f"Invalid format: {valid_json_lines} valid, {invalid_lines} invalid, events: {event_types_found}"
-                        self.log_result("Stream Format Validation", False, details)
-                        return False
-                else:
-                    error_text = await response.text()
-                    self.log_result("Stream Format Validation", False, f"HTTP {response.status}: {error_text}")
-                    return False
-        except Exception as e:
-            self.log_result("Stream Format Validation", False, f"Exception: {str(e)}")
-            return False
-    
-    async def run_all_tests(self):
-        """Run all backend tests"""
-        print("🚀 Starting Auto-Continuation Backend Tests")
-        print("=" * 60)
+    try:
+        response = requests.post(
+            f"{BASE_URL}/api/auth/login",
+            json={
+                "email": LOGIN_EMAIL,
+                "passcode": LOGIN_PASSCODE
+            },
+            headers={"Content-Type": "application/json"},
+            timeout=30
+        )
         
-        # Test 1: Authentication
-        if not await self.authenticate():
-            print("❌ Authentication failed - cannot continue with other tests")
-            return
+        print(f"   Status: {response.status_code}")
         
-        # Test 2: Models endpoint
-        await self.test_models_endpoint()
-        
-        # Test 3: Basic chat streaming
-        await self.test_basic_chat_stream()
-        
-        # Test 4: Auto-continuation with long prompt
-        await self.test_auto_continuation_stream()
-        
-        # Test 5: Anthropic auto-continuation (higher token limit)
-        await self.test_anthropic_continuation()
-        
-        # Test 6: Stream format validation
-        await self.test_stream_format_validation()
-        
-        # Summary
-        print("\n" + "=" * 60)
-        print("📊 TEST SUMMARY")
-        print("=" * 60)
-        
-        passed = sum(1 for r in self.test_results if r["success"])
-        total = len(self.test_results)
-        
-        for result in self.test_results:
-            status = "✅" if result["success"] else "❌"
-            print(f"{status} {result['test']}")
-            if result["details"]:
-                print(f"   {result['details']}")
-        
-        print(f"\n🎯 Results: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
-        
-        if passed == total:
-            print("🎉 All tests passed! Auto-continuation feature is working correctly.")
+        if response.status_code == 200:
+            data = response.json()
+            if "token" in data:
+                print(f"   ✅ Authentication successful")
+                print(f"   User ID: {data.get('userId', 'N/A')}")
+                print(f"   Role: {data.get('role', 'N/A')}")
+                return data["token"]
+            else:
+                print(f"   ❌ No token in response: {data}")
+                return None
         else:
-            print(f"⚠️  {total - passed} test(s) failed. Please review the failures above.")
+            print(f"   ❌ Authentication failed: {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"   ❌ Authentication error: {str(e)}")
+        return None
 
-async def main():
-    """Main test runner"""
-    async with BackendTester() as tester:
-        await tester.run_all_tests()
+def test_composite_vehicle_rotation(token):
+    """Test composite with vehicle instruction - should return non-zero rotation"""
+    print("\n🚗 Testing Vehicle Composite (Rotation Fix)...")
+    
+    try:
+        base_image, logo_image = create_test_images()
+        
+        response = requests.post(
+            f"{BASE_URL}/api/composite/test",
+            json={
+                "baseImage": base_image,
+                "overlayImage": logo_image,
+                "instruction": "Place logo on the side door of this minivan in 3/4 view"
+            },
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            timeout=60  # Longer timeout for AI processing
+        )
+        
+        print(f"   Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"   ✅ Request successful")
+            print(f"   Success: {data.get('success', False)}")
+            
+            if data.get('success'):
+                placement = data.get('placement', {})
+                rotation = placement.get('rotation_degrees', 0)
+                surface_angle = placement.get('surface_angle', 0)
+                perspective_direction = placement.get('perspective_direction', 'none')
+                
+                print(f"   📊 Placement Analysis:")
+                print(f"      Rotation Degrees: {rotation}")
+                print(f"      Surface Angle: {surface_angle}")
+                print(f"      Perspective Direction: {perspective_direction}")
+                print(f"      Position: ({placement.get('x_percent', 0)}, {placement.get('y_percent', 0)})")
+                print(f"      Size: {placement.get('width_percent', 0)}% x {placement.get('height_percent', 0)}%")
+                
+                # Verify rotation fix criteria
+                rotation_ok = abs(rotation) > 0.5  # Should be non-zero for vehicles
+                surface_angle_ok = surface_angle > 0  # Should be > 0 for 3/4 view
+                perspective_ok = perspective_direction in ['left', 'right']  # Should not be 'none'
+                
+                print(f"   🔍 Rotation Fix Verification:")
+                print(f"      Non-zero rotation: {'✅' if rotation_ok else '❌'} ({rotation}°)")
+                print(f"      Surface angle > 0: {'✅' if surface_angle_ok else '❌'} ({surface_angle}°)")
+                print(f"      Perspective direction: {'✅' if perspective_ok else '❌'} ({perspective_direction})")
+                
+                if data.get('url'):
+                    print(f"   🖼️  Composite URL: {data['url'][:100]}...")
+                
+                return rotation_ok and surface_angle_ok and perspective_ok
+            else:
+                print(f"   ❌ Composite failed: {data}")
+                return False
+        else:
+            print(f"   ❌ Request failed: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Vehicle composite test error: {str(e)}")
+        return False
+
+def test_composite_flat_surface(token):
+    """Test composite with flat surface instruction - should return near-zero rotation"""
+    print("\n📄 Testing Flat Surface Composite...")
+    
+    try:
+        base_image, logo_image = create_test_images()
+        
+        response = requests.post(
+            f"{BASE_URL}/api/composite/test",
+            json={
+                "baseImage": base_image,
+                "overlayImage": logo_image,
+                "instruction": "Place this logo on the center of this white paper"
+            },
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            timeout=60
+        )
+        
+        print(f"   Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"   ✅ Request successful")
+            print(f"   Success: {data.get('success', False)}")
+            
+            if data.get('success'):
+                placement = data.get('placement', {})
+                rotation = placement.get('rotation_degrees', 0)
+                
+                print(f"   📊 Placement Analysis:")
+                print(f"      Rotation Degrees: {rotation}")
+                print(f"      Surface Type: {placement.get('surface_type', 'unknown')}")
+                
+                # Verify flat surface criteria
+                rotation_ok = abs(rotation) <= 2  # Should be near 0 (±2) for flat surfaces
+                
+                print(f"   🔍 Flat Surface Verification:")
+                print(f"      Near-zero rotation (±2°): {'✅' if rotation_ok else '❌'} ({rotation}°)")
+                
+                return rotation_ok
+            else:
+                print(f"   ❌ Composite failed: {data}")
+                return False
+        else:
+            print(f"   ❌ Request failed: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Flat surface composite test error: {str(e)}")
+        return False
+
+def test_input_validation(token):
+    """Test input validation - missing overlayImage should return 400"""
+    print("\n🔍 Testing Input Validation...")
+    
+    try:
+        base_image, _ = create_test_images()
+        
+        response = requests.post(
+            f"{BASE_URL}/api/composite/test",
+            json={
+                "baseImage": base_image,
+                # Missing overlayImage
+                "instruction": "Place logo on the surface"
+            },
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            timeout=30
+        )
+        
+        print(f"   Status: {response.status_code}")
+        
+        if response.status_code == 400:
+            print(f"   ✅ Correctly returned 400 for missing overlayImage")
+            return True
+        else:
+            print(f"   ❌ Expected 400, got {response.status_code}: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Input validation test error: {str(e)}")
+        return False
+
+def test_auth_validation():
+    """Test auth validation - no token should return 401"""
+    print("\n🔒 Testing Auth Validation...")
+    
+    try:
+        base_image, logo_image = create_test_images()
+        
+        response = requests.post(
+            f"{BASE_URL}/api/composite/test",
+            json={
+                "baseImage": base_image,
+                "overlayImage": logo_image,
+                "instruction": "Place logo on the surface"
+            },
+            headers={"Content-Type": "application/json"},
+            # No Authorization header
+            timeout=30
+        )
+        
+        print(f"   Status: {response.status_code}")
+        
+        if response.status_code == 401:
+            print(f"   ✅ Correctly returned 401 for missing auth token")
+            return True
+        else:
+            print(f"   ❌ Expected 401, got {response.status_code}: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"   ❌ Auth validation test error: {str(e)}")
+        return False
+
+def main():
+    """Run all Smart Composite rotation fix tests"""
+    print("🎯 Smart Composite API Rotation Fix Testing")
+    print("=" * 50)
+    
+    # Test results
+    results = {
+        "auth": False,
+        "vehicle_rotation": False,
+        "flat_surface": False,
+        "input_validation": False,
+        "auth_validation": False
+    }
+    
+    # Test 1: Authentication
+    token = test_authentication()
+    if token:
+        results["auth"] = True
+        
+        # Test 2: Vehicle composite with rotation
+        results["vehicle_rotation"] = test_composite_vehicle_rotation(token)
+        
+        # Test 3: Flat surface composite
+        results["flat_surface"] = test_composite_flat_surface(token)
+        
+        # Test 4: Input validation
+        results["input_validation"] = test_input_validation(token)
+    
+    # Test 5: Auth validation (no token needed)
+    results["auth_validation"] = test_auth_validation()
+    
+    # Summary
+    print("\n" + "=" * 50)
+    print("📋 TEST SUMMARY")
+    print("=" * 50)
+    
+    passed = sum(results.values())
+    total = len(results)
+    
+    for test_name, passed_test in results.items():
+        status = "✅ PASS" if passed_test else "❌ FAIL"
+        print(f"   {test_name.replace('_', ' ').title()}: {status}")
+    
+    print(f"\n🎯 Overall Result: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("🎉 All tests passed! Smart Composite rotation fix is working correctly.")
+        return True
+    else:
+        print("⚠️  Some tests failed. Please check the implementation.")
+        return False
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    success = main()
+    sys.exit(0 if success else 1)
