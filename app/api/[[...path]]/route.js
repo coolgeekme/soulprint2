@@ -3226,7 +3226,7 @@ Placement Guidelines:
     console.log('[SmartComposite] Trying Gemini Vision fallback...');
     try {
       const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${geminiApiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -8305,7 +8305,7 @@ async function handleChatStream(request) {
               }
               overlayBuffer = Buffer.from(ovB64, 'base64');
               
-              // Generate clean product base using DALL-E 3
+              // Generate clean product base using Flux Pro via Kie.ai (more reliable than DALL-E for specific subjects)
               // Strip logo-related parts from prompt to get a clean product description
               const cleanPrompt = sanitizedContent
                 .replace(/\b(with|using|featuring)\b.*\b(logo|design|attached|uploaded|sticker|decal)\b.*/gi, '')
@@ -8317,36 +8317,91 @@ async function handleChatStream(request) {
               
               const baseGenPrompt = `A photorealistic image of ${cleanPrompt || 'a product'}. No logos, no text, no graphics, no designs on the product. Clean and plain surfaces. Professional photography, good lighting. Front or 3/4 angle view.`;
               
-              console.log('[Composite] Generating clean base:', baseGenPrompt.substring(0, 120));
+              console.log('[Composite] Generating clean base:', baseGenPrompt.substring(0, 150));
               
-              const genOpenaiKey = process.env.OPENAI_API_KEY;
-              const genResponse = await fetch('https://api.openai.com/v1/images/generations', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${genOpenaiKey}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  model: 'dall-e-3',
-                  prompt: baseGenPrompt,
-                  n: 1,
-                  size: '1024x1024',
-                  quality: 'hd',
-                  style: 'natural',
-                }),
-              });
+              const genKieKey = process.env.KIE_API_KEY;
+              let baseImageUrl = null;
               
-              if (!genResponse.ok) {
-                const err = await genResponse.json().catch(() => ({}));
-                throw new Error('Failed to generate base image: ' + (err.error?.message || genResponse.status));
+              // Try Nano Banana first (via Kie.ai) — excellent for photorealistic subjects
+              if (genKieKey) {
+                try {
+                  const genRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${genKieKey}` },
+                    body: JSON.stringify({
+                      model: 'google/nano-banana',
+                      input: {
+                        prompt: baseGenPrompt,
+                        image_size: '1:1',
+                        output_format: 'png',
+                      }
+                    }),
+                  });
+                  
+                  const genTaskData = await genRes.json();
+                  console.log('[Composite] Nano Banana task:', genTaskData.data?.taskId || 'unknown');
+                  
+                  if (genTaskData.code === 200 && genTaskData.data?.taskId) {
+                    const taskId = genTaskData.data.taskId;
+                    const startTime = Date.now();
+                    while (Date.now() - startTime < 60000) {
+                      await new Promise(r => setTimeout(r, 3000));
+                      const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+                        headers: { 'Authorization': `Bearer ${genKieKey}` }
+                      });
+                      const statusData = await statusRes.json();
+                      if (statusData.code === 200 && statusData.data) {
+                        if (statusData.data.state === 'success') {
+                          const rj = JSON.parse(statusData.data.resultJson || '{}');
+                          baseImageUrl = rj?.resultUrls?.[0] || rj?.images?.[0]?.url || rj?.url;
+                          console.log('[Composite] Nano Banana success:', baseImageUrl?.substring(0, 80));
+                          break;
+                        } else if (statusData.data.state === 'fail') {
+                          console.log('[Composite] Nano Banana failed');
+                          break;
+                        }
+                      }
+                    }
+                  }
+                } catch (genModelErr) {
+                  console.log('[Composite] Nano Banana error:', genModelErr.message);
+                }
               }
               
-              const genData = await genResponse.json();
-              const baseUrl = genData.data?.[0]?.url;
-              if (!baseUrl) throw new Error('No base image generated');
+              // Fallback to DALL-E 3 if Flux failed
+              if (!baseImageUrl) {
+                console.log('[Composite] Trying DALL-E 3 fallback...');
+                const genOpenaiKey = process.env.OPENAI_API_KEY;
+                const genResponse = await fetch('https://api.openai.com/v1/images/generations', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${genOpenaiKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model: 'dall-e-3',
+                    prompt: baseGenPrompt,
+                    n: 1,
+                    size: '1024x1024',
+                    quality: 'hd',
+                    style: 'natural',
+                  }),
+                });
+                
+                if (genResponse.ok) {
+                  const genData = await genResponse.json();
+                  baseImageUrl = genData.data?.[0]?.url;
+                } else {
+                  const err = await genResponse.json().catch(() => ({}));
+                  console.log('[Composite] DALL-E 3 failed:', err.error?.message);
+                }
+              }
               
-              // IMMEDIATELY download and re-upload to persistent storage (DALL-E URLs expire!)
-              const baseResp = await fetch(baseUrl);
+              if (!baseImageUrl) throw new Error('Failed to generate base product image with any model');
+              
+              // Download the generated base image
+              const baseResp = await fetch(baseImageUrl);
+              if (!baseResp.ok) throw new Error('Failed to download generated base image');
               baseBuffer = Buffer.from(await baseResp.arrayBuffer());
               
               const kieKey = process.env.KIE_API_KEY;
@@ -8435,9 +8490,11 @@ async function handleChatStream(request) {
             }
             
             // ── Detect if this is a SWAP/REPLACE operation ──
-            // If user wants to swap existing logos, first clean the base image
-            const isSwapRequest = /\b(swap|replace|change|switch)\b.*\b(logo|image|graphic|design|text|brand)\b/i.test(sanitizedContent) ||
-              /\b(logo|image|graphic|design|text|brand)\b.*\b(swap|replace|change|switch|with)\b/i.test(sanitizedContent);
+            // Only swap on EXISTING images (not freshly generated ones which are already clean)
+            const isSwapRequest = !isGenerateAndComposite && (
+              /\b(swap|replace|change|switch)\b.*\b(logo|image|graphic|design|text|brand)\b/i.test(sanitizedContent) ||
+              /\b(logo|image|graphic|design|text|brand)\b.*\b(swap|replace|change|switch|with)\b/i.test(sanitizedContent)
+            );
             
             if (isSwapRequest) {
               console.log('[Composite] Swap detected — cleaning base image of existing logos first');
