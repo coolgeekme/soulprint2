@@ -3108,6 +3108,188 @@ async function handleMockupGenerateInternal(userId, design, product) {
   }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GEMINI NATIVE COMPOSITE: Uses Gemini's image generation to create
+// photorealistic composites. The AI handles placement, blending, lighting,
+// fabric texture, and perspective naturally — far superior to programmatic.
+// ═══════════════════════════════════════════════════════════════════════════
+async function handleGeminiComposite(sharp, basePng, overlayPng, userInstruction, geminiApiKey, kieKey) {
+  // Prepare images for Gemini — optimize size for API limits
+  const baseForGemini = await sharp(basePng)
+    .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+  
+  const logoForGemini = await sharp(overlayPng)
+    .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+    .png()
+    .toBuffer();
+  
+  console.log('[GeminiComposite] Base:', baseForGemini.length, 'bytes | Logo:', logoForGemini.length, 'bytes');
+  
+  // Build a descriptive prompt based on user instruction
+  const isReplace = /\b(swap|replace|change|switch)\b/i.test(userInstruction);
+  const isFabric = /\b(t-?shirt|shirt|hoodie|jacket|jersey|sweater|clothing|apparel|fabric|garment)\b/i.test(userInstruction);
+  const isVehicle = /\b(van|car|truck|vehicle|bus|minivan|suv|door)\b/i.test(userInstruction);
+  
+  let geminiPrompt;
+  
+  if (isReplace && isFabric) {
+    geminiPrompt = `Edit the first image (the photo) by replacing the existing designs/logos/graphics on the clothing with the logo from the second image.
+
+User's request: "${userInstruction}"
+
+Requirements:
+- Replace ALL existing printed designs, logos, or graphics on the clothing with the provided logo
+- The logo must look naturally screen-printed on the fabric — follow wrinkles, folds, and contours
+- Match the original photo's lighting, colors, shadows, and atmosphere EXACTLY  
+- On light/white fabric: use the dark version of the logo
+- On dark fabric: use a lighter/inverted version of the logo for visibility
+- Size each logo to match approximately the size of the original design it replaces
+- Keep EVERYTHING else in the photo identical (people, environment, objects, background)
+- The result should look like a real photograph, not a digital edit`;
+  } else if (isFabric) {
+    geminiPrompt = `Edit the first image (the photo) by adding the logo from the second image onto the clothing.
+
+User's request: "${userInstruction}"
+
+Requirements:
+- Place the logo naturally on the clothing as specified by the user
+- The logo must look naturally screen-printed on the fabric — follow wrinkles, folds, and contours
+- Match the photo's lighting, colors, and atmosphere
+- On light fabric: use the dark version of the logo
+- On dark fabric: use a lighter version for visibility
+- Keep everything else in the photo identical
+- The result should look like a real photograph`;
+  } else if (isVehicle) {
+    geminiPrompt = `Edit the first image (the photo) by adding/placing the logo from the second image onto the vehicle.
+
+User's request: "${userInstruction}"
+
+Requirements:
+- Place the logo on the vehicle surface as specified
+- Match the vehicle's surface angle, perspective, and lighting
+- The logo should look like a real vinyl decal or paint job
+- Preserve everything else in the photo
+- The result should look photorealistic`;
+  } else {
+    geminiPrompt = `Edit the first image by compositing the logo/design from the second image onto it.
+
+User's request: "${userInstruction}"
+
+Requirements:
+- Place the logo as specified by the user
+- Make it look naturally integrated — match lighting, perspective, and surface texture
+- Keep everything else in the image identical
+- The result should look photorealistic, not like a digital paste`;
+  }
+  
+  // Try multiple Gemini image models in order of quality
+  const modelsToTry = [
+    'gemini-2.5-flash-image',
+    'gemini-3.1-flash-image-preview',
+    'gemini-3-pro-image-preview',
+  ];
+  
+  for (const model of modelsToTry) {
+    console.log('[GeminiComposite] Trying model:', model);
+    
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: geminiPrompt },
+                { inline_data: { mime_type: 'image/jpeg', data: baseForGemini.toString('base64') } },
+                { inline_data: { mime_type: 'image/png', data: logoForGemini.toString('base64') } }
+              ]
+            }],
+            generationConfig: {
+              responseModalities: ['TEXT', 'IMAGE'],
+              temperature: 0.2,
+            }
+          })
+        }
+      );
+      
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        console.log('[GeminiComposite]', model, 'failed:', res.status, errBody.substring(0, 200));
+        continue;
+      }
+      
+      const data = await res.json();
+      const parts = data.candidates?.[0]?.content?.parts || [];
+      
+      let generatedImage = null;
+      let textResponse = '';
+      
+      for (const part of parts) {
+        if (part.text) textResponse = part.text;
+        if (part.inlineData && part.inlineData.data) {
+          generatedImage = Buffer.from(part.inlineData.data, 'base64');
+        }
+      }
+      
+      if (!generatedImage) {
+        console.log('[GeminiComposite]', model, '- no image in response. Text:', textResponse.substring(0, 200));
+        continue;
+      }
+      
+      console.log('[GeminiComposite]', model, 'generated image:', generatedImage.length, 'bytes');
+      
+      // Upload to storage
+      let resultUrl = null;
+      if (kieKey) {
+        try {
+          const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
+            body: JSON.stringify({
+              base64Data: `data:image/png;base64,${generatedImage.toString('base64')}`,
+              uploadPath: 'soulprint/composites',
+              fileName: `gemini_composite_${Date.now()}.png`
+            }),
+          });
+          if (upRes.ok) {
+            const d = await upRes.json();
+            if (d.success && d.data?.downloadUrl) {
+              resultUrl = d.data.downloadUrl;
+              console.log('[GeminiComposite] Uploaded to:', resultUrl);
+            }
+          }
+        } catch (e) {
+          console.log('[GeminiComposite] Upload failed:', e.message);
+        }
+      }
+      
+      if (!resultUrl) {
+        resultUrl = `data:image/png;base64,${generatedImage.toString('base64')}`;
+      }
+      
+      return {
+        success: true,
+        url: resultUrl,
+        placement: [{ target_description: 'Gemini AI composite', surface_type: 'auto' }],
+        method: 'gemini-native-composite',
+        model: model,
+      };
+      
+    } catch (modelErr) {
+      console.log('[GeminiComposite]', model, 'error:', modelErr.message);
+      continue;
+    }
+  }
+  
+  // All models failed
+  return null;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SMART COMPOSITE: AI-guided placement + programmatic pixel-perfect overlay
 // The AI NEVER touches logo pixels — it only provides placement intelligence
@@ -3116,10 +3298,9 @@ async function handleSmartComposite(baseBuffer, overlayBuffer, overlayMime, user
   const sharp = (await import('sharp')).default;
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const kieKey = process.env.KIE_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
   
-  if (!openaiApiKey) throw new Error('OpenAI API key required for compositing');
-  
-  // Normalize both images to PNG to avoid MIME type issues with AI APIs
+  // Normalize both images to PNG
   const basePng = await sharp(baseBuffer).png().toBuffer();
   const overlayPng = await sharp(overlayBuffer).ensureAlpha().png().toBuffer();
   
@@ -3128,6 +3309,33 @@ async function handleSmartComposite(baseBuffer, overlayBuffer, overlayMime, user
   
   console.log('[SmartComposite] Base:', baseMeta.width, 'x', baseMeta.height);
   console.log('[SmartComposite] Logo:', overlayMeta.width, 'x', overlayMeta.height);
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // PRIMARY: Gemini Native Image Compositing
+  // Gemini generates the entire composite — handles placement, blending,
+  // lighting, fabric texture, and perspective naturally
+  // ═══════════════════════════════════════════════════════════════════
+  if (geminiApiKey) {
+    console.log('[SmartComposite] Attempting Gemini native compositing...');
+    try {
+      const geminiResult = await handleGeminiComposite(sharp, basePng, overlayPng, userInstruction, geminiApiKey, kieKey);
+      if (geminiResult && geminiResult.success) {
+        console.log('[SmartComposite] Gemini compositing SUCCESS');
+        return geminiResult;
+      }
+      console.log('[SmartComposite] Gemini compositing returned no result, falling back to programmatic...');
+    } catch (gemErr) {
+      console.log('[SmartComposite] Gemini compositing failed:', gemErr.message, '- falling back to programmatic...');
+    }
+  }
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // FALLBACK: Programmatic Sharp-based compositing
+  // Used when Gemini is unavailable or fails
+  // ═══════════════════════════════════════════════════════════════════
+  console.log('[SmartComposite] Using programmatic (sharp) compositing pipeline...');
+  
+  if (!openaiApiKey) throw new Error('OpenAI API key required for compositing');
   
   // Create analysis versions — use 1024px for better detail detection
   const analysisMaxDim = 1024;
@@ -3257,7 +3465,7 @@ IMPORTANT: Return 1 placement if there's 1 target, or MULTIPLE placements if the
   let placements = [];
   
   // Try GPT-4o Vision analysis first, then Gemini as fallback
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  // (geminiApiKey already defined at function top level)
   
   // Attempt 1: GPT-4o Vision with high detail for better scene understanding
   try {
@@ -8861,7 +9069,8 @@ async function handleChatStream(request) {
               const placementInfo = compositeResult.placement;
               const placementCount = Array.isArray(placementInfo) ? placementInfo.length : 1;
               const surfaceType = Array.isArray(placementInfo) ? (placementInfo[0]?.surface_type || 'auto') : (placementInfo?.surface_type || 'auto');
-              fullContent = `![Composited Image](${compositeResult.url})\n\n🎨 *Your design has been composited onto the image!*\n*${placementCount > 1 ? placementCount + ' placements' : 'Surface: ' + surfaceType} | Method: pixel-perfect overlay*`;
+              const methodLabel = compositeResult.method === 'gemini-native-composite' ? 'AI-native blend' : 'pixel-perfect overlay';
+              fullContent = `![Composited Image](${compositeResult.url})\n\n🎨 *Your design has been composited onto the image!*\n*${placementCount > 1 ? placementCount + ' placements' : 'Surface: ' + surfaceType} | Method: ${methodLabel}*`;
               send({ type: 'image', url: compositeResult.url, revised_prompt: sanitizedContent, contentType: 'composite' });
               send({ type: 'delta', content: fullContent });
             } else {
