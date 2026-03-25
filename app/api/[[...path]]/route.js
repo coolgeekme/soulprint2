@@ -3119,8 +3119,12 @@ async function handleSmartComposite(baseBuffer, overlayBuffer, overlayMime, user
   
   if (!openaiApiKey) throw new Error('OpenAI API key required for compositing');
   
-  const baseMeta = await sharp(baseBuffer).metadata();
-  const overlayMeta = await sharp(overlayBuffer).metadata();
+  // Normalize both images to PNG to avoid MIME type issues with AI APIs
+  const basePng = await sharp(baseBuffer).png().toBuffer();
+  const overlayPng = await sharp(overlayBuffer).ensureAlpha().png().toBuffer();
+  
+  const baseMeta = await sharp(basePng).metadata();
+  const overlayMeta = await sharp(overlayPng).metadata();
   
   console.log('[SmartComposite] Base:', baseMeta.width, 'x', baseMeta.height);
   console.log('[SmartComposite] Logo:', overlayMeta.width, 'x', overlayMeta.height);
@@ -3170,8 +3174,8 @@ Placement Guidelines:
           role: 'user',
           content: [
             { type: 'text', text: `User request: "${userInstruction}"\n\nImage 1 = BASE IMAGE (where logo goes).\nImage 2 = LOGO/DESIGN (to be placed on the base).\n\n${analysisPrompt}` },
-            { type: 'image_url', image_url: { url: `data:image/png;base64,${baseBuffer.toString('base64')}`, detail: 'high' } },
-            { type: 'image_url', image_url: { url: `data:${overlayMime};base64,${overlayBuffer.toString('base64')}`, detail: 'high' } }
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${basePng.toString('base64')}`, detail: 'high' } },
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${overlayPng.toString('base64')}`, detail: 'high' } }
           ]
         }],
         max_tokens: 500,
@@ -3198,7 +3202,7 @@ Placement Guidelines:
     console.log('[SmartComposite] Trying Gemini Vision fallback...');
     try {
       const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -3206,8 +3210,8 @@ Placement Guidelines:
             contents: [{
               parts: [
                 { text: `User request: "${userInstruction}"\n\nImage 1 = BASE IMAGE (where the logo should be placed).\nImage 2 = LOGO/DESIGN (to be placed on the base image).\n\n${analysisPrompt}` },
-                { inline_data: { mime_type: 'image/png', data: baseBuffer.toString('base64') } },
-                { inline_data: { mime_type: overlayMime || 'image/png', data: overlayBuffer.toString('base64') } }
+                { inline_data: { mime_type: 'image/png', data: basePng.toString('base64') } },
+                { inline_data: { mime_type: 'image/png', data: overlayPng.toString('base64') } }
               ]
             }],
             generationConfig: {
@@ -3236,55 +3240,67 @@ Placement Guidelines:
     }
   }
   
-  // Fallback: Smart defaults based on instruction keywords (when GPT-4o unavailable)
+  // Fallback: Smart defaults based on instruction keywords (when GPT-4o and Gemini both unavailable)
   if (!placementData || typeof placementData.x_percent !== 'number') {
     console.log('[SmartComposite] Using smart keyword-based placement defaults');
     const instr = userInstruction.toLowerCase();
     
-    // Detect surface type from keywords
+    // Detect surface type from keywords — check instruction AND consider common scenarios
     let surfaceType = 'flat';
-    let xp = 25, yp = 20, wp = 50, hp = 40, rot = 0, opacity = 1.0;
+    let xp = 30, yp = 25, wp = 30, hp = 25, rot = 0, opacity = 1.0;
     
-    if (/t-?shirt|hoodie|sweater|jacket|jersey|clothing|apparel|garment|dress/i.test(instr)) {
+    if (/t-?shirt|hoodie|sweater|jacket|jersey|clothing|apparel|garment|dress|shirt/i.test(instr)) {
       surfaceType = 'fabric';
-      xp = 30; yp = 25; wp = 40; hp = 35; // Center chest area
+      xp = 30; yp = 30; wp = 35; hp = 25; // Center chest area
     } else if (/mug|cup|glass|bottle|can|tumbler/i.test(instr)) {
       surfaceType = 'curved';
-      xp = 25; yp = 20; wp = 50; hp = 45; rot = 0;
-    } else if (/van|car|truck|vehicle|bus|minivan|suv/i.test(instr)) {
+      xp = 25; yp = 25; wp = 40; hp = 35;
+    } else if (/van|car|truck|vehicle|bus|minivan|suv|door\s*panel|fender|hood|bumper|windshield/i.test(instr)) {
       surfaceType = 'vehicle';
-      xp = 30; yp = 25; wp = 35; hp = 30;
+      xp = 15; yp = 30; wp = 25; hp = 20;
     } else if (/bag|tote|backpack|purse/i.test(instr)) {
       surfaceType = 'fabric';
-      xp = 25; yp = 20; wp = 50; hp = 45;
+      xp = 25; yp = 20; wp = 40; hp = 35;
     } else if (/box|package|card|paper|poster|sign|banner|billboard/i.test(instr)) {
       surfaceType = 'flat';
-      xp = 20; yp = 15; wp = 60; hp = 50;
+      xp = 20; yp = 15; wp = 50; hp = 40;
     } else if (/phone|case|cover|laptop|tablet/i.test(instr)) {
       surfaceType = 'flat';
-      xp = 20; yp = 20; wp = 60; hp = 50;
+      xp = 20; yp = 20; wp = 50; hp = 40;
     } else if (/wall|door|window/i.test(instr)) {
       surfaceType = 'flat';
-      xp = 25; yp = 20; wp = 50; hp = 40;
+      xp = 25; yp = 20; wp = 40; hp = 35;
     }
     
     // Position adjustments based on specific location keywords
     if (/center|middle|centered/i.test(instr)) {
-      xp = 30; yp = 25;
-    } else if (/top|upper/i.test(instr)) {
+      xp = 35; yp = 30;
+    } else if (/\btop\b|upper/i.test(instr)) {
       yp = 5;
     } else if (/bottom|lower/i.test(instr)) {
-      yp = 60;
-    } else if (/left/i.test(instr)) {
+      yp = 65;
+    } else if (/\bleft\b/i.test(instr)) {
       xp = 5;
-    } else if (/right/i.test(instr)) {
-      xp = 55;
+    } else if (/\bright\b/i.test(instr)) {
+      xp = 60;
     }
-    if (/side|door panel/i.test(instr) && surfaceType === 'vehicle') {
-      xp = 35; yp = 30; wp = 30; hp = 25;
+    // Vehicle-specific location adjustments
+    if (/driver.*side|driver.*door/i.test(instr)) {
+      xp = 10; yp = 30; wp = 20; hp = 18;
+    } else if (/passenger.*side|passenger.*door/i.test(instr)) {
+      xp = 60; yp = 30; wp = 20; hp = 18;
+    } else if (/side.*door|door.*panel|front.*door/i.test(instr)) {
+      surfaceType = 'vehicle';
+      xp = 15; yp = 30; wp = 20; hp = 18;
     }
     if (/chest/i.test(instr)) {
-      xp = 30; yp = 25; wp = 40; hp = 35;
+      xp = 30; yp = 25; wp = 35; hp = 25;
+    }
+    if (/\bsmall\b/i.test(instr)) {
+      wp = Math.max(10, wp - 10); hp = Math.max(8, hp - 8);
+    }
+    if (/\blarge\b|\bbig\b/i.test(instr)) {
+      wp = Math.min(60, wp + 10); hp = Math.min(50, hp + 10);
     }
     
     placementData = {
@@ -3307,11 +3323,11 @@ Placement Guidelines:
   placementData.rotation_degrees = Math.max(-45, Math.min(45, placementData.rotation_degrees || 0));
   
   // ── Step 2: Process the logo — remove background if needed ──
-  let processedLogo = overlayBuffer;
+  let processedLogo = overlayPng;
   
   if (placementData.remove_background && placementData.background_color !== 'none') {
     try {
-      const { data, info } = await sharp(overlayBuffer)
+      const { data, info } = await sharp(overlayPng)
         .ensureAlpha()
         .raw()
         .toBuffer({ resolveWithObject: true });
@@ -3371,10 +3387,10 @@ Placement Guidelines:
       console.log('[SmartComposite] Background removed (bg color:', bgR, bgG, bgB, ')');
     } catch (bgErr) {
       console.log('[SmartComposite] Background removal failed:', bgErr.message, '- using original');
-      processedLogo = await sharp(overlayBuffer).ensureAlpha().png().toBuffer();
+      processedLogo = await sharp(overlayPng).ensureAlpha().png().toBuffer();
     }
   } else {
-    processedLogo = await sharp(overlayBuffer).ensureAlpha().png().toBuffer();
+    processedLogo = await sharp(overlayPng).ensureAlpha().png().toBuffer();
   }
   
   // ── Step 3: Calculate actual pixel coordinates and resize logo ──
@@ -3478,7 +3494,7 @@ Placement Guidelines:
     blend: 'over',
   });
   
-  const result = await sharp(baseBuffer)
+  const result = await sharp(basePng)
     .composite(compositeOps)
     .png()
     .toBuffer();
@@ -8288,10 +8304,13 @@ async function handleChatStream(request) {
               send({ type: 'delta', content: '🧹 Removing existing logos from the image first...\n\n' });
               
               try {
+                const swapOpenaiKey = process.env.OPENAI_API_KEY;
+                if (!swapOpenaiKey) throw new Error('OpenAI API key required for logo removal');
+                
                 // Use GPT-image-1 to erase existing logos/text from the base image
                 const OpenAI = (await import('openai')).default;
                 const { toFile } = await import('openai/uploads');
-                const openai = new OpenAI({ apiKey: openaiApiKey });
+                const openai = new OpenAI({ apiKey: swapOpenaiKey });
                 
                 const baseFile = await toFile(baseBuffer, 'base.png', { type: 'image/png' });
                 
