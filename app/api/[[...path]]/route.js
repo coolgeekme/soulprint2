@@ -3129,6 +3129,19 @@ async function handleSmartComposite(baseBuffer, overlayBuffer, overlayMime, user
   console.log('[SmartComposite] Base:', baseMeta.width, 'x', baseMeta.height);
   console.log('[SmartComposite] Logo:', overlayMeta.width, 'x', overlayMeta.height);
   
+  // Create smaller versions for AI analysis (saves tokens and avoids timeouts)
+  const analysisMaxDim = 512;
+  const baseForAnalysis = await sharp(basePng)
+    .resize(analysisMaxDim, analysisMaxDim, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 70 })
+    .toBuffer();
+  const overlayForAnalysis = await sharp(overlayPng)
+    .resize(analysisMaxDim, analysisMaxDim, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 70 })
+    .toBuffer();
+  
+  console.log('[SmartComposite] Analysis images:', baseForAnalysis.length, 'bytes,', overlayForAnalysis.length, 'bytes');
+  
   // ── Step 1: GPT-4o Vision — Analyze base image and get precise placement JSON ──
   const analysisPrompt = `You are a product mockup placement expert. Given a BASE IMAGE and a LOGO/DESIGN image, determine EXACTLY where and how to place the logo onto the base image.
 
@@ -3174,8 +3187,8 @@ Placement Guidelines:
           role: 'user',
           content: [
             { type: 'text', text: `User request: "${userInstruction}"\n\nImage 1 = BASE IMAGE (where logo goes).\nImage 2 = LOGO/DESIGN (to be placed on the base).\n\n${analysisPrompt}` },
-            { type: 'image_url', image_url: { url: `data:image/png;base64,${basePng.toString('base64')}`, detail: 'high' } },
-            { type: 'image_url', image_url: { url: `data:image/png;base64,${overlayPng.toString('base64')}`, detail: 'high' } }
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${baseForAnalysis.toString('base64')}`, detail: 'low' } },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${overlayForAnalysis.toString('base64')}`, detail: 'low' } }
           ]
         }],
         max_tokens: 500,
@@ -3184,14 +3197,25 @@ Placement Guidelines:
       })
     });
     
+    const rawBody = await analysisRes.text();
     if (analysisRes.ok) {
-      const d = await analysisRes.json();
-      const rawText = d.choices?.[0]?.message?.content || '';
-      placementData = JSON.parse(rawText);
-      console.log('[SmartComposite] GPT-4o placement:', JSON.stringify(placementData));
+      try {
+        const d = JSON.parse(rawBody);
+        const rawText = d.choices?.[0]?.message?.content || '';
+        if (rawText) {
+          placementData = JSON.parse(rawText);
+          console.log('[SmartComposite] GPT-4o placement:', JSON.stringify(placementData));
+        }
+      } catch (parseErr) {
+        console.log('[SmartComposite] GPT-4o parse error:', parseErr.message, '| Raw:', rawBody.substring(0, 200));
+      }
     } else {
-      const errData = await analysisRes.json().catch(() => ({}));
-      console.log('[SmartComposite] GPT-4o failed:', errData.error?.message || analysisRes.status);
+      try {
+        const errData = JSON.parse(rawBody);
+        console.log('[SmartComposite] GPT-4o failed:', errData.error?.message || analysisRes.status);
+      } catch (e) {
+        console.log('[SmartComposite] GPT-4o failed:', analysisRes.status, rawBody.substring(0, 200));
+      }
     }
   } catch (e) {
     console.log('[SmartComposite] GPT-4o error:', e.message);
@@ -3210,8 +3234,8 @@ Placement Guidelines:
             contents: [{
               parts: [
                 { text: `User request: "${userInstruction}"\n\nImage 1 = BASE IMAGE (where the logo should be placed).\nImage 2 = LOGO/DESIGN (to be placed on the base image).\n\n${analysisPrompt}` },
-                { inline_data: { mime_type: 'image/png', data: basePng.toString('base64') } },
-                { inline_data: { mime_type: 'image/png', data: overlayPng.toString('base64') } }
+                { inline_data: { mime_type: 'image/jpeg', data: baseForAnalysis.toString('base64') } },
+                { inline_data: { mime_type: 'image/jpeg', data: overlayForAnalysis.toString('base64') } }
               ]
             }],
             generationConfig: {
@@ -3224,16 +3248,28 @@ Placement Guidelines:
       );
       
       if (geminiRes.ok) {
-        const geminiData = await geminiRes.json();
-        const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        const parsed = JSON.parse(rawText);
-        if (typeof parsed.x_percent === 'number') {
-          placementData = parsed;
-          console.log('[SmartComposite] Gemini placement:', JSON.stringify(placementData));
+        const geminiRawBody = await geminiRes.text();
+        try {
+          const geminiData = JSON.parse(geminiRawBody);
+          const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (rawText) {
+            const parsed = JSON.parse(rawText);
+            if (typeof parsed.x_percent === 'number') {
+              placementData = parsed;
+              console.log('[SmartComposite] Gemini placement:', JSON.stringify(placementData));
+            }
+          }
+        } catch (parseErr) {
+          console.log('[SmartComposite] Gemini parse error:', parseErr.message, '| Raw:', geminiRawBody.substring(0, 200));
         }
       } else {
-        const errData = await geminiRes.json().catch(() => ({}));
-        console.log('[SmartComposite] Gemini failed:', errData.error?.message || geminiRes.status);
+        const errBody = await geminiRes.text().catch(() => '');
+        try {
+          const errData = JSON.parse(errBody);
+          console.log('[SmartComposite] Gemini failed:', errData.error?.message || geminiRes.status);
+        } catch (e) {
+          console.log('[SmartComposite] Gemini failed:', geminiRes.status, errBody.substring(0, 200));
+        }
       }
     } catch (e) {
       console.log('[SmartComposite] Gemini error:', e.message);
@@ -8219,18 +8255,27 @@ async function handleChatStream(request) {
         );
         const hasTwoImageAttachments = imageAttachments.length >= 2;
         
+        // NEW: Detect "generate + composite" — user uploads logo AND asks to generate a product with it
+        // e.g., "generate a blue minivan with my logo on the door"
+        const hasGenerateIntent = /\b(generate|create|make|design|produce|render)\b.*\b(image|picture|photo|mockup)\b/i.test(sanitizedContent) ||
+          /\b(generate|create|make)\b.*\b(with|using|featuring)\b.*\b(logo|design|attached|uploaded)\b/i.test(sanitizedContent) ||
+          /\b(generate|create|make)\b.*\b(of|a)\b.*\b(with the|with my|with attached|with uploaded)\b/i.test(sanitizedContent);
+        const isGenerateAndComposite = hasImageAttachment && !lastImageUrlInConversation && !hasTwoImageAttachments &&
+          hasGenerateIntent && compositePatterns.some(p => p.test(sanitizedContent));
+        
         const isCompositeRequest = (hasImageAttachment && lastImageUrlInConversation && 
           compositePatterns.some(p => p.test(sanitizedContent))) ||
-          (hasTwoImageAttachments && compositePatterns.some(p => p.test(sanitizedContent)));
+          (hasTwoImageAttachments && compositePatterns.some(p => p.test(sanitizedContent))) ||
+          isGenerateAndComposite;
         
         if (isCompositeRequest) {
           console.log('[Composite] Detected composite request');
           console.log('[Composite] Has two attachments:', hasTwoImageAttachments);
+          console.log('[Composite] Generate+Composite:', isGenerateAndComposite);
           console.log('[Composite] Conversation image:', lastImageUrlInConversation?.substring(0, 80) || 'none');
           console.log('[Composite] Instruction:', sanitizedContent.substring(0, 100));
           
           send({ type: 'generating_visual', visualType: 'edit' });
-          send({ type: 'delta', content: '🎨 Compositing your design onto the image — your logo will be preserved pixel-perfect...\n\n' });
           
           try {
             // Determine base and overlay sources
@@ -8238,7 +8283,97 @@ async function handleChatStream(request) {
             let overlayBuffer = null;
             let overlayMime = 'image/png';
             
-            if (hasTwoImageAttachments) {
+            if (isGenerateAndComposite) {
+              // ── GENERATE + COMPOSITE: User uploads logo + asks to generate a product ──
+              // Step 1: Extract the product description from the user's message
+              // Step 2: Generate a CLEAN product image (no logo)
+              // Step 3: Composite the uploaded logo onto it
+              
+              send({ type: 'delta', content: '🎨 Generating your product image first, then compositing your exact logo onto it...\n\n' });
+              
+              const overlayAttachment = imageAttachments[0];
+              let ovB64 = overlayAttachment.base64 || overlayAttachment.data;
+              overlayMime = overlayAttachment.type || 'image/png';
+              if (ovB64 && ovB64.startsWith('data:')) {
+                const m = ovB64.match(/^data:([^;]+);base64,(.+)$/);
+                if (m) { overlayMime = m[1]; ovB64 = m[2]; }
+              }
+              if (!ovB64 && overlayAttachment.url) {
+                const r = await fetch(overlayAttachment.url);
+                ovB64 = Buffer.from(await r.arrayBuffer()).toString('base64');
+                overlayMime = r.headers.get('content-type') || 'image/png';
+              }
+              overlayBuffer = Buffer.from(ovB64, 'base64');
+              
+              // Generate clean product base using DALL-E 3
+              // Strip logo-related parts from prompt to get a clean product description
+              const cleanPrompt = sanitizedContent
+                .replace(/\b(with|using|featuring)\b.*\b(logo|design|attached|uploaded|sticker|decal)\b.*/gi, '')
+                .replace(/\b(place|put|add|attach|stick)\b.*\b(logo|design|attached|uploaded)\b.*/gi, '')
+                .replace(/\b(attached|uploaded)\b.*$/gi, '')
+                .replace(/\[\+?\d+\s*attachment.*\]/gi, '')
+                .replace(/generate\s+(an?\s+)?image\s+(of\s+)?/i, '')
+                .trim();
+              
+              const baseGenPrompt = `A photorealistic image of ${cleanPrompt || 'a product'}. No logos, no text, no graphics, no designs on the product. Clean and plain surfaces. Professional photography, good lighting. Front or 3/4 angle view.`;
+              
+              console.log('[Composite] Generating clean base:', baseGenPrompt.substring(0, 120));
+              
+              const genOpenaiKey = process.env.OPENAI_API_KEY;
+              const genResponse = await fetch('https://api.openai.com/v1/images/generations', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${genOpenaiKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  model: 'dall-e-3',
+                  prompt: baseGenPrompt,
+                  n: 1,
+                  size: '1024x1024',
+                  quality: 'hd',
+                  style: 'natural',
+                }),
+              });
+              
+              if (!genResponse.ok) {
+                const err = await genResponse.json().catch(() => ({}));
+                throw new Error('Failed to generate base image: ' + (err.error?.message || genResponse.status));
+              }
+              
+              const genData = await genResponse.json();
+              const baseUrl = genData.data?.[0]?.url;
+              if (!baseUrl) throw new Error('No base image generated');
+              
+              // IMMEDIATELY download and re-upload to persistent storage (DALL-E URLs expire!)
+              const baseResp = await fetch(baseUrl);
+              baseBuffer = Buffer.from(await baseResp.arrayBuffer());
+              
+              const kieKey = process.env.KIE_API_KEY;
+              if (kieKey) {
+                try {
+                  const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
+                    body: JSON.stringify({
+                      base64Data: `data:image/png;base64,${baseBuffer.toString('base64')}`,
+                      uploadPath: 'soulprint/generated',
+                      fileName: `base_${Date.now()}.png`
+                    }),
+                  });
+                  if (upRes.ok) {
+                    const d = await upRes.json();
+                    if (d.success && d.data?.downloadUrl) {
+                      console.log('[Composite] Base image persisted to:', d.data.downloadUrl);
+                    }
+                  }
+                } catch (e) { /* persistence is best-effort */ }
+              }
+              
+              console.log('[Composite] Clean base generated, compositing logo...');
+              send({ type: 'delta', content: '✅ Product image generated. Now placing your logo...\n\n' });
+              
+            } else if (hasTwoImageAttachments) {
               // Two attachments: first = base, second = logo/overlay
               const baseAttachment = imageAttachments[0];
               const overlayAttachment = imageAttachments[1];
@@ -8285,9 +8420,14 @@ async function handleChatStream(request) {
               }
               overlayBuffer = Buffer.from(ovB64, 'base64');
               
-              // Fetch base from conversation
+              // Fetch base from conversation (handle expired URLs gracefully)
               const baseResp = await fetch(lastImageUrlInConversation);
+              if (!baseResp.ok) {
+                throw new Error(`Base image is no longer accessible (HTTP ${baseResp.status}). The original image URL may have expired. Please generate a new image first.`);
+              }
               baseBuffer = Buffer.from(await baseResp.arrayBuffer());
+              
+              send({ type: 'delta', content: '🎨 Compositing your design onto the image — your logo will be preserved pixel-perfect...\n\n' });
             }
             
             if (!baseBuffer || !overlayBuffer) {
@@ -8635,6 +8775,37 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             }
             
             console.log(`[Image Generation] Final success with ${usedModel}! URL:`, imageUrl.substring(0, 80) + '...');
+            
+            // ── Persist image to permanent storage (DALL-E URLs expire!) ──
+            if (imageUrl.includes('oaidalleapiprodscus') || imageUrl.includes('openai.com') || imageUrl.includes('blob.core.windows.net')) {
+              const persistKieKey = process.env.KIE_API_KEY;
+              if (persistKieKey) {
+                try {
+                  const imgResp = await fetch(imageUrl);
+                  if (imgResp.ok) {
+                    const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+                    const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${persistKieKey}` },
+                      body: JSON.stringify({
+                        base64Data: `data:image/png;base64,${imgBuf.toString('base64')}`,
+                        uploadPath: 'soulprint/generated',
+                        fileName: `gen_${Date.now()}.png`
+                      }),
+                    });
+                    if (upRes.ok) {
+                      const upData = await upRes.json();
+                      if (upData.success && upData.data?.downloadUrl) {
+                        console.log('[Image Generation] Persisted to:', upData.data.downloadUrl);
+                        imageUrl = upData.data.downloadUrl; // Use persistent URL
+                      }
+                    }
+                  }
+                } catch (persistErr) {
+                  console.log('[Image Generation] Persistence failed:', persistErr.message, '— using original URL');
+                }
+              }
+            }
 
             // Customize the output message based on content type
             const contentTypeLabel = isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'image');
