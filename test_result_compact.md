@@ -109,8 +109,6 @@ agent_communication:
     message: "GEMINI IMAGE EDITING + INLINE EDITOR: (1) Backend: Added Gemini as primary editor (METHOD 0) in handleImageEditInternal before GPT-image-1. Updated /api/image/edit to support overlayImage parameter. (2) Frontend: Rewrote ImageEditor component with file upload for logos, mobile-responsive layout, text editing. Edit button visible on mobile. (3) Loading animation for compositing. Need to test: POST /api/image/edit with Gemini as default engine, overlay image support."
   - agent: "main"
     message: "SESSION RESTART: Trimmed test_result.md to fix testing subagent context length crash. All previous test results preserved in compact form. Ready for backend testing of image/edit and composite endpoints. Auth: test@soulprint.com/test123"
-  - agent: "testing"
-    message: "BACKEND TESTING COMPLETE: All critical image editing endpoints working perfectly. ✅ POST /api/image/edit (text-based) using Gemini as primary engine (METHOD 0). ✅ POST /api/image/edit with overlayImage using composite pipeline. ✅ POST /api/composite/test direct endpoint. Authentication, validation, and Gemini integration all working correctly. No major issues found."
 
 backend:
   - task: "Smart Composite API Overhaul (POST /api/composite/test)"
@@ -696,10 +694,6 @@ backend:
     stuck_count: 0
     priority: "high"
     needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "TESTED: Text-based image editing working with Gemini as primary engine (METHOD 0). Method: gemini-gemini-2.5-flash-image. Overlay image support working via composite pipeline (Method: gemini-native-composite). Authentication and validation working correctly."
 
   - task: "Admin User Details API (GET /api/admin/users/:userId)"
     implemented: true
@@ -868,10 +862,6 @@ backend:
     stuck_count: 0
     priority: "high"
     needs_retesting: false
-    status_history:
-      - working: true
-        agent: "testing"
-        comment: "TESTED: Direct composite endpoint working correctly. Accepts base64 images and URLs. Returns {success: true, url} as expected. Authentication and validation working. Gemini native compositing successful."
 
   - task: "Chat Stream Composite Detection (POST /api/chat/stream with attachments)"
     implemented: true
@@ -983,44 +973,3 @@ test_plan:
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
-
-# Backend Testing Results - Image Edit and Smart Composite Endpoints
-
-## Testing Summary (Latest)
-- **Date**: 2025-01-27
-- **Endpoints Tested**: POST /api/image/edit, POST /api/composite/test
-- **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://ai-image-craft-18.preview.emergentagent.com
-
-## Test Results
-
-### 1. POST /api/image/edit (Text-based image editing)
-- **Status**: ✅ WORKING
-- **Method Used**: gemini-gemini-2.5-flash-image (Gemini as primary engine - METHOD 0)
-- **Authentication**: ✅ Required (401 without token)
-- **Validation**: ✅ Working ("Image and prompt are required" for missing fields)
-- **Response**: Returns {url, method, originalPrompt} as expected
-- **Processing Time**: ~15-30 seconds (normal for Gemini API)
-
-### 2. POST /api/image/edit with overlayImage (Composite via edit endpoint)
-- **Status**: ✅ WORKING
-- **Method Used**: gemini-native-composite (Uses composite pipeline internally)
-- **Authentication**: ✅ Required
-- **Functionality**: Successfully processes base image + overlay image + prompt
-- **Response**: Returns {url, method, originalPrompt} as expected
-
-### 3. POST /api/composite/test (Direct composite testing)
-- **Status**: ✅ WORKING
-- **Authentication**: ✅ Required (401 without token)
-- **Validation**: ✅ Working ("baseImage and overlayImage are required" for missing fields)
-- **Response**: Returns {success: true, url} as expected
-- **Note**: Placement metadata not returned in test (may be implementation-specific)
-
-## Key Findings
-1. **Gemini Integration**: ✅ Gemini is correctly set as primary engine (METHOD 0) for image editing
-2. **Composite Pipeline**: ✅ When overlayImage is provided to /api/image/edit, it correctly uses the composite pipeline
-3. **Authentication**: ✅ All endpoints properly require Bearer token authentication
-4. **Validation**: ✅ Proper error handling for missing required fields
-5. **Response Format**: ✅ All endpoints return expected response structure
-
-## Backend Tasks Status Update

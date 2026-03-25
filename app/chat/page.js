@@ -567,182 +567,51 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
 
 // ── ImageEditor: Canvas-based image editing with mask drawing ─────────────────
 function ImageEditor({ image, onClose, onEdit, isEditing }) {
-  const canvasRef = useRef(null);
   const containerRef = useRef(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [brushSize, setBrushSize] = useState(30);
   const [editPrompt, setEditPrompt] = useState('');
-  const [canvasSize, setCanvasSize] = useState({ width: 512, height: 512 });
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [maskData, setMaskData] = useState(null);
-  const lastPos = useRef({ x: 0, y: 0 });
+  const [overlayImage, setOverlayImage] = useState(null); // { base64, mimeType, name }
+  const fileInputRef = useRef(null);
   
-  // Load image and set up canvas
-  useEffect(() => {
-    if (!image?.url && !image?.base64) return;
+  const imgSrc = image?.base64 ? `data:image/png;base64,${image.base64}` : image?.url;
+  
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      // Calculate canvas size (max 512px, maintain aspect ratio)
-      const maxSize = 512;
-      let width = img.width;
-      let height = img.height;
-      
-      if (width > height) {
-        if (width > maxSize) {
-          height = (height / width) * maxSize;
-          width = maxSize;
-        }
-      } else {
-        if (height > maxSize) {
-          width = (width / height) * maxSize;
-          height = maxSize;
-        }
-      }
-      
-      setCanvasSize({ width: Math.round(width), height: Math.round(height) });
-      setImageLoaded(true);
-      
-      // Initialize canvas with transparent overlay
-      setTimeout(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }, 100);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result;
+      setOverlayImage({
+        base64,
+        mimeType: file.type || 'image/png',
+        name: file.name,
+      });
     };
-    
-    img.src = image.base64 ? `data:image/png;base64,${image.base64}` : image.url;
-  }, [image]);
-  
-  const getPos = (e) => {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    
-    if (e.touches) {
-      return {
-        x: (e.touches[0].clientX - rect.left) * scaleX,
-        y: (e.touches[0].clientY - rect.top) * scaleY
-      };
-    }
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY
-    };
-  };
-  
-  const startDrawing = (e) => {
-    e.preventDefault();
-    setIsDrawing(true);
-    const pos = getPos(e);
-    lastPos.current = pos;
-    draw(pos);
-  };
-  
-  const draw = (pos) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = 'rgba(255, 100, 0, 0.5)';
-    ctx.strokeStyle = 'rgba(255, 100, 0, 0.5)';
-    ctx.lineWidth = brushSize;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    
-    ctx.beginPath();
-    ctx.moveTo(lastPos.current.x, lastPos.current.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    
-    // Also draw a circle at the current position for single clicks
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, brushSize / 2, 0, Math.PI * 2);
-    ctx.fill();
-    
-    lastPos.current = pos;
-  };
-  
-  const handleMove = (e) => {
-    if (!isDrawing) return;
-    e.preventDefault();
-    const pos = getPos(e);
-    draw(pos);
-  };
-  
-  const stopDrawing = () => {
-    setIsDrawing(false);
-  };
-  
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  };
-  
-  const getMaskDataUrl = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return null;
-    
-    // Create a new canvas for the actual mask (white on black)
-    const maskCanvas = document.createElement('canvas');
-    maskCanvas.width = canvas.width;
-    maskCanvas.height = canvas.height;
-    const maskCtx = maskCanvas.getContext('2d');
-    
-    // Fill with black (areas to keep)
-    maskCtx.fillStyle = 'black';
-    maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-    
-    // Get the drawn areas and make them white (areas to edit)
-    const originalCtx = canvas.getContext('2d');
-    const imageData = originalCtx.getImageData(0, 0, canvas.width, canvas.height);
-    const maskImageData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-    
-    for (let i = 0; i < imageData.data.length; i += 4) {
-      // If there's any color drawn (alpha > 0), make it white in the mask
-      if (imageData.data[i + 3] > 0) {
-        maskImageData.data[i] = 255;     // R
-        maskImageData.data[i + 1] = 255; // G
-        maskImageData.data[i + 2] = 255; // B
-        maskImageData.data[i + 3] = 255; // A
-      }
-    }
-    
-    maskCtx.putImageData(maskImageData, 0, 0);
-    return maskCanvas.toDataURL('image/png');
+    reader.readAsDataURL(file);
   };
   
   const handleEdit = () => {
     if (!editPrompt.trim()) return;
-    
-    const maskDataUrl = getMaskDataUrl();
     onEdit({
       prompt: editPrompt,
-      maskDataUrl,
-      hasMask: maskDataUrl !== null
+      overlayImage: overlayImage || null,
+      hasMask: false,
+      maskDataUrl: null,
     });
   };
   
-  const imgSrc = image?.base64 ? `data:image/png;base64,${image.base64}` : image?.url;
-  
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-[#111820] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="bg-[#111820] border border-white/10 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-              <Pencil className="w-5 h-5 text-purple-400" />
+        <div className="p-3 sm:p-4 border-b border-white/10 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+              <Pencil className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Edit Image</h3>
-              <p className="text-xs text-gray-500">Paint the areas you want to change</p>
+              <h3 className="text-base sm:text-lg font-semibold text-white">Edit Image</h3>
+              <p className="text-[10px] sm:text-xs text-gray-500">Describe changes or add a logo/image</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
@@ -750,102 +619,108 @@ function ImageEditor({ image, onClose, onEdit, isEditing }) {
           </button>
         </div>
         
-        {/* Canvas Area */}
-        <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 200px)' }}>
-          <div 
-            ref={containerRef}
-            className="relative mx-auto rounded-xl overflow-hidden border border-white/20"
-            style={{ width: canvasSize.width, height: canvasSize.height }}
-          >
-            {/* Background Image */}
+        {/* Image Preview */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+          <div className="relative mx-auto rounded-xl overflow-hidden border border-white/20 bg-black/30 max-w-md">
             {imgSrc && (
               <img 
                 src={imgSrc} 
                 alt="Edit" 
-                className="absolute inset-0 w-full h-full object-contain"
+                className="w-full h-auto max-h-[40vh] sm:max-h-[45vh] object-contain"
                 crossOrigin="anonymous"
               />
             )}
             
-            {/* Drawing Canvas (overlay) */}
-            <canvas
-              ref={canvasRef}
-              width={canvasSize.width}
-              height={canvasSize.height}
-              className="absolute inset-0 cursor-crosshair touch-none"
-              onMouseDown={startDrawing}
-              onMouseMove={handleMove}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
-              onTouchStart={startDrawing}
-              onTouchMove={handleMove}
-              onTouchEnd={stopDrawing}
-            />
+            {/* Overlay image preview */}
+            {overlayImage && (
+              <div className="absolute bottom-2 right-2 bg-black/70 rounded-lg p-1 border border-white/20">
+                <img 
+                  src={overlayImage.base64} 
+                  alt="Overlay" 
+                  className="w-12 h-12 sm:w-16 sm:h-16 object-contain rounded"
+                />
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setOverlayImage(null); }}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                >
+                  <X className="w-3 h-3 text-white" />
+                </button>
+              </div>
+            )}
             
             {/* Loading overlay */}
             {isEditing && (
               <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                 <div className="text-center">
                   <Loader2 className="w-8 h-8 text-purple-400 animate-spin mx-auto mb-2" />
-                  <p className="text-white text-sm">Editing image...</p>
+                  <p className="text-white text-sm font-medium">
+                    {overlayImage ? 'Creating mockup...' : 'Editing image...'}
+                  </p>
+                  <p className="text-gray-400 text-xs mt-1">This takes 10-20 seconds</p>
                 </div>
               </div>
             )}
           </div>
           
-          {/* Brush Controls */}
-          <div className="mt-4 flex items-center justify-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-gray-400 text-xs">Brush:</span>
-              <input
-                type="range"
-                min="5"
-                max="80"
-                value={brushSize}
-                onChange={(e) => setBrushSize(Number(e.target.value))}
-                className="w-24 accent-purple-500"
-              />
-              <span className="text-gray-500 text-xs w-8">{brushSize}px</span>
-            </div>
+          {/* Upload overlay image button */}
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <input 
+              ref={fileInputRef}
+              type="file" 
+              accept="image/*" 
+              onChange={handleFileUpload}
+              className="hidden"
+            />
             <button
-              onClick={clearCanvas}
-              className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-xs text-gray-400 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isEditing}
+              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-white/5 border border-white/10 rounded-lg text-xs sm:text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5 disabled:opacity-50"
             >
-              <RefreshCw className="w-3.5 h-3.5" /> Clear
+              <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              {overlayImage ? 'Change Logo/Image' : 'Add Logo/Image'}
             </button>
+            {overlayImage && (
+              <span className="text-xs text-purple-400 truncate max-w-[120px] sm:max-w-[200px]">
+                {overlayImage.name}
+              </span>
+            )}
           </div>
           
-          <p className="text-center text-gray-600 text-xs mt-2">
-            Paint over the areas you want to modify (orange highlight shows selection)
-          </p>
+          {overlayImage && (
+            <p className="text-center text-green-400/70 text-[10px] sm:text-xs mt-1.5">
+              ✓ Logo/image attached — describe where to place it below
+            </p>
+          )}
         </div>
         
         {/* Edit Prompt & Actions */}
-        <div className="p-4 border-t border-white/10 bg-black/20">
-          <div className="flex gap-3">
+        <div className="p-3 sm:p-4 border-t border-white/10 bg-black/20 shrink-0">
+          <div className="flex gap-2 sm:gap-3">
             <input
               type="text"
               value={editPrompt}
               onChange={(e) => setEditPrompt(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleEdit()}
-              placeholder="Describe the edit (e.g., 'remove the hat', 'change to blue shirt')"
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50"
+              placeholder={overlayImage 
+                ? "e.g., 'Place this logo on both t-shirts'" 
+                : "e.g., 'Remove the hat', 'Make the sky sunset'"}
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 text-sm sm:text-base text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50"
               disabled={isEditing}
             />
             <button
               onClick={handleEdit}
               disabled={!editPrompt.trim() || isEditing}
-              className="px-6 py-3 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium flex items-center gap-2 transition-colors"
+              className="px-4 py-2.5 sm:px-6 sm:py-3 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium flex items-center gap-1.5 sm:gap-2 transition-colors text-sm sm:text-base whitespace-nowrap"
             >
               {isEditing ? (
-                <><Loader2 className="w-4 h-4 animate-spin" /> Editing...</>
+                <><Loader2 className="w-4 h-4 animate-spin" /> <span className="hidden sm:inline">Editing...</span></>
               ) : (
-                <><Sparkles className="w-4 h-4" /> Apply Edit</>
+                <><Sparkles className="w-4 h-4" /> <span className="hidden sm:inline">Apply</span></>
               )}
             </button>
           </div>
-          <p className="text-gray-600 text-xs mt-2 text-center">
-            Tip: For best results, paint the specific area and describe the change clearly
+          <p className="text-gray-600 text-[10px] sm:text-xs mt-1.5 text-center">
+            {overlayImage ? 'AI will blend the logo/image naturally into the photo' : 'Powered by Gemini AI — describe any edit you want'}
           </p>
         </div>
       </div>
@@ -1227,11 +1102,11 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
           className={`w-full max-h-96 object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0 absolute inset-0'}`}
           onLoad={() => setLoaded(true)}
         />
-        {/* Edit overlay on hover */}
+        {/* Edit button - visible on mobile, hover on desktop */}
         {onEdit && loaded && (
           <button
             onClick={() => onEdit({ url, source: 'generated' })}
-            className="absolute top-2 right-2 px-3 py-1.5 bg-purple-500/90 hover:bg-purple-600 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1.5 shadow-lg"
+            className="absolute top-2 right-2 px-3 py-1.5 bg-purple-500/90 hover:bg-purple-600 text-white text-xs rounded-lg sm:opacity-0 sm:group-hover:opacity-100 transition-all flex items-center gap-1.5 shadow-lg backdrop-blur-sm"
           >
             <Pencil className="w-3.5 h-3.5" /> Edit
           </button>
@@ -7884,28 +7759,38 @@ export default function ChatPage() {
   }, []);
 
   // Handle image edit submission
-  const handleImageEdit = useCallback(async ({ prompt, maskDataUrl, hasMask }) => {
+  const handleImageEdit = useCallback(async ({ prompt, overlayImage: overlayImg, maskDataUrl, hasMask }) => {
     if (!editableImage || !prompt || !token) return;
     
     setIsEditingImage(true);
     
     try {
+      const requestBody = {
+        image: {
+          url: editableImage.url,
+          base64: editableImage.base64,
+          mimeType: editableImage.mimeType || 'image/png',
+        },
+        mask: hasMask ? maskDataUrl : null,
+        prompt,
+        conversationId,
+      };
+      
+      // If overlay image is provided, add it to the request
+      if (overlayImg) {
+        requestBody.overlayImage = {
+          base64: overlayImg.base64,
+          mimeType: overlayImg.mimeType || 'image/png',
+        };
+      }
+      
       const response = await fetch('/api/image/edit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          image: {
-            url: editableImage.url,
-            base64: editableImage.base64,
-            mimeType: editableImage.mimeType || 'image/png',
-          },
-          mask: hasMask ? maskDataUrl : null,
-          prompt,
-          conversationId,
-        }),
+        body: JSON.stringify(requestBody),
       });
       
       const data = await response.json();

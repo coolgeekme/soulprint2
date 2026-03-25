@@ -1,303 +1,327 @@
 #!/usr/bin/env python3
 """
-Smart Composite API Testing Suite
-Tests the new screen-print simulation pipeline after major refactoring
+Backend testing script for SoulPrint Engine Image Edit and Smart Composite endpoints
 """
 
 import requests
 import json
 import base64
-import time
+import io
+from PIL import Image
 import sys
-from io import BytesIO
 
-# Test configuration
-BASE_URL = "https://smart-composite.preview.emergentagent.com"
-TEST_EMAIL = "test@soulprint.com"
-TEST_PASSCODE = "test123"
+# Base URL from environment
+BASE_URL = "https://ai-image-craft-18.preview.emergentagent.com"
 
-def create_test_images():
-    """Create test images using PIL (fallback if sharp not available)"""
-    try:
-        from PIL import Image, ImageDraw
-        
-        # Create base image (800x600 blue background)
-        base = Image.new('RGBA', (800, 600), (120, 140, 160, 255))
-        base_buffer = BytesIO()
-        base.save(base_buffer, format='PNG')
-        base_b64 = base64.b64encode(base_buffer.getvalue()).decode()
-        
-        # Create logo image (200x100 red rectangle)
-        logo = Image.new('RGBA', (200, 100), (255, 0, 0, 255))
-        logo_buffer = BytesIO()
-        logo.save(logo_buffer, format='PNG')
-        logo_b64 = base64.b64encode(logo_buffer.getvalue()).decode()
-        
-        return f"data:image/png;base64,{base_b64}", f"data:image/png;base64,{logo_b64}"
-        
-    except ImportError:
-        print("PIL not available, using minimal base64 images")
-        # Minimal 1x1 PNG images as fallback
-        base_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77zgAAAABJRU5ErkJggg=="
-        logo_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-        return f"data:image/png;base64,{base_b64}", f"data:image/png;base64,{logo_b64}"
+def create_test_image(color, size=(50, 50)):
+    """Create a small test image in base64 format"""
+    img = Image.new('RGB', size, color)
+    buffer = io.BytesIO()
+    img.save(buffer, format='PNG')
+    img_data = buffer.getvalue()
+    return base64.b64encode(img_data).decode('utf-8')
 
-def test_authentication():
-    """Test authentication endpoint"""
-    print("🔐 Testing Authentication...")
+def test_auth():
+    """Test authentication and get token"""
+    print("🔐 Testing authentication...")
+    
+    auth_data = {
+        "email": "test@soulprint.com",
+        "passcode": "test123"
+    }
     
     try:
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": TEST_EMAIL,
-            "passcode": TEST_PASSCODE
-        }, timeout=30)
-        
-        print(f"Status: {response.status_code}")
+        response = requests.post(f"{BASE_URL}/api/auth/login", json=auth_data, timeout=30)
+        print(f"Auth response status: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
             token = data.get('token')
-            role = data.get('role')
-            print(f"✅ Authentication successful! Role: {role}")
-            return token
+            if token:
+                print("✅ Authentication successful")
+                return token
+            else:
+                print("❌ No token in response")
+                print(f"Response: {data}")
+                return None
         else:
-            print(f"❌ Authentication failed: {response.text}")
+            print(f"❌ Authentication failed: {response.status_code}")
+            try:
+                error_data = response.json()
+                print(f"Error: {error_data}")
+            except:
+                print(f"Response text: {response.text}")
             return None
             
     except Exception as e:
-        print(f"❌ Authentication error: {str(e)}")
+        print(f"❌ Authentication error: {e}")
         return None
 
-def test_composite_api(token, test_name, instruction, expected_surface_type=None, expected_brightness_range=None):
-    """Test Smart Composite API with specific instruction"""
-    print(f"\n🎨 Testing {test_name}...")
-    print(f"Instruction: '{instruction}'")
+def test_image_edit_text_only(token):
+    """Test POST /api/image/edit with text-based editing"""
+    print("\n🎨 Testing image edit (text-based)...")
+    
+    # Create a red test image
+    red_image_b64 = create_test_image('red')
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "image": {
+            "base64": red_image_b64,
+            "mimeType": "image/png"
+        },
+        "prompt": "make this image more vibrant"
+    }
     
     try:
-        base_image, overlay_image = create_test_images()
-        
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "baseImage": base_image,
-            "overlayImage": overlay_image,
-            "instruction": instruction
-        }
-        
-        print("Sending request to /api/composite/test...")
-        response = requests.post(f"{BASE_URL}/api/composite/test", 
-                               json=payload, 
-                               headers=headers, 
-                               timeout=60)
-        
-        print(f"Status: {response.status_code}")
+        print("Sending image edit request...")
+        response = requests.post(f"{BASE_URL}/api/image/edit", json=data, headers=headers, timeout=60)
+        print(f"Image edit response status: {response.status_code}")
         
         if response.status_code == 200:
-            data = response.json()
-            print(f"✅ {test_name} successful!")
+            result = response.json()
+            print("✅ Image edit successful")
+            print(f"Method: {result.get('method', 'unknown')}")
+            print(f"URL present: {'url' in result}")
+            print(f"Original prompt: {result.get('originalPrompt', 'none')}")
             
-            # Validate response structure
-            if 'success' in data and data['success']:
-                print("✅ Success field present and true")
+            # Check if method starts with "gemini-" as expected
+            method = result.get('method', '')
+            if method.startswith('gemini-'):
+                print("✅ Using Gemini as primary engine (METHOD 0)")
             else:
-                print("⚠️ Success field missing or false")
+                print(f"⚠️  Method '{method}' doesn't start with 'gemini-'")
             
-            if 'url' in data:
-                print(f"✅ URL returned: {data['url'][:50]}...")
-            else:
-                print("❌ URL missing from response")
+            return True
+        else:
+            print(f"❌ Image edit failed: {response.status_code}")
+            try:
+                error_data = response.json()
+                print(f"Error: {error_data}")
+            except:
+                print(f"Response text: {response.text}")
+            return False
             
-            if 'placement' in data and isinstance(data['placement'], list):
-                placements = data['placement']
-                print(f"✅ Placements array returned with {len(placements)} item(s)")
-                
+    except Exception as e:
+        print(f"❌ Image edit error: {e}")
+        return False
+
+def test_image_edit_with_overlay(token):
+    """Test POST /api/image/edit with overlayImage (composite via edit endpoint)"""
+    print("\n🔄 Testing image edit with overlay (composite pipeline)...")
+    
+    # Create test images
+    red_image_b64 = create_test_image('red', (100, 100))
+    blue_image_b64 = create_test_image('blue', (30, 30))
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "image": {
+            "base64": red_image_b64,
+            "mimeType": "image/png"
+        },
+        "prompt": "place this logo on the shirt",
+        "overlayImage": {
+            "base64": blue_image_b64,
+            "mimeType": "image/png"
+        }
+    }
+    
+    try:
+        print("Sending image edit with overlay request...")
+        response = requests.post(f"{BASE_URL}/api/image/edit", json=data, headers=headers, timeout=60)
+        print(f"Image edit with overlay response status: {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            print("✅ Image edit with overlay successful")
+            print(f"Method: {result.get('method', 'unknown')}")
+            print(f"URL present: {'url' in result}")
+            print(f"Original prompt: {result.get('originalPrompt', 'none')}")
+            return True
+        else:
+            print(f"❌ Image edit with overlay failed: {response.status_code}")
+            try:
+                error_data = response.json()
+                print(f"Error: {error_data}")
+            except:
+                print(f"Response text: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Image edit with overlay error: {e}")
+        return False
+
+def test_composite_direct(token):
+    """Test POST /api/composite/test (direct composite testing)"""
+    print("\n🎯 Testing direct composite endpoint...")
+    
+    # Create test images
+    red_image_b64 = create_test_image('red', (100, 100))
+    blue_image_b64 = create_test_image('blue', (30, 30))
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "baseImage": red_image_b64,
+        "overlayImage": blue_image_b64,
+        "instruction": "Place this logo on the t-shirt"
+    }
+    
+    try:
+        print("Sending composite test request...")
+        response = requests.post(f"{BASE_URL}/api/composite/test", json=data, headers=headers, timeout=60)
+        print(f"Composite test response status: {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            print("✅ Composite test successful")
+            print(f"Success: {result.get('success', False)}")
+            print(f"URL present: {'url' in result}")
+            
+            # Check for placement data
+            placements = result.get('placements', [])
+            if placements:
+                print(f"Placements found: {len(placements)}")
                 for i, placement in enumerate(placements):
-                    print(f"  Placement {i+1}:")
-                    print(f"    - target_description: {placement.get('target_description', 'N/A')}")
-                    print(f"    - surface_type: {placement.get('surface_type', 'N/A')}")
-                    print(f"    - position: {placement.get('x_percent', 'N/A')}%, {placement.get('y_percent', 'N/A')}%")
-                    print(f"    - size: {placement.get('width_percent', 'N/A')}% x {placement.get('height_percent', 'N/A')}%")
-                    print(f"    - rotation_degrees: {placement.get('rotation_degrees', 'N/A')}")
-                    print(f"    - brightness_adjust: {placement.get('brightness_adjust', 'N/A')}")
-                    
-                    # Validate expected surface type
-                    if expected_surface_type and placement.get('surface_type') == expected_surface_type:
-                        print(f"    ✅ Surface type matches expected: {expected_surface_type}")
-                    elif expected_surface_type:
-                        print(f"    ⚠️ Surface type '{placement.get('surface_type')}' doesn't match expected '{expected_surface_type}'")
-                    
-                    # Validate brightness adjustment range
-                    brightness = placement.get('brightness_adjust')
-                    if expected_brightness_range and brightness is not None:
-                        min_bright, max_bright = expected_brightness_range
-                        if min_bright <= brightness <= max_bright:
-                            print(f"    ✅ Brightness adjustment {brightness} in expected range [{min_bright}, {max_bright}]")
-                        else:
-                            print(f"    ⚠️ Brightness adjustment {brightness} outside expected range [{min_bright}, {max_bright}]")
+                    print(f"  Placement {i+1}: x={placement.get('x_percent')}%, y={placement.get('y_percent')}%, w={placement.get('width_percent')}%, h={placement.get('height_percent')}%")
             else:
-                print("❌ Placements array missing or invalid")
-            
-            if 'scene_description' in data:
-                print(f"✅ Scene description: {data['scene_description']}")
-            else:
-                print("⚠️ Scene description missing")
-            
-            if 'remove_background' in data:
-                print(f"✅ Remove background: {data['remove_background']}")
-            else:
-                print("⚠️ Remove background field missing")
+                print("No placement data found")
             
             return True
-            
         else:
-            print(f"❌ {test_name} failed: {response.text}")
+            print(f"❌ Composite test failed: {response.status_code}")
+            try:
+                error_data = response.json()
+                print(f"Error: {error_data}")
+            except:
+                print(f"Response text: {response.text}")
             return False
             
     except Exception as e:
-        print(f"❌ {test_name} error: {str(e)}")
+        print(f"❌ Composite test error: {e}")
         return False
 
-def test_input_validation(token):
-    """Test input validation (missing overlayImage)"""
-    print("\n🔍 Testing Input Validation...")
+def test_validation_errors(token):
+    """Test validation errors for the endpoints"""
+    print("\n🚫 Testing validation errors...")
     
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    
+    # Test missing image in image/edit
     try:
-        base_image, _ = create_test_images()
-        
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "baseImage": base_image,
-            # Missing overlayImage intentionally
-            "instruction": "Place logo on surface"
-        }
-        
-        response = requests.post(f"{BASE_URL}/api/composite/test", 
-                               json=payload, 
-                               headers=headers, 
-                               timeout=30)
-        
-        print(f"Status: {response.status_code}")
-        
+        response = requests.post(f"{BASE_URL}/api/image/edit", json={"prompt": "test"}, headers=headers, timeout=30)
         if response.status_code == 400:
-            print("✅ Input validation working - correctly returned 400 for missing overlayImage")
-            return True
+            error_data = response.json()
+            if "Image and prompt are required" in error_data.get('error', ''):
+                print("✅ Image/edit validation working (missing image)")
+            else:
+                print(f"⚠️  Unexpected error message: {error_data}")
         else:
-            print(f"❌ Expected 400 status code, got {response.status_code}")
-            return False
-            
+            print(f"⚠️  Expected 400, got {response.status_code}")
     except Exception as e:
-        print(f"❌ Input validation test error: {str(e)}")
-        return False
-
-def test_auth_validation():
-    """Test authentication validation (no token)"""
-    print("\n🔒 Testing Auth Validation...")
+        print(f"❌ Validation test error: {e}")
     
+    # Test missing baseImage in composite/test
     try:
-        base_image, overlay_image = create_test_images()
-        
-        payload = {
-            "baseImage": base_image,
-            "overlayImage": overlay_image,
-            "instruction": "Place logo on surface"
-        }
-        
-        # No Authorization header
-        response = requests.post(f"{BASE_URL}/api/composite/test", 
-                               json=payload, 
-                               timeout=30)
-        
-        print(f"Status: {response.status_code}")
-        
-        if response.status_code == 401:
-            print("✅ Auth validation working - correctly returned 401 for missing token")
-            return True
+        response = requests.post(f"{BASE_URL}/api/composite/test", json={"overlayImage": "test"}, headers=headers, timeout=30)
+        if response.status_code == 400:
+            error_data = response.json()
+            if "baseImage and overlayImage are required" in error_data.get('error', ''):
+                print("✅ Composite/test validation working (missing baseImage)")
+            else:
+                print(f"⚠️  Unexpected error message: {error_data}")
         else:
-            print(f"❌ Expected 401 status code, got {response.status_code}")
-            return False
-            
+            print(f"⚠️  Expected 400, got {response.status_code}")
     except Exception as e:
-        print(f"❌ Auth validation test error: {str(e)}")
-        return False
+        print(f"❌ Validation test error: {e}")
+
+def test_auth_required():
+    """Test that endpoints require authentication"""
+    print("\n🔒 Testing auth requirements...")
+    
+    # Test image/edit without token
+    try:
+        response = requests.post(f"{BASE_URL}/api/image/edit", json={"image": {"base64": "test"}, "prompt": "test"}, timeout=30)
+        if response.status_code == 401:
+            print("✅ Image/edit requires auth (401 without token)")
+        else:
+            print(f"⚠️  Expected 401, got {response.status_code}")
+    except Exception as e:
+        print(f"❌ Auth test error: {e}")
+    
+    # Test composite/test without token
+    try:
+        response = requests.post(f"{BASE_URL}/api/composite/test", json={"baseImage": "test", "overlayImage": "test"}, timeout=30)
+        if response.status_code == 401:
+            print("✅ Composite/test requires auth (401 without token)")
+        else:
+            print(f"⚠️  Expected 401, got {response.status_code}")
+    except Exception as e:
+        print(f"❌ Auth test error: {e}")
 
 def main():
-    """Run all Smart Composite API tests"""
-    print("🚀 Smart Composite API Testing Suite")
-    print("=" * 50)
+    """Main test function"""
+    print("🚀 Starting SoulPrint Engine Backend Tests")
+    print(f"Base URL: {BASE_URL}")
     
-    # Test 1: Authentication
-    token = test_authentication()
+    # Test authentication first
+    token = test_auth()
     if not token:
-        print("❌ Cannot proceed without authentication token")
-        sys.exit(1)
+        print("\n❌ Cannot proceed without authentication")
+        return False
     
-    test_results = []
+    # Test auth requirements
+    test_auth_required()
     
-    # Test 2: Fabric composite (dark surface)
-    result = test_composite_api(
-        token, 
-        "Fabric Composite (Dark Surface)",
-        "Replace the logos on both tshirts with this design",
-        expected_surface_type="fabric",
-        expected_brightness_range=(0.5, 0.9)  # Should be < 1.0 for dark surfaces
-    )
-    test_results.append(("Fabric Composite", result))
+    # Test validation errors
+    test_validation_errors(token)
     
-    # Test 3: Vehicle composite
-    result = test_composite_api(
-        token,
-        "Vehicle Composite", 
-        "Place this logo on the side door of the van",
-        expected_surface_type="vehicle"
-    )
-    test_results.append(("Vehicle Composite", result))
+    # Test the main endpoints
+    results = []
     
-    # Test 4: Flat surface
-    result = test_composite_api(
-        token,
-        "Flat Surface Composite",
-        "Put this logo in the center of the white paper",
-        expected_brightness_range=(0.9, 1.2)  # Should be ~1.0 for bright surfaces
-    )
-    test_results.append(("Flat Surface", result))
+    # Test text-based image editing
+    results.append(test_image_edit_text_only(token))
     
-    # Test 5: Input validation
-    result = test_input_validation(token)
-    test_results.append(("Input Validation", result))
+    # Test image editing with overlay (composite pipeline)
+    results.append(test_image_edit_with_overlay(token))
     
-    # Test 6: Auth validation
-    result = test_auth_validation()
-    test_results.append(("Auth Validation", result))
+    # Test direct composite endpoint
+    results.append(test_composite_direct(token))
     
     # Summary
-    print("\n" + "=" * 50)
+    print("\n" + "="*50)
     print("📊 TEST SUMMARY")
-    print("=" * 50)
+    print("="*50)
     
-    passed = 0
-    total = len(test_results)
+    passed = sum(results)
+    total = len(results)
     
-    for test_name, result in test_results:
-        status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{test_name}: {status}")
-        if result:
-            passed += 1
-    
-    print(f"\nResults: {passed}/{total} tests passed")
+    print(f"✅ Passed: {passed}/{total}")
+    if passed < total:
+        print(f"❌ Failed: {total - passed}/{total}")
     
     if passed == total:
-        print("🎉 All tests passed! Smart Composite API is working correctly.")
-        sys.exit(0)
+        print("\n🎉 All critical endpoints are working!")
+        return True
     else:
-        print("⚠️ Some tests failed. Please check the implementation.")
-        sys.exit(1)
+        print(f"\n⚠️  {total - passed} endpoint(s) have issues")
+        return False
 
 if __name__ == "__main__":
-    main()
+    success = main()
+    sys.exit(0 if success else 1)

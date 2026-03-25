@@ -428,13 +428,56 @@ async function handleImageEdit(request) {
     }
     
     const body = await request.json();
-    const { image, prompt } = body;
+    const { image, prompt, overlayImage } = body;
     
     if (!image || !prompt) {
       return NextResponse.json({ error: 'Image and prompt are required' }, { status: 400 });
     }
     
-    // Reuse the internal function for consistency
+    // If an overlay image is provided, use the composite pipeline (Gemini first)
+    if (overlayImage) {
+      console.log('[ImageEdit] Overlay image provided — using composite pipeline');
+      
+      // Get base image as buffer
+      let baseBuffer;
+      if (image.base64) {
+        const raw = image.base64.startsWith('data:') 
+          ? image.base64.split(',')[1] 
+          : image.base64;
+        baseBuffer = Buffer.from(raw, 'base64');
+      } else if (image.url) {
+        const resp = await fetch(image.url);
+        if (!resp.ok) throw new Error('Failed to fetch base image');
+        baseBuffer = Buffer.from(await resp.arrayBuffer());
+      }
+      
+      // Get overlay image as buffer
+      let overlayBuffer;
+      const overlayRaw = overlayImage.base64?.startsWith('data:') 
+        ? overlayImage.base64.split(',')[1] 
+        : overlayImage.base64;
+      overlayBuffer = Buffer.from(overlayRaw, 'base64');
+      
+      if (!baseBuffer || !overlayBuffer) {
+        return NextResponse.json({ error: 'Failed to process images' }, { status: 400 });
+      }
+      
+      const result = await handleSmartComposite(
+        baseBuffer, overlayBuffer, overlayImage.mimeType || 'image/png', prompt
+      );
+      
+      if (result.success) {
+        return NextResponse.json({
+          url: result.url,
+          method: result.method,
+          originalPrompt: prompt,
+        });
+      } else {
+        return NextResponse.json({ error: 'Composite failed' }, { status: 500 });
+      }
+    }
+    
+    // Standard text-based edit (no overlay)
     const result = await handleImageEditInternal(user.id, image, prompt);
     
     if (!result.success) {
@@ -2703,7 +2746,103 @@ Respond with ONLY the enhanced prompt, nothing else.`
   }
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // METHOD 0: GPT Image (gpt-image-1) - For complex edits requiring understanding
+  // METHOD 0: Gemini Image Edit (Primary — best quality for most edits)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  if (geminiApiKey && imageBase64) {
+    try {
+      console.log('[ImageEdit] METHOD 0: Using Gemini Image for edit');
+      const sharp = (await import('sharp')).default;
+      
+      const imgBuffer = Buffer.from(imageBase64, 'base64');
+      const resizedImg = await sharp(imgBuffer)
+        .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      
+      const geminiPrompt = `Edit this image as follows: ${safeEditInstruction}
+
+Requirements:
+- Make ONLY the requested changes
+- Keep everything else in the image IDENTICAL
+- The result should look like a natural photograph, not a digital manipulation
+- Preserve the original image's lighting, style, and atmosphere`;
+
+      const modelsToTry = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview'];
+      
+      for (const model of modelsToTry) {
+        try {
+          const gemRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{
+                  parts: [
+                    { text: geminiPrompt },
+                    { inline_data: { mime_type: 'image/jpeg', data: resizedImg.toString('base64') } }
+                  ]
+                }],
+                generationConfig: {
+                  responseModalities: ['TEXT', 'IMAGE'],
+                  temperature: 0.2,
+                }
+              })
+            }
+          );
+          
+          if (!gemRes.ok) {
+            console.log('[ImageEdit] Gemini', model, 'failed:', gemRes.status);
+            continue;
+          }
+          
+          const gemData = await gemRes.json();
+          const parts = gemData.candidates?.[0]?.content?.parts || [];
+          let generatedImage = null;
+          
+          for (const part of parts) {
+            if (part.inlineData?.data) {
+              generatedImage = Buffer.from(part.inlineData.data, 'base64');
+            }
+          }
+          
+          if (generatedImage) {
+            let resultUrl = null;
+            if (kieKey) {
+              try {
+                const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
+                  body: JSON.stringify({
+                    base64Data: `data:image/png;base64,${generatedImage.toString('base64')}`,
+                    uploadPath: 'soulprint/edits',
+                    fileName: `gemini_edit_${Date.now()}.png`
+                  }),
+                });
+                if (upRes.ok) {
+                  const d = await upRes.json();
+                  if (d.success && d.data?.downloadUrl) resultUrl = d.data.downloadUrl;
+                }
+              } catch (e) {}
+            }
+            
+            if (resultUrl) {
+              console.log('[ImageEdit] SUCCESS with Gemini', model, '! URL:', resultUrl);
+              return { success: true, url: resultUrl, edit: editInstruction, method: `gemini-${model}` };
+            }
+          }
+        } catch (modelErr) {
+          console.log('[ImageEdit] Gemini', model, 'error:', modelErr.message);
+        }
+      }
+    } catch (gemErr) {
+      console.log('[ImageEdit] Gemini edit error:', gemErr.message);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // METHOD 1: GPT Image (gpt-image-1) - Fallback for complex edits
   // ═══════════════════════════════════════════════════════════════════════════
   if (openaiApiKey && imageBase64 && isComplexEdit) {
     try {
