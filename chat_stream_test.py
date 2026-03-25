@@ -7,7 +7,7 @@ import requests
 import json
 import time
 
-BASE_URL = "https://multi-model-llm.preview.emergentagent.com"
+BASE_URL = "https://smart-mockup.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"

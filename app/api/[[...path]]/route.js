@@ -454,6 +454,68 @@ async function handleImageEdit(request) {
   }
 }
 
+// Test endpoint for Smart Composite — allows testing with base64 images
+async function handleCompositeTest(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const body = await request.json();
+    const { baseImage, overlayImage, instruction } = body;
+    
+    // baseImage and overlayImage can be base64 strings or URLs
+    if (!baseImage || !overlayImage) {
+      return NextResponse.json({ error: 'baseImage and overlayImage are required (base64 or URL)' }, { status: 400 });
+    }
+    
+    let baseBuffer, overlayBuffer;
+    let overlayMime = 'image/png';
+    
+    // Get base image
+    if (baseImage.startsWith('http')) {
+      const resp = await fetch(baseImage);
+      baseBuffer = Buffer.from(await resp.arrayBuffer());
+    } else {
+      let b64 = baseImage;
+      if (b64.startsWith('data:')) {
+        const m = b64.match(/^data:([^;]+);base64,(.+)$/);
+        if (m) b64 = m[2];
+      }
+      baseBuffer = Buffer.from(b64, 'base64');
+    }
+    
+    // Get overlay image
+    if (overlayImage.startsWith('http')) {
+      const resp = await fetch(overlayImage);
+      overlayBuffer = Buffer.from(await resp.arrayBuffer());
+      overlayMime = resp.headers.get('content-type') || 'image/png';
+    } else {
+      let b64 = overlayImage;
+      if (b64.startsWith('data:')) {
+        const m = b64.match(/^data:([^;]+);base64,(.+)$/);
+        if (m) { overlayMime = m[1]; b64 = m[2]; }
+      }
+      overlayBuffer = Buffer.from(b64, 'base64');
+    }
+    
+    const result = await handleSmartComposite(
+      baseBuffer,
+      overlayBuffer,
+      overlayMime,
+      instruction || 'Place the logo/design onto the image naturally'
+    );
+    
+    return NextResponse.json(result);
+  } catch (err) {
+    console.error('[CompositeTest] Error:', err);
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+
+
 // Generate product mockup with user's design
 async function handleMockupGenerate(request) {
   try {
@@ -476,100 +538,19 @@ async function handleMockupGenerate(request) {
     
     console.log('[Mockup] Generating mockup for product:', product);
     
-    const mimeType = design.mimeType || 'image/png';
+    // Use the Smart Composite approach: generate clean product → composite design
+    const result = await handleMockupGenerateInternal(user.id, design, product);
     
-    // Analyze the design to understand what it is
-    const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert at creating product mockup descriptions. Your task is to create a detailed prompt for generating a photorealistic product mockup that displays a given design/logo.`
-          },
-          {
-            role: 'user',
-            content: [
-              { 
-                type: 'text', 
-                text: `Analyze this design/logo and create a detailed prompt for a DALL-E image that shows this exact design placed on a ${product}.
-
-Requirements:
-1. The mockup should be photorealistic and professional
-2. The design should be clearly visible and prominently displayed on the product
-3. Include appropriate lighting, shadows, and product context
-4. The design's colors, shapes, and details must be preserved exactly
-
-Output ONLY the prompt, no explanations. Make it detailed enough to recreate the design accurately on the product.` 
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${design.base64}`,
-                  detail: 'high'
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 800,
-        temperature: 0.3,
-      }),
-    });
-    
-    if (!analysisResponse.ok) {
-      const err = await analysisResponse.json().catch(() => ({}));
-      console.error('[Mockup] Analysis failed:', err);
-      return NextResponse.json({ error: err.error?.message || 'Failed to analyze design' }, { status: 500 });
+    if (result.success) {
+      console.log('[Mockup] Successfully generated mockup');
+      return NextResponse.json({
+        url: result.url,
+        product,
+        method: result.method || 'smart-composite',
+      });
+    } else {
+      return NextResponse.json({ error: result.error || 'Failed to generate mockup' }, { status: 500 });
     }
-    
-    const analysisData = await analysisResponse.json();
-    const mockupPrompt = analysisData.choices?.[0]?.message?.content || '';
-    
-    console.log('[Mockup] Generated prompt:', mockupPrompt.substring(0, 200));
-    
-    // Generate the mockup image
-    const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt: mockupPrompt,
-        n: 1,
-        size: '1024x1024',
-        quality: 'hd',
-        style: 'natural',
-      }),
-    });
-    
-    if (!generateResponse.ok) {
-      const err = await generateResponse.json().catch(() => ({}));
-      console.error('[Mockup] Generation failed:', err);
-      return NextResponse.json({ error: err.error?.message || 'Failed to generate mockup' }, { status: 500 });
-    }
-    
-    const generateData = await generateResponse.json();
-    const mockupUrl = generateData.data?.[0]?.url;
-    
-    if (!mockupUrl) {
-      return NextResponse.json({ error: 'No mockup generated' }, { status: 500 });
-    }
-    
-    console.log('[Mockup] Successfully generated mockup');
-    
-    return NextResponse.json({
-      url: mockupUrl,
-      product,
-      prompt: mockupPrompt,
-    });
   } catch (err) {
     console.error('[Mockup] Error:', err);
     return NextResponse.json({ error: err.message || 'Failed to generate mockup' }, { status: 500 });
@@ -3028,6 +3009,7 @@ Output ONLY the DALL-E prompt to recreate this IDENTICAL scene with the modifica
 }
 
 // Internal function for mockup generation (called from tool handler)
+// Strategy: Generate a CLEAN product image, then composite the exact logo onto it
 async function handleMockupGenerateInternal(userId, design, product) {
   const openaiApiKey = process.env.OPENAI_API_KEY;
   if (!openaiApiKey) {
@@ -3036,7 +3018,7 @@ async function handleMockupGenerateInternal(userId, design, product) {
   
   console.log('[Mockup Internal] Generating mockup for:', product);
   
-  // Get design as base64
+  // Get design as base64 and buffer
   const mimeType = design.mimeType || 'image/png';
   let designBase64 = design.base64;
   
@@ -3051,89 +3033,399 @@ async function handleMockupGenerateInternal(userId, design, product) {
     }
   }
   
-  // Analyze design and create mockup prompt
-  const analysisResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [
-        {
+  if (!designBase64) {
+    return { success: false, error: 'No design image available' };
+  }
+  
+  const designBuffer = Buffer.from(designBase64, 'base64');
+  
+  // Step 1: Generate a CLEAN product image (WITHOUT the logo)
+  // This gives us a base surface to composite onto
+  const cleanProductPrompt = `A photorealistic ${product}, plain and clean with NO logos, NO text, NO designs, NO graphics on it. Professional product photography, studio lighting, front-facing view on a clean background. The ${product} should have a smooth, clean surface perfect for design placement.`;
+  
+  console.log('[Mockup Internal] Generating clean product base...');
+  
+  let baseBuffer = null;
+  try {
+    const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: cleanProductPrompt,
+        n: 1,
+        size: '1024x1024',
+        quality: 'hd',
+        style: 'natural',
+      }),
+    });
+    
+    if (!generateResponse.ok) {
+      const err = await generateResponse.json().catch(() => ({}));
+      return { success: false, error: err.error?.message || 'Failed to generate base product image' };
+    }
+    
+    const generateData = await generateResponse.json();
+    const baseUrl = generateData.data?.[0]?.url;
+    
+    if (!baseUrl) {
+      return { success: false, error: 'No base product image generated' };
+    }
+    
+    console.log('[Mockup Internal] Clean product base generated, fetching buffer...');
+    const baseResp = await fetch(baseUrl);
+    baseBuffer = Buffer.from(await baseResp.arrayBuffer());
+  } catch (err) {
+    return { success: false, error: 'Failed to generate product base: ' + err.message };
+  }
+  
+  // Step 2: Use Smart Composite to place the exact logo onto the product
+  console.log('[Mockup Internal] Compositing design onto product...');
+  try {
+    const compositeResult = await handleSmartComposite(
+      baseBuffer,
+      designBuffer,
+      mimeType,
+      `Place this logo/design centered on the ${product}. Make it look like a professional product mockup.`
+    );
+    
+    if (compositeResult.success) {
+      console.log('[Mockup Internal] Smart composite succeeded!');
+      return {
+        success: true,
+        url: compositeResult.url,
+        product,
+        method: 'smart-composite'
+      };
+    } else {
+      return { success: false, error: compositeResult.error || 'Compositing failed' };
+    }
+  } catch (compErr) {
+    return { success: false, error: 'Compositing failed: ' + compErr.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SMART COMPOSITE: AI-guided placement + programmatic pixel-perfect overlay
+// The AI NEVER touches logo pixels — it only provides placement intelligence
+// ═══════════════════════════════════════════════════════════════════════════
+async function handleSmartComposite(baseBuffer, overlayBuffer, overlayMime, userInstruction) {
+  const sharp = (await import('sharp')).default;
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  const kieKey = process.env.KIE_API_KEY;
+  
+  if (!openaiApiKey) throw new Error('OpenAI API key required for compositing');
+  
+  const baseMeta = await sharp(baseBuffer).metadata();
+  const overlayMeta = await sharp(overlayBuffer).metadata();
+  
+  console.log('[SmartComposite] Base:', baseMeta.width, 'x', baseMeta.height);
+  console.log('[SmartComposite] Logo:', overlayMeta.width, 'x', overlayMeta.height);
+  
+  // ── Step 1: GPT-4o Vision — Analyze base image and get precise placement JSON ──
+  const analysisPrompt = `You are a product mockup placement expert. Given a BASE IMAGE and a LOGO/DESIGN image, determine EXACTLY where and how to place the logo onto the base image.
+
+Analyze the base image to identify the best surface for logo placement based on the user's request.
+
+Respond ONLY with valid JSON (no markdown, no code fences, no explanation):
+{
+  "x_percent": <number 0-100, left edge of placement area as % of base image width>,
+  "y_percent": <number 0-100, top edge of placement area as % of base image height>,
+  "width_percent": <number 5-80, logo display width as % of base image width>,
+  "height_percent": <number 5-80, logo display height as % of base image height>,
+  "rotation_degrees": <number -45 to 45, clockwise rotation to match surface angle>,
+  "surface_type": <"flat"|"fabric"|"curved"|"paper"|"metal"|"glass"|"plastic"|"vehicle">,
+  "opacity": <number 0.7-1.0, recommended opacity>,
+  "remove_background": <true|false, whether the logo has a solid colored background that needs removal>,
+  "background_color": <"white"|"black"|"light"|"dark"|"none">
+}
+
+Placement Guidelines:
+- For t-shirts/clothing: center on chest area, ~30-40% width
+- For vehicles (cars, vans, trucks): place on the door/side panel, ~25-35% width
+- For mugs/cups: center on the visible face, ~40-50% width
+- For bags/totes: center on the main face, ~35-45% width
+- For walls/signs: center on the surface, ~40-60% width
+- For boxes/packaging: center on the front face
+- Keep logo proportional — don't stretch it
+- Match the natural angle/perspective of the target surface
+- If the user specifies a location (e.g., "on the door", "on the back"), honor that`;
+
+  let placementData = null;
+  try {
+    const analysisRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [{
           role: 'user',
           content: [
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${designBase64}`,
-                detail: 'high'
-              }
-            },
-            {
-              type: 'text',
-              text: `Create a detailed prompt for a photorealistic product mockup showing this exact design/logo on a ${product}.
-
-The mockup should:
-1. Show the design EXACTLY as it appears (preserve all colors, shapes, text)
-2. Be professional and photorealistic
-3. Have appropriate lighting and shadows
-4. Show the product from a good angle
-
-Output ONLY the prompt, no explanations.`
-            }
+            { type: 'text', text: `User request: "${userInstruction}"\n\nImage 1 = BASE IMAGE (where logo goes).\nImage 2 = LOGO/DESIGN (to be placed on the base).\n\n${analysisPrompt}` },
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${baseBuffer.toString('base64')}`, detail: 'high' } },
+            { type: 'image_url', image_url: { url: `data:${overlayMime};base64,${overlayBuffer.toString('base64')}`, detail: 'high' } }
           ]
+        }],
+        max_tokens: 500,
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      })
+    });
+    
+    if (analysisRes.ok) {
+      const d = await analysisRes.json();
+      const rawText = d.choices?.[0]?.message?.content || '';
+      placementData = JSON.parse(rawText);
+      console.log('[SmartComposite] GPT-4o placement:', JSON.stringify(placementData));
+    } else {
+      const errData = await analysisRes.json().catch(() => ({}));
+      console.log('[SmartComposite] GPT-4o analysis failed:', errData.error?.message || analysisRes.status);
+    }
+  } catch (e) {
+    console.log('[SmartComposite] GPT-4o analysis error:', e.message);
+  }
+  
+  // Fallback defaults if analysis failed
+  if (!placementData || typeof placementData.x_percent !== 'number') {
+    console.log('[SmartComposite] Using fallback placement defaults');
+    placementData = {
+      x_percent: 25, y_percent: 20,
+      width_percent: 50, height_percent: 40,
+      rotation_degrees: 0,
+      surface_type: 'flat',
+      opacity: 1.0,
+      remove_background: true,
+      background_color: 'white'
+    };
+  }
+  
+  // Clamp values to safe ranges
+  placementData.x_percent = Math.max(0, Math.min(95, placementData.x_percent));
+  placementData.y_percent = Math.max(0, Math.min(95, placementData.y_percent));
+  placementData.width_percent = Math.max(5, Math.min(80, placementData.width_percent));
+  placementData.height_percent = Math.max(5, Math.min(80, placementData.height_percent));
+  placementData.opacity = Math.max(0.5, Math.min(1.0, placementData.opacity || 1.0));
+  placementData.rotation_degrees = Math.max(-45, Math.min(45, placementData.rotation_degrees || 0));
+  
+  // ── Step 2: Process the logo — remove background if needed ──
+  let processedLogo = overlayBuffer;
+  
+  if (placementData.remove_background && placementData.background_color !== 'none') {
+    try {
+      const { data, info } = await sharp(overlayBuffer)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      
+      const pixels = new Uint8Array(data);
+      const bgColor = placementData.background_color || 'white';
+      
+      // Detect the dominant corner color as the actual background
+      const corners = [
+        0,  // top-left
+        (info.width - 1) * 4,  // top-right
+        (info.height - 1) * info.width * 4,  // bottom-left
+        ((info.height - 1) * info.width + info.width - 1) * 4  // bottom-right
+      ];
+      
+      let bgR = 255, bgG = 255, bgB = 255;
+      if (bgColor === 'black' || bgColor === 'dark') {
+        bgR = 0; bgG = 0; bgB = 0;
+      } else {
+        // Sample corners to detect actual background color
+        let sumR = 0, sumG = 0, sumB = 0, count = 0;
+        for (const ci of corners) {
+          if (ci + 3 < pixels.length) {
+            sumR += pixels[ci]; sumG += pixels[ci + 1]; sumB += pixels[ci + 2];
+            count++;
+          }
         }
-      ],
-      max_tokens: 800,
-      temperature: 0.3,
-    }),
-  });
-  
-  if (!analysisResponse.ok) {
-    const err = await analysisResponse.json().catch(() => ({}));
-    return { success: false, error: err.error?.message || 'Failed to analyze design' };
+        if (count > 0) {
+          bgR = Math.round(sumR / count);
+          bgG = Math.round(sumG / count);
+          bgB = Math.round(sumB / count);
+        }
+      }
+      
+      const threshold = 35; // Color distance threshold for background detection
+      
+      for (let i = 0; i < pixels.length; i += 4) {
+        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+        const dist = Math.sqrt(
+          Math.pow(r - bgR, 2) + Math.pow(g - bgG, 2) + Math.pow(b - bgB, 2)
+        );
+        
+        if (dist < threshold) {
+          // Full transparency for exact background matches
+          pixels[i + 3] = 0;
+        } else if (dist < threshold * 2) {
+          // Gradual transparency for anti-aliased edges (feathering)
+          const alpha = Math.round(((dist - threshold) / threshold) * 255);
+          pixels[i + 3] = Math.min(pixels[i + 3], alpha);
+        }
+      }
+      
+      processedLogo = await sharp(Buffer.from(pixels), {
+        raw: { width: info.width, height: info.height, channels: 4 }
+      }).png().toBuffer();
+      
+      console.log('[SmartComposite] Background removed (bg color:', bgR, bgG, bgB, ')');
+    } catch (bgErr) {
+      console.log('[SmartComposite] Background removal failed:', bgErr.message, '- using original');
+      processedLogo = await sharp(overlayBuffer).ensureAlpha().png().toBuffer();
+    }
+  } else {
+    processedLogo = await sharp(overlayBuffer).ensureAlpha().png().toBuffer();
   }
   
-  const analysisData = await analysisResponse.json();
-  const mockupPrompt = analysisData.choices?.[0]?.message?.content || '';
+  // ── Step 3: Calculate actual pixel coordinates and resize logo ──
+  const targetW = Math.round(baseMeta.width * placementData.width_percent / 100);
+  const targetH = Math.round(baseMeta.height * placementData.height_percent / 100);
+  let targetX = Math.round(baseMeta.width * placementData.x_percent / 100);
+  let targetY = Math.round(baseMeta.height * placementData.y_percent / 100);
   
-  // Generate mockup
-  const generateResponse = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'dall-e-3',
-      prompt: mockupPrompt,
-      n: 1,
-      size: '1024x1024',
-      quality: 'hd',
-      style: 'natural',
-    }),
-  });
+  console.log('[SmartComposite] Placement: x=' + targetX + ' y=' + targetY + ' w=' + targetW + ' h=' + targetH);
   
-  if (!generateResponse.ok) {
-    const err = await generateResponse.json().catch(() => ({}));
-    return { success: false, error: err.error?.message || 'Failed to generate mockup' };
+  // Resize logo to target dimensions (maintain aspect ratio)
+  let resizedLogo = await sharp(processedLogo)
+    .resize(targetW, targetH, { 
+      fit: 'contain', 
+      background: { r: 0, g: 0, b: 0, alpha: 0 } 
+    })
+    .png()
+    .toBuffer();
+  
+  // Get actual dimensions after resize (may be smaller due to aspect ratio)
+  const resizedMeta = await sharp(resizedLogo).metadata();
+  
+  // Center the logo within the target area if it didn't fill completely
+  if (resizedMeta.width < targetW) {
+    targetX += Math.round((targetW - resizedMeta.width) / 2);
+  }
+  if (resizedMeta.height < targetH) {
+    targetY += Math.round((targetH - resizedMeta.height) / 2);
   }
   
-  const generateData = await generateResponse.json();
-  const mockupUrl = generateData.data?.[0]?.url;
+  // Apply rotation if needed
+  if (placementData.rotation_degrees && Math.abs(placementData.rotation_degrees) > 0.5) {
+    resizedLogo = await sharp(resizedLogo)
+      .rotate(placementData.rotation_degrees, { 
+        background: { r: 0, g: 0, b: 0, alpha: 0 } 
+      })
+      .png()
+      .toBuffer();
+    console.log('[SmartComposite] Rotated logo by', placementData.rotation_degrees, 'degrees');
+  }
   
-  if (!mockupUrl) {
-    return { success: false, error: 'No mockup generated' };
+  // Apply opacity if less than 1
+  if (placementData.opacity < 1.0) {
+    try {
+      const { data: logoData, info: logoInfo } = await sharp(resizedLogo)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      
+      const logoPixels = new Uint8Array(logoData);
+      const opacityFactor = placementData.opacity;
+      
+      for (let i = 3; i < logoPixels.length; i += 4) {
+        logoPixels[i] = Math.round(logoPixels[i] * opacityFactor);
+      }
+      
+      resizedLogo = await sharp(Buffer.from(logoPixels), {
+        raw: { width: logoInfo.width, height: logoInfo.height, channels: 4 }
+      }).png().toBuffer();
+      
+      console.log('[SmartComposite] Applied opacity:', opacityFactor);
+    } catch (opErr) {
+      console.log('[SmartComposite] Opacity adjustment failed:', opErr.message);
+    }
+  }
+  
+  // ── Step 4: Clamp position to ensure logo stays within bounds ──
+  const finalLogoMeta = await sharp(resizedLogo).metadata();
+  targetX = Math.max(0, Math.min(baseMeta.width - (finalLogoMeta.width || 1), targetX));
+  targetY = Math.max(0, Math.min(baseMeta.height - (finalLogoMeta.height || 1), targetY));
+  
+  // ── Step 5: Composite logo onto base image ──
+  // Always use 'over' blend to preserve EXACT logo colors/pixels
+  // For fabric surfaces, we add a subtle texture hint using a secondary multiply layer
+  const compositeOps = [];
+  
+  // For fabric/curved surfaces, add a subtle shadow for depth
+  if (['fabric', 'curved', 'vehicle'].includes(placementData.surface_type)) {
+    try {
+      // Create a very subtle darkened version underneath for shadow/depth effect
+      const shadowLogo = await sharp(resizedLogo)
+        .blur(4)
+        .modulate({ brightness: 0.5 })
+        .png()
+        .toBuffer();
+      
+      compositeOps.push({
+        input: shadowLogo,
+        left: Math.min(baseMeta.width - 1, targetX + 3),
+        top: Math.min(baseMeta.height - 1, targetY + 3),
+        blend: 'multiply',
+      });
+    } catch (e) { /* shadow is optional, skip if fails */ }
+  }
+  
+  // Main logo overlay — uses 'over' blend to preserve exact pixels
+  compositeOps.push({
+    input: resizedLogo,
+    left: targetX,
+    top: targetY,
+    blend: 'over',
+  });
+  
+  const result = await sharp(baseBuffer)
+    .composite(compositeOps)
+    .png()
+    .toBuffer();
+  
+  console.log('[SmartComposite] Final result:', result.length, 'bytes');
+  
+  // ── Step 6: Upload result to storage ──
+  let resultUrl = null;
+  if (kieKey) {
+    try {
+      const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
+        body: JSON.stringify({
+          base64Data: `data:image/png;base64,${result.toString('base64')}`,
+          uploadPath: 'soulprint/composites',
+          fileName: `composite_${Date.now()}.png`
+        }),
+      });
+      if (upRes.ok) {
+        const d = await upRes.json();
+        if (d.success && d.data?.downloadUrl) {
+          resultUrl = d.data.downloadUrl;
+          console.log('[SmartComposite] Uploaded to:', resultUrl);
+        }
+      }
+    } catch (e) { 
+      console.log('[SmartComposite] Upload failed:', e.message); 
+    }
+  }
+  
+  if (!resultUrl) {
+    resultUrl = `data:image/png;base64,${result.toString('base64')}`;
   }
   
   return {
     success: true,
-    url: mockupUrl,
-    product,
+    url: resultUrl,
+    placement: placementData,
+    method: 'smart-composite-programmatic'
   };
 }
+
 
 // Helper: Get connection by account email
 async function getConnectionByEmail(userId, accountEmail) {
@@ -7809,188 +8101,100 @@ async function handleChatStream(request) {
           /\b(attached|uploaded)\b.*\b(logo|image)\b/i,
         ];
         
-        const isCompositeRequest = hasImageAttachment && lastImageUrlInConversation && 
-          compositePatterns.some(p => p.test(sanitizedContent));
+        // Also detect composite when user uploads TWO images (base + logo, no conversation image needed)
+        const imageAttachments = attachments.filter(a => 
+          a.type?.startsWith('image/') || /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(a.name || '')
+        );
+        const hasTwoImageAttachments = imageAttachments.length >= 2;
+        
+        const isCompositeRequest = (hasImageAttachment && lastImageUrlInConversation && 
+          compositePatterns.some(p => p.test(sanitizedContent))) ||
+          (hasTwoImageAttachments && compositePatterns.some(p => p.test(sanitizedContent)));
         
         if (isCompositeRequest) {
           console.log('[Composite] Detected composite request');
-          console.log('[Composite] Base image:', lastImageUrlInConversation.substring(0, 80));
+          console.log('[Composite] Has two attachments:', hasTwoImageAttachments);
+          console.log('[Composite] Conversation image:', lastImageUrlInConversation?.substring(0, 80) || 'none');
           console.log('[Composite] Instruction:', sanitizedContent.substring(0, 100));
           
           send({ type: 'generating_visual', visualType: 'edit' });
-          send({ type: 'delta', content: '🎨 Compositing your logo onto the image...\n\n' });
+          send({ type: 'delta', content: '🎨 Compositing your design onto the image — your logo will be preserved pixel-perfect...\n\n' });
           
           try {
-            const sharp = (await import('sharp')).default;
-            const openaiApiKey = process.env.OPENAI_API_KEY;
-            const kieKey = process.env.KIE_API_KEY;
-            
-            if (!openaiApiKey) throw new Error('OpenAI API key required for compositing');
-            
-            // Get the uploaded overlay image
-            const overlayAttachment = attachments.find(a => 
-              a.type?.startsWith('image/') || /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(a.name || '')
-            );
-            
-            let overlayBase64 = overlayAttachment.base64 || overlayAttachment.data;
-            let overlayUrl = overlayAttachment.url;
-            let overlayMime = overlayAttachment.type || 'image/png';
-            
-            if (overlayBase64 && overlayBase64.startsWith('data:')) {
-              const match = overlayBase64.match(/^data:([^;]+);base64,(.+)$/);
-              if (match) { overlayMime = match[1]; overlayBase64 = match[2]; }
-            }
-            
-            if (!overlayBase64 && overlayUrl) {
-              const resp = await fetch(overlayUrl);
-              const buf = await resp.arrayBuffer();
-              overlayBase64 = Buffer.from(buf).toString('base64');
-              overlayMime = resp.headers.get('content-type') || 'image/png';
-            }
-            
-            // Fetch base image
+            // Determine base and overlay sources
             let baseBuffer = null;
-            try {
+            let overlayBuffer = null;
+            let overlayMime = 'image/png';
+            
+            if (hasTwoImageAttachments) {
+              // Two attachments: first = base, second = logo/overlay
+              const baseAttachment = imageAttachments[0];
+              const overlayAttachment = imageAttachments[1];
+              
+              // Get base buffer
+              let baseB64 = baseAttachment.base64 || baseAttachment.data;
+              if (baseB64 && baseB64.startsWith('data:')) {
+                const m = baseB64.match(/^data:([^;]+);base64,(.+)$/);
+                if (m) baseB64 = m[2];
+              }
+              if (!baseB64 && baseAttachment.url) {
+                const r = await fetch(baseAttachment.url);
+                baseB64 = Buffer.from(await r.arrayBuffer()).toString('base64');
+              }
+              baseBuffer = Buffer.from(baseB64, 'base64');
+              
+              // Get overlay buffer
+              let ovB64 = overlayAttachment.base64 || overlayAttachment.data;
+              overlayMime = overlayAttachment.type || 'image/png';
+              if (ovB64 && ovB64.startsWith('data:')) {
+                const m = ovB64.match(/^data:([^;]+);base64,(.+)$/);
+                if (m) { overlayMime = m[1]; ovB64 = m[2]; }
+              }
+              if (!ovB64 && overlayAttachment.url) {
+                const r = await fetch(overlayAttachment.url);
+                ovB64 = Buffer.from(await r.arrayBuffer()).toString('base64');
+                overlayMime = r.headers.get('content-type') || 'image/png';
+              }
+              overlayBuffer = Buffer.from(ovB64, 'base64');
+            } else {
+              // One attachment (overlay/logo) + conversation image (base)
+              const overlayAttachment = imageAttachments[0];
+              
+              let ovB64 = overlayAttachment.base64 || overlayAttachment.data;
+              overlayMime = overlayAttachment.type || 'image/png';
+              if (ovB64 && ovB64.startsWith('data:')) {
+                const m = ovB64.match(/^data:([^;]+);base64,(.+)$/);
+                if (m) { overlayMime = m[1]; ovB64 = m[2]; }
+              }
+              if (!ovB64 && overlayAttachment.url) {
+                const r = await fetch(overlayAttachment.url);
+                ovB64 = Buffer.from(await r.arrayBuffer()).toString('base64');
+                overlayMime = r.headers.get('content-type') || 'image/png';
+              }
+              overlayBuffer = Buffer.from(ovB64, 'base64');
+              
+              // Fetch base from conversation
               const baseResp = await fetch(lastImageUrlInConversation);
               baseBuffer = Buffer.from(await baseResp.arrayBuffer());
-            } catch (fetchErr) {
-              throw new Error('Failed to fetch base image: ' + fetchErr.message);
             }
             
-            const overlayBuffer = Buffer.from(overlayBase64, 'base64');
-            const baseMeta = await sharp(baseBuffer).metadata();
-            const overlayMeta = await sharp(overlayBuffer).metadata();
-            console.log('[Composite] Base:', baseMeta.width, 'x', baseMeta.height, 'Overlay:', overlayMeta.width, 'x', overlayMeta.height);
-            
-            // ══════════════════════════════════════════════════════════════
-            // REFERENCE SHEET: Combine base + logo into one image so 
-            // GPT-image-1 can SEE both and do realistic compositing
-            // ══════════════════════════════════════════════════════════════
-            
-            // Step 1: GPT-4o Vision — get precise compositing instruction
-            let compositeInstruction = sanitizedContent;
-            try {
-              const analysisRes = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  model: 'gpt-4o',
-                  messages: [{
-                    role: 'system',
-                    content: `You create precise compositing instructions. Given a base image and a logo, describe EXACTLY how to composite them. Be specific about: what to REMOVE, WHERE to place the logo, HOW to blend it naturally (match fabric/surface texture, perspective, lighting). Under 200 words. Be direct.`
-                  }, {
-                    role: 'user',
-                    content: [
-                      { type: 'text', text: `Request: "${sanitizedContent}"\nImage 1 = base. Image 2 = logo to add.` },
-                      { type: 'image_url', image_url: { url: `data:image/png;base64,${baseBuffer.toString('base64')}`, detail: 'high' } },
-                      { type: 'image_url', image_url: { url: `data:${overlayMime};base64,${overlayBase64}`, detail: 'high' } }
-                    ]
-                  }],
-                  max_tokens: 400, temperature: 0.2
-                })
-              });
-              if (analysisRes.ok) {
-                const d = await analysisRes.json();
-                const enhanced = d.choices?.[0]?.message?.content;
-                if (enhanced && enhanced.length > 30) {
-                  compositeInstruction = enhanced;
-                  console.log('[Composite] Enhanced:', compositeInstruction.substring(0, 200));
-                }
-              }
-            } catch (e) { console.log('[Composite] Analysis failed:', e.message); }
-            
-            // Step 2: Create reference sheet (base image + logo strip at bottom)
-            const targetSize = 1024;
-            const refH = 200;
-            const mainH = targetSize - refH;
-            
-            const resizedBase = await sharp(baseBuffer).resize(targetSize, mainH, { fit: 'cover' }).png().toBuffer();
-            const logoResized = await sharp(overlayBuffer).resize(refH - 20, refH - 20, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 255 } }).png().toBuffer();
-            const refStrip = await sharp({ create: { width: targetSize, height: refH, channels: 4, background: { r: 240, g: 240, b: 240, alpha: 255 } } }).composite([{ input: logoResized, left: 10, top: 10 }]).png().toBuffer();
-            const referenceSheet = await sharp({ create: { width: targetSize, height: targetSize, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 255 } } }).composite([{ input: resizedBase, left: 0, top: 0 }, { input: refStrip, left: 0, top: mainH }]).png().toBuffer();
-            
-            console.log('[Composite] Reference sheet created:', referenceSheet.length, 'bytes');
-            
-            // Step 3: Send to GPT-image-1
-            let resultUrl = null;
-            try {
-              const OpenAI = (await import('openai')).default;
-              const { toFile } = await import('openai/uploads');
-              const openai = new OpenAI({ apiKey: openaiApiKey });
-              const refFile = await toFile(referenceSheet, 'reference.png', { type: 'image/png' });
-              
-              const editResult = await openai.images.edit({
-                model: 'gpt-image-1',
-                image: refFile,
-                prompt: `This image has two parts: MAIN IMAGE on top (${targetSize}x${mainH}px) and a REFERENCE LOGO in the gray strip at bottom.
-
-TASK: ${compositeInstruction}
-
-RULES:
-1. Take the EXACT logo from the bottom reference strip and place it naturally in the main image
-2. The logo must look PRINTED on the surface — match fabric wrinkles, perspective, lighting
-3. REMOVE any existing logos/text that should be replaced
-4. Output ONLY the main scene — DO NOT include the gray reference strip
-5. Preserve the exact design, text, and colors of the reference logo`,
-                n: 1, size: '1024x1024',
-              });
-              
-              if (editResult.data?.[0]?.b64_json) {
-                const resultB64 = editResult.data[0].b64_json;
-                const fullResult = Buffer.from(resultB64, 'base64');
-                
-                // Crop reference strip if still present
-                const resMeta = await sharp(fullResult).metadata();
-                let finalBuf = fullResult;
-                try {
-                  const cropH = Math.round(resMeta.height * mainH / targetSize);
-                  finalBuf = await sharp(fullResult).extract({ left: 0, top: 0, width: resMeta.width, height: cropH }).resize(targetSize, targetSize, { fit: 'cover' }).png().toBuffer();
-                } catch (e) { /* use full result */ }
-                
-                if (kieKey) {
-                  const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
-                    body: JSON.stringify({ base64Data: `data:image/png;base64,${finalBuf.toString('base64')}`, uploadPath: 'soulprint/composites', fileName: `composite_${Date.now()}.png` }),
-                  });
-                  if (upRes.ok) { const d = await upRes.json(); if (d.success && d.data?.downloadUrl) resultUrl = d.data.downloadUrl; }
-                }
-                if (!resultUrl) resultUrl = `data:image/png;base64,${finalBuf.toString('base64')}`;
-                console.log('[Composite] GPT-image-1 success!');
-              } else if (editResult.data?.[0]?.url) {
-                resultUrl = editResult.data[0].url;
-              }
-            } catch (gptErr) {
-              console.log('[Composite] GPT-image-1 failed:', gptErr.message);
+            if (!baseBuffer || !overlayBuffer) {
+              throw new Error('Could not load base and overlay images');
             }
             
-            // Fallback: SeeDream
-            if (!resultUrl && kieKey) {
-              try {
-                const cr = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
-                  body: JSON.stringify({ model: 'bytedance/seedream-v4-edit', input: { prompt: compositeInstruction, image_urls: [lastImageUrlInConversation], image_size: 'square_hd', image_resolution: '2K', max_images: 1 } }),
-                });
-                const cd = await cr.json();
-                if (cd.code === 200 && cd.data?.taskId) {
-                  const st = Date.now();
-                  while (Date.now() - st < 60000) {
-                    await new Promise(r => setTimeout(r, 3000));
-                    const sr = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${cd.data.taskId}`, { headers: { 'Authorization': `Bearer ${kieKey}` } });
-                    const sd = await sr.json();
-                    if (sd.code === 200) { if (sd.data?.state === 'success') { const rj = JSON.parse(sd.data?.resultJson || '{}'); resultUrl = rj?.resultUrls?.[0] || rj?.url; break; } else if (sd.data?.state === 'fail') break; }
-                  }
-                }
-              } catch (e) { console.log('[Composite] SeeDream failed:', e.message); }
-            }
+            // ── Call the Smart Composite function ──
+            // AI provides placement intelligence only, Sharp does pixel-perfect compositing
+            const compositeResult = await handleSmartComposite(
+              baseBuffer, overlayBuffer, overlayMime, sanitizedContent
+            );
             
-            if (resultUrl) {
-              fullContent = `![Composited Image](${resultUrl})\n\n🎨 *Your logo has been composited onto the image!*`;
-              send({ type: 'image', url: resultUrl, revised_prompt: sanitizedContent, contentType: 'composite' });
+            if (compositeResult.success && compositeResult.url) {
+              const placementInfo = compositeResult.placement;
+              fullContent = `![Composited Image](${compositeResult.url})\n\n🎨 *Your design has been composited onto the image!*\n*Surface: ${placementInfo?.surface_type || 'auto'} | Method: pixel-perfect overlay*`;
+              send({ type: 'image', url: compositeResult.url, revised_prompt: sanitizedContent, contentType: 'composite' });
               send({ type: 'delta', content: fullContent });
             } else {
-              throw new Error('Compositing failed with all methods');
+              throw new Error(compositeResult.error || 'Compositing failed');
             }
           } catch (compErr) {
             console.error('[Composite] Error:', compErr.message, compErr.stack);
@@ -8003,7 +8207,7 @@ RULES:
           await db.collection('messages').insertOne({
             id: assistantMsgId, conversation_id: convId, user_id: user.id,
             role: 'assistant', content: fullContent, created_at: new Date(),
-            model_used: 'composite-ref-sheet', provider_used: 'openai+sharp', content_type: 'composite',
+            model_used: 'smart-composite', provider_used: 'gpt4o-vision+sharp', content_type: 'composite',
             image_url: fullContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/)?.[1] || undefined,
             est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
           });
@@ -23853,6 +24057,9 @@ export async function POST(request, { params }) {
     
     // Mockup generation
     if (pathStr === 'mockup/generate') return handleMockupGenerate(request);
+    
+    // Smart Composite test endpoint
+    if (pathStr === 'composite/test') return handleCompositeTest(request);
 
     return err('Not found', 404);
   } catch (error) {

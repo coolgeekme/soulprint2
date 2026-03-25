@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://multi-model-llm.preview.emergentagent.com"
+BASE_URL = "https://smart-mockup.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  
