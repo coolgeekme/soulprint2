@@ -3130,14 +3130,15 @@ async function handleSmartComposite(baseBuffer, overlayBuffer, overlayMime, user
   console.log('[SmartComposite] Logo:', overlayMeta.width, 'x', overlayMeta.height);
   
   // Create smaller versions for AI analysis (saves tokens and avoids timeouts)
-  const analysisMaxDim = 512;
+  // Use 768px for good balance of quality and speed
+  const analysisMaxDim = 768;
   const baseForAnalysis = await sharp(basePng)
     .resize(analysisMaxDim, analysisMaxDim, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 70 })
+    .jpeg({ quality: 80 })
     .toBuffer();
   const overlayForAnalysis = await sharp(overlayPng)
     .resize(analysisMaxDim, analysisMaxDim, { fit: 'inside', withoutEnlargement: true })
-    .jpeg({ quality: 70 })
+    .jpeg({ quality: 80 })
     .toBuffer();
   
   console.log('[SmartComposite] Analysis images:', baseForAnalysis.length, 'bytes,', overlayForAnalysis.length, 'bytes');
@@ -3145,31 +3146,44 @@ async function handleSmartComposite(baseBuffer, overlayBuffer, overlayMime, user
   // ── Step 1: GPT-4o Vision — Analyze base image and get precise placement JSON ──
   const analysisPrompt = `You are a product mockup placement expert. Given a BASE IMAGE and a LOGO/DESIGN image, determine EXACTLY where and how to place the logo onto the base image.
 
-Analyze the base image to identify the best surface for logo placement based on the user's request.
+CRITICAL INSTRUCTIONS:
+1. Look at the ACTUAL base image very carefully
+2. Identify the SPECIFIC surface/area the user wants the logo on
+3. For vehicles: the "door panel" is the flat metal area BELOW the windows and ABOVE the wheel wells — NOT the windshield, NOT the hood, NOT the roof
+4. Coordinates are PERCENTAGES of the full image dimensions (0% = left/top edge, 100% = right/bottom edge)
 
-Respond ONLY with valid JSON (no markdown, no code fences, no explanation):
+Respond ONLY with valid JSON (no markdown, no code fences):
 {
-  "x_percent": <number 0-100, left edge of placement area as % of base image width>,
-  "y_percent": <number 0-100, top edge of placement area as % of base image height>,
-  "width_percent": <number 5-80, logo display width as % of base image width>,
-  "height_percent": <number 5-80, logo display height as % of base image height>,
-  "rotation_degrees": <number -45 to 45, clockwise rotation to match surface angle>,
-  "surface_type": <"flat"|"fabric"|"curved"|"paper"|"metal"|"glass"|"plastic"|"vehicle">,
-  "opacity": <number 0.7-1.0, recommended opacity>,
-  "remove_background": <true|false, whether the logo has a solid colored background that needs removal>,
+  "x_percent": <number 0-100, left edge of logo placement as % of image width>,
+  "y_percent": <number 0-100, top edge of logo placement as % of image height>,
+  "width_percent": <number 3-60, logo width as % of image width>,
+  "height_percent": <number 3-60, logo height as % of image height>,
+  "rotation_degrees": <number -45 to 45>,
+  "surface_type": <"flat"|"fabric"|"curved"|"vehicle"|"paper"|"metal"|"glass"|"plastic">,
+  "opacity": <number 0.7-1.0>,
+  "remove_background": <true|false>,
   "background_color": <"white"|"black"|"light"|"dark"|"none">
 }
 
-Placement Guidelines:
-- For t-shirts/clothing: center on chest area, ~30-40% width
-- For vehicles (cars, vans, trucks): place on the door/side panel, ~25-35% width
-- For mugs/cups: center on the visible face, ~40-50% width
-- For bags/totes: center on the main face, ~35-45% width
-- For walls/signs: center on the surface, ~40-60% width
-- For boxes/packaging: center on the front face
-- Keep logo proportional — don't stretch it
-- Match the natural angle/perspective of the target surface
-- If the user specifies a location (e.g., "on the door", "on the back"), honor that`;
+SIZE REFERENCE (match real-world scale):
+- STICKER/DECAL on vehicle: 8-15% of image width (small, like a real bumper sticker)
+- LOGO on t-shirt chest: 25-35% of image width
+- WRAP on vehicle: 30-50% of image width
+- Logo on mug: 30-40% of image width
+- If user says "sticker" or "decal" → use SMALL size (8-12%)
+
+VEHICLE PLACEMENT (look at the actual vehicle in the image):
+- "front door" / "driver's door" → place on the BODY PANEL of the front door, between the front wheel well and the B-pillar
+- "rear door" / "back door" → place on the body panel behind the B-pillar
+- "side" → center of the visible body panels
+- Door panels are the FLAT METAL SURFACES below the window line
+- NEVER place on windshield, windows, wheels, or roof
+- Match the perspective angle of the vehicle body
+
+RULES:
+- Keep logo proportional
+- Honor the user's specified location EXACTLY
+- For angled/3D views, adjust x/y to match the perspective`;
 
   let placementData = null;
   
@@ -3187,8 +3201,8 @@ Placement Guidelines:
           role: 'user',
           content: [
             { type: 'text', text: `User request: "${userInstruction}"\n\nImage 1 = BASE IMAGE (where logo goes).\nImage 2 = LOGO/DESIGN (to be placed on the base).\n\n${analysisPrompt}` },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${baseForAnalysis.toString('base64')}`, detail: 'low' } },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${overlayForAnalysis.toString('base64')}`, detail: 'low' } }
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${baseForAnalysis.toString('base64')}`, detail: 'auto' } },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${overlayForAnalysis.toString('base64')}`, detail: 'auto' } }
           ]
         }],
         max_tokens: 500,
@@ -3332,8 +3346,11 @@ Placement Guidelines:
     if (/chest/i.test(instr)) {
       xp = 30; yp = 25; wp = 35; hp = 25;
     }
+    if (/\bsticker\b|\bdecal\b/i.test(instr)) {
+      wp = Math.max(8, Math.min(15, wp)); hp = Math.max(6, Math.min(12, hp));
+    }
     if (/\bsmall\b/i.test(instr)) {
-      wp = Math.max(10, wp - 10); hp = Math.max(8, hp - 8);
+      wp = Math.max(8, wp - 10); hp = Math.max(6, hp - 8);
     }
     if (/\blarge\b|\bbig\b/i.test(instr)) {
       wp = Math.min(60, wp + 10); hp = Math.min(50, hp + 10);
@@ -3369,58 +3386,119 @@ Placement Guidelines:
         .toBuffer({ resolveWithObject: true });
       
       const pixels = new Uint8Array(data);
-      const bgColor = placementData.background_color || 'white';
+      const w = info.width;
+      const h = info.height;
       
-      // Detect the dominant corner color as the actual background
-      const corners = [
-        0,  // top-left
-        (info.width - 1) * 4,  // top-right
-        (info.height - 1) * info.width * 4,  // bottom-left
-        ((info.height - 1) * info.width + info.width - 1) * 4  // bottom-right
-      ];
+      // Sample edge pixels (top, bottom, left, right edges) to detect background color
+      const edgeSamples = [];
+      for (let x = 0; x < w; x += Math.max(1, Math.floor(w / 20))) {
+        edgeSamples.push((0 * w + x) * 4);           // top edge
+        edgeSamples.push(((h - 1) * w + x) * 4);     // bottom edge
+      }
+      for (let y = 0; y < h; y += Math.max(1, Math.floor(h / 20))) {
+        edgeSamples.push((y * w + 0) * 4);            // left edge
+        edgeSamples.push((y * w + (w - 1)) * 4);      // right edge
+      }
       
-      let bgR = 255, bgG = 255, bgB = 255;
-      if (bgColor === 'black' || bgColor === 'dark') {
-        bgR = 0; bgG = 0; bgB = 0;
-      } else {
-        // Sample corners to detect actual background color
-        let sumR = 0, sumG = 0, sumB = 0, count = 0;
-        for (const ci of corners) {
-          if (ci + 3 < pixels.length) {
-            sumR += pixels[ci]; sumG += pixels[ci + 1]; sumB += pixels[ci + 2];
-            count++;
-          }
+      let sumR = 0, sumG = 0, sumB = 0, count = 0;
+      for (const idx of edgeSamples) {
+        if (idx + 3 < pixels.length) {
+          sumR += pixels[idx]; sumG += pixels[idx + 1]; sumB += pixels[idx + 2];
+          count++;
         }
-        if (count > 0) {
-          bgR = Math.round(sumR / count);
-          bgG = Math.round(sumG / count);
-          bgB = Math.round(sumB / count);
+      }
+      const bgR = count > 0 ? Math.round(sumR / count) : 0;
+      const bgG = count > 0 ? Math.round(sumG / count) : 0;
+      const bgB = count > 0 ? Math.round(sumB / count) : 0;
+      
+      // Use flood-fill from edges to mark background pixels
+      // This is better than global threshold because it only removes connected background
+      const visited = new Uint8Array(w * h); // 0 = not visited, 1 = background, 2 = foreground
+      const threshold = 50; // Color distance threshold
+      
+      const colorDist = (i) => {
+        return Math.sqrt(
+          Math.pow(pixels[i] - bgR, 2) + 
+          Math.pow(pixels[i + 1] - bgG, 2) + 
+          Math.pow(pixels[i + 2] - bgB, 2)
+        );
+      };
+      
+      // BFS flood fill from all edge pixels
+      const queue = [];
+      // Add all edge pixels to queue
+      for (let x = 0; x < w; x++) {
+        queue.push(x); // top row
+        queue.push((h - 1) * w + x); // bottom row
+      }
+      for (let y = 0; y < h; y++) {
+        queue.push(y * w); // left column
+        queue.push(y * w + (w - 1)); // right column
+      }
+      
+      // Mark edge pixels as background candidates
+      for (const pixelIdx of queue) {
+        if (pixelIdx >= 0 && pixelIdx < w * h) {
+          const rgba = pixelIdx * 4;
+          if (rgba + 3 < pixels.length && colorDist(rgba) < threshold) {
+            visited[pixelIdx] = 1;
+          }
         }
       }
       
-      const threshold = 35; // Color distance threshold for background detection
-      
-      for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
-        const dist = Math.sqrt(
-          Math.pow(r - bgR, 2) + Math.pow(g - bgG, 2) + Math.pow(b - bgB, 2)
-        );
+      // BFS flood fill
+      let queueStart = 0;
+      const floodQueue = queue.filter(idx => visited[idx] === 1);
+      let fqi = 0;
+      while (fqi < floodQueue.length) {
+        const pos = floodQueue[fqi++];
+        const x = pos % w;
+        const y = Math.floor(pos / w);
         
-        if (dist < threshold) {
-          // Full transparency for exact background matches
-          pixels[i + 3] = 0;
-        } else if (dist < threshold * 2) {
-          // Gradual transparency for anti-aliased edges (feathering)
-          const alpha = Math.round(((dist - threshold) / threshold) * 255);
-          pixels[i + 3] = Math.min(pixels[i + 3], alpha);
+        const neighbors = [];
+        if (x > 0) neighbors.push(pos - 1);
+        if (x < w - 1) neighbors.push(pos + 1);
+        if (y > 0) neighbors.push(pos - w);
+        if (y < h - 1) neighbors.push(pos + w);
+        
+        for (const n of neighbors) {
+          if (n >= 0 && n < w * h && visited[n] === 0) {
+            const rgba = n * 4;
+            if (rgba + 3 < pixels.length && colorDist(rgba) < threshold) {
+              visited[n] = 1;
+              floodQueue.push(n);
+            }
+          }
+        }
+      }
+      
+      // Apply transparency to background pixels
+      let bgPixelCount = 0;
+      for (let i = 0; i < w * h; i++) {
+        const rgba = i * 4;
+        if (visited[i] === 1) {
+          pixels[rgba + 3] = 0; // Make background fully transparent
+          bgPixelCount++;
+        } else {
+          // Check if this non-flood pixel is VERY close to bg color (isolated bg patches)
+          const dist = colorDist(rgba);
+          if (dist < threshold * 0.5) {
+            pixels[rgba + 3] = 0;
+            bgPixelCount++;
+          } else if (dist < threshold) {
+            // Feather the edges
+            const alpha = Math.round((dist / threshold) * 255);
+            pixels[rgba + 3] = Math.min(pixels[rgba + 3], alpha);
+          }
         }
       }
       
       processedLogo = await sharp(Buffer.from(pixels), {
-        raw: { width: info.width, height: info.height, channels: 4 }
+        raw: { width: w, height: h, channels: 4 }
       }).png().toBuffer();
       
-      console.log('[SmartComposite] Background removed (bg color:', bgR, bgG, bgB, ')');
+      const bgPercent = ((bgPixelCount / (w * h)) * 100).toFixed(1);
+      console.log('[SmartComposite] Background removed: ' + bgPercent + '% pixels (bg color: ' + bgR + ',' + bgG + ',' + bgB + ')');
     } catch (bgErr) {
       console.log('[SmartComposite] Background removal failed:', bgErr.message, '- using original');
       processedLogo = await sharp(overlayPng).ensureAlpha().png().toBuffer();
