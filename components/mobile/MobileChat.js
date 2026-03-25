@@ -2810,6 +2810,8 @@ export default function MobileChat({
       let buffer = '';
       let actualModelUsed = selectedModel;
       let dynamicIntelligenceReason = null;
+      let streamingImageUrl = null;
+      let streamingVideoTask = null;
 
       while (reader) {
         const { done, value } = await reader.read();
@@ -2857,6 +2859,19 @@ export default function MobileChat({
                 setIsGeneratingVisual(true);
                 setVisualGenerationType(type);
               }
+            } else if (data.type === 'generating_visual') {
+              // Backend is generating an image/video - show indicator immediately
+              setIsGeneratingVisual(true);
+              setVisualGenerationType(data.visualType || 'image');
+            } else if (data.type === 'image') {
+              // Image generated - store for rendering
+              streamingImageUrl = data.url;
+              // Reset visual generation state since image arrived
+              setIsGeneratingVisual(false);
+              setVisualGenerationType('');
+            } else if (data.type === 'video_task') {
+              // Video job started
+              streamingVideoTask = { taskId: data.taskId, status: 'generating', prompt: data.prompt };
             } else if (data.type === 'sources') {
               // Received sources from web search
               setStreamingSources(data.sources || []);
@@ -2878,6 +2893,8 @@ export default function MobileChat({
           model_used: actualModelUsed,
           smart_mode: selectedModel === 'smart',
           smart_reason: dynamicIntelligenceReason,
+          image_url: streamingImageUrl || undefined,
+          video_task: streamingVideoTask || undefined,
           sources: streamingSources.length > 0 ? [...streamingSources] : undefined,
         }]);
       }
@@ -4010,9 +4027,15 @@ export default function MobileChat({
                           {visualGenerationType === 'infographic' ? '📊 Creating your infographic...' :
                            visualGenerationType === 'flyer' ? '📄 Designing your flyer...' :
                            visualGenerationType === 'poster' ? '🖼️ Creating your poster...' :
+                           visualGenerationType === 'edit' ? '✏️ Editing your image...' :
+                           visualGenerationType === 'video' ? '🎬 Generating your video...' :
                            '✨ Generating your image...'}
                         </p>
-                        <p className="text-gray-400 text-xs">This may take 15-30 seconds</p>
+                        <p className="text-gray-400 text-xs">
+                          {visualGenerationType === 'video' 
+                            ? 'This may take 1-3 minutes. Creating cinematic magic!' 
+                            : 'This may take 15-30 seconds. We\'re crafting something beautiful!'}
+                        </p>
                       </div>
                     </div>
                     

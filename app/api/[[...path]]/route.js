@@ -7768,94 +7768,132 @@ async function handleChatStream(request) {
         // ── Handle image EDIT requests ────────────────────────────────────
         // Detect when user wants to modify/edit a previously generated image
         // This must come BEFORE new image generation to intercept edit requests
-        const editImagePatterns = [
-          /\b(add|put|place|insert|overlay|stick|apply)\b.*\b(to|on|onto|around|over)\b.*\b(the|that|this|my|it|image|picture|photo|minivan|car|van|truck)\b/i,
-          /\b(add|put|place)\b.*\b(flames|fire|stickers?|decals?|logo|text|wings|stripes?|pattern|decoration|border|frame|hat|glasses|sunglasses|crown|stars?|sparkles?|flowers?|hearts?)\b/i,
-          /\b(remove|delete|erase|take off|take away|get rid of)\b.*\b(from|off|out of)?\b.*\b(the|that|this|my|it|image|picture|photo)\b/i,
-          /\b(change|modify|alter|update|edit|transform)\b.*\b(the|that|this|my|it|image|picture|photo|color|background|style)\b/i,
-          /\b(make|turn)\b.*\b(the|that|this|my|it|image|picture|photo|minivan|car)\b.*\b(red|blue|green|black|white|bigger|smaller|brighter|darker)\b/i,
-          /\b(edit|modify|change|update|alter)\b.*\b(the|that|this|my|previous|last|original)\b.*\b(image|picture|photo|generated)\b/i,
-          /\b(on|to|around)\b.*\b(the|that|this|my|original|previous|last)\b.*\b(image|picture|photo|one)\b/i,
-          /\b(flames?|fire|stickers?|decals?)\b.*\b(on|to|around|over)\b/i,
-        ];
         
-        const isEditRequest = editImagePatterns.some(p => p.test(sanitizedContent));
+        // Check if there's a recently generated image in the conversation FIRST
+        // so we can use this info to make broader edit detection
+        let lastImageUrlInConversation = null;
+        let lastImageSubject = null;
         
-        if (isEditRequest && attachments.length === 0) {
-          // Look for a previously generated image in the conversation
-          const recentMessages = await db.collection('messages')
+        if (convId) {
+          const recentMsgs = await db.collection('messages')
             .find({ conversation_id: convId })
             .sort({ created_at: -1 })
-            .limit(10)
+            .limit(15)
             .toArray();
           
-          // Find the most recent image URL in messages
-          let lastImageUrl = null;
-          for (const msg of recentMessages) {
+          for (const msg of recentMsgs) {
             if (msg.image_url) {
-              lastImageUrl = msg.image_url;
+              lastImageUrlInConversation = msg.image_url;
               break;
             }
-            // Check content for markdown image references
             if (msg.content && typeof msg.content === 'string') {
               const imgMatch = msg.content.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
               if (imgMatch) {
-                lastImageUrl = imgMatch[1];
+                lastImageUrlInConversation = imgMatch[1];
                 break;
               }
             }
           }
+        }
+        
+        // Broad edit detection - if there's a recent image AND user asks to modify something
+        const editImagePatterns = [
+          // Direct edit verbs
+          /\b(add|put|place|insert|overlay|stick|apply|remove|delete|erase|crop|rotate)\b/i,
+          // Swap/replace/change
+          /\b(swap|replace|change|switch|modify|alter|update|edit|transform|convert|adjust)\b/i,
+          // Make/turn + adjective (e.g., "make it red", "turn it into a cartoon")
+          /\b(make|turn|have)\b.*\b(it|the|that|this|him|her|them)\b/i,
+          // "Have the X do Y" (e.g., "have the otter hold a cupcake")
+          /\b(have|make|let)\b.*\b(hold|wear|carry|sit|stand|fly|jump|run|dance|swim|eat|drink)\b/i,
+          // Style changes
+          /\b(more|less)\b.*\b(realistic|cartoon|artistic|vibrant|dark|light|bright|colorful)\b/i,
+          // Background changes
+          /\b(change|different|new|another)\b.*\b(background|setting|scene|environment)\b/i,
+          // Color changes
+          /\b(make|change|turn|paint)\b.*\b(red|blue|green|yellow|orange|purple|pink|black|white|gray|gold|silver)\b/i,
+          // Wearing/holding/doing
+          /\b(wearing|holding|carrying|riding|sitting|standing|eating|drinking)\b/i,
+          // Explicit edit request
+          /\b(edit|modify|change|update|alter|tweak|fix|improve|enhance)\b.*\b(the|that|this|my|it|image|picture|photo|previous|last)\b/i,
+        ];
+        
+        const isEditRequest = lastImageUrlInConversation && editImagePatterns.some(p => p.test(sanitizedContent));
+        
+        // Also detect if user is explicitly asking to edit without patterns (AI-assisted detection)
+        const couldBeEditRequest = lastImageUrlInConversation && !mediaIntent && 
+          sanitizedContent.length < 200 && // Short messages are likely edit requests if there's a recent image
+          !/\b(generate|create|new image|new picture|new photo|from scratch)\b/i.test(sanitizedContent) && // Not asking for new image
+          /\b(the|it|that|this|image|picture|photo|otter|minivan|car|person|dog|cat|background)\b/i.test(sanitizedContent);
+        
+        if ((isEditRequest || couldBeEditRequest) && attachments.length === 0) {
+          console.log('[Image Edit] Detected edit request for existing image:', lastImageUrlInConversation.substring(0, 80));
+          console.log('[Image Edit] Edit instruction:', sanitizedContent.substring(0, 100));
+          console.log('[Image Edit] Detection method:', isEditRequest ? 'pattern match' : 'contextual (short msg + recent image)');
           
-          if (lastImageUrl) {
-            console.log('[Image Edit] Detected edit request for existing image:', lastImageUrl.substring(0, 80));
-            console.log('[Image Edit] Edit instruction:', sanitizedContent.substring(0, 100));
-            
-            send({ type: 'delta', content: '✏️ Editing your image...\n\n' });
-            
-            try {
-              const editResult = await handleImageEditInternal(
-                user.id,
-                { url: lastImageUrl },
-                sanitizedContent,
-                (progress) => {
-                  // Send progress updates to the frontend
-                  send({ type: 'delta', content: '' }); // keepalive
-                }
-              );
-              
-              if (editResult.success && editResult.url) {
-                console.log(`[Image Edit] Success with ${editResult.method}! URL:`, editResult.url.substring(0, 80));
-                
-                fullContent = `![Edited Image](${editResult.url})\n\n✏️ *Image edited using ${editResult.method}!*`;
-                send({ type: 'image', url: editResult.url, revised_prompt: sanitizedContent, contentType: 'edit' });
-                send({ type: 'delta', content: fullContent });
-              } else {
-                console.error('[Image Edit] Failed:', editResult.error);
-                fullContent = `Sorry, I couldn't edit the image: ${editResult.error}`;
-                send({ type: 'delta', content: fullContent });
+          // Send visual generation event to frontend
+          send({ type: 'generating_visual', visualType: 'edit' });
+          send({ type: 'delta', content: '✏️ Editing your image...\n\n' });
+          
+          try {
+            const editResult = await handleImageEditInternal(
+              user.id,
+              { url: lastImageUrlInConversation },
+              sanitizedContent,
+              (progress) => {
+                send({ type: 'delta', content: '' }); // keepalive
               }
-            } catch (editErr) {
-              console.error('[Image Edit] Exception:', editErr.message);
-              fullContent = `Sorry, image editing failed: ${editErr.message}`;
+            );
+            
+            if (editResult.success && editResult.url) {
+              console.log(`[Image Edit] Success with ${editResult.method}! URL:`, editResult.url.substring(0, 80));
+              
+              fullContent = `![Edited Image](${editResult.url})\n\n✏️ *Image edited using ${editResult.method}!*`;
+              send({ type: 'image', url: editResult.url, revised_prompt: sanitizedContent, contentType: 'edit' });
+              send({ type: 'delta', content: fullContent });
+              
+              // Auto-save edited image to gallery
+              try {
+                const mediaId = uuidv4();
+                await db.collection('media_gallery').insertOne({
+                  id: mediaId, user_id: user.id, type: 'image',
+                  model: editResult.method || 'image-edit',
+                  model_label: `Edit (${editResult.method || 'AI'})`,
+                  prompt: sanitizedContent, url: editResult.url,
+                  aspect_ratio: '1:1', conversation_id: convId,
+                  credits_used: 0, cost_usd: 0,
+                  created_at: new Date(),
+                  expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+                });
+                console.log('[Image Edit] Saved to gallery:', mediaId);
+              } catch (galErr) {
+                console.log('[Image Edit] Gallery save failed:', galErr.message);
+              }
+            } else {
+              console.error('[Image Edit] Failed:', editResult.error);
+              fullContent = `Sorry, I couldn't edit the image: ${editResult.error}`;
               send({ type: 'delta', content: fullContent });
             }
-            
-            // Save message
-            const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
-            await db.collection('messages').insertOne({
-              id: assistantMsgId, conversation_id: convId, user_id: user.id,
-              role: 'assistant', content: fullContent, created_at: new Date(),
-              model_used: 'image-edit', provider_used: 'multi', content_type: 'image-edit',
-              est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
-            });
-            await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
-            send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
-            clearInterval(keepaliveInterval);
-            controller.close();
-            return;
-          } else {
-            console.log('[Image Edit] Edit request detected but no previous image found in conversation, falling through to normal flow');
+          } catch (editErr) {
+            console.error('[Image Edit] Exception:', editErr.message);
+            fullContent = `Sorry, image editing failed: ${editErr.message}`;
+            send({ type: 'delta', content: fullContent });
           }
+          
+          // Save message with image_url for future edit detection
+          const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+          await db.collection('messages').insertOne({
+            id: assistantMsgId, conversation_id: convId, user_id: user.id,
+            role: 'assistant', content: fullContent, created_at: new Date(),
+            model_used: 'image-edit', provider_used: 'multi', content_type: 'image-edit',
+            image_url: fullContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/)?.[1] || undefined,
+            est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
+          });
+          await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
+          send({ type: 'done', conversationId: convId, messageId: assistantMsgId });
+          clearInterval(keepaliveInterval);
+          controller.close();
+          return;
         }
 
         // ── Handle image generation ───────────────────────────────────────
@@ -7872,6 +7910,10 @@ async function handleChatStream(request) {
           const modelDisplayName = selectedModelKey.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
           
           console.log(`[Image Generation] Dynamic Intelligence selected: ${selectedModelKey} - ${modelSelection.reason}`);
+          
+          // Send visual generation event to frontend for immediate indicator
+          const contentTypeForIndicator = isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'image');
+          send({ type: 'generating_visual', visualType: contentTypeForIndicator });
           
           let displayMessage = `🎨 Generating your image with ${modelDisplayName}...\n\n`;
           let enhancedPrompt = content;
@@ -8041,6 +8083,24 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             fullContent = `![Generated ${contentTypeLabel.charAt(0).toUpperCase() + contentTypeLabel.slice(1)}](${imageUrl})\n\n${successEmoji} *Your ${contentTypeLabel} has been created!*`;
             send({ type: 'image', url: imageUrl, revised_prompt: revisedPrompt, contentType: contentTypeLabel });
             send({ type: 'delta', content: fullContent });
+            
+            // Auto-save generated image to gallery
+            try {
+              const mediaId = uuidv4();
+              await db.collection('media_gallery').insertOne({
+                id: mediaId, user_id: user.id, type: 'image',
+                model: usedModel,
+                model_label: modelDisplayName || usedModel,
+                prompt: content, url: imageUrl,
+                aspect_ratio: '1:1', conversation_id: convId,
+                credits_used: 0, cost_usd: 0,
+                created_at: new Date(),
+                expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+              });
+              console.log('[Image Generation] Auto-saved to gallery:', mediaId);
+            } catch (galErr) {
+              console.log('[Image Generation] Gallery save failed:', galErr.message);
+            }
           } catch (imgErr) {
             console.error('[Image Generation] Exception:', imgErr.message, imgErr.stack);
             fullContent = `Sorry, image generation failed: ${imgErr.message}`;
@@ -8053,6 +8113,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             id: assistantMsgId, conversation_id: convId, user_id: user.id,
             role: 'assistant', content: fullContent, created_at: new Date(),
             model_used: usedModel, provider_used: usedModel === 'dall-e-3' ? 'openai' : 'kie-ai', content_type: storedContentType,
+            image_url: fullContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/)?.[1] || undefined,
             est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
           });
           await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });

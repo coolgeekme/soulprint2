@@ -1154,6 +1154,8 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
   const [loaded, setLoaded] = useState(false);
   const [showJson, setShowJson] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
+  const [savedToGallery, setSavedToGallery] = useState(false);
+  const [saving, setSaving] = useState(false);
   
   // Build the JSON object for this generation
   const jsonData = {
@@ -1231,7 +1233,7 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
             </button>
             <a href={url} target="_blank" rel="noopener noreferrer" download
               className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-lg hover:bg-orange-500/25 transition-colors whitespace-nowrap">
-              <Download className="w-3.5 h-3.5" /> Save
+              <Download className="w-3.5 h-3.5" /> Download
             </a>
           </div>
         </div>
@@ -7643,6 +7645,10 @@ export default function ChatPage() {
               // Received sources from web search
               setStreamingSources(data.sources || []);
               streamingSourcesRef.current = data.sources || [];
+            } else if (data.type === 'generating_visual') {
+              // Backend is generating an image/video - show indicator immediately
+              setIsGeneratingVisual(true);
+              setVisualGenerationType(data.visualType || 'image');
             } else if (data.type === 'image') {
               // Image generated – store url for rendering
               setStreamingImageUrl(data.url);
