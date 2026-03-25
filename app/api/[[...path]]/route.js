@@ -7766,10 +7766,10 @@ async function handleChatStream(request) {
         }
 
         // ── Handle image COMPOSITE requests (logo/overlay onto base image) ──
-        // Detect when user uploads an image AND wants to add it to an existing base image
-        // This must come BEFORE edit detection since it involves attachments
+        // Uses PROGRAMMATIC compositing (Sharp) for exact logo preservation
+        // AI (GPT-4o Vision) handles intelligent placement analysis only
         
-        // Check if there's a recently generated image in the conversation FIRST
+        // Check if there's a recently generated image in the conversation
         let lastImageUrlInConversation = null;
         
         if (convId) {
@@ -7800,25 +7800,28 @@ async function handleChatStream(request) {
         );
         
         const compositePatterns = [
-          /\b(add|put|place|stick|overlay|apply|attach|composite)\b.*\b(to|on|onto|over|into)\b/i,
-          /\b(add|put|place)\b.*\b(logo|image|icon|badge|sticker|decal|watermark|label|brand|emblem)\b/i,
-          /\b(logo|image|icon|badge|sticker|decal|this)\b.*\b(to|on|onto|over)\b.*\b(the|that|this|my|it)\b/i,
+          /\b(add|put|place|stick|overlay|apply|attach|composite|swap|replace)\b.*\b(to|on|onto|over|into|with)\b/i,
+          /\b(add|put|place|swap|replace)\b.*\b(logo|image|icon|badge|sticker|decal|watermark|label|brand|emblem)\b/i,
+          /\b(logo|image|icon|badge|sticker|decal|this)\b.*\b(to|on|onto|over|with)\b.*\b(the|that|this|my|it)\b/i,
           /\b(side|front|back|top|bottom|center|corner|left|right)\b.*\b(of the|of that|of this)\b/i,
           /\b(mockup|mock-up|mock up|composite|merge|combine|blend)\b/i,
+          /\b(swap|replace|change)\b.*\b(logo|image|graphic|design|text)\b.*\b(with|to)\b/i,
+          /\b(attached|uploaded)\b.*\b(logo|image)\b/i,
         ];
         
         const isCompositeRequest = hasImageAttachment && lastImageUrlInConversation && 
           compositePatterns.some(p => p.test(sanitizedContent));
         
         if (isCompositeRequest) {
-          console.log('[Composite] Detected composite request - merging uploaded image onto base');
+          console.log('[Composite] Detected composite request');
           console.log('[Composite] Base image:', lastImageUrlInConversation.substring(0, 80));
           console.log('[Composite] Instruction:', sanitizedContent.substring(0, 100));
           
           send({ type: 'generating_visual', visualType: 'edit' });
-          send({ type: 'delta', content: '🎨 Compositing your image onto the base...\n\n' });
+          send({ type: 'delta', content: '🎨 Compositing your logo onto the image...\n\n' });
           
           try {
+            const sharp = (await import('sharp')).default;
             const openaiApiKey = process.env.OPENAI_API_KEY;
             const kieKey = process.env.KIE_API_KEY;
             
@@ -7833,13 +7836,11 @@ async function handleChatStream(request) {
             let overlayUrl = overlayAttachment.url;
             let overlayMime = overlayAttachment.type || 'image/png';
             
-            // Strip data URL prefix if present
             if (overlayBase64 && overlayBase64.startsWith('data:')) {
               const match = overlayBase64.match(/^data:([^;]+);base64,(.+)$/);
               if (match) { overlayMime = match[1]; overlayBase64 = match[2]; }
             }
             
-            // Fetch overlay from URL if we only have URL
             if (!overlayBase64 && overlayUrl) {
               const resp = await fetch(overlayUrl);
               const buf = await resp.arrayBuffer();
@@ -7847,202 +7848,157 @@ async function handleChatStream(request) {
               overlayMime = resp.headers.get('content-type') || 'image/png';
             }
             
-            // Fetch the base image
-            let baseBase64 = null;
-            let baseMime = 'image/png';
+            // Fetch base image
+            let baseBuffer = null;
             try {
               const baseResp = await fetch(lastImageUrlInConversation);
-              const baseBuf = await baseResp.arrayBuffer();
-              baseBase64 = Buffer.from(baseBuf).toString('base64');
-              baseMime = baseResp.headers.get('content-type') || 'image/png';
+              baseBuffer = Buffer.from(await baseResp.arrayBuffer());
             } catch (fetchErr) {
               throw new Error('Failed to fetch base image: ' + fetchErr.message);
             }
             
-            if (!overlayBase64 || !baseBase64) {
-              throw new Error('Could not retrieve both images for compositing');
-            }
+            const overlayBuffer = Buffer.from(overlayBase64, 'base64');
             
-            // ── Step 1: GPT-4o Vision analysis of both images ──
-            console.log('[Composite] Step 1: Analyzing both images with GPT-4o Vision...');
+            // Get image dimensions
+            const baseMeta = await sharp(baseBuffer).metadata();
+            const overlayMeta = await sharp(overlayBuffer).metadata();
+            console.log('[Composite] Base:', baseMeta.width, 'x', baseMeta.height);
+            console.log('[Composite] Overlay:', overlayMeta.width, 'x', overlayMeta.height);
             
-            let compositePrompt = sanitizedContent;
+            // ── Step 1: GPT-4o Vision — get exact pixel placements ──
+            console.log('[Composite] Step 1: AI placement analysis...');
+            
+            const baseB64 = baseBuffer.toString('base64');
+            const overlayB64 = overlayBuffer.toString('base64');
+            let placements = [];
             
             try {
               const analysisRes = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${openaiApiKey}`,
-                  'Content-Type': 'application/json'
-                },
+                headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   model: 'gpt-4o',
                   messages: [{
                     role: 'system',
-                    content: `You are an expert image compositor. Given a base image and an overlay image (logo/graphic), create a precise compositing instruction.
+                    content: `You are an expert image compositor. Given a base image and an overlay, determine exact pixel placement coordinates.
 
-Your job:
-1. Analyze the BASE image - identify the surface/area where the overlay should go
-2. Analyze the OVERLAY image - identify its content, colors, shape, text
-3. Detect COLOR CONFLICTS - if the overlay has white elements on a light surface, or dark elements on a dark surface, suggest color inversions/adjustments
-4. Determine the correct SIZE, POSITION, ROTATION, and PERSPECTIVE for natural placement
-5. Consider lighting, shadows, and curvature of the surface
+Base image: ${baseMeta.width}x${baseMeta.height} pixels.
+Overlay image: ${overlayMeta.width}x${overlayMeta.height} pixels.
 
-Output a SINGLE detailed compositing instruction for an AI image editor. Be extremely specific about:
-- Exact placement (e.g., "centered on the driver-side door panel")
-- Size relative to the surface (e.g., "approximately 30% of the door height")
-- Any color adjustments needed (e.g., "invert the logo colors from white-on-black to black-on-white for visibility")
-- Perspective/distortion to match the surface angle
-- How to make it look natural (shadows, surface texture integration)`
+Return a JSON object with a "placements" array. Each placement:
+- "x": left pixel coordinate on base (0 = left edge)
+- "y": top pixel coordinate on base (0 = top edge)  
+- "width": target width in pixels for overlay
+- "height": target height in pixels for overlay (maintain aspect ratio)
+- "opacity": 0.0-1.0 (0.85-1.0 for logos)
+- "blend": "over" for normal, "multiply" for fabric printing
+- "invert": true ONLY if overlay colors invisible on surface (white on white)
+- "reason": brief explanation
+
+RULES:
+- If swapping/replacing existing logos, place at SAME positions as existing ones
+- Scale overlay naturally — logos on shirts: 30-50% of back area, on vehicles: 20-30% of panel
+- Consider perspective — farther objects appear smaller
+- For multiple placements, return multiple objects in the array`
                   }, {
                     role: 'user',
                     content: [
-                      { type: 'text', text: `User's request: "${sanitizedContent}"\n\nImage 1 is the BASE image. Image 2 is the OVERLAY (logo/graphic) to be added.\n\nCreate a precise compositing instruction.` },
-                      { type: 'image_url', image_url: { url: `data:${baseMime};base64,${baseBase64}`, detail: 'high' } },
-                      { type: 'image_url', image_url: { url: `data:${overlayMime};base64,${overlayBase64}`, detail: 'high' } }
+                      { type: 'text', text: `Request: "${sanitizedContent}"\n\nImage 1 = BASE (${baseMeta.width}x${baseMeta.height}). Image 2 = OVERLAY to place (${overlayMeta.width}x${overlayMeta.height}).\n\nReturn JSON with placements array.` },
+                      { type: 'image_url', image_url: { url: `data:image/png;base64,${baseB64}`, detail: 'high' } },
+                      { type: 'image_url', image_url: { url: `data:${overlayMime};base64,${overlayB64}`, detail: 'high' } }
                     ]
                   }],
-                  max_tokens: 500,
-                  temperature: 0.2
+                  max_tokens: 600,
+                  temperature: 0.1,
+                  response_format: { type: 'json_object' }
                 })
               });
               
               if (analysisRes.ok) {
                 const analysisData = await analysisRes.json();
-                const enhanced = analysisData.choices?.[0]?.message?.content;
-                if (enhanced && enhanced.length > 30) {
-                  compositePrompt = enhanced;
-                  console.log('[Composite] Enhanced prompt:', compositePrompt.substring(0, 200));
+                const content = analysisData.choices?.[0]?.message?.content;
+                console.log('[Composite] AI response:', content?.substring(0, 400));
+                if (content) {
+                  const parsed = JSON.parse(content);
+                  placements = Array.isArray(parsed) ? parsed : (parsed.placements || [parsed]);
                 }
               }
             } catch (analysisErr) {
-              console.log('[Composite] Vision analysis failed, using original instruction:', analysisErr.message);
+              console.log('[Composite] AI analysis failed:', analysisErr.message);
             }
             
-            // ── Step 2: Use GPT-image-1 for compositing ──
-            console.log('[Composite] Step 2: Compositing with GPT-image-1...');
+            // Fallback: center placement
+            if (!placements.length) {
+              const tW = Math.round(baseMeta.width * 0.3);
+              const tH = Math.round(tW * (overlayMeta.height / overlayMeta.width));
+              placements = [{ x: Math.round((baseMeta.width - tW) / 2), y: Math.round((baseMeta.height - tH) / 2), width: tW, height: tH, opacity: 0.9, blend: 'over', invert: false }];
+            }
             
-            let resultUrl = null;
+            console.log('[Composite] Placements:', JSON.stringify(placements).substring(0, 400));
             
-            // Method A: GPT-image-1 images.edit with the base image + detailed prompt about the overlay
-            try {
-              const OpenAI = (await import('openai')).default;
-              const { toFile } = await import('openai/uploads');
-              const openai = new OpenAI({ apiKey: openaiApiKey });
+            // ── Step 2: Programmatic compositing with Sharp ──
+            console.log('[Composite] Step 2: Compositing with Sharp...');
+            
+            const compositeOps = [];
+            
+            for (const p of placements) {
+              let proc = sharp(overlayBuffer);
+              const tW = Math.min(Math.max(p.width || 100, 20), baseMeta.width);
+              const tH = Math.min(Math.max(p.height || 100, 20), baseMeta.height);
+              proc = proc.resize(tW, tH, { fit: 'fill' });
               
-              // Create a combined image: base + overlay side by side for reference
-              // But for the edit endpoint, we send the base as the image and describe the overlay
-              const baseBuffer = Buffer.from(baseBase64, 'base64');
-              const baseFile = await toFile(baseBuffer, 'base.png', { type: baseMime });
+              if (p.invert) proc = proc.negate({ alpha: false });
+              proc = proc.ensureAlpha();
               
-              const editResult = await openai.images.edit({
-                model: 'gpt-image-1',
-                image: baseFile,
-                prompt: `COMPOSITE TASK: ${compositePrompt}
-                
-CRITICAL RULES:
-1. PRESERVE the base image exactly - same scene, same objects, same lighting
-2. ADD the overlay/logo EXACTLY as described - preserve its exact text, colors, and design
-3. Scale and position the overlay naturally on the specified surface
-4. Apply appropriate perspective distortion to match the surface angle
-5. Add subtle shadows and blending for realism
-6. If color conflicts exist (e.g., white logo on white surface), adjust overlay colors for visibility`,
-                n: 1,
-                size: '1024x1024',
+              // Apply opacity
+              if (p.opacity && p.opacity < 1) {
+                const buf = await proc.raw().toBuffer({ resolveWithObject: true });
+                for (let i = 3; i < buf.data.length; i += 4) {
+                  buf.data[i] = Math.round(buf.data[i] * p.opacity);
+                }
+                proc = sharp(buf.data, { raw: { width: buf.info.width, height: buf.info.height, channels: 4 } }).png();
+              }
+              
+              const processedBuf = await proc.toBuffer();
+              const left = Math.max(0, Math.min(Math.round(p.x || 0), baseMeta.width - 10));
+              const top = Math.max(0, Math.min(Math.round(p.y || 0), baseMeta.height - 10));
+              
+              compositeOps.push({
+                input: processedBuf, left, top,
+                blend: p.blend === 'multiply' ? 'multiply' : (p.blend === 'screen' ? 'screen' : 'over'),
               });
-              
-              if (editResult.data?.[0]?.b64_json) {
-                // Upload result to get a URL
-                if (kieKey) {
-                  const resultB64 = `data:image/png;base64,${editResult.data[0].b64_json}`;
-                  const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
-                    body: JSON.stringify({
-                      base64Data: resultB64,
-                      uploadPath: 'soulprint/composites',
-                      fileName: `composite_${Date.now()}.png`
-                    }),
-                  });
-                  if (uploadRes.ok) {
-                    const uploadData = await uploadRes.json();
-                    if (uploadData.success && uploadData.data?.downloadUrl) {
-                      resultUrl = uploadData.data.downloadUrl;
-                    }
-                  }
-                }
-                if (!resultUrl) {
-                  resultUrl = `data:image/png;base64,${editResult.data[0].b64_json}`;
-                }
-              } else if (editResult.data?.[0]?.url) {
-                resultUrl = editResult.data[0].url;
-              }
-              
-              if (resultUrl) {
-                console.log('[Composite] GPT-image-1 success!');
-              }
-            } catch (gptErr) {
-              console.log('[Composite] GPT-image-1 failed:', gptErr.message);
+              console.log(`[Composite] → ${left},${top} size:${tW}x${tH} blend:${p.blend || 'over'} invert:${!!p.invert}`);
             }
             
-            // Method B: Fallback - SeeDream with composite prompt
-            if (!resultUrl && kieKey) {
+            const resultBuffer = await sharp(baseBuffer).composite(compositeOps).png().toBuffer();
+            console.log('[Composite] Result size:', resultBuffer.length);
+            
+            // Upload result
+            let resultUrl = null;
+            if (kieKey) {
               try {
-                console.log('[Composite] Falling back to SeeDream v4 edit...');
-                
-                // Need base image URL
-                let baseUrl = lastImageUrlInConversation;
-                
-                const requestBody = {
-                  model: 'bytedance/seedream-v4-edit',
-                  input: {
-                    prompt: compositePrompt,
-                    image_urls: [baseUrl],
-                    image_size: 'square_hd',
-                    image_resolution: '2K',
-                    max_images: 1
-                  }
-                };
-                
-                const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
-                  body: JSON.stringify(requestBody),
+                  body: JSON.stringify({
+                    base64Data: `data:image/png;base64,${resultBuffer.toString('base64')}`,
+                    uploadPath: 'soulprint/composites',
+                    fileName: `composite_${Date.now()}.png`
+                  }),
                 });
-                
-                const createData = await createRes.json();
-                
-                if (createData.code === 200 && createData.data?.taskId) {
-                  const startTime = Date.now();
-                  while (Date.now() - startTime < 60000) {
-                    await new Promise(r => setTimeout(r, 3000));
-                    const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${createData.data.taskId}`, {
-                      headers: { 'Authorization': `Bearer ${kieKey}` },
-                    });
-                    const statusData = await statusRes.json();
-                    if (statusData.code === 200) {
-                      if (statusData.data?.state === 'success') {
-                        const rj = JSON.parse(statusData.data?.resultJson || '{}');
-                        resultUrl = rj?.resultUrls?.[0] || rj?.url || rj?.image_url || rj?.images?.[0];
-                        break;
-                      } else if (statusData.data?.state === 'fail') break;
-                    }
-                  }
+                if (uploadRes.ok) {
+                  const d = await uploadRes.json();
+                  if (d.success && d.data?.downloadUrl) resultUrl = d.data.downloadUrl;
                 }
-              } catch (sdErr) {
-                console.log('[Composite] SeeDream fallback failed:', sdErr.message);
-              }
+              } catch (e) { console.log('[Composite] Upload failed:', e.message); }
             }
+            if (!resultUrl) resultUrl = `data:image/png;base64,${resultBuffer.toString('base64')}`;
             
-            if (resultUrl) {
-              fullContent = `![Composited Image](${resultUrl})\n\n🎨 *Logo/image composited onto your base image!*`;
-              send({ type: 'image', url: resultUrl, revised_prompt: sanitizedContent, contentType: 'composite' });
-              send({ type: 'delta', content: fullContent });
-            } else {
-              throw new Error('Compositing failed with all methods');
-            }
+            fullContent = `![Composited Image](${resultUrl})\n\n🎨 *Your logo has been composited onto the image!*`;
+            send({ type: 'image', url: resultUrl, revised_prompt: sanitizedContent, contentType: 'composite' });
+            send({ type: 'delta', content: fullContent });
           } catch (compErr) {
-            console.error('[Composite] Error:', compErr.message);
+            console.error('[Composite] Error:', compErr.message, compErr.stack);
             fullContent = `Sorry, compositing failed: ${compErr.message}`;
             send({ type: 'delta', content: fullContent });
           }
