@@ -3180,18 +3180,23 @@ Respond ONLY with valid JSON (no markdown, no code fences):
   "remove_background": <true|false, whether the logo has a background that should be removed>
 }
 
-${isReplaceRequest ? `REPLACE RULES:
-- Find EVERY existing graphic/logo/printed design visible on the target surfaces
-- Return one placement per existing graphic, matching its approximate position and size
-- Even if graphics are partially hidden or at an angle, include them
-- For clothing: look for printed designs, screen prints, embroidered logos, text, symbols` : ''}
+${isReplaceRequest ? `REPLACE/SWAP RULES (CRITICAL):
+- Carefully examine the base image and identify EVERY existing graphic, logo, printed design, text, or artwork
+- For EACH existing graphic found: return a placement that EXACTLY matches its position, size, and angle
+- The x_percent/y_percent should be the TOP-LEFT corner of the existing graphic's bounding box
+- The width_percent/height_percent should match the existing graphic's size
+- Look pixel-by-pixel at the image: where do you see printed/applied designs?
+- For two people wearing shirts: there should be TWO placements (one per shirt)
+- For t-shirt backs: the design is typically centered vertically on the upper back between shoulder blades` : ''}
 
-PLACEMENT ACCURACY:
+PLACEMENT ACCURACY (THIS IS THE MOST IMPORTANT PART):
 - x_percent and y_percent define the TOP-LEFT corner of where the logo goes
-- Look at the ACTUAL pixels in the base image to determine positions
-- For fabric/clothing: the logo should cover the area where a real screen print would go
-- Match the SIZE of the logo to what looks natural on the surface (not too big, not too small)
-- For t-shirt backs: typical print area is 20-35% of the person's torso width
+- Look at the ACTUAL pixels in the base image to determine positions — do NOT guess
+- For "replace" requests: MATCH the exact position of the existing design you see
+- For t-shirt backs: the print area is usually between the shoulder blades, spanning 20-35% of the torso width
+- For two people side by side: left person is ~10-45% of image width, right person is ~55-90%
+- The design center on a t-shirt back is typically at 35-45% from the top of the image (upper back area)
+- SIZE must be proportional — a back print on a t-shirt is typically 15-25% of total image width
 
 SURFACE MATCHING:
 - For dark surfaces: set brightness_adjust < 1.0 (e.g., 0.6-0.8 for dark shirts)
@@ -3630,106 +3635,218 @@ async function compositeLogoAtPlacement(sharp, baseBuffer, processedLogo, baseMe
   targetX = Math.max(0, Math.min(baseMeta.width - logoW, targetX));
   targetY = Math.max(0, Math.min(baseMeta.height - logoH, targetY));
   
-  // ── Edge softening: feather alpha at logo edges for natural blending ──
-  let softLogo = resizedLogo;
+  // ═══════════════════════════════════════════════════════════════
+  // SCREEN PRINT SIMULATION — makes logo look PRINTED on the surface
+  // The key: fabric texture modulates the logo's brightness pixel-by-pixel
+  // ═══════════════════════════════════════════════════════════════
+  
+  const isFabric = (pl.surface_type === 'fabric');
+  
+  // Extract the surface patch where logo will go
+  let surfacePatch = null;
   try {
-    const { data: logoRaw, info: logoInfo } = await sharp(resizedLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const lp = new Uint8Array(logoRaw);
-    const lw = logoInfo.width, lh = logoInfo.height;
+    const extractLeft = Math.max(0, targetX);
+    const extractTop = Math.max(0, targetY);
+    const extractW = Math.min(logoW, baseMeta.width - extractLeft);
+    const extractH = Math.min(logoH, baseMeta.height - extractTop);
+    if (extractW > 0 && extractH > 0) {
+      surfacePatch = await sharp(baseBuffer)
+        .extract({ left: extractLeft, top: extractTop, width: extractW, height: extractH })
+        .resize(logoW, logoH, { fit: 'fill' })
+        .raw()
+        .toBuffer();
+    }
+  } catch (e) {
+    console.log('[SmartComposite] Surface patch extraction failed:', e.message);
+  }
+  
+  // Get logo raw pixels
+  const { data: logoRaw, info: logoInfo } = await sharp(resizedLogo)
+    .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const logoPx = new Uint8Array(logoRaw);
+  const lw = logoInfo.width, lh = logoInfo.height;
+  
+  if (surfacePatch && isFabric) {
+    // ── FABRIC SCREEN PRINT MODE ──
+    // The surface's brightness variations modulate the logo — wrinkles, folds, lighting
+    // all show through the "printed" design just like real screen printing
     
+    const surfPx = new Uint8Array(surfacePatch);
+    
+    // Calculate surface luminance stats for normalization
+    let minLum = 255, maxLum = 0, sumLum = 0, lumCount = 0;
+    for (let i = 0; i < lw * lh; i++) {
+      const si = i * 3; // surface is RGB (no alpha from raw)
+      if (si + 2 < surfPx.length) {
+        const lum = 0.299 * surfPx[si] + 0.587 * surfPx[si + 1] + 0.114 * surfPx[si + 2];
+        if (lum < minLum) minLum = lum;
+        if (lum > maxLum) maxLum = lum;
+        sumLum += lum;
+        lumCount++;
+      }
+    }
+    const avgLum = lumCount > 0 ? sumLum / lumCount : 128;
+    const lumRange = Math.max(1, maxLum - minLum);
+    
+    console.log('[SmartComposite] Surface luminance: min=' + minLum.toFixed(0) + ' max=' + maxLum.toFixed(0) + ' avg=' + avgLum.toFixed(0));
+    
+    // Create texture-modulated logo
+    const outputPx = new Uint8Array(logoPx.length);
+    
+    for (let i = 0; i < lw * lh; i++) {
+      const li = i * 4; // logo RGBA
+      const si = i * 3; // surface RGB
+      
+      if (li + 3 >= logoPx.length || logoPx[li + 3] === 0) {
+        // Transparent pixel — keep transparent
+        outputPx[li] = 0; outputPx[li+1] = 0; outputPx[li+2] = 0; outputPx[li+3] = 0;
+        continue;
+      }
+      
+      // Get surface luminance at this pixel (normalized 0-1)
+      let surfLum = 0.5;
+      if (si + 2 < surfPx.length) {
+        const rawLum = 0.299 * surfPx[si] + 0.587 * surfPx[si + 1] + 0.114 * surfPx[si + 2];
+        surfLum = (rawLum - minLum) / lumRange; // 0 to 1
+      }
+      
+      // Texture modulation factor: wrinkles darken the logo, highlights brighten it
+      // Range: 0.55 (deep wrinkle) to 1.05 (highlight) — fabric effect strength
+      const textureFactor = 0.55 + surfLum * 0.50;
+      
+      // Apply texture modulation to logo RGB (preserving alpha)
+      outputPx[li] = Math.min(255, Math.round(logoPx[li] * textureFactor));
+      outputPx[li+1] = Math.min(255, Math.round(logoPx[li+1] * textureFactor));
+      outputPx[li+2] = Math.min(255, Math.round(logoPx[li+2] * textureFactor));
+      
+      // Edge feathering: reduce alpha near transparent neighbors (2px radius)
+      let nearestTransDist = 999;
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = (i % lw) + dx, ny = Math.floor(i / lw) + dy;
+          if (nx >= 0 && nx < lw && ny >= 0 && ny < lh) {
+            const ni = (ny * lw + nx) * 4;
+            if (ni + 3 < logoPx.length && logoPx[ni + 3] === 0) {
+              const dist = Math.sqrt(dx*dx + dy*dy);
+              if (dist < nearestTransDist) nearestTransDist = dist;
+            }
+          }
+        }
+      }
+      
+      if (nearestTransDist <= 2) {
+        // Edge pixel — smooth alpha falloff
+        const edgeFactor = nearestTransDist / 2.5; // 0.4 at dist=1, 0.8 at dist=2
+        outputPx[li+3] = Math.round(logoPx[li+3] * edgeFactor * 0.85);
+      } else {
+        // Interior pixel — full opacity with slight surface bleed
+        outputPx[li+3] = Math.round(logoPx[li+3] * 0.92);
+      }
+    }
+    
+    const texturedLogo = await sharp(Buffer.from(outputPx), { raw: { width: lw, height: lh, channels: 4 } }).png().toBuffer();
+    
+    // Composite using simple but effective layering for fabric
+    const compositeOps = [];
+    
+    // Layer 1: Subtle shadow for depth
+    try {
+      const shadowLogo = await sharp(texturedLogo).blur(2).modulate({ brightness: 0.25 }).png().toBuffer();
+      compositeOps.push({
+        input: shadowLogo,
+        left: Math.min(baseMeta.width - 1, targetX + 1),
+        top: Math.min(baseMeta.height - 1, targetY + 1),
+        blend: 'multiply',
+      });
+    } catch (e) { /* optional */ }
+    
+    // Layer 2: Main textured logo — this IS the screen print
+    compositeOps.push({
+      input: texturedLogo,
+      left: targetX,
+      top: targetY,
+      blend: 'over',
+    });
+    
+    // Layer 3: Multiply pass — extra texture bleed-through
+    try {
+      const { data: mulRaw, info: mulInfo } = await sharp(texturedLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const mp = new Uint8Array(mulRaw);
+      for (let i = 3; i < mp.length; i += 4) { mp[i] = Math.round(mp[i] * 0.35); }
+      const multiplyLayer = await sharp(Buffer.from(mp), { raw: { width: mulInfo.width, height: mulInfo.height, channels: 4 } }).png().toBuffer();
+      compositeOps.push({ input: multiplyLayer, left: targetX, top: targetY, blend: 'multiply' });
+    } catch (e) { /* optional */ }
+    
+    console.log('[SmartComposite] Fabric screen-print compositing with', compositeOps.length, 'layers at', targetX + ',' + targetY);
+    
+    return await sharp(baseBuffer).composite(compositeOps).png().toBuffer();
+    
+  } else {
+    // ── STANDARD MODE (non-fabric: vehicle, flat, etc.) ──
+    
+    // Edge softening
     for (let y = 1; y < lh - 1; y++) {
       for (let x = 1; x < lw - 1; x++) {
         const idx = (y * lw + x) * 4;
-        if (lp[idx + 3] > 0) {
+        if (logoPx[idx + 3] > 0) {
           const neighbors = [((y-1)*lw+x)*4, ((y+1)*lw+x)*4, (y*lw+(x-1))*4, (y*lw+(x+1))*4];
           let hasTransparent = false;
           for (const ni of neighbors) {
-            if (ni >= 0 && ni + 3 < lp.length && lp[ni + 3] === 0) { hasTransparent = true; break; }
+            if (ni >= 0 && ni + 3 < logoPx.length && logoPx[ni + 3] === 0) { hasTransparent = true; break; }
           }
-          if (hasTransparent) lp[idx + 3] = Math.round(lp[idx + 3] * 0.65);
+          if (hasTransparent) logoPx[idx + 3] = Math.round(logoPx[idx + 3] * 0.65);
         }
       }
     }
-    softLogo = await sharp(Buffer.from(lp), { raw: { width: lw, height: lh, channels: 4 } }).png().toBuffer();
-  } catch (e) {
-    softLogo = resizedLogo;
-  }
-  
-  // ── Multi-layer composite for realistic surface integration ──
-  // Blending strength varies by surface type — fabric needs stronger blending
-  const isFabric = (pl.surface_type === 'fabric');
-  const isVehicle = (pl.surface_type === 'vehicle' || pl.surface_type === 'metal');
-  
-  // Multiply blend strength: how much surface texture bleeds through
-  const multiplyOpacity = isFabric ? 0.50 : (isVehicle ? 0.35 : 0.30);
-  // Main layer opacity: how solid the logo appears  
-  const mainOpacity = isFabric ? 0.65 : 0.78;
-  // Soft-light opacity: subtle lighting interaction
-  const softLightOpacity = isFabric ? 0.25 : 0.15;
-  
-  const compositeOps = [];
-  
-  // Layer 1: Drop shadow
-  try {
-    const shadowLogo = await sharp(softLogo).blur(3).modulate({ brightness: 0.3 }).png().toBuffer();
-    compositeOps.push({
-      input: shadowLogo,
-      left: Math.min(baseMeta.width - 1, targetX + 2),
-      top: Math.min(baseMeta.height - 1, targetY + 2),
-      blend: 'multiply',
-    });
-  } catch (e) { /* shadow optional */ }
-  
-  // Layer 2: Multiply blend — makes surface texture bleed through
-  try {
-    const { data: mulRaw, info: mulInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const mp = new Uint8Array(mulRaw);
-    for (let i = 3; i < mp.length; i += 4) { mp[i] = Math.round(mp[i] * multiplyOpacity); }
-    const multiplyLayer = await sharp(Buffer.from(mp), { raw: { width: mulInfo.width, height: mulInfo.height, channels: 4 } }).png().toBuffer();
-    compositeOps.push({ input: multiplyLayer, left: targetX, top: targetY, blend: 'multiply' });
-  } catch (e) {
-    console.log('[SmartComposite] Multiply layer failed:', e.message);
-  }
-  
-  // Layer 3: Main logo — 'over' blend with surface-appropriate opacity
-  try {
-    const { data: mainRaw, info: mainInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const mainPx = new Uint8Array(mainRaw);
-    for (let i = 3; i < mainPx.length; i += 4) { mainPx[i] = Math.round(mainPx[i] * mainOpacity); }
-    const mainLayer = await sharp(Buffer.from(mainPx), { raw: { width: mainInfo.width, height: mainInfo.height, channels: 4 } }).png().toBuffer();
-    compositeOps.push({ input: mainLayer, left: targetX, top: targetY, blend: 'over' });
-  } catch (e) {
-    compositeOps.push({ input: softLogo, left: targetX, top: targetY, blend: 'over' });
-  }
-  
-  // Layer 4: Soft-light for lighting interaction
-  try {
-    const { data: hlRaw, info: hlInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const hp = new Uint8Array(hlRaw);
-    for (let i = 3; i < hp.length; i += 4) { hp[i] = Math.round(hp[i] * softLightOpacity); }
-    const highlightLayer = await sharp(Buffer.from(hp), { raw: { width: hlInfo.width, height: hlInfo.height, channels: 4 } }).png().toBuffer();
-    compositeOps.push({ input: highlightLayer, left: targetX, top: targetY, blend: 'soft-light' });
-  } catch (e) { /* highlight optional */ }
-  
-  // Layer 5 (fabric only): Extra darken blend to push logo INTO the fabric
-  if (isFabric) {
+    const softLogo = await sharp(Buffer.from(logoPx), { raw: { width: lw, height: lh, channels: 4 } }).png().toBuffer();
+    
+    const compositeOps = [];
+    
+    // Shadow
     try {
-      const { data: darkRaw, info: darkInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      const dp = new Uint8Array(darkRaw);
-      for (let i = 3; i < dp.length; i += 4) { dp[i] = Math.round(dp[i] * 0.20); }
-      const darkenLayer = await sharp(Buffer.from(dp), { raw: { width: darkInfo.width, height: darkInfo.height, channels: 4 } }).png().toBuffer();
-      compositeOps.push({ input: darkenLayer, left: targetX, top: targetY, blend: 'darken' });
+      const shadowLogo = await sharp(softLogo).blur(3).modulate({ brightness: 0.3 }).png().toBuffer();
+      compositeOps.push({
+        input: shadowLogo,
+        left: Math.min(baseMeta.width - 1, targetX + 2),
+        top: Math.min(baseMeta.height - 1, targetY + 2),
+        blend: 'multiply',
+      });
     } catch (e) { /* optional */ }
+    
+    // Multiply blend
+    try {
+      const { data: mulRaw, info: mulInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const mp = new Uint8Array(mulRaw);
+      for (let i = 3; i < mp.length; i += 4) { mp[i] = Math.round(mp[i] * 0.35); }
+      const multiplyLayer = await sharp(Buffer.from(mp), { raw: { width: mulInfo.width, height: mulInfo.height, channels: 4 } }).png().toBuffer();
+      compositeOps.push({ input: multiplyLayer, left: targetX, top: targetY, blend: 'multiply' });
+    } catch (e) {}
+    
+    // Main logo
+    try {
+      const { data: mainRaw, info: mainInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const mainPx = new Uint8Array(mainRaw);
+      for (let i = 3; i < mainPx.length; i += 4) { mainPx[i] = Math.round(mainPx[i] * 0.78); }
+      const mainLayer = await sharp(Buffer.from(mainPx), { raw: { width: mainInfo.width, height: mainInfo.height, channels: 4 } }).png().toBuffer();
+      compositeOps.push({ input: mainLayer, left: targetX, top: targetY, blend: 'over' });
+    } catch (e) {
+      compositeOps.push({ input: softLogo, left: targetX, top: targetY, blend: 'over' });
+    }
+    
+    // Soft-light
+    try {
+      const { data: hlRaw, info: hlInfo } = await sharp(softLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const hp = new Uint8Array(hlRaw);
+      for (let i = 3; i < hp.length; i += 4) { hp[i] = Math.round(hp[i] * 0.15); }
+      const highlightLayer = await sharp(Buffer.from(hp), { raw: { width: hlInfo.width, height: hlInfo.height, channels: 4 } }).png().toBuffer();
+      compositeOps.push({ input: highlightLayer, left: targetX, top: targetY, blend: 'soft-light' });
+    } catch (e) { /* optional */ }
+    
+    console.log('[SmartComposite] Standard compositing with', compositeOps.length, 'layers at', targetX + ',' + targetY);
+    
+    return await sharp(baseBuffer).composite(compositeOps).png().toBuffer();
   }
-  
-  console.log('[SmartComposite] Compositing with', compositeOps.length, 'layers at', targetX + ',' + targetY);
-  
-  const result = await sharp(baseBuffer)
-    .composite(compositeOps)
-    .png()
-    .toBuffer();
-  
-  return result;
 }
 
 
