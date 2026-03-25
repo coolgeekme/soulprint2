@@ -7880,35 +7880,43 @@ async function handleChatStream(request) {
                   model: 'gpt-4o',
                   messages: [{
                     role: 'system',
-                    content: `You are an expert image compositor. Given a base image and an overlay, determine exact pixel placement coordinates.
+                    content: `You are a pixel-precise image compositor. You will analyze a BASE image and determine EXACTLY where to place an OVERLAY image.
 
-Base image: ${baseMeta.width}x${baseMeta.height} pixels.
-Overlay image: ${overlayMeta.width}x${overlayMeta.height} pixels.
+BASE IMAGE: ${baseMeta.width}x${baseMeta.height} pixels.
+OVERLAY IMAGE: ${overlayMeta.width}x${overlayMeta.height} pixels.
 
-Return a JSON object with a "placements" array. Each placement:
-- "x": left pixel coordinate on base (0 = left edge)
-- "y": top pixel coordinate on base (0 = top edge)  
-- "width": target width in pixels for overlay
-- "height": target height in pixels for overlay (maintain aspect ratio)
-- "opacity": 0.0-1.0 (0.85-1.0 for logos)
-- "blend": "over" for normal, "multiply" for fabric printing
-- "invert": true ONLY if overlay colors invisible on surface (white on white)
-- "reason": brief explanation
+CRITICAL INSTRUCTIONS:
+1. LOOK CAREFULLY at the base image. Find ALL existing logos, text, graphics, or designs that should be replaced.
+2. For EACH existing logo/graphic you find, create a placement that FULLY COVERS it with the overlay.
+3. Measure the EXACT pixel boundaries of each existing logo - the overlay must be AT LEAST as large to completely hide the old one.
+4. If user says "2 shirts" or "both", you MUST return 2 separate placements - one for each shirt.
+5. Position overlays EXACTLY where the old logos are — NOT in the center of the image.
 
-RULES:
-- If swapping/replacing existing logos, place at SAME positions as existing ones
-- Scale overlay naturally — logos on shirts: 30-50% of back area, on vehicles: 20-30% of panel
-- Consider perspective — farther objects appear smaller
-- For multiple placements, return multiple objects in the array`
+Return JSON: {"placements": [{...}, {...}]}
+
+Each placement object:
+- "x": left pixel coordinate (0 = left edge of image)
+- "y": top pixel coordinate (0 = top edge of image)  
+- "width": width in pixels — MUST fully cover the existing logo/text
+- "height": height in pixels — maintain overlay aspect ratio
+- "opacity": 0.85-1.0
+- "blend": "multiply" for fabric/clothing, "over" for flat surfaces
+- "invert": true if overlay would be invisible (same color as surface)
+- "cover_color": if there's text/logo to remove first, specify the background color to paint over it (e.g., "#4a4a4a" for dark gray shirt). Use null if not needed.
+- "reason": what this placement covers
+
+EXAMPLE for t-shirt logo swap:
+If a shirt shows "COOL BRAND" text at roughly pixels 200-400 horizontally, 300-500 vertically, return:
+{"x": 190, "y": 290, "width": 220, "height": 220, "blend": "multiply", "cover_color": "#555555"}`
                   }, {
                     role: 'user',
                     content: [
-                      { type: 'text', text: `Request: "${sanitizedContent}"\n\nImage 1 = BASE (${baseMeta.width}x${baseMeta.height}). Image 2 = OVERLAY to place (${overlayMeta.width}x${overlayMeta.height}).\n\nReturn JSON with placements array.` },
+                      { type: 'text', text: `User request: "${sanitizedContent}"\n\nImage 1 = BASE IMAGE (${baseMeta.width}x${baseMeta.height}px). Look carefully at it and find ALL existing logos, text, or graphics.\nImage 2 = NEW OVERLAY to place at each location (${overlayMeta.width}x${overlayMeta.height}px).\n\nIMPORTANT: If there are 2 shirts with logos, return 2 placements. Position each overlay EXACTLY over each existing logo. The overlay must be large enough to FULLY COVER the old logo.` },
                       { type: 'image_url', image_url: { url: `data:image/png;base64,${baseB64}`, detail: 'high' } },
                       { type: 'image_url', image_url: { url: `data:${overlayMime};base64,${overlayB64}`, detail: 'high' } }
                     ]
                   }],
-                  max_tokens: 600,
+                  max_tokens: 800,
                   temperature: 0.1,
                   response_format: { type: 'json_object' }
                 })
@@ -7942,15 +7950,44 @@ RULES:
             const compositeOps = [];
             
             for (const p of placements) {
-              let proc = sharp(overlayBuffer);
               const tW = Math.min(Math.max(p.width || 100, 20), baseMeta.width);
               const tH = Math.min(Math.max(p.height || 100, 20), baseMeta.height);
-              proc = proc.resize(tW, tH, { fit: 'fill' });
+              const left = Math.max(0, Math.min(Math.round(p.x || 0), baseMeta.width - 10));
+              const top = Math.max(0, Math.min(Math.round(p.y || 0), baseMeta.height - 10));
+              
+              // Step 2a: If cover_color specified, first paint over old logo/text
+              if (p.cover_color) {
+                try {
+                  // Parse hex color
+                  const hex = p.cover_color.replace('#', '');
+                  const r = parseInt(hex.substring(0, 2), 16) || 128;
+                  const g = parseInt(hex.substring(2, 4), 16) || 128;
+                  const b = parseInt(hex.substring(4, 6), 16) || 128;
+                  
+                  // Create a solid color rectangle to cover old logo
+                  const coverPatch = await sharp({
+                    create: { width: tW + 10, height: tH + 10, channels: 4, background: { r, g, b, alpha: 255 } }
+                  }).png().toBuffer();
+                  
+                  compositeOps.push({
+                    input: coverPatch,
+                    left: Math.max(0, left - 5),
+                    top: Math.max(0, top - 5),
+                    blend: 'over',
+                  });
+                  console.log(`[Composite] → Cover patch at ${left-5},${top-5} size:${tW+10}x${tH+10} color:${p.cover_color}`);
+                } catch (coverErr) {
+                  console.log('[Composite] Cover patch failed:', coverErr.message);
+                }
+              }
+              
+              // Step 2b: Overlay the new logo
+              let proc = sharp(overlayBuffer);
+              proc = proc.resize(tW, tH, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } });
               
               if (p.invert) proc = proc.negate({ alpha: false });
               proc = proc.ensureAlpha();
               
-              // Apply opacity
               if (p.opacity && p.opacity < 1) {
                 const buf = await proc.raw().toBuffer({ resolveWithObject: true });
                 for (let i = 3; i < buf.data.length; i += 4) {
@@ -7960,14 +7997,11 @@ RULES:
               }
               
               const processedBuf = await proc.toBuffer();
-              const left = Math.max(0, Math.min(Math.round(p.x || 0), baseMeta.width - 10));
-              const top = Math.max(0, Math.min(Math.round(p.y || 0), baseMeta.height - 10));
-              
               compositeOps.push({
                 input: processedBuf, left, top,
                 blend: p.blend === 'multiply' ? 'multiply' : (p.blend === 'screen' ? 'screen' : 'over'),
               });
-              console.log(`[Composite] → ${left},${top} size:${tW}x${tH} blend:${p.blend || 'over'} invert:${!!p.invert}`);
+              console.log(`[Composite] → Logo at ${left},${top} size:${tW}x${tH} blend:${p.blend || 'over'} invert:${!!p.invert}`);
             }
             
             const resultBuffer = await sharp(baseBuffer).composite(compositeOps).png().toBuffer();
