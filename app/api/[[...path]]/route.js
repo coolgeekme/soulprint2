@@ -3195,13 +3195,15 @@ PLACEMENT ACCURACY (THIS IS THE MOST IMPORTANT PART):
 - For "replace" requests: MATCH the exact position of the existing design you see
 - For t-shirt backs: the print area is usually between the shoulder blades, spanning 20-35% of the torso width
 - For two people side by side: left person is ~10-45% of image width, right person is ~55-90%
-- The design center on a t-shirt back is typically at 35-45% from the top of the image (upper back area)
-- SIZE must be proportional — a back print on a t-shirt is typically 15-25% of total image width
+- The design center on a t-shirt back is typically at 25-40% from the top of the image (upper back area, NOT lower back)
+- SIZE must be proportional — a back print on a t-shirt is typically 12-20% of total image width and 10-18% of image height
+- Do NOT make the logo too large — it should look like a natural garment print, NOT a billboard
 
 SURFACE MATCHING:
-- For dark surfaces: set brightness_adjust < 1.0 (e.g., 0.6-0.8 for dark shirts)
-- For bright surfaces: set brightness_adjust > 1.0
-- For fabric: the logo should look PRINTED, not stickered
+- For dark surfaces (dark t-shirts, black items): set brightness_adjust = 0.85-0.95 (slightly darken logo)
+- For light/white surfaces: set brightness_adjust = 1.0 (no change — keep logo colors vivid)
+- For medium surfaces: set brightness_adjust = 0.95
+- For fabric: surface_type must be "fabric" — this triggers screen-print blending
 - Rotation should match any visible tilt of the surface
 
 IMPORTANT: Return 1 placement if there's 1 target, or MULTIPLE placements if the user wants the logo on multiple items. Look at the image carefully!`;
@@ -3668,8 +3670,8 @@ async function compositeLogoAtPlacement(sharp, baseBuffer, processedLogo, baseMe
   
   if (surfacePatch && isFabric) {
     // ── FABRIC SCREEN PRINT MODE ──
-    // The surface's brightness variations modulate the logo — wrinkles, folds, lighting
-    // all show through the "printed" design just like real screen printing
+    // Real screen printing: opaque ink sits ON the fabric. The fabric's texture
+    // (wrinkles, folds) subtly affects the print brightness but the ink is mostly solid.
     
     const surfPx = new Uint8Array(surfacePatch);
     
@@ -3698,7 +3700,6 @@ async function compositeLogoAtPlacement(sharp, baseBuffer, processedLogo, baseMe
       const si = i * 3; // surface RGB
       
       if (li + 3 >= logoPx.length || logoPx[li + 3] === 0) {
-        // Transparent pixel — keep transparent
         outputPx[li] = 0; outputPx[li+1] = 0; outputPx[li+2] = 0; outputPx[li+3] = 0;
         continue;
       }
@@ -3710,11 +3711,12 @@ async function compositeLogoAtPlacement(sharp, baseBuffer, processedLogo, baseMe
         surfLum = (rawLum - minLum) / lumRange; // 0 to 1
       }
       
-      // Texture modulation factor: wrinkles darken the logo, highlights brighten it
-      // Range: 0.55 (deep wrinkle) to 1.05 (highlight) — fabric effect strength
-      const textureFactor = 0.55 + surfLum * 0.50;
+      // SUBTLE texture modulation — ink is mostly solid, wrinkles only slightly affect it
+      // Range: 0.85 (deep wrinkle/shadow) to 1.0 (normal/highlight)
+      // This is intentionally subtle — real screen prints are opaque
+      const textureFactor = 0.85 + surfLum * 0.15;
       
-      // Apply texture modulation to logo RGB (preserving alpha)
+      // Apply texture modulation to logo RGB
       outputPx[li] = Math.min(255, Math.round(logoPx[li] * textureFactor));
       outputPx[li+1] = Math.min(255, Math.round(logoPx[li+1] * textureFactor));
       outputPx[li+2] = Math.min(255, Math.round(logoPx[li+2] * textureFactor));
@@ -3736,47 +3738,42 @@ async function compositeLogoAtPlacement(sharp, baseBuffer, processedLogo, baseMe
       }
       
       if (nearestTransDist <= 2) {
-        // Edge pixel — smooth alpha falloff
-        const edgeFactor = nearestTransDist / 2.5; // 0.4 at dist=1, 0.8 at dist=2
-        outputPx[li+3] = Math.round(logoPx[li+3] * edgeFactor * 0.85);
+        // Edge pixel — smooth alpha falloff for soft edges
+        const edgeFactor = nearestTransDist / 2.5;
+        outputPx[li+3] = Math.round(logoPx[li+3] * edgeFactor * 0.9);
       } else {
-        // Interior pixel — full opacity with slight surface bleed
-        outputPx[li+3] = Math.round(logoPx[li+3] * 0.92);
+        // Interior pixel — nearly full opacity (screen print ink is opaque)
+        outputPx[li+3] = logoPx[li+3];
       }
     }
     
     const texturedLogo = await sharp(Buffer.from(outputPx), { raw: { width: lw, height: lh, channels: 4 } }).png().toBuffer();
     
-    // Composite using simple but effective layering for fabric
+    // Composite using clean layering for fabric — texture is already baked into the logo
     const compositeOps = [];
     
-    // Layer 1: Subtle shadow for depth
+    // Layer 1: Very subtle shadow for depth (keeps it grounded on the surface)
     try {
-      const shadowLogo = await sharp(texturedLogo).blur(2).modulate({ brightness: 0.25 }).png().toBuffer();
+      const shadowLogo = await sharp(texturedLogo).blur(2).modulate({ brightness: 0.2 }).png().toBuffer();
+      const { data: shRaw, info: shInfo } = await sharp(shadowLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const shPx = new Uint8Array(shRaw);
+      for (let i = 3; i < shPx.length; i += 4) { shPx[i] = Math.round(shPx[i] * 0.25); }
+      const shadowLayer = await sharp(Buffer.from(shPx), { raw: { width: shInfo.width, height: shInfo.height, channels: 4 } }).png().toBuffer();
       compositeOps.push({
-        input: shadowLogo,
+        input: shadowLayer,
         left: Math.min(baseMeta.width - 1, targetX + 1),
         top: Math.min(baseMeta.height - 1, targetY + 1),
         blend: 'multiply',
       });
     } catch (e) { /* optional */ }
     
-    // Layer 2: Main textured logo — this IS the screen print
+    // Layer 2: Main textured logo — this IS the screen print (full opacity, texture already applied)
     compositeOps.push({
       input: texturedLogo,
       left: targetX,
       top: targetY,
       blend: 'over',
     });
-    
-    // Layer 3: Multiply pass — extra texture bleed-through
-    try {
-      const { data: mulRaw, info: mulInfo } = await sharp(texturedLogo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      const mp = new Uint8Array(mulRaw);
-      for (let i = 3; i < mp.length; i += 4) { mp[i] = Math.round(mp[i] * 0.35); }
-      const multiplyLayer = await sharp(Buffer.from(mp), { raw: { width: mulInfo.width, height: mulInfo.height, channels: 4 } }).png().toBuffer();
-      compositeOps.push({ input: multiplyLayer, left: targetX, top: targetY, blend: 'multiply' });
-    } catch (e) { /* optional */ }
     
     console.log('[SmartComposite] Fabric screen-print compositing with', compositeOps.length, 'layers at', targetX + ',' + targetY);
     
