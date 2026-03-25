@@ -3549,34 +3549,72 @@ RULES:
   }
   
   // ── Step 3b: Apply perspective transform to match the surface angle ──
-  // This makes the logo look like it's actually ON the angled surface
+  // Creates a trapezoid effect: closer side taller, far side shorter
   const surfaceAngle = placementData.surface_angle || 0;
   const perspDir = placementData.perspective_direction || 'none';
   
-  if (surfaceAngle > 3) {
+  if (surfaceAngle > 3 && perspDir !== 'none') {
     try {
+      const logoMeta = await sharp(resizedLogo).metadata();
+      const logoW = logoMeta.width;
+      const logoH = logoMeta.height;
+      
+      // Calculate perspective factor: how much smaller the far side should be
       const angleRad = (surfaceAngle * Math.PI) / 180;
-      const scaleX = Math.cos(angleRad); // Horizontal foreshortening
-      const shearFactor = Math.sin(angleRad) * 0.2; // Vertical shear for perspective
+      const perspFactor = Math.cos(angleRad); // 0.85 for 30°, 0.91 for 25°
       
-      // Determine shear direction based on which side is closer
-      const shearY = perspDir === 'right' ? shearFactor : (perspDir === 'left' ? -shearFactor : 0);
+      const nearScale = 1.0;
+      const farScale = perspFactor;
+      const horzScale = (nearScale + farScale) / 2;
+      const newW = Math.round(logoW * horzScale);
       
-      // Apply affine transform: [scaleX, 0, shearY, 1]
-      // scaleX compresses horizontally (surface is angled away)
-      // shearY adds vertical skew (one side appears taller than the other)
-      resizedLogo = await sharp(resizedLogo)
-        .affine(
-          [scaleX, 0, shearY, 1],
-          { background: { r: 0, g: 0, b: 0, alpha: 0 } }
-        )
-        .png()
-        .toBuffer();
+      // Get raw pixel data
+      const { data: srcData, info: srcInfo } = await sharp(resizedLogo)
+        .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const src = new Uint8Array(srcData);
+      const srcW = srcInfo.width;
+      const srcH = srcInfo.height;
       
-      console.log('[SmartComposite] Perspective transform: angle=' + surfaceAngle + '° dir=' + perspDir + 
-        ' scaleX=' + scaleX.toFixed(3) + ' shearY=' + shearY.toFixed(3));
+      // Create output: same height, compressed width with per-column height scaling
+      const dstW = newW;
+      const dstH = srcH;
+      const dst = new Uint8Array(dstW * dstH * 4);
+      
+      for (let x = 0; x < dstW; x++) {
+        const srcX = Math.min(srcW - 1, Math.round((x / dstW) * srcW));
+        let t = x / dstW;
+        let colScale;
+        if (perspDir === 'left') {
+          colScale = nearScale - (nearScale - farScale) * t;
+        } else {
+          colScale = farScale + (nearScale - farScale) * t;
+        }
+        
+        const colH = Math.round(srcH * colScale);
+        const yOffset = Math.round((srcH - colH) / 2);
+        
+        for (let y = 0; y < dstH; y++) {
+          const dstIdx = (y * dstW + x) * 4;
+          const localY = y - yOffset;
+          if (localY < 0 || localY >= colH) {
+            dst[dstIdx] = 0; dst[dstIdx+1] = 0; dst[dstIdx+2] = 0; dst[dstIdx+3] = 0;
+          } else {
+            const srcY = Math.min(srcH - 1, Math.round((localY / colH) * srcH));
+            const srcIdx = (srcY * srcW + srcX) * 4;
+            dst[dstIdx] = src[srcIdx]; dst[dstIdx+1] = src[srcIdx+1];
+            dst[dstIdx+2] = src[srcIdx+2]; dst[dstIdx+3] = src[srcIdx+3];
+          }
+        }
+      }
+      
+      resizedLogo = await sharp(Buffer.from(dst), {
+        raw: { width: dstW, height: dstH, channels: 4 }
+      }).png().toBuffer();
+      
+      console.log('[SmartComposite] Perspective: angle=' + surfaceAngle + '° dir=' + perspDir +
+        ' near=' + nearScale.toFixed(2) + ' far=' + farScale.toFixed(2) + ' size=' + dstW + 'x' + dstH);
     } catch (perspErr) {
-      console.log('[SmartComposite] Perspective transform failed:', perspErr.message);
+      console.log('[SmartComposite] Perspective failed:', perspErr.message);
     }
   }
   
