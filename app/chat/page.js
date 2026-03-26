@@ -465,7 +465,7 @@ async function processFile(file) {
 }
 
 // ── VideoCard: polls for video status and renders player when ready ──────────
-function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady, videoModelReason, onCancel, onRegenerateWith }) {
+function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady, videoModelReason, onCancel, onRegenerateWith, sourceImageUrl }) {
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
@@ -499,7 +499,12 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
   const handleRegenerateWith = (modelId) => {
     setShowModelPicker(false);
     if (onRegenerateWith) {
-      onRegenerateWith(prompt, modelId);
+      // Pass media context for image-to-video regeneration
+      onRegenerateWith(prompt, modelId, {
+        type: 'video',
+        sourceImageUrl: sourceImageUrl,
+        videoUrl: videoUrl
+      });
     }
   };
 
@@ -729,7 +734,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
 }
 
 // ── SavedVideoCard: renders a saved video with matching image card UX ────────
-function SavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith }) {
+function SavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith, sourceImageUrl }) {
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -766,8 +771,14 @@ function SavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith 
 
   const handleRegenerateWith = (modelId) => {
     setShowModelPicker(false);
-    if (onRegenerateWith && prompt) {
-      onRegenerateWith(prompt, modelId);
+    const actualPrompt = prompt || 'Regenerate this video';
+    if (onRegenerateWith) {
+      // Pass media context for regeneration
+      onRegenerateWith(actualPrompt, modelId, {
+        type: 'video',
+        sourceImageUrl: sourceImageUrl,
+        videoUrl: videoUrl
+      });
     }
   };
 
@@ -1375,9 +1386,13 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, o
 
   const handleRegenerateWith = (modelId) => {
     setShowModelPicker(false);
-    const originalPrompt = generationParams?.prompt || revisedPrompt || '';
-    if (onRegenerateWith && originalPrompt) {
-      onRegenerateWith(originalPrompt, modelId);
+    const originalPrompt = generationParams?.prompt || revisedPrompt || 'Regenerate this image';
+    if (onRegenerateWith) {
+      // Pass image URL for regeneration context
+      onRegenerateWith(originalPrompt, modelId, {
+        type: 'image',
+        imageUrl: url
+      });
     }
   };
   
@@ -6783,6 +6798,7 @@ export default function ChatPage() {
   const [assistantName, setAssistantName] = useState('SoulPrint');
   const [token, setToken] = useState('');
   const [attachments, setAttachments] = useState([]); // [{type, base64/text, name, mimeType}]
+  const [pendingMediaAttachment, setPendingMediaAttachment] = useState(null); // For regeneration with source image
   const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
   const [fileError, setFileError] = useState('');
   // Location state
@@ -7771,11 +7787,25 @@ export default function ChatPage() {
   }, []);
 
   const sendMessage = useCallback(async () => {
-    if ((!input.trim() && attachments.length === 0) || loading || compareLoading) return;
+    if ((!input.trim() && attachments.length === 0 && !pendingMediaAttachment) || loading || compareLoading) return;
     const content = input.trim();
-    const currentAttachments = [...attachments];
+    
+    // Handle pending media attachment for regeneration
+    let currentAttachments = [...attachments];
+    if (pendingMediaAttachment && pendingMediaAttachment.url) {
+      // Add URL reference attachment for regeneration
+      currentAttachments.push({
+        type: 'image',
+        base64: pendingMediaAttachment.url, // Backend will handle URL vs base64
+        mimeType: 'image/jpeg',
+        name: 'regeneration-source.jpg',
+        isUrlReference: true, // Flag to indicate this is a URL not base64
+      });
+    }
+    
     setInput('');
     setAttachments([]);
+    setPendingMediaAttachment(null); // Clear pending attachment
     setStreamingContent('');
     setStreamingImageUrl(null);
     setStreamingVideoTask(null);
@@ -8552,11 +8582,15 @@ export default function ChatPage() {
   }
 
   // Regenerate media with a different model
-  const handleRegenerateWithModel = (originalPrompt, modelId) => {
-    if (!originalPrompt || !modelId) return;
+  // Regenerate media with a different model
+  // mediaContext can include: { type: 'image'|'video', sourceImageUrl, videoUrl, imageUrl }
+  const handleRegenerateWithModel = (originalPrompt, modelId, mediaContext = {}) => {
+    if (!modelId) return;
+    
+    const actualPrompt = originalPrompt || 'Regenerate this';
     
     // Construct a prompt that requests the specific model
-    let newPrompt = originalPrompt;
+    let newPrompt = actualPrompt;
     
     // For videos, prepend with model instruction
     if (['kling-3.0', 'veo3', 'runway-aleph'].includes(modelId)) {
@@ -8565,7 +8599,7 @@ export default function ChatPage() {
         'veo3': 'Veo 3.1',
         'runway-aleph': 'Runway Aleph'
       };
-      newPrompt = `Use ${modelNames[modelId]} to generate: ${originalPrompt}`;
+      newPrompt = `Use ${modelNames[modelId]} to generate: ${actualPrompt}`;
     } else {
       // For images
       const modelNames = {
@@ -8573,10 +8607,21 @@ export default function ChatPage() {
         'gemini-2.0-flash-exp-image-generation': 'Gemini',
         'gpt-image-1': 'GPT Image'
       };
-      newPrompt = `Use ${modelNames[modelId] || modelId} to generate: ${originalPrompt}`;
+      newPrompt = `Use ${modelNames[modelId] || modelId} to generate: ${actualPrompt}`;
     }
     
-    // Set the input for the user to review and send
+    // If there's a source image, we need to attach it for image-to-video regeneration
+    if (mediaContext.sourceImageUrl || mediaContext.imageUrl) {
+      const imageUrl = mediaContext.sourceImageUrl || mediaContext.imageUrl;
+      // Store the image URL to be attached when sending
+      setPendingMediaAttachment({
+        type: 'image',
+        url: imageUrl,
+        forRegeneration: true,
+      });
+    }
+    
+    // Set the input
     setInput(newPrompt);
   };
 
@@ -9693,6 +9738,7 @@ export default function ChatPage() {
                             modelLabel={msg.model_label || 'Kling 3.0'}
                             messageId={msg.id}
                             videoModelReason={msg.video_model_reason || msg.video_task?.videoModelReason}
+                            sourceImageUrl={msg.source_image || msg.video_task?.sourceImage}
                             onVideoReady={(videoUrl) => {
                               // Update the message in state so SavedVideoCard takes over
                               setMessages(prev => prev.map(m => 
@@ -9709,6 +9755,7 @@ export default function ChatPage() {
                             modelLabel={msg.model_label} 
                             prompt={msg.video_task?.prompt || msg.generation_params?.prompt || ''} 
                             token={token}
+                            sourceImageUrl={msg.source_image || msg.video_task?.sourceImage}
                             onRegenerateWith={handleRegenerateWithModel}
                           />
                         )}
@@ -9880,6 +9927,7 @@ export default function ChatPage() {
                       modelLabel={streamingVideoTask.videoModelLabel || 'AI Video'}
                       messageId={streamingVideoTask.messageId}
                       videoModelReason={streamingVideoTask.videoModelReason}
+                      sourceImageUrl={streamingVideoTask.sourceImage}
                       onVideoReady={(videoUrl) => {
                         // Video completed during streaming - update message state
                         if (streamingVideoTask.messageId) {

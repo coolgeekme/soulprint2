@@ -10001,54 +10001,61 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           // If user mentions character reference but only provided one image, use it as character reference for text-to-video
           const useAsCharacterRef = wantsCharacterReference && allImageAttachments.length === 1;
           
-          if (imageAttachment && imageAttachment.base64 && !useAsCharacterRef) {
+          if (imageAttachment && (imageAttachment.base64 || imageAttachment.isUrlReference) && !useAsCharacterRef) {
             // IMAGE-TO-VIDEO: Animate the uploaded image (with optional character reference)
             send({ type: 'delta', content: '🎬 Preparing your image for animation...\n\n' });
             try {
               const kieKey = process.env.KIE_API_KEY;
               if (!kieKey) throw new Error('Video API not configured');
               
-              console.log('[Image-to-Video] Starting - uploading image first...');
-              
-              // Step 1: Try to upload the base64 image to Kie.ai to get a URL
-              // If upload fails, we'll try using the data URL directly (some providers accept it)
-              const mType = imageAttachment.mimeType || imageAttachment.mime_type || 'image/jpeg';
-              const fileName = imageAttachment.name || `image-${Date.now()}.${mType.split('/')[1] || 'jpg'}`;
-              const dataUrl = imageAttachment.base64.startsWith('data:') 
-                ? imageAttachment.base64 
-                : `data:${mType};base64,${imageAttachment.base64}`;
-              
               let imageUrl = null;
               
-              // Try uploading to Kie.ai file upload service
-              try {
-                const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
-                  body: JSON.stringify({
-                    base64Data: dataUrl, // Correct parameter name per Kie.ai docs
-                    uploadPath: 'soulprint/image-to-video',
-                    fileName: fileName,
-                  }),
-                });
+              // Check if this is a URL reference (from regeneration) or needs upload
+              if (imageAttachment.isUrlReference && imageAttachment.base64?.startsWith('http')) {
+                // Already a URL - use directly (from "Try Different Model" regeneration)
+                imageUrl = imageAttachment.base64;
+                console.log('[Image-to-Video] Using existing URL for regeneration:', imageUrl.substring(0, 80));
+              } else {
+                console.log('[Image-to-Video] Starting - uploading image first...');
                 
-                if (uploadRes.ok) {
-                  const uploadData = await uploadRes.json();
-                  console.log('[Image-to-Video] Upload response:', JSON.stringify(uploadData).substring(0, 500));
-                  const downloadUrl = uploadData.data?.downloadUrl || uploadData.downloadUrl;
-                  if ((uploadData.success || uploadData.code === 200) && downloadUrl) {
-                    imageUrl = downloadUrl;
-                    console.log('[Image-to-Video] Got uploaded image URL:', imageUrl.substring(0, 80));
+                // Step 1: Try to upload the base64 image to Kie.ai to get a URL
+                // If upload fails, we'll try using the data URL directly (some providers accept it)
+                const mType = imageAttachment.mimeType || imageAttachment.mime_type || 'image/jpeg';
+                const fileName = imageAttachment.name || `image-${Date.now()}.${mType.split('/')[1] || 'jpg'}`;
+                const dataUrl = imageAttachment.base64.startsWith('data:') 
+                  ? imageAttachment.base64 
+                  : `data:${mType};base64,${imageAttachment.base64}`;
+                
+                // Try uploading to Kie.ai file upload service
+                try {
+                  const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+                    body: JSON.stringify({
+                      base64Data: dataUrl, // Correct parameter name per Kie.ai docs
+                      uploadPath: 'soulprint/image-to-video',
+                      fileName: fileName,
+                    }),
+                  });
+                  
+                  if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    console.log('[Image-to-Video] Upload response:', JSON.stringify(uploadData).substring(0, 500));
+                    const downloadUrl = uploadData.data?.downloadUrl || uploadData.downloadUrl;
+                    if ((uploadData.success || uploadData.code === 200) && downloadUrl) {
+                      imageUrl = downloadUrl;
+                      console.log('[Image-to-Video] Got uploaded image URL:', imageUrl.substring(0, 80));
+                    } else {
+                      console.log('[Image-to-Video] Upload response missing downloadUrl');
+                    }
                   } else {
-                    console.log('[Image-to-Video] Upload response missing downloadUrl');
+                    const errText = await uploadRes.text().catch(() => 'unknown');
+                    console.log('[Image-to-Video] Upload HTTP error:', uploadRes.status, errText.substring(0, 200));
                   }
-                } else {
-                  const errText = await uploadRes.text().catch(() => 'unknown');
-                  console.log('[Image-to-Video] Upload HTTP error:', uploadRes.status, errText.substring(0, 200));
+                } catch (uploadErr) {
+                  console.log('[Image-to-Video] Upload failed:', uploadErr.message);
                 }
-              } catch (uploadErr) {
-                console.log('[Image-to-Video] Upload failed:', uploadErr.message);
-              }
+              } // End of else block for base64 upload
               
               // If upload failed, throw an error — Kie.ai video API requires an HTTP URL
               if (!imageUrl) {

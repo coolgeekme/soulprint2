@@ -81,7 +81,11 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
     setShowModelPicker(false);
     const actualPrompt = prompt || 'Regenerate this image';
     if (onRegenerateWith) {
-      onRegenerateWith(actualPrompt, modelId);
+      // Pass image URL for regeneration context
+      onRegenerateWith(actualPrompt, modelId, {
+        type: 'image',
+        imageUrl: url
+      });
     }
   };
   
@@ -140,7 +144,7 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
 }
 
 // ── MobileVideoCard: handles video generation with polling ─────────────────
-function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady, onCancel, onRegenerateWith }) {
+function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady, onCancel, onRegenerateWith, sourceImageUrl }) {
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
@@ -171,7 +175,12 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
   const handleRegenerateWith = (modelId) => {
     setShowModelPicker(false);
     if (onRegenerateWith) {
-      onRegenerateWith(prompt, modelId);
+      // Pass media context for image-to-video regeneration
+      onRegenerateWith(prompt, modelId, { 
+        type: 'video',
+        sourceImageUrl: sourceImageUrl,
+        videoUrl: videoUrl 
+      });
     }
   };
 
@@ -393,7 +402,7 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
 }
 
 // ── MobileSavedVideoCard: displays a saved video from database with matching UX ─
-function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith }) {
+function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith, sourceImageUrl }) {
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -429,7 +438,12 @@ function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerat
     setShowModelPicker(false);
     const actualPrompt = prompt || 'Regenerate this video';
     if (onRegenerateWith) {
-      onRegenerateWith(actualPrompt, modelId);
+      // Pass media context for regeneration
+      onRegenerateWith(actualPrompt, modelId, {
+        type: 'video',
+        sourceImageUrl: sourceImageUrl,
+        videoUrl: videoUrl
+      });
     }
   };
 
@@ -927,6 +941,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               prompt={message.video_task?.prompt || message.generation_params?.prompt || ''} 
               token={token}
               onRegenerateWith={handleRegenerateWithModel}
+              sourceImageUrl={message.source_image || message.video_task?.sourceImage}
             />
           )}
           
@@ -946,6 +961,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
                 ));
               }}
               onRegenerateWith={handleRegenerateWithModel}
+              sourceImageUrl={message.source_image || message.video_task?.sourceImage}
             />
           )}
           
@@ -2353,6 +2369,7 @@ export default function MobileChat({
   const [soulPrint, setSoulPrint] = useState(null);
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
   const [attachments, setAttachments] = useState([]);
+  const [pendingMediaAttachment, setPendingMediaAttachment] = useState(null); // For regeneration with source image
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [interimText, setInterimText] = useState('');
   const [editingMessage, setEditingMessage] = useState(null);
@@ -3146,21 +3163,36 @@ export default function MobileChat({
 
   // Send message
   const sendMessage = async () => {
-    if ((!input.trim() && !attachments.length) || loading) return;
+    if ((!input.trim() && !attachments.length && !pendingMediaAttachment) || loading) return;
     
     // Create abort controller for this request
     abortControllerRef.current = new AbortController();
     
     const content = input.trim();
+    
+    // Handle pending media attachment for regeneration
+    let finalAttachments = [...attachments];
+    if (pendingMediaAttachment && pendingMediaAttachment.url) {
+      // Convert URL to attachment format for regeneration
+      finalAttachments.push({
+        type: 'image',
+        base64: pendingMediaAttachment.url, // Backend will handle URL vs base64
+        mimeType: 'image/jpeg',
+        name: 'regeneration-source.jpg',
+        isUrlReference: true, // Flag to indicate this is a URL not base64
+      });
+    }
+    
     const userMessage = { 
       id: `u-${Date.now()}`, 
       role: 'user', 
       content: content || '[Attachment]',
-      attachments: attachments.length > 0 ? attachments : undefined
+      attachments: finalAttachments.length > 0 ? finalAttachments : undefined
     };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setAttachments([]);
+    setPendingMediaAttachment(null); // Clear pending attachment
     setStreamingContent('');
     setStreamingImageUrl(null);
     setStreamingVideoTask(null);
@@ -3461,11 +3493,14 @@ export default function MobileChat({
   };
 
   // Regenerate media with a different model
-  const handleRegenerateWithModel = async (originalPrompt, modelId) => {
-    if (!originalPrompt || !modelId) return;
+  // mediaContext can include: { type: 'image'|'video', sourceImageUrl, videoUrl, imageUrl }
+  const handleRegenerateWithModel = async (originalPrompt, modelId, mediaContext = {}) => {
+    if (!modelId) return;
+    
+    const actualPrompt = originalPrompt || 'Regenerate this';
     
     // Construct a prompt that requests the specific model
-    let newPrompt = originalPrompt;
+    let newPrompt = actualPrompt;
     
     // For videos, prepend with model instruction
     if (['kling-3.0', 'veo3', 'runway-aleph'].includes(modelId)) {
@@ -3474,7 +3509,7 @@ export default function MobileChat({
         'veo3': 'Veo 3.1',
         'runway-aleph': 'Runway Aleph'
       };
-      newPrompt = `Use ${modelNames[modelId]} to generate: ${originalPrompt}`;
+      newPrompt = `Use ${modelNames[modelId]} to generate: ${actualPrompt}`;
     } else {
       // For images
       const modelNames = {
@@ -3482,16 +3517,22 @@ export default function MobileChat({
         'gemini-2.0-flash-exp-image-generation': 'Gemini',
         'gpt-image-1': 'GPT Image'
       };
-      newPrompt = `Use ${modelNames[modelId] || modelId} to generate: ${originalPrompt}`;
+      newPrompt = `Use ${modelNames[modelId] || modelId} to generate: ${actualPrompt}`;
     }
     
-    // Set the input and trigger send
+    // If there's a source image, we need to attach it for image-to-video regeneration
+    if (mediaContext.sourceImageUrl || mediaContext.imageUrl) {
+      const imageUrl = mediaContext.sourceImageUrl || mediaContext.imageUrl;
+      // Store the image URL to be attached when sending
+      setPendingMediaAttachment({
+        type: 'image',
+        url: imageUrl,
+        forRegeneration: true,
+      });
+    }
+    
+    // Set the input
     setInput(newPrompt);
-    // Use setTimeout to ensure state is updated before sending
-    setTimeout(() => {
-      // The user will need to press send, or we could auto-send here
-      // For now, just populate the input so user can review and send
-    }, 100);
   };
 
   // ─────────────────────────────────────────────────────────────────
