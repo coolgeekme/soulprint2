@@ -5387,13 +5387,10 @@ async function authenticate(request) {
   try {
     const token = getTokenFromRequest(request);
     if (!token) {
-      console.log('[Auth] No token provided');
       return null;
     }
-    console.log('[Auth] Token received, length:', token.length, '| First 30 chars:', token.substring(0, 30));
     const decoded = verifyToken(token);
     if (!decoded) {
-      console.log('[Auth] Token verification failed');
       return null;
     }
     const db = await getDb();
@@ -5403,8 +5400,6 @@ async function authenticate(request) {
         { id: decoded.userId },
         { $set: { last_active_at: new Date() } }
       );
-    } else {
-      console.log('[Auth] User not found in database:', decoded.userId);
     }
     return user;
   } catch (err) {
@@ -8237,6 +8232,54 @@ async function handleGetMessages(request) {
     .find({ conversation_id: conversationId })
     .sort({ created_at: 1 })
     .toArray();
+
+  // Background: Check for any stuck video tasks and update them
+  const kieKey = process.env.KIE_API_KEY;
+  if (kieKey) {
+    const pendingVideoMessages = messages.filter(m => 
+      m.video_task && 
+      m.video_task.taskId && 
+      m.video_task.status !== 'success' && 
+      !m.video_url
+    );
+    
+    // Check up to 3 pending videos per request to avoid slowdown
+    for (const msg of pendingVideoMessages.slice(0, 3)) {
+      try {
+        const taskId = msg.video_task.taskId;
+        const jobModel = msg.video_task.model || msg.model_used || 'kling-3.0';
+        
+        // Map model names to VIDEO_MODELS keys
+        let modelKey = jobModel;
+        if (jobModel === 'veo3' || jobModel === 'veo-3.1' || jobModel === 'Veo 3.1') modelKey = 'veo3';
+        else if (jobModel === 'kling-3.0' || jobModel === 'Kling 3.0') modelKey = 'kling-3.0';
+        else if (jobModel === 'runway-aleph' || jobModel === 'Runway Aleph') modelKey = 'runway-aleph';
+        
+        const result = await checkVideoStatus(modelKey, taskId, kieKey);
+        
+        if (result.status === 'success' && result.videoUrl) {
+          console.log('[Messages] Auto-fixing stuck video:', taskId, '→', result.videoUrl.substring(0, 60));
+          // Update message in DB
+          await db.collection('messages').updateOne(
+            { id: msg.id },
+            { $set: { video_url: result.videoUrl, thumbnail_url: result.thumbnailUrl, 'video_task.status': 'success' } }
+          );
+          // Update video_jobs too
+          await db.collection('video_jobs').updateOne(
+            { task_id: taskId },
+            { $set: { status: 'success', video_url: result.videoUrl, thumbnail_url: result.thumbnailUrl, completed_at: new Date() } }
+          );
+          // Update in-memory message
+          msg.video_url = result.videoUrl;
+          msg.thumbnail_url = result.thumbnailUrl;
+          msg.video_task.status = 'success';
+        }
+      } catch (e) {
+        // Silently fail - don't block message loading
+        console.log('[Messages] Video status check failed for', msg.video_task?.taskId, '-', e.message);
+      }
+    }
+  }
 
   return ok(messages.map(m => ({
     id: m.id,
