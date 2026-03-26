@@ -9880,6 +9880,18 @@ export default function ChatPage() {
                       modelLabel={streamingVideoTask.videoModelLabel || 'AI Video'}
                       messageId={streamingVideoTask.messageId}
                       videoModelReason={streamingVideoTask.videoModelReason}
+                      onVideoReady={(videoUrl) => {
+                        // Video completed during streaming - update message state
+                        if (streamingVideoTask.messageId) {
+                          setMessages(prev => prev.map(m => 
+                            m.id === streamingVideoTask.messageId 
+                              ? { ...m, video_url: videoUrl, video_task: { ...m.video_task, status: 'success' } } 
+                              : m
+                          ));
+                        }
+                        // Clear streaming state
+                        setStreamingVideoTask(null);
+                      }}
                       onRegenerateWith={handleRegenerateWithModel}
                     />
                   )}

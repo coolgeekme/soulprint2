@@ -175,6 +175,10 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
     }
   };
 
+  // Ref to hold the latest onVideoReady callback to avoid stale closures
+  const onVideoReadyRef = useRef(onVideoReady);
+  useEffect(() => { onVideoReadyRef.current = onVideoReady; }, [onVideoReady]);
+
   useEffect(() => {
     if (status === 'success' || status === 'failed' || status === 'cancelled') return;
     if (!token) return; // Don't poll without valid token
@@ -201,7 +205,8 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
               body: JSON.stringify({ video_url: vUrl, thumbnail_url: d.thumbnailUrl || d.thumbnail_url }),
             }).catch(() => {});
           }
-          if (onVideoReady) onVideoReady(vUrl);
+          // Use ref to get latest callback
+          if (onVideoReadyRef.current) onVideoReadyRef.current(vUrl);
         } else if (d.status === 'failed') {
           setStatus('failed');
           setError(d.error || 'Generation failed');
@@ -210,12 +215,14 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
           const elapsed = (Date.now() - startTimeRef.current) / 1000;
           setProgress(Math.min(90, Math.round((elapsed / 120) * 90)));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.log('[MobileVideoCard] Poll error:', e.message);
+      }
     };
     poll();
-    pollRef.current = setInterval(poll, 6000);
+    pollRef.current = setInterval(poll, 5000); // Poll every 5 seconds
     return () => clearInterval(pollRef.current);
-  }, [taskId, status, token]);
+  }, [taskId, status, token, messageId]);
 
   const saveToGallery = async () => {
     if (saving || savedToGallery || !videoUrl) return;
@@ -4443,8 +4450,22 @@ export default function MobileChat({
                     prompt={streamingVideoTask.prompt}
                     token={token}
                     initialStatus="generating"
-                    modelLabel="Kling 3.0"
+                    modelLabel={streamingVideoTask.videoModelLabel || 'Kling 3.0'}
                     messageId={streamingVideoTask.messageId}
+                    onVideoReady={(videoUrl) => {
+                      // Video completed during streaming - update the streaming task state
+                      // and also update the message if it exists in state
+                      if (streamingVideoTask.messageId) {
+                        setMessages(prev => prev.map(m => 
+                          m.id === streamingVideoTask.messageId 
+                            ? { ...m, video_url: videoUrl, video_task: { ...m.video_task, status: 'success' } } 
+                            : m
+                        ));
+                      }
+                      // Clear streaming state since video is done
+                      setStreamingVideoTask(null);
+                    }}
+                    onRegenerateWith={handleRegenerateWithModel}
                   />
                 </div>
               )}
