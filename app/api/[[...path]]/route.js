@@ -5390,6 +5390,7 @@ async function authenticate(request) {
       console.log('[Auth] No token provided');
       return null;
     }
+    console.log('[Auth] Token received, length:', token.length, '| First 30 chars:', token.substring(0, 30));
     const decoded = verifyToken(token);
     if (!decoded) {
       console.log('[Auth] Token verification failed');

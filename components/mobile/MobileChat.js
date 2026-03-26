@@ -110,12 +110,20 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
   useEffect(() => {
     if (status === 'success' || status === 'failed') return;
     
+    // Debug: Log token status
+    console.log('[MobileVideoCard] Polling for taskId:', taskId, '| Token exists:', !!token, '| Token length:', token?.length);
+    
     const poll = async () => {
+      if (!token) {
+        console.error('[MobileVideoCard] No token available for polling!');
+        return;
+      }
       try {
         const res = await fetch(`/api/media/status/${taskId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const d = await res.json();
+        console.log('[MobileVideoCard] Poll response:', d.status, d.error || '');
         if ((d.status === 'completed' || d.status === 'success') && (d.url || d.videoUrl)) {
           const vUrl = d.url || d.videoUrl;
           setStatus('success');
