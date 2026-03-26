@@ -9669,15 +9669,15 @@ export default function ChatPage() {
             )}
 
             {/* Streaming */}
-            {(streamingContent || streamingImageUrl || streamingVideoTask) && (
+            {(streamingContent || (streamingImageUrl && loading) || streamingVideoTask) && (
               <div className="msg-appear flex justify-start">
                 <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0 mt-0.5">
                   <SoulPrintLogo size={12} className="sm:hidden" />
                   <SoulPrintLogo size={14} className="hidden sm:block" />
                 </div>
                 <div className="min-w-0 max-w-[95%] sm:max-w-[90%] lg:max-w-[85%] rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 bg-white/4 border border-white/8 text-[13px] sm:text-sm text-gray-200 leading-relaxed break-words">
-                  {/* Live image preview */}
-                  {streamingImageUrl && (
+                  {/* Live image preview - only show while loading */}
+                  {streamingImageUrl && loading && (
                     <ImageCard url={streamingImageUrl} revisedPrompt={streamingRevPrompt} />
                   )}
                   {/* Live video card */}

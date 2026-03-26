@@ -3097,6 +3097,10 @@ export default function MobileChat({
       }
 
       if (fullContent) {
+        // Clear streaming states FIRST to prevent double rendering
+        setStreamingImageUrl(null);
+        setStreamingVideoTask(null);
+        
         // Use real messageId from backend if available (critical for video PATCH calls)
         const realMsgId = doneMessageId || localStreamingVideoTask?.messageId;
         setMessages(prev => [...prev, {
@@ -4205,8 +4209,8 @@ export default function MobileChat({
                 />
               )}
               
-              {/* Live streaming image — shows image immediately when received */}
-              {streamingImageUrl && (
+              {/* Live streaming image — shows image immediately when received, hide when done */}
+              {streamingImageUrl && loading && (
                 <div className="px-4 mb-4">
                   <MobileImageCard url={streamingImageUrl} modelLabel="AI Generated" token={token} />
                 </div>
