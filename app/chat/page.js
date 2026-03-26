@@ -7717,6 +7717,9 @@ export default function ChatPage() {
             } else if (data.type === 'video_task') {
               // Video job started – store taskId for polling
               setStreamingVideoTask({ taskId: data.taskId, status: 'generating', prompt: data.prompt });
+              // Dismiss the generating_visual animation — the VideoCard takes over
+              setIsGeneratingVisual(false);
+              setVisualGenerationType('');
             } else if (data.type === 'delta') {
               setSearchingWeb(false);
               setLastChunkTime(Date.now()); // Track when we last received content

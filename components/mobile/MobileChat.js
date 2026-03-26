@@ -3042,8 +3042,10 @@ export default function MobileChat({
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
             } else if (data.type === 'video_task') {
-              // Video job started
+              // Video job started — dismiss the visual animation, VideoCard takes over
               streamingVideoTask = { taskId: data.taskId, status: 'generating', prompt: data.prompt };
+              setIsGeneratingVisual(false);
+              setVisualGenerationType('');
             } else if (data.type === 'sources') {
               // Received sources from web search
               setStreamingSources(data.sources || []);

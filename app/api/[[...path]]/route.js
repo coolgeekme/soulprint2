@@ -9609,6 +9609,9 @@ Style: Professional graphic design quality. Make it look like a skilled designer
 
         // ── Handle video generation (text-to-video OR image-to-video) ───────────────────────────────────────
         if (mediaIntent === 'video') {
+          // Send visual generation indicator immediately so frontend shows animation
+          send({ type: 'generating_visual', visualType: 'video' });
+          
           // Check if user uploaded an image to animate
           const imageAttachment = attachments.find(a => a.type === 'image' || a.mime_type?.startsWith('image/') || a.mimeType?.startsWith('image/'));
           
