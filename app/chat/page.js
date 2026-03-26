@@ -9934,106 +9934,113 @@ export default function ChatPage() {
                 </button>
               </div>
 
-              {/* Single Model Selector (when not in compare mode) */}
+              {/* ── Unified Model Selector (Dynamic Intelligence) ── */}
               {!compareMode && (
                 <div className="relative" ref={modelPickerRef}>
-                  <button onClick={() => setShowModelPicker(!showModelPicker)}
+                  <button onClick={() => { setShowModelPicker(!showModelPicker); setShowVideoModelPicker(false); }}
                     className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300 transition-colors bg-white/4 border border-white/8 px-3 py-1.5 rounded-full">
-                    <span className="text-orange-400/80">{currentModel.group}</span>
-                    <span className="text-gray-600">/</span>
-                    <span>{currentModel.label}</span>
+                    <Sparkles className="w-3 h-3 text-cyan-400" />
+                    {selectedModel === 'smart' && selectedVideoModel === 'smart' ? (
+                      <span className="text-cyan-400/90">Dynamic Intelligence</span>
+                    ) : (
+                      <>
+                        {selectedModel !== 'smart' && <span className="text-orange-400/80">{currentModel.label}</span>}
+                        {selectedModel !== 'smart' && selectedVideoModel !== 'smart' && <span className="text-gray-600 mx-0.5">+</span>}
+                        {selectedVideoModel !== 'smart' && <span className="text-blue-400/80">{VIDEO_MODELS.find(m => m.value === selectedVideoModel)?.label}</span>}
+                        {(selectedModel === 'smart' || selectedVideoModel === 'smart') && <span className="text-cyan-400/60 ml-0.5">+ Auto</span>}
+                      </>
+                    )}
                     <ChevronDown className="w-3 h-3" />
                   </button>
                   {showModelPicker && (
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#141a21] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[240px] z-10 max-h-72 overflow-y-auto">
-                      {['Dynamic', 'OpenAI', 'Claude', 'Gemini', 'Perplexity', 'Kimi'].map(group => {
-                        const groupModels = MODELS.filter(m => m.group === group);
-                        if (!groupModels.length) return null;
-                        return (
-                          <div key={group}>
-                            <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider mt-1">{group === 'Dynamic' ? '🧠 Dynamic' : group}</div>
-                            {groupModels.map(m => (
-                              <button 
-                                key={m.value} 
-                                onClick={() => { 
-                                  if (!m.comingSoon) {
-                                    setSelectedModel(m.value); 
-                                  }
-                                }}
-                                disabled={m.comingSoon}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center justify-between ${
-                                  m.comingSoon 
-                                    ? 'text-gray-600 cursor-not-allowed opacity-60' 
-                                    : selectedModel === m.value 
-                                      ? 'bg-orange-500/15 text-orange-400' 
-                                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                                }`}>
-                                <span>
-                                  {m.label}
-                                  {m.comingSoon && <span className="ml-1 text-[9px] text-orange-500/70">✨</span>}
-                                  {m.isSmartMode && <span className="ml-1 text-[9px] text-cyan-400/70">Auto</span>}
-                                  {defaultModelSaved === m.value && <span className="ml-1 text-[9px] text-green-400">★ default</span>}
-                                </span>
-                                {selectedModel === m.value && !m.comingSoon && defaultModelSaved !== m.value && (
-                                  <span
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      fetch('/api/user/profile', {
-                                        method: 'PUT',
-                                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                        body: JSON.stringify({ default_model: m.value }),
-                                      }).then(r => { if (r.ok) { setDefaultModelSaved(m.value); setShowModelPicker(false); } });
-                                    }}
-                                    className="text-[9px] text-gray-500 hover:text-green-400 cursor-pointer transition-colors"
-                                    data-testid="set-default-model-btn"
-                                  >set default</span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Video Model Selector */}
-              {!compareMode && (
-                <div className="relative" ref={videoModelPickerRef}>
-                  <button onClick={() => setShowVideoModelPicker(!showVideoModelPicker)}
-                    className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300 transition-colors bg-white/4 border border-white/8 px-3 py-1.5 rounded-full">
-                    <Film className="w-3 h-3 text-blue-400" />
-                    <span className="text-blue-400/80">Video</span>
-                    <span className="text-gray-600">/</span>
-                    <span>{VIDEO_MODELS.find(m => m.value === selectedVideoModel)?.label || 'Smart'}</span>
-                    <ChevronDown className="w-3 h-3" />
-                  </button>
-                  {showVideoModelPicker && (
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#141a21] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[240px] z-10">
-                      <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider">🎬 Video Model</div>
-                      {VIDEO_MODELS.map(m => (
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#141a21] border border-white/10 rounded-xl shadow-2xl min-w-[280px] z-10 max-h-[400px] overflow-y-auto">
+                      {/* Dynamic Intelligence - Auto for all */}
+                      <div className="p-1.5 border-b border-white/5">
                         <button
-                          key={m.value}
-                          onClick={() => { setSelectedVideoModel(m.value); setShowVideoModelPicker(false); }}
-                          className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center justify-between ${
-                            selectedVideoModel === m.value
-                              ? 'bg-blue-500/15 text-blue-400'
+                          onClick={() => { setSelectedModel('smart'); setSelectedVideoModel('smart'); setShowModelPicker(false); }}
+                          className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors flex items-center gap-2 ${
+                            selectedModel === 'smart' && selectedVideoModel === 'smart'
+                              ? 'bg-cyan-500/15 text-cyan-400'
                               : 'text-gray-400 hover:bg-white/5 hover:text-white'
                           }`}>
+                          <Sparkles className="w-4 h-4 text-cyan-400" />
                           <div>
-                            <span>{m.label}</span>
-                            {m.isSmartMode && <span className="ml-1 text-[9px] text-cyan-400/70">Auto</span>}
-                            <p className="text-[9px] text-gray-600 mt-0.5">{m.description}</p>
+                            <span className="font-medium">Dynamic Intelligence</span>
+                            <span className="ml-1.5 text-[9px] text-cyan-400/70">Auto</span>
+                            <p className="text-[9px] text-gray-600 mt-0.5">AI picks the best model for text, images & video</p>
                           </div>
-                          {selectedVideoModel === m.value && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                          {selectedModel === 'smart' && selectedVideoModel === 'smart' && <Check className="w-3.5 h-3.5 text-cyan-400 ml-auto" />}
                         </button>
-                      ))}
+                      </div>
+
+                      {/* Text Models */}
+                      <div className="p-1.5">
+                        <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1">
+                          <MessageSquare className="w-3 h-3" /> Text
+                          {selectedModel === 'smart' && <span className="text-cyan-400/60 ml-1 normal-case font-normal">Auto</span>}
+                        </div>
+                        {MODELS.filter(m => !m.isSmartMode).map(m => (
+                          <button 
+                            key={m.value} 
+                            onClick={() => { if (!m.comingSoon) setSelectedModel(m.value); }}
+                            disabled={m.comingSoon}
+                            className={`w-full text-left px-3 py-1.5 rounded-lg text-[11px] transition-colors flex items-center justify-between ${
+                              m.comingSoon ? 'text-gray-700 cursor-not-allowed' 
+                                : selectedModel === m.value ? 'bg-orange-500/15 text-orange-400' 
+                                : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
+                            }`}>
+                            <span>
+                              {m.label}
+                              {m.comingSoon && <span className="ml-1 text-[8px] text-orange-500/50">soon</span>}
+                            </span>
+                            {selectedModel === m.value && !m.comingSoon && <Check className="w-3 h-3 text-orange-400" />}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Image Models */}
+                      <div className="p-1.5 border-t border-white/5">
+                        <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1">
+                          <ImagePlus className="w-3 h-3" /> Image
+                          <span className="text-cyan-400/60 ml-1 normal-case font-normal">Auto (Gemini)</span>
+                        </div>
+                        {IMAGE_MODELS.filter(m => !m.isSmartMode).map(m => (
+                          <button 
+                            key={m.value}
+                            className="w-full text-left px-3 py-1.5 rounded-lg text-[11px] text-gray-600 cursor-default flex items-center justify-between">
+                            <span>{m.label}</span>
+                            <span className="text-[8px] text-gray-700">{m.description}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Video Models */}
+                      <div className="p-1.5 border-t border-white/5">
+                        <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1">
+                          <Film className="w-3 h-3" /> Video
+                          {selectedVideoModel === 'smart' && <span className="text-cyan-400/60 ml-1 normal-case font-normal">Auto</span>}
+                        </div>
+                        {VIDEO_MODELS.filter(m => !m.isSmartMode).map(m => (
+                          <button 
+                            key={m.value}
+                            onClick={() => setSelectedVideoModel(m.value)}
+                            className={`w-full text-left px-3 py-1.5 rounded-lg text-[11px] transition-colors flex items-center justify-between ${
+                              selectedVideoModel === m.value
+                                ? 'bg-blue-500/15 text-blue-400'
+                                : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
+                            }`}>
+                            <div>
+                              <span>{m.label}</span>
+                              <span className="ml-1.5 text-[8px] text-gray-700">{m.description}</span>
+                            </div>
+                            {selectedVideoModel === m.value && <Check className="w-3 h-3 text-blue-400" />}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
               )}
-
 
               {/* Compare Mode Model Picker */}
               {compareMode && (
