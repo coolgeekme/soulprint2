@@ -208,18 +208,18 @@ async function handleGoogleAuthCallback(request) {
     const origin = 'https://soulprintengine.ai';
     
     if (error) {
-      return NextResponse.redirect(new URL('/settings?google=error&message=' + encodeURIComponent(error), origin));
+      return NextResponse.redirect(new URL('/integrations?google=error&message=' + encodeURIComponent(error), origin));
     }
     
     if (!code || !state) {
-      return NextResponse.redirect(new URL('/settings?google=error&message=missing_params', origin));
+      return NextResponse.redirect(new URL('/integrations?google=error&message=missing_params', origin));
     }
     
     let stateData;
     try {
       stateData = JSON.parse(Buffer.from(state, 'base64').toString());
     } catch {
-      return NextResponse.redirect(new URL('/settings?google=error&message=invalid_state', origin));
+      return NextResponse.redirect(new URL('/integrations?google=error&message=invalid_state', origin));
     }
     
     // Use the same origin for the redirect URI (must match what was sent to Google in handleGoogleAuthStart)
@@ -227,7 +227,7 @@ async function handleGoogleAuthCallback(request) {
     const tokens = await exchangeGoogleCode(code, redirectUri);
     
     if (tokens.error) {
-      return NextResponse.redirect(new URL('/settings?google=error&message=' + encodeURIComponent(tokens.error), origin));
+      return NextResponse.redirect(new URL('/integrations?google=error&message=' + encodeURIComponent(tokens.error), origin));
     }
     
     // Get user info
@@ -275,11 +275,11 @@ async function handleGoogleAuthCallback(request) {
       });
     }
     
-    return NextResponse.redirect(new URL('/settings?google=success', origin));
+    return NextResponse.redirect(new URL('/integrations?google=success', origin));
   } catch (err) {
     console.error('Google callback error:', err);
     const fallbackOrigin = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
-    return NextResponse.redirect(new URL('/settings?google=error&message=' + encodeURIComponent(err.message), fallbackOrigin));
+    return NextResponse.redirect(new URL('/integrations?google=error&message=' + encodeURIComponent(err.message), fallbackOrigin));
   }
 }
 
