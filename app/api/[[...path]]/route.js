@@ -89,22 +89,40 @@ const VIDEO_MODELS = {
       return data.data?.taskId;
     },
     parseStatusResponse: (data) => {
+      // Veo responses have resultUrls inside data.data.response (NOT data.data.successFlag)
+      // Structure: { code: 200, msg: "success", data: { response: { resultUrls: [...], resolution: "720p" } } }
+      const response = data.data?.response || {};
+      const resultUrls = response.resultUrls || data.data?.resultUrls;
+      
+      // Check if video is ready: has resultUrls with actual URLs
+      if (resultUrls && Array.isArray(resultUrls) && resultUrls.length > 0 && resultUrls[0]) {
+        const videoUrl = resultUrls[0];
+        const thumbnailUrl = response.coverUrl || data.data?.coverUrl || data.data?.cover_url;
+        console.log('[Veo3 Parser] SUCCESS — videoUrl:', videoUrl.substring(0, 80));
+        return { status: 'success', videoUrl, thumbnailUrl };
+      }
+      
+      // Also check for successFlag pattern (docs mention it)
       const successFlag = data.data?.successFlag;
       if (successFlag === 1) {
-        let videoUrl = null, thumbnailUrl = null;
+        let videoUrl = null;
         try {
           const urls = JSON.parse(data.data?.resultUrls || '[]');
           videoUrl = urls[0];
         } catch (e) {
           videoUrl = data.data?.resultUrls;
         }
-        // Also check direct fields
-        if (!videoUrl) videoUrl = data.data?.videoUrl || data.data?.video_url;
-        thumbnailUrl = data.data?.coverUrl || data.data?.cover_url || data.data?.thumbnail;
-        return { status: 'success', videoUrl, thumbnailUrl };
-      } else if (successFlag === 2 || successFlag === 3) {
+        if (videoUrl) {
+          return { status: 'success', videoUrl, thumbnailUrl: data.data?.coverUrl };
+        }
+      }
+      
+      // Check for failure
+      if (successFlag === 2 || successFlag === 3 || data.data?.status === 'failed') {
         return { status: 'failed', error: data.msg || 'Veo 3.1 generation failed' };
       }
+      
+      // Still processing
       return { status: 'generating', progress: 'processing...' };
     },
   },
@@ -244,7 +262,7 @@ async function checkVideoStatus(modelId, taskId, kieApiKey) {
   });
 
   const data = await res.json();
-  console.log(`[VideoStatus] ${model.label} raw response for task ${taskId}:`, JSON.stringify(data).substring(0, 500));
+  console.log(`[VideoStatus] ${model.label} raw response for task ${taskId}:`, JSON.stringify(data).substring(0, 1500));
 
   return model.parseStatusResponse(data);
 }
