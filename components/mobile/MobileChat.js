@@ -348,14 +348,10 @@ const IMAGE_MODELS = [
 
 // Video Generation Models (matching desktop) - no pricing shown
 const VIDEO_MODELS = [
-  { value: 'smart', label: '🧠 Dynamic Intelligence', description: 'AI picks best model', isSmartMode: true },
-  { value: 'kling-3', label: 'Kling 3.0 (Std)', description: '5s std quality' },
-  { value: 'kling-3-pro', label: 'Kling 3.0 (Pro)', description: '5s Pro quality' },
-  { value: 'sora-2', label: 'Sora 2', description: 'OpenAI, 10s HD' },
-  { value: 'seedance-1-5', label: 'Seedance 1.5', description: 'Cinematic, audio' },
-  { value: 'kling-2-6', label: 'Kling 2.6', description: '5s, audio support' },
-  { value: 'wan-2-6', label: 'Wan 2.6', description: '5s 720p, lip sync' },
-  { value: 'sora-2-pro', label: 'Sora 2 Pro (HD)', description: 'OpenAI, 1080p HD' },
+  { value: 'smart', label: '🧠 Dynamic Intelligence', description: 'AI picks best model for your prompt', isSmartMode: true },
+  { value: 'kling-3.0', label: 'Kling 3.0', description: 'Fast, general purpose, 720p 5s' },
+  { value: 'veo3', label: 'Veo 3.1', description: 'Cinematic 1080p, audio sync' },
+  { value: 'runway-aleph', label: 'Runway Aleph', description: 'Video-to-video editing & style' },
 ];
 
 // Aspect ratios for image generation
@@ -2989,6 +2985,7 @@ export default function MobileChat({
           attachments: userMessage.attachments,
           enableWebSearch: webSearchEnabled,
           projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
+          videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null,
         }),
         signal: abortControllerRef.current.signal,
       });

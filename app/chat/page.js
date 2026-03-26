@@ -47,14 +47,10 @@ const IMAGE_MODELS = [
 
 // Video Generation Models (sorted by cost - cheapest first)
 const VIDEO_MODELS = [
-  { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', cost: 0, costLabel: 'Auto', description: 'AI picks best model', isSmartMode: true },
-  { value: 'kling-3', label: 'Kling 3.0 (Std)', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: '5s, std quality' },
-  { value: 'kling-3-pro', label: 'Kling 3.0 (Pro)', provider: 'kie', cost: 27, costLabel: '$0.14/s', description: '5s Pro quality' },
-  { value: 'sora-2', label: 'Sora 2', provider: 'openai', cost: 30, costLabel: '$0.15/10s', description: 'OpenAI, 10s HD' },
-  { value: 'seedance-1-5', label: 'Seedance 1.5 Pro', provider: 'bytedance', cost: 50, costLabel: '$0.25/s', description: 'Cinematic, audio' },
-  { value: 'kling-2-6', label: 'Kling 2.6', provider: 'kie', cost: 55, costLabel: '$0.27/s', description: '5s, audio support' },
-  { value: 'wan-2-6', label: 'Wan 2.6', provider: 'alibaba', cost: 70, costLabel: '$0.35/5s', description: '5s 720p, lip sync' },
-  { value: 'sora-2-pro', label: 'Sora 2 Pro (HD)', provider: 'openai', cost: 100, costLabel: '$0.50/10s', description: 'OpenAI, 1080p HD' },
+  { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', cost: 0, costLabel: 'Auto', description: 'AI picks best model for your prompt', isSmartMode: true },
+  { value: 'kling-3.0', label: 'Kling 3.0', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: 'Fast, general purpose, 720p 5s' },
+  { value: 'veo3', label: 'Veo 3.1', provider: 'google', cost: 35, costLabel: '$0.18/s', description: 'Cinematic 1080p, audio sync' },
+  { value: 'runway-aleph', label: 'Runway Aleph', provider: 'runway', cost: 40, costLabel: '$0.20/s', description: 'Video-to-video editing & style' },
 ];
 
 const MODELS = [
@@ -6616,6 +6612,7 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState([]);
   const [selectedModel, setSelectedModel] = useState('smart');
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [showVideoModelPicker, setShowVideoModelPicker] = useState(false);
   const [defaultModelSaved, setDefaultModelSaved] = useState(null); // persisted default
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState(null); // For opening settings to specific tab
@@ -6730,6 +6727,7 @@ export default function ChatPage() {
   const fileInputRef = useRef(null);
   const abortControllerRef = useRef(null); // For stopping requests
   const modelPickerRef = useRef(null); // For click-outside detection on model dropdown
+  const videoModelPickerRef = useRef(null); // For click-outside detection on video model dropdown
   const [interimText, setInterimText] = useState('');
 
   // Keep refs in sync with state
@@ -7040,6 +7038,24 @@ export default function ChatPage() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showModelPicker]);
+
+  // Close video model picker when clicking outside
+  useEffect(() => {
+    if (!showVideoModelPicker) return;
+    const handleClickOutside = (e) => {
+      if (videoModelPickerRef.current && !videoModelPickerRef.current.contains(e.target)) {
+        setShowVideoModelPicker(false);
+      }
+    };
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showVideoModelPicker]);
+
 
   // Dismiss announcement
   async function dismissAnnouncement(announcementId, permanent = false) {
@@ -7680,6 +7696,7 @@ export default function ChatPage() {
           conversationId: newConvId, content, model: selectedModel,
           provider: currentModel.provider, attachments: currentAttachments, enableWebSearch: webSearchEnabled,
           projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
+          videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null, // Pass user's video model preference
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -9980,6 +9997,43 @@ export default function ChatPage() {
                   )}
                 </div>
               )}
+
+              {/* Video Model Selector */}
+              {!compareMode && (
+                <div className="relative" ref={videoModelPickerRef}>
+                  <button onClick={() => setShowVideoModelPicker(!showVideoModelPicker)}
+                    className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300 transition-colors bg-white/4 border border-white/8 px-3 py-1.5 rounded-full">
+                    <Film className="w-3 h-3 text-blue-400" />
+                    <span className="text-blue-400/80">Video</span>
+                    <span className="text-gray-600">/</span>
+                    <span>{VIDEO_MODELS.find(m => m.value === selectedVideoModel)?.label || 'Smart'}</span>
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  {showVideoModelPicker && (
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-[#141a21] border border-white/10 rounded-xl p-1.5 shadow-2xl min-w-[240px] z-10">
+                      <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider">🎬 Video Model</div>
+                      {VIDEO_MODELS.map(m => (
+                        <button
+                          key={m.value}
+                          onClick={() => { setSelectedVideoModel(m.value); setShowVideoModelPicker(false); }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-xs transition-colors flex items-center justify-between ${
+                            selectedVideoModel === m.value
+                              ? 'bg-blue-500/15 text-blue-400'
+                              : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                          }`}>
+                          <div>
+                            <span>{m.label}</span>
+                            {m.isSmartMode && <span className="ml-1 text-[9px] text-cyan-400/70">Auto</span>}
+                            <p className="text-[9px] text-gray-600 mt-0.5">{m.description}</p>
+                          </div>
+                          {selectedVideoModel === m.value && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
 
               {/* Compare Mode Model Picker */}
               {compareMode && (

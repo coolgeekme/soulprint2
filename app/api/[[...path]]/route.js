@@ -8786,6 +8786,7 @@ async function handleChatStream(request) {
     attachments = [],   // [{ type: 'image'|'document', base64: '...', mimeType: '...', name: '...', text: '...' }]
     enableWebSearch = true,
     projectId = null,   // Optional project to associate new conversations with
+    videoModel: userPreferredVideoModel = null,   // User's video model preference (null = Dynamic Intelligence)
   } = body;
   
   // Dynamic Intelligence - automatically select best model
@@ -9927,7 +9928,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               console.log('[Image-to-Video] Final image URL type:', imageUrl.startsWith('data:') ? 'data URL' : 'http URL');
               
               // ── Dynamic Video Intelligence: select the best model ──
-              const videoSelection = await selectVideoModel(content || 'Animate this image', { hasImage: true });
+              const videoSelection = await selectVideoModel(content || 'Animate this image', { hasImage: true, userPreferredModel: userPreferredVideoModel });
               const selectedVideoModel = videoSelection.model;
               const videoModelLabel = VIDEO_MODELS[selectedVideoModel].label;
               send({ type: 'delta', content: `🎬 Animating your image with ${videoModelLabel}...\n\n` });
@@ -9987,7 +9988,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               console.log('[Image-to-Video] Using existing image URL:', imageUrl.substring(0, 80));
               
               // ── Dynamic Video Intelligence ──
-              const videoSelection2 = await selectVideoModel(content || 'Animate this image', { hasImage: true });
+              const videoSelection2 = await selectVideoModel(content || 'Animate this image', { hasImage: true, userPreferredModel: userPreferredVideoModel });
               const selectedVideoModel2 = videoSelection2.model;
               const videoModelLabel2 = VIDEO_MODELS[selectedVideoModel2].label;
               console.log(`[Image-to-Video] Dynamic Intelligence selected: ${selectedVideoModel2} — ${videoSelection2.reason}`);
@@ -10037,7 +10038,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               if (!kieKey) throw new Error('Video API not configured');
               
               // ── Dynamic Video Intelligence ──
-              const videoSelection3 = await selectVideoModel(content, { hasImage: false });
+              const videoSelection3 = await selectVideoModel(content, { hasImage: false, userPreferredModel: userPreferredVideoModel });
               const selectedVideoModel3 = videoSelection3.model;
               const videoModelLabel3 = VIDEO_MODELS[selectedVideoModel3].label;
               console.log(`[Text-to-Video] Dynamic Intelligence selected: ${selectedVideoModel3} — ${videoSelection3.reason}`);
