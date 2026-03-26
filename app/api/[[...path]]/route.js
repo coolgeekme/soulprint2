@@ -25384,6 +25384,23 @@ export async function PATCH(request, { params }) {
       return handleUpdateVoiceSession(request, sessionId);
     }
 
+    // Update message video_url when video generation completes
+    // PATCH /api/messages/:id/video-complete
+    if (pathStr.startsWith('messages/') && pathStr.endsWith('/video-complete')) {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      const messageId = pathArr[1];
+      const body = await request.json();
+      const { video_url, thumbnail_url } = body;
+      if (!video_url) return err('video_url required', 400);
+      const db = await getDb();
+      await db.collection('messages').updateOne(
+        { id: messageId, user_id: user.id },
+        { $set: { video_url, thumbnail_url: thumbnail_url || null, 'video_task.status': 'success' } }
+      );
+      return ok({ success: true });
+    }
+
     return err('Not found', 404);
   } catch (error) {
     console.error('PATCH error:', error);

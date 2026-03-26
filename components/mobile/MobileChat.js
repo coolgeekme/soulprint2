@@ -97,7 +97,7 @@ function MobileImageCard({ url, modelLabel, token }) {
 }
 
 // ── MobileVideoCard: handles video generation with polling ─────────────────
-function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel }) {
+function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId }) {
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
@@ -117,10 +117,19 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
         });
         const d = await res.json();
         if ((d.status === 'completed' || d.status === 'success') && (d.url || d.videoUrl)) {
+          const vUrl = d.url || d.videoUrl;
           setStatus('success');
-          setVideoUrl(d.url || d.videoUrl);
+          setVideoUrl(vUrl);
           setProgress(100);
           clearInterval(pollRef.current);
+          // Persist video_url to message DB so it survives navigation
+          if (messageId && vUrl) {
+            fetch(`/api/messages/${messageId}/video-complete`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ video_url: vUrl, thumbnail_url: d.thumbnailUrl || d.thumbnail_url }),
+            }).catch(() => {});
+          }
         } else if (d.status === 'failed') {
           setStatus('failed');
           setError(d.error || 'Generation failed');
@@ -750,13 +759,14 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           )}
           
           {/* Show video task with polling */}
-          {message.video_task && (
+          {message.video_task && !message.video_url && (
             <MobileVideoCard
               taskId={message.video_task.taskId}
               prompt={message.video_task.prompt || 'Video generation'}
               token={token}
-              initialStatus={message.video_task.status}
-              modelLabel={message.model_label}
+              initialStatus={message.video_task.status === 'success' ? 'success' : 'generating'}
+              modelLabel={message.model_label || 'Kling 3.0'}
+              messageId={message.id}
             />
           )}
           
@@ -2143,6 +2153,7 @@ export default function MobileChat({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [streamingVideoTask, setStreamingVideoTask] = useState(null);
   const [streamingSources, setStreamingSources] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [conversationId, setConversationId] = useState(initialConversationId);
@@ -3042,10 +3053,11 @@ export default function MobileChat({
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
             } else if (data.type === 'video_task') {
-              // Video job started — dismiss the visual animation, VideoCard takes over
+              // Video job started — save to state for rendering MobileVideoCard during streaming
               streamingVideoTask = { taskId: data.taskId, status: 'generating', prompt: data.prompt };
-              setIsGeneratingVisual(false);
-              setVisualGenerationType('');
+              setStreamingVideoTask(streamingVideoTask);
+              // Keep isGeneratingVisual showing until the message is saved
+              // The MobileVideoCard in the message list will take over after streaming ends
             } else if (data.type === 'sources') {
               // Received sources from web search
               setStreamingSources(data.sources || []);
@@ -3069,12 +3081,14 @@ export default function MobileChat({
           smart_reason: dynamicIntelligenceReason,
           image_url: streamingImageUrl || undefined,
           video_task: streamingVideoTask || undefined,
+          model_label: streamingVideoTask ? 'Kling 3.0' : undefined,
           sources: streamingSources.length > 0 ? [...streamingSources] : undefined,
         }]);
       }
 
       setStreamingContent('');
       setStreamingSources([]);
+      setStreamingVideoTask(null);
       setIsGeneratingVisual(false);
       setVisualGenerationType('');
       if (newConvId && newConvId !== conversationId) {
@@ -4153,8 +4167,8 @@ export default function MobileChat({
                 />
               ))}
               
-              {/* Streaming message */}
-              {streamingContent && (
+              {/* Streaming message — hide when video is generating (show animation instead) */}
+              {streamingContent && !streamingVideoTask && !(isGeneratingVisual && visualGenerationType === 'video') && (
                 <MessageBubble 
                   message={{ content: streamingContent }}
                   isUser={false}
@@ -4162,8 +4176,21 @@ export default function MobileChat({
                 />
               )}
               
-              {/* Loading indicator */}
-              {loading && !streamingContent && (
+              {/* Live video generation card — shows animation during streaming */}
+              {streamingVideoTask && (
+                <div className="px-4 mb-4">
+                  <MobileVideoCard
+                    taskId={streamingVideoTask.taskId}
+                    prompt={streamingVideoTask.prompt}
+                    token={token}
+                    initialStatus="generating"
+                    modelLabel="Kling 3.0"
+                  />
+                </div>
+              )}
+              
+              {/* Loading indicator — hide when video card is showing */}
+              {loading && !streamingContent && !streamingVideoTask && (
                 <div className="flex justify-start mb-4 px-4">
                   <div className="bg-white/5 rounded-3xl px-5 py-3">
                     <div className="flex items-center gap-2">
@@ -4177,8 +4204,8 @@ export default function MobileChat({
                 </div>
               )}
               
-              {/* Visual Content Generating Indicator */}
-              {isGeneratingVisual && (
+              {/* Visual Content Generating Indicator — only before video_task arrives */}
+              {isGeneratingVisual && !streamingVideoTask && (
                 <div className="py-3">
                   <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 border border-purple-500/20 p-4">
                     {/* Animated background shimmer */}

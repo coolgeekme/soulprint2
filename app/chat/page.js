@@ -469,7 +469,7 @@ async function processFile(file) {
 }
 
 // ── VideoCard: polls for video status and renders player when ready ──────────
-function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel }) {
+function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady }) {
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
@@ -489,17 +489,27 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
         });
         const d = await res.json();
         if (d.status === 'success' || d.status === 'completed') {
+          const vUrl = d.videoUrl || d.url;
+          const tUrl = d.thumbnailUrl || d.thumbnail_url;
           setStatus('success');
-          setVideoUrl(d.videoUrl || d.url);
-          setThumbnailUrl(d.thumbnailUrl || d.thumbnail_url);
+          setVideoUrl(vUrl);
+          setThumbnailUrl(tUrl);
           setProgress(100);
           clearInterval(pollRef.current);
+          // Persist video_url to the message in DB so it survives navigation
+          if (messageId && vUrl) {
+            fetch(`/api/messages/${messageId}/video-complete`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ video_url: vUrl, thumbnail_url: tUrl }),
+            }).catch(() => {});
+          }
+          if (onVideoReady) onVideoReady(vUrl);
         } else if (d.status === 'failed') {
           setStatus('failed');
           setError(d.error || 'Generation failed');
           clearInterval(pollRef.current);
         } else {
-          // Simulate progress based on time elapsed (videos take ~60-180s)
           const elapsed = (Date.now() - startTimeRef.current) / 1000;
           const estimatedProgress = Math.min(90, Math.round((elapsed / 120) * 90));
           setProgress(estimatedProgress);
@@ -509,7 +519,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
     poll();
     pollRef.current = setInterval(poll, 6000);
     return () => clearInterval(pollRef.current);
-  }, [taskId, status, token]);
+  }, [taskId, status, token, messageId, onVideoReady]);
 
   const saveToGallery = async () => {
     if (saving || savedToGallery || !videoUrl) return;
@@ -9444,8 +9454,9 @@ export default function ChatPage() {
                             taskId={msg.video_task.taskId}
                             prompt={msg.video_task.prompt}
                             token={token}
-                            initialStatus={msg.video_task.status}
-                            modelLabel={msg.model_label}
+                            initialStatus={msg.video_task.status === 'success' ? 'success' : 'generating'}
+                            modelLabel={msg.model_label || 'Kling 3.0'}
+                            messageId={msg.id}
                           />
                         )}
                         {/* Saved video - direct URL from database */}
@@ -9622,10 +9633,11 @@ export default function ChatPage() {
                       prompt={streamingVideoTask.prompt}
                       token={token}
                       initialStatus={streamingVideoTask.status}
+                      modelLabel="Kling 3.0"
                     />
                   )}
-                  {/* Regular text (only if not a pure image message) */}
-                  {streamingContent && !streamingImageUrl && (
+                  {/* Regular text (only if not a pure image/video message) */}
+                  {streamingContent && !streamingImageUrl && !streamingVideoTask && !(isGeneratingVisual && visualGenerationType === 'video') && (
                     <>
                       <ReactMarkdown remarkPlugins={[remarkGfm]}
                         components={{
@@ -9764,8 +9776,8 @@ export default function ChatPage() {
               </div>
             )}
 
-            {/* Visual Content Generating Indicator */}
-            {isGeneratingVisual && (
+            {/* Visual Content Generating Indicator — only before VideoCard takes over */}
+            {isGeneratingVisual && !streamingVideoTask && (
               <div className="px-2 sm:px-4 py-3">
                 <div className="max-w-3xl mx-auto">
                   <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 border border-purple-500/20 p-5">
