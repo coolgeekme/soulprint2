@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend Testing for Dynamic Video Intelligence System
-Tests multi-model video generation with dynamic model selection
+Backend Testing for SoulPrint Engine
+Tests image generation and video generation via chat stream with SSE
 """
 
 import requests
@@ -12,14 +12,14 @@ import sys
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://chat-history-video.preview.emergentagent.com"
+BASE_URL = "https://image-gen-repair-1.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 
-class VideoIntelligenceTest:
+class SoulPrintEngineTest:
     def __init__(self):
         self.token = None
         self.conversation_id = None
@@ -143,6 +143,141 @@ class VideoIntelligenceTest:
             "video_task_event": video_task_event,
             "done_event": done_event
         }
+    
+    def test_image_generation_flow(self) -> bool:
+        """Test image generation flow via chat stream with SSE events"""
+        try:
+            # Image generation prompt as specified in the review request
+            prompt = "Generate an image of a beautiful sunset over the ocean"
+            
+            print(f"   Testing image generation with prompt: {prompt}")
+            
+            response = requests.post(f"{API_BASE}/chat/stream",
+                                   headers=self.get_headers(),
+                                   json={
+                                       "content": prompt,
+                                       "conversationId": self.conversation_id
+                                   },
+                                   stream=True,
+                                   timeout=60)  # Longer timeout for image generation
+            
+            if response.status_code != 200:
+                self.log_result("Image Generation Flow", False, f"HTTP {response.status_code}: {response.text}")
+                return False
+            
+            print(f"   Response status: {response.status_code}")
+            print(f"   Response headers: {dict(response.headers)}")
+            
+            # Parse SSE stream and look for image generation events
+            events = []
+            generating_visual_event = None
+            image_event = None
+            done_event = None
+            
+            try:
+                print("   Parsing SSE stream for image generation events...")
+                line_count = 0
+                for line in response.iter_lines(decode_unicode=True):
+                    line_count += 1
+                    if line_count > 100:  # Higher limit for image generation
+                        print("   Reached line limit, stopping parse")
+                        break
+                        
+                    if line.strip():
+                        # Handle both standard SSE format and direct JSON
+                        data_str = line
+                        if line.startswith('data: '):
+                            data_str = line[6:]  # Remove 'data: ' prefix
+                        
+                        if data_str.strip() and data_str != '[DONE]':
+                            try:
+                                event_data = json.loads(data_str)
+                                events.append(event_data)
+                                event_type = event_data.get('type', 'unknown')
+                                print(f"   Event: {event_type} - {str(event_data)[:150]}...")
+                                
+                                # Capture specific events for image generation
+                                if event_type == 'generating_visual':
+                                    generating_visual_event = event_data
+                                    print(f"   ✅ Found generating_visual event!")
+                                elif event_type == 'image':
+                                    image_event = event_data
+                                    print(f"   ✅ Found image event with URL!")
+                                elif event_type == 'done':
+                                    done_event = event_data
+                                    print(f"   ✅ Found done event!")
+                                    # Stop parsing after done event
+                                    break
+                                    
+                            except json.JSONDecodeError:
+                                print(f"   Failed to parse JSON: {data_str[:100]}...")
+                                continue
+                                
+            except Exception as e:
+                print(f"Error parsing SSE stream: {e}")
+                
+            print(f"   Total events parsed: {len(events)}")
+            
+            # Verify required events for image generation
+            success = True
+            details = []
+            
+            # Check for generating_visual event (optional but good to have)
+            if generating_visual_event:
+                visual_type = generating_visual_event.get('visualType')
+                details.append(f"generating_visual event found (visualType: {visual_type})")
+            else:
+                details.append("generating_visual event not found (optional)")
+            
+            # Check for image event with URL (required)
+            if not image_event:
+                self.log_result("Image Generation Flow", False, "No image event found in SSE stream")
+                return False
+            
+            image_url = image_event.get('url')
+            if not image_url:
+                self.log_result("Image Generation Flow", False, "Image event found but no URL property")
+                return False
+            
+            # Verify the image URL is accessible
+            try:
+                img_response = requests.head(image_url, timeout=10)
+                if img_response.status_code == 200:
+                    details.append(f"Image URL accessible: {image_url[:80]}...")
+                else:
+                    details.append(f"Image URL not accessible (HTTP {img_response.status_code})")
+                    success = False
+            except Exception as e:
+                details.append(f"Failed to verify image URL: {str(e)}")
+                success = False
+            
+            # Check for done event (required)
+            if not done_event:
+                self.log_result("Image Generation Flow", False, "No done event found in SSE stream")
+                return False
+            
+            details.append("done event found")
+            
+            # Additional checks for image event properties
+            content_type = image_event.get('contentType', 'unknown')
+            revised_prompt = image_event.get('revised_prompt', 'none')
+            details.append(f"contentType: {content_type}, revised_prompt: {revised_prompt[:50]}...")
+            
+            if success:
+                self.log_result("Image Generation Flow", True, "; ".join(details))
+                
+                # Store for potential future tests
+                self.image_url = image_url
+                self.image_message_id = done_event.get('messageId')
+                
+                return True
+            else:
+                self.log_result("Image Generation Flow", False, "; ".join(details))
+                return False
+            
+        except Exception as e:
+            self.log_result("Image Generation Flow", False, f"Exception: {str(e)}")
+            return False
     
     def test_cinematic_video_generation(self) -> bool:
         """Test cinematic video prompt - should select Veo 3.1"""
@@ -418,7 +553,7 @@ class VideoIntelligenceTest:
     
     def run_all_tests(self):
         """Run all tests in sequence"""
-        print("🧪 Starting Dynamic Video Intelligence Backend Tests")
+        print("🧪 Starting SoulPrint Engine Backend Tests")
         print("=" * 60)
         
         # Authentication test
@@ -435,6 +570,9 @@ class VideoIntelligenceTest:
         if not self.create_conversation():
             print("❌ Conversation creation failed - cannot continue")
             return False
+        
+        # Test image generation flow (as requested in review)
+        image_success = self.test_image_generation_flow()
         
         # Test video generation with different prompts
         cinematic_success = self.test_cinematic_video_generation()
@@ -462,6 +600,14 @@ class VideoIntelligenceTest:
         
         print(f"\n📈 Results: {passed_tests}/{total_tests} tests passed")
         
+        # Check for image generation
+        if image_success:
+            print("🖼️  IMAGE GENERATION: ✅ VERIFIED")
+            print("   SSE stream includes proper image events with accessible URLs")
+        else:
+            print("🖼️  IMAGE GENERATION: ❌ FAILED")
+            print("   Image generation flow may not be working correctly")
+        
         # Check for dynamic model selection
         if cinematic_success and animation_success:
             print("🎯 DYNAMIC MODEL SELECTION: ✅ VERIFIED")
@@ -474,7 +620,7 @@ class VideoIntelligenceTest:
 
 def main():
     """Main test execution"""
-    tester = VideoIntelligenceTest()
+    tester = SoulPrintEngineTest()
     success = tester.run_all_tests()
     
     if success:

@@ -2161,6 +2161,7 @@ export default function MobileChat({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [streamingImageUrl, setStreamingImageUrl] = useState(null);
   const [streamingVideoTask, setStreamingVideoTask] = useState(null);
   const [streamingSources, setStreamingSources] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -3006,8 +3007,8 @@ export default function MobileChat({
       let buffer = '';
       let actualModelUsed = selectedModel;
       let dynamicIntelligenceReason = null;
-      let streamingImageUrl = null;
-      let streamingVideoTask = null;
+      let localStreamingImageUrl = null;
+      let localStreamingVideoTask = null;
       let doneMessageId = null;
 
       while (reader) {
@@ -3061,20 +3062,21 @@ export default function MobileChat({
               setIsGeneratingVisual(true);
               setVisualGenerationType(data.visualType || 'image');
             } else if (data.type === 'image') {
-              // Image generated - store for rendering
-              streamingImageUrl = data.url;
+              // Image generated - store for rendering and update state immediately
+              localStreamingImageUrl = data.url;
+              setStreamingImageUrl(data.url);
               // Reset visual generation state since image arrived
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
             } else if (data.type === 'video_task') {
               // Video job started — save to state for rendering MobileVideoCard during streaming
-              streamingVideoTask = { 
+              localStreamingVideoTask = { 
                 taskId: data.taskId, status: 'generating', prompt: data.prompt, 
                 messageId: data.messageId,
                 videoModel: data.videoModel, videoModelLabel: data.videoModelLabel, 
                 videoModelReason: data.videoModelReason 
               };
-              setStreamingVideoTask(streamingVideoTask);
+              setStreamingVideoTask(localStreamingVideoTask);
               // Dismiss the generating_visual animation — MobileVideoCard takes over
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
@@ -3096,7 +3098,7 @@ export default function MobileChat({
 
       if (fullContent) {
         // Use real messageId from backend if available (critical for video PATCH calls)
-        const realMsgId = doneMessageId || streamingVideoTask?.messageId;
+        const realMsgId = doneMessageId || localStreamingVideoTask?.messageId;
         setMessages(prev => [...prev, {
           id: realMsgId || `a-${Date.now()}`,
           role: 'assistant',
@@ -3104,15 +3106,16 @@ export default function MobileChat({
           model_used: actualModelUsed,
           smart_mode: selectedModel === 'smart',
           smart_reason: dynamicIntelligenceReason,
-          image_url: streamingImageUrl || undefined,
-          video_task: streamingVideoTask || undefined,
-          model_label: streamingVideoTask ? (streamingVideoTask.videoModelLabel || 'AI Video') : undefined,
-          video_model_reason: streamingVideoTask?.videoModelReason || undefined,
+          image_url: localStreamingImageUrl || undefined,
+          video_task: localStreamingVideoTask || undefined,
+          model_label: localStreamingVideoTask ? (localStreamingVideoTask.videoModelLabel || 'AI Video') : undefined,
+          video_model_reason: localStreamingVideoTask?.videoModelReason || undefined,
           sources: streamingSources.length > 0 ? [...streamingSources] : undefined,
         }]);
       }
 
       setStreamingContent('');
+      setStreamingImageUrl(null);
       setStreamingSources([]);
       setStreamingVideoTask(null);
       setIsGeneratingVisual(false);
@@ -4200,6 +4203,13 @@ export default function MobileChat({
                   isUser={false}
                   assistantName={assistantName}
                 />
+              )}
+              
+              {/* Live streaming image — shows image immediately when received */}
+              {streamingImageUrl && (
+                <div className="px-4 mb-4">
+                  <MobileImageCard url={streamingImageUrl} modelLabel="AI Generated" token={token} />
+                </div>
               )}
               
               {/* Live video generation card — shows animation during streaming */}

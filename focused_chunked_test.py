@@ -9,7 +9,7 @@ import io
 import base64
 import time
 
-BASE_URL = "https://chat-history-video.preview.emergentagent.com/api"
+BASE_URL = "https://image-gen-repair-1.preview.emergentagent.com/api"
 EMAIL = "test@soulprint.com"
 PASSWORD = "test123"
 
