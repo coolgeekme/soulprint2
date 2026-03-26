@@ -48,9 +48,17 @@ const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.txt,.md,.csv,.json
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // ── MobileImageCard: image display with Save to Gallery button ─────────────
-function MobileImageCard({ url, modelLabel, token }) {
+function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
+  
+  // Available image models for regeneration
+  const IMAGE_MODELS = [
+    { id: 'nano-banana', label: 'Nano Banana', description: 'Fast, versatile' },
+    { id: 'gemini-2.0-flash-exp-image-generation', label: 'Gemini Image', description: 'High quality' },
+    { id: 'gpt-image-1', label: 'GPT Image', description: 'Creative, detailed' },
+  ];
   
   const saveToGallery = async () => {
     if (saving || saved) return;
@@ -68,55 +76,116 @@ function MobileImageCard({ url, modelLabel, token }) {
       setSaving(false);
     }
   };
+
+  const handleRegenerateWith = (modelId) => {
+    setShowModelPicker(false);
+    if (onRegenerateWith && prompt) {
+      onRegenerateWith(prompt, modelId);
+    }
+  };
   
   return (
     <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
       <img src={url} alt="Generated" className="w-full h-auto max-h-80 object-contain bg-black/20" />
-      <div className="px-3 py-2 flex items-center justify-between">
-        <div className="text-xs text-orange-400 flex items-center gap-1.5">
-          <ImageIcon className="w-3.5 h-3.5" /> {modelLabel ? `Generated with ${modelLabel}` : 'AI Generated'}
+      <div className="px-3 py-2 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-orange-400 flex items-center gap-1.5">
+            <ImageIcon className="w-3.5 h-3.5" /> {modelLabel ? `Generated with ${modelLabel}` : 'AI Generated'}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={saveToGallery}
+              disabled={saving || saved}
+              className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-lg transition-colors ${
+                saved ? 'bg-green-500/20 text-green-400' : saving ? 'text-gray-500' : 'bg-purple-500/15 text-purple-400 active:bg-purple-500/25'
+              }`}
+            >
+              {saved ? '✓ Saved' : saving ? '...' : '📁 Gallery'}
+            </button>
+            <a href={url} target="_blank" rel="noopener noreferrer" download
+              className="flex items-center gap-1 px-2.5 py-1 bg-orange-500/15 text-orange-400 text-[11px] rounded-lg">
+              ↓ Save
+            </a>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={saveToGallery}
-            disabled={saving || saved}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-lg transition-colors ${
-              saved ? 'bg-green-500/20 text-green-400' : saving ? 'text-gray-500' : 'bg-purple-500/15 text-purple-400 active:bg-purple-500/25'
-            }`}
-          >
-            {saved ? '✓ Saved' : saving ? '...' : '📁 Gallery'}
-          </button>
-          <a href={url} target="_blank" rel="noopener noreferrer" download
-            className="flex items-center gap-1 px-2.5 py-1 bg-orange-500/15 text-orange-400 text-[11px] rounded-lg">
-            ↓ Save
-          </a>
-        </div>
+        {/* Try Different Model */}
+        {onRegenerateWith && prompt && (
+          <div className="relative">
+            <button
+              onClick={() => setShowModelPicker(!showModelPicker)}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white/5 border border-white/10 text-gray-400 text-[11px] rounded-lg active:bg-white/10 transition-colors"
+            >
+              <RefreshCw className="w-3 h-3" /> Try Different Model
+            </button>
+            {showModelPicker && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1f26] border border-white/10 rounded-xl overflow-hidden z-20 shadow-xl">
+                {IMAGE_MODELS.filter(m => !modelLabel?.toLowerCase().includes(m.label.toLowerCase().split(' ')[0])).map(model => (
+                  <button
+                    key={model.id}
+                    onClick={() => handleRegenerateWith(model.id)}
+                    className="w-full px-3 py-2 text-left hover:bg-white/5 active:bg-white/10 border-b border-white/5 last:border-0"
+                  >
+                    <p className="text-xs font-medium text-white">{model.label}</p>
+                    <p className="text-[10px] text-gray-500">{model.description}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 // ── MobileVideoCard: handles video generation with polling ─────────────────
-function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady }) {
+function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady, onCancel, onRegenerateWith }) {
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const pollRef = useRef(null);
   const startTimeRef = useRef(Date.now());
+  const cancelledRef = useRef(false);
+
+  // Available video models for regeneration
+  const VIDEO_MODELS = [
+    { id: 'kling-3.0', label: 'Kling 3.0', description: 'Fast, general purpose' },
+    { id: 'veo3', label: 'Veo 3.1', description: 'Cinematic, 1080p' },
+    { id: 'runway-aleph', label: 'Runway Aleph', description: 'Creative, artistic' },
+  ];
+
+  const handleCancel = () => {
+    cancelledRef.current = true;
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+    }
+    setStatus('cancelled');
+    if (onCancel) onCancel(taskId);
+  };
+
+  const handleRegenerateWith = (modelId) => {
+    setShowModelPicker(false);
+    if (onRegenerateWith) {
+      onRegenerateWith(prompt, modelId);
+    }
+  };
 
   useEffect(() => {
-    if (status === 'success' || status === 'failed') return;
+    if (status === 'success' || status === 'failed' || status === 'cancelled') return;
     if (!token) return; // Don't poll without valid token
     
     const poll = async () => {
+      if (cancelledRef.current) return;
       try {
         const res = await fetch(`/api/media/status/${taskId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const d = await res.json();
+        if (cancelledRef.current) return;
         if ((d.status === 'completed' || d.status === 'success') && (d.url || d.videoUrl)) {
           const vUrl = d.url || d.videoUrl;
           setStatus('success');
@@ -208,6 +277,47 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
               <Download className="w-3.5 h-3.5" /> Download
             </a>
           </div>
+          {/* Try Different Model */}
+          {onRegenerateWith && (
+            <div className="relative">
+              <button
+                onClick={() => setShowModelPicker(!showModelPicker)}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 border border-white/10 text-gray-400 text-xs rounded-xl active:bg-white/10 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Try Different Model
+              </button>
+              {showModelPicker && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1f26] border border-white/10 rounded-xl overflow-hidden z-20 shadow-xl">
+                  {VIDEO_MODELS.filter(m => m.label !== modelLabel).map(model => (
+                    <button
+                      key={model.id}
+                      onClick={() => handleRegenerateWith(model.id)}
+                      className="w-full px-3 py-2.5 text-left hover:bg-white/5 active:bg-white/10 border-b border-white/5 last:border-0"
+                    >
+                      <p className="text-xs font-medium text-white">{model.label}</p>
+                      <p className="text-[10px] text-gray-500">{model.description}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'cancelled') {
+    return (
+      <div className="mb-3 rounded-2xl border border-gray-500/20 bg-gray-500/5 p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-gray-500/15 flex items-center justify-center flex-shrink-0">
+            <Square className="w-4 h-4 text-gray-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400">Video generation cancelled</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">You stopped this generation</p>
+          </div>
         </div>
       </div>
     );
@@ -258,7 +368,15 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
               {progress < 30 ? 'Queuing...' : progress < 60 ? 'Rendering frames...' : progress < 90 ? 'Almost done...' : 'Finalizing...'}
             </p>
           </div>
-          <p className="text-[10px] text-gray-600">~1-3 min</p>
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] text-gray-600">~1-3 min</p>
+            <button
+              onClick={handleCancel}
+              className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[10px] font-medium active:bg-red-500/20 transition-colors"
+            >
+              Stop
+            </button>
+          </div>
         </div>
         <p className="text-[10px] text-gray-700 mt-2 truncate italic">"{prompt}"</p>
       </div>
@@ -267,9 +385,17 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
 }
 
 // ── MobileSavedVideoCard: displays a saved video from database with matching UX ─
-function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token }) {
+function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith }) {
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
+
+  // Available video models for regeneration
+  const REGEN_VIDEO_MODELS = [
+    { id: 'kling-3.0', label: 'Kling 3.0', description: 'Fast, general purpose' },
+    { id: 'veo3', label: 'Veo 3.1', description: 'Cinematic, 1080p' },
+    { id: 'runway-aleph', label: 'Runway Aleph', description: 'Creative, artistic' },
+  ];
 
   const saveToGallery = async () => {
     if (saving || savedToGallery || !videoUrl) return;
@@ -289,6 +415,13 @@ function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token }) {
       if (res.ok) setSavedToGallery(true);
     } catch (e) {}
     finally { setSaving(false); }
+  };
+
+  const handleRegenerateWith = (modelId) => {
+    setShowModelPicker(false);
+    if (onRegenerateWith && prompt) {
+      onRegenerateWith(prompt, modelId);
+    }
   };
 
   return (
@@ -329,6 +462,31 @@ function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token }) {
             <Download className="w-3.5 h-3.5" /> Download
           </a>
         </div>
+        {/* Try Different Model */}
+        {onRegenerateWith && prompt && (
+          <div className="relative">
+            <button
+              onClick={() => setShowModelPicker(!showModelPicker)}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 border border-white/10 text-gray-400 text-xs rounded-xl active:bg-white/10 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Try Different Model
+            </button>
+            {showModelPicker && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1f26] border border-white/10 rounded-xl overflow-hidden z-20 shadow-xl">
+                {REGEN_VIDEO_MODELS.filter(m => !modelLabel?.toLowerCase().includes(m.label.toLowerCase().split(' ')[0])).map(model => (
+                  <button
+                    key={model.id}
+                    onClick={() => handleRegenerateWith(model.id)}
+                    className="w-full px-3 py-2.5 text-left hover:bg-white/5 active:bg-white/10 border-b border-white/5 last:border-0"
+                  >
+                    <p className="text-xs font-medium text-white">{model.label}</p>
+                    <p className="text-[10px] text-gray-500">{model.description}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -743,7 +901,13 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
         >
           {/* Show generated image */}
           {message.image_url && (
-            <MobileImageCard url={message.image_url} modelLabel={message.model_label} token={token} />
+            <MobileImageCard 
+              url={message.image_url} 
+              modelLabel={message.model_label} 
+              token={token}
+              prompt={message.generation_params?.prompt || message.content?.match(/generate.*?image.*?of\s+(.+)/i)?.[1] || ''}
+              onRegenerateWith={handleRegenerateWithModel}
+            />
           )}
           
           {/* Show generated video */}
@@ -753,6 +917,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               modelLabel={message.model_label} 
               prompt={message.video_task?.prompt || message.generation_params?.prompt || ''} 
               token={token}
+              onRegenerateWith={handleRegenerateWithModel}
             />
           )}
           
@@ -771,6 +936,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
                   m.id === message.id ? { ...m, video_url: videoUrl } : m
                 ));
               }}
+              onRegenerateWith={handleRegenerateWithModel}
             />
           )}
           
@@ -2622,7 +2788,19 @@ export default function MobileChat({
     const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
     fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => setConversations(Array.isArray(data) ? data : []))
+      .then(data => {
+        const convList = Array.isArray(data) ? data : [];
+        setConversations(convList);
+        
+        // Auto-select latest conversation if none selected and not explicitly viewing history
+        if (!conversationId && !initialConversationId && convList.length > 0 && activeTab === 'chat') {
+          // Find the most recent conversation (they should be sorted by updated_at desc)
+          const latestConv = convList[0];
+          if (latestConv?.id) {
+            setConversationId(latestConv.id);
+          }
+        }
+      })
       .catch(console.error);
   }, [token, selectedProject]);
   
@@ -3268,6 +3446,40 @@ export default function MobileChat({
     setRenamingConversation(conv);
     setRenameTitle(conv.title || '');
     setShowRenameModal(true);
+  };
+
+  // Regenerate media with a different model
+  const handleRegenerateWithModel = async (originalPrompt, modelId) => {
+    if (!originalPrompt || !modelId) return;
+    
+    // Construct a prompt that requests the specific model
+    let newPrompt = originalPrompt;
+    
+    // For videos, prepend with model instruction
+    if (['kling-3.0', 'veo3', 'runway-aleph'].includes(modelId)) {
+      const modelNames = {
+        'kling-3.0': 'Kling 3.0',
+        'veo3': 'Veo 3.1',
+        'runway-aleph': 'Runway Aleph'
+      };
+      newPrompt = `Use ${modelNames[modelId]} to generate: ${originalPrompt}`;
+    } else {
+      // For images
+      const modelNames = {
+        'nano-banana': 'Nano Banana',
+        'gemini-2.0-flash-exp-image-generation': 'Gemini',
+        'gpt-image-1': 'GPT Image'
+      };
+      newPrompt = `Use ${modelNames[modelId] || modelId} to generate: ${originalPrompt}`;
+    }
+    
+    // Set the input and trigger send
+    setInput(newPrompt);
+    // Use setTimeout to ensure state is updated before sending
+    setTimeout(() => {
+      // The user will need to press send, or we could auto-send here
+      // For now, just populate the input so user can review and send
+    }, 100);
   };
 
   // ─────────────────────────────────────────────────────────────────
