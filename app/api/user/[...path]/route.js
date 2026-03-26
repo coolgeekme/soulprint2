@@ -666,6 +666,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'profile') return handleGetProfile(request);
     if (pathStr === 'profile/soul') return handleGetSoulProfile(request);
     if (pathStr === 'profile/export') return handleProfileExport(request);
+    if (pathStr === 'profile/communication') return handleGetCommunicationProfile(request);
 
     // Memories
     if (pathStr === 'memories') return handleGetMemories(request);
@@ -679,6 +680,42 @@ export async function GET(request, { params }) {
 
     // Projects
     if (pathStr === 'projects') return handleGetProjects(request);
+
+    // Voice & Location (forward to catch-all by returning null-like)
+    if (pathStr === 'voice-settings' || pathStr === 'voice-stats' ||
+        pathStr === 'location' || pathStr === 'timezone') {
+      // These are handled by the catch-all route with user/ prefix
+      // Forward by fetching from the catch-all pattern
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      const db = await getDb();
+      
+      if (pathStr === 'voice-settings') {
+        const profile = await db.collection('profiles').findOne({ user_id: user.id });
+        return ok({
+          voice_settings: profile?.voice_settings || {
+            voice: 'alloy',
+            speed: 1.0,
+            auto_play: false,
+            model: 'tts-1',
+          }
+        });
+      }
+      if (pathStr === 'voice-stats') {
+        const sessions = await db.collection('voice_sessions').find({ user_id: user.id }).sort({ created_at: -1 }).limit(50).toArray();
+        const totalSessions = sessions.length;
+        const totalDuration = sessions.reduce((sum, s) => sum + (s.duration_seconds || 0), 0);
+        return ok({ totalSessions, totalDuration, sessions });
+      }
+      if (pathStr === 'location') {
+        const loc = await db.collection('user_locations').findOne({ user_id: user.id });
+        return ok(loc || { user_id: user.id });
+      }
+      if (pathStr === 'timezone') {
+        const userDoc = await db.collection('users').findOne({ id: user.id });
+        return ok({ timezone: userDoc?.timezone || null });
+      }
+    }
 
     return err('User endpoint not found', 404);
   } catch (error) {
@@ -720,6 +757,47 @@ export async function PUT(request, { params }) {
   try {
     // Profile
     if (pathStr === 'profile') return handleUpdateProfile(request);
+
+    // Voice settings
+    if (pathStr === 'voice-settings') {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      const db = await getDb();
+      const body = await request.json();
+      await db.collection('profiles').updateOne(
+        { user_id: user.id },
+        { $set: { voice_settings: body.voice_settings || body, updated_at: new Date() } },
+        { upsert: true }
+      );
+      return ok({ success: true });
+    }
+
+    // Location
+    if (pathStr === 'location') {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      const db = await getDb();
+      const body = await request.json();
+      await db.collection('user_locations').updateOne(
+        { user_id: user.id },
+        { $set: { ...body, user_id: user.id, updated_at: new Date() } },
+        { upsert: true }
+      );
+      return ok({ success: true });
+    }
+
+    // Timezone
+    if (pathStr === 'timezone') {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      const db = await getDb();
+      const body = await request.json();
+      await db.collection('users').updateOne(
+        { id: user.id },
+        { $set: { timezone: body.timezone } }
+      );
+      return ok({ success: true });
+    }
 
     // Memories
     if (pathStr.match(/^memories\/[^\/]+$/)) {

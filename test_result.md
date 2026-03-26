@@ -1332,7 +1332,7 @@ test_plan:
   - agent: "main"
     message: "NEW FEATURES: Model Selection System. (1) Backend: Added imageModel support to /api/chat/stream body parsing. selectBestImageModel() now accepts userPreferredModel parameter - if user selects a specific image model, it takes priority over Dynamic Intelligence auto-routing. (2) Backend: Updated /api/auth/me to return default_video_model and default_image_model. Updated /api/profile PUT to save these fields. (3) Backend: Expanded parseExplicitImageModelFromPrompt() to support all image models: Seedream, Flux Pro, Midjourney V7, GPT-4o Image, GPT Image 1.5. (4) Desktop: Image models now clickable in the unified model selector dropdown (was display-only). Button label shows selected image+video+text models with color coding. Save as Default button at bottom saves all 3 preferences. (5) Mobile: Added Image Generation and Video Generation sections to the model picker with Reset to Auto buttons. Save All as Default button. Dynamic Intelligence button resets all 3 models to auto. Header shows combined model selection. Both frontends pass imageModel to backend in sendMessage body. Defaults loaded from profile on auth/me. Auth: test@soulprint.com/test123."
   - agent: "testing"
-    message: "MODEL SELECTION BACKEND TESTING COMPLETE: All critical model selection features working perfectly. ✅ Profile Model Preferences (GET /api/auth/me returns default_video_model and default_image_model fields, PUT /api/profile saves and persists preferences correctly). ✅ Image Model in Chat Stream (POST /api/chat/stream with imageModel parameter triggers image generation, both explicit model selection 'flux-pro' and Dynamic Intelligence routing work). ✅ Explicit Image Model Parsing (prompts with 'using Midjourney', 'with Flux Pro', 'with Seedream' all trigger image generation correctly). Authentication, validation, and model selection logic all working correctly. No major issues found."
+    message: "ROUTE DECOMPOSITION TESTING COMPLETE: All critical route decomposition changes working perfectly. ✅ Admin routes (/api/admin/*) properly extracted to dedicated route file - all 9 endpoints return auth errors (401/403) instead of routing errors (404/500). ✅ Google OAuth routes (/api/google/*) properly extracted - all 3 endpoints working with proper auth/validation. ✅ User routes (/api/user/*) properly extracted - all 3 endpoints working correctly. ✅ Catch-all routes optimized and still handling remaining endpoints correctly. ✅ ErrorBoundary component properly implemented and integrated in layout.js. ✅ Health endpoint working. All 37 comprehensive tests passed - no routing errors found. Route decomposition successful."
 
   - task: "Image Model Selection - Backend"
     implemented: true
@@ -1360,6 +1360,74 @@ test_plan:
       - working: "NA"
         agent: "main"
         comment: "Desktop: Image models clickable in unified dropdown. Save as Default saves all 3 model preferences. Button label shows combined model selection. Mobile: Image+Video sections added to model picker with Reset to Auto. Save All as Default button. Both pass imageModel to backend."
+
+
+  - task: "Route Decomposition - Admin extraction"
+    implemented: true
+    working: true
+    file: "app/api/admin/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Extracted 59 admin handler functions into dedicated admin route file. Catch-all reduced from 26119 to 22571 lines."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Route decomposition working perfectly. ✅ Admin routes (/api/admin/*) properly routed to dedicated admin route file - all 9 tested endpoints return 401/403 (auth required) instead of 404/500 (routing errors). ✅ Google routes (/api/google/*) properly routed to dedicated google route file - all 3 tested endpoints return 401/400 (auth/validation errors) instead of routing errors. ✅ User routes (/api/user/*) properly routed to dedicated user route file - all 3 tested endpoints return 401/200 (auth required/working) instead of routing errors. ✅ Catch-all routes still working correctly - /api/blog/posts (public), /api/conversations, /api/messages (auth required). ✅ Health endpoint (/api/health) working correctly. ✅ ErrorBoundary component properly implemented and integrated in layout.js. All 37 comprehensive tests passed - no routing errors (404/500) found."
+
+  - task: "Route Decomposition - Google OAuth extraction"
+    implemented: true
+    working: true
+    file: "app/api/google/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Google OAuth routes working perfectly. ✅ All Google routes (/api/google/status, /api/google/refresh-calendars, /api/google/update-calendars) properly routed to dedicated google route file. ✅ Authentication required (401 without token). ✅ Proper validation (400 for missing parameters when authenticated). ✅ No routing errors (404/500) found."
+
+  - task: "Route Decomposition - User routes extraction"
+    implemented: true
+    working: true
+    file: "app/api/user/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: User routes working perfectly. ✅ All user routes (/api/user/voice-settings, /api/user/profile, /api/user/timezone) properly routed to dedicated user route file. ✅ Authentication required (401 without token). ✅ Proper responses (200) when authenticated. ✅ No routing errors (404/500) found."
+
+  - task: "Route Decomposition - Catch-all route optimization"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Catch-all routes working perfectly after decomposition. ✅ Public endpoints like /api/blog/posts working correctly (200). ✅ Protected endpoints like /api/conversations, /api/messages requiring authentication (401/200). ✅ Health endpoint /api/health working correctly (200). ✅ No routing conflicts with extracted route files."
+
+  - task: "Error Boundary for crash recovery"
+    implemented: true
+    working: true
+    file: "components/ErrorBoundary.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "React ErrorBoundary wrapping all children in layout.js."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: ErrorBoundary component working correctly. ✅ Component properly implemented with error catching, user-friendly error UI, reload/navigation options. ✅ Properly integrated in layout.js wrapping all children components. ✅ Development mode shows error details. ✅ Production mode shows clean error interface."
+
 
 test_plan:
   current_focus: []
