@@ -1610,7 +1610,7 @@ function CompareResponseCard({ response, onSelect, isLoading, selected, totalMod
       </div>
       
       {/* Content - larger text and more height */}
-      <div className={`flex-1 overflow-y-auto ${contentMaxHeight} mb-4 text-base text-gray-200 prose prose-invert prose-base prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-li:my-1 prose-code:text-orange-300`}>
+      <div className={`flex-1 overflow-y-auto ${contentMaxHeight} mb-4 text-base text-gray-200 leading-7 prose prose-invert prose-base prose-p:my-3 prose-headings:my-4 prose-ul:my-3 prose-li:my-1.5 prose-code:text-orange-300`}>
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
       </div>
       
@@ -9806,7 +9806,7 @@ export default function ChatPage() {
                       ))}
                     </div>
                   )}
-                  <div className={`rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 text-[13px] sm:text-sm leading-relaxed break-words ${msg.role === 'user' ? 'bg-orange-500/15 border border-orange-500/20 text-white' : 'bg-white/4 border border-white/8 text-gray-200'}`}>
+                  <div className={`rounded-2xl px-3 py-2.5 sm:px-5 sm:py-3.5 text-[15px] sm:text-base leading-7 break-words ${msg.role === 'user' ? 'bg-orange-500/15 border border-orange-500/20 text-white' : 'bg-white/4 border border-white/8 text-gray-200'}`}>
                     {msg.role === 'assistant' ? (
                       <>
                         {/* Generating Animation - show when creating flyers/infographics/images */}
@@ -9892,22 +9892,23 @@ export default function ChatPage() {
                         {!msg.image_url && !msg.video_url && !(msg.video_task && !msg.video_url) && (
                           <ReactMarkdown remarkPlugins={[remarkGfm]}
                             components={{
-                              p: ({children}) => <p className="mb-2 last:mb-0 break-words">{children}</p>,
+                              p: ({children}) => <p className="mb-3 last:mb-0 break-words">{children}</p>,
                               code: ({inline, children}) => inline 
-                                ? <code className="bg-white/10 px-1 rounded text-orange-300 text-[11px] sm:text-xs break-all">{children}</code> 
-                                : <pre className="bg-sp-black p-2 sm:p-3 rounded-lg mt-2 overflow-x-auto text-[11px] sm:text-xs whitespace-pre-wrap break-words"><code>{children}</code></pre>,
-                              ul: ({children}) => <ul className="list-disc pl-4 space-y-1 mb-2">{children}</ul>,
-                              ol: ({children}) => <ol className="list-decimal pl-4 space-y-1 mb-2">{children}</ol>,
+                                ? <code className="bg-white/10 px-1.5 py-0.5 rounded text-orange-300 text-[13px] sm:text-sm break-all">{children}</code> 
+                                : <pre className="bg-sp-black p-3 sm:p-4 rounded-lg my-3 overflow-x-auto text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words"><code>{children}</code></pre>,
+                              ul: ({children}) => <ul className="list-disc pl-5 space-y-1.5 mb-3">{children}</ul>,
+                              ol: ({children}) => <ol className="list-decimal pl-5 space-y-1.5 mb-3">{children}</ol>,
+                              li: ({children}) => <li className="pl-1">{children}</li>,
                               strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
                               a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline hover:text-orange-300 break-all">{children}</a>,
-                              h1: ({children}) => <h1 className="text-base sm:text-lg font-bold text-white mb-2">{children}</h1>,
-                              h2: ({children}) => <h2 className="text-sm sm:text-base font-bold text-white mb-1.5">{children}</h2>,
-                              h3: ({children}) => <h3 className="text-[13px] sm:text-sm font-semibold text-white mb-1">{children}</h3>,
-                              blockquote: ({children}) => <blockquote className="border-l-2 border-orange-500/40 pl-3 italic text-gray-400">{children}</blockquote>,
-                              img: ({src, alt}) => <img src={src} alt={alt} className="max-w-full rounded-lg mt-2" />,
-                              table: ({children}) => <div className="overflow-x-auto my-2"><table className="min-w-full text-[11px] sm:text-xs border-collapse">{children}</table></div>,
-                              th: ({children}) => <th className="border border-white/20 px-2 py-1 bg-white/5 text-left font-semibold">{children}</th>,
-                              td: ({children}) => <td className="border border-white/10 px-2 py-1">{children}</td>,
+                              h1: ({children}) => <h1 className="text-lg sm:text-xl font-bold text-white mt-5 mb-3">{children}</h1>,
+                              h2: ({children}) => <h2 className="text-base sm:text-lg font-bold text-white mt-4 mb-2.5">{children}</h2>,
+                              h3: ({children}) => <h3 className="text-[15px] sm:text-base font-semibold text-white mt-3.5 mb-2">{children}</h3>,
+                              blockquote: ({children}) => <blockquote className="border-l-2 border-orange-500/40 pl-4 my-3 italic text-gray-400">{children}</blockquote>,
+                              img: ({src, alt}) => <img src={src} alt={alt} className="max-w-full rounded-lg my-3" />,
+                              table: ({children}) => <div className="overflow-x-auto my-3"><table className="min-w-full text-[13px] sm:text-sm border-collapse">{children}</table></div>,
+                              th: ({children}) => <th className="border border-white/20 px-3 py-1.5 bg-white/5 text-left font-semibold">{children}</th>,
+                              td: ({children}) => <td className="border border-white/10 px-3 py-1.5">{children}</td>,
                             }}>
                             {typeof msg.content === 'string' ? msg.content : String(msg.content || '')}
                           </ReactMarkdown>
@@ -10042,7 +10043,7 @@ export default function ChatPage() {
                   <SoulPrintLogo size={12} className="sm:hidden" />
                   <SoulPrintLogo size={14} className="hidden sm:block" />
                 </div>
-                <div className="min-w-0 max-w-[95%] sm:max-w-[90%] lg:max-w-[85%] rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 bg-white/4 border border-white/8 text-[13px] sm:text-sm text-gray-200 leading-relaxed break-words">
+                <div className="min-w-0 max-w-[95%] sm:max-w-[90%] lg:max-w-[85%] rounded-2xl px-3 py-2.5 sm:px-5 sm:py-3.5 bg-white/4 border border-white/8 text-[15px] sm:text-base text-gray-200 leading-7 break-words">
                   {/* Live image preview - only show while loading */}
                   {streamingImageUrl && loading && (
                     <ImageCard url={streamingImageUrl} revisedPrompt={streamingRevPrompt} onRegenerateWith={handleRegenerateWithModel} />
@@ -10078,12 +10079,12 @@ export default function ChatPage() {
                     <>
                       <ReactMarkdown remarkPlugins={[remarkGfm]}
                         components={{
-                          p: ({children}) => <p className="mb-2 last:mb-0 break-words">{children}</p>,
+                          p: ({children}) => <p className="mb-3 last:mb-0 break-words">{children}</p>,
                           strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
                           a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline break-all">{children}</a>,
                           code: ({inline, children}) => inline 
-                            ? <code className="bg-white/10 px-1 rounded text-orange-300 text-[11px] sm:text-xs break-all">{children}</code> 
-                            : <pre className="bg-sp-black p-2 sm:p-3 rounded-lg mt-2 overflow-x-auto text-[11px] sm:text-xs whitespace-pre-wrap break-words"><code>{children}</code></pre>,
+                            ? <code className="bg-white/10 px-1.5 py-0.5 rounded text-orange-300 text-[13px] sm:text-sm break-all">{children}</code> 
+                            : <pre className="bg-sp-black p-3 sm:p-4 rounded-lg my-3 overflow-x-auto text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words"><code>{children}</code></pre>,
                         }}>
                         {typeof streamingContent === 'string' ? streamingContent : String(streamingContent || '')}
                       </ReactMarkdown>

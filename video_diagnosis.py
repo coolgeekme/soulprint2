@@ -9,7 +9,7 @@ import json
 import time
 
 # Configuration
-BASE_URL = "https://oauth-polish-1.preview.emergentagent.com/api"
+BASE_URL = "https://message-spacing.preview.emergentagent.com/api"
 LOGIN_EMAIL = "test@soulprint.com"
 LOGIN_PASSWORD = "test123"
 

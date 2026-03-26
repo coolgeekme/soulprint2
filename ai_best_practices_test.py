@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://oauth-polish-1.preview.emergentagent.com"
+BASE_URL = "https://message-spacing.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

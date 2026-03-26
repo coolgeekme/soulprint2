@@ -7,7 +7,7 @@ import requests
 import json
 import time
 
-BASE_URL = "https://oauth-polish-1.preview.emergentagent.com"
+BASE_URL = "https://message-spacing.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"

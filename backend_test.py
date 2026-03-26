@@ -11,7 +11,7 @@ import time
 from typing import Dict, List, Tuple
 
 # Configuration
-BASE_URL = "https://oauth-polish-1.preview.emergentagent.com"
+BASE_URL = "https://message-spacing.preview.emergentagent.com"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 
