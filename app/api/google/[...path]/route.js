@@ -184,8 +184,8 @@ async function handleGoogleAuthStart(request) {
     const user = await authenticate(request);
     if (!user) return err('Unauthorized', 401);
     
-    // Use the public base URL for OAuth redirect (internal pod URLs won't work with Google)
-    const origin = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
+    // Use the production domain for OAuth redirect (must match Google Cloud Console registration)
+    const origin = 'https://soulprintengine.ai';
     const redirectUri = `${origin}/api/google/auth/callback`;
     const state = Buffer.from(JSON.stringify({ userId: user.id, timestamp: Date.now() })).toString('base64');
     const authUrl = getGoogleAuthUrl(redirectUri, state);
@@ -204,8 +204,8 @@ async function handleGoogleAuthCallback(request) {
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     
-    // Use the public base URL for redirects
-    const origin = process.env.NEXT_PUBLIC_BASE_URL || url.origin;
+    // Use the production domain for OAuth redirect (must match Google Cloud Console registration)
+    const origin = 'https://soulprintengine.ai';
     
     if (error) {
       return NextResponse.redirect(new URL('/settings?google=error&message=' + encodeURIComponent(error), origin));
@@ -222,7 +222,7 @@ async function handleGoogleAuthCallback(request) {
       return NextResponse.redirect(new URL('/settings?google=error&message=invalid_state', origin));
     }
     
-    // Use the public base URL for OAuth redirect (must match what was sent to Google)
+    // Use the production domain for OAuth redirect (must match what was sent to Google)
     const redirectUri = `${origin}/api/google/auth/callback`;
     const tokens = await exchangeGoogleCode(code, redirectUri);
     
