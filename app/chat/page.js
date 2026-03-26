@@ -729,6 +729,11 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
           </div>
         </div>
         <p className="text-[10px] text-gray-700 mt-2 truncate italic">"{prompt}"</p>
+        {/* Leave notification hint */}
+        <div className="mt-3 flex items-center gap-2 px-2.5 py-2 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
+          <span className="text-[10px]">💡</span>
+          <p className="text-[10px] text-cyan-400/70">You can leave this chat — we'll notify you when it's ready.</p>
+        </div>
       </div>
     </div>
   );
@@ -10209,6 +10214,14 @@ export default function ChatPage() {
                       <div className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '150ms' }} />
                       <div className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
+
+                    {/* Leave notification hint */}
+                    {visualGenerationType === 'video' && (
+                      <div className="mt-4 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
+                        <span className="text-xs">💡</span>
+                        <p className="text-[11px] text-cyan-400/70">You can leave this chat — we'll notify you when it's ready.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
