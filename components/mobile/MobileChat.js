@@ -2367,7 +2367,9 @@ export default function MobileChat({
   const [conversationId, setConversationId] = useState(initialConversationId);
   const [selectedModel, setSelectedModel] = useState('smart'); // Default to Dynamic Intelligence
   const [showModelPicker, setShowModelPicker] = useState(false);
-  const [defaultModelSaved, setDefaultModelSaved] = useState(null); // persisted default model
+  const [defaultModelSaved, setDefaultModelSaved] = useState(null); // persisted default
+  const [defaultVideoModelSaved, setDefaultVideoModelSaved] = useState('smart');
+  const [defaultImageModelSaved, setDefaultImageModelSaved] = useState('smart'); model
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
   const [showFlyerGenSheet, setShowFlyerGenSheet] = useState(false);
@@ -2933,12 +2935,18 @@ export default function MobileChat({
         // Load default video model
         if (data.profile?.default_video_model) {
           const validVideo = VIDEO_MODELS.find(m => m.value === data.profile.default_video_model);
-          if (validVideo) setSelectedVideoModel(data.profile.default_video_model);
+          if (validVideo) {
+            setSelectedVideoModel(data.profile.default_video_model);
+            setDefaultVideoModelSaved(data.profile.default_video_model);
+          }
         }
         // Load default image model
         if (data.profile?.default_image_model) {
           const validImage = IMAGE_MODELS.find(m => m.value === data.profile.default_image_model);
-          if (validImage) setSelectedImageModel(data.profile.default_image_model);
+          if (validImage) {
+            setSelectedImageModel(data.profile.default_image_model);
+            setDefaultImageModelSaved(data.profile.default_image_model);
+          }
         }
         // Check if new user (show onboarding if they haven't seen it)
         const hasSeenOnboarding = localStorage.getItem('sp_onboarding_seen');
@@ -5459,20 +5467,29 @@ export default function MobileChat({
                         {model.label}
                       </span>
                       <span className="ml-2 text-[10px] text-gray-600">{model.description}</span>
+                      {defaultImageModelSaved === model.value && <span className="ml-1.5 text-[10px] text-green-400">★ default</span>}
                     </div>
                     {selectedImageModel === model.value && (
                       <span className="text-pink-400 text-xs">✓</span>
                     )}
                   </button>
                 ))}
-                {selectedImageModel !== 'smart' && (
-                  <button
-                    onClick={() => setSelectedImageModel('smart')}
-                    className="w-full p-2 text-xs text-cyan-400/60 hover:text-cyan-400 transition-colors"
-                  >
-                    Reset to Auto
-                  </button>
-                )}
+                <div className="flex items-center gap-2 px-1">
+                  {selectedImageModel !== 'smart' && (
+                    <button onClick={() => setSelectedImageModel('smart')} className="flex-1 p-2 text-xs text-cyan-400/60 hover:text-cyan-400 transition-colors">
+                      Reset to Auto
+                    </button>
+                  )}
+                  {selectedImageModel !== 'smart' && selectedImageModel !== defaultImageModelSaved && (
+                    <button onClick={async () => {
+                      await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ default_image_model: selectedImageModel }) });
+                      setDefaultImageModelSaved(selectedImageModel);
+                      toast({ title: '✅ Image Default Saved', description: `${IMAGE_MODELS.find(m => m.value === selectedImageModel)?.label} set as default.`, duration: 2500, className: 'bg-[#1a1f2e] border-green-500/30 text-white' });
+                    }} className="flex-1 p-2 text-xs text-pink-400/60 hover:text-pink-400 transition-colors text-right">
+                      Set as default
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -5498,24 +5515,33 @@ export default function MobileChat({
                         {model.label}
                       </span>
                       <span className="ml-2 text-[10px] text-gray-600">{model.description}</span>
+                      {defaultVideoModelSaved === model.value && <span className="ml-1.5 text-[10px] text-green-400">★ default</span>}
                     </div>
                     {selectedVideoModel === model.value && (
                       <span className="text-blue-400 text-xs">✓</span>
                     )}
                   </button>
                 ))}
-                {selectedVideoModel !== 'smart' && (
-                  <button
-                    onClick={() => setSelectedVideoModel('smart')}
-                    className="w-full p-2 text-xs text-cyan-400/60 hover:text-cyan-400 transition-colors"
-                  >
-                    Reset to Auto
-                  </button>
-                )}
+                <div className="flex items-center gap-2 px-1">
+                  {selectedVideoModel !== 'smart' && (
+                    <button onClick={() => setSelectedVideoModel('smart')} className="flex-1 p-2 text-xs text-cyan-400/60 hover:text-cyan-400 transition-colors">
+                      Reset to Auto
+                    </button>
+                  )}
+                  {selectedVideoModel !== 'smart' && selectedVideoModel !== defaultVideoModelSaved && (
+                    <button onClick={async () => {
+                      await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ default_video_model: selectedVideoModel }) });
+                      setDefaultVideoModelSaved(selectedVideoModel);
+                      toast({ title: '✅ Video Default Saved', description: `${VIDEO_MODELS.find(m => m.value === selectedVideoModel)?.label} set as default.`, duration: 2500, className: 'bg-[#1a1f2e] border-green-500/30 text-white' });
+                    }} className="flex-1 p-2 text-xs text-blue-400/60 hover:text-blue-400 transition-colors text-right">
+                      Set as default
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Save as Default */}
+            {/* Save all defaults */}
             <button 
               onClick={async () => {
                 try {
@@ -5529,9 +5555,11 @@ export default function MobileChat({
                     }),
                   });
                   setDefaultModelSaved(selectedModel);
+                  setDefaultVideoModelSaved(selectedVideoModel);
+                  setDefaultImageModelSaved(selectedImageModel);
                   toast({
-                    title: '✅ Defaults Saved',
-                    description: 'Your model preferences have been saved.',
+                    title: '✅ All Defaults Saved',
+                    description: 'Text, Image, and Video defaults updated.',
                     duration: 3000,
                     className: 'bg-[#1a1f2e] border-green-500/30 text-white',
                   });
@@ -5542,7 +5570,7 @@ export default function MobileChat({
               }}
               className="w-full p-3 text-center text-sm font-medium text-gray-500 hover:text-white bg-white/5 rounded-xl transition-colors mb-2"
             >
-              💾 Save All as Default
+              💾 Save All as Defaults
             </button>
             <button 
               onClick={() => setShowModelPicker(false)}

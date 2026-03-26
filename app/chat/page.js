@@ -4024,12 +4024,18 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
         // Load default video model
         if (d.profile?.default_video_model) {
           const validVideo = VIDEO_MODELS.find(m => m.value === d.profile.default_video_model);
-          if (validVideo) setSelectedVideoModel(d.profile.default_video_model);
+          if (validVideo) {
+            setSelectedVideoModel(d.profile.default_video_model);
+            setDefaultVideoModelSaved(d.profile.default_video_model);
+          }
         }
         // Load default image model
         if (d.profile?.default_image_model) {
           const validImage = IMAGE_MODELS.find(m => m.value === d.profile.default_image_model);
-          if (validImage) setSelectedImageModel(d.profile.default_image_model);
+          if (validImage) {
+            setSelectedImageModel(d.profile.default_image_model);
+            setDefaultImageModelSaved(d.profile.default_image_model);
+          }
         }
       }).catch(() => {});
     fetch('/api/telegram/status', { headers: { Authorization: `Bearer ${token}` } })
@@ -6803,6 +6809,8 @@ export default function ChatPage() {
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showVideoModelPicker, setShowVideoModelPicker] = useState(false);
   const [defaultModelSaved, setDefaultModelSaved] = useState(null); // persisted default
+  const [defaultVideoModelSaved, setDefaultVideoModelSaved] = useState('smart');
+  const [defaultImageModelSaved, setDefaultImageModelSaved] = useState('smart');
   const [showSettings, setShowSettings] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState(null); // For opening settings to specific tab
   const [showVoiceChat, setShowVoiceChat] = useState(false); // For voice conversations
@@ -10358,10 +10366,21 @@ export default function ChatPage() {
                             <span>
                               {m.label}
                               {m.comingSoon && <span className="ml-1 text-[8px] text-orange-500/50">soon</span>}
+                              {defaultModelSaved === m.value && <span className="ml-1.5 text-[8px] text-green-400/80">★ default</span>}
                             </span>
                             {selectedModel === m.value && !m.comingSoon && <Check className="w-3 h-3 text-orange-400" />}
                           </button>
                         ))}
+                        {selectedModel !== 'smart' && selectedModel !== defaultModelSaved && (
+                          <button onClick={async (e) => {
+                            e.stopPropagation();
+                            await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ default_model: selectedModel }) });
+                            setDefaultModelSaved(selectedModel);
+                            toast({ title: '✅ Text Default Saved', description: `${MODELS.find(m => m.value === selectedModel)?.label} is now your default text model.`, duration: 2500, className: 'bg-[#1a1f2e] border-green-500/30 text-white' });
+                          }} className="w-full text-center mt-0.5 px-3 py-1 text-[9px] text-gray-600 hover:text-green-400 transition-colors">
+                            Set as text default
+                          </button>
+                        )}
                       </div>
 
                       {/* Image Models */}
@@ -10382,10 +10401,21 @@ export default function ChatPage() {
                             <div>
                               <span>{m.label}</span>
                               <span className="ml-1.5 text-[8px] text-gray-700">{m.description}</span>
+                              {defaultImageModelSaved === m.value && <span className="ml-1.5 text-[8px] text-green-400/80">★ default</span>}
                             </div>
                             {selectedImageModel === m.value && <Check className="w-3 h-3 text-pink-400" />}
                           </button>
                         ))}
+                        {selectedImageModel !== 'smart' && selectedImageModel !== defaultImageModelSaved && (
+                          <button onClick={async (e) => {
+                            e.stopPropagation();
+                            await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ default_image_model: selectedImageModel }) });
+                            setDefaultImageModelSaved(selectedImageModel);
+                            toast({ title: '✅ Image Default Saved', description: `${IMAGE_MODELS.find(m => m.value === selectedImageModel)?.label} is now your default image model.`, duration: 2500, className: 'bg-[#1a1f2e] border-green-500/30 text-white' });
+                          }} className="w-full text-center mt-0.5 px-3 py-1 text-[9px] text-gray-600 hover:text-pink-400 transition-colors">
+                            Set as image default
+                          </button>
+                        )}
                       </div>
 
                       {/* Video Models */}
@@ -10406,13 +10436,24 @@ export default function ChatPage() {
                             <div>
                               <span>{m.label}</span>
                               <span className="ml-1.5 text-[8px] text-gray-700">{m.description}</span>
+                              {defaultVideoModelSaved === m.value && <span className="ml-1.5 text-[8px] text-green-400/80">★ default</span>}
                             </div>
                             {selectedVideoModel === m.value && <Check className="w-3 h-3 text-blue-400" />}
                           </button>
                         ))}
+                        {selectedVideoModel !== 'smart' && selectedVideoModel !== defaultVideoModelSaved && (
+                          <button onClick={async (e) => {
+                            e.stopPropagation();
+                            await fetch('/api/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ default_video_model: selectedVideoModel }) });
+                            setDefaultVideoModelSaved(selectedVideoModel);
+                            toast({ title: '✅ Video Default Saved', description: `${VIDEO_MODELS.find(m => m.value === selectedVideoModel)?.label} is now your default video model.`, duration: 2500, className: 'bg-[#1a1f2e] border-green-500/30 text-white' });
+                          }} className="w-full text-center mt-0.5 px-3 py-1 text-[9px] text-gray-600 hover:text-blue-400 transition-colors">
+                            Set as video default
+                          </button>
+                        )}
                       </div>
 
-                      {/* Save as Default button */}
+                      {/* Save all defaults button */}
                       <div className="p-1.5 border-t border-white/10">
                         <button
                           onClick={async () => {
@@ -10427,9 +10468,11 @@ export default function ChatPage() {
                                 }),
                               });
                               setDefaultModelSaved(selectedModel);
+                              setDefaultVideoModelSaved(selectedVideoModel);
+                              setDefaultImageModelSaved(selectedImageModel);
                               toast({
-                                title: '✅ Defaults Saved',
-                                description: 'Your model preferences have been saved.',
+                                title: '✅ All Defaults Saved',
+                                description: 'Text, Image, and Video model defaults updated.',
                                 duration: 3000,
                                 className: 'bg-[#1a1f2e] border-green-500/30 text-white',
                               });
@@ -10440,7 +10483,7 @@ export default function ChatPage() {
                           }}
                           className="w-full text-center px-3 py-2 rounded-lg text-[10px] font-medium text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
                         >
-                          💾 Save as Default
+                          💾 Save All as Defaults
                         </button>
                       </div>
                     </div>
