@@ -3069,8 +3069,9 @@ export default function MobileChat({
               // Video job started — save to state for rendering MobileVideoCard during streaming
               streamingVideoTask = { taskId: data.taskId, status: 'generating', prompt: data.prompt, messageId: data.messageId };
               setStreamingVideoTask(streamingVideoTask);
-              // Keep isGeneratingVisual showing until the message is saved
-              // The MobileVideoCard in the message list will take over after streaming ends
+              // Dismiss the generating_visual animation — MobileVideoCard takes over
+              setIsGeneratingVisual(false);
+              setVisualGenerationType('');
             } else if (data.type === 'sources') {
               // Received sources from web search
               setStreamingSources(data.sources || []);

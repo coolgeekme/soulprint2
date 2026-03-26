@@ -117,7 +117,45 @@ agent_communication:
     message: "VIDEO PERSISTENCE FIX: Fixed 3 critical issues preventing videos from showing without page reload: (1) Backend SSE events (video_task, done) now include real messageId so frontend uses correct DB message ID for PATCH calls. (2) Backend status handler now updates messages collection (not just video_jobs) when Kie.ai returns success - also handles 'completed'/'succeed' statuses. (3) Frontend VideoCard now has onVideoReady callback that updates parent messages state so SavedVideoCard renders immediately. Applied same fixes to MobileChat.js. Auth: test@soulprint.com/test123. Test focus: PATCH /api/messages/:id/video-complete endpoint, and GET /api/media/status/:taskId message update logic."
   - agent: "testing"
     message: "VIDEO PERSISTENCE TESTING COMPLETE: All critical video persistence and status polling endpoints working perfectly. ✅ PATCH /api/messages/:id/video-complete (authentication, validation, successful updates with video_url/thumbnail_url, sets video_task.status='success'). ✅ GET /api/media/status/:taskId (authentication, 404 for non-existent tasks, proper response format). ✅ Both mobile and desktop status polling paths working identically. ✅ GET /api/messages includes video_url and video_task fields after PATCH. ✅ Edge cases handled gracefully (invalid IDs, empty URLs, long task IDs). All comprehensive tests passed - no major issues found."
+  - agent: "testing"
+    message: "VIDEO GENERATION FLOW TESTING COMPLETE: All critical video generation endpoints working perfectly for both desktop and mobile paths. ✅ POST /api/chat/stream (video generation with SSE stream includes video_task event with taskId, status, prompt, messageId AND done event with messageId). ✅ GET /api/media/status/:taskId (mobile polling - authentication, 404 for non-existent tasks, proper JSON response with status field). ✅ GET /api/media/video/status/:taskId (desktop polling - identical behavior to mobile path). ✅ PATCH /api/messages/:id/video-complete (authentication, validation, successful persistence). ✅ GET /api/messages?conversationId=X (returns video_url and video_task fields when present). ✅ SSE stream parsing working correctly with real video generation tasks. All comprehensive video generation flow tests passed - no major issues found."
 
+
+  - task: "Video Generation Chat Stream with SSE (POST /api/chat/stream)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: POST /api/chat/stream for video generation working perfectly. ✅ SSE stream includes video_task event with all required fields (taskId, status, prompt, messageId). ✅ SSE stream includes done event with messageId. ✅ Video generation request properly triggers Kie.ai integration with kling-3 model. ✅ Real video generation tasks created and tracked correctly. All comprehensive tests passed."
+
+  - task: "Video Status Polling Mobile Path (GET /api/media/status/:taskId)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: GET /api/media/status/:taskId mobile polling endpoint working perfectly. ✅ Authentication required (401 without token). ✅ Returns 404 for non-existent task IDs. ✅ Returns proper JSON with status field for valid tasks. ✅ Handles edge cases gracefully. All comprehensive tests passed."
+
+  - task: "Video Status Polling Desktop Path (GET /api/media/video/status/:taskId)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: GET /api/media/video/status/:taskId desktop polling endpoint working perfectly. ✅ Authentication required (401 without token). ✅ Returns 404 for non-existent task IDs. ✅ Identical behavior to mobile path. ✅ Both desktop and mobile paths handle requests identically. All comprehensive tests passed."
 
   - task: "Video URL Persistence (PATCH /api/messages/:id/video-complete)"
     implemented: true
@@ -133,6 +171,18 @@ agent_communication:
       - working: true
         agent: "testing"
         comment: "TESTED: PATCH /api/messages/:id/video-complete endpoint working perfectly. ✅ Authentication required (401 without token). ✅ Validation working (400 without video_url). ✅ Successful update with video_url and thumbnail_url, sets video_task.status to 'success'. ✅ Handles edge cases like invalid message IDs and empty video_url gracefully. All comprehensive tests passed."
+
+  - task: "Messages Endpoint Video Fields (GET /api/messages?conversationId=X)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: GET /api/messages endpoint working perfectly. ✅ Returns video_url and video_task fields when present. ✅ Message structure supports all required video-related fields. ✅ Proper authentication and conversation access control. ✅ Works correctly after PATCH video-complete updates. All comprehensive tests passed."
 
   - task: "Video Status Polling with Message Update (GET /api/media/status/:taskId)"
     implemented: true
