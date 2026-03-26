@@ -465,7 +465,7 @@ async function processFile(file) {
 }
 
 // ── VideoCard: polls for video status and renders player when ready ──────────
-function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady, videoModelReason }) {
+function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady, videoModelReason, onCancel, onRegenerateWith }) {
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
@@ -473,19 +473,46 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const pollRef = useRef(null);
   const startTimeRef = useRef(Date.now());
   const onVideoReadyRef = useRef(onVideoReady);
+  const cancelledRef = useRef(false);
   useEffect(() => { onVideoReadyRef.current = onVideoReady; }, [onVideoReady]);
 
+  // Available video models for regeneration
+  const VIDEO_MODELS_LIST = [
+    { id: 'kling-3.0', label: 'Kling 3.0', description: 'Fast, general purpose' },
+    { id: 'veo3', label: 'Veo 3.1', description: 'Cinematic, 1080p' },
+    { id: 'runway-aleph', label: 'Runway Aleph', description: 'Creative, artistic' },
+  ];
+
+  const handleCancel = () => {
+    cancelledRef.current = true;
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+    }
+    setStatus('cancelled');
+    if (onCancel) onCancel(taskId);
+  };
+
+  const handleRegenerateWith = (modelId) => {
+    setShowModelPicker(false);
+    if (onRegenerateWith) {
+      onRegenerateWith(prompt, modelId);
+    }
+  };
+
   useEffect(() => {
-    if (status === 'success' || status === 'failed') return;
+    if (status === 'success' || status === 'failed' || status === 'cancelled') return;
     const poll = async () => {
+      if (cancelledRef.current) return;
       try {
         const res = await fetch(`/api/media/status/${taskId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const d = await res.json();
+        if (cancelledRef.current) return;
         if (d.status === 'success' || d.status === 'completed') {
           const vUrl = d.videoUrl || d.url;
           const tUrl = d.thumbnailUrl || d.thumbnail_url;
@@ -584,6 +611,47 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
               </a>
             </div>
           </div>
+          {/* Try Different Model */}
+          {onRegenerateWith && (
+            <div className="relative">
+              <button
+                onClick={() => setShowModelPicker(!showModelPicker)}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 border border-white/10 text-gray-400 text-xs rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Try Different Model
+              </button>
+              {showModelPicker && (
+                <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1f26] border border-white/10 rounded-xl overflow-hidden z-20 shadow-xl">
+                  {VIDEO_MODELS_LIST.filter(m => m.label !== modelLabel).map(model => (
+                    <button
+                      key={model.id}
+                      onClick={() => handleRegenerateWith(model.id)}
+                      className="w-full px-3 py-2.5 text-left hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors"
+                    >
+                      <p className="text-xs font-medium text-white">{model.label}</p>
+                      <p className="text-[10px] text-gray-500">{model.description}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'cancelled') {
+    return (
+      <div className="mt-3 rounded-xl border border-gray-500/20 bg-gray-500/5 p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-gray-500/15 flex items-center justify-center flex-shrink-0">
+            <Square className="w-4 h-4 text-gray-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400">Video generation cancelled</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">You stopped this generation</p>
+          </div>
         </div>
       </div>
     );
@@ -644,7 +712,15 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
               {progress < 30 ? 'Queuing...' : progress < 60 ? 'Rendering frames...' : progress < 90 ? 'Almost done...' : 'Finalizing...'}
             </p>
           </div>
-          <p className="text-[10px] text-gray-600">~1-3 min</p>
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] text-gray-600">~1-3 min</p>
+            <button
+              onClick={handleCancel}
+              className="px-2.5 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[10px] font-medium hover:bg-red-500/20 transition-colors"
+            >
+              Stop
+            </button>
+          </div>
         </div>
         <p className="text-[10px] text-gray-700 mt-2 truncate italic">"{prompt}"</p>
       </div>
@@ -653,9 +729,17 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
 }
 
 // ── SavedVideoCard: renders a saved video with matching image card UX ────────
-function SavedVideoCard({ videoUrl, modelLabel, prompt, token }) {
+function SavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith }) {
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
+
+  // Available video models for regeneration
+  const VIDEO_MODELS_LIST = [
+    { id: 'kling-3.0', label: 'Kling 3.0', description: 'Fast, general purpose' },
+    { id: 'veo3', label: 'Veo 3.1', description: 'Cinematic, 1080p' },
+    { id: 'runway-aleph', label: 'Runway Aleph', description: 'Creative, artistic' },
+  ];
 
   const saveToGallery = async () => {
     if (saving || savedToGallery || !videoUrl) return;
@@ -680,6 +764,13 @@ function SavedVideoCard({ videoUrl, modelLabel, prompt, token }) {
     }
   };
 
+  const handleRegenerateWith = (modelId) => {
+    setShowModelPicker(false);
+    if (onRegenerateWith && prompt) {
+      onRegenerateWith(prompt, modelId);
+    }
+  };
+
   return (
     <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
       <div className="relative group bg-black">
@@ -692,7 +783,7 @@ function SavedVideoCard({ videoUrl, modelLabel, prompt, token }) {
           Your browser does not support the video tag.
         </video>
       </div>
-      <div className="p-3">
+      <div className="p-3 space-y-2">
         <div className="flex items-center justify-between gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-blue-400 flex items-center gap-1.5">
@@ -720,6 +811,31 @@ function SavedVideoCard({ videoUrl, modelLabel, prompt, token }) {
             </a>
           </div>
         </div>
+        {/* Try Different Model */}
+        {onRegenerateWith && prompt && (
+          <div className="relative">
+            <button
+              onClick={() => setShowModelPicker(!showModelPicker)}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 border border-white/10 text-gray-400 text-xs rounded-lg hover:bg-white/10 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Try Different Model
+            </button>
+            {showModelPicker && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1f26] border border-white/10 rounded-xl overflow-hidden z-20 shadow-xl">
+                {VIDEO_MODELS_LIST.filter(m => !modelLabel?.toLowerCase().includes(m.label.toLowerCase().split(' ')[0])).map(model => (
+                  <button
+                    key={model.id}
+                    onClick={() => handleRegenerateWith(model.id)}
+                    className="w-full px-3 py-2.5 text-left hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors"
+                  >
+                    <p className="text-xs font-medium text-white">{model.label}</p>
+                    <p className="text-[10px] text-gray-500">{model.description}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1186,12 +1302,20 @@ function MockupGenerator({ design, onClose, onGenerate, isGenerating, token }) {
 }
 
 // ── ImageCard: renders a generated image with download option ─────────────────
-function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit }) {
+function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, onRegenerateWith }) {
   const [loaded, setLoaded] = useState(false);
   const [showJson, setShowJson] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showModelPicker, setShowModelPicker] = useState(false);
+
+  // Available image models for regeneration
+  const IMAGE_MODELS_LIST = [
+    { id: 'nano-banana', label: 'Nano Banana', description: 'Fast, versatile' },
+    { id: 'gemini-2.0-flash-exp-image-generation', label: 'Gemini Image', description: 'High quality' },
+    { id: 'gpt-image-1', label: 'GPT Image', description: 'Creative, detailed' },
+  ];
   
   // Build the JSON object for this generation
   const jsonData = {
@@ -1246,6 +1370,14 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
       console.error('Failed to save to gallery:', e);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRegenerateWith = (modelId) => {
+    setShowModelPicker(false);
+    const originalPrompt = generationParams?.prompt || revisedPrompt || '';
+    if (onRegenerateWith && originalPrompt) {
+      onRegenerateWith(originalPrompt, modelId);
     }
   };
   
@@ -1311,6 +1443,32 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit })
             </a>
           </div>
         </div>
+        
+        {/* Try Different Model */}
+        {onRegenerateWith && (generationParams?.prompt || revisedPrompt) && (
+          <div className="relative">
+            <button
+              onClick={() => setShowModelPicker(!showModelPicker)}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-white/5 border border-white/10 text-gray-400 text-xs rounded-lg hover:bg-white/10 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Try Different Model
+            </button>
+            {showModelPicker && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#1a1f26] border border-white/10 rounded-xl overflow-hidden z-20 shadow-xl">
+                {IMAGE_MODELS_LIST.filter(m => !modelLabel?.toLowerCase().includes(m.label.toLowerCase().split(' ')[0])).map(model => (
+                  <button
+                    key={model.id}
+                    onClick={() => handleRegenerateWith(model.id)}
+                    className="w-full px-3 py-2.5 text-left hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors"
+                  >
+                    <p className="text-xs font-medium text-white">{model.label}</p>
+                    <p className="text-[10px] text-gray-500">{model.description}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         
         {/* JSON Panel */}
         {showJson && (
@@ -8393,6 +8551,35 @@ export default function ChatPage() {
     setEditingTitle('');
   }
 
+  // Regenerate media with a different model
+  const handleRegenerateWithModel = (originalPrompt, modelId) => {
+    if (!originalPrompt || !modelId) return;
+    
+    // Construct a prompt that requests the specific model
+    let newPrompt = originalPrompt;
+    
+    // For videos, prepend with model instruction
+    if (['kling-3.0', 'veo3', 'runway-aleph'].includes(modelId)) {
+      const modelNames = {
+        'kling-3.0': 'Kling 3.0',
+        'veo3': 'Veo 3.1',
+        'runway-aleph': 'Runway Aleph'
+      };
+      newPrompt = `Use ${modelNames[modelId]} to generate: ${originalPrompt}`;
+    } else {
+      // For images
+      const modelNames = {
+        'nano-banana': 'Nano Banana',
+        'gemini-2.0-flash-exp-image-generation': 'Gemini',
+        'gpt-image-1': 'GPT Image'
+      };
+      newPrompt = `Use ${modelNames[modelId] || modelId} to generate: ${originalPrompt}`;
+    }
+    
+    // Set the input for the user to review and send
+    setInput(newPrompt);
+  };
+
   // Delete a conversation
   async function deleteConversation(convId) {
     // Find the conversation to check if it's in a project
@@ -9493,6 +9680,7 @@ export default function ChatPage() {
                               setEditableImage({ ...imageData, messageId: msg.id });
                               setShowImageEditor(true);
                             }}
+                            onRegenerateWith={handleRegenerateWithModel}
                           />
                         )}
                         {/* Video card - for polling state (only if no video_url yet) */}
@@ -9511,6 +9699,7 @@ export default function ChatPage() {
                                 m.id === msg.id ? { ...m, video_url: videoUrl } : m
                               ));
                             }}
+                            onRegenerateWith={handleRegenerateWithModel}
                           />
                         )}
                         {/* Saved video - direct URL from database */}
@@ -9520,6 +9709,7 @@ export default function ChatPage() {
                             modelLabel={msg.model_label} 
                             prompt={msg.video_task?.prompt || msg.generation_params?.prompt || ''} 
                             token={token}
+                            onRegenerateWith={handleRegenerateWithModel}
                           />
                         )}
                         {/* Regular text (skip for pure image/video messages and active video tasks) */}
@@ -9678,7 +9868,7 @@ export default function ChatPage() {
                 <div className="min-w-0 max-w-[95%] sm:max-w-[90%] lg:max-w-[85%] rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 bg-white/4 border border-white/8 text-[13px] sm:text-sm text-gray-200 leading-relaxed break-words">
                   {/* Live image preview - only show while loading */}
                   {streamingImageUrl && loading && (
-                    <ImageCard url={streamingImageUrl} revisedPrompt={streamingRevPrompt} />
+                    <ImageCard url={streamingImageUrl} revisedPrompt={streamingRevPrompt} onRegenerateWith={handleRegenerateWithModel} />
                   )}
                   {/* Live video card */}
                   {streamingVideoTask && !streamingImageUrl && (
@@ -9690,6 +9880,7 @@ export default function ChatPage() {
                       modelLabel={streamingVideoTask.videoModelLabel || 'AI Video'}
                       messageId={streamingVideoTask.messageId}
                       videoModelReason={streamingVideoTask.videoModelReason}
+                      onRegenerateWith={handleRegenerateWithModel}
                     />
                   )}
                   {/* Regular text (only if not a pure image/video message) */}
