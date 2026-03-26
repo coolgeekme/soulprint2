@@ -7722,13 +7722,18 @@ export default function ChatPage() {
             } else if (data.type === 'image') {
               // Image generated – store url for rendering
               setStreamingImageUrl(data.url);
+              streamingImageUrlRef.current = data.url; // Direct ref update for same-batch done handler
               setStreamingRevPrompt(data.revised_prompt);
               // Reset visual generation state since image arrived
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
             } else if (data.type === 'video_task') {
               // Video job started – store taskId for polling (include messageId for DB persistence)
-              setStreamingVideoTask({ taskId: data.taskId, status: 'generating', prompt: data.prompt, messageId: data.messageId });
+              const videoTaskData = { taskId: data.taskId, status: 'generating', prompt: data.prompt, messageId: data.messageId };
+              setStreamingVideoTask(videoTaskData);
+              // CRITICAL: Also update ref directly so it's available synchronously
+              // when 'done' event fires in the same batch (useEffect runs AFTER render)
+              streamingVideoTaskRef.current = videoTaskData;
               // Dismiss the generating_visual animation — the VideoCard takes over
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
