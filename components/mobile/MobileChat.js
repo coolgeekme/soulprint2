@@ -808,15 +808,16 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
             </div>
           )}
           
-          {/* Message content — show empty when video_task is present (VideoCard handles display) */}
+          {/* Message content — show empty when video_task is present (VideoCard handles display) or when image_url (image card handles display) */}
           <div className="text-gray-200 text-[15px] leading-relaxed prose prose-invert prose-sm max-w-none">
-            {(message.video_task && !message.video_url) ? null : (
+            {(message.video_task && !message.video_url) || message.image_url ? null : (
             <>
             <ReactMarkdown 
               components={{
                 p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
                 code: ({children}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-orange-300 text-sm">{children}</code>,
                 a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline">{children}</a>,
+                img: ({src, alt}) => <img src={src} alt={alt || ''} className="rounded-lg max-w-full" />,
               }}
             >
               {message.content}
