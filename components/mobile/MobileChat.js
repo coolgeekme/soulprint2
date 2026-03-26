@@ -3067,7 +3067,12 @@ export default function MobileChat({
               setVisualGenerationType('');
             } else if (data.type === 'video_task') {
               // Video job started — save to state for rendering MobileVideoCard during streaming
-              streamingVideoTask = { taskId: data.taskId, status: 'generating', prompt: data.prompt, messageId: data.messageId };
+              streamingVideoTask = { 
+                taskId: data.taskId, status: 'generating', prompt: data.prompt, 
+                messageId: data.messageId,
+                videoModel: data.videoModel, videoModelLabel: data.videoModelLabel, 
+                videoModelReason: data.videoModelReason 
+              };
               setStreamingVideoTask(streamingVideoTask);
               // Dismiss the generating_visual animation — MobileVideoCard takes over
               setIsGeneratingVisual(false);
@@ -3100,7 +3105,8 @@ export default function MobileChat({
           smart_reason: dynamicIntelligenceReason,
           image_url: streamingImageUrl || undefined,
           video_task: streamingVideoTask || undefined,
-          model_label: streamingVideoTask ? 'Kling 3.0' : undefined,
+          model_label: streamingVideoTask ? (streamingVideoTask.videoModelLabel || 'AI Video') : undefined,
+          video_model_reason: streamingVideoTask?.videoModelReason || undefined,
           sources: streamingSources.length > 0 ? [...streamingSources] : undefined,
         }]);
       }

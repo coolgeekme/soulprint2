@@ -469,7 +469,7 @@ async function processFile(file) {
 }
 
 // ── VideoCard: polls for video status and renders player when ready ──────────
-function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady }) {
+function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady, videoModelReason }) {
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
@@ -625,6 +625,15 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
             <p className="text-[10px] text-gray-600 mt-1">{modelLabel || 'AI'}</p>
           </div>
         </div>
+        {/* Model selection reason badge */}
+        {videoModelReason && (
+          <div className="mb-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
+            <Sparkles className="w-3 h-3 text-purple-400 flex-shrink-0" />
+            <p className="text-[10px] text-purple-300/80 truncate">
+              <span className="font-medium text-purple-300">Dynamic Intelligence:</span> {videoModelReason}
+            </p>
+          </div>
+        )}
         {/* Progress bar */}
         <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden mb-2">
           <div 
@@ -7728,8 +7737,13 @@ export default function ChatPage() {
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
             } else if (data.type === 'video_task') {
-              // Video job started – store taskId for polling (include messageId for DB persistence)
-              const videoTaskData = { taskId: data.taskId, status: 'generating', prompt: data.prompt, messageId: data.messageId };
+              // Video job started – store taskId for polling (include messageId & model info for DB persistence)
+              const videoTaskData = { 
+                taskId: data.taskId, status: 'generating', prompt: data.prompt, 
+                messageId: data.messageId,
+                videoModel: data.videoModel, videoModelLabel: data.videoModelLabel, 
+                videoModelReason: data.videoModelReason 
+              };
               setStreamingVideoTask(videoTaskData);
               // CRITICAL: Also update ref directly so it's available synchronously
               // when 'done' event fires in the same batch (useEffect runs AFTER render)
@@ -7822,7 +7836,8 @@ export default function ChatPage() {
                 smart_reason: dynamicIntelligenceReason,
                 image_url: streamingImageUrlRef.current || undefined,
                 video_task: streamingVideoTaskRef.current || undefined,
-                model_label: streamingVideoTaskRef.current ? 'Kling 3.0' : undefined,
+                model_label: streamingVideoTaskRef.current ? (streamingVideoTaskRef.current.videoModelLabel || 'AI Video') : undefined,
+                video_model_reason: streamingVideoTaskRef.current?.videoModelReason || undefined,
                 sources: streamingSourcesRef.current?.length > 0 ? streamingSourcesRef.current : undefined,
               };
               setMessages(prev => [...prev, finalMsg]);
@@ -9466,6 +9481,7 @@ export default function ChatPage() {
                             initialStatus={msg.video_task.status === 'success' ? 'success' : 'generating'}
                             modelLabel={msg.model_label || 'Kling 3.0'}
                             messageId={msg.id}
+                            videoModelReason={msg.video_model_reason || msg.video_task?.videoModelReason}
                             onVideoReady={(videoUrl) => {
                               // Update the message in state so SavedVideoCard takes over
                               setMessages(prev => prev.map(m => 
@@ -9648,8 +9664,9 @@ export default function ChatPage() {
                       prompt={streamingVideoTask.prompt}
                       token={token}
                       initialStatus={streamingVideoTask.status}
-                      modelLabel="Kling 3.0"
+                      modelLabel={streamingVideoTask.videoModelLabel || 'AI Video'}
                       messageId={streamingVideoTask.messageId}
+                      videoModelReason={streamingVideoTask.videoModelReason}
                     />
                   )}
                   {/* Regular text (only if not a pure image/video message) */}

@@ -9,6 +9,248 @@ import fs from 'fs';
 import { writeFile, mkdir, rm, readFile } from 'fs/promises';
 import yauzl from 'yauzl';
 
+// ══════════════════════════════════════════════════════════════════════════════
+// VIDEO MODEL REGISTRY — Dynamic Video Intelligence
+// ══════════════════════════════════════════════════════════════════════════════
+const VIDEO_MODELS = {
+  'kling-3.0': {
+    id: 'kling-3.0',
+    label: 'Kling 3.0',
+    provider: 'Kling',
+    description: 'High-quality general-purpose video generation with motion control',
+    capabilities: ['text-to-video', 'image-to-video'],
+    strengths: ['animation', 'motion control', 'character movement', 'general purpose', 'fast'],
+    maxDuration: 5,
+    resolution: '720p',
+    apiType: 'market', // Uses /api/v1/jobs/createTask
+    generateEndpoint: 'https://api.kie.ai/api/v1/jobs/createTask',
+    statusEndpoint: 'https://api.kie.ai/api/v1/jobs/recordInfo',
+    buildPayload: (prompt, options = {}) => ({
+      model: 'kling-3.0/video',
+      input: {
+        prompt,
+        ...(options.imageUrls ? { image_urls: options.imageUrls } : {}),
+        duration: String(options.duration || 5),
+        aspect_ratio: options.aspectRatio || '16:9',
+        mode: 'std',
+        sound: false,
+        multi_shots: false,
+        multi_prompt: [],
+        kling_elements: [],
+      }
+    }),
+    parseCreateResponse: (data) => {
+      if (data.code !== 200) throw new Error(data.msg || data.error || 'Kling generation failed');
+      return data.data?.taskId;
+    },
+    parseStatusResponse: (data) => {
+      const state = data.data?.status?.toLowerCase() || data.data?.state?.toLowerCase();
+      let videoUrl = null, thumbnailUrl = null;
+      if (data.data?.resultJson) {
+        try {
+          const resultJson = JSON.parse(data.data.resultJson);
+          videoUrl = resultJson?.resultUrls?.[0] || resultJson?.videoUrl || resultJson?.video_url;
+          thumbnailUrl = resultJson?.coverUrl || resultJson?.cover_url || resultJson?.thumbnail;
+        } catch (e) {}
+      }
+      if (!videoUrl) {
+        const output = data.data?.output || {};
+        videoUrl = output.video_url || output.videoUrl;
+        thumbnailUrl = thumbnailUrl || output.cover_url || output.coverUrl || output.imageUrl;
+      }
+      if ((state === 'success' || state === 'completed' || state === 'succeed') && videoUrl) {
+        return { status: 'success', videoUrl, thumbnailUrl };
+      } else if (state === 'failed' || state === 'fail' || state === 'error') {
+        return { status: 'failed', error: data.data?.error || data.data?.message || 'Generation failed' };
+      }
+      return { status: 'generating', progress: state || 'processing...' };
+    },
+  },
+  'veo3': {
+    id: 'veo3',
+    label: 'Veo 3.1',
+    provider: 'Google',
+    description: 'Cinematic 1080p video with synchronized audio, strong prompt adherence',
+    capabilities: ['text-to-video', 'image-to-video'],
+    strengths: ['cinematic', 'high quality', '1080p', 'audio', 'nature', 'landscape', 'realistic', 'dramatic', 'professional', 'film'],
+    maxDuration: 8,
+    resolution: '1080p',
+    apiType: 'veo',
+    generateEndpoint: 'https://api.kie.ai/api/v1/veo/generate',
+    statusEndpoint: 'https://api.kie.ai/api/v1/veo/record-info',
+    buildPayload: (prompt, options = {}) => ({
+      prompt,
+      model: options.fast ? 'veo3_fast' : 'veo3',
+      aspect_ratio: options.aspectRatio || '16:9',
+      ...(options.imageUrls ? { imageUrls: options.imageUrls } : {}),
+    }),
+    parseCreateResponse: (data) => {
+      if (data.code !== 200) throw new Error(data.msg || data.error || 'Veo 3.1 generation failed');
+      return data.data?.taskId;
+    },
+    parseStatusResponse: (data) => {
+      const successFlag = data.data?.successFlag;
+      if (successFlag === 1) {
+        let videoUrl = null, thumbnailUrl = null;
+        try {
+          const urls = JSON.parse(data.data?.resultUrls || '[]');
+          videoUrl = urls[0];
+        } catch (e) {
+          videoUrl = data.data?.resultUrls;
+        }
+        // Also check direct fields
+        if (!videoUrl) videoUrl = data.data?.videoUrl || data.data?.video_url;
+        thumbnailUrl = data.data?.coverUrl || data.data?.cover_url || data.data?.thumbnail;
+        return { status: 'success', videoUrl, thumbnailUrl };
+      } else if (successFlag === 2 || successFlag === 3) {
+        return { status: 'failed', error: data.msg || 'Veo 3.1 generation failed' };
+      }
+      return { status: 'generating', progress: 'processing...' };
+    },
+  },
+  'runway-aleph': {
+    id: 'runway-aleph',
+    label: 'Runway Aleph',
+    provider: 'Runway',
+    description: 'In-context video editing — add/remove objects, restyle, change angles via text',
+    capabilities: ['video-to-video'],
+    strengths: ['editing', 'style transfer', 'transformation', 'creative', 'artistic', 'relight', 'angle change'],
+    maxDuration: 10,
+    resolution: '1080p',
+    apiType: 'aleph',
+    generateEndpoint: 'https://api.kie.ai/api/v1/aleph/generate',
+    statusEndpoint: 'https://api.kie.ai/api/v1/aleph/record-info',
+    buildPayload: (prompt, options = {}) => ({
+      prompt,
+      ...(options.videoUrl ? { videoUrl: options.videoUrl } : {}),
+      aspectRatio: options.aspectRatio || '16:9',
+      waterMark: '',
+      uploadCn: false,
+    }),
+    parseCreateResponse: (data) => {
+      if (data.code !== 200) throw new Error(data.msg || data.error || 'Runway Aleph generation failed');
+      return data.data?.taskId;
+    },
+    parseStatusResponse: (data) => {
+      const successFlag = data.data?.successFlag;
+      if (successFlag === 1 || (data.data?.status?.toLowerCase() === 'success')) {
+        let videoUrl = null, thumbnailUrl = null;
+        try {
+          const urls = JSON.parse(data.data?.resultUrls || '[]');
+          videoUrl = urls[0];
+        } catch (e) {
+          videoUrl = data.data?.resultUrls || data.data?.videoUrl;
+        }
+        thumbnailUrl = data.data?.coverUrl || data.data?.cover_url;
+        return { status: 'success', videoUrl, thumbnailUrl };
+      } else if (successFlag === 2 || successFlag === 3) {
+        return { status: 'failed', error: data.msg || 'Runway Aleph generation failed' };
+      }
+      return { status: 'generating', progress: 'processing...' };
+    },
+  },
+};
+
+// Dynamic Video Intelligence — selects the best video model based on prompt analysis
+async function selectVideoModel(prompt, { hasImage = false, hasVideo = false, userPreferredModel = null } = {}) {
+  // If user explicitly selected a model, use it
+  if (userPreferredModel && VIDEO_MODELS[userPreferredModel]) {
+    return { model: userPreferredModel, reason: `User selected ${VIDEO_MODELS[userPreferredModel].label}` };
+  }
+
+  // If video attachment → Runway Aleph (video-to-video)
+  if (hasVideo) {
+    return { model: 'runway-aleph', reason: 'Runway Aleph excels at video-to-video transformation and editing' };
+  }
+
+  // Use LLM to pick the best model
+  try {
+    const selectionPrompt = `You are a video model selection expert. Given the user's video generation request, select the BEST model.
+
+Available models:
+1. "kling-3.0" — Kling 3.0: Fast general-purpose video. Good for: animations, character movement, image animation, quick previews. 720p, 5s max.
+2. "veo3" — Google Veo 3.1: Premium cinematic quality. Good for: cinematic scenes, nature/landscapes, dramatic shots, synchronized audio, professional-grade content. 1080p, 8s max.
+
+User request: "${prompt.substring(0, 300)}"
+Has image attachment: ${hasImage ? 'yes' : 'no'}
+
+Rules:
+- Choose "veo3" for: cinematic, dramatic, nature, landscape, professional, high-quality, 1080p, film-like, audio sync requests
+- Choose "kling-3.0" for: quick animations, character movements, image animation, general creative content, speed priority
+- Default to "veo3" for ambiguous cinematic/quality requests, "kling-3.0" for simple animations
+
+Respond ONLY with valid JSON: {"model": "kling-3.0" or "veo3", "reason": "one sentence explanation"}`;
+
+    const OpenAI = require('openai');
+    const openai = new OpenAI({ apiKey: process.env.EMERGENT_LLM_KEY || process.env.OPENAI_API_KEY });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: selectionPrompt }],
+      temperature: 0.1,
+      max_tokens: 100,
+      response_format: { type: 'json_object' },
+    });
+
+    const result = JSON.parse(completion.choices[0].message.content);
+    if (result.model && VIDEO_MODELS[result.model]) {
+      console.log(`[VideoIntelligence] Selected: ${result.model} — ${result.reason}`);
+      return { model: result.model, reason: result.reason };
+    }
+  } catch (e) {
+    console.error('[VideoIntelligence] LLM selection failed, defaulting to kling-3.0:', e.message);
+  }
+
+  // Fallback: keyword-based selection
+  const lowerPrompt = prompt.toLowerCase();
+  const cinematicKeywords = ['cinematic', '1080p', 'hd', 'film', 'dramatic', 'professional', 'landscape', 'nature', 'aerial', 'sunset', 'sunrise', 'ocean', 'mountain', 'audio', 'sound'];
+  const isCinematic = cinematicKeywords.some(kw => lowerPrompt.includes(kw));
+  
+  if (isCinematic) {
+    return { model: 'veo3', reason: 'Veo 3.1 selected for cinematic/high-quality content' };
+  }
+  return { model: 'kling-3.0', reason: 'Kling 3.0 selected for general-purpose video generation' };
+}
+
+// Unified video generation function — dispatches to the correct API
+async function generateVideoWithModel(modelId, prompt, kieApiKey, options = {}) {
+  const model = VIDEO_MODELS[modelId];
+  if (!model) throw new Error(`Unknown video model: ${modelId}`);
+
+  const payload = model.buildPayload(prompt, options);
+  console.log(`[VideoGen] Calling ${model.label} at ${model.generateEndpoint}`);
+  console.log(`[VideoGen] Payload:`, JSON.stringify(payload).substring(0, 500));
+
+  const res = await fetch(model.generateEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieApiKey}` },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  console.log(`[VideoGen] ${model.label} response:`, JSON.stringify(data).substring(0, 500));
+
+  const taskId = model.parseCreateResponse(data);
+  if (!taskId) throw new Error(`No taskId returned from ${model.label}`);
+  return taskId;
+}
+
+// Unified video status check — dispatches to the correct API and parses response
+async function checkVideoStatus(modelId, taskId, kieApiKey) {
+  const model = VIDEO_MODELS[modelId];
+  if (!model) throw new Error(`Unknown video model: ${modelId}`);
+
+  const res = await fetch(`${model.statusEndpoint}?taskId=${taskId}`, {
+    headers: { Authorization: `Bearer ${kieApiKey}` },
+  });
+
+  const data = await res.json();
+  console.log(`[VideoStatus] ${model.label} raw response for task ${taskId}:`, JSON.stringify(data).substring(0, 500));
+
+  return model.parseStatusResponse(data);
+}
+
+
+
 // Document parsing utilities
 async function parseDocumentContent(buffer, mimeType, fileName) {
   try {
@@ -9684,56 +9926,43 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               
               console.log('[Image-to-Video] Final image URL type:', imageUrl.startsWith('data:') ? 'data URL' : 'http URL');
               
-              send({ type: 'delta', content: '🎬 Animating your image with Kling 3.0...\n\n' });
+              // ── Dynamic Video Intelligence: select the best model ──
+              const videoSelection = await selectVideoModel(content || 'Animate this image', { hasImage: true });
+              const selectedVideoModel = videoSelection.model;
+              const videoModelLabel = VIDEO_MODELS[selectedVideoModel].label;
+              send({ type: 'delta', content: `🎬 Animating your image with ${videoModelLabel}...\n\n` });
+              console.log(`[Image-to-Video] Dynamic Intelligence selected: ${selectedVideoModel} — ${videoSelection.reason}`);
               
-              // Step 2: Create video generation task with the uploaded image URL
-              const vidRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
-                body: JSON.stringify({ 
-                  model: 'kling-3.0/video',
-                  input: {
-                    prompt: content || 'Animate this image with natural, smooth motion',
-                    image_urls: [imageUrl], // The uploaded image URL
-                    duration: '5',
-                    aspect_ratio: '16:9',
-                    mode: 'std',
-                    sound: false,
-                    multi_shots: false,
-                    multi_prompt: [],
-                    kling_elements: [],
-                  }
-                }),
+              // Step 2: Create video generation task via unified handler
+              const taskId = await generateVideoWithModel(selectedVideoModel, content || 'Animate this image with natural, smooth motion', kieKey, {
+                imageUrls: [imageUrl],
+                aspectRatio: '16:9',
+                duration: 5,
               });
-              
-              const vidData = await vidRes.json();
-              console.log('[Image-to-Video] Video task response:', JSON.stringify(vidData).substring(0, 500));
-              
-              if (vidData.code !== 200) throw new Error(vidData.msg || vidData.error || 'Video generation failed');
-              const taskId = vidData.data?.taskId;
 
               // Save job to DB
               await db.collection('video_jobs').insertOne({
                 id: uuidv4(), task_id: taskId, user_id: user.id,
                 prompt: content, source_image: imageUrl,
-                duration: 5, quality: '720p', aspect_ratio: '16:9',
-                status: 'generating', conversation_id: convId, model: 'kling-3.0',
+                duration: 5, quality: VIDEO_MODELS[selectedVideoModel].resolution, aspect_ratio: '16:9',
+                status: 'generating', conversation_id: convId, model: selectedVideoModel,
                 message_id: assistantMsgId, type: 'image-to-video',
                 created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
               });
 
-              fullContent = `🎬 **Animating your image!**\n\n![Source Image](${imageUrl})\n\nKling 3.0 is bringing your image to life. This usually takes 1-3 minutes.\n\n*Instructions: ${content || 'Natural animation'}*`;
-              send({ type: 'video_task', taskId, status: 'generating', prompt: content, sourceImage: imageUrl, messageId: assistantMsgId });
+              fullContent = `🎬 **Animating your image!**\n\n![Source Image](${imageUrl})\n\n${videoModelLabel} is bringing your image to life. This usually takes 1-3 minutes.\n\n*Instructions: ${content || 'Natural animation'}*`;
+              send({ type: 'video_task', taskId, status: 'generating', prompt: content, sourceImage: imageUrl, messageId: assistantMsgId, videoModel: selectedVideoModel, videoModelLabel, videoModelReason: videoSelection.reason });
               send({ type: 'delta', content: fullContent });
               
               // Save message
               const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
-              const videoTaskData = { taskId, status: 'generating', prompt: content, sourceImage: imageUrl };
+              const videoTaskData = { taskId, status: 'generating', prompt: content, sourceImage: imageUrl, model: selectedVideoModel };
               await db.collection('messages').insertOne({
                 id: assistantMsgId, conversation_id: convId, user_id: user.id,
                 role: 'assistant', content: fullContent, created_at: new Date(),
-                model_used: 'kling-3.0', provider_used: 'kie.ai', content_type: 'video',
+                model_used: selectedVideoModel, provider_used: 'kie.ai', content_type: 'video',
                 video_task: videoTaskData, source_image: imageUrl,
+                model_label: videoModelLabel, video_model_reason: videoSelection.reason,
                 est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
               });
               await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
@@ -9757,49 +9986,39 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               
               console.log('[Image-to-Video] Using existing image URL:', imageUrl.substring(0, 80));
               
-              const vidRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
-                body: JSON.stringify({ 
-                  model: 'kling-3.0/video',
-                  input: {
-                    prompt: content || 'Animate this image with natural, smooth motion',
-                    image_urls: [imageUrl],
-                    duration: '5',
-                    aspect_ratio: '16:9',
-                    mode: 'std',
-                    sound: false,
-                    multi_shots: false,
-                    multi_prompt: [],
-                    kling_elements: [],
-                  }
-                }),
+              // ── Dynamic Video Intelligence ──
+              const videoSelection2 = await selectVideoModel(content || 'Animate this image', { hasImage: true });
+              const selectedVideoModel2 = videoSelection2.model;
+              const videoModelLabel2 = VIDEO_MODELS[selectedVideoModel2].label;
+              console.log(`[Image-to-Video] Dynamic Intelligence selected: ${selectedVideoModel2} — ${videoSelection2.reason}`);
+
+              const taskId = await generateVideoWithModel(selectedVideoModel2, content || 'Animate this image with natural, smooth motion', kieKey, {
+                imageUrls: [imageUrl],
+                aspectRatio: '16:9',
+                duration: 5,
               });
-              
-              const vidData = await vidRes.json();
-              if (vidData.code !== 200) throw new Error(vidData.msg || vidData.error || 'Video generation failed');
-              const taskId = vidData.data?.taskId;
               
               await db.collection('video_jobs').insertOne({
                 id: uuidv4(), task_id: taskId, user_id: user.id,
                 prompt: content, source_image: imageUrl,
-                duration: 5, quality: '720p', aspect_ratio: '16:9',
-                status: 'generating', conversation_id: convId, model: 'kling-3.0',
+                duration: 5, quality: VIDEO_MODELS[selectedVideoModel2].resolution, aspect_ratio: '16:9',
+                status: 'generating', conversation_id: convId, model: selectedVideoModel2,
                 message_id: assistantMsgId, type: 'image-to-video',
                 created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
               });
 
-              fullContent = `🎬 **Animating your image!**\n\n![Source Image](${imageUrl})\n\nKling 3.0 is bringing your image to life. This usually takes 1-3 minutes.`;
-              send({ type: 'video_task', taskId, status: 'generating', prompt: content, sourceImage: imageUrl, messageId: assistantMsgId });
+              fullContent = `🎬 **Animating your image!**\n\n![Source Image](${imageUrl})\n\n${videoModelLabel2} is bringing your image to life. This usually takes 1-3 minutes.`;
+              send({ type: 'video_task', taskId, status: 'generating', prompt: content, sourceImage: imageUrl, messageId: assistantMsgId, videoModel: selectedVideoModel2, videoModelLabel: videoModelLabel2, videoModelReason: videoSelection2.reason });
               send({ type: 'delta', content: fullContent });
               
               const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
               await db.collection('messages').insertOne({
                 id: assistantMsgId, conversation_id: convId, user_id: user.id,
                 role: 'assistant', content: fullContent, created_at: new Date(),
-                model_used: 'kling-3.0', provider_used: 'kie.ai', content_type: 'video',
-                video_task: { taskId, status: 'generating', prompt: content, sourceImage: imageUrl },
+                model_used: selectedVideoModel2, provider_used: 'kie.ai', content_type: 'video',
+                video_task: { taskId, status: 'generating', prompt: content, sourceImage: imageUrl, model: selectedVideoModel2 },
                 source_image: imageUrl,
+                model_label: videoModelLabel2, video_model_reason: videoSelection2.reason,
                 est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
               });
               await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
@@ -9813,55 +10032,43 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             }
           } else {
             // TEXT-TO-VIDEO: Generate video from text prompt
-            send({ type: 'delta', content: '🎬 Starting video generation with Kling 3.0 (via Kie.ai)...\n\n' });
             try {
               const kieKey = process.env.KIE_API_KEY;
               if (!kieKey) throw new Error('Video API not configured');
               
-              // Use Kling 3.0 via the unified Jobs API
-              const vidRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
-                body: JSON.stringify({ 
-                  model: 'kling-3.0/video',
-                  input: {
-                    prompt: content, 
-                    duration: '5',
-                    aspect_ratio: '16:9',
-                    mode: 'std',
-                    sound: false,
-                    multi_shots: false,
-                    multi_prompt: [],
-                    kling_elements: [],
-                  }
-                }),
+              // ── Dynamic Video Intelligence ──
+              const videoSelection3 = await selectVideoModel(content, { hasImage: false });
+              const selectedVideoModel3 = videoSelection3.model;
+              const videoModelLabel3 = VIDEO_MODELS[selectedVideoModel3].label;
+              console.log(`[Text-to-Video] Dynamic Intelligence selected: ${selectedVideoModel3} — ${videoSelection3.reason}`);
+              send({ type: 'delta', content: `🎬 Starting video generation with ${videoModelLabel3}...\n\n` });
+              
+              const taskId = await generateVideoWithModel(selectedVideoModel3, content, kieKey, {
+                aspectRatio: '16:9',
+                duration: 5,
               });
-              const vidData = await vidRes.json();
-              console.log('[Text-to-Video] Response:', JSON.stringify(vidData).substring(0, 500));
-              if (vidData.code !== 200) throw new Error(vidData.msg || vidData.error || 'Video generation failed');
-              const taskId = vidData.data?.taskId;
 
               // Save job to DB with message_id reference
               await db.collection('video_jobs').insertOne({
                 id: uuidv4(), task_id: taskId, user_id: user.id,
-                prompt: content, duration: 5, quality: '720p', aspect_ratio: '16:9',
-                status: 'generating', conversation_id: convId, model: 'kling-3.0',
+                prompt: content, duration: 5, quality: VIDEO_MODELS[selectedVideoModel3].resolution, aspect_ratio: '16:9',
+                status: 'generating', conversation_id: convId, model: selectedVideoModel3,
                 message_id: assistantMsgId, type: 'text-to-video',
                 created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
               });
 
-              fullContent = `🎬 **Video generation started!**\n\nYour video is being generated by Kling 3.0 AI. This usually takes 1-3 minutes.\n\n*The video will appear here when it's ready.*`;
-              send({ type: 'video_task', taskId, status: 'generating', prompt: content, messageId: assistantMsgId });
+              fullContent = `🎬 **Video generation started!**\n\nYour video is being generated by ${videoModelLabel3}. This usually takes 1-3 minutes.\n\n*The video will appear here when it's ready.*`;
+              send({ type: 'video_task', taskId, status: 'generating', prompt: content, messageId: assistantMsgId, videoModel: selectedVideoModel3, videoModelLabel: videoModelLabel3, videoModelReason: videoSelection3.reason });
               send({ type: 'delta', content: fullContent });
               
               // Save message WITH video_task so it persists on refresh
               const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
-              const videoTaskData = { taskId, status: 'generating', prompt: content };
+              const videoTaskData = { taskId, status: 'generating', prompt: content, model: selectedVideoModel3 };
               await db.collection('messages').insertOne({
                 id: assistantMsgId, conversation_id: convId, user_id: user.id,
                 role: 'assistant', content: fullContent, created_at: new Date(),
-                model_used: 'kling-3.0', provider_used: 'kie.ai', content_type: 'video',
-                model_label: 'Kling 3.0',
+                model_used: selectedVideoModel3, provider_used: 'kie.ai', content_type: 'video',
+                model_label: videoModelLabel3, video_model_reason: videoSelection3.reason,
                 video_task: videoTaskData,
                 est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
               });
@@ -11805,7 +12012,7 @@ async function handleMediaStatusByTaskId(request, taskId) {
   // Find the media item by task_id
   const media = await db.collection('media_gallery').findOne({ task_id: taskId, user_id: user.id });
   
-  // Also check video_jobs collection for legacy entries
+  // Also check video_jobs collection
   if (!media) {
     const videoJob = await db.collection('video_jobs').findOne({ task_id: taskId, user_id: user.id });
     if (!videoJob) return err('Media not found', 404);
@@ -11818,64 +12025,33 @@ async function handleMediaStatusByTaskId(request, taskId) {
       return ok({ status: 'failed', error: videoJob.error });
     }
     
-    // Poll Kie.ai
+    // Poll Kie.ai using model-specific status endpoint via unified handler
     try {
-      const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
-        headers: { Authorization: `Bearer ${kieKey}` },
-      });
-      const data = await statusRes.json();
-      console.log('[VideoStatus] Kie.ai raw response for task', taskId, ':', JSON.stringify(data).substring(0, 500));
+      const jobModel = videoJob.model || 'kling-3.0';
+      const result = await checkVideoStatus(jobModel, taskId, kieKey);
       
-      const state = data.data?.status?.toLowerCase() || data.data?.state?.toLowerCase();
-      
-      // Parse video URL from resultJson (primary) or output object (fallback)
-      let videoUrl = null;
-      let thumbnailUrl = null;
-      
-      // Kie.ai returns results in resultJson as a JSON string
-      if (data.data?.resultJson) {
-        try {
-          const resultJson = JSON.parse(data.data.resultJson);
-          videoUrl = resultJson?.resultUrls?.[0] || resultJson?.videoUrl || resultJson?.video_url;
-          thumbnailUrl = resultJson?.coverUrl || resultJson?.cover_url || resultJson?.thumbnail;
-        } catch (e) {
-          console.error('[VideoStatus] Failed to parse resultJson:', e);
-        }
-      }
-      
-      // Fallback to output object
-      if (!videoUrl) {
-        const output = data.data?.output || {};
-        videoUrl = output.video_url || output.videoUrl;
-        thumbnailUrl = thumbnailUrl || output.cover_url || output.coverUrl || output.imageUrl;
-      }
-      
-      // Handle success/completed states from Kie.ai
-      if ((state === 'success' || state === 'completed' || state === 'succeed') && videoUrl) {
-        // Update video_jobs
+      if (result.status === 'success' && result.videoUrl) {
         await db.collection('video_jobs').updateOne(
           { task_id: taskId },
-          { $set: { status: 'success', video_url: videoUrl, thumbnail_url: thumbnailUrl, completed_at: new Date() } }
+          { $set: { status: 'success', video_url: result.videoUrl, thumbnail_url: result.thumbnailUrl, completed_at: new Date() } }
         );
-        // Also update the original message with video_url so it renders on reload
         if (videoJob.message_id) {
           await db.collection('messages').updateOne(
             { id: videoJob.message_id },
-            { $set: { video_url: videoUrl, thumbnail_url: thumbnailUrl, 'video_task.status': 'success' } }
+            { $set: { video_url: result.videoUrl, thumbnail_url: result.thumbnailUrl, 'video_task.status': 'success' } }
           );
-          console.log('[VideoStatus] Updated message', videoJob.message_id, 'with video_url');
+          console.log('[VideoStatus] Updated message', videoJob.message_id, 'with video_url from', jobModel);
         }
-        return ok({ status: 'success', url: videoUrl, videoUrl: videoUrl, thumbnail_url: thumbnailUrl, thumbnailUrl: thumbnailUrl });
-      } else if (state === 'failed' || state === 'fail' || state === 'error') {
-        const error = data.data?.error || data.data?.message || 'Generation failed';
+        return ok({ status: 'success', url: result.videoUrl, videoUrl: result.videoUrl, thumbnail_url: result.thumbnailUrl, thumbnailUrl: result.thumbnailUrl });
+      } else if (result.status === 'failed') {
         await db.collection('video_jobs').updateOne(
           { task_id: taskId },
-          { $set: { status: 'failed', error } }
+          { $set: { status: 'failed', error: result.error } }
         );
-        return ok({ status: 'failed', error });
+        return ok({ status: 'failed', error: result.error });
       }
       
-      return ok({ status: 'generating', progress: state || 'processing...' });
+      return ok({ status: 'generating', progress: result.progress || 'processing...' });
     } catch (e) {
       console.error('Video status poll error:', e);
       return ok({ status: 'generating', progress: 'checking...' });
