@@ -4016,6 +4016,16 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
             setDefaultModelSaved(d.profile.default_model);
           }
         }
+        // Load default video model
+        if (d.profile?.default_video_model) {
+          const validVideo = VIDEO_MODELS.find(m => m.value === d.profile.default_video_model);
+          if (validVideo) setSelectedVideoModel(d.profile.default_video_model);
+        }
+        // Load default image model
+        if (d.profile?.default_image_model) {
+          const validImage = IMAGE_MODELS.find(m => m.value === d.profile.default_image_model);
+          if (validImage) setSelectedImageModel(d.profile.default_image_model);
+        }
       }).catch(() => {});
     fetch('/api/telegram/status', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(setTelegramStatus).catch(() => {});
@@ -7964,6 +7974,7 @@ export default function ChatPage() {
           provider: currentModel.provider, attachments: currentAttachments, enableWebSearch: webSearchEnabled,
           projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
           videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null, // Pass user's video model preference
+          imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null, // Pass user's image model preference
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -10271,15 +10282,25 @@ export default function ChatPage() {
                   <button onClick={() => { setShowModelPicker(!showModelPicker); setShowVideoModelPicker(false); }}
                     className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300 transition-colors bg-white/4 border border-white/8 px-3 py-1.5 rounded-full">
                     <Sparkles className="w-3 h-3 text-cyan-400" />
-                    {selectedModel === 'smart' && selectedVideoModel === 'smart' ? (
+                    {selectedModel === 'smart' && selectedVideoModel === 'smart' && selectedImageModel === 'smart' ? (
                       <span className="text-cyan-400/90">Dynamic Intelligence</span>
                     ) : (
-                      <>
+                      <span className="flex items-center gap-1 flex-wrap">
                         {selectedModel !== 'smart' && <span className="text-orange-400/80">{currentModel.label}</span>}
-                        {selectedModel !== 'smart' && selectedVideoModel !== 'smart' && <span className="text-gray-600 mx-0.5">+</span>}
-                        {selectedVideoModel !== 'smart' && <span className="text-blue-400/80">{VIDEO_MODELS.find(m => m.value === selectedVideoModel)?.label}</span>}
-                        {(selectedModel === 'smart' || selectedVideoModel === 'smart') && <span className="text-cyan-400/60 ml-0.5">+ Auto</span>}
-                      </>
+                        {selectedVideoModel !== 'smart' && (
+                          <>
+                            {selectedModel !== 'smart' && <span className="text-gray-600">·</span>}
+                            <span className="text-blue-400/80">{VIDEO_MODELS.find(m => m.value === selectedVideoModel)?.label}</span>
+                          </>
+                        )}
+                        {selectedImageModel !== 'smart' && (
+                          <>
+                            {(selectedModel !== 'smart' || selectedVideoModel !== 'smart') && <span className="text-gray-600">·</span>}
+                            <span className="text-pink-400/80">{IMAGE_MODELS.find(m => m.value === selectedImageModel)?.label}</span>
+                          </>
+                        )}
+                        {(selectedModel === 'smart' || selectedVideoModel === 'smart' || selectedImageModel === 'smart') && <span className="text-cyan-400/60 ml-0.5">+ Auto</span>}
+                      </span>
                     )}
                     <ChevronDown className="w-3 h-3" />
                   </button>
@@ -10288,9 +10309,9 @@ export default function ChatPage() {
                       {/* Dynamic Intelligence - Auto for all */}
                       <div className="p-1.5 border-b border-white/5">
                         <button
-                          onClick={() => { setSelectedModel('smart'); setSelectedVideoModel('smart'); setShowModelPicker(false); }}
+                          onClick={() => { setSelectedModel('smart'); setSelectedVideoModel('smart'); setSelectedImageModel('smart'); setShowModelPicker(false); }}
                           className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors flex items-center gap-2 ${
-                            selectedModel === 'smart' && selectedVideoModel === 'smart'
+                            selectedModel === 'smart' && selectedVideoModel === 'smart' && selectedImageModel === 'smart'
                               ? 'bg-cyan-500/15 text-cyan-400'
                               : 'text-gray-400 hover:bg-white/5 hover:text-white'
                           }`}>
@@ -10300,7 +10321,7 @@ export default function ChatPage() {
                             <span className="ml-1.5 text-[9px] text-cyan-400/70">Auto</span>
                             <p className="text-[9px] text-gray-600 mt-0.5">AI picks the best model for text, images & video</p>
                           </div>
-                          {selectedModel === 'smart' && selectedVideoModel === 'smart' && <Check className="w-3.5 h-3.5 text-cyan-400 ml-auto" />}
+                          {selectedModel === 'smart' && selectedVideoModel === 'smart' && selectedImageModel === 'smart' && <Check className="w-3.5 h-3.5 text-cyan-400 ml-auto" />}
                         </button>
                       </div>
 
@@ -10333,14 +10354,22 @@ export default function ChatPage() {
                       <div className="p-1.5 border-t border-white/5">
                         <div className="px-3 py-1 text-[9px] font-semibold text-gray-600 uppercase tracking-wider flex items-center gap-1">
                           <ImagePlus className="w-3 h-3" /> Image
-                          <span className="text-cyan-400/60 ml-1 normal-case font-normal">Auto (Gemini)</span>
+                          {selectedImageModel === 'smart' && <span className="text-cyan-400/60 ml-1 normal-case font-normal">Auto</span>}
                         </div>
                         {IMAGE_MODELS.filter(m => !m.isSmartMode).map(m => (
                           <button 
                             key={m.value}
-                            className="w-full text-left px-3 py-1.5 rounded-lg text-[11px] text-gray-600 cursor-default flex items-center justify-between">
-                            <span>{m.label}</span>
-                            <span className="text-[8px] text-gray-700">{m.description}</span>
+                            onClick={() => setSelectedImageModel(m.value)}
+                            className={`w-full text-left px-3 py-1.5 rounded-lg text-[11px] transition-colors flex items-center justify-between ${
+                              selectedImageModel === m.value
+                                ? 'bg-pink-500/15 text-pink-400'
+                                : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
+                            }`}>
+                            <div>
+                              <span>{m.label}</span>
+                              <span className="ml-1.5 text-[8px] text-gray-700">{m.description}</span>
+                            </div>
+                            {selectedImageModel === m.value && <Check className="w-3 h-3 text-pink-400" />}
                           </button>
                         ))}
                       </div>
@@ -10367,6 +10396,38 @@ export default function ChatPage() {
                             {selectedVideoModel === m.value && <Check className="w-3 h-3 text-blue-400" />}
                           </button>
                         ))}
+                      </div>
+
+                      {/* Save as Default button */}
+                      <div className="p-1.5 border-t border-white/10">
+                        <button
+                          onClick={async () => {
+                            try {
+                              await fetch('/api/profile', {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                body: JSON.stringify({
+                                  default_model: selectedModel,
+                                  default_video_model: selectedVideoModel,
+                                  default_image_model: selectedImageModel,
+                                }),
+                              });
+                              setDefaultModelSaved(selectedModel);
+                              toast({
+                                title: '✅ Defaults Saved',
+                                description: 'Your model preferences have been saved.',
+                                duration: 3000,
+                                className: 'bg-[#1a1f2e] border-green-500/30 text-white',
+                              });
+                              setShowModelPicker(false);
+                            } catch (e) {
+                              console.error('Failed to save defaults:', e);
+                            }
+                          }}
+                          className="w-full text-center px-3 py-2 rounded-lg text-[10px] font-medium text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
+                        >
+                          💾 Save as Default
+                        </button>
                       </div>
                     </div>
                   )}

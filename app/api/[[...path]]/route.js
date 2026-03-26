@@ -211,12 +211,22 @@ function parseExplicitImageModelFromPrompt(prompt) {
   if (!prompt) return null;
   
   const modelPatterns = [
-    { pattern: /use\s+(nano\s*banana)\s+to\s+(generate|create|make)/i, model: 'nano-banana' },
-    { pattern: /use\s+(gemini|gemini\s*image)\s+to\s+(generate|create|make)/i, model: 'gemini-2.0-flash-exp-image-generation' },
-    { pattern: /use\s+(gpt|gpt\s*image|dall-?e)\s+to\s+(generate|create|make)/i, model: 'gpt-image-1' },
-    { pattern: /with\s+(nano\s*banana)\b/i, model: 'nano-banana' },
-    { pattern: /with\s+(gemini|gemini\s*image)\b/i, model: 'gemini-2.0-flash-exp-image-generation' },
-    { pattern: /with\s+(gpt|gpt\s*image|dall-?e)\b/i, model: 'gpt-image-1' },
+    // Nano Banana
+    { pattern: /\b(?:use|with|using)\s+(?:nano\s*banana)\b/i, model: 'nano-banana' },
+    // Gemini
+    { pattern: /\b(?:use|with|using)\s+(?:gemini|gemini\s*image)\b/i, model: 'gemini-2.0-flash-exp-image-generation' },
+    // GPT-4o Image
+    { pattern: /\b(?:use|with|using)\s+(?:gpt[\s-]?4o[\s-]?image)\b/i, model: 'gpt4o-image' },
+    // GPT Image 1.5
+    { pattern: /\b(?:use|with|using)\s+(?:gpt[\s-]?image[\s-]?1\.?5)\b/i, model: 'gpt-image-1-5' },
+    // GPT Image / DALL-E (generic)
+    { pattern: /\b(?:use|with|using)\s+(?:gpt[\s-]?image|dall-?e)\b/i, model: 'gpt-image-1-5' },
+    // Midjourney
+    { pattern: /\b(?:use|with|using)\s+(?:midjourney|mid[\s-]?journey)(?:\s*v?7)?\b/i, model: 'midjourney-v7' },
+    // Flux Pro
+    { pattern: /\b(?:use|with|using)\s+(?:flux[\s-]?pro|flux)\b/i, model: 'flux-pro' },
+    // Seedream
+    { pattern: /\b(?:use|with|using)\s+(?:seedream|see[\s-]?dream)(?:\s*5)?(?:\s*lite)?\b/i, model: 'seedream-5-lite' },
   ];
   
   for (const { pattern, model } of modelPatterns) {
@@ -7426,6 +7436,9 @@ async function handleMe(request) {
       onboarding_complete: profile.onboarding_complete,
       assessment_complete: profile.assessment_complete,
       custom_greeting: profile.custom_greeting,
+      default_model: profile.default_model,
+      default_video_model: profile.default_video_model || 'smart',
+      default_image_model: profile.default_image_model || 'smart',
     } : null,
   });
 }
@@ -7436,7 +7449,7 @@ async function handleProfileUpdate(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { display_name, descriptors, field, help_with, discovery_source, assistant_name, onboarding_complete, custom_greeting } = body;
+  const { display_name, descriptors, field, help_with, discovery_source, assistant_name, onboarding_complete, custom_greeting, default_model, default_video_model, default_image_model } = body;
 
   const db = await getDb();
   const update = {};
@@ -7448,6 +7461,9 @@ async function handleProfileUpdate(request) {
   if (assistant_name !== undefined) update.assistant_name = assistant_name;
   if (onboarding_complete !== undefined) update.onboarding_complete = onboarding_complete;
   if (custom_greeting !== undefined) update.custom_greeting = custom_greeting;
+  if (default_model !== undefined) update.default_model = default_model;
+  if (default_video_model !== undefined) update.default_video_model = default_video_model;
+  if (default_image_model !== undefined) update.default_image_model = default_image_model;
 
   await db.collection('profiles').updateOne(
     { user_id: user.id },
@@ -8969,6 +8985,7 @@ async function handleChatStream(request) {
     enableWebSearch = true,
     projectId = null,   // Optional project to associate new conversations with
     videoModel: userPreferredVideoModel = null,   // User's video model preference (null = Dynamic Intelligence)
+    imageModel: userPreferredImageModel = null,   // User's image model preference (null = Dynamic Intelligence)
   } = body;
   
   // Dynamic Intelligence - automatically select best model
@@ -9820,7 +9837,7 @@ async function handleChatStream(request) {
           const isFlyer = /\b(flyer|poster|banner|brochure)\b/i.test(lowerContent);
           
           // Dynamic model selection based on prompt content
-          const modelSelection = selectBestImageModel(content);
+          const modelSelection = selectBestImageModel(content, userPreferredImageModel);
           const selectedModelKey = modelSelection.model;
           const modelConfig = KIE_IMAGE_MODELS[selectedModelKey];
           const modelDisplayName = selectedModelKey.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -11816,7 +11833,16 @@ const KIE_CREDIT_TO_USD = 0.005;
 // ============================================================
 
 // Analyze prompt and recommend the best image model
-function selectBestImageModel(prompt) {
+function selectBestImageModel(prompt, userPreferredModel = null) {
+  // If user explicitly selected a model (not 'smart'), use it
+  if (userPreferredModel && userPreferredModel !== 'smart' && KIE_IMAGE_MODELS[userPreferredModel]) {
+    return {
+      model: userPreferredModel,
+      reason: `🎯 User selected ${userPreferredModel}`,
+      confidence: 'user-selected'
+    };
+  }
+  
   // First check for explicit model request in prompt
   const explicitModel = parseExplicitImageModelFromPrompt(prompt);
   if (explicitModel) {

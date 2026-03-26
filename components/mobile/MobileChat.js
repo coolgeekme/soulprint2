@@ -2935,6 +2935,16 @@ export default function MobileChat({
             setDefaultModelSaved(data.profile.default_model);
           }
         }
+        // Load default video model
+        if (data.profile?.default_video_model) {
+          const validVideo = VIDEO_MODELS.find(m => m.value === data.profile.default_video_model);
+          if (validVideo) setSelectedVideoModel(data.profile.default_video_model);
+        }
+        // Load default image model
+        if (data.profile?.default_image_model) {
+          const validImage = IMAGE_MODELS.find(m => m.value === data.profile.default_image_model);
+          if (validImage) setSelectedImageModel(data.profile.default_image_model);
+        }
         // Check if new user (show onboarding if they haven't seen it)
         const hasSeenOnboarding = localStorage.getItem('sp_onboarding_seen');
         if (!hasSeenOnboarding && !data.profile?.onboarding_completed) {
@@ -3284,6 +3294,7 @@ export default function MobileChat({
           enableWebSearch: webSearchEnabled,
           projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
           videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null,
+          imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -4407,7 +4418,15 @@ export default function MobileChat({
           {/* Header takes its natural height */}
           <ChatHeader 
             assistantName={assistantName}
-            model={MODELS.find(m => m.value === selectedModel)?.label || selectedModel}
+            model={
+              selectedModel === 'smart' && selectedVideoModel === 'smart' && selectedImageModel === 'smart'
+                ? '🧠 Dynamic Intelligence'
+                : [
+                    selectedModel !== 'smart' ? (MODELS.find(m => m.value === selectedModel)?.label || selectedModel) : null,
+                    selectedImageModel !== 'smart' ? (IMAGE_MODELS.find(m => m.value === selectedImageModel)?.label) : null,
+                    selectedVideoModel !== 'smart' ? (VIDEO_MODELS.find(m => m.value === selectedVideoModel)?.label) : null,
+                  ].filter(Boolean).join(' · ') + (selectedModel === 'smart' || selectedVideoModel === 'smart' || selectedImageModel === 'smart' ? ' + Auto' : '')
+            }
             onModelClick={() => setShowModelPicker(true)}
             isOnline={true}
             webSearchEnabled={webSearchEnabled}
@@ -5326,6 +5345,8 @@ export default function MobileChat({
               <button
                 onClick={() => { 
                   setSelectedModel('smart'); 
+                  setSelectedVideoModel('smart');
+                  setSelectedImageModel('smart');
                 }}
                 className={`w-full p-4 rounded-xl text-left transition-colors ${
                   selectedModel === 'smart'
@@ -5395,28 +5416,124 @@ export default function MobileChat({
                         {model.comingSoon && (
                           <span className="text-[10px] text-gray-500 bg-white/10 px-2 py-0.5 rounded-full">Soon</span>
                         )}
-                        {selectedModel === model.value && !model.comingSoon && defaultModelSaved !== model.value && (
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              fetch('/api/user/profile', {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                body: JSON.stringify({ default_model: model.value }),
-                              }).then(r => { if (r.ok) { setDefaultModelSaved(model.value); setShowModelPicker(false); } });
-                            }}
-                            className="text-xs text-gray-500 hover:text-green-400 cursor-pointer transition-colors bg-white/10 px-3 py-1.5 rounded-lg"
-                          >set default</span>
-                        )}
                       </div>
                     </button>
                   ))}
                 </div>
               </div>
             ))}
+
+            {/* ── Image Models Section ── */}
+            <div className="border-t border-white/10 my-4"></div>
+            <div className="mb-4">
+              <h4 className="text-gray-500 text-xs uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+                🎨 Image Generation
+                {selectedImageModel === 'smart' && <span className="text-cyan-400/60 normal-case font-normal">Auto</span>}
+              </h4>
+              <div className="space-y-1">
+                {IMAGE_MODELS.filter(m => !m.isSmartMode).map(model => (
+                  <button
+                    key={model.value}
+                    onClick={() => setSelectedImageModel(model.value)}
+                    className={`w-full p-3 rounded-xl text-left transition-colors flex items-center justify-between ${
+                      selectedImageModel === model.value
+                        ? 'bg-pink-500/15 border border-pink-500/30'
+                        : 'bg-white/5 border border-transparent hover:bg-white/10'
+                    }`}
+                  >
+                    <div>
+                      <span className={`font-medium text-sm ${selectedImageModel === model.value ? 'text-pink-400' : 'text-white'}`}>
+                        {model.label}
+                      </span>
+                      <span className="ml-2 text-[10px] text-gray-600">{model.description}</span>
+                    </div>
+                    {selectedImageModel === model.value && (
+                      <span className="text-pink-400 text-xs">✓</span>
+                    )}
+                  </button>
+                ))}
+                {selectedImageModel !== 'smart' && (
+                  <button
+                    onClick={() => setSelectedImageModel('smart')}
+                    className="w-full p-2 text-xs text-cyan-400/60 hover:text-cyan-400 transition-colors"
+                  >
+                    Reset to Auto
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* ── Video Models Section ── */}
+            <div className="mb-4">
+              <h4 className="text-gray-500 text-xs uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+                🎬 Video Generation
+                {selectedVideoModel === 'smart' && <span className="text-cyan-400/60 normal-case font-normal">Auto</span>}
+              </h4>
+              <div className="space-y-1">
+                {VIDEO_MODELS.filter(m => !m.isSmartMode).map(model => (
+                  <button
+                    key={model.value}
+                    onClick={() => setSelectedVideoModel(model.value)}
+                    className={`w-full p-3 rounded-xl text-left transition-colors flex items-center justify-between ${
+                      selectedVideoModel === model.value
+                        ? 'bg-blue-500/15 border border-blue-500/30'
+                        : 'bg-white/5 border border-transparent hover:bg-white/10'
+                    }`}
+                  >
+                    <div>
+                      <span className={`font-medium text-sm ${selectedVideoModel === model.value ? 'text-blue-400' : 'text-white'}`}>
+                        {model.label}
+                      </span>
+                      <span className="ml-2 text-[10px] text-gray-600">{model.description}</span>
+                    </div>
+                    {selectedVideoModel === model.value && (
+                      <span className="text-blue-400 text-xs">✓</span>
+                    )}
+                  </button>
+                ))}
+                {selectedVideoModel !== 'smart' && (
+                  <button
+                    onClick={() => setSelectedVideoModel('smart')}
+                    className="w-full p-2 text-xs text-cyan-400/60 hover:text-cyan-400 transition-colors"
+                  >
+                    Reset to Auto
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Save as Default */}
+            <button 
+              onClick={async () => {
+                try {
+                  await fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                      default_model: selectedModel,
+                      default_video_model: selectedVideoModel,
+                      default_image_model: selectedImageModel,
+                    }),
+                  });
+                  setDefaultModelSaved(selectedModel);
+                  toast({
+                    title: '✅ Defaults Saved',
+                    description: 'Your model preferences have been saved.',
+                    duration: 3000,
+                    className: 'bg-[#1a1f2e] border-green-500/30 text-white',
+                  });
+                  setShowModelPicker(false);
+                } catch (e) {
+                  console.error('Failed to save defaults:', e);
+                }
+              }}
+              className="w-full p-3 text-center text-sm font-medium text-gray-500 hover:text-white bg-white/5 rounded-xl transition-colors mb-2"
+            >
+              💾 Save All as Default
+            </button>
             <button 
               onClick={() => setShowModelPicker(false)}
-              className="w-full mt-4 p-4 text-gray-500 text-sm"
+              className="w-full mt-2 p-4 text-gray-500 text-sm"
             >
               Done
             </button>

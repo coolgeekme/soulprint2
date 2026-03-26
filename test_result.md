@@ -1327,3 +1327,42 @@ test_plan:
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+
+  - agent: "main"
+    message: "NEW FEATURES: Model Selection System. (1) Backend: Added imageModel support to /api/chat/stream body parsing. selectBestImageModel() now accepts userPreferredModel parameter - if user selects a specific image model, it takes priority over Dynamic Intelligence auto-routing. (2) Backend: Updated /api/auth/me to return default_video_model and default_image_model. Updated /api/profile PUT to save these fields. (3) Backend: Expanded parseExplicitImageModelFromPrompt() to support all image models: Seedream, Flux Pro, Midjourney V7, GPT-4o Image, GPT Image 1.5. (4) Desktop: Image models now clickable in the unified model selector dropdown (was display-only). Button label shows selected image+video+text models with color coding. Save as Default button at bottom saves all 3 preferences. (5) Mobile: Added Image Generation and Video Generation sections to the model picker with Reset to Auto buttons. Save All as Default button. Dynamic Intelligence button resets all 3 models to auto. Header shows combined model selection. Both frontends pass imageModel to backend in sendMessage body. Defaults loaded from profile on auth/me. Auth: test@soulprint.com/test123."
+  - agent: "testing"
+    message: "MODEL SELECTION BACKEND TESTING COMPLETE: All critical model selection features working perfectly. ✅ Profile Model Preferences (GET /api/auth/me returns default_video_model and default_image_model fields, PUT /api/profile saves and persists preferences correctly). ✅ Image Model in Chat Stream (POST /api/chat/stream with imageModel parameter triggers image generation, both explicit model selection 'flux-pro' and Dynamic Intelligence routing work). ✅ Explicit Image Model Parsing (prompts with 'using Midjourney', 'with Flux Pro', 'with Seedream' all trigger image generation correctly). Authentication, validation, and model selection logic all working correctly. No major issues found."
+
+  - task: "Image Model Selection - Backend"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Backend accepts imageModel in chat/stream. selectBestImageModel() now accepts user preference. Profile CRUD supports default_video_model and default_image_model. Expanded explicit model parsing for all image models."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: All model selection backend features working perfectly. ✅ Profile Model Preferences (GET /api/auth/me returns default_video_model and default_image_model fields, PUT /api/profile saves preferences correctly, values persist across requests). ✅ Image Model in Chat Stream (POST /api/chat/stream with imageModel parameter triggers image generation, both explicit model selection and Dynamic Intelligence routing work). ✅ Explicit Image Model Parsing (prompts with 'using Midjourney', 'with Flux Pro', 'with Seedream' all trigger image generation correctly). All comprehensive tests passed - no major issues found."
+
+  - task: "Image/Video Model Selection - Frontend"
+    implemented: true
+    working: "NA"
+    file: "app/chat/page.js, components/mobile/MobileChat.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Desktop: Image models clickable in unified dropdown. Save as Default saves all 3 model preferences. Button label shows combined model selection. Mobile: Image+Video sections added to model picker with Reset to Auto. Save All as Default button. Both pass imageModel to backend."
+
+test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
