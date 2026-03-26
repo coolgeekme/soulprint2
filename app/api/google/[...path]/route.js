@@ -171,6 +171,37 @@ async function googleApiCall(accessToken, endpoint, options = {}) {
   return data;
 }
 
+// Get valid token for a specific connection (handles refresh)
+async function getValidGoogleTokenForConnection(connection) {
+  const isExpired = new Date(connection.expires_at) < new Date(Date.now() + 5 * 60 * 1000);
+  
+  if (isExpired && connection.refresh_token) {
+    try {
+      const tokens = await refreshGoogleToken(connection.refresh_token);
+      if (tokens.access_token) {
+        const db = await getDb();
+        await db.collection('google_connections').updateOne(
+          { connection_id: connection.connection_id },
+          { 
+            $set: { 
+              access_token: tokens.access_token,
+              expires_at: new Date(Date.now() + tokens.expires_in * 1000),
+              updated_at: new Date()
+            }
+          }
+        );
+        return tokens.access_token;
+      }
+    } catch (err) {
+      console.error('Token refresh failed:', err);
+      return null;
+    }
+  }
+  
+  return connection.access_token;
+}
+
+
 // ============================================================
 // OAUTH HANDLERS
 // ============================================================
@@ -296,13 +327,19 @@ async function handleGoogleStatus(request) {
     }
     
     const accounts = connections.map(c => ({
-      connection_id: c.connection_id,
+      connectionId: c.connection_id,
       email: c.email,
       name: c.name,
       picture: c.picture,
-      is_default: c.is_default || false,
+      isDefault: c.is_default || false,
       connected_at: c.created_at,
-      scopes: c.scopes || []
+      scopes: c.scopes || [],
+      calendars: c.calendars || [],
+      services: {
+        gmail: (c.scopes || []).some(s => s.includes('mail.google.com')),
+        calendar: (c.scopes || []).some(s => s.includes('calendar')),
+        drive: (c.scopes || []).some(s => s.includes('drive'))
+      }
     }));
     
     return ok({ connected: true, accounts });
@@ -680,6 +717,101 @@ async function handleCalendarDelete(request, eventId) {
 }
 
 // ============================================================
+// CALENDAR MANAGEMENT HANDLERS
+// ============================================================
+
+async function handleGoogleUpdateCalendars(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) return err('Unauthorized', 401);
+    
+    const { connectionId, calendars } = await request.json();
+    if (!connectionId || !calendars) {
+      return err('connectionId and calendars required', 400);
+    }
+    
+    const db = await getDb();
+    
+    const connection = await db.collection('google_connections').findOne({
+      connection_id: connectionId,
+      user_id: user.id
+    });
+    
+    if (!connection) {
+      return err('Connection not found', 404);
+    }
+    
+    const updatedCalendars = (connection.calendars || []).map(cal => ({
+      ...cal,
+      selected: calendars.find(c => c.id === cal.id)?.selected ?? cal.selected
+    }));
+    
+    await db.collection('google_connections').updateOne(
+      { connection_id: connectionId },
+      { $set: { calendars: updatedCalendars, updated_at: new Date() } }
+    );
+    
+    return ok({ success: true, calendars: updatedCalendars });
+  } catch (error) {
+    console.error('Update calendars error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+async function handleGoogleRefreshCalendars(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) return err('Unauthorized', 401);
+    
+    const { connectionId } = await request.json();
+    if (!connectionId) return err('connectionId required', 400);
+    
+    const db = await getDb();
+    const connection = await db.collection('google_connections').findOne({
+      connection_id: connectionId,
+      user_id: user.id
+    });
+    
+    if (!connection) {
+      return err('Connection not found', 404);
+    }
+    
+    const accessToken = await getValidGoogleTokenForConnection(connection);
+    if (!accessToken) {
+      return err('Failed to get valid token', 401);
+    }
+    
+    const calendarList = await googleApiCall(accessToken, '/calendar/v3/users/me/calendarList');
+    
+    // Preserve existing selection state
+    const existingSelections = {};
+    (connection.calendars || []).forEach(cal => {
+      existingSelections[cal.id] = cal.selected;
+    });
+    
+    const calendars = (calendarList.items || []).map(cal => ({
+      id: cal.id,
+      summary: cal.summary,
+      primary: cal.primary || false,
+      backgroundColor: cal.backgroundColor,
+      selected: existingSelections[cal.id] ?? cal.primary ?? false
+    }));
+    
+    await db.collection('google_connections').updateOne(
+      { connection_id: connectionId },
+      { $set: { calendars, updated_at: new Date() } }
+    );
+    
+    return ok({ success: true, calendars });
+  } catch (error) {
+    console.error('Refresh calendars error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+
+
+// ============================================================
 // DRIVE HANDLERS
 // ============================================================
 
@@ -830,6 +962,10 @@ export async function POST(request, { params }) {
     // OAuth
     if (pathStr === 'disconnect') return handleGoogleDisconnect(request);
     if (pathStr === 'set-default') return handleGoogleSetDefault(request);
+    
+    // Calendar Management
+    if (pathStr === 'update-calendars') return handleGoogleUpdateCalendars(request);
+    if (pathStr === 'refresh-calendars') return handleGoogleRefreshCalendars(request);
     
     // Gmail
     if (pathStr === 'gmail/send') return handleGmailSend(request);
