@@ -10535,6 +10535,8 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           // Handle image editing
           if (toolName === 'edit_image') {
             console.log('[Image Edit Tool] Processing edit request');
+            // Send generating_visual indicator so frontend shows loading animation
+            send({ type: 'generating_visual', visualType: 'edit' });
             const { image_reference, edit_instruction } = args;
             
             // Find the image to edit
@@ -10580,6 +10582,8 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           // Handle mockup generation
           if (toolName === 'generate_mockup') {
             console.log('[Mockup Tool] Processing mockup request');
+            // Send generating_visual indicator so frontend shows loading animation
+            send({ type: 'generating_visual', visualType: 'composite' });
             const { product, design_reference } = args;
             
             // Find the design image

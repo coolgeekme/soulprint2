@@ -3367,6 +3367,16 @@ export default function MobileChat({
               // Reset visual generation state since image arrived
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
+            } else if (data.type === 'image_action') {
+              // Tool-based image edit/mockup result – extract URL and show
+              const actionResult = data.result;
+              if (actionResult?.imageUrl || actionResult?.url) {
+                const imgUrl = actionResult.imageUrl || actionResult.url;
+                localStreamingImageUrl = imgUrl;
+                setStreamingImageUrl(imgUrl);
+                setIsGeneratingVisual(false);
+                setVisualGenerationType('');
+              }
             } else if (data.type === 'video_task') {
               // Video job started — save to state for rendering MobileVideoCard during streaming
               localStreamingVideoTask = { 

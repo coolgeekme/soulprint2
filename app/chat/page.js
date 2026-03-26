@@ -8026,6 +8026,17 @@ export default function ChatPage() {
               // Reset visual generation state since image arrived
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
+            } else if (data.type === 'image_action') {
+              // Tool-based image edit/mockup result – extract URL and show
+              const actionResult = data.result;
+              if (actionResult?.imageUrl || actionResult?.url) {
+                const imgUrl = actionResult.imageUrl || actionResult.url;
+                setStreamingImageUrl(imgUrl);
+                streamingImageUrlRef.current = imgUrl;
+                setStreamingRevPrompt(actionResult.revisedPrompt || actionResult.prompt || '');
+                setIsGeneratingVisual(false);
+                setVisualGenerationType('');
+              }
             } else if (data.type === 'video_task') {
               // Video job started – store taskId for polling (include messageId & model info for DB persistence)
               const videoTaskData = { 
