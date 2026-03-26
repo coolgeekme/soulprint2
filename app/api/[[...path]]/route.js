@@ -17,9 +17,9 @@ const VIDEO_MODELS = {
     id: 'kling-3.0',
     label: 'Kling 3.0',
     provider: 'Kling',
-    description: 'High-quality general-purpose video generation with motion control',
-    capabilities: ['text-to-video', 'image-to-video'],
-    strengths: ['animation', 'motion control', 'character movement', 'general purpose', 'fast'],
+    description: 'High-quality general-purpose video generation with motion control and character reference',
+    capabilities: ['text-to-video', 'image-to-video', 'character-reference'],
+    strengths: ['animation', 'motion control', 'character movement', 'general purpose', 'fast', 'face consistency', 'character reference'],
     maxDuration: 5,
     resolution: '720p',
     apiType: 'market', // Uses /api/v1/jobs/createTask
@@ -36,7 +36,8 @@ const VIDEO_MODELS = {
         sound: false,
         multi_shots: false,
         multi_prompt: [],
-        kling_elements: [],
+        // Character/face reference via kling_elements
+        kling_elements: options.characterElements || [],
       }
     }),
     parseCreateResponse: (data) => {
@@ -9925,16 +9926,23 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           return;
         }
 
-        // ── Handle video generation (text-to-video OR image-to-video) ───────────────────────────────────────
+        // ── Handle video generation (text-to-video OR image-to-video with optional character reference) ───────────────────────────────────────
         if (mediaIntent === 'video') {
           // Send visual generation indicator immediately so frontend shows animation
           send({ type: 'generating_visual', visualType: 'video' });
           
-          // Check if user uploaded an image to animate
-          const imageAttachment = attachments.find(a => a.type === 'image' || a.mime_type?.startsWith('image/') || a.mimeType?.startsWith('image/'));
+          // Check for image attachments - could be scene image AND/OR character reference images
+          const allImageAttachments = attachments.filter(a => a.type === 'image' || a.mime_type?.startsWith('image/') || a.mimeType?.startsWith('image/'));
+          const imageAttachment = allImageAttachments[0]; // First image is for scene/animation
           
-          if (imageAttachment && imageAttachment.base64) {
-            // IMAGE-TO-VIDEO: Animate the uploaded image
+          // Detect if user wants to add themselves or a person to the video
+          const wantsCharacterReference = /\b(me|myself|my face|my photo|person|character|subject|face|with me|of me|add me|put me|include me|myself driving|me driving|me in|myself in)\b/i.test(content);
+          
+          // If user mentions character reference but only provided one image, use it as character reference for text-to-video
+          const useAsCharacterRef = wantsCharacterReference && allImageAttachments.length === 1;
+          
+          if (imageAttachment && imageAttachment.base64 && !useAsCharacterRef) {
+            // IMAGE-TO-VIDEO: Animate the uploaded image (with optional character reference)
             send({ type: 'delta', content: '🎬 Preparing your image for animation...\n\n' });
             try {
               const kieKey = process.env.KIE_API_KEY;
@@ -10094,21 +10102,92 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               send({ type: 'delta', content: fullContent });
             }
           } else {
-            // TEXT-TO-VIDEO: Generate video from text prompt
+            // TEXT-TO-VIDEO: Generate video from text prompt (with optional character reference)
             try {
               const kieKey = process.env.KIE_API_KEY;
               if (!kieKey) throw new Error('Video API not configured');
               
-              // ── Dynamic Video Intelligence ──
-              const videoSelection3 = await selectVideoModel(content, { hasImage: false, userPreferredModel: userPreferredVideoModel });
-              const selectedVideoModel3 = videoSelection3.model;
-              const videoModelLabel3 = VIDEO_MODELS[selectedVideoModel3].label;
-              console.log(`[Text-to-Video] Dynamic Intelligence selected: ${selectedVideoModel3} — ${videoSelection3.reason}`);
-              send({ type: 'delta', content: `🎬 Starting video generation with ${videoModelLabel3}...\n\n` });
+              // Check if user uploaded a character reference image (e.g., "make a video of me driving")
+              let characterElements = [];
+              let characterImageUrl = null;
               
-              const taskId = await generateVideoWithModel(selectedVideoModel3, content, kieKey, {
+              if (useAsCharacterRef && imageAttachment && imageAttachment.base64) {
+                send({ type: 'delta', content: '🎬 Preparing your character reference...\n\n' });
+                console.log('[Text-to-Video] User wants character reference - uploading face image...');
+                
+                // Upload the character reference image
+                const mType = imageAttachment.mimeType || imageAttachment.mime_type || 'image/jpeg';
+                const fileName = `character-${Date.now()}.${mType.split('/')[1] || 'jpg'}`;
+                const dataUrl = imageAttachment.base64.startsWith('data:') 
+                  ? imageAttachment.base64 
+                  : `data:${mType};base64,${imageAttachment.base64}`;
+                
+                try {
+                  const uploadRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
+                    body: JSON.stringify({
+                      base64Data: dataUrl,
+                      uploadPath: 'soulprint/character-reference',
+                      fileName: fileName,
+                    }),
+                  });
+                  
+                  if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json();
+                    const downloadUrl = uploadData.data?.downloadUrl || uploadData.downloadUrl;
+                    if ((uploadData.success || uploadData.code === 200) && downloadUrl) {
+                      characterImageUrl = downloadUrl;
+                      console.log('[Text-to-Video] Character reference uploaded:', characterImageUrl.substring(0, 80));
+                      
+                      // Build Kling Elements array for character reference
+                      // Extract person name from prompt if mentioned (e.g., "me", "myself", "person")
+                      const elementName = content.match(/\b(me|myself|my|the person|character)\b/i)?.[0]?.toLowerCase() || 'person';
+                      characterElements = [{
+                        name: elementName.replace(/\s+/g, '_'),
+                        description: 'The person/character to include in the video',
+                        element_input_urls: [characterImageUrl],
+                      }];
+                      
+                      send({ type: 'delta', content: `✅ Character reference ready! Creating video with your likeness...\n\n` });
+                    }
+                  }
+                } catch (uploadErr) {
+                  console.log('[Text-to-Video] Character reference upload failed:', uploadErr.message);
+                  send({ type: 'delta', content: `⚠️ Couldn't process character reference, generating without it...\n\n` });
+                }
+              }
+              
+              // ── Dynamic Video Intelligence ──
+              // If using character reference, prefer Kling 3.0 (has Elements support)
+              const videoSelection3 = await selectVideoModel(content, { 
+                hasImage: false, 
+                hasCharacterRef: characterElements.length > 0,
+                userPreferredModel: characterElements.length > 0 ? 'kling-3.0' : userPreferredVideoModel 
+              });
+              const selectedVideoModel3 = characterElements.length > 0 ? 'kling-3.0' : videoSelection3.model;
+              const videoModelLabel3 = VIDEO_MODELS[selectedVideoModel3].label;
+              console.log(`[Text-to-Video] ${characterElements.length > 0 ? 'Using Kling 3.0 for character reference' : `Dynamic Intelligence selected: ${selectedVideoModel3}`} — ${videoSelection3.reason}`);
+              send({ type: 'delta', content: `🎬 Starting video generation with ${videoModelLabel3}${characterElements.length > 0 ? ' (with character reference)' : ''}...\n\n` });
+              
+              // Modify prompt to reference the character element if using character reference
+              let finalPrompt = content;
+              if (characterElements.length > 0) {
+                const elementRef = `@${characterElements[0].name}`;
+                // Check if prompt already references the element
+                if (!content.includes(elementRef)) {
+                  // Add element reference to prompt - replace "me", "myself", etc. with @element_name
+                  finalPrompt = content
+                    .replace(/\b(me|myself)\b/gi, elementRef)
+                    .replace(/\bmy face\b/gi, `${elementRef}'s face`);
+                }
+                console.log('[Text-to-Video] Modified prompt with element reference:', finalPrompt);
+              }
+              
+              const taskId = await generateVideoWithModel(selectedVideoModel3, finalPrompt, kieKey, {
                 aspectRatio: '16:9',
                 duration: 5,
+                characterElements: characterElements,
               });
 
               // Save job to DB with message_id reference
@@ -10116,17 +10195,19 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 id: uuidv4(), task_id: taskId, user_id: user.id,
                 prompt: content, duration: 5, quality: VIDEO_MODELS[selectedVideoModel3].resolution, aspect_ratio: '16:9',
                 status: 'generating', conversation_id: convId, model: selectedVideoModel3,
-                message_id: assistantMsgId, type: 'text-to-video',
+                message_id: assistantMsgId, type: characterElements.length > 0 ? 'text-to-video-with-character' : 'text-to-video',
+                character_reference: characterImageUrl || null,
                 created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
               });
 
-              fullContent = `🎬 **Video generation started!**\n\nYour video is being generated by ${videoModelLabel3}. This usually takes 1-3 minutes.\n\n*The video will appear here when it's ready.*`;
+              const charRefNote = characterElements.length > 0 ? '\n\n*Using your character reference for consistent appearance.*' : '';
+              fullContent = `🎬 **Video generation started!**\n\nYour video is being generated by ${videoModelLabel3}. This usually takes 1-3 minutes.${charRefNote}\n\n*The video will appear here when it's ready.*`;
               send({ type: 'video_task', taskId, status: 'generating', prompt: content, messageId: assistantMsgId, videoModel: selectedVideoModel3, videoModelLabel: videoModelLabel3, videoModelReason: videoSelection3.reason });
               send({ type: 'delta', content: fullContent });
               
               // Save message WITH video_task so it persists on refresh
               const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
-              const videoTaskData = { taskId, status: 'generating', prompt: content, model: selectedVideoModel3 };
+              const videoTaskData = { taskId, status: 'generating', prompt: content, model: selectedVideoModel3, characterRef: !!characterImageUrl };
               await db.collection('messages').insertOne({
                 id: assistantMsgId, conversation_id: convId, user_id: user.id,
                 role: 'assistant', content: fullContent, created_at: new Date(),
