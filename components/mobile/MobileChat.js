@@ -2968,6 +2968,10 @@ export default function MobileChat({
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setAttachments([]);
+    setStreamingContent('');
+    setStreamingImageUrl(null);
+    setStreamingVideoTask(null);
+    setStreamingSources([]);
     setLoading(true);
     
     try {

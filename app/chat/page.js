@@ -7619,6 +7619,12 @@ export default function ChatPage() {
     setInput('');
     setAttachments([]);
     setStreamingContent('');
+    setStreamingImageUrl(null);
+    setStreamingVideoTask(null);
+    // CRITICAL: Also clear refs directly to prevent stale data leaking into next message
+    streamingImageUrlRef.current = null;
+    streamingVideoTaskRef.current = null;
+    streamingSourcesRef.current = [];
     setSearchingWeb(false);
     setSearchQueries([]);
 
