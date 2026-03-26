@@ -9468,8 +9468,8 @@ export default function ChatPage() {
                             token={token}
                           />
                         )}
-                        {/* Regular text (skip for pure image/video messages) */}
-                        {!msg.image_url && !msg.video_url && (
+                        {/* Regular text (skip for pure image/video messages and active video tasks) */}
+                        {!msg.image_url && !msg.video_url && !(msg.video_task && !msg.video_url) && (
                           <ReactMarkdown remarkPlugins={[remarkGfm]}
                             components={{
                               p: ({children}) => <p className="mb-2 last:mb-0 break-words">{children}</p>,

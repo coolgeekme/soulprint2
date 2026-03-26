@@ -805,7 +805,10 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
             </div>
           )}
           
+          {/* Message content — show empty when video_task is present (VideoCard handles display) */}
           <div className="text-gray-200 text-[15px] leading-relaxed prose prose-invert prose-sm max-w-none">
+            {(message.video_task && !message.video_url) ? null : (
+            <>
             <ReactMarkdown 
               components={{
                 p: ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -841,6 +844,8 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
                   ))}
                 </div>
               </div>
+            )}
+            </>
             )}
           </div>
           {showActions && (

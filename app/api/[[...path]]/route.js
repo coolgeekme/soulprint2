@@ -8772,19 +8772,20 @@ async function handleChatStream(request) {
     // Video detection (check first — more specific)
     // Must be a clear, direct request at the start of the message
     const videoPatterns = [
-      /^(?:please\s+)?(?:can you\s+)?generate\s+(?:a\s+)?video\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?create\s+(?:a\s+)?video\b/i,
-      /^(?:please\s+)?(?:can you\s+)?make\s+(?:a\s+)?video\b/i, 
+      /^(?:please\s+)?(?:can you\s+)?generate\s+(?:a\s+)?(?:\w+\s+)?video\b/i, 
+      /^(?:please\s+)?(?:can you\s+)?create\s+(?:a\s+)?(?:\w+\s+)?video\b/i,
+      /^(?:please\s+)?(?:can you\s+)?make\s+(?:a\s+)?(?:\w+\s+)?video\b/i, 
       /^(?:please\s+)?(?:can you\s+)?video\s+of\b/i,
       /^(?:please\s+)?(?:can you\s+)?animate\b/i,
       // Additional patterns for image-to-video with attachments
       /\bturn\s+(?:this|it)\s+into\s+(?:a\s+)?video\b/i,
       /\bmake\s+(?:this|it)\s+(?:a\s+|into\s+(?:a\s+)?)?video\b/i,
       /\bconvert\s+(?:this|it)?\s*(?:to|into)\s+(?:a\s+)?video\b/i,
-      /\bi\s+want\s+(?:a\s+)?video\b/i,
-      /\b(?:create|make|generate)\s+(?:a\s+)?video\s+(?:from|of|with|using)\s+(?:this|it|the|my|that)\b/i,
-      /\b(?:animate|bring\s+to\s+life)\s+(?:this|it|the|my|that)\s+(?:image|picture|photo|png|jpg)?\b/i,
-      /\bvideo\s+(?:from|of)\s+(?:this|the|my|that)\s+(?:image|picture|photo|png)?\b/i,
+      /\bi\s+want\s+(?:a\s+)?(?:\w+\s+)?video\b/i,
+      /\b(?:create|make|generate)\s+(?:a\s+)?(?:\w+\s+)?video\s+(?:from|of|with|using|about|showing)\b/i,
+      /\b(?:animate|bring\s+to\s+life)\s+(?:this|it|the|my|that)\s*(?:image|picture|photo|png|jpg)?\b/i,
+      /\bvideo\s+(?:from|of)\s+(?:this|the|my|that)\s*(?:image|picture|photo|png)?\b/i,
+      /\b(?:generate|create|make)\s+(?:me\s+)?(?:a\s+)?(?:short|quick|brief|cool|nice|fun|cinematic|slow.?mo)?\s*video\b/i,
     ];
     if (videoPatterns.some(p => p.test(lower))) return 'video';
     
@@ -11813,9 +11814,28 @@ async function handleMediaStatusByTaskId(request, taskId) {
       const data = await statusRes.json();
       
       const state = data.data?.status?.toLowerCase() || data.data?.state?.toLowerCase();
-      const output = data.data?.output || {};
-      const videoUrl = output.video_url || output.videoUrl;
-      const thumbnailUrl = output.cover_url || output.coverUrl;
+      
+      // Parse video URL from resultJson (primary) or output object (fallback)
+      let videoUrl = null;
+      let thumbnailUrl = null;
+      
+      // Kie.ai returns results in resultJson as a JSON string
+      if (data.data?.resultJson) {
+        try {
+          const resultJson = JSON.parse(data.data.resultJson);
+          videoUrl = resultJson?.resultUrls?.[0] || resultJson?.videoUrl || resultJson?.video_url;
+          thumbnailUrl = resultJson?.coverUrl || resultJson?.cover_url || resultJson?.thumbnail;
+        } catch (e) {
+          console.error('[VideoStatus] Failed to parse resultJson:', e);
+        }
+      }
+      
+      // Fallback to output object
+      if (!videoUrl) {
+        const output = data.data?.output || {};
+        videoUrl = output.video_url || output.videoUrl;
+        thumbnailUrl = thumbnailUrl || output.cover_url || output.coverUrl || output.imageUrl;
+      }
       
       if (state === 'success' && videoUrl) {
         await db.collection('video_jobs').updateOne(
