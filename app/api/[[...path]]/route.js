@@ -12990,33 +12990,72 @@ async function handleAdminGetFeedback(request) {
   const query = {};
   if (status) query.status = status;
 
-  const feedback = await db.collection('user_feedback')
-    .find(query)
-    .sort({ created_at: -1 })
-    .limit(limit)
-    .toArray();
+  // Fetch from both feedback collections
+  const [userFeedback, messageFeedback] = await Promise.all([
+    db.collection('user_feedback').find(query).sort({ created_at: -1 }).limit(limit).toArray(),
+    db.collection('feedback').find(status ? {} : {}).sort({ created_at: -1 }).limit(limit).toArray()
+  ]);
 
-  // Get stats
-  const totalCount = await db.collection('user_feedback').countDocuments();
-  const newCount = await db.collection('user_feedback').countDocuments({ status: 'new' });
-  const reviewedCount = await db.collection('user_feedback').countDocuments({ status: 'reviewed' });
-  const resolvedCount = await db.collection('user_feedback').countDocuments({ status: 'resolved' });
+  // Normalize message feedback (thumbs up/down) to match the display format
+  // Look up user emails for message feedback entries
+  const userIds = [...new Set(messageFeedback.map(f => f.user_id).filter(Boolean))];
+  const usersMap = {};
+  if (userIds.length > 0) {
+    const users = await db.collection('users').find({ id: { $in: userIds } }).toArray();
+    users.forEach(u => { usersMap[u.id] = u.email || u.username || 'Unknown User'; });
+  }
+
+  const normalizedMessageFeedback = messageFeedback.map(f => ({
+    id: f.id,
+    user_email: usersMap[f.user_id] || 'Unknown User',
+    message: f.note || `Message ${f.rating === 'up' ? '👍' : '👎'} feedback${f.conversation_id ? ` (conversation)` : ''}`,
+    category: f.rating === 'up' ? 'positive' : f.rating === 'down' ? 'negative' : 'general',
+    rating: f.rating,
+    status: f.status || 'new',
+    created_at: f.created_at,
+    source: 'message_feedback',
+    conversation_id: f.conversation_id,
+    context: f.context,
+  }));
+
+  const normalizedUserFeedback = userFeedback.map(f => ({
+    id: f.id,
+    user_email: f.user_email || 'Anonymous',
+    message: f.message || '',
+    category: f.category || 'general',
+    rating: f.rating,
+    status: f.status || 'new',
+    created_at: f.created_at,
+    attachment: f.attachment ? true : false,
+    source: 'user_feedback',
+    anonymous: f.anonymous,
+  }));
+
+  // Combine and sort by date
+  const allFeedback = [...normalizedUserFeedback, ...normalizedMessageFeedback]
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, limit);
+
+  // Get combined stats
+  const userFbTotal = await db.collection('user_feedback').countDocuments();
+  const msgFbTotal = await db.collection('feedback').countDocuments();
+  const userFbNew = await db.collection('user_feedback').countDocuments({ status: 'new' });
+  const userFbReviewed = await db.collection('user_feedback').countDocuments({ status: 'reviewed' });
+  const userFbResolved = await db.collection('user_feedback').countDocuments({ status: 'resolved' });
+
+  // Message feedback without status counts as 'new'
+  const msgFbWithoutStatus = await db.collection('feedback').countDocuments({ status: { $exists: false } });
+  const msgFbNew = await db.collection('feedback').countDocuments({ status: 'new' });
+  const msgFbReviewed = await db.collection('feedback').countDocuments({ status: 'reviewed' });
+  const msgFbResolved = await db.collection('feedback').countDocuments({ status: 'resolved' });
 
   return ok({
-    feedback: feedback.map(f => ({
-      id: f.id,
-      user_email: f.user_email,
-      message: f.message,
-      category: f.category,
-      rating: f.rating,
-      status: f.status,
-      created_at: f.created_at,
-    })),
+    feedback: allFeedback,
     stats: {
-      total: totalCount,
-      new: newCount,
-      reviewed: reviewedCount,
-      resolved: resolvedCount,
+      total: userFbTotal + msgFbTotal,
+      new: userFbNew + msgFbNew + msgFbWithoutStatus,
+      reviewed: userFbReviewed + msgFbReviewed,
+      resolved: userFbResolved + msgFbResolved,
     }
   });
 }
@@ -13031,10 +13070,19 @@ async function handleAdminUpdateFeedback(request, feedbackId) {
   const { status, admin_note } = body;
 
   const db = await getDb();
-  const feedback = await db.collection('user_feedback').findOne({ id: feedbackId });
+  
+  // Try user_feedback first, then feedback collection
+  let feedback = await db.collection('user_feedback').findOne({ id: feedbackId });
+  let collection = 'user_feedback';
+  
+  if (!feedback) {
+    feedback = await db.collection('feedback').findOne({ id: feedbackId });
+    collection = 'feedback';
+  }
+  
   if (!feedback) return err('Feedback not found', 404);
 
-  await db.collection('user_feedback').updateOne(
+  await db.collection(collection).updateOne(
     { id: feedbackId },
     { 
       $set: { 

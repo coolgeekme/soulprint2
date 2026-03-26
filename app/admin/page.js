@@ -2464,6 +2464,8 @@ function FeedbackTab({ token }) {
       case 'bug': return '🐛';
       case 'feature': return '💡';
       case 'other': return '📝';
+      case 'positive': return '👍';
+      case 'negative': return '👎';
       default: return '💬';
     }
   };
@@ -2541,7 +2543,10 @@ function FeedbackTab({ token }) {
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-lg">{getCategoryIcon(f.category)}</span>
-                  <span className="text-white text-sm font-medium">{f.user_email}</span>
+                  <span className="text-white text-sm font-medium">{f.user_email || 'Unknown'}</span>
+                  {f.source === 'message_feedback' && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400">Chat Feedback</span>
+                  )}
                   {f.anonymous && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400">Anonymous</span>
                   )}
@@ -2550,8 +2555,11 @@ function FeedbackTab({ token }) {
                     f.category === 'feature' ? 'bg-blue-500/20 text-blue-400' :
                     'bg-gray-500/20 text-gray-400'
                   }`}>{f.category}</span>
-                  {f.rating && (
+                  {f.rating && typeof f.rating === 'number' && (
                     <span className="text-orange-400 text-xs">{'★'.repeat(f.rating)}{'☆'.repeat(5 - f.rating)}</span>
+                  )}
+                  {f.rating && (f.rating === 'up' || f.rating === 'down') && (
+                    <span className={`text-lg ${f.rating === 'up' ? 'text-green-400' : 'text-red-400'}`}>{f.rating === 'up' ? '👍' : '👎'}</span>
                   )}
                   {f.attachment && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">📎 Has Screenshot</span>
