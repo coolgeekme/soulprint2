@@ -9,6 +9,10 @@ const nextConfig = {
   },
   webpack(config, { dev }) {
     if (dev) {
+      // Disable persistent filesystem cache to prevent corruption 
+      // with large API route files (26k+ lines)
+      config.cache = false;
+      
       // Reduce CPU/memory from file watching
       config.watchOptions = {
         poll: 2000, // check every 2 seconds
