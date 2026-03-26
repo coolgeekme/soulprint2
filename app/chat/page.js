@@ -6962,19 +6962,9 @@ export default function ChatPage() {
               title: `🎬 ${task.type === 'image' ? 'Image' : 'Video'} Ready!`,
               description: isInSameConv 
                 ? `Your ${task.modelLabel || 'AI'} ${task.type || 'video'} is ready.`
-                : `${task.modelLabel || 'AI'} ${task.type || 'video'} ready in "${task.conversationTitle}"`,
+                : `${task.modelLabel || 'AI'} ${task.type || 'video'} ready in "${task.conversationTitle}". Click to view.`,
               duration: 6000,
-              className: 'bg-[#1a1f2e] border-orange-500/30 text-white',
-              ...((!isInSameConv && task.conversationId) ? {
-                action: (
-                  <button 
-                    onClick={() => loadConversation(task.conversationId)}
-                    className="text-xs bg-orange-500/20 hover:bg-orange-500/40 text-orange-400 px-3 py-1.5 rounded-md transition-colors whitespace-nowrap"
-                  >
-                    View
-                  </button>
-                ),
-              } : {}),
+              className: 'bg-[#1a1f2e] border-orange-500/30 text-white cursor-pointer',
             });
           }
         }
