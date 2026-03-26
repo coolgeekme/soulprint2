@@ -120,7 +120,11 @@ class RouteDecompositionTester:
             "/api/admin/insights",
             "/api/admin/pricing-features",
             "/api/admin/beta-codes",
-            "/api/admin/blog/posts"
+            "/api/admin/blog/posts",
+            "/api/admin/invites/stats",
+            "/api/admin/waitlist",
+            "/api/admin/settings",
+            "/api/admin/voice-sessions"
         ]
         
         results = []
@@ -172,9 +176,10 @@ class RouteDecompositionTester:
     def test_user_routes(self):
         """Test user routes - should require auth"""
         user_endpoints = [
-            "/api/user/voice-settings",
-            "/api/user/profile", 
-            "/api/user/timezone"
+            "/api/user/profile",
+            "/api/user/voice-settings", 
+            "/api/user/timezone",
+            "/api/user/memories"
         ]
         
         results = []
@@ -196,12 +201,84 @@ class RouteDecompositionTester:
         
         return all(results)
     
+    def test_voice_routes(self):
+        """Test voice routes - should require auth"""
+        voice_endpoints = [
+            "/api/voice/system-prompt",
+            "/api/voice/stats",
+            "/api/voice/settings"
+        ]
+        
+        results = []
+        for endpoint in voice_endpoints:
+            # Test without auth (should get 401)
+            result = self.test_endpoint(
+                "GET", endpoint, [401, 403], 
+                f"Voice endpoint without auth", require_auth=False
+            )
+            results.append(result)
+            
+            # Test with auth (should work or return proper error)
+            if self.auth_token:
+                result = self.test_endpoint(
+                    "GET", endpoint, [200, 401, 403, 400], 
+                    f"Voice endpoint with auth", require_auth=True
+                )
+                results.append(result)
+        
+        return all(results)
+    
+    def test_telegram_routes(self):
+        """Test telegram routes - should require auth or specific validation"""
+        telegram_endpoints = [
+            ("/api/telegram/status", "GET", [401, 403]),
+            ("/api/telegram/setup", "GET", [401, 403]),
+            ("/api/telegram/link", "POST", [401, 403])
+        ]
+        
+        results = []
+        for endpoint, method, expected_codes in telegram_endpoints:
+            # Test without auth
+            result = self.test_endpoint(
+                method, endpoint, expected_codes, 
+                f"Telegram endpoint without auth", require_auth=False
+            )
+            results.append(result)
+            
+            # Test with auth
+            if self.auth_token:
+                result = self.test_endpoint(
+                    method, endpoint, [200, 401, 403, 400], 
+                    f"Telegram endpoint with auth", require_auth=True
+                )
+                results.append(result)
+        
+        return all(results)
+    
+    def test_slack_routes(self):
+        """Test slack routes - webhook should handle challenge"""
+        # Test Slack webhook with challenge
+        challenge_data = {"type": "url_verification", "challenge": "test"}
+        result = self.test_endpoint(
+            "POST", "/api/slack/webhook", [200], 
+            f"Slack webhook challenge", require_auth=False, data=challenge_data
+        )
+        
+        return result
+    
     def test_catch_all_routes(self):
         """Test routes that should still be in the catch-all handler"""
         catch_all_endpoints = [
-            ("/api/blog/posts", "GET", [200]),  # Public endpoint
+            ("/api/health", "GET", [200]),  # Health endpoint
+            ("/api/auth/me", "GET", [401, 403]),  # Auth endpoint
             ("/api/conversations", "GET", [401, 403]),  # Auth required
-            ("/api/messages", "GET", [401, 403])  # Auth required
+            ("/api/blog/posts", "GET", [200]),  # Public endpoint
+            ("/api/messages", "GET", [401, 403]),  # Auth required
+            ("/api/media/pending", "GET", [401, 403]),  # Auth required
+            ("/api/announcements", "GET", [401, 403]),  # Auth required
+            ("/api/memories", "GET", [401, 403]),  # Auth required
+            ("/api/auth/login", "POST", [404, 400]),  # Login with test data should return 404 (user not found)
+            ("/api/feedback", "POST", [401, 403])  # Feedback requires auth
         ]
         
         results = []
@@ -211,6 +288,22 @@ class RouteDecompositionTester:
                 result = self.test_endpoint(
                     method, endpoint, expected_codes, 
                     f"Public catch-all endpoint", require_auth=False
+                )
+                results.append(result)
+            elif endpoint == "/api/auth/login":
+                # Special case for login test
+                login_data = {"email": "test", "passcode": "test"}
+                result = self.test_endpoint(
+                    method, endpoint, expected_codes, 
+                    f"Login with test credentials (should return 404)", require_auth=False, data=login_data
+                )
+                results.append(result)
+            elif endpoint == "/api/feedback":
+                # Special case for feedback test
+                feedback_data = {"message": "test"}
+                result = self.test_endpoint(
+                    method, endpoint, expected_codes, 
+                    f"Feedback without auth", require_auth=False, data=feedback_data
                 )
                 results.append(result)
             else:
@@ -252,6 +345,18 @@ class RouteDecompositionTester:
         # Test admin routes
         print("\n🔐 Testing Admin Routes...")
         admin_result = self.test_admin_routes()
+        
+        # Test voice routes
+        print("\n🎤 Testing Voice Routes...")
+        voice_result = self.test_voice_routes()
+        
+        # Test telegram routes
+        print("\n📱 Testing Telegram Routes...")
+        telegram_result = self.test_telegram_routes()
+        
+        # Test slack routes
+        print("\n💬 Testing Slack Routes...")
+        slack_result = self.test_slack_routes()
         
         # Test Google routes  
         print("\n🔗 Testing Google OAuth Routes...")

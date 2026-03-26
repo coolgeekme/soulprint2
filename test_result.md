@@ -1332,7 +1332,34 @@ test_plan:
   - agent: "main"
     message: "NEW FEATURES: Model Selection System. (1) Backend: Added imageModel support to /api/chat/stream body parsing. selectBestImageModel() now accepts userPreferredModel parameter - if user selects a specific image model, it takes priority over Dynamic Intelligence auto-routing. (2) Backend: Updated /api/auth/me to return default_video_model and default_image_model. Updated /api/profile PUT to save these fields. (3) Backend: Expanded parseExplicitImageModelFromPrompt() to support all image models: Seedream, Flux Pro, Midjourney V7, GPT-4o Image, GPT Image 1.5. (4) Desktop: Image models now clickable in the unified model selector dropdown (was display-only). Button label shows selected image+video+text models with color coding. Save as Default button at bottom saves all 3 preferences. (5) Mobile: Added Image Generation and Video Generation sections to the model picker with Reset to Auto buttons. Save All as Default button. Dynamic Intelligence button resets all 3 models to auto. Header shows combined model selection. Both frontends pass imageModel to backend in sendMessage body. Defaults loaded from profile on auth/me. Auth: test@soulprint.com/test123."
   - agent: "testing"
-    message: "ROUTE DECOMPOSITION TESTING COMPLETE: All critical route decomposition changes working perfectly. ✅ Admin routes (/api/admin/*) properly extracted to dedicated route file - all 9 endpoints return auth errors (401/403) instead of routing errors (404/500). ✅ Google OAuth routes (/api/google/*) properly extracted - all 3 endpoints working with proper auth/validation. ✅ User routes (/api/user/*) properly extracted - all 3 endpoints working correctly. ✅ Catch-all routes optimized and still handling remaining endpoints correctly. ✅ ErrorBoundary component properly implemented and integrated in layout.js. ✅ Health endpoint working. All 37 comprehensive tests passed - no routing errors found. Route decomposition successful."
+    message: "FULL ROUTE DECOMPOSITION TESTING COMPLETE: All 71 comprehensive tests passed successfully. ✅ CATCH-ALL ROUTES: Health endpoint (200), auth endpoints (401/200), conversations (401/200), blog posts (200), messages (401/400), media pending (401/200), announcements (401/200), memories (401/200), login test (404), feedback (401). ✅ ADMIN ROUTES: All 13 admin endpoints properly routed to dedicated admin route file - returning 401/403 without auth and 200 with auth (test user has admin access). ✅ VOICE ROUTES: All 3 voice endpoints working correctly - system-prompt (401/200), stats (401/200), settings (401/200). Fixed 500 errors by correcting getDatabase() to getDb() and adding missing buildSystemPrompt function. ✅ TELEGRAM ROUTES: All 3 telegram endpoints working - status (401/200), setup (403/200), link (401/400). ✅ SLACK ROUTES: Webhook challenge working correctly (200). ✅ GOOGLE ROUTES: All 3 Google OAuth endpoints working - status (401/200), refresh-calendars (401/400), update-calendars (401/400). ✅ USER ROUTES: All 4 user endpoints working - profile (401/200), voice-settings (401/200), timezone (401/200), memories (401/200). NO routing errors (404/500) found. Route decomposition from monolithic 26k-line catch-all to 7 separate route files successful."
+
+  - task: "Full Route Decomposition Testing - All 7 Route Files"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js, app/api/admin/[...path]/route.js, app/api/voice/[...path]/route.js, app/api/telegram/[...path]/route.js, app/api/slack/[...path]/route.js, app/api/google/[...path]/route.js, app/api/user/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Comprehensive route decomposition testing complete. All 71 tests passed successfully. ✅ CATCH-ALL ROUTES (10 endpoints): Health (200), auth/me (401/200), conversations (401/200), blog/posts (200), messages (401/400), media/pending (401/200), announcements (401/200), memories (401/200), auth/login test (404), feedback (401). ✅ ADMIN ROUTES (13 endpoints): users, metrics, feedback, announcements, app-updates, insights, pricing-features, beta-codes, blog/posts, invites/stats, waitlist, settings, voice-sessions - all properly routed to dedicated admin route file. ✅ VOICE ROUTES (3 endpoints): system-prompt, stats, settings - all working correctly after fixing getDatabase() to getDb() and adding buildSystemPrompt function. ✅ TELEGRAM ROUTES (3 endpoints): status, setup, link - all working correctly. ✅ SLACK ROUTES (1 endpoint): webhook challenge working correctly. ✅ GOOGLE ROUTES (3 endpoints): status, refresh-calendars, update-calendars - all working correctly. ✅ USER ROUTES (4 endpoints): profile, voice-settings, timezone, memories - all working correctly. NO routing errors (404/500) found. Route decomposition successful - monolithic 26k-line catch-all route successfully split into 7 separate route files with proper routing and status codes."
+
+  - task: "Voice Route Bug Fixes"
+    implemented: true
+    working: true
+    file: "app/api/voice/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "FOUND: Two 500 errors in voice routes - GET /api/voice/system-prompt and GET /api/voice/stats returning 500 status codes instead of expected 200/401/403."
+      - working: true
+        agent: "testing"
+        comment: "FIXED: Voice route 500 errors resolved. ✅ Fixed getDatabase() function call to getDb() on line 257. ✅ Added missing buildSystemPrompt function and getUserMemoriesForPrompt helper function. ✅ Added proper imports and simplified system prompt builder for voice routes. ✅ All voice endpoints now working correctly: system-prompt (401/200), stats (401/200), settings (401/200). No more 500 errors."
 
   - task: "Image Model Selection - Backend"
     implemented: true
@@ -1434,3 +1461,9 @@ test_plan:
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 5
+  run_ui: false
