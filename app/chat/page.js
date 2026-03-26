@@ -8617,6 +8617,20 @@ export default function ChatPage() {
   }, [token]);
 
   async function loadConversation(convId) {
+    // Abort any active SSE stream so user can interact with new chat
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    // Reset all generating/loading states
+    setLoading(false);
+    setIsGeneratingVisual(false);
+    setVisualGenerationType('');
+    setStreamingImageUrl(null);
+    setStreamingVideoTask(null);
+    setStreamingContent('');
+    setStreamingSources(null);
+    
     setConversationId(convId);
     setMessages([]);
     try {
@@ -8628,6 +8642,20 @@ export default function ChatPage() {
   }
 
   function newConversation() {
+    // Abort any active SSE stream so user can interact with new chat
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    // Reset all generating/loading states
+    setLoading(false);
+    setIsGeneratingVisual(false);
+    setVisualGenerationType('');
+    setStreamingImageUrl(null);
+    setStreamingVideoTask(null);
+    setStreamingContent('');
+    setStreamingSources(null);
+    
     setConversationId(null);
     const greet = user?.profile?.display_name || 'there';
     const botName = user?.profile?.assistant_name || 'SoulPrint';

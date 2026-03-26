@@ -3538,6 +3538,19 @@ export default function MobileChat({
 
   // New conversation
   const newConversation = () => {
+    // Abort any active SSE stream so user can interact with new chat
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    // Reset all generating/loading states
+    setLoading(false);
+    setIsGeneratingVisual(false);
+    setVisualGenerationType('');
+    setStreamingImageUrl(null);
+    setStreamingVideoTask(null);
+    setStreamingContent('');
+    
     setConversationId(null);
     const greet = profile?.display_name || user?.profile?.display_name || 'there';
     const customGreeting = profile?.custom_greeting || user?.profile?.custom_greeting;
@@ -3555,6 +3568,19 @@ export default function MobileChat({
 
   // Load conversation
   const loadConversation = (id) => {
+    // Abort any active SSE stream so user can interact with new chat
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    // Reset all generating/loading states
+    setLoading(false);
+    setIsGeneratingVisual(false);
+    setVisualGenerationType('');
+    setStreamingImageUrl(null);
+    setStreamingVideoTask(null);
+    setStreamingContent('');
+    
     setConversationId(id);
     setActiveTab('chat');
   };
