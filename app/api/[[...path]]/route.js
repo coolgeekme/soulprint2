@@ -10722,6 +10722,13 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 ? 'image_action' 
                 : 'google_action';
               send({ type: actionType, action: toolResult.tool, result: toolResult.result });
+              
+              // For image edits/mockups, also send the standard 'image' event 
+              // so the frontend reliably renders the image (consistent with direct edit path)
+              if (['edit_image', 'generate_mockup'].includes(toolResult.tool) && toolResult.result?.url) {
+                send({ type: 'image', url: toolResult.result.url, revised_prompt: toolResult.result.revisedPrompt || '' });
+                console.log('[Image Tool] Sent image event for tool result:', toolResult.result.url?.substring(0, 80));
+              }
             }
           }
         }
@@ -10873,6 +10880,17 @@ Style: Professional graphic design quality. Make it look like a skilled designer
         const estInputTokens = Math.round(inputText.length / 4);
         const estOutputTokens = Math.round(fullContent.length / 4);
 
+        // Extract image URL from tool results (for edit_image/generate_mockup tool calls)
+        let toolImageUrl = null;
+        if (customToolResults && customToolResults.length > 0) {
+          for (const tr of customToolResults) {
+            if (['edit_image', 'generate_mockup'].includes(tr.tool) && tr.result?.success && tr.result?.url) {
+              toolImageUrl = tr.result.url;
+              break;
+            }
+          }
+        }
+
         // Save assistant message
         await db.collection('messages').insertOne({
           id: assistantMsgId, conversation_id: convId, user_id: user.id,
@@ -10880,6 +10898,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           model_used: model, provider_used: providerName,
           web_search_used: didSearch || preSearchDidSearch,
           sources: sources.length > 0 ? sources : undefined,
+          image_url: toolImageUrl || fullContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/)?.[1] || undefined,
           est_input_tokens: estInputTokens,
           est_output_tokens: estOutputTokens,
         });
