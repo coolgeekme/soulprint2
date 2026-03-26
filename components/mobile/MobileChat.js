@@ -11,6 +11,7 @@ import {
   Film, GalleryHorizontal
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import MessageErrorBoundary from '@/components/MessageErrorBoundary';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { MicrophoneIcon, SendIcon, SparklesIcon, AttachIcon, CloudUploadIcon } from '@/components/icons/SoulPrintIcons';
 import { useTheme } from '@/lib/providers/ThemeProvider';
@@ -1018,7 +1019,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
                 img: ({src, alt}) => <img src={src} alt={alt || ''} className="rounded-lg max-w-full" />,
               }}
             >
-              {message.content}
+              {typeof message.content === 'string' ? message.content : String(message.content || '')}
             </ReactMarkdown>
             
             {/* Sources Section */}
@@ -4585,6 +4586,7 @@ export default function MobileChat({
             {/* Messages */}
             <div className="px-2 pb-4">
               {messages.map((msg, idx) => (
+                <MessageErrorBoundary key={`eb-${msg.id || idx}`}>
                 <MessageBubble 
                   key={msg.id || idx} 
                   message={msg} 
@@ -4593,6 +4595,7 @@ export default function MobileChat({
                   onFeedback={handleFeedback}
                   token={token}
                 />
+                </MessageErrorBoundary>
               ))}
               
               {/* Streaming message — hide when video is generating (show animation instead) */}

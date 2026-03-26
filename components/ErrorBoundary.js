@@ -12,6 +12,29 @@ class ErrorBoundary extends React.Component {
     return { hasError: true, error };
   }
 
+  componentDidMount() {
+    // Catch unhandled promise rejections
+    this._onUnhandledRejection = (event) => {
+      console.error('[ErrorBoundary] Unhandled rejection:', event.reason);
+      event.preventDefault(); // Prevent the error from crashing the app
+    };
+    window.addEventListener('unhandledrejection', this._onUnhandledRejection);
+
+    // Catch runtime errors that React doesn't catch
+    this._onError = (event) => {
+      // Only catch non-CORS, non-network errors
+      if (event.message && !event.message.includes('Script error')) {
+        console.error('[ErrorBoundary] Global error:', event.message);
+      }
+    };
+    window.addEventListener('error', this._onError);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('unhandledrejection', this._onUnhandledRejection);
+    window.removeEventListener('error', this._onError);
+  }
+
   componentDidCatch(error, errorInfo) {
     console.error('[ErrorBoundary] Caught error:', error, errorInfo);
   }

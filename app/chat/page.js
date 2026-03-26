@@ -18,6 +18,7 @@ const RealtimeVoiceChat = dynamic(
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import MessageErrorBoundary from '@/components/MessageErrorBoundary';
 import {
   Plus, Mic, Send, Settings, ChevronLeft, ThumbsUp, ThumbsDown,
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
@@ -9769,6 +9770,7 @@ export default function ChatPage() {
             )}
             
             {messages.map((msg, idx) => (
+              <MessageErrorBoundary key={`eb-${msg.id || idx}`}>
               <div key={msg.id || idx} className={`msg-appear group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'assistant' && (
                   <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0 mt-0.5">
@@ -9907,7 +9909,7 @@ export default function ChatPage() {
                               th: ({children}) => <th className="border border-white/20 px-2 py-1 bg-white/5 text-left font-semibold">{children}</th>,
                               td: ({children}) => <td className="border border-white/10 px-2 py-1">{children}</td>,
                             }}>
-                            {msg.content}
+                            {typeof msg.content === 'string' ? msg.content : String(msg.content || '')}
                           </ReactMarkdown>
                         )}
                         
@@ -10014,6 +10016,7 @@ export default function ChatPage() {
                   )}
                 </div>
               </div>
+              </MessageErrorBoundary>
             ))}
 
             {/* Web searching indicator */}
@@ -10082,7 +10085,7 @@ export default function ChatPage() {
                             ? <code className="bg-white/10 px-1 rounded text-orange-300 text-[11px] sm:text-xs break-all">{children}</code> 
                             : <pre className="bg-sp-black p-2 sm:p-3 rounded-lg mt-2 overflow-x-auto text-[11px] sm:text-xs whitespace-pre-wrap break-words"><code>{children}</code></pre>,
                         }}>
-                        {streamingContent}
+                        {typeof streamingContent === 'string' ? streamingContent : String(streamingContent || '')}
                       </ReactMarkdown>
                       <span className="inline-block w-0.5 h-4 bg-orange-500 ml-0.5 animate-pulse" />
                       
