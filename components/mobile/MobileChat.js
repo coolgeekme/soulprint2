@@ -79,8 +79,9 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
 
   const handleRegenerateWith = (modelId) => {
     setShowModelPicker(false);
-    if (onRegenerateWith && prompt) {
-      onRegenerateWith(prompt, modelId);
+    const actualPrompt = prompt || 'Regenerate this image';
+    if (onRegenerateWith) {
+      onRegenerateWith(actualPrompt, modelId);
     }
   };
   
@@ -108,8 +109,8 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
             </a>
           </div>
         </div>
-        {/* Try Different Model */}
-        {onRegenerateWith && prompt && (
+        {/* Try Different Model - always show if callback is provided */}
+        {onRegenerateWith && (
           <div className="relative">
             <button
               onClick={() => setShowModelPicker(!showModelPicker)}
@@ -419,8 +420,9 @@ function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerat
 
   const handleRegenerateWith = (modelId) => {
     setShowModelPicker(false);
-    if (onRegenerateWith && prompt) {
-      onRegenerateWith(prompt, modelId);
+    const actualPrompt = prompt || 'Regenerate this video';
+    if (onRegenerateWith) {
+      onRegenerateWith(actualPrompt, modelId);
     }
   };
 
@@ -462,8 +464,8 @@ function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerat
             <Download className="w-3.5 h-3.5" /> Download
           </a>
         </div>
-        {/* Try Different Model */}
-        {onRegenerateWith && prompt && (
+        {/* Try Different Model - always show */}
+        {onRegenerateWith && (
           <div className="relative">
             <button
               onClick={() => setShowModelPicker(!showModelPicker)}
@@ -2782,6 +2784,9 @@ export default function MobileChat({
     setShowInstallPrompt(false);
   };
 
+  // Ref to track if initial conversation was auto-selected
+  const autoSelectedRef = useRef(false);
+
   // Load conversations
   useEffect(() => {
     if (!token) return;
@@ -2792,12 +2797,12 @@ export default function MobileChat({
         const convList = Array.isArray(data) ? data : [];
         setConversations(convList);
         
-        // Auto-select latest conversation if none selected and not explicitly viewing history
-        if (!conversationId && !initialConversationId && convList.length > 0 && activeTab === 'chat') {
-          // Find the most recent conversation (they should be sorted by updated_at desc)
+        // Auto-select latest conversation ONLY on first load and if none selected
+        if (!autoSelectedRef.current && !conversationId && !initialConversationId && convList.length > 0) {
           const latestConv = convList[0];
           if (latestConv?.id) {
             setConversationId(latestConv.id);
+            autoSelectedRef.current = true;
           }
         }
       })
