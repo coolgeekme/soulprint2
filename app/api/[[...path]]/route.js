@@ -320,7 +320,7 @@ Rules:
 Respond ONLY with valid JSON: {"model": "kling-3.0" or "veo3", "reason": "one sentence explanation"}`;
 
     const OpenAI = require('openai');
-    const openai = new OpenAI({ apiKey: process.env.EMERGENT_LLM_KEY || process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || process.env.EMERGENT_LLM_KEY });
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: selectionPrompt }],
