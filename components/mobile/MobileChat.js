@@ -7,7 +7,8 @@ import {
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
-  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon, MapPin, AudioWaveform
+  Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon, MapPin, AudioWaveform,
+  Film, GalleryHorizontal
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
@@ -96,11 +97,15 @@ function MobileImageCard({ url, modelLabel, token }) {
 }
 
 // ── MobileVideoCard: handles video generation with polling ─────────────────
-function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating' }) {
+function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel }) {
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
+  const [savedToGallery, setSavedToGallery] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState(0);
   const pollRef = useRef(null);
+  const startTimeRef = useRef(Date.now());
 
   useEffect(() => {
     if (status === 'success' || status === 'failed') return;
@@ -111,14 +116,18 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating' }
           headers: { Authorization: `Bearer ${token}` },
         });
         const d = await res.json();
-        if (d.status === 'completed' && d.url) {
+        if ((d.status === 'completed' || d.status === 'success') && (d.url || d.videoUrl)) {
           setStatus('success');
-          setVideoUrl(d.url);
+          setVideoUrl(d.url || d.videoUrl);
+          setProgress(100);
           clearInterval(pollRef.current);
         } else if (d.status === 'failed') {
           setStatus('failed');
           setError(d.error || 'Generation failed');
           clearInterval(pollRef.current);
+        } else {
+          const elapsed = (Date.now() - startTimeRef.current) / 1000;
+          setProgress(Math.min(90, Math.round((elapsed / 120) * 90)));
         }
       } catch (e) {}
     };
@@ -127,9 +136,153 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating' }
     return () => clearInterval(pollRef.current);
   }, [taskId, status, token]);
 
+  const saveToGallery = async () => {
+    if (saving || savedToGallery || !videoUrl) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/media/save-to-gallery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          url: videoUrl,
+          prompt: prompt || '',
+          model: modelLabel || 'unknown',
+          modelLabel: modelLabel || 'AI Generated',
+          type: 'video',
+        }),
+      });
+      if (res.ok) setSavedToGallery(true);
+    } catch (e) {}
+    finally { setSaving(false); }
+  };
+
   if (status === 'success' && videoUrl) {
     return (
       <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
+        <div className="bg-black">
+          <video
+            src={videoUrl}
+            controls
+            playsInline
+            className="w-full max-h-80 object-contain"
+          >
+            Your browser does not support the video tag.
+          </video>
+        </div>
+        <div className="p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-blue-400 flex items-center gap-1.5">
+                <Film className="w-3.5 h-3.5" /> Generated with {modelLabel || 'AI'}
+              </p>
+              {prompt && <p className="text-[10px] text-gray-600 mt-0.5 truncate">{prompt}</p>}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={saveToGallery}
+              disabled={saving || savedToGallery}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border text-xs rounded-xl transition-colors ${
+                savedToGallery 
+                  ? 'bg-green-500/20 border-green-500/30 text-green-400' 
+                  : saving
+                    ? 'bg-white/5 border-white/10 text-gray-500'
+                    : 'bg-purple-500/15 border-purple-500/30 text-purple-400 active:bg-purple-500/25'
+              }`}
+            >
+              {savedToGallery ? <><Check className="w-3.5 h-3.5" /> Saved</> : saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><GalleryHorizontal className="w-3.5 h-3.5" /> Save to Gallery</>}
+            </button>
+            <a href={videoUrl} target="_blank" rel="noopener noreferrer" download
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl active:bg-orange-500/25 transition-colors">
+              <Download className="w-3.5 h-3.5" /> Download
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'failed') {
+    return (
+      <div className="mb-3 rounded-2xl border border-red-500/20 bg-red-500/5 p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-red-500/15 flex items-center justify-center flex-shrink-0">
+            <X className="w-4 h-4 text-red-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-red-400">Video generation failed</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Generating state — animated loading
+  return (
+    <div className="mb-3 rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-purple-500/5 p-4 overflow-hidden relative">
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.02] to-transparent animate-pulse" />
+      <div className="relative">
+        {/* Video preview placeholder */}
+        <div className="aspect-video rounded-xl bg-black/30 border border-white/5 mb-3 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-10 h-10 rounded-full bg-blue-500/15 flex items-center justify-center mx-auto mb-2">
+              <Film className="w-5 h-5 text-blue-400 animate-pulse" />
+            </div>
+            <p className="text-xs font-medium text-blue-400">Creating your video...</p>
+            <p className="text-[10px] text-gray-600 mt-1">{modelLabel || 'AI'}</p>
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden mb-2">
+          <div 
+            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-1000 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
+            <p className="text-[11px] text-gray-400">
+              {progress < 30 ? 'Queuing...' : progress < 60 ? 'Rendering frames...' : progress < 90 ? 'Almost done...' : 'Finalizing...'}
+            </p>
+          </div>
+          <p className="text-[10px] text-gray-600">~1-3 min</p>
+        </div>
+        <p className="text-[10px] text-gray-700 mt-2 truncate italic">"{prompt}"</p>
+      </div>
+    </div>
+  );
+}
+
+// ── MobileSavedVideoCard: displays a saved video from database with matching UX ─
+function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token }) {
+  const [savedToGallery, setSavedToGallery] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const saveToGallery = async () => {
+    if (saving || savedToGallery || !videoUrl) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/media/save-to-gallery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          url: videoUrl,
+          prompt: prompt || '',
+          model: modelLabel || 'unknown',
+          modelLabel: modelLabel || 'AI Generated',
+          type: 'video',
+        }),
+      });
+      if (res.ok) setSavedToGallery(true);
+    } catch (e) {}
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
+      <div className="bg-black">
         <video
           src={videoUrl}
           controls
@@ -138,48 +291,39 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating' }
         >
           Your browser does not support the video tag.
         </video>
-        <div className="p-3 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-green-400 text-xs">
-            <Video className="w-3.5 h-3.5" /> Video ready!
-          </div>
+      </div>
+      <div className="p-3 space-y-2">
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-blue-400 flex items-center gap-1.5">
+            <Film className="w-3.5 h-3.5" /> {modelLabel ? `Generated with ${modelLabel}` : 'Video'}
+          </p>
+          {prompt && <p className="text-[10px] text-gray-600 mt-0.5 truncate">{prompt}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={saveToGallery}
+            disabled={saving || savedToGallery}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border text-xs rounded-xl transition-colors ${
+              savedToGallery 
+                ? 'bg-green-500/20 border-green-500/30 text-green-400' 
+                : saving
+                  ? 'bg-white/5 border-white/10 text-gray-500'
+                  : 'bg-purple-500/15 border-purple-500/30 text-purple-400 active:bg-purple-500/25'
+            }`}
+          >
+            {savedToGallery ? <><Check className="w-3.5 h-3.5" /> Saved</> : saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><GalleryHorizontal className="w-3.5 h-3.5" /> Save to Gallery</>}
+          </button>
           <a href={videoUrl} target="_blank" rel="noopener noreferrer" download
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl">
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl active:bg-orange-500/25 transition-colors">
             <Download className="w-3.5 h-3.5" /> Download
           </a>
         </div>
       </div>
-    );
-  }
-
-  if (status === 'failed') {
-    return (
-      <div className="mb-3 rounded-2xl border border-red-500/20 bg-red-500/5 p-3">
-        <p className="text-xs text-red-400 flex items-center gap-1.5">
-          <X className="w-3.5 h-3.5" /> Video generation failed: {error}
-        </p>
-      </div>
-    );
-  }
-
-  // Generating state
-  return (
-    <div className="mb-3 rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-orange-500/15 flex items-center justify-center">
-          <Video className="w-4 h-4 text-orange-400 animate-pulse" />
-        </div>
-        <div className="flex-1">
-          <p className="text-xs font-semibold text-orange-400 flex items-center gap-2">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            Generating video...
-          </p>
-          <p className="text-[10px] text-gray-500 mt-0.5">This takes 1-3 minutes</p>
-        </div>
-      </div>
-      <p className="text-[10px] text-gray-600 mt-2 truncate italic">"{prompt}"</p>
     </div>
   );
 }
+
+
 
 // Image Generation Models (matching desktop) - no pricing shown
 const IMAGE_MODELS = [
@@ -597,23 +741,12 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           
           {/* Show generated video */}
           {message.video_url && !message.video_task && (
-            <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
-              <video 
-                src={message.video_url} 
-                controls 
-                playsInline
-                className="w-full h-auto max-h-80 bg-black/20"
-              />
-              <div className="p-3 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-green-400 text-xs">
-                  <Video className="w-3.5 h-3.5" /> Video ready!
-                </div>
-                <a href={message.video_url} target="_blank" rel="noopener noreferrer" download
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl">
-                  <Download className="w-3.5 h-3.5" /> Download
-                </a>
-              </div>
-            </div>
+            <MobileSavedVideoCard 
+              videoUrl={message.video_url} 
+              modelLabel={message.model_label} 
+              prompt={message.video_task?.prompt || message.generation_params?.prompt || ''} 
+              token={token}
+            />
           )}
           
           {/* Show video task with polling */}
@@ -623,6 +756,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               prompt={message.video_task.prompt || 'Video generation'}
               token={token}
               initialStatus={message.video_task.status}
+              modelLabel={message.model_label}
             />
           )}
           

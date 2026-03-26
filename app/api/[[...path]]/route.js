@@ -9821,6 +9821,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 id: assistantMsgId, conversation_id: convId, user_id: user.id,
                 role: 'assistant', content: fullContent, created_at: new Date(),
                 model_used: 'kling-3.0', provider_used: 'kie.ai', content_type: 'video',
+                model_label: 'Kling 3.0',
                 video_task: videoTaskData,
                 est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
               });
@@ -11771,7 +11772,7 @@ async function handleMediaStatusByTaskId(request, taskId) {
     
     // If job is already complete/failed
     if (videoJob.status === 'success' && videoJob.video_url) {
-      return ok({ status: 'completed', url: videoJob.video_url, thumbnail_url: videoJob.thumbnail_url });
+      return ok({ status: 'success', url: videoJob.video_url, videoUrl: videoJob.video_url, thumbnail_url: videoJob.thumbnail_url, thumbnailUrl: videoJob.thumbnail_url });
     }
     if (videoJob.status === 'failed') {
       return ok({ status: 'failed', error: videoJob.error });
@@ -11794,7 +11795,7 @@ async function handleMediaStatusByTaskId(request, taskId) {
           { task_id: taskId },
           { $set: { status: 'success', video_url: videoUrl, thumbnail_url: thumbnailUrl, completed_at: new Date() } }
         );
-        return ok({ status: 'completed', url: videoUrl, thumbnail_url: thumbnailUrl });
+        return ok({ status: 'success', url: videoUrl, videoUrl: videoUrl, thumbnail_url: thumbnailUrl, thumbnailUrl: thumbnailUrl });
       } else if (state === 'failed' || state === 'fail') {
         const error = data.data?.error || 'Generation failed';
         await db.collection('video_jobs').updateOne(
@@ -11991,6 +11992,42 @@ async function handleDeleteMedia(request, mediaId) {
 
   return ok({ success: true, deletedId: mediaId });
 }
+
+// Save media item to gallery (from chat card)
+async function handleSaveToGallery(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { url, prompt, model, modelLabel, type, conversationId } = body;
+  if (!url) return err('url required');
+
+  try {
+    const db = await getDb();
+    const mediaId = uuidv4();
+    
+    await db.collection('media_gallery').insertOne({
+      id: mediaId,
+      user_id: user.id,
+      type: type || 'image',
+      model: model || 'unknown',
+      model_label: modelLabel || model || 'AI Generated',
+      prompt: prompt || '',
+      url: url,
+      conversation_id: conversationId || null,
+      credits_used: 0,
+      cost_usd: 0,
+      created_at: new Date(),
+      expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+    });
+
+    return ok({ success: true, mediaId });
+  } catch (error) {
+    console.error('[SaveToGallery] Error:', error);
+    return err(error.message || 'Failed to save to gallery', 500);
+  }
+}
+
 
 // FEEDBACK - Submit
 async function handleSubmitFeedback(request) {
@@ -24946,6 +24983,11 @@ export async function GET(request, { params }) {
       const taskId = pathStr.replace('media/status/', '');
       return handleMediaStatusByTaskId(request, taskId);
     }
+    if (pathStr.startsWith('media/video/status/')) {
+      // Support /api/media/video/status/:taskId format (desktop VideoCard)
+      const taskId = pathStr.replace('media/video/status/', '');
+      return handleMediaStatusByTaskId(request, taskId);
+    }
     if (pathStr === 'media/recommend') return handleMediaRecommend(request);
     if (pathStr === 'imports/status') return handleImportStatus(request);
     if (pathStr === 'pwa/install-status') return handleGetInstallPromptStatus(request);
@@ -25040,6 +25082,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'generate/image-kie') return handleGenerateImageKie(request);
     if (pathStr === 'generate/video') return handleGenerateVideo(request);
     if (pathStr === 'media/generate') return handleMediaGenerate(request);
+    if (pathStr === 'media/save-to-gallery') return handleSaveToGallery(request);
     if (pathStr === 'media/convert-to-pdf') return handleConvertToPdf(request);
     if (pathStr === 'parse/document') return handleParseDocument(request);
     if (pathStr === 'analyze/image-to-json') return handleImageToJson(request);
