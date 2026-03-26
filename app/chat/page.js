@@ -479,6 +479,8 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
   const [progress, setProgress] = useState(0);
   const pollRef = useRef(null);
   const startTimeRef = useRef(Date.now());
+  const onVideoReadyRef = useRef(onVideoReady);
+  useEffect(() => { onVideoReadyRef.current = onVideoReady; }, [onVideoReady]);
 
   useEffect(() => {
     if (status === 'success' || status === 'failed') return;
@@ -504,7 +506,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
               body: JSON.stringify({ video_url: vUrl, thumbnail_url: tUrl }),
             }).catch(() => {});
           }
-          if (onVideoReady) onVideoReady(vUrl);
+          if (onVideoReadyRef.current) onVideoReadyRef.current(vUrl);
         } else if (d.status === 'failed') {
           setStatus('failed');
           setError(d.error || 'Generation failed');
@@ -519,7 +521,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
     poll();
     pollRef.current = setInterval(poll, 6000);
     return () => clearInterval(pollRef.current);
-  }, [taskId, status, token, messageId, onVideoReady]);
+  }, [taskId, status, token, messageId]);
 
   const saveToGallery = async () => {
     if (saving || savedToGallery || !videoUrl) return;
@@ -7725,8 +7727,8 @@ export default function ChatPage() {
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
             } else if (data.type === 'video_task') {
-              // Video job started – store taskId for polling
-              setStreamingVideoTask({ taskId: data.taskId, status: 'generating', prompt: data.prompt });
+              // Video job started – store taskId for polling (include messageId for DB persistence)
+              setStreamingVideoTask({ taskId: data.taskId, status: 'generating', prompt: data.prompt, messageId: data.messageId });
               // Dismiss the generating_visual animation — the VideoCard takes over
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
@@ -7803,8 +7805,10 @@ export default function ChatPage() {
             } else if (data.type === 'done') {
               setStreamingStalled(false);
               setLastChunkTime(null);
+              // Use real messageId from backend if available (critical for video PATCH calls)
+              const realMessageId = data.messageId || streamingVideoTaskRef.current?.messageId;
               const finalMsg = {
-                id: `a-${Date.now()}`,
+                id: realMessageId || `a-${Date.now()}`,
                 role: 'assistant',
                 content: fullContent,
                 created_at: new Date().toISOString(),
@@ -9457,6 +9461,12 @@ export default function ChatPage() {
                             initialStatus={msg.video_task.status === 'success' ? 'success' : 'generating'}
                             modelLabel={msg.model_label || 'Kling 3.0'}
                             messageId={msg.id}
+                            onVideoReady={(videoUrl) => {
+                              // Update the message in state so SavedVideoCard takes over
+                              setMessages(prev => prev.map(m => 
+                                m.id === msg.id ? { ...m, video_url: videoUrl } : m
+                              ));
+                            }}
                           />
                         )}
                         {/* Saved video - direct URL from database */}
@@ -9634,6 +9644,7 @@ export default function ChatPage() {
                       token={token}
                       initialStatus={streamingVideoTask.status}
                       modelLabel="Kling 3.0"
+                      messageId={streamingVideoTask.messageId}
                     />
                   )}
                   {/* Regular text (only if not a pure image/video message) */}

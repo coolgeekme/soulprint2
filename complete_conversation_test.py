@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://ai-image-craft-18.preview.emergentagent.com/api"
+BASE_URL = "https://chat-history-video.preview.emergentagent.com/api"
 
 def main():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 Complete Conversation API Test (Rename + Delete)")

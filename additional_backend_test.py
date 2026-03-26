@@ -8,7 +8,7 @@ import json
 import time
 import sys
 
-BASE_URL = "https://ai-image-craft-18.preview.emergentagent.com"
+BASE_URL = "https://chat-history-video.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"

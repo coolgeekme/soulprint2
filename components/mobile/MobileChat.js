@@ -97,7 +97,7 @@ function MobileImageCard({ url, modelLabel, token }) {
 }
 
 // ── MobileVideoCard: handles video generation with polling ─────────────────
-function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId }) {
+function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady }) {
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
@@ -130,6 +130,7 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
               body: JSON.stringify({ video_url: vUrl, thumbnail_url: d.thumbnailUrl || d.thumbnail_url }),
             }).catch(() => {});
           }
+          if (onVideoReady) onVideoReady(vUrl);
         } else if (d.status === 'failed') {
           setStatus('failed');
           setError(d.error || 'Generation failed');
@@ -749,7 +750,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           )}
           
           {/* Show generated video */}
-          {message.video_url && !message.video_task && (
+          {message.video_url && (
             <MobileSavedVideoCard 
               videoUrl={message.video_url} 
               modelLabel={message.model_label} 
@@ -767,6 +768,12 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               initialStatus={message.video_task.status === 'success' ? 'success' : 'generating'}
               modelLabel={message.model_label || 'Kling 3.0'}
               messageId={message.id}
+              onVideoReady={(videoUrl) => {
+                // Update the message in state so MobileSavedVideoCard takes over
+                setMessages(prev => prev.map(m => 
+                  m.id === message.id ? { ...m, video_url: videoUrl } : m
+                ));
+              }}
             />
           )}
           
@@ -3000,6 +3007,7 @@ export default function MobileChat({
       let dynamicIntelligenceReason = null;
       let streamingImageUrl = null;
       let streamingVideoTask = null;
+      let doneMessageId = null;
 
       while (reader) {
         const { done, value } = await reader.read();
@@ -3059,7 +3067,7 @@ export default function MobileChat({
               setVisualGenerationType('');
             } else if (data.type === 'video_task') {
               // Video job started — save to state for rendering MobileVideoCard during streaming
-              streamingVideoTask = { taskId: data.taskId, status: 'generating', prompt: data.prompt };
+              streamingVideoTask = { taskId: data.taskId, status: 'generating', prompt: data.prompt, messageId: data.messageId };
               setStreamingVideoTask(streamingVideoTask);
               // Keep isGeneratingVisual showing until the message is saved
               // The MobileVideoCard in the message list will take over after streaming ends
@@ -3070,15 +3078,20 @@ export default function MobileChat({
               // Backend is auto-continuing a truncated response — keep streaming
               console.log(`[Chat] Auto-continuation ${data.count}/${data.max}`);
             } else if (data.type === 'done') {
-              // Message complete
+              // Message complete — capture messageId if present
+              if (data.messageId) {
+                doneMessageId = data.messageId;
+              }
             }
           } catch {}
         }
       }
 
       if (fullContent) {
+        // Use real messageId from backend if available (critical for video PATCH calls)
+        const realMsgId = doneMessageId || streamingVideoTask?.messageId;
         setMessages(prev => [...prev, {
-          id: `a-${Date.now()}`,
+          id: realMsgId || `a-${Date.now()}`,
           role: 'assistant',
           content: fullContent,
           model_used: actualModelUsed,
@@ -4190,6 +4203,7 @@ export default function MobileChat({
                     token={token}
                     initialStatus="generating"
                     modelLabel="Kling 3.0"
+                    messageId={streamingVideoTask.messageId}
                   />
                 </div>
               )}
