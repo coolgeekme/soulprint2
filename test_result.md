@@ -106,6 +106,8 @@ user_problem_statement: "SoulPrint Engine — Multi-model AI chat with image/vid
 
 agent_communication:
   - agent: "main"
+    message: "PWA IMAGE GENERATION FIX: Fixed critical bug in MobileChat.js where image generation wasn't displaying on PWA. Issue: The `streamingImageUrl` state was never defined - only `setStreamingImageUrl(null)` was called but the useState was missing. FIX: (1) Added `const [streamingImageUrl, setStreamingImageUrl] = useState(null)` state. (2) Updated sendMessage to set state when image event arrives via `setStreamingImageUrl(data.url)`. (3) Added live streaming image rendering with MobileImageCard component. (4) Fixed variable shadowing by renaming local variables to `localStreamingImageUrl` and `localStreamingVideoTask`. Backend testing confirms image generation working perfectly with SSE events."
+  - agent: "main"
     message: "GEMINI IMAGE EDITING + INLINE EDITOR: (1) Backend: Added Gemini as primary editor (METHOD 0) in handleImageEditInternal before GPT-image-1. Updated /api/image/edit to support overlayImage parameter. (2) Frontend: Rewrote ImageEditor component with file upload for logos, mobile-responsive layout, text editing. Edit button visible on mobile. (3) Loading animation for compositing. Need to test: POST /api/image/edit with Gemini as default engine, overlay image support."
   - agent: "main"
     message: "SESSION RESTART: Trimmed test_result.md to fix testing subagent context length crash. All previous test results preserved in compact form. Ready for backend testing of image/edit and composite endpoints. Auth: test@soulprint.com/test123"
