@@ -14,6 +14,7 @@ import ReactMarkdown from 'react-markdown';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { MicrophoneIcon, SendIcon, SparklesIcon, AttachIcon, CloudUploadIcon } from '@/components/icons/SoulPrintIcons';
 import { useTheme } from '@/lib/providers/ThemeProvider';
+import { useToast } from '@/hooks/use-toast';
 
 // Full MODELS list matching desktop
 const MODELS = [
@@ -2455,6 +2456,74 @@ export default function MobileChat({
   const fileInputRef = useRef(null);
   const inputContainerRef = useRef(null);
 
+  // ── Global Media Notification System ──
+  const { toast } = useToast();
+  const notifiedTasksRef = useRef(new Set());
+  const mediaPollIntervalRef = useRef(null);
+  const conversationIdRef = useRef(conversationId);
+  useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
+
+  useEffect(() => {
+    if (!token) return;
+    
+    const pollPendingMedia = async () => {
+      try {
+        const res = await fetch('/api/media/pending', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const tasks = await res.json();
+        
+        for (const task of tasks) {
+          if (task.status === 'success' && !notifiedTasksRef.current.has(task.taskId)) {
+            notifiedTasksRef.current.add(task.taskId);
+            
+            const isInSameConv = conversationIdRef.current === task.conversationId;
+            
+            // Update messages if in the same conversation
+            if (isInSameConv) {
+              setMessages(prev => prev.map(m => {
+                if (m.video_task?.taskId === task.taskId) {
+                  return { ...m, video_url: task.videoUrl, video_task: { ...m.video_task, status: 'success' } };
+                }
+                return m;
+              }));
+            }
+            
+            // Show toast notification
+            toast({
+              title: `🎬 ${task.type === 'image' ? 'Image' : 'Video'} Ready!`,
+              description: isInSameConv 
+                ? `Your ${task.modelLabel || 'AI'} ${task.type || 'video'} is ready.`
+                : `${task.modelLabel || 'AI'} ${task.type || 'video'} ready in "${task.conversationTitle}"`,
+              duration: 6000,
+              className: 'bg-[#1a1f2e] border-orange-500/30 text-white',
+              ...((!isInSameConv && task.conversationId) ? {
+                action: (
+                  <button 
+                    onClick={() => { loadConversation(task.conversationId); }}
+                    className="text-xs bg-orange-500/20 hover:bg-orange-500/40 text-orange-400 px-3 py-1.5 rounded-md transition-colors whitespace-nowrap"
+                  >
+                    View
+                  </button>
+                ),
+              } : {}),
+            });
+          }
+        }
+      } catch (e) {
+        // Silently fail
+      }
+    };
+    
+    pollPendingMedia();
+    mediaPollIntervalRef.current = setInterval(pollPendingMedia, 10000);
+    
+    return () => {
+      if (mediaPollIntervalRef.current) clearInterval(mediaPollIntervalRef.current);
+    };
+  }, [token, toast]);
+
   // Speech recognition
   const speech = useSpeechRecognition({
     token,
@@ -3298,7 +3367,8 @@ export default function MobileChat({
                 taskId: data.taskId, status: 'generating', prompt: data.prompt, 
                 messageId: data.messageId,
                 videoModel: data.videoModel, videoModelLabel: data.videoModelLabel, 
-                videoModelReason: data.videoModelReason 
+                videoModelReason: data.videoModelReason,
+                sourceImage: data.sourceImage || undefined,
               };
               setStreamingVideoTask(localStreamingVideoTask);
               // Dismiss the generating_visual animation — MobileVideoCard takes over
@@ -4493,6 +4563,7 @@ export default function MobileChat({
                     initialStatus="generating"
                     modelLabel={streamingVideoTask.videoModelLabel || 'Kling 3.0'}
                     messageId={streamingVideoTask.messageId}
+                    sourceImageUrl={streamingVideoTask.sourceImage}
                     onVideoReady={(videoUrl) => {
                       // Video completed during streaming - update the streaming task state
                       // and also update the message if it exists in state

@@ -1,5 +1,6 @@
 import './globals.css'
 import ThemeProvider from '@/lib/providers/ThemeProvider'
+import { Toaster } from '@/components/ui/toaster'
 
 export const metadata = {
   title: 'SoulPrint — Your Personal AI',
@@ -96,6 +97,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {/* End Google Tag Manager (noscript) */}
         <ThemeProvider>
           {children}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

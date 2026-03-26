@@ -175,20 +175,31 @@ function parseExplicitVideoModelFromPrompt(prompt) {
   if (!prompt) return null;
   
   const modelPatterns = [
+    // "Use X to generate/create/make" patterns
     { pattern: /use\s+(kling|kling\s*3\.?0?)\s+to\s+(generate|create|make)/i, model: 'kling-3.0' },
     { pattern: /use\s+(veo|veo\s*3\.?1?|google\s*veo)\s+to\s+(generate|create|make)/i, model: 'veo3' },
     { pattern: /use\s+(runway|runway\s*aleph|aleph)\s+to\s+(generate|create|make)/i, model: 'runway-aleph' },
+    // "with X" patterns
     { pattern: /with\s+(kling|kling\s*3\.?0?)\b/i, model: 'kling-3.0' },
     { pattern: /with\s+(veo|veo\s*3\.?1?)\b/i, model: 'veo3' },
     { pattern: /with\s+(runway|runway\s*aleph|aleph)\b/i, model: 'runway-aleph' },
+    // "using X" patterns (for natural language)
+    { pattern: /using\s+(kling|kling\s*3\.?0?)\b/i, model: 'kling-3.0' },
+    { pattern: /using\s+(veo|veo\s*3\.?1?)\b/i, model: 'veo3' },
+    { pattern: /using\s+(runway|runway\s*aleph|aleph)\b/i, model: 'runway-aleph' },
+    // Direct model mention patterns
     { pattern: /\b(kling\s*3\.?0?)\s+(video|generation)/i, model: 'kling-3.0' },
     { pattern: /\b(veo\s*3\.?1?)\s+(video|generation)/i, model: 'veo3' },
     { pattern: /\b(runway\s*aleph|aleph)\s+(video|generation)/i, model: 'runway-aleph' },
+    // "generate with X" patterns
+    { pattern: /generate\s+(with|using)\s+(kling|kling\s*3\.?0?)\b/i, model: 'kling-3.0' },
+    { pattern: /generate\s+(with|using)\s+(veo|veo\s*3\.?1?)\b/i, model: 'veo3' },
+    { pattern: /generate\s+(with|using)\s+(runway|runway\s*aleph|aleph)\b/i, model: 'runway-aleph' },
   ];
   
   for (const { pattern, model } of modelPatterns) {
     if (pattern.test(prompt)) {
-      console.log(`[VideoModel] Explicit model requested in prompt: ${model}`);
+      console.log(`[VideoModel] Explicit model requested in prompt: ${model} (matched: "${prompt.match(pattern)?.[0]}")`);
       return model;
     }
   }
@@ -222,6 +233,54 @@ function extractPromptWithoutModelInstruction(prompt) {
   if (!prompt) return prompt;
   // Remove "Use [model] to generate: " prefix
   return prompt.replace(/^use\s+[\w\s.]+\s+to\s+(generate|create|make):\s*/i, '').trim();
+}
+
+// Detect aspect ratio from user's prompt
+function detectAspectRatioFromPrompt(prompt) {
+  if (!prompt) return null;
+  const lower = prompt.toLowerCase();
+  
+  // Explicit ratio patterns
+  if (/\b16\s*[:x×]\s*9\b/.test(lower)) return '16:9';
+  if (/\b9\s*[:x×]\s*16\b/.test(lower)) return '9:16';
+  if (/\b1\s*[:x×]\s*1\b/.test(lower)) return '1:1';
+  if (/\b4\s*[:x×]\s*3\b/.test(lower)) return '4:3';
+  if (/\b3\s*[:x×]\s*4\b/.test(lower)) return '3:4';
+  if (/\b21\s*[:x×]\s*9\b/.test(lower)) return '21:9';
+  
+  // Keyword patterns
+  if (/\b(portrait|vertical|tiktok|reels?|shorts?|instagram\s*stor(y|ies)|phone|mobile)\b/.test(lower)) return '9:16';
+  if (/\b(widescreen|wide\s*screen|cinematic|cinema|landscape|horizontal|youtube|16.9)\b/.test(lower)) return '16:9';
+  if (/\b(square|instagram\s*(post|feed)?)\b/.test(lower) && !/\b(stor(y|ies))\b/.test(lower)) return '1:1';
+  
+  return null; // Let caller decide default
+}
+
+// Detect if user's video prompt references a previously generated image in the conversation
+function detectContextImageReference(prompt) {
+  if (!prompt) return false;
+  const lower = prompt.toLowerCase();
+  
+  // Pronouns and references to existing content
+  const contextPatterns = [
+    // Pronouns referencing the image
+    /\b(this|that|the|it|its)\b.*\b(video|animate|animation|motion|drive|driving|move|moving|fly|flying|walk|walking|run|running|spin|spinning|rotate|rotating|zoom|pan)\b/i,
+    /\b(video|animate|animation|motion)\b.*\b(this|that|the|it)\b/i,
+    // "make/create a video of the [noun]" - referring to something already generated
+    /\b(make|create|generate)\s+(a\s+)?video\s+(of|from|with)\s+(the|this|that|my|it)\b/i,
+    // "animate the [noun]"
+    /\b(animate|bring\s+to\s+life)\s+(the|this|that|my|it)\b/i,
+    // "turn it/this into a video"
+    /\bturn\s+(it|this|that)\s+into\s+(a\s+)?video\b/i,
+    // "video of it/this driving/moving/etc"
+    /\bvideo\s+(of|with)\s+(it|this|that)\b/i,
+    // References to a car, logo, design etc that was just generated
+    /\b(now|next|then)\s+(make|create|generate|animate)\b/i,
+    // "make it drive/fly/move" — implying animation of existing subject
+    /\bmake\s+(it|this|that|the\s+\w+)\s+(drive|fly|move|walk|run|spin|rotate|dance|swim|jump|bounce)\b/i,
+  ];
+  
+  return contextPatterns.some(p => p.test(lower));
 }
 
 // Dynamic Video Intelligence — selects the best video model based on prompt analysis
@@ -9164,6 +9223,12 @@ async function handleChatStream(request) {
       /\b(?:animate|bring\s+to\s+life)\s+(?:this|it|the|my|that)\s*(?:image|picture|photo|png|jpg)?\b/i,
       /\bvideo\s+(?:from|of)\s+(?:this|the|my|that)\s*(?:image|picture|photo|png)?\b/i,
       /\b(?:generate|create|make)\s+(?:me\s+)?(?:a\s+)?(?:short|quick|brief|cool|nice|fun|cinematic|slow.?mo)?\s*video\b/i,
+      // Context-aware: "now make/create a video of the [noun] [doing something]"
+      /^(?:now\s+)?(?:please\s+)?(?:can you\s+)?(?:make|create|generate)\s+(?:a\s+)?video\b/i,
+      // "video of it/this/that [verb]ing" patterns
+      /\bvideo\s+of\s+(?:it|this|that|the\s+\w+)\s+\w+ing\b/i,
+      // "make it move/drive/fly" patterns (implied video from animation)
+      /\b(?:make|let)\s+(?:it|this|that|the\s+\w+)\s+(?:move|drive|fly|walk|run|spin|dance|swim|jump|bounce|rotate|float)\b/i,
     ];
     if (videoPatterns.some(p => p.test(lower))) return 'video';
     
@@ -9991,15 +10056,34 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           // Send visual generation indicator immediately so frontend shows animation
           send({ type: 'generating_visual', visualType: 'video' });
           
+          // Detect aspect ratio from prompt (e.g., "portrait", "9:16", "vertical")
+          const detectedAspectRatio = detectAspectRatioFromPrompt(content) || '16:9';
+          console.log(`[Video] Detected aspect ratio: ${detectedAspectRatio} from prompt`);
+          
           // Check for image attachments - could be scene image AND/OR character reference images
           const allImageAttachments = attachments.filter(a => a.type === 'image' || a.mime_type?.startsWith('image/') || a.mimeType?.startsWith('image/'));
-          const imageAttachment = allImageAttachments[0]; // First image is for scene/animation
+          let imageAttachment = allImageAttachments[0]; // First image is for scene/animation
+          
+          // AUTO-CONTEXT: If no image attached but conversation has a recent image, 
+          // and user's prompt references it (e.g., "make a video of the car driving"),
+          // automatically use the conversation's last image as source
+          if (!imageAttachment && lastImageUrlInConversation && detectContextImageReference(content)) {
+            console.log('[Video] Auto-context: Using last conversation image as source:', lastImageUrlInConversation.substring(0, 80));
+            send({ type: 'delta', content: '🎬 Using your recently generated image as the source...\n\n' });
+            imageAttachment = {
+              type: 'image',
+              base64: lastImageUrlInConversation,
+              isUrlReference: true,
+              name: 'context-image.jpg',
+              mimeType: 'image/jpeg',
+            };
+          }
           
           // Detect if user wants to add themselves or a person to the video
           const wantsCharacterReference = /\b(me|myself|my face|my photo|person|character|subject|face|with me|of me|add me|put me|include me|myself driving|me driving|me in|myself in)\b/i.test(content);
           
           // If user mentions character reference but only provided one image, use it as character reference for text-to-video
-          const useAsCharacterRef = wantsCharacterReference && allImageAttachments.length === 1;
+          const useAsCharacterRef = wantsCharacterReference && allImageAttachments.length === 1 && !imageAttachment?.isUrlReference;
           
           if (imageAttachment && (imageAttachment.base64 || imageAttachment.isUrlReference) && !useAsCharacterRef) {
             // IMAGE-TO-VIDEO: Animate the uploaded image (with optional character reference)
@@ -10076,7 +10160,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               // Step 2: Create video generation task via unified handler
               const taskId = await generateVideoWithModel(selectedVideoModel, cleanedPrompt || 'Animate this image with natural, smooth motion', kieKey, {
                 imageUrls: [imageUrl],
-                aspectRatio: '16:9',
+                aspectRatio: detectedAspectRatio,
                 duration: 5,
               });
 
@@ -10084,7 +10168,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               await db.collection('video_jobs').insertOne({
                 id: uuidv4(), task_id: taskId, user_id: user.id,
                 prompt: content, source_image: imageUrl,
-                duration: 5, quality: VIDEO_MODELS[selectedVideoModel].resolution, aspect_ratio: '16:9',
+                duration: 5, quality: VIDEO_MODELS[selectedVideoModel].resolution, aspect_ratio: detectedAspectRatio,
                 status: 'generating', conversation_id: convId, model: selectedVideoModel,
                 message_id: assistantMsgId, type: 'image-to-video',
                 created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
@@ -10134,14 +10218,14 @@ Style: Professional graphic design quality. Make it look like a skilled designer
 
               const taskId = await generateVideoWithModel(selectedVideoModel2, content || 'Animate this image with natural, smooth motion', kieKey, {
                 imageUrls: [imageUrl],
-                aspectRatio: '16:9',
+                aspectRatio: detectedAspectRatio,
                 duration: 5,
               });
               
               await db.collection('video_jobs').insertOne({
                 id: uuidv4(), task_id: taskId, user_id: user.id,
                 prompt: content, source_image: imageUrl,
-                duration: 5, quality: VIDEO_MODELS[selectedVideoModel2].resolution, aspect_ratio: '16:9',
+                duration: 5, quality: VIDEO_MODELS[selectedVideoModel2].resolution, aspect_ratio: detectedAspectRatio,
                 status: 'generating', conversation_id: convId, model: selectedVideoModel2,
                 message_id: assistantMsgId, type: 'image-to-video',
                 created_at: new Date(), expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
@@ -10254,7 +10338,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               }
               
               const taskId = await generateVideoWithModel(selectedVideoModel3, finalPrompt, kieKey, {
-                aspectRatio: '16:9',
+                aspectRatio: detectedAspectRatio,
                 duration: 5,
                 characterElements: characterElements,
               });
@@ -10262,7 +10346,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               // Save job to DB with message_id reference
               await db.collection('video_jobs').insertOne({
                 id: uuidv4(), task_id: taskId, user_id: user.id,
-                prompt: content, duration: 5, quality: VIDEO_MODELS[selectedVideoModel3].resolution, aspect_ratio: '16:9',
+                prompt: content, duration: 5, quality: VIDEO_MODELS[selectedVideoModel3].resolution, aspect_ratio: detectedAspectRatio,
                 status: 'generating', conversation_id: convId, model: selectedVideoModel3,
                 message_id: assistantMsgId, type: characterElements.length > 0 ? 'text-to-video-with-character' : 'text-to-video',
                 character_reference: characterImageUrl || null,
@@ -12416,6 +12500,92 @@ async function processVideoStatus(db, media, data) {
 }
 
 // Get user's media gallery
+// Get all pending/generating media tasks for the user (for global background polling)
+async function handleMediaPending(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  const kieKey = process.env.KIE_API_KEY;
+  
+  // Find all video jobs that are still generating
+  const pendingJobs = await db.collection('video_jobs')
+    .find({ 
+      user_id: user.id, 
+      status: 'generating',
+      created_at: { $gte: new Date(Date.now() - 30 * 60 * 1000) } // Only last 30 minutes
+    })
+    .sort({ created_at: -1 })
+    .limit(20)
+    .toArray();
+  
+  // Also look up conversation titles for notifications
+  const convIds = [...new Set(pendingJobs.map(j => j.conversation_id).filter(Boolean))];
+  const conversations = convIds.length > 0 
+    ? await db.collection('conversations').find({ id: { $in: convIds } }).toArray()
+    : [];
+  const convMap = {};
+  conversations.forEach(c => { convMap[c.id] = c.title || 'Untitled Chat'; });
+  
+  // Check status of each pending job and update if completed
+  const results = [];
+  for (const job of pendingJobs) {
+    let status = 'generating';
+    let videoUrl = null;
+    let thumbnailUrl = null;
+    
+    // Try to check actual status from Kie.ai
+    if (kieKey && job.task_id && job.model) {
+      try {
+        const result = await checkVideoStatus(job.model, job.task_id, kieKey);
+        if (result.status === 'success') {
+          status = 'success';
+          videoUrl = result.videoUrl;
+          thumbnailUrl = result.thumbnailUrl;
+          
+          // Update DB
+          await db.collection('video_jobs').updateOne(
+            { task_id: job.task_id },
+            { $set: { status: 'success', video_url: videoUrl, thumbnail_url: thumbnailUrl } }
+          );
+          // Also update the message
+          if (job.message_id) {
+            await db.collection('messages').updateOne(
+              { id: job.message_id },
+              { $set: { video_url: videoUrl, thumbnail_url: thumbnailUrl, 'video_task.status': 'success' } }
+            );
+          }
+        } else if (result.status === 'failed') {
+          status = 'failed';
+          await db.collection('video_jobs').updateOne(
+            { task_id: job.task_id },
+            { $set: { status: 'failed', error: result.error } }
+          );
+        }
+      } catch (e) {
+        console.log('[MediaPending] Status check failed for', job.task_id, '-', e.message);
+      }
+    }
+    
+    results.push({
+      taskId: job.task_id,
+      status,
+      videoUrl,
+      thumbnailUrl,
+      prompt: job.prompt,
+      model: job.model,
+      modelLabel: VIDEO_MODELS[job.model]?.label || job.model,
+      conversationId: job.conversation_id,
+      conversationTitle: convMap[job.conversation_id] || 'Chat',
+      messageId: job.message_id,
+      type: job.type || 'video',
+      createdAt: job.created_at,
+    });
+  }
+  
+  return NextResponse.json(results);
+}
+
 async function handleMediaGallery(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
@@ -25446,6 +25616,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'app-updates') return handleGetAppUpdates(request);
     if (pathStr === 'admin/app-updates') return handleAdminGetAppUpdates(request);
     if (pathStr === 'media/gallery') return handleMediaGallery(request);
+    if (pathStr === 'media/pending') return handleMediaPending(request);
     if (pathStr === 'media/status') return handleMediaStatus(request);
     if (pathStr.startsWith('media/status/')) {
       // Support /api/media/status/:taskId format

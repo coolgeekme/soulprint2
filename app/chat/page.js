@@ -33,6 +33,7 @@ import InstallPrompt from '@/app/components/InstallPrompt';
 import { useIsMobile } from '@/hooks/use-mobile';
 import MobileChat from '@/components/mobile/MobileChat';
 import { useTheme } from '@/lib/providers/ThemeProvider';
+import { useToast } from '@/hooks/use-toast';
 
 // Image Generation Models (sorted by cost - cheapest first)
 const IMAGE_MODELS = [
@@ -6909,6 +6910,78 @@ export default function ChatPage() {
   useEffect(() => { streamingVideoTaskRef.current = streamingVideoTask; }, [streamingVideoTask]);
   useEffect(() => { streamingSourcesRef.current = streamingSources; }, [streamingSources]);
 
+  // ── Global Media Notification System ──
+  // Polls /api/media/pending for completed tasks across ALL conversations
+  // Shows toast notifications when media finishes generating
+  const { toast } = useToast();
+  const notifiedTasksRef = useRef(new Set());
+  const mediaPollIntervalRef = useRef(null);
+  const conversationIdRef = useRef(conversationId);
+  useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
+
+  useEffect(() => {
+    if (!token) return;
+    
+    const pollPendingMedia = async () => {
+      try {
+        const res = await fetch('/api/media/pending', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const tasks = await res.json();
+        
+        for (const task of tasks) {
+          if (task.status === 'success' && !notifiedTasksRef.current.has(task.taskId)) {
+            notifiedTasksRef.current.add(task.taskId);
+            
+            // Only show notification if user is NOT in the same conversation
+            const isInSameConv = conversationIdRef.current === task.conversationId;
+            
+            // Update messages if in the same conversation
+            if (isInSameConv) {
+              setMessages(prev => prev.map(m => {
+                if (m.video_task?.taskId === task.taskId) {
+                  return { ...m, video_url: task.videoUrl, video_task: { ...m.video_task, status: 'success' } };
+                }
+                return m;
+              }));
+            }
+            
+            // Show toast notification
+            toast({
+              title: `🎬 ${task.type === 'image' ? 'Image' : 'Video'} Ready!`,
+              description: isInSameConv 
+                ? `Your ${task.modelLabel || 'AI'} ${task.type || 'video'} is ready.`
+                : `${task.modelLabel || 'AI'} ${task.type || 'video'} ready in "${task.conversationTitle}"`,
+              duration: 6000,
+              className: 'bg-[#1a1f2e] border-orange-500/30 text-white',
+              ...((!isInSameConv && task.conversationId) ? {
+                action: (
+                  <button 
+                    onClick={() => loadConversation(task.conversationId)}
+                    className="text-xs bg-orange-500/20 hover:bg-orange-500/40 text-orange-400 px-3 py-1.5 rounded-md transition-colors whitespace-nowrap"
+                  >
+                    View
+                  </button>
+                ),
+              } : {}),
+            });
+          }
+        }
+      } catch (e) {
+        // Silently fail
+      }
+    };
+    
+    // Poll every 10 seconds
+    pollPendingMedia();
+    mediaPollIntervalRef.current = setInterval(pollPendingMedia, 10000);
+    
+    return () => {
+      if (mediaPollIntervalRef.current) clearInterval(mediaPollIntervalRef.current);
+    };
+  }, [token, toast]);
+
   // Handle URL params to open settings with specific tab (e.g., /chat?settings=telegram)
   useEffect(() => {
     const settingsTab = searchParams.get('settings');
@@ -7953,7 +8026,8 @@ export default function ChatPage() {
                 taskId: data.taskId, status: 'generating', prompt: data.prompt, 
                 messageId: data.messageId,
                 videoModel: data.videoModel, videoModelLabel: data.videoModelLabel, 
-                videoModelReason: data.videoModelReason 
+                videoModelReason: data.videoModelReason,
+                sourceImage: data.sourceImage || undefined,
               };
               setStreamingVideoTask(videoTaskData);
               // CRITICAL: Also update ref directly so it's available synchronously

@@ -15,7 +15,7 @@ import time
 import sys
 
 # Configuration
-BASE_URL = "https://image-gen-repair-1.preview.emergentagent.com/api"
+BASE_URL = "https://smart-gen-6.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSCODE = "test123"
 
