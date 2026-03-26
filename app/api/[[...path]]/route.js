@@ -170,9 +170,69 @@ const VIDEO_MODELS = {
   },
 };
 
+// Parse explicit model request from prompt (e.g., "Use Runway Aleph to generate: ...")
+function parseExplicitVideoModelFromPrompt(prompt) {
+  if (!prompt) return null;
+  
+  const modelPatterns = [
+    { pattern: /use\s+(kling|kling\s*3\.?0?)\s+to\s+(generate|create|make)/i, model: 'kling-3.0' },
+    { pattern: /use\s+(veo|veo\s*3\.?1?|google\s*veo)\s+to\s+(generate|create|make)/i, model: 'veo3' },
+    { pattern: /use\s+(runway|runway\s*aleph|aleph)\s+to\s+(generate|create|make)/i, model: 'runway-aleph' },
+    { pattern: /with\s+(kling|kling\s*3\.?0?)\b/i, model: 'kling-3.0' },
+    { pattern: /with\s+(veo|veo\s*3\.?1?)\b/i, model: 'veo3' },
+    { pattern: /with\s+(runway|runway\s*aleph|aleph)\b/i, model: 'runway-aleph' },
+    { pattern: /\b(kling\s*3\.?0?)\s+(video|generation)/i, model: 'kling-3.0' },
+    { pattern: /\b(veo\s*3\.?1?)\s+(video|generation)/i, model: 'veo3' },
+    { pattern: /\b(runway\s*aleph|aleph)\s+(video|generation)/i, model: 'runway-aleph' },
+  ];
+  
+  for (const { pattern, model } of modelPatterns) {
+    if (pattern.test(prompt)) {
+      console.log(`[VideoModel] Explicit model requested in prompt: ${model}`);
+      return model;
+    }
+  }
+  return null;
+}
+
+// Parse explicit image model request from prompt
+function parseExplicitImageModelFromPrompt(prompt) {
+  if (!prompt) return null;
+  
+  const modelPatterns = [
+    { pattern: /use\s+(nano\s*banana)\s+to\s+(generate|create|make)/i, model: 'nano-banana' },
+    { pattern: /use\s+(gemini|gemini\s*image)\s+to\s+(generate|create|make)/i, model: 'gemini-2.0-flash-exp-image-generation' },
+    { pattern: /use\s+(gpt|gpt\s*image|dall-?e)\s+to\s+(generate|create|make)/i, model: 'gpt-image-1' },
+    { pattern: /with\s+(nano\s*banana)\b/i, model: 'nano-banana' },
+    { pattern: /with\s+(gemini|gemini\s*image)\b/i, model: 'gemini-2.0-flash-exp-image-generation' },
+    { pattern: /with\s+(gpt|gpt\s*image|dall-?e)\b/i, model: 'gpt-image-1' },
+  ];
+  
+  for (const { pattern, model } of modelPatterns) {
+    if (pattern.test(prompt)) {
+      console.log(`[ImageModel] Explicit model requested in prompt: ${model}`);
+      return model;
+    }
+  }
+  return null;
+}
+
+// Extract the actual prompt content after removing model instruction prefix
+function extractPromptWithoutModelInstruction(prompt) {
+  if (!prompt) return prompt;
+  // Remove "Use [model] to generate: " prefix
+  return prompt.replace(/^use\s+[\w\s.]+\s+to\s+(generate|create|make):\s*/i, '').trim();
+}
+
 // Dynamic Video Intelligence — selects the best video model based on prompt analysis
-async function selectVideoModel(prompt, { hasImage = false, hasVideo = false, userPreferredModel = null } = {}) {
-  // If user explicitly selected a model, use it
+async function selectVideoModel(prompt, { hasImage = false, hasVideo = false, userPreferredModel = null, hasCharacterRef = false } = {}) {
+  // First, check if prompt contains explicit model request (e.g., "Use Runway Aleph to generate: ...")
+  const explicitModel = parseExplicitVideoModelFromPrompt(prompt);
+  if (explicitModel && VIDEO_MODELS[explicitModel]) {
+    return { model: explicitModel, reason: `User explicitly requested ${VIDEO_MODELS[explicitModel].label}` };
+  }
+  
+  // If user explicitly selected a model via UI, use it
   if (userPreferredModel && VIDEO_MODELS[userPreferredModel]) {
     return { model: userPreferredModel, reason: `User selected ${VIDEO_MODELS[userPreferredModel].label}` };
   }
@@ -9998,6 +10058,8 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               console.log('[Image-to-Video] Final image URL type:', imageUrl.startsWith('data:') ? 'data URL' : 'http URL');
               
               // ── Dynamic Video Intelligence: select the best model ──
+              // Clean the prompt of model instruction prefix
+              const cleanedPrompt = extractPromptWithoutModelInstruction(content) || 'Animate this image';
               const videoSelection = await selectVideoModel(content || 'Animate this image', { hasImage: true, userPreferredModel: userPreferredVideoModel });
               const selectedVideoModel = videoSelection.model;
               const videoModelLabel = VIDEO_MODELS[selectedVideoModel].label;
@@ -10005,7 +10067,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               console.log(`[Image-to-Video] Dynamic Intelligence selected: ${selectedVideoModel} — ${videoSelection.reason}`);
               
               // Step 2: Create video generation task via unified handler
-              const taskId = await generateVideoWithModel(selectedVideoModel, content || 'Animate this image with natural, smooth motion', kieKey, {
+              const taskId = await generateVideoWithModel(selectedVideoModel, cleanedPrompt || 'Animate this image with natural, smooth motion', kieKey, {
                 imageUrls: [imageUrl],
                 aspectRatio: '16:9',
                 duration: 5,
@@ -10171,13 +10233,13 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               send({ type: 'delta', content: `🎬 Starting video generation with ${videoModelLabel3}${characterElements.length > 0 ? ' (with character reference)' : ''}...\n\n` });
               
               // Modify prompt to reference the character element if using character reference
-              let finalPrompt = content;
+              let finalPrompt = extractPromptWithoutModelInstruction(content);
               if (characterElements.length > 0) {
                 const elementRef = `@${characterElements[0].name}`;
                 // Check if prompt already references the element
-                if (!content.includes(elementRef)) {
+                if (!finalPrompt.includes(elementRef)) {
                   // Add element reference to prompt - replace "me", "myself", etc. with @element_name
-                  finalPrompt = content
+                  finalPrompt = finalPrompt
                     .replace(/\b(me|myself)\b/gi, elementRef)
                     .replace(/\bmy face\b/gi, `${elementRef}'s face`);
                 }
@@ -11664,6 +11726,16 @@ const KIE_CREDIT_TO_USD = 0.005;
 
 // Analyze prompt and recommend the best image model
 function selectBestImageModel(prompt) {
+  // First check for explicit model request in prompt
+  const explicitModel = parseExplicitImageModelFromPrompt(prompt);
+  if (explicitModel) {
+    return {
+      model: explicitModel,
+      reason: `🎯 User explicitly requested ${explicitModel}`,
+      confidence: 'high'
+    };
+  }
+  
   const lowerPrompt = prompt.toLowerCase();
   
   // Keywords and patterns for different use cases
