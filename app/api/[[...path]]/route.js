@@ -8777,6 +8777,14 @@ async function handleChatStream(request) {
       /^(?:please\s+)?(?:can you\s+)?make\s+(?:a\s+)?video\b/i, 
       /^(?:please\s+)?(?:can you\s+)?video\s+of\b/i,
       /^(?:please\s+)?(?:can you\s+)?animate\b/i,
+      // Additional patterns for image-to-video with attachments
+      /\bturn\s+(?:this|it)\s+into\s+(?:a\s+)?video\b/i,
+      /\bmake\s+(?:this|it)\s+(?:a\s+|into\s+(?:a\s+)?)?video\b/i,
+      /\bconvert\s+(?:this|it)?\s*(?:to|into)\s+(?:a\s+)?video\b/i,
+      /\bi\s+want\s+(?:a\s+)?video\b/i,
+      /\b(?:create|make|generate)\s+(?:a\s+)?video\s+(?:from|of|with|using)\s+(?:this|it|the|my|that)\b/i,
+      /\b(?:animate|bring\s+to\s+life)\s+(?:this|it|the|my|that)\s+(?:image|picture|photo|png|jpg)?\b/i,
+      /\bvideo\s+(?:from|of)\s+(?:this|the|my|that)\s+(?:image|picture|photo|png)?\b/i,
     ];
     if (videoPatterns.some(p => p.test(lower))) return 'video';
     
@@ -8831,7 +8839,17 @@ async function handleChatStream(request) {
     return null;
   };
 
-  const mediaIntent = detectMediaIntent(sanitizedContent);
+  let mediaIntent = detectMediaIntent(sanitizedContent);
+  
+  // Force video intent if user has image attachment AND mentions video/animate keywords
+  // This prevents the LLM tool call system from intercepting with generate_mockup
+  if (!mediaIntent && attachments.length > 0 && attachments.some(a => a.type === 'image' || a.type?.startsWith('image/') || a.mime_type?.startsWith('image/') || a.mimeType?.startsWith('image/'))) {
+    const videoKeywords = /\b(video|animate|animation|motion|bring\s+to\s+life|turn\s+into\s+video|make\s+.*video|clip)\b/i;
+    if (videoKeywords.test(sanitizedContent)) {
+      console.log('[MediaIntent] Forcing video intent — image attachment + video keyword detected');
+      mediaIntent = 'video';
+    }
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -9592,7 +9610,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
         // ── Handle video generation (text-to-video OR image-to-video) ───────────────────────────────────────
         if (mediaIntent === 'video') {
           // Check if user uploaded an image to animate
-          const imageAttachment = attachments.find(a => a.type === 'image' || a.mime_type?.startsWith('image/'));
+          const imageAttachment = attachments.find(a => a.type === 'image' || a.mime_type?.startsWith('image/') || a.mimeType?.startsWith('image/'));
           
           if (imageAttachment && imageAttachment.base64) {
             // IMAGE-TO-VIDEO: Animate the uploaded image
@@ -9605,10 +9623,11 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               
               // Step 1: Try to upload the base64 image to Kie.ai to get a URL
               // If upload fails, we'll try using the data URL directly (some providers accept it)
-              const fileName = imageAttachment.name || `image-${Date.now()}.${imageAttachment.mimeType?.split('/')[1] || 'jpg'}`;
+              const mType = imageAttachment.mimeType || imageAttachment.mime_type || 'image/jpeg';
+              const fileName = imageAttachment.name || `image-${Date.now()}.${mType.split('/')[1] || 'jpg'}`;
               const dataUrl = imageAttachment.base64.startsWith('data:') 
                 ? imageAttachment.base64 
-                : `data:${imageAttachment.mimeType || 'image/jpeg'};base64,${imageAttachment.base64}`;
+                : `data:${mType};base64,${imageAttachment.base64}`;
               
               let imageUrl = null;
               
@@ -9618,7 +9637,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${kieKey}` },
                   body: JSON.stringify({
-                    fileData: dataUrl, // Correct parameter name per docs
+                    base64Data: dataUrl, // Correct parameter name per Kie.ai docs
                     uploadPath: 'soulprint/image-to-video',
                     fileName: fileName,
                   }),
@@ -9626,20 +9645,25 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 
                 if (uploadRes.ok) {
                   const uploadData = await uploadRes.json();
-                  console.log('[Image-to-Video] Upload response:', JSON.stringify(uploadData).substring(0, 300));
-                  if (uploadData.success && uploadData.data?.downloadUrl) {
-                    imageUrl = uploadData.data.downloadUrl;
+                  console.log('[Image-to-Video] Upload response:', JSON.stringify(uploadData).substring(0, 500));
+                  const downloadUrl = uploadData.data?.downloadUrl || uploadData.downloadUrl;
+                  if ((uploadData.success || uploadData.code === 200) && downloadUrl) {
+                    imageUrl = downloadUrl;
                     console.log('[Image-to-Video] Got uploaded image URL:', imageUrl.substring(0, 80));
+                  } else {
+                    console.log('[Image-to-Video] Upload response missing downloadUrl');
                   }
+                } else {
+                  const errText = await uploadRes.text().catch(() => 'unknown');
+                  console.log('[Image-to-Video] Upload HTTP error:', uploadRes.status, errText.substring(0, 200));
                 }
               } catch (uploadErr) {
                 console.log('[Image-to-Video] Upload failed:', uploadErr.message);
               }
               
-              // If upload failed, try using data URL directly (may not work with all models)
+              // If upload failed, throw an error — Kie.ai video API requires an HTTP URL
               if (!imageUrl) {
-                console.log('[Image-to-Video] Using data URL directly (upload failed)');
-                imageUrl = dataUrl;
+                throw new Error('Failed to upload image for video generation. Please try again.');
               }
               
               console.log('[Image-to-Video] Final image URL type:', imageUrl.startsWith('data:') ? 'data URL' : 'http URL');
