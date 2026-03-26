@@ -7983,7 +7983,19 @@ async function handleGetMessages(request) {
     content: m.content,
     created_at: m.created_at,
     model_used: m.model_used,
+    model_label: m.model_label,
     sender_id: m.sender_id, // For collaboration - who sent this message
+    image_url: m.image_url,
+    video_url: m.video_url,
+    video_task: m.video_task,
+    thumbnail_url: m.thumbnail_url,
+    content_type: m.content_type,
+    sources: m.sources,
+    generation_params: m.generation_params,
+    smart_mode: m.smart_mode,
+    smart_reason: m.smart_reason,
+    is_generating: m.is_generating,
+    feedback: m.feedback,
   })));
 }
 
