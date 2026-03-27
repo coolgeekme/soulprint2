@@ -4,27 +4,20 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 /**
  * AssessmentNudge — Persistent slider question overlay
- * Pops up during chat to collect assessment answers.
+ * Black & orange themed to match the app.
  * Cannot be dismissed — only minimized to a compact bar.
  * Stays visible until the user answers.
  */
-
-const URGENCY_COLORS = {
-  low: { bg: 'from-indigo-500/20 to-purple-500/20', border: 'border-indigo-500/30', accent: 'bg-indigo-500', text: 'text-indigo-400', barBg: 'bg-indigo-500/15' },
-  medium: { bg: 'from-amber-500/20 to-orange-500/20', border: 'border-amber-500/30', accent: 'bg-amber-500', text: 'text-amber-400', barBg: 'bg-amber-500/15' },
-  high: { bg: 'from-red-500/20 to-orange-500/20', border: 'border-red-500/30', accent: 'bg-red-500', text: 'text-red-400', barBg: 'bg-red-500/15' },
-  overdue: { bg: 'from-red-600/25 to-pink-600/25', border: 'border-red-500/40', accent: 'bg-red-600', text: 'text-red-400', barBg: 'bg-red-600/15' },
-};
 
 export default function AssessmentNudge({ token, onAnswered, messageCount }) {
   const [nudgeData, setNudgeData] = useState(null);
   const [sliderValue, setSliderValue] = useState(50);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasQuestion, setHasQuestion] = useState(false);     // true when a question is ready
-  const [isMinimized, setIsMinimized] = useState(false);      // minimize vs expanded
+  const [hasQuestion, setHasQuestion] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);  // track if user moved slider
+  const [hasInteracted, setHasInteracted] = useState(false);
   const lastCheckRef = useRef(0);
   const lastMessageCountRef = useRef(0);
   const successTimeoutRef = useRef(null);
@@ -34,7 +27,6 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
   const checkForNudge = useCallback(async (force = false) => {
     if (!token || hasQuestion || showSuccess) return;
 
-    // Throttle: at most once per 10 seconds (unless forced)
     const now = Date.now();
     if (!force && now - lastCheckRef.current < 10000) return;
     lastCheckRef.current = now;
@@ -51,15 +43,12 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
         setSliderValue(50);
         setHasInteracted(false);
         setHasQuestion(true);
-        setIsMinimized(false); // Always expand for new question
+        setIsMinimized(false);
       } else if (data.complete) {
-        // All done! Stop checking
-        if (randomCheckIntervalRef.current) {
-          clearInterval(randomCheckIntervalRef.current);
-        }
+        if (randomCheckIntervalRef.current) clearInterval(randomCheckIntervalRef.current);
       }
     } catch (e) {
-      // Silently fail — don't disrupt chat
+      // Silently fail
     }
   }, [token, hasQuestion, showSuccess]);
 
@@ -68,7 +57,6 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
     if (!token || messageCount === lastMessageCountRef.current) return;
     lastMessageCountRef.current = messageCount;
 
-    // Notify backend about the message, then check for nudge
     const notifyAndCheck = async () => {
       try {
         await fetch('/api/assessment/nudge/message', {
@@ -76,35 +64,24 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         });
       } catch {}
-      // Only check after the counter has been committed on the backend
       checkForNudge(true);
     };
     notifyAndCheck();
   }, [messageCount, token, checkForNudge]);
 
-  // Random interval check for popup-between-responses (escalating near deadline)
+  // Periodic check
   useEffect(() => {
     if (!token) return;
-
-    // Initial check after 5 seconds
     const initialTimeout = setTimeout(() => checkForNudge(false), 5000);
-
-    // Periodic check every 60 seconds for random triggers
-    randomCheckIntervalRef.current = setInterval(() => {
-      checkForNudge(false);
-    }, 60000);
-
+    randomCheckIntervalRef.current = setInterval(() => checkForNudge(false), 60000);
     return () => {
       clearTimeout(initialTimeout);
       if (randomCheckIntervalRef.current) clearInterval(randomCheckIntervalRef.current);
     };
   }, [token, checkForNudge]);
 
-  // Cleanup
   useEffect(() => {
-    return () => {
-      if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current);
-    };
+    return () => { if (successTimeoutRef.current) clearTimeout(successTimeoutRef.current); };
   }, []);
 
   // Submit answer
@@ -115,14 +92,8 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
     try {
       const res = await fetch('/api/assessment/nudge/answer', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question_id: nudgeData.question.id,
-          value: sliderValue,
-        }),
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question_id: nudgeData.question.id, value: sliderValue }),
       });
 
       if (res.ok) {
@@ -130,13 +101,10 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
         setShowSuccess(true);
         setHasQuestion(false);
         setIsMinimized(false);
-
-        // Auto-hide success after 1.5s
         successTimeoutRef.current = setTimeout(() => {
           setShowSuccess(false);
           setNudgeData(null);
         }, 1500);
-
         if (onAnswered) onAnswered(result);
       }
     } catch (e) {
@@ -146,7 +114,6 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
     }
   };
 
-  // Handle slider change
   const handleSliderChange = (e) => {
     setSliderValue(Number(e.target.value));
     if (!hasInteracted) setHasInteracted(true);
@@ -159,7 +126,14 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
   if (showSuccess) {
     return (
       <div className="fixed bottom-6 right-6 z-[9999] pointer-events-none">
-        <div className="bg-green-500/90 text-white px-5 py-2.5 rounded-xl shadow-2xl flex items-center gap-2" style={{ animation: 'nudgeBounceIn 0.4s ease-out' }}>
+        <div
+          className="px-5 py-2.5 rounded-xl shadow-2xl flex items-center gap-2"
+          style={{
+            background: 'linear-gradient(135deg, #f97316, #ea580c)',
+            color: 'white',
+            animation: 'nudgeBounceIn 0.4s ease-out',
+          }}
+        >
           <span className="text-lg">✓</span>
           <span className="font-medium text-sm">Answer saved!</span>
           {nudgeData?.progress && (
@@ -168,39 +142,51 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
             </span>
           )}
         </div>
+        <style jsx>{`
+          @keyframes nudgeBounceIn {
+            0% { opacity: 0; transform: scale(0.8); }
+            60% { opacity: 1; transform: scale(1.05); }
+            100% { transform: scale(1); }
+          }
+        `}</style>
       </div>
     );
   }
 
   if (!nudgeData) return null;
 
-  const { question, urgency, progress } = nudgeData;
-  const colors = URGENCY_COLORS[urgency] || URGENCY_COLORS.low;
+  const { question, progress } = nudgeData;
 
-  // ─── MINIMIZED VIEW ───
+  // ─── MINIMIZED VIEW ─── black/orange bar
   if (isMinimized) {
     return (
       <div className="fixed bottom-4 right-4 z-[9998]" style={{ animation: 'nudgeSlideIn 0.25s ease-out' }}>
         <button
           onClick={() => setIsMinimized(false)}
-          className={`flex items-center gap-3 px-4 py-3 rounded-2xl border ${colors.border} ${colors.barBg} bg-[#1a1a2e]/95 shadow-xl hover:shadow-2xl transition-all hover:scale-[1.02] active:scale-[0.98] backdrop-blur-sm`}
+          className="flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl hover:shadow-2xl transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{
+            background: 'rgba(17, 24, 32, 0.95)',
+            border: '1px solid rgba(249, 115, 22, 0.35)',
+            backdropFilter: 'blur(12px)',
+          }}
         >
-          {/* Emoji + pulse indicator */}
+          {/* Emoji + pulse */}
           <div className="relative">
             <span className="text-xl">{question.emoji}</span>
-            <span className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${colors.accent} animate-pulse`} />
+            <span
+              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full animate-pulse"
+              style={{ background: '#f97316' }}
+            />
           </div>
 
-          {/* Text */}
           <div className="text-left">
             <p className="text-white text-xs font-medium">Quick question waiting</p>
-            <p className={`text-[10px] ${colors.text}`}>
+            <p className="text-[10px]" style={{ color: '#f97316' }}>
               {progress.answered}/{progress.total} done · Tap to answer
             </p>
           </div>
 
-          {/* Expand arrow */}
-          <svg className="w-4 h-4 text-white/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-4 h-4 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
           </svg>
         </button>
@@ -215,44 +201,54 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
     );
   }
 
-  // ─── EXPANDED VIEW ───
+  // ─── EXPANDED VIEW ─── black/orange overlay
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center px-4 bg-black/50 backdrop-blur-sm"
-      style={{ animation: 'nudgeFadeIn 0.3s ease-out' }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center px-4"
+      style={{ background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(6px)', animation: 'nudgeFadeIn 0.3s ease-out' }}
     >
       <div
-        className={`w-full max-w-md rounded-2xl border ${colors.border} bg-gradient-to-br ${colors.bg} bg-[#1a1a2e]/95 shadow-2xl overflow-hidden`}
-        style={{ animation: 'nudgeSlideUp 0.35s ease-out' }}
+        className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
+        style={{
+          background: 'linear-gradient(180deg, #141a21 0%, #0d1117 100%)',
+          border: '1px solid rgba(249, 115, 22, 0.25)',
+          boxShadow: '0 0 40px rgba(249, 115, 22, 0.08), 0 25px 50px rgba(0, 0, 0, 0.5)',
+          animation: 'nudgeSlideUp 0.35s ease-out',
+        }}
       >
-        {/* Progress bar */}
-        <div className="h-1 bg-white/10">
+        {/* Progress bar — orange */}
+        <div style={{ height: '3px', background: 'rgba(255,255,255,0.06)' }}>
           <div
-            className={`h-full ${colors.accent} transition-all duration-500`}
-            style={{ width: `${progress.percentage}%` }}
+            style={{
+              height: '100%',
+              width: `${progress.percentage}%`,
+              background: 'linear-gradient(90deg, #f97316, #ea580c)',
+              transition: 'width 0.5s ease',
+            }}
           />
         </div>
 
         {/* Header */}
         <div className="px-5 pt-4 pb-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span className="text-2xl">{question.emoji}</span>
             <div>
-              <p className="text-xs text-white/40 uppercase tracking-wider font-medium">
+              <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: '#f97316' }}>
                 Quick Check-in
               </p>
-              <p className={`text-xs ${colors.text}`}>
+              <p className="text-[11px] text-white/40">
                 {progress.answered}/{progress.total} answered
-                {progress.daysRemaining > 0 && ` · ${progress.daysRemaining}d left`}
-                {progress.pastDeadline && ' · Overdue'}
               </p>
             </div>
           </div>
 
-          {/* Minimize button (NOT dismiss) */}
+          {/* Minimize — NOT dismiss */}
           <button
             onClick={() => setIsMinimized(true)}
-            className="text-white/30 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: 'rgba(255,255,255,0.25)' }}
+            onMouseOver={(e) => e.currentTarget.style.color = 'rgba(249,115,22,0.6)'}
+            onMouseOut={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.25)'}
             title="Minimize — you'll need to answer this"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -263,7 +259,10 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
 
         {/* Pillar badge */}
         <div className="px-5 pb-1">
-          <span className={`text-[10px] px-2 py-0.5 rounded-full ${colors.accent}/20 ${colors.text} font-medium capitalize`}>
+          <span
+            className="text-[10px] px-2.5 py-0.5 rounded-full font-medium capitalize"
+            style={{ background: 'rgba(249, 115, 22, 0.12)', color: '#fb923c' }}
+          >
             {question.pillar?.replace('_', ' ')}
           </span>
         </div>
@@ -279,10 +278,16 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
         <div className="px-5 pb-2">
           {/* Labels */}
           <div className="flex justify-between mb-2">
-            <span className={`text-xs ${sliderValue < 40 ? 'text-white font-semibold' : 'text-white/50'} transition-all max-w-[40%]`}>
+            <span
+              className="text-xs max-w-[40%] transition-all"
+              style={{ color: sliderValue < 40 ? '#fff' : 'rgba(255,255,255,0.35)', fontWeight: sliderValue < 40 ? 600 : 400 }}
+            >
               {question.leftLabel}
             </span>
-            <span className={`text-xs text-right ${sliderValue > 60 ? 'text-white font-semibold' : 'text-white/50'} transition-all max-w-[40%]`}>
+            <span
+              className="text-xs text-right max-w-[40%] transition-all"
+              style={{ color: sliderValue > 60 ? '#fff' : 'rgba(255,255,255,0.35)', fontWeight: sliderValue > 60 ? 600 : 400 }}
+            >
               {question.rightLabel}
             </span>
           </div>
@@ -301,18 +306,25 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
               onTouchEnd={() => setIsDragging(false)}
               className="nudge-slider w-full"
             />
-            {/* Slider track visual */}
-            <div className="absolute top-1/2 left-0 right-0 h-2 rounded-full bg-white/10 -translate-y-1/2 pointer-events-none">
+            {/* Track visual */}
+            <div
+              className="absolute top-1/2 left-0 right-0 h-2 rounded-full -translate-y-1/2 pointer-events-none"
+              style={{ background: 'rgba(255,255,255,0.08)' }}
+            >
               <div
-                className={`h-full rounded-full ${colors.accent} transition-all ${isDragging ? '' : 'duration-150'}`}
-                style={{ width: `${sliderValue}%` }}
+                className="h-full rounded-full"
+                style={{
+                  width: `${sliderValue}%`,
+                  background: 'linear-gradient(90deg, #f97316, #ea580c)',
+                  transition: isDragging ? 'none' : 'width 0.15s',
+                }}
               />
             </div>
           </div>
 
-          {/* Hint text */}
+          {/* Hint */}
           {!hasInteracted && (
-            <p className="text-center text-white/25 text-[11px] mt-1">
+            <p className="text-center text-[11px] mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
               ← Drag the slider to answer →
             </p>
           )}
@@ -323,11 +335,12 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className={`w-full py-3 rounded-xl text-white font-semibold text-sm transition-all ${
-              isSubmitting
-                ? 'bg-white/10 cursor-not-allowed'
-                : `${colors.accent} hover:brightness-110 active:scale-[0.98]`
-            }`}
+            className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-all active:scale-[0.98]"
+            style={{
+              background: isSubmitting ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #f97316, #ea580c)',
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              opacity: isSubmitting ? 0.6 : 1,
+            }}
           >
             {isSubmitting ? 'Saving...' : 'Save & Continue Chatting'}
           </button>
@@ -335,7 +348,7 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
 
         {/* Subtle note */}
         <div className="px-5 pb-3">
-          <p className="text-center text-white/20 text-[10px]">
+          <p className="text-center text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>
             This helps Cosmo understand you better · Takes 2 seconds
           </p>
         </div>
@@ -350,11 +363,6 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
           from { opacity: 0; transform: translateY(30px) scale(0.95); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
-        @keyframes nudgeBounceIn {
-          0% { opacity: 0; transform: scale(0.8); }
-          60% { opacity: 1; transform: scale(1.05); }
-          100% { transform: scale(1); }
-        }
         .nudge-slider {
           -webkit-appearance: none;
           appearance: none;
@@ -368,25 +376,27 @@ export default function AssessmentNudge({ token, onAnswered, messageCount }) {
         .nudge-slider::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          width: 28px;
-          height: 28px;
+          width: 26px;
+          height: 26px;
           border-radius: 50%;
-          background: white;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3), 0 0 0 2px rgba(255,255,255,0.1);
+          background: #f97316;
+          box-shadow: 0 0 12px rgba(249, 115, 22, 0.4), 0 2px 6px rgba(0,0,0,0.3);
           cursor: grab;
           transition: transform 0.15s;
+          border: 2px solid rgba(255,255,255,0.2);
         }
         .nudge-slider::-webkit-slider-thumb:active {
           cursor: grabbing;
           transform: scale(1.15);
+          box-shadow: 0 0 20px rgba(249, 115, 22, 0.5), 0 2px 8px rgba(0,0,0,0.4);
         }
         .nudge-slider::-moz-range-thumb {
-          width: 28px;
-          height: 28px;
+          width: 26px;
+          height: 26px;
           border-radius: 50%;
-          background: white;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-          border: none;
+          background: #f97316;
+          box-shadow: 0 0 12px rgba(249, 115, 22, 0.4);
+          border: 2px solid rgba(255,255,255,0.2);
           cursor: grab;
         }
         .nudge-slider::-webkit-slider-runnable-track {
