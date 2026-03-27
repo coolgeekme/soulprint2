@@ -2425,7 +2425,11 @@ export default function ChatPage() {
           onOpenVoiceChat={voiceChatEnabled ? () => setShowVoiceChat(true) : null}
           initialConversationId={conversationId}
         />
-        {showSettings && <SettingsModal onClose={() => { setShowSettings(false); setSettingsInitialTab(null); }} token={token} initialTab={settingsInitialTab} />}
+        {showSettings && <SettingsModal onClose={() => { setShowSettings(false); setSettingsInitialTab(null); }} token={token} initialTab={settingsInitialTab} onModelChange={(type, value) => {
+          if (type === 'text') { setSelectedModel(value); setDefaultModelSaved(value); }
+          else if (type === 'video') { setSelectedVideoModel(value); setDefaultVideoModelSaved(value); }
+          else if (type === 'image') { setSelectedImageModel(value); setDefaultImageModelSaved(value); }
+        }} onAssistantNameChange={setAssistantName} onAnnouncementsChange={setAnnouncements} />}
         
         {/* Voice Conversation Modal */}
         {showVoiceChat && voiceChatEnabled && (
@@ -3985,7 +3989,11 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} token={token} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} token={token} onModelChange={(type, value) => {
+        if (type === 'text') { setSelectedModel(value); setDefaultModelSaved(value); }
+        else if (type === 'video') { setSelectedVideoModel(value); setDefaultVideoModelSaved(value); }
+        else if (type === 'image') { setSelectedImageModel(value); setDefaultImageModelSaved(value); }
+      }} onAssistantNameChange={setAssistantName} onAnnouncementsChange={setAnnouncements} />}
       
       {/* Feedback Modal */}
       {showFeedbackModal && <FeedbackModal onClose={() => setShowFeedbackModal(false)} token={token} />}

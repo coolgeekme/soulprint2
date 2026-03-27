@@ -647,7 +647,7 @@ function PrivacyTab({ token }) {
 }
 
 // Settings / Telegram / Imports Modal
-function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
+function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelChange, onAssistantNameChange, onAnnouncementsChange }) {
   const [activeTab, setActiveTab] = useState(initialTab || 'imports');
   const [imports, setImports] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -693,24 +693,21 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
         if (d.profile?.default_model) {
           const validModel = MODELS.find(m => m.value === d.profile.default_model && !m.comingSoon);
           if (validModel) {
-            setSelectedModel(d.profile.default_model);
-            setDefaultModelSaved(d.profile.default_model);
+            onModelChange?.('text', d.profile.default_model);
           }
         }
         // Load default video model
         if (d.profile?.default_video_model) {
           const validVideo = VIDEO_MODELS.find(m => m.value === d.profile.default_video_model);
           if (validVideo) {
-            setSelectedVideoModel(d.profile.default_video_model);
-            setDefaultVideoModelSaved(d.profile.default_video_model);
+            onModelChange?.('video', d.profile.default_video_model);
           }
         }
         // Load default image model
         if (d.profile?.default_image_model) {
           const validImage = IMAGE_MODELS.find(m => m.value === d.profile.default_image_model);
           if (validImage) {
-            setSelectedImageModel(d.profile.default_image_model);
-            setDefaultImageModelSaved(d.profile.default_image_model);
+            onModelChange?.('image', d.profile.default_image_model);
           }
         }
       }).catch(() => {});
@@ -1252,7 +1249,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
       loadAllAnnouncements();
       // Also refresh the main announcements display
       fetch('/api/announcements', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json()).then(d => setAnnouncements(d.unread || [])).catch(() => {});
+        .then(r => r.json()).then(d => onAnnouncementsChange?.(d.unread || [])).catch(() => {});
     } catch (e) {
       console.error('Failed to restore announcement:', e);
     }
@@ -2896,7 +2893,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab }) {
                                 body: JSON.stringify({ assistant_name: editingAssistantName })
                               });
                               setProfile(p => ({ ...p, assistant_name: editingAssistantName }));
-                              setAssistantName(editingAssistantName);
+                              onAssistantNameChange?.(editingAssistantName);
                               setEditingAssistantName(null);
                               alert('Assistant name updated!');
                             } catch (e) {
