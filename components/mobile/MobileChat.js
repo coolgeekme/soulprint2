@@ -10,7 +10,7 @@ import {
   Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon, MapPin, AudioWaveform,
   Film, GalleryHorizontal
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import SafeMarkdown from '@/components/SafeMarkdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
 import SafeSection from '@/components/SafeSection';
 import SoulPrintLogo from '@/components/SoulPrintLogo';

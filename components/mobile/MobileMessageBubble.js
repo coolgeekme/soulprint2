@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import SafeMarkdown from '@/components/SafeMarkdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
 import { Copy, Edit3, ThumbsUp, ThumbsDown, MoreVertical, Loader2, Globe, Sparkles, Film, Check } from 'lucide-react';
 import { MobileVideoCard, MobileSavedVideoCard, MobileImageCard } from './MobileMediaCards';
@@ -137,21 +137,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           <div className="text-gray-200 text-base leading-7 prose prose-invert prose-base max-w-none">
             {(message.video_task && !message.video_url) || message.image_url ? null : (
             <>
-            <ReactMarkdown 
-              components={{
-                p: ({children}) => <p className="mb-3 last:mb-0">{children}</p>,
-                code: ({children, className, ...props}) => {
-                  const isBlock = className?.includes('language-') || (typeof children === 'string' && children.includes('\n'));
-                  return isBlock
-                    ? <pre className="bg-black/30 p-3 rounded-lg my-2 overflow-x-auto text-sm leading-relaxed whitespace-pre-wrap break-words"><code>{children}</code></pre>
-                    : <code className="bg-black/30 px-1.5 py-0.5 rounded text-orange-300 text-sm">{children}</code>;
-                },
-                a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline">{children}</a>,
-                img: ({src, alt}) => <img src={src} alt={alt || ''} className="rounded-lg max-w-full" />,
-              }}
-            >
-              {typeof message.content === 'string' ? message.content : String(message.content || '')}
-            </ReactMarkdown>
+            <SafeMarkdown content={typeof message.content === 'string' ? message.content : String(message.content || '')} />
             
             {/* Sources Section */}
             {message.sources && message.sources.length > 0 && (

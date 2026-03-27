@@ -19388,6 +19388,17 @@ export async function POST(request, { params }) {
     if (pathStr === 'memories') return handleCreateMemory(request);
     if (pathStr === 'user/memories') return handleCreateMemory(request);
     if (pathStr === 'contact') return handleContactForm(request);
+    
+    // Error reporting endpoint
+    if (pathStr === 'error-report') {
+      try {
+        const body = await request.json();
+        console.error('[FRONTEND CRASH REPORT]', JSON.stringify(body));
+        return ok({ received: true });
+      } catch (e) {
+        return ok({ received: true });
+      }
+    }
 
     // Admin routes
     if (pathStr === 'app-updates/mark-viewed') return handleMarkAppUpdatesViewed(request);

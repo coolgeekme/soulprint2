@@ -3,20 +3,14 @@
 import React from 'react';
 
 /**
- * Global ErrorBoundary: Shows a recoverable crash screen for fatal errors.
- * 
- * IMPORTANT: This boundary does NOT auto-recover because auto-recovery causes
- * a full component tree re-mount, which destroys all state (including active
- * streaming connections, messages, etc.). Instead, it provides manual recovery
- * options.
- * 
- * For transient errors during streaming/rendering, use MessageErrorBoundary
- * or SafeSection which are scoped to individual UI sections.
+ * Global ErrorBoundary with error reporting.
+ * Captures the exact error + component stack and logs it visibly
+ * so we can identify and fix the root cause.
  */
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -24,40 +18,44 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidMount() {
-    // Catch unhandled promise rejections - PREVENT app crash
+    // Catch unhandled promise rejections
     this._onUnhandledRejection = (event) => {
-      console.error('[ErrorBoundary] Unhandled rejection:', event?.reason);
-      // Prevent the rejection from propagating
       event.preventDefault();
     };
     window.addEventListener('unhandledrejection', this._onUnhandledRejection);
-
-    // Catch runtime errors that React doesn't catch
-    this._onError = (event) => {
-      if (event.message && !event.message.includes('Script error')) {
-        console.error('[ErrorBoundary] Global error:', event.message);
-      }
-      // Prevent TypeError / ReferenceError from crashing the app
-      if (event.error && (
-        event.message?.includes('Cannot read properties of undefined') ||
-        event.message?.includes('Cannot read properties of null') ||
-        event.message?.includes('is not a function') ||
-        event.message?.includes('is not defined')
-      )) {
-        event.preventDefault();
-      }
-    };
-    window.addEventListener('error', this._onError);
   }
 
   componentWillUnmount() {
     if (this._onUnhandledRejection) window.removeEventListener('unhandledrejection', this._onUnhandledRejection);
-    if (this._onError) window.removeEventListener('error', this._onError);
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('[ErrorBoundary] Caught error:', error?.message, errorInfo?.componentStack?.slice(0, 500));
+    this.setState({ errorInfo });
+    
+    // Log the full error details to console AND try to send to backend
+    const errorReport = {
+      message: error?.message || 'Unknown error',
+      stack: error?.stack?.slice(0, 1000) || '',
+      componentStack: errorInfo?.componentStack?.slice(0, 1500) || '',
+      url: typeof window !== 'undefined' ? window.location.href : '',
+      timestamp: new Date().toISOString(),
+    };
+    
+    console.error('[CRASH REPORT]', JSON.stringify(errorReport, null, 2));
+    
+    // Try to log to backend for debugging
+    try {
+      fetch('/api/error-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(errorReport),
+      }).catch(() => {});
+    } catch (e) {}
   }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null, errorInfo: null });
+  };
 
   handleReload = () => {
     window.location.reload();
@@ -67,20 +65,36 @@ class ErrorBoundary extends React.Component {
     window.location.href = '/chat';
   };
 
-  handleRetry = () => {
-    this.setState({ hasError: false, error: null });
-  };
-
   render() {
     if (this.state.hasError) {
+      const errMsg = this.state.error?.message || 'Unknown error';
+      const componentStack = this.state.errorInfo?.componentStack || '';
+      
+      // Extract the component name from the stack
+      const crashedComponent = componentStack
+        .split('\n')
+        .filter(line => line.trim().startsWith('at '))
+        .slice(0, 3)
+        .map(line => line.trim())
+        .join(' → ');
+
       return (
         <div className="min-h-screen bg-black flex items-center justify-center p-6">
-          <div className="max-w-md w-full text-center space-y-6">
+          <div className="max-w-lg w-full text-center space-y-6">
             <div className="text-6xl">⚡</div>
             <h1 className="text-2xl font-bold text-white">Something went wrong</h1>
             <p className="text-gray-400 text-sm">
               An unexpected error occurred. This usually resolves itself with a quick reload.
             </p>
+            
+            {/* Always show error details for debugging */}
+            <div className="text-left p-3 bg-red-500/10 rounded-lg border border-red-500/20 max-h-48 overflow-auto">
+              <p className="text-red-400 text-xs font-mono break-all">{errMsg}</p>
+              {crashedComponent && (
+                <p className="text-red-300/60 text-[10px] font-mono mt-2 break-all">{crashedComponent}</p>
+              )}
+            </div>
+            
             <div className="flex gap-3 justify-center flex-wrap">
               <button
                 onClick={this.handleRetry}
@@ -101,14 +115,6 @@ class ErrorBoundary extends React.Component {
                 Go to Chat
               </button>
             </div>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
-              <details className="text-left mt-4 p-3 bg-red-500/10 rounded-lg border border-red-500/20">
-                <summary className="text-red-400 text-xs cursor-pointer">Error Details</summary>
-                <pre className="text-red-300 text-[10px] mt-2 overflow-auto max-h-40 whitespace-pre-wrap">
-                  {this.state.error.toString()}
-                </pre>
-              </details>
-            )}
           </div>
         </div>
       );

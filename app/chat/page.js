@@ -18,6 +18,7 @@ const RealtimeVoiceChat = dynamic(
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import SafeMarkdown from '@/components/SafeMarkdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
 import SafeSection from '@/components/SafeSection';
 import {
@@ -2514,13 +2515,19 @@ export default function ChatPage() {
 
   // Filter conversations based on search query and pin Telegram chats to top
   // CRITICAL: Use spread to avoid mutating state array during render
-  const baseConversations = searchResults !== null ? (Array.isArray(searchResults) ? searchResults : []) : (Array.isArray(conversations) ? conversations : []);
-  const filteredConversations = [...baseConversations].sort((a, b) => {
-    // Pin Telegram conversations to the top
-    if (a?.source === 'telegram' && b?.source !== 'telegram') return -1;
-    if (a?.source !== 'telegram' && b?.source === 'telegram') return 1;
-    return 0;
-  });
+  let filteredConversations = [];
+  try {
+    const baseConversations = searchResults !== null ? (Array.isArray(searchResults) ? searchResults : []) : (Array.isArray(conversations) ? conversations : []);
+    filteredConversations = [...baseConversations].sort((a, b) => {
+      // Pin Telegram conversations to the top
+      if (a?.source === 'telegram' && b?.source !== 'telegram') return -1;
+      if (a?.source !== 'telegram' && b?.source === 'telegram') return 1;
+      return 0;
+    });
+  } catch (e) {
+    console.error('[ChatPage] filteredConversations computation failed:', e);
+    filteredConversations = Array.isArray(conversations) ? conversations : [];
+  }
 
   // Render mobile interface on mobile devices
   if (isMobile && token && user) {
@@ -2561,6 +2568,7 @@ export default function ChatPage() {
       {showSidebar && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowSidebar(false)} />}
 
       {/* Sidebar */}
+      <SafeSection name="Sidebar">
       <div className={`fixed lg:relative z-50 h-full bg-[#111820] border-r border-white/5 flex flex-col transform transition-all duration-300 ${
         sidebarCollapsed 
           ? 'w-16 lg:w-16' 
@@ -2896,8 +2904,17 @@ export default function ChatPage() {
           </a>
         </div>
       </div>
+      </SafeSection>
 
       {/* Main */}
+      <SafeSection name="MainContent" fallback={(retry) => (
+        <div className="flex-1 flex items-center justify-center bg-sp-black">
+          <div className="text-center space-y-4">
+            <p className="text-gray-400">Something went wrong in the chat area.</p>
+            <button onClick={retry} className="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors">Retry</button>
+          </div>
+        </div>
+      )}>
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar - with safe area padding for PWA */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 flex-shrink-0 pwa-header bg-sp-black">
@@ -3287,31 +3304,7 @@ export default function ChatPage() {
                         )}
                         {/* Regular text (skip for pure image/video messages and active video tasks) */}
                         {!msg.image_url && !msg.video_url && !(msg.video_task && !msg.video_url) && (
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}
-                            components={{
-                              p: ({children}) => <p className="mb-3 last:mb-0 break-words">{children}</p>,
-                              code: ({children, className, ...props}) => {
-                                const isBlock = className?.includes('language-') || (typeof children === 'string' && children.includes('\n'));
-                                return isBlock
-                                ? <pre className="bg-sp-black p-3 sm:p-4 rounded-lg my-3 overflow-x-auto text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words"><code>{children}</code></pre>
-                                : <code className="bg-white/10 px-1.5 py-0.5 rounded text-orange-300 text-[13px] sm:text-sm break-all">{children}</code>;
-                              },
-                              ul: ({children}) => <ul className="list-disc pl-5 space-y-1.5 mb-3">{children}</ul>,
-                              ol: ({children}) => <ol className="list-decimal pl-5 space-y-1.5 mb-3">{children}</ol>,
-                              li: ({children}) => <li className="pl-1">{children}</li>,
-                              strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
-                              a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline hover:text-orange-300 break-all">{children}</a>,
-                              h1: ({children}) => <h1 className="text-lg sm:text-xl font-bold text-white mt-5 mb-3">{children}</h1>,
-                              h2: ({children}) => <h2 className="text-base sm:text-lg font-bold text-white mt-4 mb-2.5">{children}</h2>,
-                              h3: ({children}) => <h3 className="text-[15px] sm:text-base font-semibold text-white mt-3.5 mb-2">{children}</h3>,
-                              blockquote: ({children}) => <blockquote className="border-l-2 border-orange-500/40 pl-4 my-3 italic text-gray-400">{children}</blockquote>,
-                              img: ({src, alt}) => <img src={src} alt={alt} className="max-w-full rounded-lg my-3" />,
-                              table: ({children}) => <div className="overflow-x-auto my-3"><table className="min-w-full text-[13px] sm:text-sm border-collapse">{children}</table></div>,
-                              th: ({children}) => <th className="border border-white/20 px-3 py-1.5 bg-white/5 text-left font-semibold">{children}</th>,
-                              td: ({children}) => <td className="border border-white/10 px-3 py-1.5">{children}</td>,
-                            }}>
-                            {typeof msg.content === 'string' ? msg.content : String(msg.content || '')}
-                          </ReactMarkdown>
+                          <SafeMarkdown content={typeof msg.content === 'string' ? msg.content : String(msg.content || '')} />
                         )}
                         
                         {/* Sources Section - Like Perplexity */}
@@ -3479,20 +3472,7 @@ export default function ChatPage() {
                   {/* Regular text (only if not a pure image/video message) */}
                   {streamingContent && !streamingImageUrl && !streamingVideoTask && !(isGeneratingVisual && visualGenerationType === 'video') && (
                     <>
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}
-                        components={{
-                          p: ({children}) => <p className="mb-3 last:mb-0 break-words">{children}</p>,
-                          strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
-                          a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline break-all">{children}</a>,
-                          code: ({children, className, ...props}) => {
-                            const isBlock = className?.includes('language-') || (typeof children === 'string' && children.includes('\n'));
-                            return isBlock
-                            ? <pre className="bg-sp-black p-3 sm:p-4 rounded-lg my-3 overflow-x-auto text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words"><code>{children}</code></pre>
-                            : <code className="bg-white/10 px-1.5 py-0.5 rounded text-orange-300 text-[13px] sm:text-sm break-all">{children}</code>;
-                          },
-                        }}>
-                        {typeof streamingContent === 'string' ? streamingContent : String(streamingContent || '')}
-                      </ReactMarkdown>
+                      <SafeMarkdown content={typeof streamingContent === 'string' ? streamingContent : String(streamingContent || '')} />
                       <span className="inline-block w-0.5 h-4 bg-orange-500 ml-0.5 animate-pulse" />
                       
                       {/* Show "still generating" indicator if stalled */}
@@ -4131,6 +4111,7 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+      </SafeSection>
 
       {showSettings && <SafeSection name="SettingsModal"><SettingsModal onClose={() => setShowSettings(false)} token={token} onModelChange={(type, value) => {
         if (type === 'text') { setSelectedModel(value); setDefaultModelSaved(value); }

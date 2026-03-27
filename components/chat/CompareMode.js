@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import SafeMarkdown from '@/components/SafeMarkdown';
 import { Loader2, X, Globe, Clock, Zap, CheckCircle2, ChevronDown, Check, GitCompare } from 'lucide-react';
 import { MODELS } from './constants';
 
@@ -90,7 +89,7 @@ function CompareResponseCard({ response, onSelect, isLoading, selected, totalMod
       
       {/* Content - larger text and more height */}
       <div className={`flex-1 overflow-y-auto ${contentMaxHeight} mb-4 text-base text-gray-200 leading-7 prose prose-invert prose-base prose-p:my-3 prose-headings:my-4 prose-ul:my-3 prose-li:my-1.5 prose-code:text-orange-300`}>
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content || ''}</ReactMarkdown>
+        <SafeMarkdown content={content || ''} />
       </div>
       
       {/* Select Button */}
