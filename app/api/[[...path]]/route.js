@@ -51,6 +51,7 @@ import {
   executeGoogleAction,
   getConnectionByEmail,
   getTokenForAccount,
+  userHasGoogleConnected,
 } from '@/lib/handlers/google-context';
 
 import {
@@ -5476,7 +5477,7 @@ async function handleRegister(request) {
     email: email.toLowerCase(),
     passcode_hash: hashed,
     role,
-    accepted: role === 'superadmin' || acceptedViaBetaCode,
+    accepted: true,
     created_at: now,
     last_active_at: now,
     access_code_used: access_code || null,
@@ -5521,14 +5522,14 @@ async function handleRegister(request) {
   sendNewUserNotificationEmail({
     email: email.toLowerCase(),
     beta_code_used: acceptedViaBetaCode ? access_code : null,
-    accepted: role === 'superadmin' || acceptedViaBetaCode,
+    accepted: true,
   }).catch(e => console.error('Admin notification email failed:', e));
   
   return ok({ 
     token, 
     userId, 
     role, 
-    accepted: role === 'superadmin' || acceptedViaBetaCode,
+    accepted: true,
     onboarding_complete: false,
     assessment_complete: false,
   });
@@ -5707,7 +5708,7 @@ async function handleFirebaseAuth(request) {
       firebase_photo_url: photoURL || null,
       display_name: displayName || null,
       role,
-      accepted: role === 'superadmin' || acceptedViaBetaCode,
+      accepted: true,
       created_at: now,
       last_active_at: now,
       access_code_used: accessCode || null,
@@ -5751,10 +5752,10 @@ async function handleFirebaseAuth(request) {
     sendNewUserNotificationEmail({
       email: email.toLowerCase(),
       beta_code_used: acceptedViaBetaCode ? accessCode : null,
-      accepted: role === 'superadmin' || acceptedViaBetaCode,
+      accepted: true,
     }).catch(e => console.error('Admin notification email failed:', e));
     
-    user = { id: userId, role, accepted: role === 'superadmin' || acceptedViaBetaCode };
+    user = { id: userId, role, accepted: true };
   }
   
   // Generate our own JWT token for subsequent API calls
