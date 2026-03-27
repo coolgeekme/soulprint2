@@ -88,6 +88,9 @@ import {
   handleGetSoulPrint,
   getAssessmentProgress,
   handleGenerateSoulPrint,
+  handleGetAssessmentNudge,
+  handleSubmitNudgeAnswer,
+  handleNudgeMessageCount,
 } from '@/lib/handlers/gradual-assessment';
 
 import {
@@ -9444,6 +9447,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'assessment/validation/next') return handleGetNextValidation(request);
     if (pathStr === 'assessment/gradual/next') return handleGetGradualQuestion(request);
     if (pathStr === 'assessment/gradual/progress') return handleGetAssessmentProgress(request);
+    if (pathStr === 'assessment/nudge') return handleGetAssessmentNudge(request);
     if (pathStr === 'profile/communication') return handleGetCommunicationProfile(request);
     if (pathStr === 'profile/soulprint') return handleGetSoulPrint(request);
     if (pathStr === 'privacy/settings') return handleGetPrivacySettings(request);
@@ -9665,6 +9669,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'pwa/install-status') return handleUpdateInstallPromptStatus(request);
     if (pathStr === 'assessment/gradual/answer') return handleSubmitGradualAnswer(request);
     if (pathStr === 'assessment/gradual/skip') return handleSkipGradualQuestion(request);
+    if (pathStr === 'assessment/nudge/answer') return handleSubmitNudgeAnswer(request);
+    if (pathStr === 'assessment/nudge/message') return handleNudgeMessageCount(request);
     
     // Viral invite routes
     if (pathStr === 'invites/validate') return handleValidateInviteCode(request);

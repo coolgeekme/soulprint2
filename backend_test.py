@@ -11,7 +11,7 @@ import sys
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://bug-squash-ai.preview.emergentagent.com"
+BASE_URL = "https://profile-prompt-1.preview.emergentagent.com"
 TEST_EMAIL = "testchat@example.com"
 TEST_PASSCODE = "Test123456"
 

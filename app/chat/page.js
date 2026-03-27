@@ -50,6 +50,7 @@ import CloudImportModal from '@/components/chat/CloudImportModal';
 import { SettingsModal, FeedbackModal } from '@/components/chat/SettingsModal';
 import AttachmentPill from '@/components/chat/AttachmentPill';
 import { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from '@/components/chat/constants';
+import AssessmentNudge from '@/components/AssessmentNudge';
 
 
 export default function ChatPage() {
@@ -61,6 +62,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [userMessageCount, setUserMessageCount] = useState(0);
   const [streamingStalled, setStreamingStalled] = useState(false); // Track if streaming seems stalled
   const [lastChunkTime, setLastChunkTime] = useState(null); // Track last chunk received time
   const [searchingWeb, setSearchingWeb] = useState(false);
@@ -1110,6 +1112,7 @@ export default function ChatPage() {
       content: content,
     };
     setMessages(prev => [...prev, userMessage]);
+    setUserMessageCount(prev => prev + 1);
     setInput('');
     setDetectedMediaIntent(null);
     
@@ -2539,6 +2542,7 @@ export default function ChatPage() {
           onOpenVoiceChat={voiceChatEnabled ? () => setShowVoiceChat(true) : null}
           initialConversationId={conversationId}
         />
+        <AssessmentNudge token={token} messageCount={userMessageCount} />
         {showSettings && <SafeSection name="MobileSettingsModal"><SettingsModal onClose={() => { setShowSettings(false); setSettingsInitialTab(null); }} token={token} initialTab={settingsInitialTab} onModelChange={(type, value) => {
           if (type === 'text') { setSelectedModel(value); setDefaultModelSaved(value); }
           else if (type === 'video') { setSelectedVideoModel(value); setDefaultVideoModelSaved(value); }
@@ -2563,6 +2567,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen bg-sp-black overflow-hidden safe-area-all">
+      <AssessmentNudge token={token} messageCount={userMessageCount} />
       {showSidebar && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setShowSidebar(false)} />}
 
       {/* Sidebar */}

@@ -16,7 +16,7 @@ import re
 from datetime import datetime
 
 # Configuration
-BASE_URL = "https://bug-squash-ai.preview.emergentagent.com"
+BASE_URL = "https://profile-prompt-1.preview.emergentagent.com"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 
