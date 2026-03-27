@@ -147,12 +147,7 @@ export default function ChatPage() {
   const [appUpdates, setAppUpdates] = useState([]);
   const [appUpdatesUnread, setAppUpdatesUnread] = useState(0);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
-  // Gradual assessment state
-  const [gradualQuestion, setGradualQuestion] = useState(null);
-  const [gradualAnswer, setGradualAnswer] = useState('');
-  const [gradualProgress, setGradualProgress] = useState(null);
-  const [showGradualPrompt, setShowGradualPrompt] = useState(false);
-  const [submittingGradual, setSubmittingGradual] = useState(false);
+  // Gradual assessment state (legacy — replaced by AssessmentNudge slider component)
   // PWA Install prompt state
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
@@ -958,96 +953,6 @@ export default function ChatPage() {
       .catch(() => {});
   }, [token]);
 
-  // Check for gradual assessment questions
-  const checkGradualQuestion = useCallback(async () => {
-    if (!token) return;
-    try {
-      const res = await fetch('/api/assessment/gradual/next', { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
-      const data = await res.json();
-      
-      if (data.hasQuestion && data.question) {
-        setGradualQuestion(data.question);
-        setGradualProgress(data.progress);
-        // Don't show immediately - wait a moment after conversation activity
-        setTimeout(() => setShowGradualPrompt(true), 2000);
-      } else if (data.progress) {
-        setGradualProgress(data.progress);
-      }
-    } catch (e) {
-      console.error('Failed to check gradual question:', e);
-    }
-  }, [token]);
-
-  // Check for gradual question after messages change (but not too often)
-  useEffect(() => {
-    if (!token || messages.length < 5) return;
-    
-    // Only check every 5 messages after first 5
-    if (messages.length % 5 !== 0) return;
-    
-    // Don't check if we already have a question pending
-    if (showGradualPrompt || gradualQuestion) return;
-    
-    checkGradualQuestion();
-  }, [messages.length, token, showGradualPrompt, gradualQuestion, checkGradualQuestion]);
-
-  // Submit gradual assessment answer
-  const submitGradualAnswer = async () => {
-    if (!gradualAnswer.trim() || !gradualQuestion) return;
-    
-    setSubmittingGradual(true);
-    try {
-      const res = await fetch('/api/assessment/gradual/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ 
-          question_id: gradualQuestion.id, 
-          answer: gradualAnswer 
-        }),
-      });
-      const data = await res.json();
-      
-      if (data.success) {
-        setGradualProgress(data.progress);
-        setShowGradualPrompt(false);
-        setGradualQuestion(null);
-        setGradualAnswer('');
-        
-        // Show thank you message in chat
-        setMessages(prev => [...prev, {
-          id: `gradual-${Date.now()}`,
-          role: 'assistant',
-          content: `✨ **Thanks for sharing!** Your profile is now ${data.progress.percentage}% complete across all 6 pillars.${data.progress.isComplete ? '\n\n🎉 **Congratulations!** Your full profile is now complete!' : ''}`,
-          created_at: new Date().toISOString(),
-        }]);
-      }
-    } catch (e) {
-      console.error('Failed to submit gradual answer:', e);
-    }
-    setSubmittingGradual(false);
-  };
-
-  // Skip gradual question for now
-  const skipGradualQuestion = async () => {
-    if (!gradualQuestion) return;
-    
-    try {
-      await fetch('/api/assessment/gradual/skip', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ question_id: gradualQuestion.id }),
-      });
-    } catch (e) {
-      console.error('Failed to skip gradual question:', e);
-    }
-    
-    setShowGradualPrompt(false);
-    setGradualQuestion(null);
-    setGradualAnswer('');
-  };
-
   // Save voice conversation transcript to chat history
   const saveVoiceTranscript = async (transcriptItems) => {
     if (!transcriptItems || transcriptItems.length === 0) return;
@@ -1238,6 +1143,7 @@ export default function ChatPage() {
 
     const userMsg = { id: `u-${Date.now()}`, role: 'user', content: displayContent, created_at: new Date().toISOString(), attachments: currentAttachments };
     setMessages(prev => [...prev.filter(m => m.id !== 'greeting' || prev.length === 1), userMsg]);
+    setUserMessageCount(prev => prev + 1);
 
     // Clear any previous comparison
     setCompareResponses(null);
@@ -4928,69 +4834,6 @@ export default function ChatPage() {
         </SafeSection>
       )}
       
-      {/* Gradual Assessment Prompt */}
-      {showGradualPrompt && gradualQuestion && (
-        <div className="fixed bottom-24 right-4 z-40 max-w-sm w-full animate-in slide-in-from-right-5 duration-300">
-          <div className="bg-[#141a21] border border-orange-500/30 rounded-2xl p-4 shadow-2xl shadow-orange-500/10">
-            {/* Header */}
-            <div className="flex items-start gap-3 mb-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-orange-400 text-xs font-medium uppercase tracking-wider">Quick Question</span>
-                  <button onClick={skipGradualQuestion} className="text-gray-600 hover:text-gray-400 p-1">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <p className="text-gray-500 text-[10px] mt-0.5">
-                  Building your profile • {gradualProgress?.percentage || 0}% complete
-                </p>
-              </div>
-            </div>
-            
-            {/* Question */}
-            <p className="text-white text-sm mb-3 leading-relaxed">
-              {gradualQuestion.question_text}
-            </p>
-            
-            {/* Pillar badge */}
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] text-gray-500 bg-white/5 px-2 py-1 rounded-full capitalize">
-                {gradualQuestion.pillar?.replace('_', ' ')}
-              </span>
-            </div>
-            
-            {/* Answer input */}
-            <textarea
-              value={gradualAnswer}
-              onChange={(e) => setGradualAnswer(e.target.value)}
-              placeholder="Share your thoughts..."
-              className="w-full bg-sp-black border border-white/10 rounded-xl p-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-orange-500/50 resize-none"
-              rows={3}
-            />
-            
-            {/* Actions */}
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={skipGradualQuestion}
-                className="flex-1 py-2 text-gray-500 hover:text-white text-xs transition-colors"
-              >
-                Ask me later
-              </button>
-              <button
-                onClick={submitGradualAnswer}
-                disabled={!gradualAnswer.trim() || submittingGradual}
-                className="flex-1 btn-orange py-2 rounded-lg text-xs disabled:opacity-50 flex items-center justify-center gap-1"
-              >
-                {submittingGradual ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                Submit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* Voice Conversation Modal - Desktop */}
       {showVoiceChat && voiceChatEnabled && (
