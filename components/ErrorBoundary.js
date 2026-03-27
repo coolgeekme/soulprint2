@@ -3,15 +3,20 @@
 import React from 'react';
 
 /**
- * Global ErrorBoundary: Shows a crash screen ONLY for truly fatal errors.
- * For transient rendering errors (which are common with SSE streaming,
- * dynamic imports, etc.), it auto-recovers after a short delay.
+ * Global ErrorBoundary: Shows a recoverable crash screen for fatal errors.
+ * 
+ * IMPORTANT: This boundary does NOT auto-recover because auto-recovery causes
+ * a full component tree re-mount, which destroys all state (including active
+ * streaming connections, messages, etc.). Instead, it provides manual recovery
+ * options.
+ * 
+ * For transient errors during streaming/rendering, use MessageErrorBoundary
+ * or SafeSection which are scoped to individual UI sections.
  */
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null, errorCount: 0, autoRecovering: false };
-    this._autoRecoverTimer = null;
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -21,18 +26,18 @@ class ErrorBoundary extends React.Component {
   componentDidMount() {
     // Catch unhandled promise rejections - PREVENT app crash
     this._onUnhandledRejection = (event) => {
-      console.error('[ErrorBoundary] Unhandled rejection:', event.reason);
-      event.preventDefault(); // Prevent the error from crashing the app
+      console.error('[ErrorBoundary] Unhandled rejection:', event?.reason);
+      // Prevent the rejection from propagating
+      event.preventDefault();
     };
     window.addEventListener('unhandledrejection', this._onUnhandledRejection);
 
     // Catch runtime errors that React doesn't catch
     this._onError = (event) => {
-      // Only log non-CORS, non-network errors
       if (event.message && !event.message.includes('Script error')) {
         console.error('[ErrorBoundary] Global error:', event.message);
       }
-      // Prevent error from propagating to cause crash
+      // Prevent TypeError / ReferenceError from crashing the app
       if (event.error && (
         event.message?.includes('Cannot read properties of undefined') ||
         event.message?.includes('Cannot read properties of null') ||
@@ -46,47 +51,27 @@ class ErrorBoundary extends React.Component {
   }
 
   componentWillUnmount() {
-    window.removeEventListener('unhandledrejection', this._onUnhandledRejection);
-    window.removeEventListener('error', this._onError);
-    if (this._autoRecoverTimer) clearTimeout(this._autoRecoverTimer);
+    if (this._onUnhandledRejection) window.removeEventListener('unhandledrejection', this._onUnhandledRejection);
+    if (this._onError) window.removeEventListener('error', this._onError);
   }
 
   componentDidCatch(error, errorInfo) {
     console.error('[ErrorBoundary] Caught error:', error?.message, errorInfo?.componentStack?.slice(0, 500));
-    
-    const newCount = this.state.errorCount + 1;
-    this.setState({ errorCount: newCount });
-    
-    // Auto-recover for the first 3 errors (transient rendering issues)
-    if (newCount <= 3) {
-      this.setState({ autoRecovering: true });
-      this._autoRecoverTimer = setTimeout(() => {
-        this.setState({ hasError: false, error: null, autoRecovering: false });
-      }, 500);
-    }
-    // After 3+ errors in rapid succession, show the crash screen
   }
 
   handleReload = () => {
-    this.setState({ hasError: false, error: null, errorCount: 0, autoRecovering: false });
     window.location.reload();
   };
 
   handleGoHome = () => {
-    this.setState({ hasError: false, error: null, errorCount: 0, autoRecovering: false });
     window.location.href = '/chat';
   };
 
   handleRetry = () => {
-    this.setState({ hasError: false, error: null, autoRecovering: false });
+    this.setState({ hasError: false, error: null });
   };
 
   render() {
-    // If auto-recovering, show nothing briefly (prevents flash of error screen)
-    if (this.state.autoRecovering) {
-      return this.props.children;
-    }
-
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-black flex items-center justify-center p-6">

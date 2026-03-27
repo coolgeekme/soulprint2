@@ -3072,6 +3072,16 @@ export default function ChatPage() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 sm:py-6">
+          <SafeSection name="ChatMessages" fallback={(retry) => (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center space-y-3">
+                <p className="text-gray-400 text-sm">Something went wrong rendering messages.</p>
+                <button onClick={retry} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm rounded-lg transition-colors">
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}>
           <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
             {/* Google Welcome Banner */}
             {showGoogleWelcome && (
@@ -3639,6 +3649,7 @@ export default function ChatPage() {
 
             <div ref={messagesEndRef} />
           </div>
+          </SafeSection>
         </div>
 
         {/* Composer - with safe area padding at bottom for PWA */}

@@ -151,6 +151,7 @@ export default function MobileChat({
   const mediaPollIntervalRef = useRef(null);
   const conversationIdRef = useRef(conversationId);
   useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
+  const isStreamingRef = useRef(false); // Track streaming state synchronously for useEffect guards
 
   useEffect(() => {
     if (!token) return;
@@ -717,7 +718,19 @@ export default function MobileChat({
   }, [token]);
 
   // Load conversation messages
+  // CRITICAL: Skip this effect when `loading` is true to prevent wiping out
+  // streaming state. During streaming, the backend creates a new conversation
+  // and sends back a new conversationId via SSE meta event. If we reload
+  // messages from DB at that point, we'd lose the streaming content because
+  // the assistant response hasn't been saved to DB yet.
   useEffect(() => {
+    // CRITICAL: Don't reload messages while streaming!
+    // When the backend creates a new conversation during streaming, it sends
+    // a new conversationId via SSE meta event. This triggers this effect.
+    // But the assistant response hasn't been saved to DB yet, so fetching
+    // from DB would return only the user message, wiping out streaming state.
+    if (loading || isStreamingRef.current) return;
+    
     if (!token || !conversationId) {
       const greet = profile?.display_name || user?.profile?.display_name || 'there';
       const customGreeting = profile?.custom_greeting || user?.profile?.custom_greeting;
@@ -742,7 +755,7 @@ export default function MobileChat({
         setMessages(Array.isArray(data) ? data : []);
       })
       .catch(console.error);
-  }, [token, conversationId, assistantName, profile, user]);
+  }, [token, conversationId, assistantName, profile, user, loading]);
 
   // Process file for attachment
   const processFile = async (file) => {
@@ -962,6 +975,7 @@ export default function MobileChat({
     setStreamingVideoTask(null);
     setStreamingSources([]);
     setLoading(true);
+    isStreamingRef.current = true; // Synchronous flag to prevent message reload during streaming
     
     try {
       // Get current model provider
@@ -1160,6 +1174,7 @@ export default function MobileChat({
       }
     } finally {
       setLoading(false);
+      isStreamingRef.current = false; // Clear streaming flag
       abortControllerRef.current = null;
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -2270,6 +2285,14 @@ export default function MobileChat({
             )}
           
             {/* Messages */}
+            <SafeSection name="MobileMessages" fallback={(retry) => (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center space-y-3">
+                  <p className="text-gray-400 text-sm">Something went wrong.</p>
+                  <button onClick={retry} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm rounded-lg">Retry</button>
+                </div>
+              </div>
+            )}>
             <div className="px-2 pb-4">
               {(messages || []).map((msg, idx) => {
                 if (!msg) return null;
@@ -2413,6 +2436,7 @@ export default function MobileChat({
               
               <div ref={messagesEndRef} />
             </div>
+            </SafeSection>
           </div>
         </div>
       )}
