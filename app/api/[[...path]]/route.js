@@ -16376,6 +16376,72 @@ async function handleImportStatus(request) {
 }
 
 // ============================================================
+// VOICE SETTINGS & STATS
+// ============================================================
+
+async function handleGetVoiceSettings(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const db = await getDb();
+  const settings = await db.collection('voice_settings').findOne({ user_id: user.id });
+  
+  return ok(settings || {
+    voice: 'alloy',
+    speed: 1.0,
+    autoPlay: true,
+    saveTranscripts: true,
+  });
+}
+
+async function handleUpdateVoiceSettings(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const body = await request.json();
+  const db = await getDb();
+  
+  await db.collection('voice_settings').updateOne(
+    { user_id: user.id },
+    { $set: { ...body, user_id: user.id, updated_at: new Date() } },
+    { upsert: true }
+  );
+  
+  return ok({ message: 'Voice settings saved' });
+}
+
+async function handleGetVoiceStats(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  
+  const db = await getDb();
+  
+  // Count voice sessions and total duration
+  const sessions = await db.collection('voice_sessions')
+    .find({ user_id: user.id })
+    .sort({ created_at: -1 })
+    .limit(50)
+    .toArray();
+  
+  const totalSessions = sessions.length;
+  const totalDuration = sessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+  const lastSession = sessions[0] || null;
+  
+  return ok({
+    totalSessions,
+    totalDuration,
+    averageDuration: totalSessions > 0 ? Math.round(totalDuration / totalSessions) : 0,
+    lastSessionAt: lastSession?.created_at || null,
+    recentSessions: sessions.slice(0, 10).map(s => ({
+      id: s.id,
+      duration: s.duration || 0,
+      created_at: s.created_at,
+      transcript_length: s.transcript?.length || 0,
+    })),
+  });
+}
+
+// ============================================================
 // TELEGRAM CONNECTOR
 // ============================================================
 
@@ -16387,9 +16453,294 @@ async function sendTelegramMessage(chatId, token, text) {
   });
 }
 
-// Telegram setup — link a SoulPrint account to a Telegram chat
+// GET /api/telegram/status — check if user's Telegram is linked
+async function handleTelegramStatus(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
 
-// Telegram status + setup webhook
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    return ok({ configured: false, linked: false, message: 'Telegram bot not configured' });
+  }
+
+  const db = await getDb();
+  const mapping = await db.collection('telegram_mappings').findOne({ user_id: user.id, linked: true });
+
+  return ok({
+    configured: true,
+    linked: !!mapping,
+    telegram_chat_id: mapping?.telegram_chat_id || null,
+    telegram_username: mapping?.telegram_username || null,
+    preferred_model: mapping?.preferred_model || 'gpt-4o',
+    linked_at: mapping?.linked_at || null,
+  });
+}
+
+// POST /api/telegram/link — link a Telegram account with a link code
+async function handleTelegramLink(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { link_code } = body;
+  if (!link_code) return err('Link code required');
+
+  const db = await getDb();
+
+  // Find the pending link code
+  const pending = await db.collection('telegram_links').findOne({
+    code: link_code.trim(),
+    used: { $ne: true },
+  });
+
+  if (!pending) {
+    return err('Invalid or expired link code. Please generate a new one in Telegram by sending /start.', 400);
+  }
+
+  // Check if code is expired (15 min window)
+  const codeAge = Date.now() - new Date(pending.created_at).getTime();
+  if (codeAge > 15 * 60 * 1000) {
+    return err('Link code expired. Please generate a new one in Telegram by sending /start.', 400);
+  }
+
+  // Mark the link code as used
+  await db.collection('telegram_links').updateOne(
+    { _id: pending._id },
+    { $set: { used: true, used_at: new Date(), user_id: user.id } }
+  );
+
+  // Create or update the telegram mapping
+  await db.collection('telegram_mappings').updateOne(
+    { user_id: user.id },
+    {
+      $set: {
+        user_id: user.id,
+        telegram_chat_id: pending.chat_id,
+        telegram_username: pending.username || null,
+        linked: true,
+        linked_at: new Date(),
+        preferred_model: 'gpt-4o',
+      }
+    },
+    { upsert: true }
+  );
+
+  // Send confirmation message to user on Telegram
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (botToken && pending.chat_id) {
+    try {
+      await sendTelegramMessage(pending.chat_id, botToken, '✅ *Successfully linked to SoulPrint!*\n\nYou can now chat with me here. Send any message to get started.\n\nUse /model to change the AI model.');
+    } catch (e) {
+      console.error('Failed to send Telegram confirmation:', e);
+    }
+  }
+
+  return ok({ message: 'Telegram linked successfully!' });
+}
+
+// POST /api/telegram/unlink — disconnect Telegram
+async function handleTelegramUnlink(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const db = await getDb();
+
+  const mapping = await db.collection('telegram_mappings').findOne({ user_id: user.id, linked: true });
+
+  if (!mapping) {
+    return err('No linked Telegram account found', 404);
+  }
+
+  // Send goodbye message
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (botToken && mapping.telegram_chat_id) {
+    try {
+      await sendTelegramMessage(mapping.telegram_chat_id, botToken, '👋 *Disconnected from SoulPrint.*\n\nYour Telegram has been unlinked. Send /start to re-link.');
+    } catch (e) {
+      console.error('Failed to send Telegram disconnect msg:', e);
+    }
+  }
+
+  // Mark as unlinked
+  await db.collection('telegram_mappings').updateOne(
+    { user_id: user.id },
+    { $set: { linked: false, unlinked_at: new Date() } }
+  );
+
+  return ok({ message: 'Telegram disconnected' });
+}
+
+// PUT /api/telegram/model — set preferred AI model for Telegram
+async function handleTelegramModel(request) {
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { model } = body;
+  if (!model) return err('Model required');
+
+  const db = await getDb();
+  const mapping = await db.collection('telegram_mappings').findOne({ user_id: user.id, linked: true });
+
+  if (!mapping) {
+    return err('No linked Telegram account. Please link Telegram first.', 400);
+  }
+
+  await db.collection('telegram_mappings').updateOne(
+    { user_id: user.id, linked: true },
+    { $set: { preferred_model: model, model_updated_at: new Date() } }
+  );
+
+  return ok({ message: `Model set to ${model}`, model });
+}
+
+// POST /api/telegram/webhook — handle incoming Telegram messages
+async function handleTelegramWebhook(request) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) return err('Bot not configured', 500);
+
+  const body = await request.json();
+  const message = body?.message;
+  if (!message?.text || !message?.chat?.id) return ok({ ok: true });
+
+  const chatId = message.chat.id;
+  const text = message.text.trim();
+  const username = message.from?.username || null;
+
+  const db = await getDb();
+
+  // Handle /start command — generate a link code
+  if (text === '/start' || text.startsWith('/start')) {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    await db.collection('telegram_links').insertOne({
+      code,
+      chat_id: chatId,
+      username,
+      created_at: new Date(),
+      used: false,
+    });
+    await sendTelegramMessage(chatId, botToken,
+      `🔗 *Link to SoulPrint*\n\nYour link code is: \`${code}\`\n\nGo to SoulPrint → Settings → Telegram and enter this code to connect.\n\n_Code expires in 15 minutes._`
+    );
+    return ok({ ok: true });
+  }
+
+  // Handle /model command
+  if (text.startsWith('/model')) {
+    const parts = text.split(' ');
+    if (parts.length < 2) {
+      await sendTelegramMessage(chatId, botToken,
+        '🤖 *Current models:*\n`smart` - Dynamic Intelligence (auto)\n`gpt-4o` - GPT-4o\n`gpt-4o-mini` - GPT-4o Mini\n`gpt-4.1` - GPT-4.1\n`claude-sonnet-4-20250514` - Claude Sonnet 4\n`gemini-2.5-pro` - Gemini 2.5 Pro\n`sonar-pro` - Perplexity Sonar Pro\n\nUsage: `/model gpt-4o`'
+      );
+      return ok({ ok: true });
+    }
+    const modelName = parts.slice(1).join(' ');
+    const mapping = await db.collection('telegram_mappings').findOne({ telegram_chat_id: chatId, linked: true });
+    if (mapping) {
+      await db.collection('telegram_mappings').updateOne(
+        { telegram_chat_id: chatId, linked: true },
+        { $set: { preferred_model: modelName, model_updated_at: new Date() } }
+      );
+      await sendTelegramMessage(chatId, botToken, `✅ Model set to \`${modelName}\``);
+    } else {
+      await sendTelegramMessage(chatId, botToken, '❌ Please link your account first. Send /start to get a link code.');
+    }
+    return ok({ ok: true });
+  }
+
+  // Regular message — find mapping and route to AI
+  const mapping = await db.collection('telegram_mappings').findOne({ telegram_chat_id: chatId, linked: true });
+  if (!mapping) {
+    await sendTelegramMessage(chatId, botToken, '❌ Your account is not linked. Send /start to link.');
+    return ok({ ok: true });
+  }
+
+  // Find or create a telegram conversation
+  let conv = await db.collection('conversations').findOne({ user_id: mapping.user_id, source: 'telegram' });
+  if (!conv) {
+    const convId = uuidv4();
+    conv = {
+      id: convId,
+      user_id: mapping.user_id,
+      title: 'Telegram Chat',
+      source: 'telegram',
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    await db.collection('conversations').insertOne(conv);
+  }
+
+  // Save user message
+  const userMsgId = uuidv4();
+  await db.collection('messages').insertOne({
+    id: userMsgId,
+    conversation_id: conv.id,
+    user_id: mapping.user_id,
+    role: 'user',
+    content: text,
+    source: 'telegram',
+    created_at: new Date(),
+  });
+
+  // Update conversation timestamp
+  await db.collection('conversations').updateOne(
+    { id: conv.id },
+    { $set: { updated_at: new Date() } }
+  );
+
+  // Get recent messages for context
+  const recentMessages = await db.collection('messages')
+    .find({ conversation_id: conv.id })
+    .sort({ created_at: -1 })
+    .limit(10)
+    .toArray();
+  recentMessages.reverse();
+
+  const model = mapping.preferred_model || 'gpt-4o';
+
+  // Get user profile for system prompt
+  const profile = await db.collection('profiles').findOne({ user_id: mapping.user_id });
+  const displayName = profile?.display_name || username || 'there';
+
+  try {
+    // Call the AI
+    const messages = [
+      { role: 'system', content: `You are SoulPrint, a helpful AI assistant. You are chatting with ${displayName} via Telegram. Be concise and helpful. Keep responses short and mobile-friendly.` },
+      ...recentMessages.map(m => ({ role: m.role, content: m.content })),
+    ];
+
+    const OPENAI_KEY = process.env.OPENAI_API_KEY || process.env.EMERGENT_LLM_KEY;
+    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
+      body: JSON.stringify({ model, messages, max_tokens: 1000 }),
+    });
+
+    const aiData = await aiRes.json();
+    const reply = aiData.choices?.[0]?.message?.content || 'Sorry, I couldn\'t generate a response. Please try again.';
+
+    // Save assistant message
+    const assistantMsgId = uuidv4();
+    await db.collection('messages').insertOne({
+      id: assistantMsgId,
+      conversation_id: conv.id,
+      user_id: mapping.user_id,
+      role: 'assistant',
+      content: reply,
+      model_used: model,
+      source: 'telegram',
+      created_at: new Date(),
+    });
+
+    // Send to Telegram
+    await sendTelegramMessage(chatId, botToken, reply);
+  } catch (aiErr) {
+    console.error('Telegram AI error:', aiErr);
+    await sendTelegramMessage(chatId, botToken, '⚠️ Sorry, I encountered an error. Please try again.');
+  }
+
+  return ok({ ok: true });
+}
 
 
 
@@ -18864,6 +19215,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'tags') return handleGetTags(request);
     
     if (pathStr === 'imports') return handleGetImports(request);
+    if (pathStr === 'import/data') return handleGetImports(request);
     if (pathStr === 'models') return handleGetModels(request);
     if (pathStr.startsWith('generate/video/')) {
       const taskId = pathArr[2];
@@ -18872,6 +19224,14 @@ export async function GET(request, { params }) {
     if (pathStr === 'schedules') return handleGetSchedules(request);
     if (pathStr === 'schedules/templates') return ok(SCHEDULE_TEMPLATES);
     if (pathStr === 'memories') return handleGetMemories(request);
+    
+    // Aliases for user/* prefixed routes (frontend compatibility)
+    if (pathStr === 'user/memories') return handleGetMemories(request);
+    if (pathStr === 'user/profile') return handleMe(request);
+    if (pathStr === 'user/profile/soul') return handleGetSoulProfile(request);
+    if (pathStr === 'user/profile/export') return handleProfileExport(request);
+    if (pathStr === 'user/voice-settings') return handleGetVoiceSettings(request);
+    if (pathStr === 'user/voice-stats') return handleGetVoiceStats(request);
 
     // Admin routes
     // Admin user details: admin/users/:userId
@@ -18908,6 +19268,10 @@ export async function GET(request, { params }) {
     // Google OAuth & API routes
     if (pathStr === 'auth/google/callback') return handleGoogleAuthCallback(request);
     if (pathStr === 'google/status') return handleGoogleStatus(request);
+    
+    // Telegram routes
+    if (pathStr === 'telegram/status') return handleTelegramStatus(request);
+    
     if (pathStr === 'google/gmail/messages') return handleGmailList(request);
     if (pathStr.match(/^google\/gmail\/messages\/[^\/]+$/)) {
       const messageId = pathArr[3];
@@ -18989,6 +19353,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'analyze/image-to-json') return handleImageToJson(request);
     if (pathStr === 'image/edit') return handleImageEdit(request);
     if (pathStr === 'imports/upload') return handleImportUpload(request);
+    if (pathStr === 'import/data') return handleImportUpload(request);
     if (pathStr === 'import/chatgpt') return handleImportUpload(request); // Alias for mobile compatibility
     if (pathStr === 'imports/cloud') return handleCloudImport(request);
     if (pathStr === 'imports/cloud-batch') return handleCloudBatchImport(request);
@@ -19021,6 +19386,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'data-import/chunked/complete') return handleChunkedUploadComplete(request);
     if (pathStr === 'assessment/reset') return handleResetAssessment(request);
     if (pathStr === 'memories') return handleCreateMemory(request);
+    if (pathStr === 'user/memories') return handleCreateMemory(request);
     if (pathStr === 'contact') return handleContactForm(request);
 
     // Admin routes
@@ -19041,6 +19407,11 @@ export async function POST(request, { params }) {
     if (pathStr === 'connectors/discord/webhook') return handleConnectorStub('discord');
     if (pathStr === 'connectors/whatsapp/webhook') return handleConnectorStub('whatsapp');
     if (pathStr === 'connectors/sms/webhook') return handleConnectorStub('sms');
+    
+    // Telegram routes
+    if (pathStr === 'telegram/link') return handleTelegramLink(request);
+    if (pathStr === 'telegram/unlink') return handleTelegramUnlink(request);
+    if (pathStr === 'telegram/webhook') return handleTelegramWebhook(request);
 
     // Google OAuth & API routes
     if (pathStr === 'auth/google') return handleGoogleAuthStart(request);
@@ -19071,6 +19442,7 @@ export async function PUT(request, { params }) {
 
   try {
     if (pathStr === 'profile') return handleProfileUpdate(request);
+    if (pathStr === 'user/profile') return handleProfileUpdate(request);
     
     // Conversation project move: conversations/:id/project
     if (pathStr.match(/^conversations\/[^\/]+\/project$/)) {
@@ -19091,6 +19463,11 @@ export async function PUT(request, { params }) {
       const memoryId = pathArr[1];
       return handleUpdateMemory(request, memoryId);
     }
+    // user/memories/:id alias
+    if (pathStr.startsWith('user/memories/') && pathArr.length === 3) {
+      const memoryId = pathArr[2];
+      return handleUpdateMemory(request, memoryId);
+    }
 
     // Admin user update: admin/users/:id
     
@@ -19105,6 +19482,12 @@ export async function PUT(request, { params }) {
       const eventId = pathArr[3];
       return handleCalendarUpdate(request, eventId);
     }
+
+    // Telegram model update
+    if (pathStr === 'telegram/model') return handleTelegramModel(request);
+    
+    // Voice settings update
+    if (pathStr === 'user/voice-settings') return handleUpdateVoiceSettings(request);
 
     return err('Not found', 404);
   } catch (error) {
@@ -19129,6 +19512,11 @@ export async function DELETE(request, { params }) {
     }
     if (pathStr.startsWith('memories/') && pathArr.length === 2) {
       const memoryId = pathArr[1];
+      return handleDeleteMemory(request, memoryId);
+    }
+    // user/memories/:id alias
+    if (pathStr.startsWith('user/memories/') && pathArr.length === 3) {
+      const memoryId = pathArr[2];
       return handleDeleteMemory(request, memoryId);
     }
     if (pathStr.startsWith('data-imports/') && pathArr.length === 2) {
