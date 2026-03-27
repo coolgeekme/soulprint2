@@ -108,6 +108,10 @@ agent_communication:
   - agent: "testing"
     message: "BACKEND REFACTORING VERIFICATION COMPLETE: All critical endpoints working perfectly after major route.js refactoring. ✅ Health Check (GET /api/health returns {status: 'ok'}). ✅ Models Endpoint (GET /api/models returns 18 models). ✅ Authentication Flow (POST /api/auth/login with email/passcode working, auto-registration for new users). ✅ Profile Update (PUT /api/profile with auth token working). ✅ Announcements (GET /api/announcements with auth returns proper structure). ✅ Privacy Settings (GET /api/privacy/settings returns all expected fields). ✅ Conversations (GET /api/conversations returns user conversations). ✅ Chat Stream (POST /api/chat/stream properly enforces approval workflow). All 8 comprehensive tests passed - refactoring from monolithic 19.6k line route.js to 7 extracted handler modules successful. No routing errors or broken endpoints found."
   - agent: "main"
+    message: "PHASE 2 REFACTORING COMPLETE: Route.js reduced from 19.6k to 9.85k lines (50% reduction total). 17 handler modules in lib/handlers/. Fixed missing imports (LAYERED_ASSESSMENT_QUESTIONS, KIE_VIDEO_MODELS, NextResponse, getProvider, etc.). Fixed accepted:false blocking users. Auto-accept on signup. Auth: testchat@example.com / Test123456. Test ALL endpoints."
+  - agent: "testing"
+    message: "MAJOR REFACTORING VERIFICATION COMPLETE: All 14 critical endpoints working perfectly after route.js refactoring from 19.6k to 9.85k lines. ✅ Health Check (GET /api/health returns {status: 'ok'}). ✅ Models List (GET /api/models returns 18 models). ✅ Authentication (POST /api/auth/login with testchat@example.com/Test123456 working). ✅ Projects (GET /api/projects returns {owned, shared, uncategorized_count}). ✅ Tags (GET /api/tags returns array). ✅ Conversations (GET /api/conversations returns array). ✅ Memories (GET /api/memories returns {memories, categories}). ✅ Assessment Progress (GET /api/assessment/progress returns object). ✅ Media Gallery (GET /api/media/gallery returns array). ✅ Announcements (GET /api/announcements returns {announcements, unread}). ✅ Privacy Settings (GET /api/privacy/settings returns object). ✅ User Profile (GET /api/user/profile returns object). ✅ Chat Stream SSE (POST /api/chat/stream with Hello/gpt-4o returns text/event-stream). ✅ Feature Flags (GET /api/feature-flags returns object). ✅ Error Handling (401 for missing auth, 404 for invalid endpoints). All 15/15 comprehensive tests passed (100%) - refactoring successful with no broken endpoints."
+  - agent: "main"
     message: "PWA IMAGE GENERATION FIX: Fixed critical bug in MobileChat.js where image generation wasn't displaying on PWA. Issue: The `streamingImageUrl` state was never defined - only `setStreamingImageUrl(null)` was called but the useState was missing. FIX: (1) Added `const [streamingImageUrl, setStreamingImageUrl] = useState(null)` state. (2) Updated sendMessage to set state when image event arrives via `setStreamingImageUrl(data.url)`. (3) Added live streaming image rendering with MobileImageCard component. (4) Fixed variable shadowing by renaming local variables to `localStreamingImageUrl` and `localStreamingVideoTask`. Backend testing confirms image generation working perfectly with SSE events."
   - agent: "main"
     message: "GEMINI IMAGE EDITING + INLINE EDITOR: (1) Backend: Added Gemini as primary editor (METHOD 0) in handleImageEditInternal before GPT-image-1. Updated /api/image/edit to support overlayImage parameter. (2) Frontend: Rewrote ImageEditor component with file upload for logos, mobile-responsive layout, text editing. Edit button visible on mobile. (3) Loading animation for compositing. Need to test: POST /api/image/edit with Gemini as default engine, overlay image support."
@@ -229,6 +233,19 @@ agent_communication:
       - working: true
         agent: "testing"
         comment: "TESTED: All critical endpoints working perfectly after refactoring. ✅ Health Check (GET /api/health). ✅ Models (GET /api/models - 18 models). ✅ Auth Flow (POST /api/auth/login, POST /api/auth/register). ✅ Profile (PUT /api/profile). ✅ Announcements (GET /api/announcements). ✅ Privacy Settings (GET /api/privacy/settings). ✅ Conversations (GET /api/conversations). ✅ Chat Stream (POST /api/chat/stream with approval workflow). All 8 comprehensive tests passed - no routing errors or broken endpoints. Refactoring successful."
+
+
+  - task: "Major Route Refactoring Verification - All 14 Critical Endpoints"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js, lib/handlers/*.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Comprehensive verification of all 14 critical endpoints after major route.js refactoring from 19.6k to 9.85k lines. ✅ Health Check (GET /api/health returns {status: 'ok'}). ✅ Models List (GET /api/models returns 18 models). ✅ Authentication (POST /api/auth/login with testchat@example.com/Test123456 working). ✅ Projects (GET /api/projects returns {owned, shared, uncategorized_count}). ✅ Tags (GET /api/tags returns array). ✅ Conversations (GET /api/conversations returns array). ✅ Memories (GET /api/memories returns {memories, categories}). ✅ Assessment Progress (GET /api/assessment/progress returns object). ✅ Media Gallery (GET /api/media/gallery returns array). ✅ Announcements (GET /api/announcements returns {announcements, unread}). ✅ Privacy Settings (GET /api/privacy/settings returns object). ✅ User Profile (GET /api/user/profile returns object). ✅ Chat Stream SSE (POST /api/chat/stream with Hello/gpt-4o returns text/event-stream). ✅ Feature Flags (GET /api/feature-flags returns object). ✅ Error Handling (401 for missing auth, 404 for invalid endpoints). All 15/15 comprehensive tests passed (100%) - refactoring successful with no broken endpoints."
 
 
 backend:
