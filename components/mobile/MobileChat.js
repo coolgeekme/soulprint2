@@ -2370,7 +2370,7 @@ export default function MobileChat({
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [defaultModelSaved, setDefaultModelSaved] = useState(null); // persisted default
   const [defaultVideoModelSaved, setDefaultVideoModelSaved] = useState('smart');
-  const [defaultImageModelSaved, setDefaultImageModelSaved] = useState('smart'); model
+  const [defaultImageModelSaved, setDefaultImageModelSaved] = useState('smart');
   const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [showAttachmentSheet, setShowAttachmentSheet] = useState(false);
   const [showFlyerGenSheet, setShowFlyerGenSheet] = useState(false);
