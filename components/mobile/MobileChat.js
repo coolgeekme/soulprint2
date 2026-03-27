@@ -2653,7 +2653,11 @@ export default function MobileChat({
                       .map(project => (
                         <button
                           key={project.id}
-                          onClick={() => setSelectedProject(project.id)}
+                          onClick={() => {
+                            setSelectedProject(project.id);
+                            // Auto-start a new conversation in this project
+                            newConversation();
+                          }}
                           className="w-full text-left p-4 border-b border-white/5 hover:bg-white/5 active:bg-white/10 transition-colors"
                         >
                           <div className="flex items-center gap-3">

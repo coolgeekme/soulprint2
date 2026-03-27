@@ -2549,7 +2549,15 @@ export default function ChatPage() {
                     {projects.map(project => (
                       <div key={project.id} className="group relative">
                         <button
-                          onClick={() => setSelectedProject(selectedProject === project.id ? null : project.id)}
+                          onClick={() => {
+                            if (selectedProject === project.id) {
+                              setSelectedProject(null);
+                            } else {
+                              setSelectedProject(project.id);
+                              // Auto-start a new conversation in this project
+                              newConversation();
+                            }
+                          }}
                           className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-xs transition-all ${
                             selectedProject === project.id 
                               ? 'bg-purple-500/20 text-purple-300' 
