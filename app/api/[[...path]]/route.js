@@ -2606,6 +2606,52 @@ const GOOGLE_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'search_emails',
+      description: 'Search the user\'s Gmail inbox for emails matching a query. Use this when the user asks to find, look up, or check emails. Returns matching emails with subject, sender, date, and content preview.',
+      parameters: {
+        type: 'object',
+        properties: {
+          account_email: {
+            type: 'string',
+            description: 'The email address of the Google account to search (ask user if multiple accounts connected)'
+          },
+          query: {
+            type: 'string',
+            description: 'Gmail search query. Can use Gmail search operators like "from:sam", "subject:invoice", "after:2025/01/01", "has:attachment", or plain text search terms.'
+          },
+          max_results: {
+            type: 'number',
+            description: 'Maximum number of emails to return (default 10, max 20)'
+          }
+        },
+        required: ['account_email', 'query']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_email',
+      description: 'Read the full content of a specific email by its message ID. Use this after search_emails to get the complete email body when the user needs full details.',
+      parameters: {
+        type: 'object',
+        properties: {
+          account_email: {
+            type: 'string',
+            description: 'The email address of the Google account'
+          },
+          message_id: {
+            type: 'string',
+            description: 'The Gmail message ID (obtained from search_emails results)'
+          }
+        },
+        required: ['account_email', 'message_id']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
       name: 'send_email',
       description: 'Send an email using the user\'s connected Gmail account. ALWAYS ask the user which Google account to use before calling this function.',
       parameters: {
@@ -4914,6 +4960,144 @@ async function executeGoogleAction(userId, toolName, args) {
             spreadsheetId,
             title,
             url: sheetUrl
+          }
+        };
+      }
+
+      case 'search_emails': {
+        const { query: searchQuery, max_results } = args;
+        const maxRes = Math.min(max_results || 10, 20);
+        
+        const params = new URLSearchParams({ maxResults: String(maxRes) });
+        if (searchQuery) params.append('q', searchQuery);
+        
+        const gmailData = await googleApiCall(accessToken, `/gmail/v1/users/me/messages?${params}`);
+        
+        if (gmailData.error) {
+          return { success: false, error: gmailData.error.message || 'Failed to search emails' };
+        }
+        
+        if (!gmailData.messages || gmailData.messages.length === 0) {
+          return { 
+            success: true, 
+            message: `No emails found matching "${searchQuery}"`,
+            emails: []
+          };
+        }
+        
+        const detailed = await Promise.all(
+          gmailData.messages.slice(0, maxRes).map(async (msg) => {
+            try {
+              const detail = await googleApiCall(accessToken, `/gmail/v1/users/me/messages/${msg.id}?format=full`);
+              const headers = detail.payload?.headers || [];
+              
+              let body = '';
+              const getBody = (payload) => {
+                if (payload.body?.data) {
+                  return Buffer.from(payload.body.data, 'base64').toString('utf-8');
+                }
+                if (payload.parts) {
+                  for (const part of payload.parts) {
+                    if (part.mimeType === 'text/plain' && part.body?.data) {
+                      return Buffer.from(part.body.data, 'base64').toString('utf-8');
+                    }
+                  }
+                }
+                return '';
+              };
+              body = getBody(detail.payload);
+              
+              return {
+                message_id: msg.id,
+                from: headers.find(h => h.name === 'From')?.value || '',
+                to: headers.find(h => h.name === 'To')?.value || '',
+                subject: headers.find(h => h.name === 'Subject')?.value || '(No Subject)',
+                date: headers.find(h => h.name === 'Date')?.value || '',
+                snippet: detail.snippet || '',
+                body: body.slice(0, 2000),
+                labels: detail.labelIds || [],
+                has_attachments: detail.payload?.parts?.some(p => p.filename && p.filename.length > 0) || false
+              };
+            } catch (e) {
+              return null;
+            }
+          })
+        );
+        
+        const emails = detailed.filter(Boolean);
+        return { 
+          success: true, 
+          message: `Found ${emails.length} email(s) matching "${searchQuery}"`,
+          emails
+        };
+      }
+
+      case 'read_email': {
+        const { message_id } = args;
+        
+        const detail = await googleApiCall(accessToken, `/gmail/v1/users/me/messages/${message_id}?format=full`);
+        
+        if (detail.error) {
+          return { success: false, error: detail.error.message || 'Failed to read email' };
+        }
+        
+        const headers = detail.payload?.headers || [];
+        
+        let body = '';
+        const getBody = (payload) => {
+          if (payload.body?.data) {
+            return Buffer.from(payload.body.data, 'base64').toString('utf-8');
+          }
+          if (payload.parts) {
+            for (const part of payload.parts) {
+              if (part.mimeType === 'text/plain' && part.body?.data) {
+                return Buffer.from(part.body.data, 'base64').toString('utf-8');
+              }
+              if (part.mimeType === 'text/html' && part.body?.data) {
+                return Buffer.from(part.body.data, 'base64').toString('utf-8');
+              }
+            }
+            // Check nested parts
+            for (const part of payload.parts) {
+              if (part.parts) {
+                const nested = getBody(part);
+                if (nested) return nested;
+              }
+            }
+          }
+          return '';
+        };
+        body = getBody(detail.payload);
+        
+        const attachments = [];
+        const getAttachments = (payload) => {
+          if (payload.parts) {
+            for (const part of payload.parts) {
+              if (part.filename && part.filename.length > 0) {
+                attachments.push({
+                  filename: part.filename,
+                  mimeType: part.mimeType,
+                  size: part.body?.size || 0
+                });
+              }
+              if (part.parts) getAttachments(part);
+            }
+          }
+        };
+        getAttachments(detail.payload);
+        
+        return { 
+          success: true, 
+          email: {
+            message_id: message_id,
+            from: headers.find(h => h.name === 'From')?.value || '',
+            to: headers.find(h => h.name === 'To')?.value || '',
+            cc: headers.find(h => h.name === 'Cc')?.value || '',
+            subject: headers.find(h => h.name === 'Subject')?.value || '(No Subject)',
+            date: headers.find(h => h.name === 'Date')?.value || '',
+            body: body.slice(0, 5000),
+            labels: detail.labelIds || [],
+            attachments
           }
         };
       }
@@ -9105,13 +9289,16 @@ async function handleChatStream(request) {
       // Still inform AI it has action capabilities
       systemPrompt += '\n\n--- GOOGLE INTEGRATION ACTIVE ---\n';
       systemPrompt += 'The user has connected their Google account. You have the ability to:\n';
+      systemPrompt += '- search_emails: Search and find emails in their Gmail inbox\n';
+      systemPrompt += '- read_email: Read the full content of a specific email\n';
       systemPrompt += '- send_email: Send emails from their Gmail\n';
       systemPrompt += '- create_calendar_event: Create new calendar events\n';
       systemPrompt += '- update_calendar_event: Update existing events\n';
       systemPrompt += '- delete_calendar_event: Delete events\n';
       systemPrompt += '- create_document: Create a Google Doc with text content\n';
       systemPrompt += '- create_spreadsheet: Create a Google Sheets spreadsheet with data\n';
-      systemPrompt += '\nBE PROACTIVE: When appropriate, offer to take action:\n';
+      systemPrompt += '\nIMPORTANT: When the user asks about their emails, ALWAYS use search_emails to look up real data. NEVER make up or hallucinate email content.\n';
+      systemPrompt += 'BE PROACTIVE: When appropriate, offer to take action:\n';
       systemPrompt += '- If you draft/write content, ask: "Would you like me to save this as a Google Doc?"\n';
       systemPrompt += '- If discussing meetings/appointments, ask: "Would you like me to add this to your calendar?"\n';
       systemPrompt += '- If you create lists/tables/data, ask: "Would you like me to create a spreadsheet with this?"\n';
@@ -10449,7 +10636,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           console.log(`[Tool Call] Executing ${toolName} with args:`, JSON.stringify(args).substring(0, 200));
           
           // Handle Google actions
-          if (['send_email', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_document', 'create_spreadsheet'].includes(toolName)) {
+          if (['search_emails', 'read_email', 'send_email', 'create_calendar_event', 'update_calendar_event', 'delete_calendar_event', 'create_document', 'create_spreadsheet'].includes(toolName)) {
             const result = await executeGoogleAction(user.id, toolName, args);
             console.log(`[Google Tool] Result:`, result);
             return result;
