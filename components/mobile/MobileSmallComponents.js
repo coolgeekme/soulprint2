@@ -1,7 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { MoreVertical, Trash2, Edit3, Folder, Check, X, Sun, Moon, FileText, Image as ImageIcon } from 'lucide-react';
+import { MoreVertical, Trash2, Edit3, Folder, Check, X, Sun, Moon, FileText, Image as ImageIcon, MessageSquare } from 'lucide-react';
 import { useTheme } from '@/lib/providers/ThemeProvider';
+import { AttachIcon } from '@/components/icons/SoulPrintIcons';
 
 const ConversationItem = ({ conversation, isActive, onClick, onDelete, onRename, onMove }) => {
   const [showMenu, setShowMenu] = useState(false);
