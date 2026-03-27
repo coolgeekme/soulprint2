@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { X, Download, Trash2, RefreshCw, Film, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { X, Download, Trash2, RefreshCw, Film, Image as ImageIcon, Loader2, Edit3, Play } from 'lucide-react';
 
 // ── GalleryItem: Single item in the media gallery ────────────────────────────
 function GalleryItem({ item, onClick }) {

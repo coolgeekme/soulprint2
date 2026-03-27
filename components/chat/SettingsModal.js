@@ -4,7 +4,8 @@ import {
   X, Loader2, Check, Settings, Globe, Shield, Brain, AudioWaveform,
   Megaphone, ExternalLink, ChevronRight, LogOut, Sun, Moon, Bot,
   Trash2, Clock, MessageCircle, Copy, Sparkles, MessageSquare,
-  ChevronDown
+  ChevronDown, Upload, Download, FileText, GitCompare, Link, Plus,
+  RefreshCw, Send, ThumbsUp, Zap, CheckCircle2
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { FeedbackIcon, RobotIcon } from '@/components/icons/SoulPrintIcons';

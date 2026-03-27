@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, Loader2, Check, Globe, ChevronRight, ExternalLink, Search, Upload } from 'lucide-react';
+import { X, Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, Loader2, Check, Globe, ChevronRight, ExternalLink, Search, Upload, CheckCircle2, Shield, Sparkles, Zap } from 'lucide-react';
 import { CloudUploadIcon } from '@/components/icons/SoulPrintIcons';
 
 // ── CloudImportModal: Universal Import with Auto-Detection ──────────────────

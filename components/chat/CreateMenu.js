@@ -1,6 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { ImagePlus, Film, Palette, Sparkles, ChevronDown, Loader2 } from 'lucide-react';
+import { ImagePlus, Film, Palette, Sparkles, ChevronDown, Loader2, Check, Upload } from 'lucide-react';
 import { IMAGE_MODELS, VIDEO_MODELS } from './constants';
 
 // ── CreateMenu: Dropdown for Image/Video generation ──────────────────────────

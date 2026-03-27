@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { 
-  Settings, X, Loader2, Plus, Sparkles, Shield,
+  Settings, X, Loader2, Plus, Sparkles, Shield, Home,
   Video, Image as ImageIcon,
   Film, GalleryHorizontal, Upload, MapPin, ChevronDown, Check, Globe, Clock
 } from 'lucide-react';
