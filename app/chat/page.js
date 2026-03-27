@@ -19,6 +19,7 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
+import SafeSection from '@/components/SafeSection';
 import {
   Plus, Mic, Send, Settings, ChevronLeft, ThumbsUp, ThumbsDown,
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
@@ -47,7 +48,7 @@ import { CompareResponseCard, CompareModePicker } from '@/components/chat/Compar
 import CreateMenu from '@/components/chat/CreateMenu';
 import { GalleryItem, GalleryModal } from '@/components/chat/Gallery';
 import CloudImportModal from '@/components/chat/CloudImportModal';
-import { SettingsModal } from '@/components/chat/SettingsModal';
+import { SettingsModal, FeedbackModal } from '@/components/chat/SettingsModal';
 import AttachmentPill from '@/components/chat/AttachmentPill';
 import { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from '@/components/chat/constants';
 
@@ -1252,7 +1253,12 @@ export default function ChatPage() {
         return;
       }
 
-      const reader = res.body.getReader();
+      const reader = res.body?.getReader();
+      if (!reader) {
+        setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: 'Connection error: Unable to read response stream. Please try again.', created_at: new Date().toISOString() }]);
+        setLoading(false);
+        return;
+      }
       const decoder = new TextDecoder();
       let buffer = '';
       let actualModelUsed = selectedModel;
@@ -2310,8 +2316,8 @@ export default function ChatPage() {
 
   // Start editing a user message
   function startEditMessage(msg) {
-    setEditingMessageId(msg.id);
-    setEditingContent(msg.content);
+    setEditingMessageId(msg?.id);
+    setEditingContent(String(msg?.content || ''));
   }
 
   // Cancel editing
@@ -2405,11 +2411,12 @@ export default function ChatPage() {
   const currentModel = MODELS.find(m => m.value === selectedModel) || MODELS[0];
 
   // Filter conversations based on search query and pin Telegram chats to top
-  const baseConversations = searchResults !== null ? searchResults : conversations;
-  const filteredConversations = baseConversations.sort((a, b) => {
+  // CRITICAL: Use spread to avoid mutating state array during render
+  const baseConversations = searchResults !== null ? (Array.isArray(searchResults) ? searchResults : []) : (Array.isArray(conversations) ? conversations : []);
+  const filteredConversations = [...baseConversations].sort((a, b) => {
     // Pin Telegram conversations to the top
-    if (a.source === 'telegram' && b.source !== 'telegram') return -1;
-    if (a.source !== 'telegram' && b.source === 'telegram') return 1;
+    if (a?.source === 'telegram' && b?.source !== 'telegram') return -1;
+    if (a?.source !== 'telegram' && b?.source === 'telegram') return 1;
     return 0;
   });
 
@@ -2425,14 +2432,15 @@ export default function ChatPage() {
           onOpenVoiceChat={voiceChatEnabled ? () => setShowVoiceChat(true) : null}
           initialConversationId={conversationId}
         />
-        {showSettings && <SettingsModal onClose={() => { setShowSettings(false); setSettingsInitialTab(null); }} token={token} initialTab={settingsInitialTab} onModelChange={(type, value) => {
+        {showSettings && <SafeSection name="MobileSettingsModal"><SettingsModal onClose={() => { setShowSettings(false); setSettingsInitialTab(null); }} token={token} initialTab={settingsInitialTab} onModelChange={(type, value) => {
           if (type === 'text') { setSelectedModel(value); setDefaultModelSaved(value); }
           else if (type === 'video') { setSelectedVideoModel(value); setDefaultVideoModelSaved(value); }
           else if (type === 'image') { setSelectedImageModel(value); setDefaultImageModelSaved(value); }
-        }} onAssistantNameChange={setAssistantName} onAnnouncementsChange={setAnnouncements} />}
+        }} onAssistantNameChange={setAssistantName} onAnnouncementsChange={setAnnouncements} /></SafeSection>}
         
         {/* Voice Conversation Modal */}
         {showVoiceChat && voiceChatEnabled && (
+          <SafeSection name="VoiceChat">
           <RealtimeVoiceChat 
             token={token} 
             onClose={() => setShowVoiceChat(false)}
@@ -2440,6 +2448,7 @@ export default function ChatPage() {
             systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
             userName={user?.displayName || user?.email?.split('@')[0]}
           />
+          </SafeSection>
         )}
       </>
     );
@@ -3043,7 +3052,9 @@ export default function ChatPage() {
               </div>
             )}
             
-            {messages.map((msg, idx) => (
+            {(messages || []).map((msg, idx) => {
+              if (!msg) return null;
+              return (
               <MessageErrorBoundary key={`eb-${msg.id || idx}`}>
               <div key={msg.id || idx} className={`msg-appear group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'assistant' && (
@@ -3167,9 +3178,12 @@ export default function ChatPage() {
                           <ReactMarkdown remarkPlugins={[remarkGfm]}
                             components={{
                               p: ({children}) => <p className="mb-3 last:mb-0 break-words">{children}</p>,
-                              code: ({inline, children}) => inline 
-                                ? <code className="bg-white/10 px-1.5 py-0.5 rounded text-orange-300 text-[13px] sm:text-sm break-all">{children}</code> 
-                                : <pre className="bg-sp-black p-3 sm:p-4 rounded-lg my-3 overflow-x-auto text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words"><code>{children}</code></pre>,
+                              code: ({children, className, ...props}) => {
+                                const isBlock = className?.includes('language-') || (typeof children === 'string' && children.includes('\n'));
+                                return isBlock
+                                ? <pre className="bg-sp-black p-3 sm:p-4 rounded-lg my-3 overflow-x-auto text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words"><code>{children}</code></pre>
+                                : <code className="bg-white/10 px-1.5 py-0.5 rounded text-orange-300 text-[13px] sm:text-sm break-all">{children}</code>;
+                              },
                               ul: ({children}) => <ul className="list-disc pl-5 space-y-1.5 mb-3">{children}</ul>,
                               ol: ({children}) => <ol className="list-decimal pl-5 space-y-1.5 mb-3">{children}</ol>,
                               li: ({children}) => <li className="pl-1">{children}</li>,
@@ -3242,7 +3256,7 @@ export default function ChatPage() {
                           </div>
                         </div>
                       ) : (
-                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        <p className="whitespace-pre-wrap break-words">{typeof msg.content === 'string' ? msg.content : String(msg.content || '')}</p>
                       )
                     )}
                   </div>
@@ -3292,7 +3306,8 @@ export default function ChatPage() {
                 </div>
               </div>
               </MessageErrorBoundary>
-            ))}
+            );
+            })}
 
             {/* Web searching indicator */}
             {searchingWeb && (
@@ -3312,6 +3327,7 @@ export default function ChatPage() {
 
             {/* Streaming */}
             {(streamingContent || (streamingImageUrl && loading) || streamingVideoTask) && (
+              <MessageErrorBoundary key="streaming-boundary">
               <div className="msg-appear flex justify-start">
                 <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0 mt-0.5">
                   <SoulPrintLogo size={12} className="sm:hidden" />
@@ -3356,9 +3372,12 @@ export default function ChatPage() {
                           p: ({children}) => <p className="mb-3 last:mb-0 break-words">{children}</p>,
                           strong: ({children}) => <strong className="text-white font-semibold">{children}</strong>,
                           a: ({href, children}) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline break-all">{children}</a>,
-                          code: ({inline, children}) => inline 
-                            ? <code className="bg-white/10 px-1.5 py-0.5 rounded text-orange-300 text-[13px] sm:text-sm break-all">{children}</code> 
-                            : <pre className="bg-sp-black p-3 sm:p-4 rounded-lg my-3 overflow-x-auto text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words"><code>{children}</code></pre>,
+                          code: ({children, className, ...props}) => {
+                            const isBlock = className?.includes('language-') || (typeof children === 'string' && children.includes('\n'));
+                            return isBlock
+                            ? <pre className="bg-sp-black p-3 sm:p-4 rounded-lg my-3 overflow-x-auto text-[13px] sm:text-sm leading-relaxed whitespace-pre-wrap break-words"><code>{children}</code></pre>
+                            : <code className="bg-white/10 px-1.5 py-0.5 rounded text-orange-300 text-[13px] sm:text-sm break-all">{children}</code>;
+                          },
                         }}>
                         {typeof streamingContent === 'string' ? streamingContent : String(streamingContent || '')}
                       </ReactMarkdown>
@@ -3408,6 +3427,7 @@ export default function ChatPage() {
                   )}
                 </div>
               </div>
+              </MessageErrorBoundary>
             )}
 
             {loading && !streamingContent && !searchingWeb && (
@@ -3452,6 +3472,7 @@ export default function ChatPage() {
 
             {/* Compare Mode Responses */}
             {compareResponses && !compareLoading && (
+              <SafeSection name="CompareMode">
               <div className="msg-appear -mx-4 md:-mx-8 lg:-mx-16 px-4 md:px-8 lg:px-16">
                 <div className="bg-gradient-to-br from-orange-500/5 to-blue-500/5 border border-white/10 rounded-2xl p-5 mb-4">
                   <div className="flex items-center justify-between mb-5">
@@ -3473,8 +3494,8 @@ export default function ChatPage() {
                       </span>
                     )}
                   </div>
-                  <div className={`grid gap-4 ${compareResponses.responses.length === 2 ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
-                    {compareResponses.responses.map(response => (
+                  <div className={`grid gap-4 ${(compareResponses?.responses?.length || 0) === 2 ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'}`}>
+                    {(compareResponses?.responses || []).map(response => (
                       <CompareResponseCard 
                         key={response.model} 
                         response={response}
@@ -3486,6 +3507,7 @@ export default function ChatPage() {
                   </div>
                 </div>
               </div>
+              </SafeSection>
             )}
 
             {/* Visual Content Generating Indicator — only before VideoCard takes over */}
@@ -3997,14 +4019,14 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} token={token} onModelChange={(type, value) => {
+      {showSettings && <SafeSection name="SettingsModal"><SettingsModal onClose={() => setShowSettings(false)} token={token} onModelChange={(type, value) => {
         if (type === 'text') { setSelectedModel(value); setDefaultModelSaved(value); }
         else if (type === 'video') { setSelectedVideoModel(value); setDefaultVideoModelSaved(value); }
         else if (type === 'image') { setSelectedImageModel(value); setDefaultImageModelSaved(value); }
-      }} onAssistantNameChange={setAssistantName} onAnnouncementsChange={setAnnouncements} />}
+      }} onAssistantNameChange={setAssistantName} onAnnouncementsChange={setAnnouncements} /></SafeSection>}
       
       {/* Feedback Modal */}
-      {showFeedbackModal && <FeedbackModal onClose={() => setShowFeedbackModal(false)} token={token} />}
+      {showFeedbackModal && <SafeSection name="FeedbackModal"><FeedbackModal onClose={() => setShowFeedbackModal(false)} token={token} /></SafeSection>}
       
       {/* What's New Modal */}
       {showWhatsNew && (
@@ -4202,6 +4224,7 @@ export default function ChatPage() {
       
       {/* Image Editor Modal */}
       {showImageEditor && editableImage && (
+        <SafeSection name="ImageEditor">
         <ImageEditor
           image={editableImage}
           onClose={() => {
@@ -4210,10 +4233,12 @@ export default function ChatPage() {
           onEdit={handleImageEdit}
           isEditing={isEditingImage}
         />
+        </SafeSection>
       )}
       
       {/* Mockup Generator Modal */}
       {showMockupGenerator && mockupDesign && (
+        <SafeSection name="MockupGenerator">
         <MockupGenerator
           design={mockupDesign}
           onClose={() => setShowMockupGenerator(false)}
@@ -4221,6 +4246,7 @@ export default function ChatPage() {
           isGenerating={isGeneratingMockup}
           token={token}
         />
+        </SafeSection>
       )}
       
       {/* Location Modal - Manual Input Fallback */}
@@ -4794,16 +4820,15 @@ export default function ChatPage() {
       
       {/* Cloud Import Modal */}
       {showCloudImport && (
+        <SafeSection name="CloudImport">
         <CloudImportModal 
           onClose={() => setShowCloudImport(false)} 
           token={token}
           onImportComplete={(data) => {
-            // Don't close immediately - let the user see the success message
-            // The modal will show "Successfully imported X messages" with a green checkmark
-            // User can close it manually or it stays open showing the result
             console.log('Import completed:', data);
           }}
         />
+        </SafeSection>
       )}
       
       {/* Gradual Assessment Prompt */}
@@ -4872,6 +4897,7 @@ export default function ChatPage() {
       
       {/* Voice Conversation Modal - Desktop */}
       {showVoiceChat && voiceChatEnabled && (
+        <SafeSection name="DesktopVoiceChat">
         <RealtimeVoiceChat 
           token={token} 
           onClose={() => setShowVoiceChat(false)}
@@ -4879,6 +4905,7 @@ export default function ChatPage() {
           systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
           userName={user?.displayName || user?.email?.split('@')[0]}
         />
+        </SafeSection>
       )}
     </div>
   );

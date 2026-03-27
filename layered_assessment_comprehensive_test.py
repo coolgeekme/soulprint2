@@ -15,7 +15,7 @@ import time
 import sys
 
 # Configuration
-BASE_URL = "https://message-spacing.preview.emergentagent.com/api"
+BASE_URL = "https://frontend-refactor-qa.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSCODE = "test123"
 

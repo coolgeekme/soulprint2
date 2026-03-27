@@ -9,7 +9,7 @@ import json
 import uuid
 
 # Configuration
-BASE_URL = "https://message-spacing.preview.emergentagent.com"
+BASE_URL = "https://frontend-refactor-qa.preview.emergentagent.com"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 

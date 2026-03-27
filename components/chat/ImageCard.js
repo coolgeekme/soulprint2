@@ -32,7 +32,7 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, o
   const jsonString = JSON.stringify(jsonData, null, 2);
   
   const copyJson = () => {
-    navigator.clipboard.writeText(jsonString);
+    try { navigator.clipboard?.writeText(jsonString); } catch(e) {}
     setJsonCopied(true);
     setTimeout(() => setJsonCopied(false), 2000);
   };

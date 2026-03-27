@@ -2,10 +2,16 @@
 
 import React from 'react';
 
+/**
+ * Global ErrorBoundary: Shows a crash screen ONLY for truly fatal errors.
+ * For transient rendering errors (which are common with SSE streaming,
+ * dynamic imports, etc.), it auto-recovers after a short delay.
+ */
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorCount: 0, autoRecovering: false };
+    this._autoRecoverTimer = null;
   }
 
   static getDerivedStateFromError(error) {
@@ -13,7 +19,7 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidMount() {
-    // Catch unhandled promise rejections
+    // Catch unhandled promise rejections - PREVENT app crash
     this._onUnhandledRejection = (event) => {
       console.error('[ErrorBoundary] Unhandled rejection:', event.reason);
       event.preventDefault(); // Prevent the error from crashing the app
@@ -22,9 +28,18 @@ class ErrorBoundary extends React.Component {
 
     // Catch runtime errors that React doesn't catch
     this._onError = (event) => {
-      // Only catch non-CORS, non-network errors
+      // Only log non-CORS, non-network errors
       if (event.message && !event.message.includes('Script error')) {
         console.error('[ErrorBoundary] Global error:', event.message);
+      }
+      // Prevent error from propagating to cause crash
+      if (event.error && (
+        event.message?.includes('Cannot read properties of undefined') ||
+        event.message?.includes('Cannot read properties of null') ||
+        event.message?.includes('is not a function') ||
+        event.message?.includes('is not defined')
+      )) {
+        event.preventDefault();
       }
     };
     window.addEventListener('error', this._onError);
@@ -33,23 +48,45 @@ class ErrorBoundary extends React.Component {
   componentWillUnmount() {
     window.removeEventListener('unhandledrejection', this._onUnhandledRejection);
     window.removeEventListener('error', this._onError);
+    if (this._autoRecoverTimer) clearTimeout(this._autoRecoverTimer);
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('[ErrorBoundary] Caught error:', error, errorInfo);
+    console.error('[ErrorBoundary] Caught error:', error?.message, errorInfo?.componentStack?.slice(0, 500));
+    
+    const newCount = this.state.errorCount + 1;
+    this.setState({ errorCount: newCount });
+    
+    // Auto-recover for the first 3 errors (transient rendering issues)
+    if (newCount <= 3) {
+      this.setState({ autoRecovering: true });
+      this._autoRecoverTimer = setTimeout(() => {
+        this.setState({ hasError: false, error: null, autoRecovering: false });
+      }, 500);
+    }
+    // After 3+ errors in rapid succession, show the crash screen
   }
 
   handleReload = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, errorCount: 0, autoRecovering: false });
     window.location.reload();
   };
 
   handleGoHome = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, errorCount: 0, autoRecovering: false });
     window.location.href = '/chat';
   };
 
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null, autoRecovering: false });
+  };
+
   render() {
+    // If auto-recovering, show nothing briefly (prevents flash of error screen)
+    if (this.state.autoRecovering) {
+      return this.props.children;
+    }
+
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-black flex items-center justify-center p-6">
@@ -59,7 +96,13 @@ class ErrorBoundary extends React.Component {
             <p className="text-gray-400 text-sm">
               An unexpected error occurred. This usually resolves itself with a quick reload.
             </p>
-            <div className="flex gap-3 justify-center">
+            <div className="flex gap-3 justify-center flex-wrap">
+              <button
+                onClick={this.handleRetry}
+                className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-medium transition-colors"
+              >
+                Try Again
+              </button>
               <button
                 onClick={this.handleReload}
                 className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-medium transition-colors"

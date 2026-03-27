@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
+import SafeSection from '@/components/SafeSection';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { MicrophoneIcon, SendIcon, SparklesIcon, AttachIcon, CloudUploadIcon } from '@/components/icons/SoulPrintIcons';
 import { useTheme } from '@/lib/providers/ThemeProvider';
@@ -989,6 +990,11 @@ export default function MobileChat({
       }
 
       const reader = res.body?.getReader();
+      if (!reader) {
+        setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: 'Connection error: Unable to read response stream. Please try again.', created_at: new Date().toISOString() }]);
+        setLoading(false);
+        return;
+      }
       const decoder = new TextDecoder();
       let fullContent = '';
       let newConvId = conversationId;
@@ -2265,7 +2271,9 @@ export default function MobileChat({
           
             {/* Messages */}
             <div className="px-2 pb-4">
-              {messages.map((msg, idx) => (
+              {(messages || []).map((msg, idx) => {
+                if (!msg) return null;
+                return (
                 <MessageErrorBoundary key={`eb-${msg.id || idx}`}>
                 <MessageBubble 
                   key={msg.id || idx} 
@@ -2282,9 +2290,11 @@ export default function MobileChat({
                   }}
                 />
                 </MessageErrorBoundary>
-              ))}
+                );
+              })}
               
               {/* Streaming message — hide when video is generating (show animation instead) */}
+              <MessageErrorBoundary key="mobile-streaming-boundary">
               {streamingContent && !streamingVideoTask && !(isGeneratingVisual && visualGenerationType === 'video') && (
                 <MessageBubble 
                   message={{ content: streamingContent }}
@@ -2312,8 +2322,6 @@ export default function MobileChat({
                     messageId={streamingVideoTask.messageId}
                     sourceImageUrl={streamingVideoTask.sourceImage}
                     onVideoReady={(videoUrl) => {
-                      // Video completed during streaming - update the streaming task state
-                      // and also update the message if it exists in state
                       if (streamingVideoTask.messageId) {
                         setMessages(prev => prev.map(m => 
                           m.id === streamingVideoTask.messageId 
@@ -2321,13 +2329,13 @@ export default function MobileChat({
                             : m
                         ));
                       }
-                      // Clear streaming state since video is done
                       setStreamingVideoTask(null);
                     }}
                     onRegenerateWith={handleRegenerateWithModel}
                   />
                 </div>
               )}
+              </MessageErrorBoundary>
               
               {/* Loading indicator — hide when video card is showing */}
               {loading && !streamingContent && !streamingVideoTask && (
@@ -2825,6 +2833,7 @@ export default function MobileChat({
 
       {/* Profile Tab */}
       {activeTab === 'profile' && (
+        <SafeSection name="MobileProfileView">
         <ProfileView 
           profile={{ 
             ...profile, 
@@ -2832,21 +2841,22 @@ export default function MobileChat({
             email: user?.email 
           }}
           soulPrint={{
-            messageCount: conversations.reduce((sum, c) => sum + (c.message_count || 0), 0),
-            conversationCount: conversations.length,
-            daysActive: conversations.length > 0 ? Math.ceil((Date.now() - new Date(conversations[conversations.length - 1]?.created_at || Date.now()).getTime()) / (1000 * 60 * 60 * 24)) : 0,
+            messageCount: (conversations || []).reduce((sum, c) => sum + (c?.message_count || 0), 0),
+            conversationCount: (conversations || []).length,
+            daysActive: (conversations || []).length > 0 ? Math.ceil((Date.now() - new Date(conversations[conversations.length - 1]?.created_at || Date.now()).getTime()) / (1000 * 60 * 60 * 24)) : 0,
             ...soulPrint
           }}
           onSettingsClick={onOpenSettings}
           isAdmin={user?.role === 'admin' || user?.role === 'superadmin'}
           onAdminClick={() => window.location.href = '/admin'}
-          announcements={announcements}
+          announcements={announcements || []}
           onAnnouncementsClick={() => setShowAnnouncements(true)}
           onEditName={openEditNameSheet}
           inviteData={inviteData}
           onInviteClick={() => setShowInviteSheet(true)}
           onImportClick={() => setShowImportSheet(true)}
         />
+        </SafeSection>
       )}
 
       {/* Edit Display Name Sheet */}

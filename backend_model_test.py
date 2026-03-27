@@ -11,7 +11,7 @@ import sys
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://message-spacing.preview.emergentagent.com"
+BASE_URL = "https://frontend-refactor-qa.preview.emergentagent.com"
 AUTH_EMAIL = "test@soulprint.com"
 AUTH_PASSWORD = "test123"
 

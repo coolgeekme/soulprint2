@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://message-spacing.preview.emergentagent.com"
+BASE_URL = "https://frontend-refactor-qa.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

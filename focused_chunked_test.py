@@ -9,7 +9,7 @@ import io
 import base64
 import time
 
-BASE_URL = "https://message-spacing.preview.emergentagent.com/api"
+BASE_URL = "https://frontend-refactor-qa.preview.emergentagent.com/api"
 EMAIL = "test@soulprint.com"
 PASSWORD = "test123"
 
