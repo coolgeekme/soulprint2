@@ -1299,11 +1299,10 @@ async function handleGoogleAuthStart(request) {
     
     console.log('Google Auth Start - User authenticated:', user.id);
     
-    // Use environment variable for OAuth base URL (auto-updated by Emergent on deployment)
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!baseUrl) {
-      return NextResponse.json({ error: 'Base URL not configured' }, { status: 500 });
-    }
+    // IMPORTANT: Always use the production domain for Google OAuth
+    // This ensures OAuth works correctly - redirect URI must match Google Cloud Console registration
+    const PRODUCTION_DOMAIN = 'https://soulprintengine.ai';
+    const baseUrl = PRODUCTION_DOMAIN;
     
     console.log('Google Auth - Using base URL:', baseUrl);
     
@@ -1342,8 +1341,9 @@ async function handleGoogleAuthCallback(request) {
       errorDescription: errorDescription || 'none'
     });
     
-    // Use environment variable for OAuth base URL (auto-updated by Emergent on deployment)
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    // IMPORTANT: Always use the production domain for Google OAuth
+    const PRODUCTION_DOMAIN = 'https://soulprintengine.ai';
+    const baseUrl = PRODUCTION_DOMAIN;
     
     console.log('Google Callback - Using base URL:', baseUrl);
     
@@ -1479,7 +1479,7 @@ async function handleGoogleAuthCallback(request) {
     }
   } catch (err) {
     console.error('Google callback error at final catch:', err);
-    const errorBaseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
+    const errorBaseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://soulprintengine.ai';
     return NextResponse.redirect(`${errorBaseUrl}/integrations?error=${encodeURIComponent('Callback error: ' + err.message)}`);
   }
 }
