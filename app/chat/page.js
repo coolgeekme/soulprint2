@@ -205,6 +205,7 @@ export default function ChatPage() {
   const mediaPollIntervalRef = useRef(null);
   const conversationIdRef = useRef(conversationId);
   useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
+  const isStreamingRef = useRef(false); // Synchronous flag to prevent state wipe during active streaming
 
   useEffect(() => {
     if (!token) return;
@@ -1291,6 +1292,7 @@ export default function ChatPage() {
 
     // ── Single Model Mode: Stream response ──
     setLoading(true);
+    isStreamingRef.current = true; // Set synchronous flag BEFORE any async work
     
     // Create abort controller for this request
     abortControllerRef.current = new AbortController();
@@ -1500,6 +1502,32 @@ export default function ChatPage() {
           } catch (e) { /* ignore parse errors */ }
         }
       }
+
+      // SAFETY NET: If stream ended without a 'done' event (connection drop, proxy timeout),
+      // preserve any accumulated content as a message so it's not silently lost.
+      if (fullContent && fullContent.trim()) {
+        // Use a functional update to check if streaming content was cleared by 'done' handler
+        setStreamingContent(prev => {
+          if (prev && prev.length > 0) {
+            // Streaming content still exists = 'done' event never arrived
+            console.warn('[Chat] Stream ended without done event. Preserving partial response.');
+            const partialMsg = {
+              id: `partial-${Date.now()}`,
+              role: 'assistant',
+              content: fullContent,
+              created_at: new Date().toISOString(),
+              model_used: actualModelUsed || selectedModel,
+              partial: true,
+            };
+            setMessages(prevMsgs => [...prevMsgs, partialMsg]);
+            fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${token}` } })
+              .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : []))
+              .catch(() => {});
+          }
+          return ''; // Clear streaming content either way
+        });
+      }
+
     } catch (err) {
       // Handle aborted requests gracefully - don't show error
       if (err.name === 'AbortError') {
@@ -1513,6 +1541,7 @@ export default function ChatPage() {
       setSearchingWeb(false);
       setIsGeneratingVisual(false);
       setVisualGenerationType('');
+      isStreamingRef.current = false; // Clear streaming flag
       abortControllerRef.current = null;
       // Use setTimeout to ensure focus after all React state updates complete
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -1949,6 +1978,11 @@ export default function ChatPage() {
   }, [token]);
 
   async function loadConversation(convId) {
+    // GUARD: Don't load a different conversation during active streaming
+    if (isStreamingRef.current) {
+      console.warn('[loadConversation] Blocked: streaming is active');
+      return;
+    }
     // Abort any active SSE stream so user can interact with new chat
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -1974,6 +2008,11 @@ export default function ChatPage() {
   }
 
   function newConversation() {
+    // GUARD: Don't reset during active streaming
+    if (isStreamingRef.current) {
+      console.warn('[newConversation] Blocked: streaming is active');
+      return;
+    }
     // Abort any active SSE stream so user can interact with new chat
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
