@@ -5,8 +5,6 @@ import {
   Video, Image as ImageIcon,
   Film, GalleryHorizontal, Upload, MapPin, ChevronDown, Check, Globe, Clock
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { SparklesIcon, AttachIcon } from '@/components/icons/SoulPrintIcons';
 
 const MoreOptionsSheet = ({ isOpen, onClose, onSettings }) => {

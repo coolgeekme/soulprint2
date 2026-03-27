@@ -8,13 +8,17 @@ import remarkGfm from 'remark-gfm';
  * SafeMarkdown: A crash-proof wrapper around ReactMarkdown.
  * 
  * Prevents the most common crash sources:
- * 1. remark-gfm v4 'inTable' crash with malformed tables
+ * 1. remark-gfm 'inTable' crash with malformed tables (mitigated by downgrading to v3)
  * 2. Infinite re-render from unstable components prop
  * 3. Non-string content being passed
  * 4. Any unexpected rendering errors
+ * 5. Extremely large content that could freeze the browser
  * 
  * If ReactMarkdown crashes, falls back to plain text rendering.
  */
+
+// Maximum content length to pass to ReactMarkdown to prevent browser freezes
+const MAX_MARKDOWN_LENGTH = 100000;
 
 // Define components ONCE outside the component to prevent re-render loops
 const markdownComponents = {
@@ -34,8 +38,18 @@ const markdownComponents = {
   h2: ({ children }) => <h2 className="text-base sm:text-lg font-bold text-white mt-4 mb-2.5">{children}</h2>,
   h3: ({ children }) => <h3 className="text-[15px] sm:text-base font-semibold text-white mt-3.5 mb-2">{children}</h3>,
   blockquote: ({ children }) => <blockquote className="border-l-2 border-orange-500/40 pl-4 my-3 italic text-gray-400">{children}</blockquote>,
-  img: ({ node, src, alt, ...props }) => src ? <img src={src} alt={alt || ''} className="max-w-full rounded-lg my-3" /> : null,
-  table: ({ children }) => <div className="overflow-x-auto my-3"><table className="min-w-full text-[13px] sm:text-sm border-collapse">{children}</table></div>,
+  img: ({ src, alt }) => {
+    try {
+      return src ? <img src={src} alt={alt || ''} className="max-w-full rounded-lg my-3" loading="lazy" /> : null;
+    } catch {
+      return null;
+    }
+  },
+  table: ({ children }) => (
+    <div className="overflow-x-auto my-3">
+      <table className="min-w-full text-[13px] sm:text-sm border-collapse">{children}</table>
+    </div>
+  ),
   th: ({ children }) => <th className="border border-white/20 px-3 py-1.5 bg-white/5 text-left font-semibold">{children}</th>,
   td: ({ children }) => <td className="border border-white/10 px-3 py-1.5">{children}</td>,
 };
@@ -73,13 +87,32 @@ class MarkdownErrorBoundary extends React.Component {
 function SafeMarkdown({ content, className }) {
   // Ensure content is always a valid string
   const safeContent = useMemo(() => {
-    if (typeof content === 'string') return content;
+    if (typeof content === 'string') {
+      // Truncate extremely long content to prevent browser freeze
+      if (content.length > MAX_MARKDOWN_LENGTH) {
+        return content.slice(0, MAX_MARKDOWN_LENGTH) + '\n\n... (content truncated for display)';
+      }
+      return content;
+    }
     if (content == null) return '';
-    return String(content);
+    try {
+      return String(content);
+    } catch {
+      return '';
+    }
   }, [content]);
 
   // Don't render ReactMarkdown for empty content
   if (!safeContent) return null;
+
+  // For very short plain text (no markdown indicators), skip ReactMarkdown entirely
+  if (safeContent.length < 50 && !/[*_#|`\[\]~>-]/.test(safeContent) && !safeContent.includes('\n')) {
+    return (
+      <div className={className}>
+        <p className="mb-3 last:mb-0 break-words">{safeContent}</p>
+      </div>
+    );
+  }
 
   return (
     <MarkdownErrorBoundary content={safeContent}>

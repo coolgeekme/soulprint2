@@ -105,6 +105,8 @@
 user_problem_statement: "SoulPrint Engine — Multi-model AI chat with image/video generation, Smart Compositing (Gemini-native), inline image editing, assessments, memory system, admin dashboard. Full stack Next.js + MongoDB."
 
 agent_communication:
+  - agent: "testing"
+    message: "BACKEND REFACTORING VERIFICATION COMPLETE: All critical endpoints working perfectly after major route.js refactoring. ✅ Health Check (GET /api/health returns {status: 'ok'}). ✅ Models Endpoint (GET /api/models returns 18 models). ✅ Authentication Flow (POST /api/auth/login with email/passcode working, auto-registration for new users). ✅ Profile Update (PUT /api/profile with auth token working). ✅ Announcements (GET /api/announcements with auth returns proper structure). ✅ Privacy Settings (GET /api/privacy/settings returns all expected fields). ✅ Conversations (GET /api/conversations returns user conversations). ✅ Chat Stream (POST /api/chat/stream properly enforces approval workflow). All 8 comprehensive tests passed - refactoring from monolithic 19.6k line route.js to 7 extracted handler modules successful. No routing errors or broken endpoints found."
   - agent: "main"
     message: "PWA IMAGE GENERATION FIX: Fixed critical bug in MobileChat.js where image generation wasn't displaying on PWA. Issue: The `streamingImageUrl` state was never defined - only `setStreamingImageUrl(null)` was called but the useState was missing. FIX: (1) Added `const [streamingImageUrl, setStreamingImageUrl] = useState(null)` state. (2) Updated sendMessage to set state when image event arrives via `setStreamingImageUrl(data.url)`. (3) Added live streaming image rendering with MobileImageCard component. (4) Fixed variable shadowing by renaming local variables to `localStreamingImageUrl` and `localStreamingVideoTask`. Backend testing confirms image generation working perfectly with SSE events."
   - agent: "main"
@@ -212,6 +214,21 @@ agent_communication:
       - working: true
         agent: "testing"
         comment: "TESTED: GET /api/media/status/:taskId endpoint working perfectly. ✅ Authentication required (401 without token). ✅ Returns 404 for non-existent task IDs. ✅ Both mobile (/api/media/status/:taskId) and desktop (/api/media/video/status/:taskId) endpoints working identically. ✅ Proper response format with status field. ✅ Handles edge cases like very long task IDs gracefully. All comprehensive tests passed."
+
+  - task: "Backend Route Refactoring - 7 Handler Modules Extraction"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js, lib/handlers/*.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Major refactoring: Extracted 7 handler modules from the 19.6k line route.js. Modules: video-models.js, assessment-data.js, url-extractor.js, location-services.js, google-context.js, announcements.js, privacy.js. Reduced main route.js to ~17k lines. All imports updated."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: All critical endpoints working perfectly after refactoring. ✅ Health Check (GET /api/health). ✅ Models (GET /api/models - 18 models). ✅ Auth Flow (POST /api/auth/login, POST /api/auth/register). ✅ Profile (PUT /api/profile). ✅ Announcements (GET /api/announcements). ✅ Privacy Settings (GET /api/privacy/settings). ✅ Conversations (GET /api/conversations). ✅ Chat Stream (POST /api/chat/stream with approval workflow). All 8 comprehensive tests passed - no routing errors or broken endpoints. Refactoring successful."
 
 
 backend:
@@ -1110,7 +1127,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/image/edit, POST /api/composite/test
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://frontend-refactor-qa.preview.emergentagent.com
+- **Base URL**: https://bug-squash-ai.preview.emergentagent.com
 
 ## Test Results
 
@@ -1151,7 +1168,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/media/generate, GET /api/media/status/:taskId, GET /api/media/video/status/:taskId, POST /api/media/save-to-gallery, GET /api/media/gallery
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://frontend-refactor-qa.preview.emergentagent.com
+- **Base URL**: https://bug-squash-ai.preview.emergentagent.com
 
 ## Test Results
 
@@ -1210,7 +1227,7 @@ test_plan:
 - **Date**: 2026-03-26
 - **Endpoint Tested**: POST /api/chat/stream (Image Generation Flow)
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://frontend-refactor-qa.preview.emergentagent.com
+- **Base URL**: https://bug-squash-ai.preview.emergentagent.com
 
 ## Test Results
 

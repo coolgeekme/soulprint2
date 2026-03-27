@@ -8,7 +8,7 @@ import json
 import time
 
 # Configuration
-BASE_URL = "https://frontend-refactor-qa.preview.emergentagent.com"
+BASE_URL = "https://bug-squash-ai.preview.emergentagent.com"
 AUTH_EMAIL = "test@soulprint.com"
 AUTH_PASSWORD = "test123"
 

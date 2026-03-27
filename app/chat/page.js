@@ -16,8 +16,6 @@ const RealtimeVoiceChat = dynamic(
   }
 );
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import SafeMarkdown from '@/components/SafeMarkdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
 import SafeSection from '@/components/SafeSection';
@@ -1996,7 +1994,7 @@ export default function ChatPage() {
     setStreamingImageUrl(null);
     setStreamingVideoTask(null);
     setStreamingContent('');
-    setStreamingSources(null);
+    setStreamingSources([]);
     
     setConversationId(convId);
     setMessages([]);
@@ -2026,7 +2024,7 @@ export default function ChatPage() {
     setStreamingImageUrl(null);
     setStreamingVideoTask(null);
     setStreamingContent('');
-    setStreamingSources(null);
+    setStreamingSources([]);
     
     setConversationId(null);
     const greet = user?.profile?.display_name || 'there';
