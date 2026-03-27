@@ -5,7 +5,7 @@ import MessageErrorBoundary from '@/components/MessageErrorBoundary';
 import { Copy, Edit3, ThumbsUp, ThumbsDown, MoreVertical, Loader2, Globe, Sparkles, Film, Check } from 'lucide-react';
 import { MobileVideoCard, MobileSavedVideoCard, MobileImageCard } from './MobileMediaCards';
 
-const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token }) => {
+const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady }) => {
   const [showActions, setShowActions] = useState(false);
   const [feedback, setFeedback] = useState(message.feedback || null);
 
@@ -61,7 +61,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               modelLabel={message.model_label} 
               token={token}
               prompt={message.generation_params?.prompt || message.content?.match(/generate.*?image.*?of\s+(.+)/i)?.[1] || ''}
-              onRegenerateWith={handleRegenerateWithModel}
+              onRegenerateWith={onRegenerateWith}
             />
           )}
           
@@ -72,7 +72,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               modelLabel={message.model_label} 
               prompt={message.video_task?.prompt || message.generation_params?.prompt || ''} 
               token={token}
-              onRegenerateWith={handleRegenerateWithModel}
+              onRegenerateWith={onRegenerateWith}
               sourceImageUrl={message.source_image || message.video_task?.sourceImage}
             />
           )}
@@ -87,12 +87,9 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               modelLabel={message.model_label || 'Kling 3.0'}
               messageId={message.id}
               onVideoReady={(videoUrl) => {
-                // Update the message in state so MobileSavedVideoCard takes over
-                setMessages(prev => prev.map(m => 
-                  m.id === message.id ? { ...m, video_url: videoUrl } : m
-                ));
+                if (onVideoReady) onVideoReady(message.id, videoUrl);
               }}
-              onRegenerateWith={handleRegenerateWithModel}
+              onRegenerateWith={onRegenerateWith}
               sourceImageUrl={message.source_image || message.video_task?.sourceImage}
             />
           )}

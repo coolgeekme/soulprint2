@@ -2274,6 +2274,12 @@ export default function MobileChat({
                   assistantName={assistantName}
                   onFeedback={handleFeedback}
                   token={token}
+                  onRegenerateWith={handleRegenerateWithModel}
+                  onVideoReady={(messageId, videoUrl) => {
+                    setMessages(prev => prev.map(m => 
+                      m.id === messageId ? { ...m, video_url: videoUrl } : m
+                    ));
+                  }}
                 />
                 </MessageErrorBoundary>
               ))}
