@@ -7207,12 +7207,12 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                       console.log('[Text-to-Video] Character reference uploaded:', characterImageUrl.substring(0, 80));
                       
                       // Build Kling Elements array for character reference
-                      // Extract person name from prompt if mentioned (e.g., "me", "myself", "person")
-                      const elementName = content.match(/\b(me|myself|my|the person|character)\b/i)?.[0]?.toLowerCase() || 'person';
+                      // Kling API requires 2-4 images per element — duplicate the single image to meet minimum
+                      const elementName = 'character';
                       characterElements = [{
-                        name: elementName.replace(/\s+/g, '_'),
+                        name: elementName,
                         description: 'The person/character to include in the video',
-                        element_input_urls: [characterImageUrl],
+                        element_input_urls: [characterImageUrl, characterImageUrl],
                       }];
                       
                       send({ type: 'delta', content: `✅ Character reference ready! Creating video with your likeness...\n\n` });
