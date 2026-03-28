@@ -7254,6 +7254,8 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 aspectRatio: detectedAspectRatio,
                 duration: 5,
                 characterElements: characterElements,
+                // Kling API requires image_urls when using role references in prompt
+                imageUrls: characterImageUrl ? [characterImageUrl] : undefined,
               });
 
               // Save job to DB with message_id reference
