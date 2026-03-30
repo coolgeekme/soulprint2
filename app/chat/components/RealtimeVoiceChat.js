@@ -288,7 +288,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
           type: 'session.update',
           session: {
             type: 'realtime',
-            output_modalities: ['text', 'audio'],
+            output_modalities: ['audio'],
             audio: {
               input: {
                 transcription: {
