@@ -1425,7 +1425,9 @@ async function handleTelegramSetup(request) {
   if (!TELEGRAM_BOT_TOKEN) return ok({ configured: false, message: 'Add TELEGRAM_BOT_TOKEN to .env to enable Telegram.' });
 
   const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
-  const webhookUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/telegram/webhook`;
+  // Use permanent domain for webhook so it doesn't change between deployments
+  const PERMANENT_DOMAIN = 'https://soulprintengine.ai';
+  const webhookUrl = `${PERMANENT_DOMAIN}/api/telegram/webhook`;
 
   // Set the webhook with optional secret
   const payload = { url: webhookUrl, drop_pending_updates: true, allowed_updates: ['message', 'edited_message'] };
