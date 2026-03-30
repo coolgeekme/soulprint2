@@ -41,6 +41,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [micSensitivity, setMicSensitivity] = useState('medium'); // low, medium, high
   const [fullSystemPrompt, setFullSystemPrompt] = useState(null); // Full system prompt with memory
+  const [toolActions, setToolActions] = useState([]); // Tool action feedback messages
   
   const peerConnectionRef = useRef(null);
   const dataChannelRef = useRef(null);
@@ -282,21 +283,26 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
         // Build the instructions using the full system prompt if available
         const baseInstructions = fullSystemPrompt || systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}.`;
         
-        // Configure session with tools for web search, Google, and memory access
+        // Configure session with tools (Updated to new Realtime GA format)
         const sessionConfig = {
           type: 'session.update',
           session: {
-            modalities: ['text', 'audio'],
-            voice: selectedVoice,
-            input_audio_transcription: {
-              model: 'whisper-1',
+            type: 'realtime',
+            output_modalities: ['text', 'audio'],
+            audio: {
+              input: {
+                transcription: {
+                  model: 'whisper-1',
+                },
+                turn_detection: mode === 'vad' ? {
+                  type: 'semantic_vad',
+                  eagerness: micSensitivity === 'low' ? 'high' : micSensitivity === 'high' ? 'low' : 'medium',
+                } : null,
+              },
+              output: {
+                voice: selectedVoice,
+              },
             },
-            turn_detection: mode === 'vad' ? {
-              type: 'server_vad',
-              threshold: sensitivitySettings[micSensitivity].threshold,
-              prefix_padding_ms: 200,
-              silence_duration_ms: sensitivitySettings[micSensitivity].silence,
-            } : null,
             instructions: `${baseInstructions}
 
 ## Voice Chat Tools
