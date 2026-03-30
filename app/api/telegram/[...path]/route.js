@@ -1596,3 +1596,17 @@ export async function DELETE(request, { params }) {
     return err(error.message || 'Internal server error', 500);
   }
 }
+
+export async function PUT(request, { params }) {
+  const pathArr = params?.path || [];
+  const pathStr = pathArr.join('/');
+  
+  try {
+    if (pathStr === 'set-model' || pathStr === 'model') return handleTelegramSetModel(request);
+    
+    return err('Telegram endpoint not found', 404);
+  } catch (error) {
+    console.error('[Telegram API] PUT Error:', error);
+    return err(error.message || 'Internal server error', 500);
+  }
+}
