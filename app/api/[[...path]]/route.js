@@ -811,10 +811,11 @@ async function handleMockupGenerate(request) {
 
 
 // ============================================================
-// OPENAI REALTIME API - Voice Conversations
+// OPENAI REALTIME API - Voice Conversations (Updated to /v1/realtime/calls endpoint)
 // ============================================================
 
-// Handler: Create ephemeral session for OpenAI Realtime API
+// Handler: Proxy WebRTC SDP offer to OpenAI Realtime API via /v1/realtime/calls
+// New architecture: Frontend sends SDP offer → Backend proxies to OpenAI → Returns SDP answer
 async function handleRealtimeSession(request) {
   try {
     const user = await authenticate(request);
@@ -823,51 +824,71 @@ async function handleRealtimeSession(request) {
     }
 
     const body = await request.json();
-    const { model, voice, instructions } = body;
+    const { sdp, voice, instructions, model } = body;
+
+    if (!sdp) {
+      return NextResponse.json({ error: 'SDP offer is required' }, { status: 400 });
+    }
 
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
       return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
     }
 
-    // Create ephemeral session token from OpenAI
-    const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
+    // Build session config for OpenAI Realtime Calls endpoint
+    // Note: Only basic config here. Detailed settings (turn_detection, transcription, tools)
+    // are configured via the data channel's session.update event after connection
+    const sessionConfig = {
+      type: 'realtime',
+      model: model || 'gpt-realtime-1.5',
+      audio: {
+        output: {
+          voice: voice || 'alloy',
+        },
+      },
+    };
+
+    // Add instructions if provided
+    if (instructions) {
+      sessionConfig.instructions = instructions;
+    }
+
+    console.log('[Realtime] Creating call for user:', user.id, 'model:', sessionConfig.model, 'voice:', sessionConfig.audio.output.voice);
+
+    // Create multipart form data with SDP offer and session config
+    const formData = new FormData();
+    formData.set('sdp', sdp);
+    formData.set('session', JSON.stringify(sessionConfig));
+
+    // POST to OpenAI's /v1/realtime/calls endpoint
+    const response = await fetch('https://api.openai.com/v1/realtime/calls', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: model || 'gpt-4o-realtime-preview-2024-12-17',
-        voice: voice || 'alloy',
-        instructions: instructions || 'You are a helpful AI assistant.',
-        modalities: ['text', 'audio'],
-        input_audio_format: 'pcm16',
-        output_audio_format: 'pcm16',
-        input_audio_transcription: {
-          model: 'whisper-1',
-        },
-        turn_detection: {
-          type: 'server_vad',
-          threshold: 0.5,
-          prefix_padding_ms: 300,
-          silence_duration_ms: 500,
-        },
-      }),
+      body: formData,
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      console.error('[Realtime] Session creation failed:', err);
+      const errText = await response.text().catch(() => '');
+      let errObj = {};
+      try { errObj = JSON.parse(errText); } catch(e) {}
+      console.error('[Realtime] Call creation failed:', response.status, errText);
       return NextResponse.json({ 
-        error: err.error?.message || 'Failed to create realtime session' 
+        error: errObj?.error?.message || `Failed to create realtime call (${response.status})` 
       }, { status: response.status });
     }
 
-    const sessionData = await response.json();
-    console.log('[Realtime] Session created for user:', user.id);
+    // Return the SDP answer from OpenAI
+    const sdpAnswer = await response.text();
+    console.log('[Realtime] Call created successfully for user:', user.id);
 
-    return NextResponse.json(sessionData);
+    return new Response(sdpAnswer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/sdp',
+      },
+    });
   } catch (err) {
     console.error('[Realtime] Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

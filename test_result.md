@@ -1045,6 +1045,18 @@ backend:
     priority: "high"
     needs_retesting: false
 
+  - task: "Realtime Voice Chat WebRTC Endpoint (POST /api/realtime/session)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: POST /api/realtime/session endpoint working perfectly. ✅ Authentication required (401 without token). ✅ SDP validation (400 with proper error message when SDP missing). ✅ Successful SDP proxy to OpenAI /v1/realtime/calls endpoint (returns valid SDP answer with Content-Type: application/sdp, starts with 'v=0'). ✅ Voice selection working (alloy, coral, shimmer all accepted). ✅ Model parameter working (gpt-realtime-1.5 accepted). ✅ Optional parameters working (defaults applied when only SDP provided). All 8 comprehensive tests passed (100% success rate). OpenAI Realtime API integration via SDP proxy working correctly."
+
 frontend:
   - task: "Landing Page (/)"
     implemented: true
@@ -1144,7 +1156,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/image/edit, POST /api/composite/test
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://profile-prompt-1.preview.emergentagent.com
+- **Base URL**: https://voice-debug-1.preview.emergentagent.com
 
 ## Test Results
 
@@ -1185,7 +1197,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/media/generate, GET /api/media/status/:taskId, GET /api/media/video/status/:taskId, POST /api/media/save-to-gallery, GET /api/media/gallery
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://profile-prompt-1.preview.emergentagent.com
+- **Base URL**: https://voice-debug-1.preview.emergentagent.com
 
 ## Test Results
 
@@ -1244,7 +1256,7 @@ test_plan:
 - **Date**: 2026-03-26
 - **Endpoint Tested**: POST /api/chat/stream (Image Generation Flow)
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://profile-prompt-1.preview.emergentagent.com
+- **Base URL**: https://voice-debug-1.preview.emergentagent.com
 
 ## Test Results
 
@@ -1367,6 +1379,8 @@ test_plan:
     message: "NEW FEATURES: Model Selection System. (1) Backend: Added imageModel support to /api/chat/stream body parsing. selectBestImageModel() now accepts userPreferredModel parameter - if user selects a specific image model, it takes priority over Dynamic Intelligence auto-routing. (2) Backend: Updated /api/auth/me to return default_video_model and default_image_model. Updated /api/profile PUT to save these fields. (3) Backend: Expanded parseExplicitImageModelFromPrompt() to support all image models: Seedream, Flux Pro, Midjourney V7, GPT-4o Image, GPT Image 1.5. (4) Desktop: Image models now clickable in the unified model selector dropdown (was display-only). Button label shows selected image+video+text models with color coding. Save as Default button at bottom saves all 3 preferences. (5) Mobile: Added Image Generation and Video Generation sections to the model picker with Reset to Auto buttons. Save All as Default button. Dynamic Intelligence button resets all 3 models to auto. Header shows combined model selection. Both frontends pass imageModel to backend in sendMessage body. Defaults loaded from profile on auth/me. Auth: test@soulprint.com/test123."
   - agent: "testing"
     message: "FULL ROUTE DECOMPOSITION TESTING COMPLETE: All 71 comprehensive tests passed successfully. ✅ CATCH-ALL ROUTES: Health endpoint (200), auth endpoints (401/200), conversations (401/200), blog posts (200), messages (401/400), media pending (401/200), announcements (401/200), memories (401/200), login test (404), feedback (401). ✅ ADMIN ROUTES: All 13 admin endpoints properly routed to dedicated admin route file - returning 401/403 without auth and 200 with auth (test user has admin access). ✅ VOICE ROUTES: All 3 voice endpoints working correctly - system-prompt (401/200), stats (401/200), settings (401/200). Fixed 500 errors by correcting getDatabase() to getDb() and adding missing buildSystemPrompt function. ✅ TELEGRAM ROUTES: All 3 telegram endpoints working - status (401/200), setup (403/200), link (401/400). ✅ SLACK ROUTES: Webhook challenge working correctly (200). ✅ GOOGLE ROUTES: All 3 Google OAuth endpoints working - status (401/200), refresh-calendars (401/400), update-calendars (401/400). ✅ USER ROUTES: All 4 user endpoints working - profile (401/200), voice-settings (401/200), timezone (401/200), memories (401/200). NO routing errors (404/500) found. Route decomposition from monolithic 26k-line catch-all to 7 separate route files successful."
+  - agent: "testing"
+    message: "REALTIME VOICE CHAT WEBRTC ENDPOINT TESTING COMPLETE: All critical tests passed successfully. ✅ POST /api/realtime/session endpoint working perfectly with OpenAI Realtime API integration. ✅ Authentication required (401 without token). ✅ SDP validation (400 with proper error message when SDP missing). ✅ Successful SDP proxy to OpenAI /v1/realtime/calls endpoint (returns valid SDP answer with Content-Type: application/sdp, starts with 'v=0'). ✅ Voice selection working (alloy, coral, shimmer all accepted). ✅ Model parameter working (gpt-realtime-1.5 accepted). ✅ Optional parameters working (defaults applied when only SDP provided). All 8 comprehensive tests passed (100% success rate). Updated from deprecated ephemeral token approach to new unified /v1/realtime/calls SDP proxy approach working correctly."
 
   - task: "Full Route Decomposition Testing - All 7 Route Files"
     implemented: true
@@ -1491,13 +1505,31 @@ test_plan:
 
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Realtime Voice Chat WebRTC - POST /api/realtime/session (SDP Proxy)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
+agent_communication:
+  - agent: "main"
+    message: "VOICE CHAT FIX: Updated OpenAI Realtime API integration from deprecated ephemeral token approach to new unified /v1/realtime/calls SDP proxy approach. (1) Backend: Rewrote handleRealtimeSession() to accept SDP offer from frontend, create FormData with SDP + session config, POST to OpenAI /v1/realtime/calls, return SDP answer. Model updated from 'gpt-4o-realtime-preview-2024-12-17' to 'gpt-realtime-1.5'. Session config uses new format: {type:'realtime', model, audio:{output:{voice}}}. (2) Frontend RealtimeVoiceChat.js: Removed ephemeral token flow. Now creates WebRTC peer connection first, sends SDP offer to backend, gets SDP answer back. Detailed session config (tools, turn_detection, transcription) still sent via data channel session.update after connection. (3) Manually tested: POST /api/realtime/session returns valid SDP answer (HTTP 200, Content-Type: application/sdp). Auth: test@soulprint.com/test123. Test focus: /api/realtime/session endpoint with SDP payload."
+
+backend:
+  - task: "Realtime Voice Chat WebRTC - POST /api/realtime/session (SDP Proxy)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js, app/chat/components/RealtimeVoiceChat.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Manually tested with curl: POST /api/realtime/session with SDP offer returns valid SDP answer from OpenAI (HTTP 200, Content-Type: application/sdp). Model updated to gpt-realtime-1.5. Uses new /v1/realtime/calls endpoint with multipart FormData."
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 5
+  test_sequence: 6
   run_ui: false

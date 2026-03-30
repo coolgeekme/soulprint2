@@ -8,7 +8,7 @@ import json
 import time
 
 # Configuration
-BASE_URL = "https://profile-prompt-1.preview.emergentagent.com"
+BASE_URL = "https://voice-debug-1.preview.emergentagent.com"
 AUTH_EMAIL = "test@soulprint.com"
 AUTH_PASSWORD = "test123"
 

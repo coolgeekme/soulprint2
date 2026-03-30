@@ -1,12 +1,13 @@
 // OpenAI Realtime Voice Chat Component
-// Uses WebRTC for bidirectional audio streaming with gpt-4o-realtime model
+// Uses WebRTC for bidirectional audio streaming with gpt-realtime-1.5 model
+// Architecture: SDP offer → Backend proxy → OpenAI /v1/realtime/calls → SDP answer
 // Features: Voice preview, web search, session tracking
 
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, MicOff, PhoneOff, Volume2, VolumeX, Loader2, AudioWaveform, ChevronDown, X, Play, Square, Globe, Search } from 'lucide-react';
 
-const REALTIME_MODEL = 'gpt-4o-realtime-preview-2024-12-17';
+const REALTIME_MODEL = 'gpt-realtime-1.5';
 
 // Available voices from OpenAI Realtime API
 const VOICES = [
@@ -241,39 +242,13 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
         setSessionId(trackData.session_id);
       }
 
-      // 2. Get ephemeral token from OpenAI
-      const sessionResponse = await fetch('/api/realtime/session', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: REALTIME_MODEL,
-          voice: selectedVoice,
-          instructions: systemPrompt || `You are a helpful AI assistant. The user's name is ${userName || 'User'}. Be conversational and natural.`,
-        }),
-      });
-
-      if (!sessionResponse.ok) {
-        const err = await sessionResponse.json();
-        throw new Error(err.error || 'Failed to create session');
-      }
-
-      const sessionData = await sessionResponse.json();
-      const ephemeralKey = sessionData.client_secret?.value;
-
-      if (!ephemeralKey) {
-        throw new Error('No ephemeral key received');
-      }
-
-      // 3. Create WebRTC peer connection
+      // 2. Create WebRTC peer connection
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
       });
       peerConnectionRef.current = pc;
 
-      // 4. Set up audio element for playback
+      // 3. Set up audio element for playback
       const audioEl = document.createElement('audio');
       audioEl.autoplay = true;
       audioElementRef.current = audioEl;
@@ -283,7 +258,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
         audioEl.srcObject = event.streams[0];
       };
 
-      // 5. Add local audio track
+      // 4. Add local audio track
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
@@ -297,7 +272,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
         pc.addTrack(track, stream);
       });
 
-      // 6. Set up data channel for events
+      // 5. Set up data channel for events
       const dc = pc.createDataChannel('oai-events');
       dataChannelRef.current = dc;
 
@@ -313,8 +288,6 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
           session: {
             modalities: ['text', 'audio'],
             voice: selectedVoice,
-            input_audio_format: 'pcm16',
-            output_audio_format: 'pcm16',
             input_audio_transcription: {
               model: 'whisper-1',
             },
@@ -493,21 +466,34 @@ Be conversational, warm, and personal. You KNOW this user - their profile, memor
         handleRealtimeEvent(data);
       };
 
-      // 7. Create and send offer to OpenAI
+      // 6. Create SDP offer and send to our backend (which proxies to OpenAI /v1/realtime/calls)
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      const sdpResponse = await fetch(`https://api.openai.com/v1/realtime?model=${REALTIME_MODEL}`, {
+      console.log('[Realtime] Sending SDP offer to backend...');
+      const sdpResponse = await fetch('/api/realtime/session', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${ephemeralKey}`,
-          'Content-Type': 'application/sdp',
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
-        body: offer.sdp,
+        body: JSON.stringify({
+          sdp: offer.sdp,
+          model: REALTIME_MODEL,
+          voice: selectedVoice,
+          instructions: fullSystemPrompt || systemPrompt || `You are a helpful AI assistant. The user's name is ${userName || 'User'}. Be conversational and natural.`,
+        }),
       });
 
       if (!sdpResponse.ok) {
-        throw new Error('Failed to negotiate with OpenAI');
+        let errMsg = 'Failed to negotiate with OpenAI';
+        try {
+          const errData = await sdpResponse.json();
+          errMsg = errData.error || errMsg;
+        } catch (e) {
+          // Response might not be JSON
+        }
+        throw new Error(errMsg);
       }
 
       const answerSdp = await sdpResponse.text();

@@ -966,7 +966,7 @@ export default function ChatPage() {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ 
             title: `Voice Conversation - ${new Date().toLocaleDateString()}`,
-            model: 'gpt-4o-realtime'
+            model: 'gpt-realtime-1.5'
           }),
         });
         const convData = await convRes.json();
