@@ -692,12 +692,13 @@ export async function GET(request, { params }) {
       
       if (pathStr === 'voice-settings') {
         const profile = await db.collection('profiles').findOne({ user_id: user.id });
+        const vs = profile?.voice_settings || {};
         return ok({
-          voice_settings: profile?.voice_settings || {
-            voice: 'alloy',
-            speed: 1.0,
-            auto_play: false,
-            model: 'tts-1',
+          voice_settings: {
+            default_voice: vs.default_voice || vs.voice || 'alloy',
+            web_search_enabled: vs.web_search_enabled !== false,
+            speed: vs.speed || 1.0,
+            auto_play: vs.auto_play || false,
           }
         });
       }
