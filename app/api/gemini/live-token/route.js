@@ -31,7 +31,7 @@ export async function POST(request) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const model = body.model || 'gemini-3.1-flash-live-preview';
+    const model = body.model || 'gemini-2.5-flash-native-audio-latest';
 
     console.log('[Gemini Live] Providing credentials for user:', user.id, 'model:', model);
 

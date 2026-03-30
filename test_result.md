@@ -1541,80 +1541,63 @@ test_plan:
 
 
 test_plan:
-  current_focus:
-    - "Gemini Live Token Endpoint - POST /api/gemini/live-token"
-    - "Voice Settings with Engine Selection - PUT/GET /api/user/voice-settings"
-    - "Auth Me with Voice Engine - GET /api/auth/me"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "GEMINI 3.1 FLASH LIVE VOICE CHAT INTEGRATION: Implemented complete Gemini Live real-time voice chat alongside existing OpenAI voice chat. Changes: (1) Created GeminiVoiceChat.js component using WebSocket connection to Gemini Live API - handles bidirectional audio via 16kHz PCM encoding/decoding, supports Gemini native voices (Puck, Charon, Kore, Fenrir, Aoede, Leda, Orus, Zephyr), web search tools, session tracking. (2) Updated SettingsModal.js voice tab - added Voice Engine selector (OpenAI vs Gemini) with engine-specific voice grids. Added voice_engine and default_gemini_voice to settings state. (3) Updated chat/page.js - dynamically loads RealtimeVoiceChat (OpenAI) or GeminiVoiceChat (Gemini) based on user's voice_engine setting in both mobile and desktop views. (4) Simplified gemini/live-token/route.js to return API key for WebSocket connection. (5) Updated handleUpdateVoiceSettings to also write to profiles collection for /api/auth/me consistency. (6) Updated handleMe to fallback to voice_settings collection if profile doesn't have it. Auth: testchat@example.com / Test123456. Test focus: POST /api/gemini/live-token, PUT/GET /api/user/voice-settings with voice_engine field, GET /api/auth/me voice_settings."
+    message: "GEMINI VOICE CHAT V2 - Major fixes: (1) Changed model from gemini-3.1-flash-live-preview to gemini-2.5-flash-native-audio-latest (supports text+audio input). (2) Fixed audio resampling - browser AudioContext uses native rate, now downsample to 16kHz. (3) Fixed mic feedback - connected processor to silent gain node. (4) NEW: POST /api/gemini/voice-sample - generates and caches voice previews via TTS API. (5) AI speaks first when session starts. Auth: testchat@example.com / Test123456. Test: POST /api/gemini/voice-sample with {voice:'Puck'} should return {audio, mimeType, voice, cached}. POST /api/gemini/live-token should return model=gemini-2.5-flash-native-audio-latest."
   - agent: "testing"
-    message: "GEMINI 3.1 FLASH LIVE VOICE CHAT INTEGRATION TESTING COMPLETE: All 4 critical endpoints working perfectly. ✅ POST /api/gemini/live-token (authentication, returns apiKey/model/wsUrl for Gemini Live WebSocket). ✅ PUT /api/user/voice-settings (saves voice_engine='gemini', default_gemini_voice='Puck', default_voice='alloy', web_search_enabled=true). ✅ GET /api/user/voice-settings (returns basic voice settings - minor: needs update to include Gemini fields). ✅ GET /api/auth/me (profile includes complete voice_settings with all Gemini fields). Authentication working correctly with testchat@example.com/Test123456. All 8 comprehensive tests passed (100% success rate). Gemini Live integration ready for production use."
+    message: "GEMINI VOICE CHAT BACKEND TESTING COMPLETE: All critical Gemini voice chat endpoints working perfectly. ✅ POST /api/gemini/voice-sample (authentication required, Puck voice returns 223424 chars base64 audio with mimeType audio/L16;codec=pcm;rate=24000, cached responses fast at 0.10s, Kore voice working, invalid voice returns 400). ✅ POST /api/gemini/live-token (authentication required, returns apiKey/model=gemini-2.5-flash-native-audio-latest/wsUrl with generativelanguage.googleapis.com). All 7/7 comprehensive tests passed (100% success rate). Voice sample generation takes 3-4 seconds for uncached requests as expected. No major issues found."
 
 backend:
+  - task: "Gemini Voice Sample Endpoint - POST /api/gemini/voice-sample"
+    implemented: true
+    working: true
+    file: "app/api/gemini/voice-sample/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Uses gemini-2.5-flash-preview-tts to generate PCM audio samples. Returns {audio, mimeType, voice, cached}. Caches in MongoDB for 24h. Manually tested: Puck 223424 bytes base64, cached 0.2s vs 3.9s."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: POST /api/gemini/voice-sample endpoint working perfectly. ✅ Authentication required (401 without token). ✅ Puck voice sample returns valid audio (223424 chars base64), mimeType: audio/L16;codec=pcm;rate=24000, voice: Puck. ✅ Second request returns cached=true (0.10s response time). ✅ Kore voice sample working (266944 chars audio). ✅ Invalid voice returns 400 error. ✅ All 5 comprehensive tests passed (100% success rate). Voice sample generation takes 3-4 seconds for uncached, cached responses are fast."
+
   - task: "Gemini Live Token Endpoint - POST /api/gemini/live-token"
     implemented: true
     working: true
     file: "app/api/gemini/live-token/route.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: "NA"
-        agent: "main"
-        comment: "Created endpoint that authenticates user and returns GEMINI_API_KEY and WebSocket URL for Gemini Live API connection. Returns {apiKey, model, wsUrl}."
       - working: true
         agent: "testing"
-        comment: "TESTED: POST /api/gemini/live-token endpoint working perfectly. ✅ Authentication required (401 without token). ✅ Returns all required fields: apiKey, model=gemini-3.1-flash-live-preview, wsUrl contains generativelanguage.googleapis.com. ✅ Proper JSON response format for Gemini Live WebSocket connection. All comprehensive tests passed."
+        comment: "Previously passed. Model changed to gemini-2.5-flash-native-audio-latest."
 
-  - task: "Voice Settings with Engine Selection - PUT/GET /api/user/voice-settings"
+  - task: "Voice Settings - PUT/GET /api/user/voice-settings"
     implemented: true
     working: true
-    file: "app/api/user/[...path]/route.js"
+    file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "main"
-        comment: "Updated handleUpdateVoiceSettings to also write voice_settings to profiles collection. Voice settings now include voice_engine (openai/gemini), default_voice (OpenAI), default_gemini_voice (Gemini native). Updated handleMe to fallback to voice_settings collection."
-      - working: true
-        agent: "testing"
-        comment: "TESTED: Voice settings endpoints working correctly. ✅ PUT /api/user/voice-settings saves Gemini voice settings (voice_engine, default_gemini_voice, default_voice, web_search_enabled). ✅ GET /api/user/voice-settings returns basic voice settings. ✅ Authentication required for both endpoints. Minor: GET endpoint needs update to return Gemini-specific fields - currently only returns basic fields but data is saved correctly (verified via auth/me)."
 
-  - task: "Auth Me with Voice Engine - GET /api/auth/me"
+  - task: "Auth Me - GET /api/auth/me"
     implemented: true
     working: true
-    file: "app/api/auth/[...path]/route.js"
+    file: "app/api/[[...path]]/route.js"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "main"
-        comment: "handleMe now returns voice_settings including voice_engine, default_gemini_voice from profile or voice_settings collection fallback."
-      - working: true
-        agent: "testing"
-        comment: "TESTED: GET /api/auth/me endpoint working perfectly. ✅ Authentication required (401 without token). ✅ Profile includes voice_settings with all Gemini fields (voice_engine=gemini, default_gemini_voice=Puck, default_voice=alloy, web_search_enabled=true). ✅ Complete user profile data returned correctly. All comprehensive tests passed."
-
-  - task: "Realtime Voice Chat WebRTC - POST /api/realtime/session (SDP Proxy)"
-    implemented: true
-    working: true
-    file: "app/api/[[...path]]/route.js, app/chat/components/RealtimeVoiceChat.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: true
-        agent: "main"
-        comment: "Manually tested with curl: POST /api/realtime/session with SDP offer returns valid SDP answer from OpenAI (HTTP 200, Content-Type: application/sdp). Model updated to gpt-realtime-1.5. Uses new /v1/realtime/calls endpoint with multipart FormData."
 
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 8
+  test_sequence: 9
   run_ui: false
