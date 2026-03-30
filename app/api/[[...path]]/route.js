@@ -5062,6 +5062,8 @@ async function handleMe(request) {
       default_model: profile.default_model,
       default_video_model: profile.default_video_model || 'smart',
       default_image_model: profile.default_image_model || 'smart',
+      ai_greeting_enabled: profile.ai_greeting_enabled,
+      voice_settings: profile.voice_settings,
     } : null,
   });
 }

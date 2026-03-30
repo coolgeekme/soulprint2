@@ -21,7 +21,7 @@ const VOICES = [
   { id: 'verse', name: 'Verse', desc: 'Dynamic & engaging', preview: 'Hey there! I\'m Verse, let\'s talk!' },
 ];
 
-export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, systemPrompt, userName }) {
+export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, systemPrompt, userName, defaultVoice }) {
   const [status, setStatus] = useState('idle'); // idle, connecting, connected, error
   const [isMuted, setIsMuted] = useState(false);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
@@ -29,7 +29,7 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
   const [aiResponse, setAiResponse] = useState('');
   const [error, setError] = useState(null);
   const [mode, setMode] = useState('vad'); // 'vad' or 'push-to-talk'
-  const [selectedVoice, setSelectedVoice] = useState('alloy');
+  const [selectedVoice, setSelectedVoice] = useState(defaultVoice || 'alloy');
   const [showVoiceMenu, setShowVoiceMenu] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [previewingVoice, setPreviewingVoice] = useState(null);

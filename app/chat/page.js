@@ -2474,6 +2474,7 @@ export default function ChatPage() {
             onSaveTranscript={saveVoiceTranscript}
             systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
             userName={user?.displayName || user?.email?.split('@')[0]}
+            defaultVoice={user?.profile?.voice_settings?.default_voice}
           />
           </SafeSection>
         )}
@@ -4854,6 +4855,7 @@ export default function ChatPage() {
           onSaveTranscript={saveVoiceTranscript}
           systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
           userName={user?.displayName || user?.email?.split('@')[0]}
+          defaultVoice={user?.profile?.voice_settings?.default_voice}
         />
         </SafeSection>
       )}
