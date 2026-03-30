@@ -2098,24 +2098,24 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                       {voiceStatsLoading && <Loader2 className="w-3 h-3 animate-spin text-orange-500" />}
                     </div>
                     
-                    {voiceStats ? (
+                    {voiceStats?.stats ? (
                       <div className="space-y-4">
                         {/* Main Stats Grid */}
                         <div className="grid grid-cols-2 gap-3">
                           <div className="p-3 bg-white/5 rounded-lg">
-                            <p className="text-2xl font-bold text-white">{voiceStats.stats.total_sessions}</p>
+                            <p className="text-2xl font-bold text-white">{voiceStats.stats.total_sessions || 0}</p>
                             <p className="text-gray-500 text-xs">Total Sessions</p>
                           </div>
                           <div className="p-3 bg-white/5 rounded-lg">
-                            <p className="text-2xl font-bold text-white">{voiceStats.stats.total_duration_formatted}</p>
+                            <p className="text-2xl font-bold text-white">{voiceStats.stats.total_duration_formatted || '0m'}</p>
                             <p className="text-gray-500 text-xs">Total Time</p>
                           </div>
                           <div className="p-3 bg-white/5 rounded-lg">
-                            <p className="text-2xl font-bold text-white">{voiceStats.stats.avg_duration_formatted}</p>
+                            <p className="text-2xl font-bold text-white">{voiceStats.stats.avg_duration_formatted || '0m'}</p>
                             <p className="text-gray-500 text-xs">Avg Duration</p>
                           </div>
                           <div className="p-3 bg-white/5 rounded-lg">
-                            <p className="text-2xl font-bold text-white">{voiceStats.stats.total_messages}</p>
+                            <p className="text-2xl font-bold text-white">{voiceStats.stats.total_messages || 0}</p>
                             <p className="text-gray-500 text-xs">Messages</p>
                           </div>
                         </div>

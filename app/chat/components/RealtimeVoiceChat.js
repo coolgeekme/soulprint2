@@ -813,6 +813,7 @@ Be conversational, warm, and personal. You KNOW this user - their profile, memor
           {status === 'idle' && (
             <div className="mb-6">
               <label className="block text-xs text-gray-500 mb-2">AI Voice (tap speaker to preview)</label>
+              <p className="text-[10px] text-gray-600 mb-2">💡 Set your default voice in <span className="text-orange-400/70">Settings → Voice</span></p>
               <div className="grid grid-cols-2 gap-2">
                 {VOICES.map(voice => (
                   <div
