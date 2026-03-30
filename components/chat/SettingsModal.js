@@ -1130,7 +1130,8 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
       const res = await fetch('/api/user/voice-settings', { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
-        setVoiceSettings(data);
+        const settings = data.voice_settings || data;
+        setVoiceSettings({ default_voice: settings.default_voice || 'alloy', web_search_enabled: settings.web_search_enabled !== false });
       }
     } catch (e) {
       console.error('Failed to load voice settings:', e);

@@ -109,7 +109,8 @@ export default function RealtimeVoiceChat({ token, onClose, onSaveTranscript, sy
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
-          const settings = await res.json();
+          const data = await res.json();
+          const settings = data.voice_settings || data;
           if (settings.default_voice) setSelectedVoice(settings.default_voice);
           if (settings.web_search_enabled !== undefined) setWebSearchEnabled(settings.web_search_enabled);
         }
