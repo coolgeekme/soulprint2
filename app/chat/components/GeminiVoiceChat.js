@@ -5,7 +5,7 @@
 
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, MicOff, PhoneOff, VolumeX, Loader2, AudioWaveform, X, Play, Square, Globe, Search, Sparkles } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, VolumeX, Loader2, AudioWaveform, X, Globe, Search, Sparkles } from 'lucide-react';
 
 const GEMINI_MODEL = 'gemini-3.1-flash-live-preview';
 const WS_BASE_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
@@ -58,22 +58,6 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
-// Resample audio from one sample rate to another
-function resampleAudio(inputData, inputSampleRate, outputSampleRate) {
-  if (inputSampleRate === outputSampleRate) return inputData;
-  const ratio = inputSampleRate / outputSampleRate;
-  const outputLength = Math.round(inputData.length / ratio);
-  const output = new Float32Array(outputLength);
-  for (let i = 0; i < outputLength; i++) {
-    const srcIndex = i * ratio;
-    const srcIndexFloor = Math.floor(srcIndex);
-    const srcIndexCeil = Math.min(srcIndexFloor + 1, inputData.length - 1);
-    const frac = srcIndex - srcIndexFloor;
-    output[i] = inputData[srcIndexFloor] * (1 - frac) + inputData[srcIndexCeil] * frac;
-  }
-  return output;
-}
-
 export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, systemPrompt, userName, defaultVoice }) {
   const [status, setStatus] = useState('idle'); // idle, connecting, connected, error
   const [isMuted, setIsMuted] = useState(false);
@@ -82,7 +66,6 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
   const [aiResponse, setAiResponse] = useState('');
   const [error, setError] = useState(null);
   const [selectedVoice, setSelectedVoice] = useState(defaultVoice || 'Puck');
-  const [showVoiceMenu, setShowVoiceMenu] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]);
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
@@ -90,9 +73,9 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
   const [sessionStartTime, setSessionStartTime] = useState(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
+  // Refs for mutable state (avoids stale closures)
   const wsRef = useRef(null);
   const audioContextRef = useRef(null);
-  const workletNodeRef = useRef(null);
   const localStreamRef = useRef(null);
   const sourceNodeRef = useRef(null);
   const playbackContextRef = useRef(null);
@@ -101,13 +84,18 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
   const wakeLockRef = useRef(null);
   const setupCompleteRef = useRef(false);
   const processorNodeRef = useRef(null);
+  const isMutedRef = useRef(false);
+  const tokenRef = useRef(token);
+
+  // Keep refs in sync with state
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+  useEffect(() => { tokenRef.current = token; }, [token]);
 
   // Screen Wake Lock
   const requestWakeLock = async () => {
     try {
       if ('wakeLock' in navigator) {
         wakeLockRef.current = await navigator.wakeLock.request('screen');
-        console.log('[Gemini] Screen Wake Lock acquired');
       }
     } catch (err) {
       console.log('[Gemini] Wake Lock not supported:', err.message);
@@ -116,16 +104,10 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
 
   const releaseWakeLock = async () => {
     if (wakeLockRef.current) {
-      try {
-        await wakeLockRef.current.release();
-        wakeLockRef.current = null;
-      } catch (err) {
-        console.log('[Gemini] Wake Lock release error:', err.message);
-      }
+      try { await wakeLockRef.current.release(); wakeLockRef.current = null; } catch (err) {}
     }
   };
 
-  // Re-acquire wake lock when tab becomes visible
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible' && status === 'connected') {
@@ -170,12 +152,10 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       }
       const ctx = playbackContextRef.current;
       
-      // Decode base64 PCM to Int16
       const rawBuffer = base64ToArrayBuffer(audioData);
       const int16Data = new Int16Array(rawBuffer);
       const float32Data = int16ToFloat32(int16Data);
       
-      // Create AudioBuffer
       const audioBuffer = ctx.createBuffer(1, float32Data.length, 24000);
       audioBuffer.getChannelData(0).set(float32Data);
       
@@ -197,79 +177,9 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
     } catch (err) {
       console.error('[Gemini] Playback error:', err);
       isPlayingRef.current = false;
-      if (audioQueueRef.current.length > 0) {
-        playNextChunk();
-      }
+      if (audioQueueRef.current.length > 0) playNextChunk();
     }
   }, []);
-
-  // Handle WebSocket messages from Gemini
-  const handleGeminiMessage = useCallback(async (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      
-      // Setup complete confirmation
-      if (data.setupComplete) {
-        console.log('[Gemini] Setup complete');
-        setupCompleteRef.current = true;
-        return;
-      }
-
-      // Server content (audio/text response)
-      if (data.serverContent) {
-        const { modelTurn, turnComplete } = data.serverContent;
-        
-        if (modelTurn?.parts) {
-          for (const part of modelTurn.parts) {
-            // Audio data
-            if (part.inlineData?.mimeType?.includes('audio/pcm')) {
-              audioQueueRef.current.push(part.inlineData.data);
-              if (!isPlayingRef.current) {
-                playNextChunk();
-              }
-            }
-            // Text data (transcript of AI speech)
-            if (part.text) {
-              setAiResponse(prev => prev + part.text);
-            }
-          }
-        }
-        
-        if (turnComplete) {
-          // AI turn is complete
-          const currentResponse = aiResponse;
-          if (currentResponse) {
-            setConversationHistory(prev => [...prev, { role: 'assistant', text: currentResponse, timestamp: new Date() }]);
-          }
-          setAiResponse('');
-          setTranscript('');
-        }
-      }
-
-      // Tool call from Gemini
-      if (data.toolCall) {
-        const { functionCalls } = data.toolCall;
-        if (functionCalls) {
-          for (const fc of functionCalls) {
-            console.log('[Gemini] Tool call:', fc.name, fc.args);
-            await handleToolCall(fc);
-          }
-        }
-      }
-
-      // Input transcription
-      if (data.serverContent?.inputTranscription) {
-        const userText = data.serverContent.inputTranscription;
-        setTranscript(userText);
-        if (userText.trim()) {
-          setConversationHistory(prev => [...prev, { role: 'user', text: userText, timestamp: new Date() }]);
-        }
-      }
-
-    } catch (err) {
-      console.error('[Gemini] Message parse error:', err);
-    }
-  }, [playNextChunk, aiResponse]);
 
   // Handle tool calls from Gemini
   const handleToolCall = useCallback(async (functionCall) => {
@@ -288,7 +198,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       const response = await fetch('/api/voice/tool', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${tokenRef.current}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ tool_name: name, tool_args: args || {} }),
@@ -297,247 +207,30 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       const result = await response.json();
       console.log(`[Gemini] Tool result for ${name}:`, result);
 
-      // Send result back to Gemini
       if (wsRef.current?.readyState === WebSocket.OPEN) {
-        const toolResponse = {
+        wsRef.current.send(JSON.stringify({
           toolResponse: {
             functionResponses: [{
               id: id,
               name: name,
-              response: result.success ? result.result : { error: result.error },
+              response: result.success ? result.result : { error: result.error || 'Tool failed' },
             }],
           },
-        };
-        wsRef.current.send(JSON.stringify(toolResponse));
+        }));
       }
     } catch (err) {
       console.error('[Gemini] Tool call error:', err);
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           toolResponse: {
-            functionResponses: [{
-              id: id,
-              name: name,
-              response: { error: err.message },
-            }],
+            functionResponses: [{ id, name, response: { error: err.message } }],
           },
         }));
       }
     } finally {
       setIsSearching(false);
     }
-  }, [token]);
-
-  // Start voice chat
-  const startVoiceChat = useCallback(async () => {
-    try {
-      setStatus('connecting');
-      setError(null);
-      setConversationHistory([]);
-      setSessionStartTime(new Date());
-      setupCompleteRef.current = false;
-
-      // 1. Get API key from backend
-      const tokenRes = await fetch('/api/gemini/live-token', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ model: GEMINI_MODEL }),
-      });
-
-      if (!tokenRes.ok) throw new Error('Failed to get Gemini credentials');
-      const tokenData = await tokenRes.json();
-      
-      const apiKey = tokenData.apiKey || tokenData.token;
-      if (!apiKey) throw new Error('No API key received');
-
-      // 2. Track session in backend
-      const trackResponse = await fetch('/api/voice/sessions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          voice: selectedVoice,
-          mode: 'vad',
-          web_search_enabled: webSearchEnabled,
-          engine: 'gemini',
-        }),
-      });
-      
-      if (trackResponse.ok) {
-        const trackData = await trackResponse.json();
-        setSessionId(trackData.session_id);
-      }
-
-      // 3. Get microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 16000,
-        },
-      });
-      localStreamRef.current = stream;
-
-      // 4. Set up audio capture (mic → PCM → base64 → WebSocket)
-      const audioContext = new AudioContext({ sampleRate: 16000 });
-      audioContextRef.current = audioContext;
-      
-      const source = audioContext.createMediaStreamSource(stream);
-      sourceNodeRef.current = source;
-
-      // Use ScriptProcessorNode (wider support) for PCM capture
-      const bufferSize = 4096;
-      const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
-      processorNodeRef.current = processor;
-
-      processor.onaudioprocess = (e) => {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !setupCompleteRef.current) return;
-        if (isMuted) return;
-
-        const inputData = e.inputBuffer.getChannelData(0);
-        
-        // Convert Float32 to Int16 PCM
-        const int16Data = float32ToInt16(inputData);
-        const base64Audio = arrayBufferToBase64(int16Data.buffer);
-
-        // Send audio chunk to Gemini
-        wsRef.current.send(JSON.stringify({
-          realtimeInput: {
-            mediaChunks: [{
-              mimeType: 'audio/pcm;rate=16000',
-              data: base64Audio,
-            }],
-          },
-        }));
-      };
-
-      source.connect(processor);
-      processor.connect(audioContext.destination); // Required for ScriptProcessor to work
-
-      // 5. Connect WebSocket to Gemini
-      const wsUrl = `${WS_BASE_URL}?key=${apiKey}`;
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        console.log('[Gemini] WebSocket connected');
-        
-        // Build system instructions
-        const baseInstructions = systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}.`;
-
-        // Build tools configuration for Gemini
-        const tools = [];
-        if (webSearchEnabled) {
-          tools.push({
-            functionDeclarations: [
-              {
-                name: 'web_search',
-                description: 'Search the web for current, real-time information. Use for: weather, news, sports scores, stock prices.',
-                parameters: {
-                  type: 'OBJECT',
-                  properties: {
-                    query: { type: 'STRING', description: 'The search query' },
-                  },
-                  required: ['query'],
-                },
-              },
-              {
-                name: 'get_user_memories',
-                description: 'Retrieve the user\'s stored memories - facts, preferences, health info, personal details.',
-                parameters: { type: 'OBJECT', properties: {} },
-              },
-              {
-                name: 'get_soulprint',
-                description: 'Get the user\'s complete SoulPrint profile including interests, communication style, personality.',
-                parameters: { type: 'OBJECT', properties: {} },
-              },
-            ],
-          });
-        }
-
-        // Send setup message
-        const setupMsg = {
-          setup: {
-            model: `models/${GEMINI_MODEL}`,
-            generationConfig: {
-              responseModalities: ['AUDIO'],
-              speechConfig: {
-                voiceConfig: {
-                  prebuiltVoiceConfig: {
-                    voiceName: selectedVoice,
-                  },
-                },
-              },
-            },
-            systemInstruction: {
-              parts: [{ text: `${baseInstructions}\n\nBe conversational, warm, and personal. Keep responses concise since this is a voice conversation.` }],
-            },
-            ...(tools.length > 0 ? { tools } : {}),
-          },
-        };
-
-        console.log('[Gemini] Sending setup:', JSON.stringify(setupMsg).slice(0, 200));
-        ws.send(JSON.stringify(setupMsg));
-      };
-
-      ws.onmessage = handleGeminiMessage;
-
-      ws.onerror = (event) => {
-        console.error('[Gemini] WebSocket error:', event);
-        setError('WebSocket connection error');
-        setStatus('error');
-      };
-
-      ws.onclose = (event) => {
-        console.log('[Gemini] WebSocket closed:', event.code, event.reason);
-        if (status === 'connected' || status === 'connecting') {
-          // Only set error if not intentionally closed
-          if (event.code !== 1000) {
-            setError(`Connection closed: ${event.reason || 'Unknown reason'}`);
-            setStatus('error');
-          }
-        }
-      };
-
-      // Wait for setup to complete
-      await new Promise((resolve, reject) => {
-        const checkInterval = setInterval(() => {
-          if (setupCompleteRef.current) {
-            clearInterval(checkInterval);
-            resolve();
-          }
-          if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
-            clearInterval(checkInterval);
-            reject(new Error('WebSocket closed before setup complete'));
-          }
-        }, 100);
-        
-        // Timeout after 10 seconds
-        setTimeout(() => {
-          clearInterval(checkInterval);
-          if (!setupCompleteRef.current) {
-            reject(new Error('Setup timeout'));
-          }
-        }, 10000);
-      });
-
-      setStatus('connected');
-      console.log('[Gemini] Voice chat connected!');
-      await requestWakeLock();
-
-    } catch (err) {
-      console.error('[Gemini] Error:', err);
-      setError(err.message);
-      setStatus('error');
-      cleanup();
-    }
-  }, [token, systemPrompt, userName, selectedVoice, webSearchEnabled, handleGeminiMessage, isMuted]);
+  }, []);
 
   // Cleanup
   const cleanup = useCallback(() => {
@@ -573,6 +266,290 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
     setupCompleteRef.current = false;
   }, []);
 
+  // Start voice chat
+  const startVoiceChat = useCallback(async () => {
+    try {
+      setStatus('connecting');
+      setError(null);
+      setConversationHistory([]);
+      setSessionStartTime(new Date());
+      setupCompleteRef.current = false;
+
+      // 1. Get API key from backend
+      const tokenRes = await fetch('/api/gemini/live-token', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model: GEMINI_MODEL }),
+      });
+
+      if (!tokenRes.ok) {
+        const errData = await tokenRes.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to get Gemini credentials');
+      }
+      const tokenData = await tokenRes.json();
+      
+      const apiKey = tokenData.apiKey || tokenData.token;
+      if (!apiKey) throw new Error('No API key received');
+      console.log('[Gemini] Got API key, length:', apiKey.length);
+
+      // 2. Track session in backend
+      try {
+        const trackResponse = await fetch('/api/voice/sessions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            voice: selectedVoice,
+            mode: 'vad',
+            web_search_enabled: webSearchEnabled,
+            engine: 'gemini',
+          }),
+        });
+        if (trackResponse.ok) {
+          const trackData = await trackResponse.json();
+          setSessionId(trackData.session_id);
+        }
+      } catch (e) {
+        console.log('[Gemini] Session tracking skipped:', e.message);
+      }
+
+      // 3. Get microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000,
+        },
+      });
+      localStreamRef.current = stream;
+
+      // 4. Set up audio capture (mic → PCM → base64 → WebSocket)
+      const audioContext = new AudioContext({ sampleRate: 16000 });
+      audioContextRef.current = audioContext;
+      
+      const source = audioContext.createMediaStreamSource(stream);
+      sourceNodeRef.current = source;
+
+      const bufferSize = 4096;
+      const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+      processorNodeRef.current = processor;
+
+      processor.onaudioprocess = (e) => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !setupCompleteRef.current) return;
+        if (isMutedRef.current) return; // Use ref to avoid stale closure
+
+        const inputData = e.inputBuffer.getChannelData(0);
+        const int16Data = float32ToInt16(inputData);
+        const base64Audio = arrayBufferToBase64(int16Data.buffer);
+
+        try {
+          wsRef.current.send(JSON.stringify({
+            realtimeInput: {
+              mediaChunks: [{
+                mimeType: 'audio/pcm;rate=16000',
+                data: base64Audio,
+              }],
+            },
+          }));
+        } catch (sendErr) {
+          console.error('[Gemini] Send error:', sendErr.message);
+        }
+      };
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+      // 5. Connect WebSocket to Gemini
+      const wsUrl = `${WS_BASE_URL}?key=${apiKey}`;
+      console.log('[Gemini] Connecting WebSocket...');
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('[Gemini] WebSocket connected, sending setup...');
+        
+        const baseInstructions = systemPrompt || `You are a helpful AI assistant having a voice conversation. The user's name is ${userName || 'User'}.`;
+
+        const tools = [];
+        if (webSearchEnabled) {
+          tools.push({
+            functionDeclarations: [
+              {
+                name: 'web_search',
+                description: 'Search the web for current, real-time information. Use for: weather, news, sports scores, stock prices.',
+                parameters: {
+                  type: 'OBJECT',
+                  properties: { query: { type: 'STRING', description: 'The search query' } },
+                  required: ['query'],
+                },
+              },
+              {
+                name: 'get_user_memories',
+                description: 'Retrieve the user\'s stored memories and personal information.',
+                parameters: { type: 'OBJECT', properties: {} },
+              },
+              {
+                name: 'get_soulprint',
+                description: 'Get the user\'s complete SoulPrint profile.',
+                parameters: { type: 'OBJECT', properties: {} },
+              },
+            ],
+          });
+        }
+
+        const setupMsg = {
+          setup: {
+            model: `models/${GEMINI_MODEL}`,
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName: selectedVoice,
+                  },
+                },
+              },
+            },
+            systemInstruction: {
+              parts: [{ text: `${baseInstructions}\n\nBe conversational, warm, and personal. Keep responses concise since this is a voice conversation.` }],
+            },
+            ...(tools.length > 0 ? { tools } : {}),
+          },
+        };
+
+        ws.send(JSON.stringify(setupMsg));
+        console.log('[Gemini] Setup message sent');
+      };
+
+      // Handle messages - use inline handler to avoid stale closure
+      ws.onmessage = async (event) => {
+        try {
+          // Browser WebSocket can return Blob, ArrayBuffer, or string
+          let textData;
+          if (typeof event.data === 'string') {
+            textData = event.data;
+          } else if (event.data instanceof Blob) {
+            textData = await event.data.text();
+          } else if (event.data instanceof ArrayBuffer) {
+            textData = new TextDecoder().decode(event.data);
+          } else {
+            console.error('[Gemini] Unknown message type:', typeof event.data);
+            return;
+          }
+          
+          const data = JSON.parse(textData);
+          
+          // Setup complete
+          if (data.setupComplete !== undefined) {
+            console.log('[Gemini] ✅ Setup complete received');
+            setupCompleteRef.current = true;
+            return;
+          }
+
+          // Server content (audio/text)
+          if (data.serverContent) {
+            const { modelTurn, turnComplete } = data.serverContent;
+            
+            if (modelTurn?.parts) {
+              for (const part of modelTurn.parts) {
+                if (part.inlineData?.mimeType?.includes('audio/pcm')) {
+                  audioQueueRef.current.push(part.inlineData.data);
+                  if (!isPlayingRef.current) {
+                    playNextChunk();
+                  }
+                }
+                if (part.text) {
+                  setAiResponse(prev => prev + part.text);
+                }
+              }
+            }
+
+            if (data.serverContent.inputTranscription) {
+              const userText = data.serverContent.inputTranscription;
+              setTranscript(userText);
+              if (userText.trim()) {
+                setConversationHistory(prev => [...prev, { role: 'user', text: userText, timestamp: new Date() }]);
+              }
+            }
+            
+            if (turnComplete) {
+              setAiResponse(currentResponse => {
+                if (currentResponse) {
+                  setConversationHistory(prev => [...prev, { role: 'assistant', text: currentResponse, timestamp: new Date() }]);
+                }
+                return '';
+              });
+              setTranscript('');
+            }
+          }
+
+          // Tool call
+          if (data.toolCall) {
+            const { functionCalls } = data.toolCall;
+            if (functionCalls) {
+              for (const fc of functionCalls) {
+                console.log('[Gemini] Tool call:', fc.name);
+                await handleToolCall(fc);
+              }
+            }
+          }
+
+        } catch (err) {
+          console.error('[Gemini] Message parse error:', err);
+        }
+      };
+
+      ws.onerror = (event) => {
+        console.error('[Gemini] WebSocket error:', event);
+        setError('WebSocket connection error. Please try again.');
+        setStatus('error');
+      };
+
+      ws.onclose = (event) => {
+        console.log('[Gemini] WebSocket closed:', event.code, event.reason);
+        if (event.code !== 1000 && status !== 'idle') {
+          setError(`Connection closed: ${event.reason || `Code ${event.code}`}`);
+          setStatus('error');
+        }
+      };
+
+      // Wait for setup to complete
+      await new Promise((resolve, reject) => {
+        const startTime = Date.now();
+        const checkInterval = setInterval(() => {
+          if (setupCompleteRef.current) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+          if (ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+            clearInterval(checkInterval);
+            reject(new Error('WebSocket closed before setup complete'));
+          }
+          if (Date.now() - startTime > 15000) {
+            clearInterval(checkInterval);
+            reject(new Error('Setup timeout - please check your connection and try again'));
+          }
+        }, 100);
+      });
+
+      setStatus('connected');
+      console.log('[Gemini] Voice chat connected!');
+      await requestWakeLock();
+
+    } catch (err) {
+      console.error('[Gemini] Error:', err);
+      setError(err.message);
+      setStatus('error');
+      cleanup();
+    }
+  }, [token, systemPrompt, userName, selectedVoice, webSearchEnabled, playNextChunk, handleToolCall, cleanup]);
+
   // End voice chat
   const endVoiceChat = useCallback(async () => {
     const endTime = new Date();
@@ -580,7 +557,6 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
     
     cleanup();
 
-    // Update session metrics
     if (sessionId) {
       try {
         await fetch(`/api/voice/sessions/${sessionId}`, {
@@ -601,7 +577,6 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       }
     }
 
-    // Save transcript
     if (conversationHistory.length > 0 && onSaveTranscript) {
       onSaveTranscript(conversationHistory);
     }
@@ -620,20 +595,17 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
     setIsMuted(prev => !prev);
   }, []);
 
-  // Interrupt AI (clear audio queue)
+  // Interrupt AI
   const interruptAI = useCallback(() => {
     audioQueueRef.current = [];
     isPlayingRef.current = false;
     setIsAISpeaking(false);
-    // Optionally send an interrupt signal if supported
   }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => cleanup();
   }, [cleanup]);
-
-  const selectedVoiceData = GEMINI_VOICES.find(v => v.id === selectedVoice) || GEMINI_VOICES[0];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm">
@@ -652,8 +624,8 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
         <div className="relative bg-gray-900/90 rounded-3xl p-6 sm:p-8 border border-white/10 max-h-[85vh] overflow-y-auto mb-4">
           {/* Close button */}
           <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white transition-colors rounded-full hover:bg-white/10"
+            onClick={status === 'connected' ? endVoiceChat : onClose}
+            className="absolute top-4 right-4 p-2 text-gray-500 hover:text-white transition-colors rounded-full hover:bg-white/10 z-10"
           >
             <X className="w-5 h-5" />
           </button>
@@ -734,7 +706,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
             </div>
           )}
 
-          {/* Main visual - Gemini Logo with glow effect */}
+          {/* Main visual */}
           <div className="flex justify-center mb-6">
             {status === 'idle' || status === 'error' ? (
               <button
@@ -749,47 +721,26 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
               </div>
             ) : (
               <div className="relative flex items-center justify-center">
-                {/* Animated rings when AI is speaking */}
                 {isAISpeaking && (
                   <>
-                    <div 
-                      className="absolute rounded-full bg-blue-500/15"
-                      style={{
-                        width: '140px', height: '140px',
-                        animation: 'geminiPulseRing1 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                      }}
-                    />
-                    <div 
-                      className="absolute rounded-full bg-purple-500/25"
-                      style={{
-                        width: '115px', height: '115px',
-                        animation: 'geminiPulseRing2 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                        animationDelay: '0.2s',
-                      }}
-                    />
-                    <div 
-                      className="absolute rounded-full bg-blue-500/35"
-                      style={{
-                        width: '98px', height: '98px',
-                        animation: 'geminiPulseRing3 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                      }}
-                    />
+                    <div className="absolute rounded-full bg-blue-500/15"
+                      style={{ width: '140px', height: '140px', animation: 'geminiPulseRing1 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }} />
+                    <div className="absolute rounded-full bg-purple-500/25"
+                      style={{ width: '115px', height: '115px', animation: 'geminiPulseRing2 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite', animationDelay: '0.2s' }} />
+                    <div className="absolute rounded-full bg-blue-500/35"
+                      style={{ width: '98px', height: '98px', animation: 'geminiPulseRing3 1s cubic-bezier(0.4, 0, 0.6, 1) infinite' }} />
                   </>
                 )}
                 
-                {/* Main logo container */}
-                <div 
-                  className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center overflow-hidden transition-all duration-300 ${
-                    isAISpeaking 
-                      ? 'bg-gradient-to-br from-blue-400 via-purple-500 to-blue-600' 
-                      : isSearching
-                        ? 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-[0_0_30px_rgba(59,130,246,0.5)]'
-                        : 'bg-gradient-to-br from-gray-700 to-gray-800 shadow-lg'
-                  }`}
+                <div className={`relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center overflow-hidden transition-all duration-300 ${
+                  isAISpeaking 
+                    ? 'bg-gradient-to-br from-blue-400 via-purple-500 to-blue-600' 
+                    : isSearching
+                      ? 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-[0_0_30px_rgba(59,130,246,0.5)]'
+                      : 'bg-gradient-to-br from-gray-700 to-gray-800 shadow-lg'
+                }`}
                   style={{
-                    boxShadow: isAISpeaking 
-                      ? '0 0 50px rgba(99,102,241,0.6), 0 0 80px rgba(99,102,241,0.4), 0 0 120px rgba(99,102,241,0.2)' 
-                      : undefined,
+                    boxShadow: isAISpeaking ? '0 0 50px rgba(99,102,241,0.6), 0 0 80px rgba(99,102,241,0.4)' : undefined,
                     animation: isAISpeaking ? 'geminiBreathe 1.5s ease-in-out infinite' : undefined,
                   }}
                 >
@@ -805,30 +756,12 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
             )}
           </div>
 
-          {/* Keyframe animations */}
           <style>{`
-            @keyframes geminiPulseRing1 {
-              0% { transform: scale(0.8); opacity: 0.8; }
-              50% { transform: scale(1.1); opacity: 0.3; }
-              100% { transform: scale(1.3); opacity: 0; }
-            }
-            @keyframes geminiPulseRing2 {
-              0% { transform: scale(0.85); opacity: 0.9; }
-              50% { transform: scale(1.05); opacity: 0.4; }
-              100% { transform: scale(1.2); opacity: 0; }
-            }
-            @keyframes geminiPulseRing3 {
-              0%, 100% { transform: scale(0.95); opacity: 0.7; }
-              50% { transform: scale(1.02); opacity: 1; }
-            }
-            @keyframes geminiBreathe {
-              0%, 100% { transform: scale(1); }
-              50% { transform: scale(1.06); }
-            }
-            @keyframes geminiLogoPulse {
-              0%, 100% { transform: scale(1); }
-              50% { transform: scale(1.12); }
-            }
+            @keyframes geminiPulseRing1 { 0% { transform: scale(0.8); opacity: 0.8; } 50% { transform: scale(1.1); opacity: 0.3; } 100% { transform: scale(1.3); opacity: 0; } }
+            @keyframes geminiPulseRing2 { 0% { transform: scale(0.85); opacity: 0.9; } 50% { transform: scale(1.05); opacity: 0.4; } 100% { transform: scale(1.2); opacity: 0; } }
+            @keyframes geminiPulseRing3 { 0%, 100% { transform: scale(0.95); opacity: 0.7; } 50% { transform: scale(1.02); opacity: 1; } }
+            @keyframes geminiBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+            @keyframes geminiLogoPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
           `}</style>
 
           {/* Controls */}
