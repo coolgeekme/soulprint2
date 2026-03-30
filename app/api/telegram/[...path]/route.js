@@ -1537,6 +1537,16 @@ export async function POST(request, { params }) {
     if (pathStr === 'webhook') return handleTelegramWebhook(request);
     if (pathStr === 'link') return handleTelegramLink(request);
     if (pathStr === 'set-model' || pathStr === 'model') return handleTelegramSetModel(request);
+    if (pathStr === 'unlink') {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      const db = await getDb();
+      await db.collection('telegram_mappings').updateMany(
+        { user_id: user.id },
+        { $set: { linked: false, user_id: null } }
+      );
+      return ok({ success: true });
+    }
     
     return err('Telegram endpoint not found', 404);
   } catch (error) {
