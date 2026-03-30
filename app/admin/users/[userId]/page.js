@@ -362,9 +362,9 @@ export default function UserDetailPage() {
                     <ThumbsDown className="w-4 h-4 text-red-400" />
                     <span className="text-red-400 text-sm font-medium">{feedback_summary?.thumbs_down || 0}</span>
                   </div>
-                  {feedback_summary?.satisfaction_rate !== null && (
+                  {feedback_summary?.satisfaction_rate != null && (
                     <span className="text-gray-400 text-xs ml-auto">
-                      {feedback_summary.satisfaction_rate}% satisfaction
+                      {feedback_summary?.satisfaction_rate}% satisfaction
                     </span>
                   )}
                 </div>
