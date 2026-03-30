@@ -55,6 +55,15 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
 - Add `tier_recommendations` and `features_by_segment` to insights API
 - Admin dashboard data-testid coverage
 
+### Recent Additions (Current Session)
+- **Gemini 3.1 Flash Live Voice Chat**: Added as an alternative to OpenAI Realtime for voice conversations
+  - New component: `/app/app/chat/components/GeminiVoiceChat.js` (WebSocket-based)
+  - Backend: `/app/app/api/gemini/live-token/route.js` provides API key for WebSocket connection
+  - Voice Engine selector in Settings → Voice (OpenAI vs Gemini)
+  - Gemini native voices: Puck, Charon, Kore, Fenrir, Aoede, Leda, Orus, Zephyr
+  - Dynamic component loading: chat page switches between OpenAI (WebRTC) and Gemini (WebSocket) based on user preference
+  - Voice settings persist: `voice_engine`, `default_voice`, `default_gemini_voice` saved to DB
+
 ## Key Files
 - `/app/app/api/admin/[...path]/route.js` — Admin API (metrics, insights, conversations)
 - `/app/app/admin/page.js` — Admin dashboard frontend

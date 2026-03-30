@@ -8439,9 +8439,13 @@ async function handleGetVoiceSettings(request) {
   
   return ok(settings || {
     voice: 'alloy',
+    default_voice: 'alloy',
+    default_gemini_voice: 'Puck',
+    voice_engine: 'openai',
     speed: 1.0,
     autoPlay: true,
     saveTranscripts: true,
+    web_search_enabled: true,
   });
 }
 
