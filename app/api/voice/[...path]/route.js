@@ -1164,6 +1164,10 @@ export async function PUT(request, { params }) {
   
   try {
     if (pathStr === 'settings') return handleUpdateVoiceSettings(request);
+    // Support PUT for session updates (same as PATCH)
+    if (pathStr.startsWith('sessions/') && pathArr.length === 2) {
+      return handleUpdateVoiceSession(request, pathArr[1]);
+    }
     
     return err('Voice endpoint not found', 404);
   } catch (error) {

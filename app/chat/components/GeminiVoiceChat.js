@@ -252,9 +252,16 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
         body: JSON.stringify({ tool_name: name, tool_args: args || {} }),
       });
       const result = await response.json();
+      
+      // Gemini requires toolResponse.response to be a Struct (JSON object), NOT a string
+      let responseData = result.success ? result.result : { error: result.error || 'Failed' };
+      if (typeof responseData === 'string') {
+        responseData = { output: responseData };
+      }
+      
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
-          toolResponse: { functionResponses: [{ id, name, response: result.success ? result.result : { error: result.error || 'Failed' } }] }
+          toolResponse: { functionResponses: [{ id, name, response: responseData }] }
         }));
       }
     } catch (err) {
