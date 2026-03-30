@@ -696,6 +696,8 @@ export async function GET(request, { params }) {
         return ok({
           voice_settings: {
             default_voice: vs.default_voice || vs.voice || 'alloy',
+            default_gemini_voice: vs.default_gemini_voice || 'Puck',
+            voice_engine: vs.voice_engine || 'openai',
             web_search_enabled: vs.web_search_enabled !== false,
             speed: vs.speed || 1.0,
             auto_play: vs.auto_play || false,
