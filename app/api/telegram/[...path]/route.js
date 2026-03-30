@@ -2,8 +2,22 @@ import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { getProvider, AVAILABLE_MODELS } from '@/lib/llm/providers';
-import { ok, err, authenticate, getValidGoogleToken, getAllGoogleConnections } from '@/lib/api-utils';
+import { ok, err, authenticate, getValidGoogleToken, getAllGoogleConnections, trimHistory, ensureAlternatingMessages } from '@/lib/api-utils';
 import { sendTelegramMessage } from '@/lib/telegram-utils';
+import { extractUrlContent, extractUrls } from '@/lib/handlers/url-extractor';
+import { geocodeAddress, searchNearbyPlaces, parseLocationQuery, extractPlaceType } from '@/lib/handlers/location-services';
+import { generateImageWithKie } from '@/lib/handlers/model-comparison';
+import {
+  checkChatRateLimit,
+  sanitizeInput,
+  getSystemPrompt,
+  invalidateSystemPromptCache,
+  classifyQueryForSmartMode,
+  SOCIAL_PLATFORMS,
+  generateSocialPost,
+  SCHEDULE_TEMPLATES,
+  getNextRunAt,
+} from '@/lib/handlers/telegram-utils-shared';
 
 async function requireAdmin(request) {
   const user = await authenticate(request);
@@ -1187,22 +1201,27 @@ async function handleTelegramWebhook(request) {
         case 'check_email': {
           console.log('[Telegram Tool] get_emails called for user:', userId);
           const tgGoogleConnections = await getAllGoogleConnections(userId);
-          console.log('[Telegram Tool] getAllGoogleConnections result:', tgGoogleConnections.length, 'connections');
           if (!tgGoogleConnections.length) return { error: 'No Google account connected. Connect one on the web app in Settings → Integrations.' };
           const account = tgGoogleConnections[0];
           try {
-            const oauth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
-            oauth2Client.setCredentials({ access_token: account.access_token, refresh_token: account.refresh_token });
-            const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-            const response = await gmail.users.messages.list({ userId: 'me', maxResults: args.limit || 5, q: args.query || 'is:inbox' });
+            const token = await getValidGoogleToken(userId, account.email);
+            if (!token) return { error: 'Google token expired. Please reconnect in the web app.' };
+            const q = encodeURIComponent(args.query || 'is:inbox');
+            const listRes = await fetch(`https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=${args.limit || 5}&q=${q}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const listData = await listRes.json();
             const emails = [];
-            for (const msg of (response.data.messages || []).slice(0, 5)) {
-              const detail = await gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'metadata' });
-              const headers = detail.data.payload?.headers || [];
+            for (const msg of (listData.messages || []).slice(0, 5)) {
+              const detailRes = await fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const detail = await detailRes.json();
+              const headers = detail.payload?.headers || [];
               emails.push({
                 subject: headers.find(h => h.name === 'Subject')?.value || '(no subject)',
                 from: headers.find(h => h.name === 'From')?.value || 'Unknown',
-                snippet: detail.data.snippet?.slice(0, 100),
+                snippet: detail.snippet?.slice(0, 100),
               });
             }
             return { emails, account: account.email };
@@ -1215,25 +1234,25 @@ async function handleTelegramWebhook(request) {
         case 'check_calendar': {
           console.log('[Telegram Tool] get_calendar called for user:', userId);
           const tgCalGoogleConnections = await getAllGoogleConnections(userId);
-          console.log('[Telegram Tool] getAllGoogleConnections result:', tgCalGoogleConnections.length, 'connections');
           if (!tgCalGoogleConnections.length) return { error: 'No Google account connected. Connect one on the web app in Settings → Integrations.' };
-          const account = tgCalGoogleConnections[0];
+          const calAccount = tgCalGoogleConnections[0];
           try {
-            const oauth2Client = new google.auth.OAuth2(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET);
-            oauth2Client.setCredentials({ access_token: account.access_token, refresh_token: account.refresh_token });
-            const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+            const token = await getValidGoogleToken(userId, calAccount.email);
+            if (!token) return { error: 'Google token expired. Please reconnect in the web app.' };
             const now = new Date();
-            const timeMin = args.time_min || now.toISOString();
-            const endOfDay = new Date(now); endOfDay.setHours(23, 59, 59, 999);
-            const timeMax = args.time_max || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-            const response = await calendar.events.list({ calendarId: 'primary', timeMin, timeMax, maxResults: 10, singleEvents: true, orderBy: 'startTime' });
-            const events = (response.data.items || []).map(e => ({
+            const timeMin = encodeURIComponent(args.time_min || now.toISOString());
+            const timeMax = encodeURIComponent(args.time_max || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString());
+            const calRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&maxResults=10&singleEvents=true&orderBy=startTime`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const calData = await calRes.json();
+            const events = (calData.items || []).map(e => ({
               title: e.summary,
               start: e.start?.dateTime || e.start?.date,
               end: e.end?.dateTime || e.end?.date,
               location: e.location,
             }));
-            return { events, account: account.email };
+            return { events, account: calAccount.email };
           } catch (e) {
             return { error: 'Failed to fetch calendar: ' + e.message };
           }
