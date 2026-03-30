@@ -38,7 +38,7 @@ const nextConfig = {
           { key: "Access-Control-Allow-Headers", value: "*" },
           // Security headers to pass security scans
           { key: "X-XSS-Protection", value: "1; mode=block" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(self), payment=()" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(self), payment=()" },
         ],
       },
     ];
