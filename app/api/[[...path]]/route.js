@@ -5072,7 +5072,7 @@ async function handleProfileUpdate(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { display_name, descriptors, field, help_with, discovery_source, assistant_name, onboarding_complete, custom_greeting, default_model, default_video_model, default_image_model, show_greeting } = body;
+  const { display_name, descriptors, field, help_with, discovery_source, assistant_name, onboarding_complete, custom_greeting, default_model, default_video_model, default_image_model, show_greeting, ai_greeting_enabled } = body;
 
   const db = await getDb();
   const update = {};
@@ -5087,7 +5087,8 @@ async function handleProfileUpdate(request) {
   if (default_model !== undefined) update.default_model = default_model;
   if (default_video_model !== undefined) update.default_video_model = default_video_model;
   if (default_image_model !== undefined) update.default_image_model = default_image_model;
-  if (show_greeting !== undefined) update.show_greeting = show_greeting;
+  if (show_greeting !== undefined) update.ai_greeting_enabled = show_greeting;
+  if (ai_greeting_enabled !== undefined) update.ai_greeting_enabled = ai_greeting_enabled;
 
   await db.collection('profiles').updateOne(
     { user_id: user.id },

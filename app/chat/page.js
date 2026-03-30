@@ -401,15 +401,20 @@ export default function ChatPage() {
         }
         
         // Use custom greeting if set, otherwise use default
-        const greetingContent = customGreeting 
-          ? customGreeting.replace('{name}', greet).replace('{assistant}', botName)
-          : `Hey ${greet} 👋 I'm **${botName}**, your personal AI.\n\nI can help with research, analysis, planning, and more. I also have **real-time web search** — just ask me anything current.\n\nWhat's on your mind?`;
-        
-        setMessages([{
-          id: 'greeting', role: 'assistant',
-          content: greetingContent,
-          created_at: new Date().toISOString(),
-        }]);
+        const greetingEnabled = d.profile?.ai_greeting_enabled !== false;
+        if (greetingEnabled) {
+          const greetingContent = customGreeting 
+            ? customGreeting.replace('{name}', greet).replace('{assistant}', botName)
+            : `Hey ${greet} 👋 I'm **${botName}**, your personal AI.\n\nI can help with research, analysis, planning, and more. I also have **real-time web search** — just ask me anything current.\n\nWhat's on your mind?`;
+          
+          setMessages([{
+            id: 'greeting', role: 'assistant',
+            content: greetingContent,
+            created_at: new Date().toISOString(),
+          }]);
+        } else {
+          setMessages([]);
+        }
       })
       .catch(() => router.push('/auth'));
     // Fetch feature flags
@@ -1939,13 +1944,18 @@ export default function ChatPage() {
     const greet = user?.profile?.display_name || 'there';
     const botName = user?.profile?.assistant_name || 'SoulPrint';
     const customGreeting = user?.profile?.custom_greeting;
+    const greetingEnabled = user?.profile?.ai_greeting_enabled !== false;
     
-    // Use custom greeting if set, otherwise use default for new conversation
-    const greetingContent = customGreeting 
-      ? customGreeting.replace('{name}', greet).replace('{assistant}', botName)
-      : `Hey ${greet} 👋 Starting fresh! What's on your mind?`;
-    
-    setMessages([{ id: 'greeting', role: 'assistant', content: greetingContent, created_at: new Date().toISOString() }]);
+    if (greetingEnabled) {
+      // Use custom greeting if set, otherwise use default for new conversation
+      const greetingContent = customGreeting 
+        ? customGreeting.replace('{name}', greet).replace('{assistant}', botName)
+        : `Hey ${greet} 👋 Starting fresh! What's on your mind?`;
+      
+      setMessages([{ id: 'greeting', role: 'assistant', content: greetingContent, created_at: new Date().toISOString() }]);
+    } else {
+      setMessages([]);
+    }
     setAttachments([]);
     setShowSidebar(false);
   }

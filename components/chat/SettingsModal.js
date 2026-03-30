@@ -2948,48 +2948,79 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
 
                   {/* Custom Greeting - Editable */}
                   <div>
-                    <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-1">Custom Greeting</p>
-                    <div className="flex flex-col gap-2">
-                      <textarea
-                        value={editingCustomGreeting ?? (profile.custom_greeting || '')}
-                        onChange={e => setEditingCustomGreeting(e.target.value)}
-                        className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none resize-none"
-                        placeholder="Hey {name} 👋 I'm {assistant}! Ready to help you today."
-                        rows={3}
-                      />
-                      {editingCustomGreeting !== null && editingCustomGreeting !== (profile.custom_greeting || '') && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={async () => {
-                              try {
-                                await fetch('/api/user/profile', {
-                                  method: 'PUT',
-                                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                                  body: JSON.stringify({ custom_greeting: editingCustomGreeting })
-                                });
-                                setProfile(p => ({ ...p, custom_greeting: editingCustomGreeting }));
-                                setEditingCustomGreeting(null);
-                                alert('Greeting saved! Start a new conversation to see it.');
-                              } catch (e) {
-                                alert('Failed to update');
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-colors"
-                          >
-                            Save Greeting
-                          </button>
-                          <button
-                            onClick={() => setEditingCustomGreeting(null)}
-                            className="px-3 py-1.5 bg-white/5 text-gray-400 text-xs rounded-lg hover:bg-white/10"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
+                    <p className="text-gray-500 text-xs font-bold tracking-widest uppercase mb-1">AI Greeting</p>
+                    
+                    {/* Toggle for AI Greeting */}
+                    <div className="flex items-center justify-between p-3 bg-white/3 border border-white/8 rounded-xl mb-3">
+                      <div>
+                        <p className="text-white text-sm font-medium">Show AI Greeting</p>
+                        <p className="text-gray-500 text-[10px]">Display a welcome message when starting a new conversation</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const newVal = !(profile.ai_greeting_enabled !== false);
+                          try {
+                            await fetch('/api/user/profile', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ ai_greeting_enabled: newVal })
+                            });
+                            setProfile(p => ({ ...p, ai_greeting_enabled: newVal }));
+                          } catch (e) {
+                            console.error('Failed to toggle greeting:', e);
+                          }
+                        }}
+                        className={`w-12 h-6 rounded-full transition-colors flex-shrink-0 ${(profile.ai_greeting_enabled !== false) ? 'bg-orange-500' : 'bg-gray-600'}`}
+                      >
+                        <div className={`w-5 h-5 rounded-full bg-white transition-transform mx-0.5 ${(profile.ai_greeting_enabled !== false) ? 'translate-x-6' : 'translate-x-0'}`} />
+                      </button>
                     </div>
-                    <p className="text-gray-600 text-[10px] mt-1.5">
-                      Use <code className="bg-white/10 px-1 rounded">{'{name}'}</code> for your name and <code className="bg-white/10 px-1 rounded">{'{assistant}'}</code> for the AI name. Leave blank for default.
-                    </p>
+
+                    {/* Custom Greeting Text */}
+                    {(profile.ai_greeting_enabled !== false) && (
+                      <div className="space-y-2">
+                        <p className="text-gray-500 text-[10px] font-semibold uppercase">Custom Greeting Message</p>
+                        <textarea
+                          value={editingCustomGreeting ?? (profile.custom_greeting || '')}
+                          onChange={e => setEditingCustomGreeting(e.target.value)}
+                          className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none resize-none"
+                          placeholder="Hey {name} 👋 I'm {assistant}! Ready to help you today."
+                          rows={3}
+                        />
+                        {editingCustomGreeting !== null && editingCustomGreeting !== (profile.custom_greeting || '') && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await fetch('/api/user/profile', {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                    body: JSON.stringify({ custom_greeting: editingCustomGreeting })
+                                  });
+                                  setProfile(p => ({ ...p, custom_greeting: editingCustomGreeting }));
+                                  setEditingCustomGreeting(null);
+                                  alert('Greeting saved! Start a new conversation to see it.');
+                                } catch (e) {
+                                  alert('Failed to update');
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-colors"
+                            >
+                              Save Greeting
+                            </button>
+                            <button
+                              onClick={() => setEditingCustomGreeting(null)}
+                              className="px-3 py-1.5 bg-white/5 text-gray-400 text-xs rounded-lg hover:bg-white/10"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                        <p className="text-gray-600 text-[10px] mt-1">
+                          Use <code className="bg-white/10 px-1 rounded">{'{name}'}</code> for your name and <code className="bg-white/10 px-1 rounded">{'{assistant}'}</code> for the AI name. Leave blank for default.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Other profile fields (read-only) */}
