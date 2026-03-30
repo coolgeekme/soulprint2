@@ -1,36 +1,36 @@
 <analysis>**original_problem_statement**: 
-The user requested continuous bug fixes and backend architecture improvements, along with a new user experience feature. Key requirements:
-1. Fix severe frontend crashes occurring when starting a new conversation.
-2. Refactor the massive backend  file (~19.6k lines) to improve stability and maintainability.
-3. Fix a critical bug where the AI chat stopped responding entirely (403 error, followed by Connection Error due to missing imports).
-4. Implement a forced Assessment Nudge feature: users who haven't completed the 36-question assessment must receive regular, un-dismissible popups with slider-based questions.
-5. Fix Video Generation issues (hanging, UI disappearing, and character reference payload errors).
-6. Fix Realtime Voice chat failures (WebRTC connection fails).
+The user requested continuous bug fixes and backend architecture improvements, along with new user experience features. Key requirements included:
+1. Fixing the Realtime Voice chat failures (OpenAI Realtime WebRTC connection fails).
+2. Ensuring Telegram integration works properly on a permanent domain, including model selection and link/unlink functionality.
+3. Updating security headers to allow screen recording extensions (Dubb, Loom) to access the microphone and camera.
+4. Implementing a toggle to switch the AI Greeting on and off in the user's profile settings.
+5. Ensuring the Default Voice selected in settings actually propagates correctly to the voice chat component upon opening.
+6. Adding **Gemini 3.1 Flash Live** as an alternative engine for Real-time Voice Chat while preserving the default voice preferences.
 
 **User's preferred language**: English
 *(INSTRUCT next agent to respond in English only)*
 
 **what currently exists?** 
-A Next.js/MongoDB multi-model AI chat application. The application has undergone major stability and architectural improvements. The monolithic backend  is partially extracted. The Assessment Nudge feature is fully implemented using an un-dismissible orange/black themed slider component that accurately cross-references previous assessment data. Multiple critical bugs in the video generation pipeline (stream handling, job polling, and Kie.ai/Kling API payload formatting) have been successfully resolved. Currently, the Realtime Voice Chat component is broken.
+A Next.js/MongoDB multi-model AI chat application. The application has an advanced Real-time Voice Chat feature previously using OpenAI's WebRTC API (successfully upgraded to  SDP proxying in this session). It supports dynamic model switching, a Telegram bot integration, and an Assessment Nudge system. The codebase has a massive catch-all API route that is slowly being refactored, with some shared utilities successfully extracted.
 
 **Last working item**: 
-    - Last item agent was working: Debugging the WebRTC Realtime Voice Chat connection failure on desktop and mobile. The agent verified that the backend endpoint () successfully generates an ephemeral key, but the WebRTC connection fails. The agent ran a web search and discovered that the OpenAI Realtime model name likely changed (from  to newer  or  versions in 2026).
+    - Last item agent was working: Implementing **Gemini 3.1 Flash Live** as a real-time voice chat option. The agent researched the new model (released March 26, 2026), installed the  JavaScript SDK, and created the backend endpoint  to generate ephemeral tokens for the WebSocket connection.
     - Status: IN PROGRESS
-    - Agent Testing Done: Y (Web searched latest model names).
-    - Which testing method agent to use?: manual testing by screenshot tool/frontend testing agent, or testing voice in browser. Check browser console logs for WebRTC rejection reasons.
+    - Agent Testing Done: N
+    - Which testing method agent to use?: Frontend testing agent/screenshot tool for the UI additions, manual testing via browser for the WebSocket connection audio streaming.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  - Issue 1: **Fix Realtime Voice Chat Connection Failure (P0)**
-     - Attempted fixes: Investigated  and . Found that the ephemeral token generates correctly, but WebRTC offer/answer fails. Agent searched the web and found the model  might be deprecated/renamed in 2026.
+  Issue 1: **Implement Gemini 3.1 Flash Live Voice Chat Component (P0)**
+     - Attempted fixes: Backend token endpoint created (). 
      - Next debug checklist: 
-         - Check frontend console logs to see the exact WebRTC rejection reason.
-         - Update the requested model name in  (around line 265 and 370) and backend  /  if necessary to the latest valid OpenAI Realtime model.
-         - Verify WebRTC session establishes and streams audio.
-     - Why fix this issue and what will be achieved with the fix?: Restores core voice functionality explicitly requested by the user.
+         - Implement the WebSocket streaming connection on the frontend (Gemini Live API requires WebSockets, not WebRTC like OpenAI).
+         - Update  (or create a new ) to handle the bidirectional audio using .
+         - Update Settings -> Voice tab to allow the user to select the Engine (OpenAI vs. Gemini) alongside the default voice.
+     - Why fix this issue and what will be achieved with the fix?: Adds a low-latency audio-to-audio engine as directly requested by the user.
      - Status: IN PROGRESS
      - Is recurring issue?: N
-     - Should Test frontend/backend/both after fix?: Both (Front-end WebRTC connection and backend token generation).
+     - Should Test frontend/backend/both after fix?: Both
      - Blocked on other issue: None
 
 **In progress Task List**: 
@@ -43,87 +43,84 @@ None currently active.
 - **P4**: **Multi-Agent System (Agency Mode)**: Phase 2 orchestration system based on  (carried over).
 
 **Completed work in this session**
-- **Chat Connection Error Bug Fix** (DONE): Added missing import  in .
-- **Assessment Nudge Data Sync** (DONE): Mapped UUIDs from full assessment and layered quick-starts so the slider correctly credits previously answered questions.
-- **Assessment Nudge UX/UI Redesign** (DONE): Removed old Quick Question text UI. Replaced with un-dismissible, slider-only component themed in black and orange. Removed 14-day deadline in favor of a steady 8-message trigger cadence. Race condition in message counting fixed.
-- **Video Generation Stuck on Finalizing Fix** (DONE): Extended polling window from 30 mins to 4 hours in . Fixed error parsing. Recovered 12 stuck jobs.
-- **Video Generation Stream Goes Blank Fix** (DONE): Removed dead  statements in the backend  stream generation paths that were preventing  from firing, causing the frontend UI state to hang and vanish.
-- **Kling-3.0 API Payload Fixes** (DONE): Fixed  error by including the image in the main payload. Fixed  error by changing the reference name to  and duplicating the image URL to meet the 2-image minimum constraint.
-- **PWA Page Screenshots** (DONE): Navigated and captured all application views to fulfill user request.
+- **OpenAI Realtime Voice Upgrade** (DONE): Migrated from deprecated  to . Switched from direct ephemeral tokens to server-side SDP proxying via .
+- **Telegram Integration Fixes** (DONE): Pointed webhook to the permanent production domain. Fixed  route. Extracted missing utilities into  to fix 500 crashes. Fixed  handler for Dynamic Intelligence selection. Rewrote Google integrations inside Telegram to use direct  instead of the missing  package.
+- **Camera/Microphone Permissions** (DONE): Changed  in  from  to  to support external screen recording extensions.
+- **AI Greeting Toggle** (DONE): Added  toggle to Settings > Profile and updated  to respect the setting.
+- **Default Voice Persistence** (DONE): Fixed mismatch in API response parsing () and added settings payload to  so  initializes with the correct voice instantly without reverting to 'alloy'.
+- **Admin Dashboard Crash Fix** (DONE): Fixed  in  caused by missing optional chaining on .
+- **Settings Voice Tab Crash Fix** (DONE): Fixed  undefined error.
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Long-running streams hanging without closing (Video Generation).
-  - Recurrence count: 1
+  - Issue recurrence in previous fork: Long-running streams hanging without closing (Video Generation). (Resolved in previous fork).
+  - Recurrence count: 0
   - Status: RESOLVED
-  - Note: Be extremely careful when using  in backend routes. Ensure  is ALWAYS reachable in the  callback.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Assessment Nudge System**: Nudges trigger automatically based on message count (). It aggregates data from three sources (, , ) to calculate progress. 
-- **Media Intelligence (Video)**: Next.js streams back  and  events immediately, while async polling () updates MongoDB.
-- **Realtime Voice**: Uses OpenAI's Realtime API via WebRTC (). An ephemeral token is fetched via .
+- **Realtime Voice Architecture (OpenAI)**: Now uses server-side SDP proxying to OpenAI  over WebRTC.
+- **Realtime Voice Architecture (Gemini - WIP)**: Uses the  SDK and establishes a direct **WebSocket** connection (no WebRTC) utilizing an ephemeral token fetched from the backend.
+- **Telegram Webhooks**: Processes incoming chat via . Depends heavily on  for rate limiting and AI contextual tools.
 
 **key DB schema**
-  - : Tracks user nudge frequency and answered IDs.
-  - : Stores pending/successful video generation tasks.
+  - : Stores user defaults (, ).
+  - : Added  boolean.
+  - : Links Telegram ID to internal .
 
 **changes in tech stack**
-  - OpenAI Realtime WebRTC model names have likely changed based on 2026 dates (Needs verification).
+  - Upgraded  dependency to utilize Gemini 3.1 Flash Live capabilities.
+  - OpenAI Realtime SDK shifted from  to .
 
 **All files of reference** 
-  -  (Current focus: Voice failing)
-  -  (Video stream logic fixed here)
-  -  (Video polling logic fixed here)
-  -  (Kling payload fixed here)
-  -  (Nudge UI)
-  -  (Nudge Logic)
+  -  (NEW - created for Gemini Voice)
+  -  (Currently strictly OpenAI WebRTC, needs to be adapted or cloned for Gemini)
+  -  (Contains Voice selection UI, needs engine selection for Gemini vs OpenAI)
+  -  (Created to fix monolithic import dependencies)
+  -  (Permissions-Policy header updated)
 
 **Areas that need refactoring**: 
-  - : Phase 3 of refactoring to extract .
+  - : Still massively overloaded (~9.8k lines). Continuing to extract handlers into  is critical.
 
 **key api endpoints**
-  - : Generates ephemeral tokens for WebRTC Voice (Currently investigating).
-  - : Fetches next required profile question.
-  - : Main chat loop; handles text, image, and video intents.
+  - : SDP Offer/Answer proxy for OpenAI.
+  - : Generates WebSocket ephemeral tokens for Gemini Live.
+  - : Main ingestion for Telegram messages.
+  - : Updates linked user's preferred Telegram model.
 
 **Critical Info for New Agent** 
-- **Voice Model Deprecation**: Based on the last web search, the error in voice chat is almost certainly a deprecated model string (). You need to update this to the latest valid Realtime WebRTC model. Check where this is passed in  and .
-- **Video UI Dependency on Streams**: The frontend explicitly waits for the backend stream to fully close before persisting the  into the local UI state. If a backend stream fails to close, the video card will appear briefly and then vanish.
+- **Voice Engine Difference**: You MUST remember that OpenAI Realtime utilizes **WebRTC** (passing SDPs), whereas Gemini 3.1 Flash Live uses **WebSockets**. You cannot just swap the model name in the existing  component. You will likely need to implement a dedicated WebSocket hook/component for Gemini and dynamically switch between them based on user settings.
+- **State Management**: When updating , ensure you safely handle uninitialized states ( optional chaining) to prevent UI crashes like the  bug fixed in this session.
 
 **documents and test reports created in this job** 
-  -  (Contains test accounts, intact)
+  -  (Updated with backend test pass for Realtime session)
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: This in development version. currently, the production version is working based on the last deployment. (Shared screenshot of Connection Error).
-2. *User*: when would the popup questions show up?
-3. *User*: make sure that you accounting for any of the questions the user previously answered during the onboarding process.
-4. *User*: How few things: 1. user should not be able to dismiss the popup question. 2. Is it possible to make the majority of the questions slider questions...
-5. *User*: Let's remove the 14 Day deadline and change the color to fit the black and orange theme better.
-6. *User*: i think i'm having issues generating videos....it just keeps finalizing and never generates a full video
-7. *User*: It looked like the video was generating for a brief moment (about 1 second) and showed the video generating animation and then it just went blank.
-8. *User*: what image url? (Screenshot of Kling API payload error).
-9. *User*: why are we having so many issues with video generation (Screenshot of Kling elements array error).
-10. *User*: Can you get me a screenshot of every page/section in the PWA?
-11. *User*: Please review voice chat function for both desktop and mobile. Voice chat attempts to connect and then I get a failed.
+1. *User*: i dont think the default voice the user selects function is working properly in voice chat (both desktop and mobile)...
+2. *User*: Still not working. Voice chat just falls back to the “Alloy” voice instead of the voice that the user selects as default.
+3. *User*: few things. when i go into setting and click on voice i'm taken right back to the chat. also, there should be some notification or text that tells the user they can select a different default voice chat voice in settings.
+4. *User*: when i click on a user in admin dashboard, I get an error page. (Attached image).
+5. *User*: Do you think we can make Gemini 3.1 Flash Live available as a voice chat option?
+6. *User*: 1. You should already have my Gemini Key. 2. C. We need to make sure that the user still has the option of selecting a default voice chat voice.
 
-*(No pending human messages. Agent was researching the Realtime API models when the context window ended).*
+*(No pending human messages. The agent generated the Gemini endpoint file and then context ended).*
 
 **Project Health Check:**
-- Broken: Voice Chat / WebRTC Connection.
+- Broken: None.
 - Mocked: None.
 
 **3rd Party Integrations** 
-- OpenAI GPT-4o / Realtime WebRTC — uses Emergent LLM Key (Focus of current debugging)
-- Kie.ai (Kling/Veo) — requires Kie API Key (Uses Emergent key internally for video)
-- Google Workspace — requires User OAuth
+- OpenAI GPT-4o / Realtime API WebRTC — uses Emergent LLM Key
+- Google Gemini 3.1 Flash Live API — uses **User API Key** (GEMINI_API_KEY)
+- Telegram Bot API — uses User API Key (TELEGRAM_BOT_TOKEN)
+- Kie.ai (Video Generation) — uses Emergent API Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Tested manually via bash/curl/screenshot to keep iteration fast).
+  - Testing agent used after significant changes: YES (Backend testing passed on ).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
   - Known regressions: None currently known.
@@ -132,4 +129,4 @@ None.
 - Check  for primary auth. Test account: 
 
 **What agent forgot to execute**
-The agent was in the middle of diagnosing the Voice Chat bug by researching OpenAI model names via web search. You need to identify the exact HTTP error the frontend gets when WebRTC fails (by checking browser console logs or Network tab during connection) and apply the correct Realtime model string to fix it.</analysis>
+The agent started the Gemini 3.1 Flash Live integration by creating the token generation endpoint but ran out of context before writing the frontend WebSocket consumer component and wiring it into the Voice Settings UI. Next agent must continue the Gemini Live integration immediately.</analysis>

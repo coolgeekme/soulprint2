@@ -15,6 +15,19 @@ const RealtimeVoiceChat = dynamic(
     )
   }
 );
+
+// Dynamically import GeminiVoiceChat for Gemini Live WebSocket voice
+const GeminiVoiceChat = dynamic(
+  () => import('@/app/chat/components/GeminiVoiceChat'),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90">
+        <div className="text-white">Loading Gemini voice chat...</div>
+      </div>
+    )
+  }
+);
 import Link from 'next/link';
 import SafeMarkdown from '@/components/SafeMarkdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
@@ -2468,14 +2481,25 @@ export default function ChatPage() {
         {/* Voice Conversation Modal */}
         {showVoiceChat && voiceChatEnabled && (
           <SafeSection name="VoiceChat">
-          <RealtimeVoiceChat 
-            token={token} 
-            onClose={() => setShowVoiceChat(false)}
-            onSaveTranscript={saveVoiceTranscript}
-            systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
-            userName={user?.displayName || user?.email?.split('@')[0]}
-            defaultVoice={user?.profile?.voice_settings?.default_voice}
-          />
+          {(user?.profile?.voice_settings?.voice_engine === 'gemini') ? (
+            <GeminiVoiceChat 
+              token={token} 
+              onClose={() => setShowVoiceChat(false)}
+              onSaveTranscript={saveVoiceTranscript}
+              systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
+              userName={user?.displayName || user?.email?.split('@')[0]}
+              defaultVoice={user?.profile?.voice_settings?.default_gemini_voice}
+            />
+          ) : (
+            <RealtimeVoiceChat 
+              token={token} 
+              onClose={() => setShowVoiceChat(false)}
+              onSaveTranscript={saveVoiceTranscript}
+              systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
+              userName={user?.displayName || user?.email?.split('@')[0]}
+              defaultVoice={user?.profile?.voice_settings?.default_voice}
+            />
+          )}
           </SafeSection>
         )}
       </>
@@ -4849,14 +4873,25 @@ export default function ChatPage() {
       {/* Voice Conversation Modal - Desktop */}
       {showVoiceChat && voiceChatEnabled && (
         <SafeSection name="DesktopVoiceChat">
-        <RealtimeVoiceChat 
-          token={token} 
-          onClose={() => setShowVoiceChat(false)}
-          onSaveTranscript={saveVoiceTranscript}
-          systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
-          userName={user?.displayName || user?.email?.split('@')[0]}
-          defaultVoice={user?.profile?.voice_settings?.default_voice}
-        />
+        {(user?.profile?.voice_settings?.voice_engine === 'gemini') ? (
+          <GeminiVoiceChat 
+            token={token} 
+            onClose={() => setShowVoiceChat(false)}
+            onSaveTranscript={saveVoiceTranscript}
+            systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
+            userName={user?.displayName || user?.email?.split('@')[0]}
+            defaultVoice={user?.profile?.voice_settings?.default_gemini_voice}
+          />
+        ) : (
+          <RealtimeVoiceChat 
+            token={token} 
+            onClose={() => setShowVoiceChat(false)}
+            onSaveTranscript={saveVoiceTranscript}
+            systemPrompt={`You are ${assistantName || 'a helpful AI assistant'} having a voice conversation with ${user?.displayName || user?.email || 'the user'}. Be conversational, natural, and concise. Respond as if you're having a real phone call - be warm and engaging.`}
+            userName={user?.displayName || user?.email?.split('@')[0]}
+            defaultVoice={user?.profile?.voice_settings?.default_voice}
+          />
+        )}
         </SafeSection>
       )}
     </div>

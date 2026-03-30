@@ -5041,6 +5041,15 @@ async function handleMe(request) {
 
   const db = await getDb();
   const profile = await db.collection('profiles').findOne({ user_id: user.id });
+  
+  // Fall back to voice_settings collection if not in profile
+  let voiceSettings = profile?.voice_settings;
+  if (!voiceSettings) {
+    const vs = await db.collection('voice_settings').findOne({ user_id: user.id });
+    if (vs) {
+      voiceSettings = { default_voice: vs.default_voice, default_gemini_voice: vs.default_gemini_voice, voice_engine: vs.voice_engine, web_search_enabled: vs.web_search_enabled };
+    }
+  }
 
   return ok({
     id: user.id,
@@ -5063,7 +5072,7 @@ async function handleMe(request) {
       default_video_model: profile.default_video_model || 'smart',
       default_image_model: profile.default_image_model || 'smart',
       ai_greeting_enabled: profile.ai_greeting_enabled,
-      voice_settings: profile.voice_settings,
+      voice_settings: voiceSettings,
     } : null,
   });
 }
@@ -8447,6 +8456,12 @@ async function handleUpdateVoiceSettings(request) {
     { user_id: user.id },
     { $set: { ...body, user_id: user.id, updated_at: new Date() } },
     { upsert: true }
+  );
+  
+  // Also update voice_settings in the user profile so /api/auth/me returns latest
+  await db.collection('profiles').updateOne(
+    { user_id: user.id },
+    { $set: { voice_settings: body, updated_at: new Date() } }
   );
   
   return ok({ message: 'Voice settings saved' });

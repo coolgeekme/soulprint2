@@ -11,7 +11,7 @@ import time
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://voice-debug-1.preview.emergentagent.com"
+BASE_URL = "https://realtime-voice-beta.preview.emergentagent.com"
 LOGIN_EMAIL = "test@soulprint.com"
 LOGIN_PASSCODE = "test123"
 

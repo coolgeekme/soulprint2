@@ -6,7 +6,7 @@ import sys
 import time
 
 # Test configuration
-BASE_URL = "https://voice-debug-1.preview.emergentagent.com"
+BASE_URL = "https://realtime-voice-beta.preview.emergentagent.com"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSCODE = "test123"
 

@@ -1119,7 +1119,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
   const tabs = ['soulprint', 'imports', 'integrations', 'telegram', 'voice', 'schedules', 'memories', 'invites', 'announcements', 'profile', 'privacy', 'appearance', 'feedback'];
 
   // Voice Chat Settings
-  const [voiceSettings, setVoiceSettings] = useState({ default_voice: 'alloy', web_search_enabled: true });
+  const [voiceSettings, setVoiceSettings] = useState({ default_voice: 'alloy', default_gemini_voice: 'Puck', voice_engine: 'openai', web_search_enabled: true });
   const [voiceSettingsLoading, setVoiceSettingsLoading] = useState(false);
   const [voiceSettingsSaving, setVoiceSettingsSaving] = useState(false);
 
@@ -1131,7 +1131,12 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
       if (res.ok) {
         const data = await res.json();
         const settings = data.voice_settings || data;
-        setVoiceSettings({ default_voice: settings.default_voice || 'alloy', web_search_enabled: settings.web_search_enabled !== false });
+        setVoiceSettings({ 
+          default_voice: settings.default_voice || 'alloy', 
+          default_gemini_voice: settings.default_gemini_voice || 'Puck',
+          voice_engine: settings.voice_engine || 'openai',
+          web_search_enabled: settings.web_search_enabled !== false 
+        });
       }
     } catch (e) {
       console.error('Failed to load voice settings:', e);
@@ -2020,7 +2025,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
             <div className="space-y-5">
               <div>
                 <h3 className="text-white text-sm font-semibold">🎙️ Voice Chat Settings</h3>
-                <p className="text-gray-500 text-xs mt-0.5">Configure your default voice and preferences for voice conversations</p>
+                <p className="text-gray-500 text-xs mt-0.5">Configure your voice engine, default voice, and preferences</p>
               </div>
 
               {voiceSettingsLoading ? (
@@ -2029,44 +2034,139 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                 </div>
               ) : (
                 <>
-                  {/* Default Voice Selection */}
+                  {/* Voice Engine Selection */}
                   <div className="p-4 bg-white/3 border border-white/8 rounded-xl space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-white text-sm font-semibold">Default Voice</p>
-                        <p className="text-gray-500 text-xs">Choose the AI voice that will be used by default in voice chats</p>
+                        <p className="text-white text-sm font-semibold">Voice Engine</p>
+                        <p className="text-gray-500 text-xs">Choose which AI engine powers your voice conversations</p>
                       </div>
                       {voiceSettingsSaving && <Loader2 className="w-4 h-4 animate-spin text-orange-500" />}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { id: 'alloy', name: 'Alloy', desc: 'Neutral & balanced' },
-                        { id: 'ash', name: 'Ash', desc: 'Soft & thoughtful' },
-                        { id: 'ballad', name: 'Ballad', desc: 'Warm & expressive' },
-                        { id: 'coral', name: 'Coral', desc: 'Clear & friendly' },
-                        { id: 'echo', name: 'Echo', desc: 'Smooth & calm' },
-                        { id: 'sage', name: 'Sage', desc: 'Wise & measured' },
-                        { id: 'shimmer', name: 'Shimmer', desc: 'Bright & energetic' },
-                        { id: 'verse', name: 'Verse', desc: 'Dynamic & engaging' },
-                      ].map(voice => (
-                        <button
-                          key={voice.id}
-                          onClick={() => saveVoiceSetting('default_voice', voice.id)}
-                          className={`p-3 rounded-xl border transition-all text-left ${
-                            voiceSettings.default_voice === voice.id 
-                              ? 'bg-orange-500/20 border-orange-500/50' 
-                              : 'bg-white/5 border-white/10 hover:bg-white/10'
-                          }`}
-                        >
-                          <p className={`font-medium text-sm ${voiceSettings.default_voice === voice.id ? 'text-orange-400' : 'text-white'}`}>
-                            {voice.name}
-                          </p>
-                          <p className="text-xs text-gray-500">{voice.desc}</p>
-                        </button>
-                      ))}
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => saveVoiceSetting('voice_engine', 'openai')}
+                        className={`p-4 rounded-xl border transition-all text-left ${
+                          voiceSettings.voice_engine === 'openai'
+                            ? 'bg-orange-500/20 border-orange-500/50 ring-1 ring-orange-500/30'
+                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${voiceSettings.voice_engine === 'openai' ? 'bg-orange-500/30 text-orange-300' : 'bg-white/10 text-gray-400'}`}>⚡</div>
+                          <p className={`font-semibold text-sm ${voiceSettings.voice_engine === 'openai' ? 'text-orange-400' : 'text-white'}`}>OpenAI</p>
+                        </div>
+                        <p className="text-xs text-gray-500">GPT Realtime 1.5 · WebRTC</p>
+                        <p className="text-[10px] text-gray-600 mt-1">8 voices · Tools · Memory</p>
+                      </button>
+
+                      <button
+                        onClick={() => saveVoiceSetting('voice_engine', 'gemini')}
+                        className={`p-4 rounded-xl border transition-all text-left ${
+                          voiceSettings.voice_engine === 'gemini'
+                            ? 'bg-blue-500/20 border-blue-500/50 ring-1 ring-blue-500/30'
+                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${voiceSettings.voice_engine === 'gemini' ? 'bg-blue-500/30 text-blue-300' : 'bg-white/10 text-gray-400'}`}>✨</div>
+                          <p className={`font-semibold text-sm ${voiceSettings.voice_engine === 'gemini' ? 'text-blue-400' : 'text-white'}`}>Gemini</p>
+                        </div>
+                        <p className="text-xs text-gray-500">3.1 Flash Live · WebSocket</p>
+                        <p className="text-[10px] text-gray-600 mt-1">8 voices · Low latency · Native audio</p>
+                      </button>
                     </div>
                   </div>
+
+                  {/* Default Voice Selection - OpenAI */}
+                  {voiceSettings.voice_engine === 'openai' && (
+                    <div className="p-4 bg-white/3 border border-white/8 rounded-xl space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-white text-sm font-semibold">OpenAI Voice</p>
+                          <p className="text-gray-500 text-xs">Choose the default voice for OpenAI voice chats</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: 'alloy', name: 'Alloy', desc: 'Neutral & balanced' },
+                          { id: 'ash', name: 'Ash', desc: 'Soft & thoughtful' },
+                          { id: 'ballad', name: 'Ballad', desc: 'Warm & expressive' },
+                          { id: 'coral', name: 'Coral', desc: 'Clear & friendly' },
+                          { id: 'echo', name: 'Echo', desc: 'Smooth & calm' },
+                          { id: 'sage', name: 'Sage', desc: 'Wise & measured' },
+                          { id: 'shimmer', name: 'Shimmer', desc: 'Bright & energetic' },
+                          { id: 'verse', name: 'Verse', desc: 'Dynamic & engaging' },
+                        ].map(voice => (
+                          <button
+                            key={voice.id}
+                            onClick={() => saveVoiceSetting('default_voice', voice.id)}
+                            className={`p-3 rounded-xl border transition-all text-left ${
+                              voiceSettings.default_voice === voice.id 
+                                ? 'bg-orange-500/20 border-orange-500/50' 
+                                : 'bg-white/5 border-white/10 hover:bg-white/10'
+                            }`}
+                          >
+                            <p className={`font-medium text-sm ${voiceSettings.default_voice === voice.id ? 'text-orange-400' : 'text-white'}`}>
+                              {voice.name}
+                            </p>
+                            <p className="text-xs text-gray-500">{voice.desc}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Default Voice Selection - Gemini */}
+                  {voiceSettings.voice_engine === 'gemini' && (
+                    <div className="p-4 bg-white/3 border border-white/8 rounded-xl space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-white text-sm font-semibold">Gemini Voice</p>
+                          <p className="text-gray-500 text-xs">Choose the default voice for Gemini voice chats</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: 'Puck', name: 'Puck', desc: 'Playful & bright' },
+                          { id: 'Charon', name: 'Charon', desc: 'Deep & resonant' },
+                          { id: 'Kore', name: 'Kore', desc: 'Clear & warm' },
+                          { id: 'Fenrir', name: 'Fenrir', desc: 'Bold & strong' },
+                          { id: 'Aoede', name: 'Aoede', desc: 'Melodic & smooth' },
+                          { id: 'Leda', name: 'Leda', desc: 'Gentle & calm' },
+                          { id: 'Orus', name: 'Orus', desc: 'Rich & steady' },
+                          { id: 'Zephyr', name: 'Zephyr', desc: 'Light & airy' },
+                        ].map(voice => (
+                          <button
+                            key={voice.id}
+                            onClick={() => saveVoiceSetting('default_gemini_voice', voice.id)}
+                            className={`p-3 rounded-xl border transition-all text-left ${
+                              voiceSettings.default_gemini_voice === voice.id 
+                                ? 'bg-blue-500/20 border-blue-500/50' 
+                                : 'bg-white/5 border-white/10 hover:bg-white/10'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                                voiceSettings.default_gemini_voice === voice.id ? 'bg-blue-500/30 text-blue-300' : 'bg-white/10 text-gray-400'
+                              }`}>
+                                {voice.name[0]}
+                              </div>
+                              <div>
+                                <p className={`font-medium text-sm ${voiceSettings.default_gemini_voice === voice.id ? 'text-blue-400' : 'text-white'}`}>
+                                  {voice.name}
+                                </p>
+                                <p className="text-xs text-gray-500">{voice.desc}</p>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Web Search Toggle */}
                   <div className="p-4 bg-white/3 border border-white/8 rounded-xl">
