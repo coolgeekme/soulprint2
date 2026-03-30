@@ -1425,7 +1425,7 @@ async function handleTelegramSetup(request) {
   if (!TELEGRAM_BOT_TOKEN) return ok({ configured: false, message: 'Add TELEGRAM_BOT_TOKEN to .env to enable Telegram.' });
 
   const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
-  const webhookUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/connectors/telegram/webhook`;
+  const webhookUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/api/telegram/webhook`;
 
   // Set the webhook with optional secret
   const payload = { url: webhookUrl, drop_pending_updates: true, allowed_updates: ['message', 'edited_message'] };
@@ -1552,7 +1552,10 @@ export async function DELETE(request, { params }) {
       const user = await authenticate(request);
       if (!user) return err('Unauthorized', 401);
       const db = await getDb();
-      await db.collection('telegram_links').deleteMany({ user_id: user.id });
+      await db.collection('telegram_mappings').updateMany(
+        { user_id: user.id },
+        { $set: { linked: false, user_id: null } }
+      );
       return ok({ success: true });
     }
     
