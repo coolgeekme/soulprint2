@@ -59,16 +59,24 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
 - **Gemini 3.1 Flash Live Voice Chat**: Added as an alternative to OpenAI Realtime for voice conversations
   - New component: `/app/app/chat/components/GeminiVoiceChat.js` (WebSocket-based)
   - Backend: `/app/app/api/gemini/live-token/route.js` provides API key for WebSocket connection
-  - Backend: `/app/app/api/gemini/voice-sample/route.js` generates TTS voice previews (cached 24h)
+  - Backend: `/app/app/api/gemini/voice-sample/route.js` generates voice previews using native audio SDK (cached 24h)
   - Voice Engine selector in Settings → Voice (OpenAI vs Gemini)
   - Gemini native voices: Puck, Charon, Kore, Fenrir, Aoede, Leda, Orus, Zephyr
-  - Voice preview: Users can tap speaker icon to hear each voice before selecting
-  - Uses `gemini-2.5-flash-native-audio-latest` for voice chat (supports text+audio input)
-  - Uses `gemini-2.5-flash-preview-tts` for voice previews
+  - Voice preview: Users can tap speaker icon on each voice card to hear it before selecting
+  - Uses `gemini-2.5-flash-native-audio-latest` for both voice chat AND voice previews (consistent sound)
   - Audio resampling: Properly downsamples from browser native rate to 16kHz for Gemini
   - AI speaks first with greeting when session starts
   - Dynamic component loading: chat page switches between OpenAI (WebRTC) and Gemini (WebSocket)
   - Voice settings persist: `voice_engine`, `default_voice`, `default_gemini_voice` saved to DB
+
+- **Read Aloud Feature**: Play button on every assistant message to read it aloud
+  - Backend: `POST /api/voice/tts/read-aloud` - uses the user's selected voice engine and voice
+  - If voice engine is Gemini: uses Gemini TTS REST API with user's default Gemini voice
+  - If voice engine is OpenAI: uses OpenAI TTS API with user's default OpenAI voice
+  - Markdown stripping for clean audio output
+  - Desktop: Volume2 icon in message actions (thumbs up, thumbs down, copy, **read aloud**, continue)
+  - Mobile: Volume2 icon with "Read" label in message action tray
+  - Stop/cancel support: clicking again stops playback
 
 ## Key Files
 - `/app/app/api/admin/[...path]/route.js` — Admin API (metrics, insights, conversations)

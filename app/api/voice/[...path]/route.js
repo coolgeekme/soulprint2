@@ -188,6 +188,7 @@ async function handleTTSPreview(request) {
 
 
 // Read aloud endpoint - supports full message text (up to 4096 chars)
+// Uses whichever voice engine + voice the user has selected as their default
 async function handleTTSReadAloud(request) {
   try {
     const user = await authenticate(request);
@@ -202,10 +203,10 @@ async function handleTTSReadAloud(request) {
       return NextResponse.json({ error: 'Text required' }, { status: 400 });
     }
 
-    const openaiApiKey = process.env.OPENAI_API_KEY;
-    if (!openaiApiKey) {
-      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
-    }
+    // Fetch user's voice settings from profile
+    const db = await getDb();
+    const profile = await db.collection('profiles').findOne({ user_id: user.id });
+    const voiceSettingsFromProfile = profile?.voice_settings || {};
 
     // Strip markdown formatting for cleaner TTS output
     const cleanText = text
@@ -221,11 +222,92 @@ async function handleTTSReadAloud(request) {
       .replace(/>\s/g, '') // Blockquotes
       .replace(/\n{2,}/g, '. ') // Multiple newlines to pause
       .replace(/\n/g, ' ') // Single newlines
-      .trim()
-      .slice(0, 4096); // OpenAI TTS limit
+      .trim();
 
-    // Use user's default voice or fallback to 'alloy'
-    const selectedVoice = voice || user.voice_settings?.default_voice || 'alloy';
+    // Determine voice engine from user's profile settings
+    const voiceEngine = voiceSettingsFromProfile.voice_engine || 'openai';
+
+    // If user selected Gemini as their voice engine, use Gemini TTS
+    if (voiceEngine === 'gemini') {
+      const geminiApiKey = process.env.GEMINI_API_KEY;
+      if (!geminiApiKey) {
+        return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
+      }
+
+      const geminiVoice = voice || voiceSettingsFromProfile.default_gemini_voice || 'Puck';
+      const trimmedText = cleanText.slice(0, 5000); // Gemini TTS limit
+
+      try {
+        // Use Gemini TTS REST API for read-aloud (faster than live SDK for longer text)
+        const ttsResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: trimmedText }] }],
+              generationConfig: {
+                responseModalities: ['AUDIO'],
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: geminiVoice } } }
+              }
+            }),
+          }
+        );
+
+        if (!ttsResponse.ok) {
+          const errData = await ttsResponse.json().catch(() => ({}));
+          console.error('[TTS ReadAloud Gemini] API error:', errData);
+          throw new Error('Gemini TTS failed');
+        }
+
+        const ttsData = await ttsResponse.json();
+        const audioPart = ttsData.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+        if (!audioPart) throw new Error('No audio in Gemini TTS response');
+
+        // Convert base64 PCM to WAV for browser playback
+        const pcmData = Buffer.from(audioPart.inlineData.data, 'base64');
+        const sampleRate = 24000;
+        const numChannels = 1;
+        const bitsPerSample = 16;
+        const dataSize = pcmData.length;
+
+        // Create WAV header
+        const wavHeader = Buffer.alloc(44);
+        wavHeader.write('RIFF', 0);
+        wavHeader.writeUInt32LE(36 + dataSize, 4);
+        wavHeader.write('WAVE', 8);
+        wavHeader.write('fmt ', 12);
+        wavHeader.writeUInt32LE(16, 16);
+        wavHeader.writeUInt16LE(1, 20); // PCM
+        wavHeader.writeUInt16LE(numChannels, 22);
+        wavHeader.writeUInt32LE(sampleRate, 24);
+        wavHeader.writeUInt32LE(sampleRate * numChannels * (bitsPerSample / 8), 28);
+        wavHeader.writeUInt16LE(numChannels * (bitsPerSample / 8), 32);
+        wavHeader.writeUInt16LE(bitsPerSample, 34);
+        wavHeader.write('data', 36);
+        wavHeader.writeUInt32LE(dataSize, 40);
+
+        const wavBuffer = Buffer.concat([wavHeader, pcmData]);
+        return new NextResponse(wavBuffer, {
+          headers: {
+            'Content-Type': 'audio/wav',
+            'Content-Length': wavBuffer.byteLength.toString(),
+          },
+        });
+      } catch (geminiErr) {
+        console.warn('[TTS ReadAloud] Gemini failed, falling back to OpenAI:', geminiErr.message);
+        // Fall through to OpenAI below
+      }
+    }
+
+    // OpenAI TTS path (default, or fallback from Gemini)
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    }
+
+    const selectedVoice = voice || voiceSettingsFromProfile.default_voice || 'alloy';
+    const trimmedForOpenAI = cleanText.slice(0, 4096);
 
     const response = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
@@ -235,7 +317,7 @@ async function handleTTSReadAloud(request) {
       },
       body: JSON.stringify({
         model: 'tts-1',
-        input: cleanText,
+        input: trimmedForOpenAI,
         voice: selectedVoice,
         response_format: 'mp3',
       }),
