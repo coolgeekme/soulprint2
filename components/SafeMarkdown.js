@@ -89,10 +89,28 @@ function SafeMarkdown({ content, className }) {
   const safeContent = useMemo(() => {
     if (typeof content === 'string') {
       // Truncate extremely long content to prevent browser freeze
-      if (content.length > MAX_MARKDOWN_LENGTH) {
-        return content.slice(0, MAX_MARKDOWN_LENGTH) + '\n\n... (content truncated for display)';
+      let text = content;
+      if (text.length > MAX_MARKDOWN_LENGTH) {
+        text = text.slice(0, MAX_MARKDOWN_LENGTH) + '\n\n... (content truncated for display)';
       }
-      return content;
+      // Auto-link bare URLs that aren't already in markdown link syntax or code blocks
+      // Matches http(s) URLs not already inside []() or backticks
+      text = text.replace(
+        /(?<!\]\()(?<!\()(https?:\/\/[^\s\)<>\]`]+)/g,
+        (match, url, offset) => {
+          // Check if this URL is already inside a markdown link [text](url) or inline code `url`
+          const before = text.slice(Math.max(0, offset - 200), offset);
+          // Skip if inside markdown link syntax
+          if (/\]\(\s*$/.test(before)) return match;
+          // Skip if inside backtick code
+          const backticksBefore = (before.match(/`/g) || []).length;
+          if (backticksBefore % 2 === 1) return match;
+          // Skip if already a markdown link text like [url]
+          if (/\[$/.test(before.trimEnd())) return match;
+          return `[${url}](${url})`;
+        }
+      );
+      return text;
     }
     if (content == null) return '';
     try {
@@ -105,8 +123,8 @@ function SafeMarkdown({ content, className }) {
   // Don't render ReactMarkdown for empty content
   if (!safeContent) return null;
 
-  // For very short plain text (no markdown indicators), skip ReactMarkdown entirely
-  if (safeContent.length < 50 && !/[*_#|`\[\]~>-]/.test(safeContent) && !safeContent.includes('\n')) {
+  // For very short plain text (no markdown indicators and no URLs), skip ReactMarkdown entirely
+  if (safeContent.length < 50 && !/[*_#|`\[\]~>-]/.test(safeContent) && !safeContent.includes('\n') && !safeContent.includes('http')) {
     return (
       <div className={className}>
         <p className="mb-3 last:mb-0 break-words">{safeContent}</p>
