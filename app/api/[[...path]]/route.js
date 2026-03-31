@@ -6205,19 +6205,36 @@ async function handleChatStream(request) {
       return 'image';
     }
     
-    // Image detection - must be a clear, direct request
+    // Image detection - clear requests for image/picture/art generation
     const imagePatterns = [
-      /^(?:please\s+)?(?:can you\s+)?generate\s+(?:an?\s+)?image\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?create\s+(?:an?\s+)?image\b/i,
-      /^(?:please\s+)?(?:can you\s+)?make\s+(?:an?\s+)?image\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?draw\s+(?:me\s+)?(?:a|an)\s+(?:picture|image|portrait|sketch|illustration|painting|cartoon)\b/i,
-      /^(?:please\s+)?(?:can you\s+)?(?:show|give)\s+me\s+(?:an?\s+)?(?:picture|image|photo)\b/i,
-      /^(?:please\s+)?(?:can you\s+)?picture\s+of\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?photo\s+of\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?illustration\s+of\b/i,
+      // Direct "generate/create/make [an] image/picture/photo" patterns
+      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?generate\s+(?:me\s+)?(?:an?\s+)?(?:image|picture|photo|illustration|art|artwork|graphic|visual)\b/i, 
+      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?create\s+(?:me\s+)?(?:an?\s+)?(?:image|picture|photo|illustration|art|artwork|graphic|visual|logo|icon|banner|design)\b/i,
+      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?make\s+(?:me\s+)?(?:an?\s+)?(?:image|picture|photo|illustration|art|artwork|graphic|visual|logo|icon|banner|design)\b/i, 
+      // "create/make a picture OF" patterns
+      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?(?:create|make|generate)\s+(?:me\s+)?(?:an?\s+)?(?:picture|photo|portrait|sketch|illustration|painting|cartoon|drawing|rendering)\s+(?:of|for|with|showing)\b/i,
+      // "draw/paint me a [subject]" patterns
+      /^(?:please\s+)?(?:can you\s+)?draw\s+(?:me\s+)?(?:a|an)\s+/i,
       /^(?:please\s+)?(?:can you\s+)?paint\s+(?:me\s+)?(?:a|an)\s+/i, 
-      /^(?:please\s+)?(?:can you\s+)?visualize\s+(?:a|an|the|this|my)\s+/i,
-      /\bdall-?e\b/i, /\bstable\s+diffusion\b/i,
+      /^(?:please\s+)?(?:can you\s+)?sketch\s+(?:me\s+)?(?:a|an)\s+/i,
+      /^(?:please\s+)?(?:can you\s+)?illustrate\s+/i,
+      // "show/give me a picture/image" patterns
+      /^(?:please\s+)?(?:can you\s+)?(?:show|give)\s+me\s+(?:an?\s+)?(?:picture|image|photo|illustration)\b/i,
+      // "picture/photo/illustration of" at start
+      /^(?:please\s+)?(?:can you\s+)?(?:picture|photo|illustration|portrait)\s+of\b/i, 
+      // "design a [thing]" patterns (logos, graphics, etc.)
+      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?design\s+(?:me\s+)?(?:a|an|the|my)\s+(?:logo|icon|banner|header|thumbnail|cover|graphic|badge|emblem|mascot|avatar|wallpaper|background|mockup)\b/i,
+      // "design a [adjective] [subject]" pattern (e.g., "design a beautiful landscape")
+      /^(?:please\s+)?(?:can you\s+)?design\s+(?:me\s+)?(?:a|an)\s+(?:\w+\s+){0,2}(?:landscape|scene|portrait|character|creature|animal|building|city|room|car|house)\b/i,
+      // "visualize" patterns
+      /^(?:please\s+)?(?:can you\s+)?visualize\s+/i,
+      // "I want/need" patterns with image keywords
+      /(?:i\s+)?(?:want|need|would like)\s+(?:an?\s+)?(?:image|picture|photo|illustration|logo|icon|graphic|drawing|sketch|portrait|painting|render|rendering)\s+(?:of|for|with|showing)\b/i,
+      /(?:i\s+)?(?:want|need|would like)\s+(?:you\s+to\s+)?(?:generate|create|make|draw|design)\s+(?:me\s+)?(?:an?\s+)?(?:picture|image|photo|logo)\b/i,
+      // "make me a logo/design for" patterns
+      /^(?:please\s+)?(?:can you\s+)?(?:make|create|design|generate)\s+(?:me\s+)?(?:an?\s+)?(?:logo|icon|badge|emblem)\s+(?:for|of|with)\b/i,
+      // Tool/platform references
+      /\bdall-?e\b/i, /\bstable\s+diffusion\b/i, /\bmidjourney\b/i,
       // Short confirmation/request patterns for image generation (after discussing a design)
       /^image[!.\s]*$/i,  // Just "Image" or "Image!"
       /^(?:generate|create|make)\s+(?:the\s+)?(?:image|picture|logo|design)[!.\s]*$/i,  // "generate the image"
