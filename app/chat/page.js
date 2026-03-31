@@ -134,6 +134,7 @@ export default function ChatPage() {
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   // Announcements state
   const [announcements, setAnnouncements] = useState([]);
+  const [supportNotifications, setSupportNotifications] = useState([]);
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState([]);
   // Media generation state
   const [streamingImageUrl, setStreamingImageUrl] = useState(null);
@@ -469,6 +470,9 @@ export default function ChatPage() {
     // Fetch announcements
     fetch('/api/announcements', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json()).then(d => setAnnouncements(d.unread || [])).catch(() => {});
+    // Fetch support notifications (issue resolutions)
+    fetch('/api/notifications', { headers: { Authorization: `Bearer ${t}` } })
+      .then(r => r.json()).then(d => setSupportNotifications(d.notifications || [])).catch(() => {});
     // Fetch app updates (What's New)
     fetch('/api/app-updates', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json()).then(d => {
@@ -2405,6 +2409,20 @@ export default function ChatPage() {
       setReadingAloudId(null);
     }
   }
+
+
+  // Dismiss a support notification
+  async function dismissSupportNotification(notificationId) {
+    setSupportNotifications(prev => prev.filter(n => n.id !== notificationId));
+    try {
+      await fetch('/api/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ notification_ids: [notificationId] }),
+      });
+    } catch {}
+  }
+
 
   // Start editing a user message
   function startEditMessage(msg) {
@@ -4780,6 +4798,46 @@ export default function ChatPage() {
       )}
       
       {/* Onboarding Modal - What is a SoulPrint? */}
+
+      {/* Support Notifications Popup */}
+      {supportNotifications.length > 0 && (
+        <div className="fixed top-4 right-4 z-50 space-y-3 max-w-sm w-full" style={{ pointerEvents: 'none' }}>
+          {supportNotifications.map(notif => (
+            <div key={notif.id} className="bg-[#0d1f15] border border-green-500/30 rounded-xl p-4 shadow-2xl shadow-green-500/10 animate-in slide-in-from-right" style={{ pointerEvents: 'auto' }}>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Check className="w-4 h-4 text-green-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-green-400 font-semibold text-sm mb-1">✅ Issue Resolved</p>
+                  <p className="text-gray-300 text-sm leading-relaxed">{notif.message}</p>
+                  {notif.conversation_id && (
+                    <button
+                      onClick={() => {
+                        setConversationId(notif.conversation_id);
+                        fetch(`/api/messages?conversationId=${notif.conversation_id}`, { headers: { Authorization: `Bearer ${token}` } })
+                          .then(r => r.json()).then(msgs => { if (Array.isArray(msgs)) setMessages(msgs); }).catch(() => {});
+                        dismissSupportNotification(notif.id);
+                      }}
+                      className="mt-2 text-xs text-green-400/70 hover:text-green-400 underline"
+                    >
+                      View conversation →
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => dismissSupportNotification(notif.id)}
+                  className="text-gray-600 hover:text-white transition-colors flex-shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+
       {showOnboarding && (
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-[#111820] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">

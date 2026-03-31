@@ -8,7 +8,7 @@ import {
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
   Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon, MapPin, AudioWaveform,
-  Film, GalleryHorizontal
+  Film, GalleryHorizontal, CheckCircle
 } from 'lucide-react';
 import SafeMarkdown from '@/components/SafeMarkdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
@@ -64,6 +64,7 @@ export default function MobileChat({
   const [interimText, setInterimText] = useState('');
   const [editingMessage, setEditingMessage] = useState(null);
   const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
+  const [supportNotifications, setSupportNotifications] = useState([]);
   
   // AbortController for stopping requests
   const abortControllerRef = useRef(null);
@@ -658,6 +659,15 @@ export default function MobileChat({
       .catch(console.error);
   }, [token]);
 
+  // Fetch support notifications
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/notifications', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setSupportNotifications(d.notifications || [])).catch(() => {});
+  }, [token]);
+
+
+
   // Auto-request location when app loads (if not already set)
   useEffect(() => {
     if (!token) return;
@@ -1201,6 +1211,20 @@ export default function MobileChat({
       }
     }
   };
+
+
+  // Dismiss a support notification
+  const dismissSupportNotification = async (notificationId) => {
+    setSupportNotifications(prev => prev.filter(n => n.id !== notificationId));
+    try {
+      await fetch('/api/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ notification_ids: [notificationId] }),
+      });
+    } catch {}
+  };
+
 
   // Handle message feedback
   const handleFeedback = async (messageId, feedbackType) => {
@@ -2195,6 +2219,28 @@ export default function MobileChat({
 
   return (
     <div className="min-h-screen bg-sp-black text-white">
+      {/* Support Notifications Popup */}
+      {supportNotifications.length > 0 && (
+        <div className="fixed top-2 left-2 right-2 z-[60] space-y-2">
+          {supportNotifications.map(notif => (
+            <div key={notif.id} className="bg-[#0d1f15] border border-green-500/30 rounded-xl p-3.5 shadow-2xl shadow-green-500/10">
+              <div className="flex items-start gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-green-400 font-semibold text-xs mb-1">Issue Resolved</p>
+                  <p className="text-gray-300 text-xs leading-relaxed">{notif.message}</p>
+                </div>
+                <button onClick={() => dismissSupportNotification(notif.id)} className="text-gray-600 hover:text-white p-1">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Hidden file input */}
       <input
         type="file"

@@ -7,7 +7,7 @@ import {
   UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
   PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar,
-  KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone
+  KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone, LifeBuoy
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
@@ -24,6 +24,7 @@ const TABS = [
   { id: 'betacodes', label: 'Beta Codes', icon: KeyRound },
   { id: 'assessments', label: 'Assessments', icon: FileText },
   { id: 'imports', label: 'Imports', icon: Upload },
+  { id: 'support', label: 'Support', icon: LifeBuoy },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -5195,6 +5196,190 @@ function SettingsTab({ token }) {
   );
 }
 
+// Support Tab - Resolve Issues & Notify Users
+function SupportTab({ token }) {
+  const [userEmail, setUserEmail] = useState('');
+  const [conversationId, setConversationId] = useState('');
+  const [message, setMessage] = useState('');
+  const [subjectSuffix, setSubjectSuffix] = useState('Your reported issue has been resolved');
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
+  // Load resolution history
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const res = await fetch('/api/admin/support-history', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setHistory(data.resolutions || []);
+        }
+      } catch {}
+      setLoadingHistory(false);
+    };
+    if (token) loadHistory();
+  }, [token]);
+
+  const handleResolve = async () => {
+    if (!userEmail || !message) return;
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/admin/resolve-issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          user_email: userEmail,
+          conversation_id: conversationId || undefined,
+          message,
+          subject_suffix: subjectSuffix,
+        }),
+      });
+      const data = await res.json();
+      setResult(data);
+      if (data.success) {
+        // Add to history
+        setHistory(prev => [{ user_email: userEmail, conversation_id: conversationId, message, created_at: new Date().toISOString(), results: data.results }, ...prev]);
+        // Clear form
+        setUserEmail('');
+        setConversationId('');
+        setMessage('');
+      }
+    } catch (e) {
+      setResult({ success: false, message: e.message });
+    }
+    setSending(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Resolve Issue Form */}
+      <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-9 h-9 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center">
+            <LifeBuoy className="w-5 h-5 text-green-400" />
+          </div>
+          <div>
+            <h3 className="text-white font-bold text-base">Resolve Issue & Notify User</h3>
+            <p className="text-gray-500 text-xs">Send resolution notice via email, in-app popup, and conversation message</p>
+          </div>
+        </div>
+        
+        <div className="space-y-4">
+          {/* User Email */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">User Email *</label>
+            <input
+              type="email"
+              value={userEmail}
+              onChange={e => setUserEmail(e.target.value)}
+              placeholder="user@example.com"
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors"
+            />
+          </div>
+
+          {/* Conversation ID */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">Conversation ID <span className="text-gray-600">(optional — to inject message in chat)</span></label>
+            <input
+              value={conversationId}
+              onChange={e => setConversationId(e.target.value)}
+              placeholder="e.g. 495341f5-22d9-4931-9286-efee08199374"
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors font-mono"
+            />
+          </div>
+
+          {/* Email Subject */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">Email Subject Line</label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-600 whitespace-nowrap">[SoulPrint Engine Support]</span>
+              <input
+                value={subjectSuffix}
+                onChange={e => setSubjectSuffix(e.target.value)}
+                className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Resolution Message */}
+          <div>
+            <label className="block text-xs font-medium text-gray-400 mb-1.5">Resolution Message *</label>
+            <textarea
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="Describe what was fixed and any next steps for the user..."
+              rows={4}
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors resize-none"
+            />
+          </div>
+
+          {/* Notification Channels Preview */}
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">📧 Email</span>
+            <span className="px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">🔔 In-App Popup</span>
+            {conversationId && <span className="px-2.5 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">💬 Conversation Message</span>}
+          </div>
+
+          {/* Submit Button */}
+          <button
+            onClick={handleResolve}
+            disabled={sending || !userEmail || !message}
+            className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {sending ? 'Sending Notifications...' : 'Resolve & Notify User'}
+          </button>
+
+          {/* Result */}
+          {result && (
+            <div className={`p-4 rounded-lg border ${result.success ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+              <p className={`text-sm font-medium ${result.success ? 'text-green-400' : 'text-red-400'}`}>
+                {result.success ? '✅ ' : '❌ '}{result.message}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Resolution History */}
+      <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+        <h3 className="text-white font-bold text-base mb-4">Recent Resolutions</h3>
+        {loadingHistory ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 text-gray-500 animate-spin" /></div>
+        ) : history.length === 0 ? (
+          <p className="text-gray-600 text-sm text-center py-6">No resolutions yet</p>
+        ) : (
+          <div className="space-y-3">
+            {history.slice(0, 10).map((item, idx) => (
+              <div key={idx} className="p-3 bg-black/30 rounded-lg border border-white/5">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-white font-medium">{item.user_email}</span>
+                  <span className="text-[10px] text-gray-600">{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</span>
+                </div>
+                <p className="text-xs text-gray-400 line-clamp-2">{item.message}</p>
+                {item.results && (
+                  <div className="flex gap-2 mt-1.5">
+                    <span className={`text-[10px] ${item.results.email ? 'text-green-500' : 'text-red-500'}`}>Email {item.results.email ? '✓' : '✗'}</span>
+                    <span className={`text-[10px] ${item.results.notification ? 'text-green-500' : 'text-red-500'}`}>In-app {item.results.notification ? '✓' : '✗'}</span>
+                    <span className={`text-[10px] ${item.results.conversation_message ? 'text-green-500' : 'text-red-500'}`}>Chat {item.results.conversation_message ? '✓' : '✗'}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
 export default function AdminPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('metrics');
@@ -6208,6 +6393,10 @@ export default function AdminPage() {
 
           {activeTab === 'imports' && token && (
             <ImportsTab token={token} />
+          )}
+
+          {activeTab === 'support' && token && (
+            <SupportTab token={token} />
           )}
 
           {activeTab === 'settings' && token && (

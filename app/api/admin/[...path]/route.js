@@ -4860,6 +4860,175 @@ async function handleGetVoiceSessions(request) {
   }
 }
 
+
+// ============================================================
+// RESOLVE ISSUE - Notify user via email, in-app, and conversation
+// ============================================================
+
+async function handleAdminResolveIssue(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { user_email, conversation_id, message, subject_suffix } = body;
+
+  if (!user_email || !message) {
+    return err('user_email and message are required', 400);
+  }
+
+  const db = await getDb();
+  const results = { email: false, notification: false, conversation_message: false };
+
+  // 1. Find the user
+  const user = await db.collection('users').findOne({ email: user_email.toLowerCase().trim() });
+
+  // 2. Create in-app notification
+  try {
+    const notification = {
+      id: uuidv4(),
+      user_id: user?.id || null,
+      user_email: user_email.toLowerCase().trim(),
+      conversation_id: conversation_id || null,
+      type: 'issue_resolved',
+      title: 'Issue Resolved',
+      message: message,
+      read: false,
+      resolved_by: admin.email,
+      created_at: new Date(),
+    };
+    await db.collection('notifications').insertOne(notification);
+    results.notification = true;
+    console.log('[ResolveIssue] Created notification for', user_email);
+  } catch (e) {
+    console.error('[ResolveIssue] Notification error:', e);
+  }
+
+  // 3. Inject message into original conversation (if conversation_id provided)
+  if (conversation_id) {
+    try {
+      const systemMessage = {
+        id: uuidv4(),
+        role: 'system',
+        content: `🔧 **Issue Resolved**\n\n${message}\n\n— *SoulPrint Support Team*`,
+        timestamp: new Date().toISOString(),
+        type: 'support_resolution',
+      };
+      
+      const updateResult = await db.collection('conversations').updateOne(
+        { id: conversation_id },
+        { $push: { messages: systemMessage } }
+      );
+      results.conversation_message = updateResult.modifiedCount > 0;
+      console.log('[ResolveIssue] Conversation message injected:', results.conversation_message);
+    } catch (e) {
+      console.error('[ResolveIssue] Conversation message error:', e);
+    }
+  }
+
+  // 4. Send email via Resend
+  try {
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (!resendApiKey) throw new Error('RESEND_API_KEY not configured');
+
+    const subjectLine = subject_suffix 
+      ? `[SoulPrint Engine Support] ${subject_suffix}`
+      : `[SoulPrint Engine Support] Your reported issue has been resolved`;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0a0a0a;">
+    <tr><td align="center" style="padding:40px 20px;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#111111;border-radius:16px;border:1px solid #222;">
+        <!-- Header -->
+        <tr><td style="padding:32px 32px 16px;text-align:center;">
+          <h1 style="margin:0;font-size:24px;font-weight:700;color:#ffffff;">SoulPrint Engine</h1>
+          <p style="margin:8px 0 0;font-size:13px;color:#666;">Support Notification</p>
+        </td></tr>
+        <!-- Divider -->
+        <tr><td style="padding:0 32px;"><div style="height:1px;background:linear-gradient(90deg,transparent,#333,transparent);"></div></td></tr>
+        <!-- Content -->
+        <tr><td style="padding:24px 32px;">
+          <div style="background-color:#0d2818;border:1px solid #1a4d2e;border-radius:12px;padding:20px;">
+            <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#4ade80;text-transform:uppercase;letter-spacing:1px;">✅ Issue Resolved</p>
+            <p style="margin:12px 0 0;font-size:15px;color:#e0e0e0;line-height:1.6;">${message.replace(/\n/g, '<br>')}</p>
+          </div>
+          ${conversation_id ? `
+          <p style="margin:20px 0 0;font-size:13px;color:#888;">
+            This relates to conversation <code style="background:#1a1a1a;padding:2px 6px;border-radius:4px;color:#aaa;font-size:12px;">${conversation_id}</code>
+          </p>` : ''}
+        </td></tr>
+        <!-- CTA -->
+        <tr><td style="padding:8px 32px 32px;text-align:center;">
+          <a href="https://soulprintengine.ai/chat${conversation_id ? `?c=${conversation_id}` : ''}" 
+             style="display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">
+            Open SoulPrint
+          </a>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="padding:16px 32px 24px;text-align:center;border-top:1px solid #222;">
+          <p style="margin:0;font-size:12px;color:#555;">This is an automated message from SoulPrint Engine Support.</p>
+          <p style="margin:4px 0 0;font-size:12px;color:#444;">If you have further questions, please reach out to us.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+    const emailRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'SoulPrint Engine <team@archeforge.com>',
+        to: [user_email],
+        subject: subjectLine,
+        html: htmlContent,
+      }),
+    });
+
+    if (emailRes.ok) {
+      const emailData = await emailRes.json();
+      results.email = true;
+      console.log('[ResolveIssue] Email sent:', emailData.id);
+    } else {
+      const emailErr = await emailRes.json().catch(() => ({}));
+      console.error('[ResolveIssue] Email error:', emailErr);
+    }
+  } catch (e) {
+    console.error('[ResolveIssue] Email error:', e);
+  }
+
+  return ok({
+    success: true,
+    results,
+    message: `Notification sent — Email: ${results.email ? '✅' : '❌'}, In-app: ${results.notification ? '✅' : '❌'}, Conversation: ${results.conversation_message ? '✅' : '❌'}`,
+  });
+}
+
+
+async function handleAdminGetSupportHistory(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Unauthorized', 401);
+
+  const db = await getDb();
+  const resolutions = await db.collection('notifications')
+    .find({ type: 'issue_resolved' })
+    .sort({ created_at: -1 })
+    .limit(50)
+    .project({ user_email: 1, conversation_id: 1, message: 1, created_at: 1, resolved_by: 1, _id: 0 })
+    .toArray();
+
+  return ok({ resolutions });
+}
+
+
+
 // Handler: Get User Voice Stats - Get voice chat statistics for a specific user
 
 // ============================================================
@@ -4895,6 +5064,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'pricing-features') return handleAdminGetPricingFeatures(request);
     if (pathStr === 'pricing-features/calculate') return handleAdminCalculatePricing(request);
     if (pathStr === 'voice-sessions') return handleGetVoiceSessions(request);
+    if (pathStr === 'support-history') return handleAdminGetSupportHistory(request);
     if (pathStr === 'blog/posts') return handleAdminGetBlogPosts(request);
 
     return err('Admin endpoint not found', 404);
@@ -4927,6 +5097,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'invites/grant') return handleAdminGrantInvites(request);
     if (pathStr === 'pricing-features') return handleAdminAddPricingFeature(request);
     if (pathStr === 'pricing-features/update') return handleAdminUpdatePricingFeature(request);
+    if (pathStr === 'resolve-issue') return handleAdminResolveIssue(request);
 
     return err('Admin endpoint not found', 404);
   } catch (error) {

@@ -9479,6 +9479,64 @@ async function handleGetBlogPost(request, slug) {
 
 // Use AI to help triage ambiguous issues
 
+
+// ============================================================
+// NOTIFICATIONS HANDLERS
+// ============================================================
+
+async function handleGetNotifications(request) {
+  const user = await authenticate(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const db = await getDb();
+  
+  // Find unread notifications for this user (by user_id or email)
+  const notifications = await db.collection('notifications').find({
+    $or: [
+      { user_id: user.id },
+      { user_email: user.email?.toLowerCase() }
+    ],
+    read: false,
+  }).sort({ created_at: -1 }).limit(20).toArray();
+
+  // Clean up MongoDB _id
+  const cleaned = notifications.map(n => ({
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    message: n.message,
+    conversation_id: n.conversation_id,
+    created_at: n.created_at,
+  }));
+
+  return NextResponse.json({ notifications: cleaned });
+}
+
+async function handleMarkNotificationsRead(request) {
+  const user = await authenticate(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const body = await request.json();
+  const { notification_ids } = body; // Array of notification IDs to mark read, or 'all'
+
+  const db = await getDb();
+
+  if (notification_ids === 'all') {
+    await db.collection('notifications').updateMany(
+      { $or: [{ user_id: user.id }, { user_email: user.email?.toLowerCase() }] },
+      { $set: { read: true } }
+    );
+  } else if (Array.isArray(notification_ids)) {
+    await db.collection('notifications').updateMany(
+      { id: { $in: notification_ids } },
+      { $set: { read: true } }
+    );
+  }
+
+  return NextResponse.json({ success: true });
+}
+
+
 export async function GET(request, { params }) {
   const pathArr = params?.path || [];
   const pathStr = pathArr.join('/');
@@ -9526,6 +9584,7 @@ export async function GET(request, { params }) {
     }
     if (pathStr === 'conversations') return handleGetConversations(request);
     if (pathStr === 'messages') return handleGetMessages(request);
+    if (pathStr === 'notifications') return handleGetNotifications(request);
     
     // Projects & Tags routes
     if (pathStr === 'projects') return handleGetProjects(request);
@@ -9662,6 +9721,7 @@ export async function POST(request, { params }) {
       return handleUpdateConversationTags(request, conversationId);
     }
     if (pathStr === 'tags') return handleCreateTag(request);
+    if (pathStr === 'notifications/mark-read') return handleMarkNotificationsRead(request);
     
     if (pathStr === 'chat/stream') return handleChatStream(request);
     if (pathStr === 'chat/compare') return handleChatCompare(request);
