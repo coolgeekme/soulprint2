@@ -96,6 +96,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
   const playbackContextRef = useRef(null);
   const audioQueueRef = useRef([]);
   const isPlayingRef = useRef(false);
+  const currentSourceRef = useRef(null); // Track current playing AudioBufferSourceNode
   const wakeLockRef = useRef(null);
   const setupCompleteRef = useRef(false);
   const processorNodeRef = useRef(null);
@@ -103,8 +104,11 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
   const previewSourceRef = useRef(null);
   const previewContextRef = useRef(null);
   const gainNodeRef = useRef(null);
+  const selectedVoiceRef = useRef(selectedVoice); // Keep a ref to avoid stale closures
 
+  // Sync refs
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+  useEffect(() => { selectedVoiceRef.current = selectedVoice; }, [selectedVoice]);
 
   // Wake Lock
   const requestWakeLock = async () => {
@@ -120,7 +124,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
     return () => document.removeEventListener('visibilitychange', h);
   }, [status]);
 
-  // Load voice settings
+  // Load voice settings from DB
   useEffect(() => {
     const load = async () => {
       try {
@@ -128,7 +132,10 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
         if (res.ok) {
           const data = await res.json();
           const s = data.voice_settings || data;
-          if (s.default_gemini_voice) setSelectedVoice(s.default_gemini_voice);
+          if (s.default_gemini_voice) {
+            console.log('[Gemini] Loaded default voice from settings:', s.default_gemini_voice);
+            setSelectedVoice(s.default_gemini_voice);
+          }
           if (s.web_search_enabled !== undefined) setWebSearchEnabled(s.web_search_enabled);
         }
       } catch {}
@@ -136,17 +143,37 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
     if (token) load();
   }, [token]);
 
-  // ── Voice Preview ──
-  const playVoicePreview = useCallback(async (voiceId) => {
-    // Stop any current preview
+  // Save voice selection to DB when user picks in the UI
+  const selectAndSaveVoice = useCallback(async (voiceId) => {
+    setSelectedVoice(voiceId);
+    try {
+      await fetch('/api/user/voice-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ default_gemini_voice: voiceId }),
+      });
+    } catch (e) {
+      console.error('[Gemini] Failed to save voice selection:', e);
+    }
+  }, [token]);
+
+  // ── Stop all preview audio ──
+  const stopPreview = useCallback(() => {
     if (previewSourceRef.current) {
       try { previewSourceRef.current.stop(); } catch {}
       previewSourceRef.current = null;
     }
+    setPreviewingVoice(null);
+    setPreviewLoadingVoice(null);
+  }, []);
+
+  // ── Voice Preview ──
+  const playVoicePreview = useCallback(async (voiceId) => {
+    // Stop any current preview
+    stopPreview();
     
     if (previewingVoice === voiceId) {
-      setPreviewingVoice(null);
-      return;
+      return; // Was already playing this voice, just stop
     }
 
     setPreviewLoadingVoice(voiceId);
@@ -188,13 +215,25 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       previewSourceRef.current = source;
       source.start();
       setPreviewingVoice(voiceId);
-      setSelectedVoice(voiceId);
+      // Also select this voice
+      selectAndSaveVoice(voiceId);
     } catch (err) {
       console.error('[Gemini] Preview error:', err);
     } finally {
       setPreviewLoadingVoice(null);
     }
-  }, [token, previewingVoice]);
+  }, [token, previewingVoice, stopPreview, selectAndSaveVoice]);
+
+  // ── Clear audio queue and stop current playback ──
+  const clearAudioPlayback = useCallback(() => {
+    audioQueueRef.current = [];
+    if (currentSourceRef.current) {
+      try { currentSourceRef.current.stop(); } catch {}
+      currentSourceRef.current = null;
+    }
+    isPlayingRef.current = false;
+    setIsAISpeaking(false);
+  }, []);
 
   // ── Audio Playback Queue ──
   const playNextChunk = useCallback(() => {
@@ -220,7 +259,11 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       source.buffer = audioBuffer;
       source.connect(ctx.destination);
       
+      // Track current source for interruption
+      currentSourceRef.current = source;
+      
       source.onended = () => {
+        currentSourceRef.current = null;
         isPlayingRef.current = false;
         if (audioQueueRef.current.length > 0) {
           playNextChunk();
@@ -233,6 +276,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       setIsAISpeaking(true);
     } catch (err) {
       console.error('[Gemini] Playback error:', err);
+      currentSourceRef.current = null;
       isPlayingRef.current = false;
       if (audioQueueRef.current.length > 0) playNextChunk();
     }
@@ -242,7 +286,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
   const handleToolCall = useCallback(async (functionCall) => {
     const { name, args, id } = functionCall;
     setIsSearching(true);
-    const label = { web_search: `🔍 Searching: "${args?.query}"...`, get_user_memories: `🧠 Recalling...`, get_soulprint: `✨ Loading profile...` }[name] || `⚡ ${name}...`;
+    const label = { web_search: `Searching: "${args?.query}"...`, get_user_memories: `Recalling...`, get_soulprint: `Loading profile...` }[name] || `${name}...`;
     setConversationHistory(prev => [...prev, { role: 'system', text: label, timestamp: new Date() }]);
 
     try {
@@ -276,6 +320,10 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
   // ── Cleanup ──
   const cleanup = useCallback(() => {
     releaseWakeLock();
+    // Stop any preview audio
+    stopPreview();
+    // Clear playback
+    clearAudioPlayback();
     if (processorNodeRef.current) { processorNodeRef.current.disconnect(); processorNodeRef.current = null; }
     if (gainNodeRef.current) { gainNodeRef.current.disconnect(); gainNodeRef.current = null; }
     if (sourceNodeRef.current) { sourceNodeRef.current.disconnect(); sourceNodeRef.current = null; }
@@ -283,10 +331,8 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
     if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
     if (wsRef.current) { wsRef.current.close(1000, 'User ended'); wsRef.current = null; }
     if (playbackContextRef.current?.state !== 'closed') { playbackContextRef.current?.close().catch(() => {}); playbackContextRef.current = null; }
-    audioQueueRef.current = [];
-    isPlayingRef.current = false;
     setupCompleteRef.current = false;
-  }, []);
+  }, [stopPreview, clearAudioPlayback]);
 
   // ── Start Voice Chat ──
   const startVoiceChat = useCallback(async () => {
@@ -296,6 +342,14 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       setConversationHistory([]);
       setSessionStartTime(new Date());
       setupCompleteRef.current = false;
+
+      // Stop any playing preview first
+      stopPreview();
+      clearAudioPlayback();
+
+      // Use the ref for current voice to avoid stale closure
+      const voiceToUse = selectedVoiceRef.current;
+      console.log('[Gemini] Starting voice chat with voice:', voiceToUse);
 
       // 1. Get API key
       const tokenRes = await fetch('/api/gemini/live-token', {
@@ -313,7 +367,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
         const tr = await fetch('/api/voice/sessions', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ voice: selectedVoice, mode: 'vad', web_search_enabled: webSearchEnabled, engine: 'gemini' }),
+          body: JSON.stringify({ voice: voiceToUse, mode: 'vad', web_search_enabled: webSearchEnabled, engine: 'gemini' }),
         });
         if (tr.ok) { const d = await tr.json(); setSessionId(d.session_id); }
       } catch {}
@@ -325,7 +379,6 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       localStreamRef.current = stream;
 
       // 4. Set up audio capture with proper resampling
-      // Don't force sampleRate - let browser use native rate, we'll resample
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
       const actualSampleRate = audioContext.sampleRate;
@@ -373,7 +426,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('[Gemini] WS connected, sending setup...');
+        console.log('[Gemini] WS connected, sending setup with voice:', voiceToUse);
         const basePrompt = systemPrompt || `You are a helpful AI assistant having a voice conversation with ${userName || 'the user'}.`;
         
         const tools = [];
@@ -392,7 +445,13 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
             model: `models/${GEMINI_MODEL}`,
             generationConfig: {
               responseModalities: ['AUDIO'],
-              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: selectedVoice } } }
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: {
+                    voiceName: voiceToUse
+                  }
+                }
+              }
             },
             systemInstruction: { parts: [{ text: `${basePrompt}\n\nBe conversational, warm, and concise. This is a real-time voice call.` }] },
             ...(tools.length > 0 ? { tools } : {}),
@@ -423,7 +482,20 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
           }
 
           if (data.serverContent) {
-            const { modelTurn, turnComplete } = data.serverContent;
+            const { modelTurn, turnComplete, interrupted } = data.serverContent;
+            
+            // Handle interruption - server detected user speaking over AI
+            if (interrupted) {
+              console.log('[Gemini] Server interrupted - clearing audio queue');
+              audioQueueRef.current = [];
+              if (currentSourceRef.current) {
+                try { currentSourceRef.current.stop(); } catch {}
+                currentSourceRef.current = null;
+              }
+              isPlayingRef.current = false;
+              setIsAISpeaking(false);
+              return;
+            }
             
             if (modelTurn?.parts) {
               for (const part of modelTurn.parts) {
@@ -495,7 +567,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       setStatus('error');
       cleanup();
     }
-  }, [token, systemPrompt, userName, selectedVoice, webSearchEnabled, playNextChunk, handleToolCall, cleanup]);
+  }, [token, systemPrompt, userName, webSearchEnabled, playNextChunk, handleToolCall, cleanup, stopPreview, clearAudioPlayback]);
 
   // ── End Voice Chat ──
   const endVoiceChat = useCallback(async () => {
@@ -524,12 +596,10 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
 
   const toggleMute = useCallback(() => setIsMuted(p => !p), []);
   const interruptAI = useCallback(() => {
-    audioQueueRef.current = [];
-    isPlayingRef.current = false;
-    setIsAISpeaking(false);
-  }, []);
+    clearAudioPlayback();
+  }, [clearAudioPlayback]);
 
-  useEffect(() => { return () => { cleanup(); if (previewSourceRef.current) try { previewSourceRef.current.stop(); } catch {} }; }, [cleanup]);
+  useEffect(() => { return () => { cleanup(); }; }, [cleanup]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm">
@@ -560,7 +630,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
             <p className="text-sm text-gray-400">
               {status === 'idle' && 'Tap a voice to preview, then start'}
               {status === 'connecting' && 'Connecting to Gemini...'}
-              {status === 'connected' && (isSearching ? '🔍 Searching...' : isAISpeaking ? 'AI is speaking...' : 'Listening...')}
+              {status === 'connected' && (isSearching ? 'Searching...' : isAISpeaking ? 'AI is speaking...' : 'Listening...')}
               {status === 'error' && 'Connection error'}
             </p>
           </div>
@@ -570,7 +640,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
             <div className="mb-5">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs text-gray-500">Gemini Voice</label>
-                <p className="text-[10px] text-gray-600">🔊 Tap speaker to preview</p>
+                <p className="text-[10px] text-gray-600">Tap speaker to preview</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {GEMINI_VOICES.map(voice => (
@@ -579,7 +649,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
                     className={`relative flex items-center gap-2 p-2.5 rounded-xl border transition-all cursor-pointer ${
                       selectedVoice === voice.id ? 'bg-blue-500/20 border-blue-500/50' : 'bg-white/5 border-white/10 hover:bg-white/10'
                     }`}
-                    onClick={() => setSelectedVoice(voice.id)}
+                    onClick={() => selectAndSaveVoice(voice.id)}
                   >
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                       selectedVoice === voice.id ? 'bg-blue-500/30 text-blue-300' : 'bg-white/10 text-gray-400'
@@ -613,7 +683,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-gray-600 mt-2">💡 Set default in <span className="text-blue-400/70">Settings → Voice</span></p>
+              <p className="text-[10px] text-gray-600 mt-2 text-center">Selected: <span className="text-blue-400 font-medium">{selectedVoice}</span></p>
             </div>
           )}
 
@@ -702,6 +772,11 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
             </div>
           )}
 
+          {/* Current voice indicator when connected */}
+          {status === 'connected' && (
+            <p className="text-center text-xs text-blue-400/60 mb-3">Voice: {selectedVoice}</p>
+          )}
+
           {/* Transcript */}
           {status === 'connected' && (transcript || aiResponse) && (
             <div className="space-y-2 mb-4">
@@ -719,7 +794,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
                   <div key={i} className={`text-xs p-2 rounded-lg ${
                     item.role === 'user' ? 'bg-white/5 text-gray-300' : item.role === 'system' ? 'bg-blue-500/10 text-blue-300' : 'bg-purple-500/10 text-purple-200'
                   }`}>
-                    <span className="font-medium">{item.role === 'user' ? 'You' : item.role === 'system' ? '⚡' : 'AI'}:</span> {item.text?.slice(0, 80)}{(item.text?.length || 0) > 80 ? '...' : ''}
+                    <span className="font-medium">{item.role === 'user' ? 'You' : item.role === 'system' ? 'System' : 'AI'}:</span> {item.text?.slice(0, 80)}{(item.text?.length || 0) > 80 ? '...' : ''}
                   </div>
                 ))}
               </div>
