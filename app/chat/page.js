@@ -2534,7 +2534,9 @@ export default function ChatPage() {
           if (type === 'text') { setSelectedModel(value); setDefaultModelSaved(value); }
           else if (type === 'video') { setSelectedVideoModel(value); setDefaultVideoModelSaved(value); }
           else if (type === 'image') { setSelectedImageModel(value); setDefaultImageModelSaved(value); }
-        }} onAssistantNameChange={setAssistantName} onAnnouncementsChange={setAnnouncements} /></SafeSection>}
+        }} onAssistantNameChange={setAssistantName} onAnnouncementsChange={setAnnouncements} onVoiceSettingsChange={(vs) => {
+          setUser(prev => prev ? { ...prev, profile: { ...prev.profile, voice_settings: vs } } : prev);
+        }} /></SafeSection>}
         
         {/* Voice Conversation Modal */}
         {showVoiceChat && voiceChatEnabled && (
@@ -4127,7 +4129,9 @@ export default function ChatPage() {
         if (type === 'text') { setSelectedModel(value); setDefaultModelSaved(value); }
         else if (type === 'video') { setSelectedVideoModel(value); setDefaultVideoModelSaved(value); }
         else if (type === 'image') { setSelectedImageModel(value); setDefaultImageModelSaved(value); }
-      }} onAssistantNameChange={setAssistantName} onAnnouncementsChange={setAnnouncements} /></SafeSection>}
+      }} onAssistantNameChange={setAssistantName} onAnnouncementsChange={setAnnouncements} onVoiceSettingsChange={(vs) => {
+        setUser(prev => prev ? { ...prev, profile: { ...prev.profile, voice_settings: vs } } : prev);
+      }} /></SafeSection>}
       
       {/* Feedback Modal */}
       {showFeedbackModal && <SafeSection name="FeedbackModal"><FeedbackModal onClose={() => setShowFeedbackModal(false)} token={token} /></SafeSection>}

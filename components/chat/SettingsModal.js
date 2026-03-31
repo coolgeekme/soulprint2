@@ -648,7 +648,7 @@ function PrivacyTab({ token }) {
 }
 
 // Settings / Telegram / Imports Modal
-function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelChange, onAssistantNameChange, onAnnouncementsChange }) {
+function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelChange, onAssistantNameChange, onAnnouncementsChange, onVoiceSettingsChange }) {
   const [activeTab, setActiveTab] = useState(initialTab || 'imports');
   const [imports, setImports] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -1159,6 +1159,9 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(newSettings),
       });
+      
+      // Notify parent so the voice chat component picks up the change
+      if (onVoiceSettingsChange) onVoiceSettingsChange(newSettings);
     } catch (e) {
       console.error('Failed to save voice settings:', e);
     }
