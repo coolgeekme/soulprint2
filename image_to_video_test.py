@@ -20,7 +20,7 @@ import sys
 from datetime import datetime
 
 # Backend configuration
-BASE_URL = "https://realtime-voice-beta.preview.emergentagent.com"
+BASE_URL = "https://gemini-voice-fix.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 # Test credentials

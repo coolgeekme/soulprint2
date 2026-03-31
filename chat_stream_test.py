@@ -7,7 +7,7 @@ import requests
 import json
 import time
 
-BASE_URL = "https://realtime-voice-beta.preview.emergentagent.com"
+BASE_URL = "https://gemini-voice-fix.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"

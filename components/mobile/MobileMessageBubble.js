@@ -2,10 +2,10 @@
 import { useState } from 'react';
 import SafeMarkdown from '@/components/SafeMarkdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
-import { Copy, Edit3, ThumbsUp, ThumbsDown, MoreVertical, Loader2, Globe, Sparkles, Film, Check } from 'lucide-react';
+import { Copy, Edit3, ThumbsUp, ThumbsDown, MoreVertical, Loader2, Globe, Sparkles, Film, Check, Volume2, VolumeX } from 'lucide-react';
 import { MobileVideoCard, MobileSavedVideoCard, MobileImageCard } from './MobileMediaCards';
 
-const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady }) => {
+const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId }) => {
   const [showActions, setShowActions] = useState(false);
   const [feedback, setFeedback] = useState(message.feedback || null);
 
@@ -172,6 +172,15 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
             <div className="flex items-center gap-3 mt-2 pt-2 border-t border-white/10">
               <button onClick={handleCopy} className="text-gray-400 text-xs flex items-center gap-1">
                 <Copy className="w-3 h-3" /> Copy
+              </button>
+              <button 
+                onClick={() => {
+                  if (onReadAloud) onReadAloud(message.content, message.id);
+                }}
+                className={`text-xs flex items-center gap-1 ${readingAloudId === message.id ? 'text-orange-400' : 'text-gray-400'}`}
+              >
+                {readingAloudId === message.id ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                <span>{readingAloudId === message.id ? 'Stop' : 'Read'}</span>
               </button>
               <button 
                 onClick={() => handleFeedback('up')} 

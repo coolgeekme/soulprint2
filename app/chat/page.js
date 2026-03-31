@@ -39,7 +39,7 @@ import {
   MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, AudioWaveform,
   GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal,
   Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, ChevronRight, LogOut, Copy, Edit3, Square, ArrowRight,
-  Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code, Bot
+  Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code, Bot, Volume2, VolumeX
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { CloudUploadIcon, RobotIcon, FeedbackIcon, MicrophoneIcon, SendIcon, SparklesIcon, ImagePlusIcon, VideoIcon, LocationIcon, StopIcon, AttachIcon, PlusIcon } from '@/components/icons/SoulPrintIcons';
@@ -2312,6 +2312,8 @@ export default function ChatPage() {
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingContent, setEditingContent] = useState('');
   const [copiedMessageId, setCopiedMessageId] = useState(null);
+  const [readingAloudId, setReadingAloudId] = useState(null); // messageId currently being read aloud
+  const readAloudAudioRef = useRef(null);
 
   async function submitFeedback(messageId, rating) {
     // Update local state immediately for visual feedback
@@ -2344,6 +2346,62 @@ export default function ChatPage() {
       setTimeout(() => setCopiedMessageId(null), 2000);
     } catch (e) {
       console.error('Copy failed:', e);
+    }
+  }
+
+  // Read message aloud using TTS
+  async function readAloud(content, messageId) {
+    // If already reading this message, stop it
+    if (readingAloudId === messageId) {
+      if (readAloudAudioRef.current) {
+        readAloudAudioRef.current.pause();
+        readAloudAudioRef.current = null;
+      }
+      setReadingAloudId(null);
+      return;
+    }
+    
+    // Stop any currently playing audio
+    if (readAloudAudioRef.current) {
+      readAloudAudioRef.current.pause();
+      readAloudAudioRef.current = null;
+    }
+
+    setReadingAloudId(messageId);
+    try {
+      const res = await fetch('/api/voice/tts/read-aloud', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ text: content }),
+      });
+      
+      if (!res.ok) {
+        throw new Error('TTS request failed');
+      }
+      
+      const audioBlob = await res.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      readAloudAudioRef.current = audio;
+      
+      audio.onended = () => {
+        setReadingAloudId(null);
+        readAloudAudioRef.current = null;
+        URL.revokeObjectURL(audioUrl);
+      };
+      audio.onerror = () => {
+        setReadingAloudId(null);
+        readAloudAudioRef.current = null;
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      await audio.play();
+    } catch (e) {
+      console.error('Read aloud failed:', e);
+      setReadingAloudId(null);
     }
   }
 
@@ -3334,6 +3392,14 @@ export default function ChatPage() {
                         title={copiedMessageId === msg.id ? 'Copied!' : 'Copy message'}
                       >
                         {copiedMessageId === msg.id ? <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+                      </button>
+                      {/* Read Aloud Button */}
+                      <button 
+                        onClick={() => readAloud(msg.content, msg.id)} 
+                        className={`transition-colors p-1 rounded ${readingAloudId === msg.id ? 'text-orange-400 bg-orange-400/10' : 'text-gray-700 hover:text-orange-400'}`}
+                        title={readingAloudId === msg.id ? 'Stop reading' : 'Read aloud'}
+                      >
+                        {readingAloudId === msg.id ? <VolumeX className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <Volume2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
                       </button>
                       {/* Continue Button - show for last assistant message if it might be truncated */}
                       {idx === messages.length - 1 && msg.content && msg.content.length > 500 && !loading && (

@@ -1192,7 +1192,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/image/edit, POST /api/composite/test
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://realtime-voice-beta.preview.emergentagent.com
+- **Base URL**: https://gemini-voice-fix.preview.emergentagent.com
 
 ## Test Results
 
@@ -1233,7 +1233,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/media/generate, GET /api/media/status/:taskId, GET /api/media/video/status/:taskId, POST /api/media/save-to-gallery, GET /api/media/gallery
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://realtime-voice-beta.preview.emergentagent.com
+- **Base URL**: https://gemini-voice-fix.preview.emergentagent.com
 
 ## Test Results
 
@@ -1292,7 +1292,7 @@ test_plan:
 - **Date**: 2026-03-26
 - **Endpoint Tested**: POST /api/chat/stream (Image Generation Flow)
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://realtime-voice-beta.preview.emergentagent.com
+- **Base URL**: https://gemini-voice-fix.preview.emergentagent.com
 
 ## Test Results
 
@@ -1587,6 +1587,18 @@ backend:
     stuck_count: 0
     priority: "high"
     needs_retesting: false
+
+  - task: "Read Aloud TTS Endpoint - POST /api/voice/tts/read-aloud"
+    implemented: true
+    working: "NA"
+    file: "app/api/voice/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "New endpoint for reading messages aloud. Uses OpenAI TTS with full text support (up to 4096 chars), markdown stripping, and user's default voice. Returns audio/mpeg stream. Manually tested: 200 OK with 176160 bytes audio in 5.4s."
 
   - task: "Auth Me - GET /api/auth/me"
     implemented: true

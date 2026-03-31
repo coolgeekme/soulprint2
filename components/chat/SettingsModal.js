@@ -5,7 +5,7 @@ import {
   Megaphone, ExternalLink, ChevronRight, LogOut, Sun, Moon, Bot,
   Trash2, Clock, MessageCircle, Copy, Sparkles, MessageSquare,
   ChevronDown, Upload, Download, FileText, GitCompare, Link, Plus,
-  RefreshCw, Send, ThumbsUp, Zap, CheckCircle2
+  RefreshCw, Send, ThumbsUp, Zap, CheckCircle2, Volume2, VolumeX
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { FeedbackIcon, RobotIcon } from '@/components/icons/SoulPrintIcons';
@@ -1122,6 +1122,9 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
   const [voiceSettings, setVoiceSettings] = useState({ default_voice: 'alloy', default_gemini_voice: 'Puck', voice_engine: 'openai', web_search_enabled: true });
   const [voiceSettingsLoading, setVoiceSettingsLoading] = useState(false);
   const [voiceSettingsSaving, setVoiceSettingsSaving] = useState(false);
+  const [playingSampleVoice, setPlayingSampleVoice] = useState(null); // voice name being previewed
+  const [sampleLoading, setSampleLoading] = useState(null); // voice name currently loading
+  const sampleAudioRef = useRef(null);
 
   // Load voice settings
   const loadVoiceSettings = async () => {
@@ -1160,6 +1163,101 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
       console.error('Failed to save voice settings:', e);
     }
     setVoiceSettingsSaving(false);
+  };
+
+  // Play voice sample preview
+  const playVoiceSample = async (voiceName, engine) => {
+    // If already playing this voice, stop it
+    if (playingSampleVoice === voiceName) {
+      if (sampleAudioRef.current) {
+        sampleAudioRef.current.pause();
+        sampleAudioRef.current = null;
+      }
+      setPlayingSampleVoice(null);
+      return;
+    }
+
+    // Stop any currently playing sample
+    if (sampleAudioRef.current) {
+      sampleAudioRef.current.pause();
+      sampleAudioRef.current = null;
+    }
+
+    setSampleLoading(voiceName);
+    setPlayingSampleVoice(null);
+
+    try {
+      if (engine === 'gemini') {
+        // Use Gemini voice sample endpoint (native audio model)
+        const res = await fetch('/api/gemini/voice-sample', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ voice: voiceName }),
+        });
+        if (!res.ok) throw new Error('Failed to generate sample');
+        const data = await res.json();
+        
+        // Convert PCM16 base64 to playable audio
+        const pcmBytes = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
+        // Create WAV header for PCM16 24kHz mono
+        const sampleRate = 24000;
+        const numChannels = 1;
+        const bitsPerSample = 16;
+        const dataSize = pcmBytes.length;
+        const wavHeader = new ArrayBuffer(44);
+        const view = new DataView(wavHeader);
+        const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+        writeStr(0, 'RIFF');
+        view.setUint32(4, 36 + dataSize, true);
+        writeStr(8, 'WAVE');
+        writeStr(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numChannels * (bitsPerSample / 8), true);
+        view.setUint16(32, numChannels * (bitsPerSample / 8), true);
+        view.setUint16(34, bitsPerSample, true);
+        writeStr(36, 'data');
+        view.setUint32(40, dataSize, true);
+        
+        const wavBlob = new Blob([wavHeader, pcmBytes], { type: 'audio/wav' });
+        const audioUrl = URL.createObjectURL(wavBlob);
+        const audio = new Audio(audioUrl);
+        sampleAudioRef.current = audio;
+        
+        audio.onended = () => { setPlayingSampleVoice(null); sampleAudioRef.current = null; URL.revokeObjectURL(audioUrl); };
+        audio.onerror = () => { setPlayingSampleVoice(null); sampleAudioRef.current = null; URL.revokeObjectURL(audioUrl); };
+        
+        setSampleLoading(null);
+        setPlayingSampleVoice(voiceName);
+        await audio.play();
+      } else {
+        // OpenAI TTS preview
+        const res = await fetch('/api/voice/tts/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ voice: voiceName, text: `Hi, I'm ${voiceName}. This is how I sound!` }),
+        });
+        if (!res.ok) throw new Error('TTS preview failed');
+        
+        const audioBlob = await res.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        sampleAudioRef.current = audio;
+        
+        audio.onended = () => { setPlayingSampleVoice(null); sampleAudioRef.current = null; URL.revokeObjectURL(audioUrl); };
+        audio.onerror = () => { setPlayingSampleVoice(null); sampleAudioRef.current = null; URL.revokeObjectURL(audioUrl); };
+        
+        setSampleLoading(null);
+        setPlayingSampleVoice(voiceName);
+        await audio.play();
+      }
+    } catch (e) {
+      console.error('Voice sample error:', e);
+      setSampleLoading(null);
+      setPlayingSampleVoice(null);
+    }
   };
 
   // Auto-load voice settings when voice tab is opened
@@ -2100,20 +2198,45 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                           { id: 'shimmer', name: 'Shimmer', desc: 'Bright & energetic' },
                           { id: 'verse', name: 'Verse', desc: 'Dynamic & engaging' },
                         ].map(voice => (
-                          <button
+                          <div
                             key={voice.id}
-                            onClick={() => saveVoiceSetting('default_voice', voice.id)}
-                            className={`p-3 rounded-xl border transition-all text-left ${
+                            className={`p-3 rounded-xl border transition-all ${
                               voiceSettings.default_voice === voice.id 
                                 ? 'bg-orange-500/20 border-orange-500/50' 
                                 : 'bg-white/5 border-white/10 hover:bg-white/10'
                             }`}
                           >
-                            <p className={`font-medium text-sm ${voiceSettings.default_voice === voice.id ? 'text-orange-400' : 'text-white'}`}>
-                              {voice.name}
-                            </p>
-                            <p className="text-xs text-gray-500">{voice.desc}</p>
-                          </button>
+                            <div className="flex items-center justify-between">
+                              <button
+                                onClick={() => saveVoiceSetting('default_voice', voice.id)}
+                                className="flex-1 text-left"
+                              >
+                                <p className={`font-medium text-sm ${voiceSettings.default_voice === voice.id ? 'text-orange-400' : 'text-white'}`}>
+                                  {voice.name}
+                                </p>
+                                <p className="text-xs text-gray-500">{voice.desc}</p>
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); playVoiceSample(voice.id, 'openai'); }}
+                                className={`p-1.5 rounded-lg transition-all flex-shrink-0 ${
+                                  playingSampleVoice === voice.id 
+                                    ? 'bg-orange-500/30 text-orange-300' 
+                                    : sampleLoading === voice.id
+                                    ? 'bg-white/10 text-gray-400'
+                                    : 'hover:bg-white/10 text-gray-500 hover:text-orange-400'
+                                }`}
+                                title={playingSampleVoice === voice.id ? 'Stop preview' : 'Preview voice'}
+                              >
+                                {sampleLoading === voice.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : playingSampleVoice === voice.id ? (
+                                  <VolumeX className="w-4 h-4" />
+                                ) : (
+                                  <Volume2 className="w-4 h-4" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -2140,29 +2263,52 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                           { id: 'Orus', name: 'Orus', desc: 'Rich & steady' },
                           { id: 'Zephyr', name: 'Zephyr', desc: 'Light & airy' },
                         ].map(voice => (
-                          <button
+                          <div
                             key={voice.id}
-                            onClick={() => saveVoiceSetting('default_gemini_voice', voice.id)}
-                            className={`p-3 rounded-xl border transition-all text-left ${
+                            className={`p-3 rounded-xl border transition-all ${
                               voiceSettings.default_gemini_voice === voice.id 
                                 ? 'bg-blue-500/20 border-blue-500/50' 
                                 : 'bg-white/5 border-white/10 hover:bg-white/10'
                             }`}
                           >
                             <div className="flex items-center gap-2">
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                                voiceSettings.default_gemini_voice === voice.id ? 'bg-blue-500/30 text-blue-300' : 'bg-white/10 text-gray-400'
-                              }`}>
-                                {voice.name[0]}
-                              </div>
-                              <div>
-                                <p className={`font-medium text-sm ${voiceSettings.default_gemini_voice === voice.id ? 'text-blue-400' : 'text-white'}`}>
-                                  {voice.name}
-                                </p>
-                                <p className="text-xs text-gray-500">{voice.desc}</p>
-                              </div>
+                              <button
+                                onClick={() => saveVoiceSetting('default_gemini_voice', voice.id)}
+                                className="flex items-center gap-2 flex-1 text-left"
+                              >
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                                  voiceSettings.default_gemini_voice === voice.id ? 'bg-blue-500/30 text-blue-300' : 'bg-white/10 text-gray-400'
+                                }`}>
+                                  {voice.name[0]}
+                                </div>
+                                <div>
+                                  <p className={`font-medium text-sm ${voiceSettings.default_gemini_voice === voice.id ? 'text-blue-400' : 'text-white'}`}>
+                                    {voice.name}
+                                  </p>
+                                  <p className="text-xs text-gray-500">{voice.desc}</p>
+                                </div>
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); playVoiceSample(voice.id, 'gemini'); }}
+                                className={`p-1.5 rounded-lg transition-all flex-shrink-0 ${
+                                  playingSampleVoice === voice.id 
+                                    ? 'bg-blue-500/30 text-blue-300' 
+                                    : sampleLoading === voice.id
+                                    ? 'bg-white/10 text-gray-400'
+                                    : 'hover:bg-white/10 text-gray-500 hover:text-blue-400'
+                                }`}
+                                title={playingSampleVoice === voice.id ? 'Stop preview' : 'Preview voice'}
+                              >
+                                {sampleLoading === voice.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : playingSampleVoice === voice.id ? (
+                                  <VolumeX className="w-4 h-4" />
+                                ) : (
+                                  <Volume2 className="w-4 h-4" />
+                                )}
+                              </button>
                             </div>
-                          </button>
+                          </div>
                         ))}
                       </div>
                     </div>

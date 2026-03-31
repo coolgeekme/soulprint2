@@ -9,7 +9,7 @@ import json
 import time
 
 # Configuration
-BASE_URL = "https://realtime-voice-beta.preview.emergentagent.com/api"
+BASE_URL = "https://gemini-voice-fix.preview.emergentagent.com/api"
 LOGIN_EMAIL = "test@soulprint.com"
 LOGIN_PASSWORD = "test123"
 

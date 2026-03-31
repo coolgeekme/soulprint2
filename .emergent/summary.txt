@@ -1,113 +1,119 @@
 <analysis>**original_problem_statement**: 
 The user requested continuous bug fixes and backend architecture improvements, along with new user experience features. Key requirements included:
 1. Fixing the Realtime Voice chat failures (OpenAI Realtime WebRTC connection fails).
-2. Ensuring Telegram integration works properly on a permanent domain, including model selection and link/unlink functionality.
-3. Updating security headers to allow screen recording extensions (Dubb, Loom) to access the microphone and camera.
-4. Implementing a toggle to switch the AI Greeting on and off in the user's profile settings.
-5. Ensuring the Default Voice selected in settings actually propagates correctly to the voice chat component upon opening.
-6. Adding **Gemini 3.1 Flash Live** as an alternative engine for Real-time Voice Chat while preserving the default voice preferences.
+2. Ensuring Telegram integration works properly on a permanent domain.
+3. Updating security headers to allow screen recording extensions.
+4. Implementing a toggle to switch the AI Greeting on and off.
+5. Ensuring the Default Voice selected in settings propagates correctly.
+6. Adding **Gemini 3.1 Flash Live** (later adjusted to ) as an alternative engine for Real-time Voice Chat while preserving the default voice preferences.
 
 **User's preferred language**: English
 *(INSTRUCT next agent to respond in English only)*
 
 **what currently exists?** 
-A Next.js/MongoDB multi-model AI chat application. The application has an advanced Real-time Voice Chat feature previously using OpenAI's WebRTC API (successfully upgraded to  SDP proxying in this session). It supports dynamic model switching, a Telegram bot integration, and an Assessment Nudge system. The codebase has a massive catch-all API route that is slowly being refactored, with some shared utilities successfully extracted.
+A Next.js/MongoDB multi-model AI chat application supporting Real-time Voice Chat with both OpenAI (WebRTC) and Gemini (WebSocket). The Gemini implementation is actively being refined—it now features 8 native voices, tool calling (web search), and voice previews in the settings menu. 
 
 **Last working item**: 
-    - Last item agent was working: Implementing **Gemini 3.1 Flash Live** as a real-time voice chat option. The agent researched the new model (released March 26, 2026), installed the  JavaScript SDK, and created the backend endpoint  to generate ephemeral tokens for the WebSocket connection.
+    - Last item agent was working: Fixing the discrepancy between the Gemini preview voices and the actual chat voices. Previews were using a TTS model () while the chat used a native audio model (), making them sound different. The agent just rewrote  to use the  SDK with the native audio model instead of raw WebSockets (which caused timeout/webpack issues).
     - Status: IN PROGRESS
-    - Agent Testing Done: N
-    - Which testing method agent to use?: Frontend testing agent/screenshot tool for the UI additions, manual testing via browser for the WebSocket connection audio streaming.
+    - Agent Testing Done: N (File just written, testing pending).
+    - Which testing method agent to use?: manual testing by curl/python script to verify the voice sample endpoint returns a valid audio buffer, followed by checking the frontend UI to click the preview buttons.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  Issue 1: **Implement Gemini 3.1 Flash Live Voice Chat Component (P0)**
-     - Attempted fixes: Backend token endpoint created (). 
+  - Issue 1: **Gemini voice samples not matching actual chat voices (P0)**
+     - Attempted fixes: Agent rewrote  to use  with . Previously attempted using the  package, which threw Webpack/Next.js compilation errors.
      - Next debug checklist: 
-         - Implement the WebSocket streaming connection on the frontend (Gemini Live API requires WebSockets, not WebRTC like OpenAI).
-         - Update  (or create a new ) to handle the bidirectional audio using .
-         - Update Settings -> Voice tab to allow the user to select the Engine (OpenAI vs. Gemini) alongside the default voice.
-     - Why fix this issue and what will be achieved with the fix?: Adds a low-latency audio-to-audio engine as directly requested by the user.
+         - Execute a test script to hit  and ensure it returns base64 audio within a reasonable time.
+         - Click the speaker icon in the frontend Settings -> Voice tab to confirm the audio plays and matches the chat voice.
+     - Why fix this issue and what will be achieved with the fix?: Ensures UX consistency between previewed voices and the actual conversation.
      - Status: IN PROGRESS
      - Is recurring issue?: N
      - Should Test frontend/backend/both after fix?: Both
      - Blocked on other issue: None
+  
+  - Issue 2: **Validate end-to-end Gemini Voice Chat stability (P1)**
+     - Attempted fixes: Fixed multiple edge cases: Blob parsing in browser WebSockets, JSON struct formatting for tool responses, and backend GET handlers stripping default settings.
+     - Next debug checklist: Perform an end-to-end user voice conversation using the UI.
+     - Why fix this issue and what will be achieved with the fix?: Fulfills the user's primary feature request for stable Gemini Voice integration.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue?: N
+     - Should Test frontend/backend/both after fix?: Frontend
+     - Blocked on other issue: None
 
 **In progress Task List**: 
-None currently active.
+None active outside the above issues.
 
 **Upcoming and Future Tasks**
-- **P1**: **Further Backend Route Decomposition**:  still contains ~9.8k lines. Needs extraction of  and other massive functions.
-- **P2**: **Mask Editing UI Polish**: Ensure the frontend brush tool over the image canvas is fully stable and intuitive for mask-based edits.
-- **P3**: **Image Dynamic Intelligence Backend Wiring**: Ensure the backend dynamically routes Image requests based on the prompt rather than just defaulting.
+- **P1**: **Further Backend Route Decomposition**:  still contains ~9.8k lines. Extraction of large handlers into  is needed.
+- **P2**: **Mask Editing UI Polish**: Ensure the frontend brush tool over the image canvas is stable for mask-based edits.
+- **P3**: **Image Dynamic Intelligence Backend Wiring**: Ensure the backend dynamically routes Image requests based on the prompt.
 - **P4**: **Multi-Agent System (Agency Mode)**: Phase 2 orchestration system based on  (carried over).
 
 **Completed work in this session**
-- **OpenAI Realtime Voice Upgrade** (DONE): Migrated from deprecated  to . Switched from direct ephemeral tokens to server-side SDP proxying via .
-- **Telegram Integration Fixes** (DONE): Pointed webhook to the permanent production domain. Fixed  route. Extracted missing utilities into  to fix 500 crashes. Fixed  handler for Dynamic Intelligence selection. Rewrote Google integrations inside Telegram to use direct  instead of the missing  package.
-- **Camera/Microphone Permissions** (DONE): Changed  in  from  to  to support external screen recording extensions.
-- **AI Greeting Toggle** (DONE): Added  toggle to Settings > Profile and updated  to respect the setting.
-- **Default Voice Persistence** (DONE): Fixed mismatch in API response parsing () and added settings payload to  so  initializes with the correct voice instantly without reverting to 'alloy'.
-- **Admin Dashboard Crash Fix** (DONE): Fixed  in  caused by missing optional chaining on .
-- **Settings Voice Tab Crash Fix** (DONE): Fixed  undefined error.
+- Gemini Voice Chat Component Integration (DONE): Created  using WebSockets.
+- Voice Engine UI Selector (DONE): Added UI to toggle between OpenAI and Gemini engines.
+- Browser WebSocket Blob Fix (DONE): Fixed  returning  instead of string, which was crashing .
+- Gemini Voice Chat Model Swap (DONE): Switched from  (failed with text inputs) to .
+- Gemini Tool Response Fix (DONE): Wrapped string tool responses in  JSON structs as required by the Gemini API.
+- Voice Preference Persistence Fix (DONE): Fixed the  GET handler which was explicitly stripping out the  field.
+- Voice Previews UI (DONE): Added speaker icons to voice cards in Settings to generate short audio previews.
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: Long-running streams hanging without closing (Video Generation). (Resolved in previous fork).
-  - Recurrence count: 0
+  - Issue recurrence in previous fork: Long-running streams hanging without closing. 
+  - Recurrence count: 0 (Resolved)
   - Status: RESOLVED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Realtime Voice Architecture (OpenAI)**: Now uses server-side SDP proxying to OpenAI  over WebRTC.
-- **Realtime Voice Architecture (Gemini - WIP)**: Uses the  SDK and establishes a direct **WebSocket** connection (no WebRTC) utilizing an ephemeral token fetched from the backend.
-- **Telegram Webhooks**: Processes incoming chat via . Depends heavily on  for rate limiting and AI contextual tools.
+- **Gemini WebSocket Architecture**: Uses the Gemini Live API via WebSockets. Requires fetching an ephemeral token from the backend, establishing the connection, and handling  and  lifecycles.
+- **Browser WebSocket Data**: In the browser,  from Gemini arrives as a . You must call  before attempting .
+- **Gemini Tool Call Formatting**: When returning a tool response to Gemini, the data must be a valid JSON Object (protobuf Struct), e.g., . Raw strings cause a 1007 Invalid Argument closure.
 
 **key DB schema**
-  - : Stores user defaults (, ).
-  - : Added  boolean.
-  - : Links Telegram ID to internal .
+  - : Stores , , , . Kept in sync with .
 
 **changes in tech stack**
-  - Upgraded  dependency to utilize Gemini 3.1 Flash Live capabilities.
-  - OpenAI Realtime SDK shifted from  to .
+  - Heavily utilizing  (v1.47.0) for both backend token generation and voice sample generation.
 
 **All files of reference** 
-  -  (NEW - created for Gemini Voice)
-  -  (Currently strictly OpenAI WebRTC, needs to be adapted or cloned for Gemini)
-  -  (Contains Voice selection UI, needs engine selection for Gemini vs OpenAI)
-  -  (Created to fix monolithic import dependencies)
-  -  (Permissions-Policy header updated)
+  -  (New/Fixed)
+  -  (Created, actively being modified to use SDK instead of raw  package)
+  -  (Updated to stop stripping )
+  -  (Updated to allow  for session updates)
+  -  (Updated UI)
 
 **Areas that need refactoring**: 
-  - : Still massively overloaded (~9.8k lines). Continuing to extract handlers into  is critical.
+  -  (Still massive).
 
 **key api endpoints**
-  - : SDP Offer/Answer proxy for OpenAI.
-  - : Generates WebSocket ephemeral tokens for Gemini Live.
-  - : Main ingestion for Telegram messages.
-  - : Updates linked user's preferred Telegram model.
+  - 
+  - 
+  - 
+  - 
 
 **Critical Info for New Agent** 
-- **Voice Engine Difference**: You MUST remember that OpenAI Realtime utilizes **WebRTC** (passing SDPs), whereas Gemini 3.1 Flash Live uses **WebSockets**. You cannot just swap the model name in the existing  component. You will likely need to implement a dedicated WebSocket hook/component for Gemini and dynamically switch between them based on user settings.
-- **State Management**: When updating , ensure you safely handle uninitialized states ( optional chaining) to prevent UI crashes like the  bug fixed in this session.
+- **Model Choice**: Do NOT switch back to . That model failed to properly handle the initial text setups and tool calls required by the application flow. We are using  which works perfectly.
+- **Voice Sample Endpoint**: The  node package causes Webpack evaluation errors in Next.js App Router API endpoints. The previous agent just rewrote  to use  to bypass this, but ran out of tokens. Ensure the new implementation works.
 
 **documents and test reports created in this job** 
-  -  (Updated with backend test pass for Realtime session)
+  - 
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
-1. *User*: i dont think the default voice the user selects function is working properly in voice chat (both desktop and mobile)...
-2. *User*: Still not working. Voice chat just falls back to the “Alloy” voice instead of the voice that the user selects as default.
-3. *User*: few things. when i go into setting and click on voice i'm taken right back to the chat. also, there should be some notification or text that tells the user they can select a different default voice chat voice in settings.
-4. *User*: when i click on a user in admin dashboard, I get an error page. (Attached image).
-5. *User*: Do you think we can make Gemini 3.1 Flash Live available as a voice chat option?
-6. *User*: 1. You should already have my Gemini Key. 2. C. We need to make sure that the user still has the option of selecting a default voice chat voice.
+1. *User*: 1. Should be good. 2. use Gemini's native voice options. 3. no
+2. *User*: error. Make sure these latest updates work on both desktop and mobile. (Attached screenshot of Setup Timeout).
+3. *User*: I tried engaging in a chat, but nothing happened. Also, is there a way to hear samples of the Gemini voices?
+4. *User*: got this when i asked who won the duke vs uconn game the other night (Attached screenshot of Tool crash).
+5. *User*: i tried selecting a default Gemini voice in the settings AND when i clicked the waveform button, but it just defaulted to the first Gemini voice Puck
+6. *User*: something isn't right. the voice used for voice chat does NOT sound like ANY the available voices on both OpenAI or Gemini
 
-*(No pending human messages. The agent generated the Gemini endpoint file and then context ended).*
+*(No pending human messages. The agent was mid-fix addressing message #6).*
 
 **Project Health Check:**
 - Broken: None.
@@ -115,18 +121,17 @@ None.
 
 **3rd Party Integrations** 
 - OpenAI GPT-4o / Realtime API WebRTC — uses Emergent LLM Key
-- Google Gemini 3.1 Flash Live API — uses **User API Key** (GEMINI_API_KEY)
-- Telegram Bot API — uses User API Key (TELEGRAM_BOT_TOKEN)
-- Kie.ai (Video Generation) — uses Emergent API Key
+- Google Gemini Live API () — uses **User API Key** (GEMINI_API_KEY)
+- Telegram Bot API — uses User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Backend testing passed on ).
+  - Testing agent used after significant changes: YES (Tested backend Gemini endpoints successfully).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None currently known.
+  - Known regressions: None.
 
 **Credentials to test flow:**
-- Check  for primary auth. Test account: 
+- Check  for auth ().
 
 **What agent forgot to execute**
-The agent started the Gemini 3.1 Flash Live integration by creating the token generation endpoint but ran out of context before writing the frontend WebSocket consumer component and wiring it into the Voice Settings UI. Next agent must continue the Gemini Live integration immediately.</analysis>
+The agent just injected a brand-new implementation of  utilizing the  SDK but ran out of tokens before verifying it. Next agent must test this endpoint to ensure voice samples successfully generate and play in the UI.</analysis>

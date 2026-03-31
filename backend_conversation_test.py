@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://realtime-voice-beta.preview.emergentagent.com/api"
+BASE_URL = "https://gemini-voice-fix.preview.emergentagent.com/api"
 TEST_EMAIL = "reggie@coolgeek.me"
 TEST_PASSWORD = "password123"  # any password works for superadmin accounts
 

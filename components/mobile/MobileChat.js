@@ -140,6 +140,10 @@ export default function MobileChat({
   const [manualLocationInput, setManualLocationInput] = useState('');
   const [locationError, setLocationError] = useState(null);
   
+  // Read aloud state
+  const [readingAloudId, setReadingAloudId] = useState(null);
+  const readAloudAudioRef = useRef(null);
+  
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -1208,6 +1212,60 @@ export default function MobileChat({
       });
     } catch (err) {
       console.error('Feedback error:', err);
+    }
+  };
+
+  // Read message aloud using TTS
+  const handleReadAloud = async (content, messageId) => {
+    // If already reading this message, stop it
+    if (readingAloudId === messageId) {
+      if (readAloudAudioRef.current) {
+        readAloudAudioRef.current.pause();
+        readAloudAudioRef.current = null;
+      }
+      setReadingAloudId(null);
+      return;
+    }
+    
+    // Stop any currently playing audio
+    if (readAloudAudioRef.current) {
+      readAloudAudioRef.current.pause();
+      readAloudAudioRef.current = null;
+    }
+
+    setReadingAloudId(messageId);
+    try {
+      const res = await fetch('/api/voice/tts/read-aloud', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ text: content }),
+      });
+      
+      if (!res.ok) throw new Error('TTS request failed');
+      
+      const audioBlob = await res.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      readAloudAudioRef.current = audio;
+      
+      audio.onended = () => {
+        setReadingAloudId(null);
+        readAloudAudioRef.current = null;
+        URL.revokeObjectURL(audioUrl);
+      };
+      audio.onerror = () => {
+        setReadingAloudId(null);
+        readAloudAudioRef.current = null;
+        URL.revokeObjectURL(audioUrl);
+      };
+      
+      await audio.play();
+    } catch (e) {
+      console.error('Read aloud failed:', e);
+      setReadingAloudId(null);
     }
   };
 
@@ -2306,6 +2364,8 @@ export default function MobileChat({
                   onFeedback={handleFeedback}
                   token={token}
                   onRegenerateWith={handleRegenerateWithModel}
+                  onReadAloud={handleReadAloud}
+                  readingAloudId={readingAloudId}
                   onVideoReady={(messageId, videoUrl) => {
                     setMessages(prev => prev.map(m => 
                       m.id === messageId ? { ...m, video_url: videoUrl } : m

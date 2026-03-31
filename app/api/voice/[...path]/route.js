@@ -187,6 +187,81 @@ async function handleTTSPreview(request) {
 }
 
 
+// Read aloud endpoint - supports full message text (up to 4096 chars)
+async function handleTTSReadAloud(request) {
+  try {
+    const user = await authenticate(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { text, voice } = body;
+
+    if (!text) {
+      return NextResponse.json({ error: 'Text required' }, { status: 400 });
+    }
+
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    }
+
+    // Strip markdown formatting for cleaner TTS output
+    const cleanText = text
+      .replace(/```[\s\S]*?```/g, ' code block ') // Replace code blocks
+      .replace(/`[^`]+`/g, (match) => match.slice(1, -1)) // Inline code - just remove backticks
+      .replace(/#{1,6}\s/g, '') // Remove heading markers
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Bold
+      .replace(/\*([^*]+)\*/g, '$1') // Italic
+      .replace(/!\[.*?\]\(.*?\)/g, '') // Images
+      .replace(/\[([^\]]+)\]\(.*?\)/g, '$1') // Links
+      .replace(/[-*+]\s/g, '') // List markers
+      .replace(/^\d+\.\s/gm, '') // Numbered lists
+      .replace(/>\s/g, '') // Blockquotes
+      .replace(/\n{2,}/g, '. ') // Multiple newlines to pause
+      .replace(/\n/g, ' ') // Single newlines
+      .trim()
+      .slice(0, 4096); // OpenAI TTS limit
+
+    // Use user's default voice or fallback to 'alloy'
+    const selectedVoice = voice || user.voice_settings?.default_voice || 'alloy';
+
+    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'tts-1',
+        input: cleanText,
+        voice: selectedVoice,
+        response_format: 'mp3',
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      console.error('[TTS ReadAloud] Error:', err);
+      return NextResponse.json({ error: err.error?.message || 'TTS failed' }, { status: response.status });
+    }
+
+    const audioBuffer = await response.arrayBuffer();
+    return new NextResponse(audioBuffer, {
+      headers: {
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': audioBuffer.byteLength.toString(),
+      },
+    });
+  } catch (err) {
+    console.error('[TTS ReadAloud] Error:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+
+
 async function handleCreateVoiceSession(request) {
   try {
     const user = await authenticate(request);
@@ -1147,6 +1222,7 @@ export async function POST(request, { params }) {
   
   try {
     if (pathStr === 'tts/preview') return handleTTSPreview(request);
+    if (pathStr === 'tts/read-aloud') return handleTTSReadAloud(request);
     if (pathStr === 'sessions') return handleCreateVoiceSession(request);
     if (pathStr === 'search') return handleWebSearch(request);
     if (pathStr === 'tool') return handleVoiceToolExecute(request);
