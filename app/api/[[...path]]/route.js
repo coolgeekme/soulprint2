@@ -7861,8 +7861,31 @@ Style: Professional graphic design quality. Make it look like a skilled designer
         if (fullContent.includes('[SUPPORT_ESCALATION]')) {
           (async () => {
             try {
-              const escalationMatch = fullContent.match(/\[SUPPORT_ESCALATION\]\s*(\{[\s\S]*?\})/);
-              const escalationData = escalationMatch ? JSON.parse(escalationMatch[1]) : { issue: 'Unknown issue flagged by AI' };
+              // Use balanced-brace matching to extract JSON (handles nested braces & multi-line)
+              let escalationData = { issue: 'Unknown issue flagged by AI' };
+              const markerIdx = fullContent.indexOf('[SUPPORT_ESCALATION]');
+              if (markerIdx !== -1) {
+                const afterMarker = fullContent.slice(markerIdx + '[SUPPORT_ESCALATION]'.length).trim();
+                const braceStart = afterMarker.indexOf('{');
+                if (braceStart !== -1) {
+                  let depth = 0;
+                  let braceEnd = -1;
+                  for (let i = braceStart; i < afterMarker.length; i++) {
+                    if (afterMarker[i] === '{') depth++;
+                    else if (afterMarker[i] === '}') { depth--; if (depth === 0) { braceEnd = i; break; } }
+                  }
+                  if (braceEnd !== -1) {
+                    try {
+                      escalationData = JSON.parse(afterMarker.slice(braceStart, braceEnd + 1));
+                    } catch (parseErr) {
+                      console.error('[Support] Failed to parse escalation JSON:', parseErr.message);
+                      // Try to extract raw text as the issue description
+                      const rawText = afterMarker.slice(braceStart, braceEnd + 1);
+                      escalationData = { issue: rawText.substring(0, 200), parse_error: true };
+                    }
+                  }
+                }
+              }
               
               const userEmail = user.email || 'unknown';
               const userName = user.display_name || user.email || 'Unknown user';
@@ -7872,7 +7895,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   from: process.env.SENDER_EMAIL || 'support@soulprintengine.ai',
-                  to: 'team@archeforge.com',
+                  to: process.env.SENDER_EMAIL || 'support@soulprintengine.ai',
                   subject: `[SoulPrint Support] ${escalationData.issue?.slice(0, 80) || 'User reported issue'}`,
                   html: `
                     <h2>Support Escalation from SoulPrint</h2>
@@ -7894,7 +7917,28 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           })();
           
           // Clean the marker from the stored message so users don't see raw JSON
-          const cleanContent = fullContent.replace(/\[SUPPORT_ESCALATION\]\s*\{[\s\S]*?\}/g, '').trim();
+          // Use balanced-brace matching for cleanup too
+          let cleanContent = fullContent;
+          const escIdx = cleanContent.indexOf('[SUPPORT_ESCALATION]');
+          if (escIdx !== -1) {
+            const beforeMarker = cleanContent.slice(0, escIdx);
+            const afterEsc = cleanContent.slice(escIdx + '[SUPPORT_ESCALATION]'.length).trim();
+            const braceStart = afterEsc.indexOf('{');
+            if (braceStart !== -1) {
+              let depth = 0, braceEnd = -1;
+              for (let i = braceStart; i < afterEsc.length; i++) {
+                if (afterEsc[i] === '{') depth++;
+                else if (afterEsc[i] === '}') { depth--; if (depth === 0) { braceEnd = i; break; } }
+              }
+              if (braceEnd !== -1) {
+                cleanContent = (beforeMarker + afterEsc.slice(braceEnd + 1)).trim();
+              } else {
+                cleanContent = beforeMarker.trim();
+              }
+            } else {
+              cleanContent = beforeMarker.trim();
+            }
+          }
           if (cleanContent !== fullContent) {
             await db.collection('messages').updateOne(
               { id: assistantMsgId },
