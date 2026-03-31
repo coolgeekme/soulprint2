@@ -4985,7 +4985,7 @@ async function handleAdminResolveIssue(request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'SoulPrint Engine <team@archeforge.com>',
+        from: 'SoulPrint Engine <support@soulprintengine.ai>',
         to: [user_email],
         subject: subjectLine,
         html: htmlContent,
