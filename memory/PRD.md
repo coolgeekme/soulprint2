@@ -78,9 +78,29 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
   - Mobile: Volume2 icon with "Read" label in message action tray
   - Stop/cancel support: clicking again stops playback
 
+- **Social Media Landing Page**: Ad destination page at `/lp/social`
+  - File: `/app/app/lp/social/page.js`
+  - Dark theme with orange/amber gradients matching SoulPrint branding
+  - Sections: Hero, Problem/Hook, Features (6 cards), How It Works (3 steps), Comparison table, Final CTA, Footer
+  - Fully responsive (desktop + mobile)
+  - Scroll animations via IntersectionObserver
+  - CTA links to `/auth` for signup
+  - Uses SoulPrint logo assets (light + icon variants)
+
+- **Admin Support Notification System**: Notify users when issues are resolved
+  - Backend: `POST /api/admin/resolve-issue` sends email via Resend + stores in-app notification
+  - Email from `support@soulprintengine.ai` with `[SoulPrint Engine Support]` subject prefix
+  - In-app toast notification on next chat page visit
+  - Admin UI: Support tab in admin dashboard with form
+
+- **Clickable Bare URLs**: All URLs in chat replies are now clickable links
+  - Updated `SafeMarkdown.js` with regex-based URL linkification
+
 ## Key Files
-- `/app/app/api/admin/[...path]/route.js` — Admin API (metrics, insights, conversations)
-- `/app/app/admin/page.js` — Admin dashboard frontend
-- `/app/app/chat/page.js` — Chat page with Telegram disconnect
+- `/app/app/api/admin/[...path]/route.js` — Admin API (metrics, insights, conversations, support)
+- `/app/app/admin/page.js` — Admin dashboard frontend (with Support tab)
+- `/app/app/chat/page.js` — Chat page with Telegram disconnect, notification toast
+- `/app/app/lp/social/page.js` — Social media landing page
 - `/app/lib/mongo.js` — MongoDB connection (lazy loading)
 - `/app/api/[[...path]]/route.js` — Main API router
+- `/app/components/SafeMarkdown.js` — Markdown renderer with bare URL linking

@@ -13,7 +13,7 @@ import os
 from datetime import datetime
 
 # Configuration
-BASE_URL = "https://gemini-voice-fix.preview.emergentagent.com/api"
+BASE_URL = "https://social-ad-dest.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSWORD = "test123"
 

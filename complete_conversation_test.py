@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://gemini-voice-fix.preview.emergentagent.com/api"
+BASE_URL = "https://social-ad-dest.preview.emergentagent.com/api"
 
 def main():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 Complete Conversation API Test (Rename + Delete)")

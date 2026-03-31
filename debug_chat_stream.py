@@ -8,7 +8,7 @@ import json
 import time
 
 # Configuration
-BASE_URL = "https://gemini-voice-fix.preview.emergentagent.com"
+BASE_URL = "https://social-ad-dest.preview.emergentagent.com"
 AUTH_EMAIL = "test@soulprint.com"
 AUTH_PASSWORD = "test123"
 

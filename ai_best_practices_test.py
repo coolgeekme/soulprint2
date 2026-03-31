@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://gemini-voice-fix.preview.emergentagent.com"
+BASE_URL = "https://social-ad-dest.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

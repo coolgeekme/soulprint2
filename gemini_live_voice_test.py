@@ -15,7 +15,7 @@ import time
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://gemini-voice-fix.preview.emergentagent.com"
+BASE_URL = "https://social-ad-dest.preview.emergentagent.com"
 LOGIN_EMAIL = "testchat@example.com"
 LOGIN_PASSCODE = "Test123456"
 

@@ -1192,7 +1192,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/image/edit, POST /api/composite/test
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://gemini-voice-fix.preview.emergentagent.com
+- **Base URL**: https://social-ad-dest.preview.emergentagent.com
 
 ## Test Results
 
@@ -1233,7 +1233,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/media/generate, GET /api/media/status/:taskId, GET /api/media/video/status/:taskId, POST /api/media/save-to-gallery, GET /api/media/gallery
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://gemini-voice-fix.preview.emergentagent.com
+- **Base URL**: https://social-ad-dest.preview.emergentagent.com
 
 ## Test Results
 
@@ -1292,7 +1292,7 @@ test_plan:
 - **Date**: 2026-03-26
 - **Endpoint Tested**: POST /api/chat/stream (Image Generation Flow)
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://gemini-voice-fix.preview.emergentagent.com
+- **Base URL**: https://social-ad-dest.preview.emergentagent.com
 
 ## Test Results
 
