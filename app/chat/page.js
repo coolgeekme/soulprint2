@@ -2351,6 +2351,7 @@ export default function ChatPage() {
 
   // Read message aloud using TTS
   async function readAloud(content, messageId) {
+    if (!content) return; // No content to read
     // If already reading this message, stop it
     if (readingAloudId === messageId) {
       if (readAloudAudioRef.current) {
@@ -3587,7 +3588,7 @@ export default function ChatPage() {
                       <div>
                         <p className="text-base font-medium text-white">Compare Responses</p>
                         <p className="text-sm text-gray-500">
-                          {compareResponses.usedWebSearch && <span className="text-cyan-400 mr-2">🌐 Web search used</span>}
+                          {compareResponses?.usedWebSearch && <span className="text-cyan-400 mr-2">🌐 Web search used</span>}
                           Select your preferred response to continue
                         </p>
                       </div>
@@ -3605,7 +3606,7 @@ export default function ChatPage() {
                         response={response}
                         onSelect={handleSelectCompareResponse}
                         selected={selectedCompareResponse === response.model}
-                        totalModels={compareResponses.responses.length}
+                        totalModels={compareResponses?.responses?.length || 0}
                       />
                     ))}
                   </div>
