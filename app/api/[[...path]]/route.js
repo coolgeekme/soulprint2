@@ -7863,9 +7863,11 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             try {
               // Use balanced-brace matching to extract JSON (handles nested braces & multi-line)
               let escalationData = { issue: 'Unknown issue flagged by AI' };
+              let rawEscalationText = '';
               const markerIdx = fullContent.indexOf('[SUPPORT_ESCALATION]');
               if (markerIdx !== -1) {
                 const afterMarker = fullContent.slice(markerIdx + '[SUPPORT_ESCALATION]'.length).trim();
+                rawEscalationText = afterMarker.substring(0, 500); // Capture raw text for debugging
                 const braceStart = afterMarker.indexOf('{');
                 if (braceStart !== -1) {
                   let depth = 0;
@@ -7878,17 +7880,26 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                     try {
                       escalationData = JSON.parse(afterMarker.slice(braceStart, braceEnd + 1));
                     } catch (parseErr) {
-                      console.error('[Support] Failed to parse escalation JSON:', parseErr.message);
-                      // Try to extract raw text as the issue description
+                      console.error('[Support] Failed to parse escalation JSON:', parseErr.message, 'Raw:', afterMarker.slice(braceStart, braceEnd + 1).substring(0, 300));
                       const rawText = afterMarker.slice(braceStart, braceEnd + 1);
                       escalationData = { issue: rawText.substring(0, 200), parse_error: true };
                     }
+                  } else {
+                    console.warn('[Support] No closing brace found. Raw after marker:', rawEscalationText);
                   }
+                } else {
+                  console.warn('[Support] No opening brace found. Raw after marker:', rawEscalationText);
                 }
               }
               
+              // Also capture the last user message for context
+              const lastUserMsg = (await db.collection('messages').find({ conversation_id: convId, role: 'user' }).sort({ timestamp: -1 }).limit(1).toArray())?.[0];
+              const lastUserContent = lastUserMsg?.content ? (typeof lastUserMsg.content === 'string' ? lastUserMsg.content : JSON.stringify(lastUserMsg.content)).substring(0, 300) : 'N/A';
+              
               const userEmail = user.email || 'unknown';
               const userName = user.display_name || user.email || 'Unknown user';
+              
+              console.log(`[Support] Escalation detected: user=${userEmail}, conv=${convId}, issue=${escalationData.issue?.substring(0, 100)}`);
               
               await fetch('https://api.resend.com/emails', {
                 method: 'POST',
@@ -7902,9 +7913,11 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                     <p><strong>User:</strong> ${userName} (${userEmail})</p>
                     <p><strong>Issue:</strong> ${escalationData.issue || 'N/A'}</p>
                     <p><strong>Steps/Context:</strong> ${escalationData.steps || escalationData.context || 'N/A'}</p>
+                    <p><strong>Last User Message:</strong> ${lastUserContent}</p>
                     <p><strong>Conversation ID:</strong> ${convId}</p>
                     <p><strong>Model:</strong> ${model}</p>
                     <p><strong>Time:</strong> ${new Date().toISOString()}</p>
+                    ${rawEscalationText && escalationData.issue === 'Unknown issue flagged by AI' ? `<p><strong>Raw AI Escalation Output:</strong> <code>${rawEscalationText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></p>` : ''}
                     <hr>
                     <p style="color:#888;font-size:12px;">This was auto-escalated by SoulPrint's in-conversation support system.</p>
                   `,
