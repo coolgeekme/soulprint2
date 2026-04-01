@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://social-ad-dest.preview.emergentagent.com"
+BASE_URL = "https://image-routing-patch.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

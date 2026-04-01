@@ -5,6 +5,7 @@ import { Loader2, Check, Download, RefreshCw, GalleryHorizontal, Pencil, Copy, C
 // ── ImageCard: renders a generated image with download option ─────────────────
 function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, onRegenerateWith }) {
   const [loaded, setLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const [showJson, setShowJson] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
   const [savedToGallery, setSavedToGallery] = useState(false);
@@ -89,17 +90,31 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, o
   return (
     <div className="mt-3 rounded-xl overflow-hidden border border-white/10 bg-[#141a21]">
       <div className="relative group">
-        {!loaded && (
+        {!loaded && !imgError && (
           <div className="w-full h-48 flex items-center justify-center bg-white/3">
             <Loader2 className="w-6 h-6 animate-spin text-orange-500/50" />
           </div>
         )}
-        <img
-          src={url}
-          alt={revisedPrompt || 'Generated image'}
-          className={`w-full max-h-96 object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0 absolute inset-0'}`}
-          onLoad={() => setLoaded(true)}
-        />
+        {imgError ? (
+          <div className="w-full h-48 flex flex-col items-center justify-center bg-white/3 gap-2">
+            <ImageIcon className="w-8 h-8 text-gray-500" />
+            <p className="text-gray-500 text-xs">Image unavailable or link expired</p>
+            <button 
+              onClick={() => { setImgError(false); setLoaded(false); }}
+              className="text-orange-400 hover:text-orange-300 text-xs underline cursor-pointer"
+            >
+              Try again
+            </button>
+          </div>
+        ) : (
+          <img
+            src={url}
+            alt={revisedPrompt || 'Generated image'}
+            className={`w-full max-h-96 object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0 absolute inset-0'}`}
+            onLoad={() => setLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+        )}
         {/* Edit button - visible on mobile, hover on desktop */}
         {onEdit && loaded && (
           <button

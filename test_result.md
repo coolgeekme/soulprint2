@@ -1192,7 +1192,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/image/edit, POST /api/composite/test
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://social-ad-dest.preview.emergentagent.com
+- **Base URL**: https://image-routing-patch.preview.emergentagent.com
 
 ## Test Results
 
@@ -1233,7 +1233,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/media/generate, GET /api/media/status/:taskId, GET /api/media/video/status/:taskId, POST /api/media/save-to-gallery, GET /api/media/gallery
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://social-ad-dest.preview.emergentagent.com
+- **Base URL**: https://image-routing-patch.preview.emergentagent.com
 
 ## Test Results
 
@@ -1292,7 +1292,7 @@ test_plan:
 - **Date**: 2026-03-26
 - **Endpoint Tested**: POST /api/chat/stream (Image Generation Flow)
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://social-ad-dest.preview.emergentagent.com
+- **Base URL**: https://image-routing-patch.preview.emergentagent.com
 
 ## Test Results
 
@@ -1608,8 +1608,85 @@ backend:
     priority: "high"
     needs_retesting: false
 
+  - task: "Image Generation - POST /api/chat/stream (image intent)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Fixed P0 broken image links. Changes: (1) Expanded persistence to ALL temp URLs (tempfile.aiquickdraw.com + DALL-E) not just DALL-E. (2) Added Imagen 4 Ultra model. (3) Removed unavailable models (midjourney-v7, flux-pro, gpt4o-image) from routing. (4) Added frontend broken image fallback in SafeMarkdown.js, ImageCard.js, MobileMediaCards.js. (5) Don't save failed generations as content_type:'image'. Manual curl test confirms: imagen-4-ultra selected for artistic prompts, Kie.ai returns success, URL persisted to tempfile.redpandaai.co."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Image generation fix working perfectly. ✅ POST /api/chat/stream with image prompts generates images with persisted URLs from tempfile.redpandaai.co (not expired oaidalleapiprodscus.blob.core.windows.net URLs). ✅ All required SSE events present: meta, generating_visual, image, done. ✅ Nano Banana model selected correctly by AI routing. ✅ Image URLs immediately accessible (HTTP 200). ✅ Text-only prompts do not trigger image generation. ✅ Saved messages have proper structure: content_type:'image' with valid image_url for images, content_type:'text' for text. ✅ Authentication working with testchat@example.com/Test123456. All 3/3 comprehensive tests passed (100% success rate). Image generation fix verified and working correctly."
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 9
+  test_sequence: 11
   run_ui: false
+
+# Backend Testing Results - Image Generation Fix Testing
+
+## Testing Summary (Latest)
+- **Date**: 2026-04-01
+- **Endpoint Tested**: POST /api/chat/stream (Image Generation Fix)
+- **Authentication**: ✅ Working (testchat@example.com/Test123456)
+- **Base URL**: https://image-routing-patch.preview.emergentagent.com
+
+## Test Results
+
+### 1. POST /api/chat/stream (Image Generation with Persisted URLs)
+- **Status**: ✅ WORKING
+- **Test Prompt**: "Generate an image of a sunset over mountains"
+- **Authentication**: ✅ Required (testchat@example.com/Test123456)
+- **SSE Stream Events**: ✅ All required events present
+- **Image Model Used**: Nano Banana (via Kie.ai)
+- **Processing Time**: ~12-14 seconds (normal for image generation)
+
+### 2. SSE Stream Event Verification
+- **meta Event**: ✅ FOUND with conversationId and messageId
+- **generating_visual Event**: ✅ FOUND (visualType: 'image')
+- **image Event**: ✅ FOUND with valid URL property
+- **done Event**: ✅ FOUND with messageId
+- **Image URL Domain**: ✅ VERIFIED (tempfile.redpandaai.co - persisted storage)
+- **Image URL Accessibility**: ✅ VERIFIED (HTTP 200 response)
+
+### 3. Text-Only Chat Stream (No Image Generation)
+- **Status**: ✅ WORKING
+- **Test Prompt**: "Tell me about the weather today"
+- **Authentication**: ✅ Required
+- **SSE Stream Events**: ✅ Proper text-only events (meta, sources, delta, done)
+- **Image Generation Triggered**: ❌ NO (as expected)
+- **Delta Events**: ✅ 102 delta events for text content
+
+### 4. Saved Messages Structure Verification
+- **Status**: ✅ WORKING
+- **Endpoint**: GET /api/messages?conversationId={conv_id}
+- **Authentication**: ✅ Required
+- **Image Messages**: ✅ Proper structure (content_type: 'image', non-empty image_url)
+- **Text Messages**: ✅ Proper structure (content_type: 'text' or null)
+
+## Key Findings - Image Generation Fix Verification
+
+1. **Persisted Image URLs**: ✅ All generated image URLs are from `tempfile.redpandaai.co` (permanent storage)
+2. **No Expired URLs**: ✅ No URLs from `oaidalleapiprodscus.blob.core.windows.net` (expired storage)
+3. **Available Model Selection**: ✅ Nano Banana model successfully selected and used
+4. **Proper Content Types**: ✅ Image messages saved with content_type: 'image' and valid image_url
+5. **Text-Only Handling**: ✅ Text prompts do not trigger image generation
+6. **SSE Stream Format**: ✅ All required events present in correct sequence
+7. **URL Accessibility**: ✅ Generated image URLs are immediately accessible
+
+## Image Generation Fix Status Update
+- **Image URL Persistence**: ✅ FIXED - URLs now persisted to permanent storage
+- **Model Availability**: ✅ FIXED - Only available models (Nano Banana) being selected
+- **Failed Generation Handling**: ✅ FIXED - Proper content_type handling in saved messages
+- **Authentication**: ✅ Working correctly with testchat@example.com/Test123456
+- **No major issues found during comprehensive testing**
+
+agent_communication:
+  - agent: "testing"
+    message: "IMAGE GENERATION FIX TESTING COMPLETE: ✅ All critical image generation fixes verified and working perfectly. (1) Image URLs now persisted to permanent storage (tempfile.redpandaai.co) instead of expired URLs (oaidalleapiprodscus.blob.core.windows.net). (2) Available models (Nano Banana) being selected correctly by AI routing. (3) Proper message structure with content_type:'image' and valid image_url for image messages. (4) Text-only prompts do not trigger image generation. (5) All SSE events (meta, generating_visual, image, done) present and working correctly. (6) Image URLs immediately accessible (HTTP 200). All 3/3 comprehensive tests passed (100% success rate). Authentication working with testchat@example.com/Test123456. No major issues found."

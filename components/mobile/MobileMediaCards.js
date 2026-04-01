@@ -7,6 +7,7 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [imgError, setImgError] = useState(false);
   
   // Available image models for regeneration
   const IMAGE_MODELS = [
@@ -46,7 +47,20 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
   
   return (
     <div className="mb-3 rounded-2xl overflow-hidden border border-white/10 bg-[#141a21]">
-      <img src={url} alt="Generated" className="w-full h-auto max-h-80 object-contain bg-black/20" />
+      {imgError ? (
+        <div className="w-full h-48 flex flex-col items-center justify-center bg-white/3 gap-2">
+          <ImageIcon className="w-8 h-8 text-gray-500" />
+          <p className="text-gray-500 text-xs">Image unavailable or link expired</p>
+          <button 
+            onClick={() => setImgError(false)}
+            className="text-orange-400 hover:text-orange-300 text-xs underline"
+          >
+            Try again
+          </button>
+        </div>
+      ) : (
+        <img src={url} alt="Generated" className="w-full h-auto max-h-80 object-contain bg-black/20" onError={() => setImgError(true)} />
+      )}
       <div className="px-3 py-2 space-y-2">
         <div className="flex items-center justify-between">
           <div className="text-xs text-orange-400 flex items-center gap-1.5">

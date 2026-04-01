@@ -6782,8 +6782,16 @@ async function handleChatStream(request) {
           
           // Dynamic model selection based on prompt content
           const modelSelection = selectBestImageModel(content, userPreferredImageModel);
-          const selectedModelKey = modelSelection.model;
-          const modelConfig = KIE_IMAGE_MODELS[selectedModelKey];
+          let selectedModelKey = modelSelection.model;
+          let modelConfig = KIE_IMAGE_MODELS[selectedModelKey];
+          
+          // If selected model is unavailable, fall back to nano-banana
+          if (!modelConfig || modelConfig.available === false) {
+            console.log(`[Image Generation] Model ${selectedModelKey} unavailable, falling back to nano-banana`);
+            selectedModelKey = 'nano-banana';
+            modelConfig = KIE_IMAGE_MODELS['nano-banana'];
+          }
+          
           const modelDisplayName = selectedModelKey.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
           
           console.log(`[Image Generation] Dynamic Intelligence selected: ${selectedModelKey} - ${modelSelection.reason}`);
@@ -6953,33 +6961,56 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             
             console.log(`[Image Generation] Final success with ${usedModel}! URL:`, imageUrl.substring(0, 80) + '...');
             
-            // ── Persist image to permanent storage (DALL-E URLs expire!) ──
-            if (imageUrl.includes('oaidalleapiprodscus') || imageUrl.includes('openai.com') || imageUrl.includes('blob.core.windows.net')) {
+            // ── Persist image to permanent storage ──
+            // DALL-E URLs expire in ~2 hours, and tempfile.aiquickdraw.com URLs may also expire.
+            // Re-upload ALL externally-hosted images to our own storage for durability.
+            const needsPersistence = 
+              imageUrl.includes('oaidalleapiprodscus') || 
+              imageUrl.includes('openai.com') || 
+              imageUrl.includes('blob.core.windows.net') ||
+              imageUrl.includes('tempfile.aiquickdraw.com');
+              
+            if (needsPersistence) {
               const persistKieKey = process.env.KIE_API_KEY;
               if (persistKieKey) {
                 try {
-                  const imgResp = await fetch(imageUrl);
+                  console.log('[Image Persistence] Fetching image for re-upload:', imageUrl.substring(0, 80));
+                  const imgResp = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
                   if (imgResp.ok) {
                     const imgBuf = Buffer.from(await imgResp.arrayBuffer());
-                    const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${persistKieKey}` },
-                      body: JSON.stringify({
-                        base64Data: `data:image/png;base64,${imgBuf.toString('base64')}`,
-                        uploadPath: 'soulprint/generated',
-                        fileName: `gen_${Date.now()}.png`
-                      }),
-                    });
-                    if (upRes.ok) {
-                      const upData = await upRes.json();
-                      if (upData.success && upData.data?.downloadUrl) {
-                        console.log('[Image Generation] Persisted to:', upData.data.downloadUrl);
-                        imageUrl = upData.data.downloadUrl; // Use persistent URL
+                    const fileSizeMB = (imgBuf.length / (1024 * 1024)).toFixed(2);
+                    console.log(`[Image Persistence] Image fetched: ${fileSizeMB}MB`);
+                    
+                    // Skip re-upload for very large images (>10MB base64 would be ~13MB+ JSON body)
+                    if (imgBuf.length > 10 * 1024 * 1024) {
+                      console.log('[Image Persistence] Image too large for re-upload, using original URL');
+                    } else {
+                      const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${persistKieKey}` },
+                        body: JSON.stringify({
+                          base64Data: `data:image/png;base64,${imgBuf.toString('base64')}`,
+                          uploadPath: 'soulprint/generated',
+                          fileName: `gen_${Date.now()}.png`
+                        }),
+                      });
+                      if (upRes.ok) {
+                        const upData = await upRes.json();
+                        if (upData.success && upData.data?.downloadUrl) {
+                          console.log('[Image Persistence] Persisted to:', upData.data.downloadUrl);
+                          imageUrl = upData.data.downloadUrl; // Use persistent URL
+                        } else {
+                          console.warn('[Image Persistence] Upload response not successful:', JSON.stringify(upData).substring(0, 200));
+                        }
+                      } else {
+                        console.warn('[Image Persistence] Upload HTTP error:', upRes.status, await upRes.text().catch(() => ''));
                       }
                     }
+                  } else {
+                    console.warn('[Image Persistence] Could not fetch image:', imgResp.status);
                   }
                 } catch (persistErr) {
-                  console.log('[Image Generation] Persistence failed:', persistErr.message, '— using original URL');
+                  console.warn('[Image Persistence] Failed:', persistErr.message, '— using original URL');
                 }
               }
             }
@@ -6995,15 +7026,18 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             console.error('[Image Generation] Exception:', imgErr.message, imgErr.stack);
             fullContent = `Sorry, image generation failed: ${imgErr.message}`;
             send({ type: 'delta', content: fullContent });
+            imageUrl = null; // Ensure we don't save a broken URL
           }
-          // Save message
+          // Save message - use 'text' content_type if generation failed (no image URL)
           const inputText = systemPrompt + historyMessages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
-          const storedContentType = isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'image');
+          const desiredContentType = isInfographic ? 'infographic' : (isFlyer ? 'flyer' : 'image');
+          const storedContentType = imageUrl ? desiredContentType : 'text'; // Don't save as 'image' if no URL
+          const extractedImageUrl = fullContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/)?.[1] || undefined;
           await db.collection('messages').insertOne({
             id: assistantMsgId, conversation_id: convId, user_id: user.id,
             role: 'assistant', content: fullContent, created_at: new Date(),
             model_used: usedModel, provider_used: usedModel === 'dall-e-3' ? 'openai' : 'kie-ai', content_type: storedContentType,
-            image_url: fullContent.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/)?.[1] || undefined,
+            image_url: extractedImageUrl,
             est_input_tokens: Math.round(inputText.length / 4), est_output_tokens: 0,
           });
           await db.collection('conversations').updateOne({ id: convId }, { $set: { updated_at: new Date() } });
@@ -8089,6 +8123,7 @@ const KIE_IMAGE_MODELS = {
     model: 'bytedance/seedream', 
     useJobsApi: true, 
     credits: 5.5,
+    available: true,
     formatInput: (prompt, aspectRatio) => ({
       prompt,
       image_size: { '1:1': 'square_hd', '16:9': 'landscape_16_9', '9:16': 'portrait_9_16' }[aspectRatio] || 'square_hd',
@@ -8100,16 +8135,40 @@ const KIE_IMAGE_MODELS = {
     model: 'google/nano-banana', 
     useJobsApi: true, 
     credits: 10,
+    available: true,
     formatInput: (prompt, aspectRatio) => ({
       prompt,
-      image_size: aspectRatio || '1:1', // Uses ratio format like "1:1", "16:9"
+      image_size: aspectRatio || '1:1',
       output_format: 'png',
     })
   },
+  'imagen-4-ultra': { 
+    model: 'google/imagen4-ultra', 
+    useJobsApi: true, 
+    credits: 30,
+    available: true,
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      image_size: aspectRatio || '1:1',
+    })
+  },
+  'gpt-image-1-5': { 
+    model: 'gpt-image/1.5-text-to-image', 
+    useJobsApi: true, 
+    credits: 50,
+    available: true,
+    formatInput: (prompt, aspectRatio) => ({
+      prompt,
+      aspect_ratio: aspectRatio || '1:1',
+      quality: 'high',
+    })
+  },
+  // Unavailable models kept for reference but marked as unavailable
   'gpt4o-image': { 
     model: 'openai/gpt-4o-image', 
     useJobsApi: true, 
     credits: 20,
+    available: false, // Model not currently supported by Kie.ai
     formatInput: (prompt, aspectRatio) => ({
       prompt,
       size: { '1:1': '1024x1024', '16:9': '1792x1024', '9:16': '1024x1792' }[aspectRatio] || '1024x1024',
@@ -8119,6 +8178,7 @@ const KIE_IMAGE_MODELS = {
     model: 'black-forest-labs/flux-1.1-pro', 
     useJobsApi: true, 
     credits: 25,
+    available: false, // Model not currently supported by Kie.ai
     formatInput: (prompt, aspectRatio) => ({
       prompt,
       image_size: { '1:1': 'square_hd', '16:9': 'landscape_16_9', '9:16': 'portrait_9_16' }[aspectRatio] || 'square_hd',
@@ -8128,19 +8188,10 @@ const KIE_IMAGE_MODELS = {
     model: 'midjourney/v7-imagine', 
     useJobsApi: true, 
     credits: 40,
+    available: false, // Model not currently supported by Kie.ai
     formatInput: (prompt, aspectRatio) => ({
       prompt,
       aspect_ratio: aspectRatio || '1:1',
-    })
-  },
-  'gpt-image-1-5': { 
-    model: 'gpt-image/1.5-text-to-image', 
-    useJobsApi: true, 
-    credits: 50,
-    formatInput: (prompt, aspectRatio) => ({
-      prompt,
-      aspect_ratio: aspectRatio || '1:1',
-      quality: 'high',
     })
   },
 };

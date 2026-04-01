@@ -1,8 +1,56 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+// Separate component for images with broken link fallback
+function SafeImage({ src, alt }) {
+  const [hasError, setHasError] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  
+  const handleError = useCallback(() => {
+    setHasError(true);
+  }, []);
+  
+  const handleRetry = useCallback(() => {
+    setRetrying(true);
+    setHasError(false);
+    // Force reload by adding cache buster
+    setTimeout(() => setRetrying(false), 100);
+  }, []);
+
+  if (!src) return null;
+  
+  if (hasError) {
+    return (
+      <div className="max-w-full rounded-lg my-3 bg-white/5 border border-white/10 p-4 flex flex-col items-center justify-center min-h-[120px] gap-2">
+        <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v13.5A1.5 1.5 0 003.75 21z" />
+        </svg>
+        <p className="text-gray-500 text-xs text-center">Image unavailable</p>
+        <button 
+          onClick={handleRetry}
+          className="text-orange-400 hover:text-orange-300 text-xs underline cursor-pointer"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+  
+  const imgSrc = retrying ? `${src}${src.includes('?') ? '&' : '?'}_t=${Date.now()}` : src;
+  
+  return (
+    <img 
+      src={imgSrc} 
+      alt={alt || ''} 
+      className="max-w-full rounded-lg my-3" 
+      loading="lazy"
+      onError={handleError}
+    />
+  );
+}
 
 /**
  * SafeMarkdown: A crash-proof wrapper around ReactMarkdown.
@@ -40,7 +88,7 @@ const markdownComponents = {
   blockquote: ({ children }) => <blockquote className="border-l-2 border-orange-500/40 pl-4 my-3 italic text-gray-400">{children}</blockquote>,
   img: ({ src, alt }) => {
     try {
-      return src ? <img src={src} alt={alt || ''} className="max-w-full rounded-lg my-3" loading="lazy" /> : null;
+      return <SafeImage src={src} alt={alt} />;
     } catch {
       return null;
     }

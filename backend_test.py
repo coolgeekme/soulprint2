@@ -8,7 +8,7 @@ import sys
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://social-ad-dest.preview.emergentagent.com"
+BASE_URL = "https://image-routing-patch.preview.emergentagent.com"
 AUTH_EMAIL = "test@soulprint.com"
 AUTH_PASSCODE = "test123"
 

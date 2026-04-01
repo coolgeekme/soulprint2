@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://social-ad-dest.preview.emergentagent.com/api"
+BASE_URL = "https://image-routing-patch.preview.emergentagent.com/api"
 TEST_EMAIL = "reggie@coolgeek.me"
 TEST_PASSWORD = "password123"  # any password works for superadmin accounts
 
