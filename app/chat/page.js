@@ -119,6 +119,7 @@ export default function ChatPage() {
   // Projects state
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null); // null = all, 'general' = uncategorized, or project id
+  const [projectConversations, setProjectConversations] = useState(null); // Conversations for selected project (fetched on demand)
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [projectModalMode, setProjectModalMode] = useState('create'); // 'create' | 'edit' | 'share'
   const [editingProject, setEditingProject] = useState(null);
@@ -2093,7 +2094,9 @@ export default function ChatPage() {
       });
       if (res.ok) {
         setConversations(prev => prev.filter(c => c.id !== convId));
-        // If we deleted the current conversation, start fresh
+        if (projectConversations) {
+          setProjectConversations(prev => prev ? prev.filter(c => c.id !== convId) : null);
+        }
         if (convId === conversationId) {
           newConversation();
         }
@@ -2183,6 +2186,7 @@ export default function ChatPage() {
         setProjects(prev => prev.filter(p => p.id !== projectId));
         if (selectedProject === projectId) {
           setSelectedProject(null);
+          setProjectConversations(null);
         }
         // Reload conversations
         const convRes = await fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${token}` } });
@@ -2284,6 +2288,8 @@ export default function ChatPage() {
         setConversations(prev => prev.map(c => 
           c.id === convId ? { ...c, project_id: projectId } : c
         ));
+        // Invalidate project-specific conversations to force refresh
+        setProjectConversations(null);
         // Also refresh conversations from server to ensure sync
         const convRes = await fetch('/api/conversations', { headers: { Authorization: `Bearer ${token}` } });
         if (convRes.ok) {
@@ -2797,8 +2803,20 @@ export default function ChatPage() {
                           onClick={() => {
                             if (selectedProject === project.id) {
                               setSelectedProject(null);
+                              setProjectConversations(null);
                             } else {
                               setSelectedProject(project.id);
+                              // Fetch conversations specifically for this project
+                              fetch(`/api/user/conversations?project_id=${project.id}`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                              })
+                                .then(r => r.json())
+                                .then(d => {
+                                  if (Array.isArray(d)) {
+                                    setProjectConversations(d);
+                                  }
+                                })
+                                .catch(() => {});
                               // Auto-start a new conversation in this project
                               newConversation();
                             }
@@ -2846,7 +2864,7 @@ export default function ChatPage() {
                 </span>
                 {selectedProject && (
                   <button
-                    onClick={() => setSelectedProject(null)}
+                    onClick={() => { setSelectedProject(null); setProjectConversations(null); }}
                     className="text-[10px] text-orange-400 hover:text-orange-300"
                   >
                     Show all
@@ -2856,17 +2874,23 @@ export default function ChatPage() {
             </>
           )}
           
-          {conversations.length === 0 ? (
+          {conversations.length === 0 && !projectConversations ? (
             !sidebarCollapsed && <p className="text-gray-700 text-xs text-center mt-6">No conversations yet</p>
-          ) : filteredConversations.length === 0 ? (
-            !sidebarCollapsed && <p className="text-gray-600 text-xs text-center mt-6">No matching conversations</p>
-          ) : filteredConversations
-            .filter(conv => {
-              if (!selectedProject) return true;
-              if (selectedProject === 'general') return !conv.project_id;
-              return conv.project_id === selectedProject;
-            })
-            .map(conv => (
+          ) : (() => {
+            // When a project is selected and we have project-specific conversations, use those
+            const displayConversations = selectedProject && projectConversations 
+              ? projectConversations 
+              : filteredConversations.filter(conv => {
+                  if (!selectedProject) return true;
+                  if (selectedProject === 'general') return !conv.project_id;
+                  return conv.project_id === selectedProject;
+                });
+            
+            if (displayConversations.length === 0) {
+              return !sidebarCollapsed && <p className="text-gray-600 text-xs text-center mt-6">No conversations in this project</p>;
+            }
+            
+            return displayConversations.map(conv => (
             <div key={conv.id} className="relative group mb-1">
               {sidebarCollapsed ? (
                 // Collapsed view - icon only
@@ -2949,7 +2973,8 @@ export default function ChatPage() {
                 </div>
               )}
             </div>
-          ))}
+          ));
+          })()}
         </div>
         
         {/* Latest News Widget - hidden when collapsed */}
@@ -3105,7 +3130,7 @@ export default function ChatPage() {
           <div className="flex items-center justify-between px-4 py-2 bg-purple-500/5 border-b border-purple-500/20 flex-shrink-0">
             <div className="flex items-center gap-2 text-sm">
               <button 
-                onClick={() => setSelectedProject(null)}
+                onClick={() => { setSelectedProject(null); setProjectConversations(null); }}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 All Chats
