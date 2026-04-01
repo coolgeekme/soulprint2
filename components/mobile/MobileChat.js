@@ -2180,83 +2180,92 @@ export default function MobileChat({
         return { ...m, content: editedContent, variants: userVariants, activeVariant: userVariants.length - 1, pairedMessageId: originalAssistantMsg?.id };
       }
       if (originalAssistantMsg && m.id === originalAssistantMsg.id) {
-        return { ...m, variants: assistantVariants, activeVariant: assistantVariants.length - 1, pairedMessageId: message.id, content: '...' };
+        return { ...m, variants: assistantVariants, activeVariant: assistantVariants.length - 1, pairedMessageId: message.id, content: '⏳ Generating new response...' };
       }
       return m;
     }));
     setEditingMessage(null);
     setIsLoading(true);
     
-    // Build history and regenerate
-    const historyForRegeneration = messages.slice(0, editedMsgIndex).map(m => ({
-      role: m.role,
-      content: typeof m.content === 'string' ? m.content : String(m.content || ''),
-    }));
+    // Save user message variants to DB
+    try {
+      await fetch(`/api/messages/${message.id}/variants`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ variants: userVariants, activeVariant: userVariants.length - 1 }),
+      });
+    } catch (variantErr) {
+      console.warn('Failed to save user variants:', variantErr);
+    }
     
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           content: editedContent,
-          conversation_id: conversationId,
+          conversationId: conversationId,
           model: selectedModel,
-          history: historyForRegeneration,
-          edited_from: message.id,
-          web_search_enabled: webSearchEnabled,
+          enableWebSearch: webSearchEnabled,
         }),
       });
       
-      if (res.ok) {
-        const reader = res.body?.getReader();
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let fullContent = '';
+        let imageUrl = null;
         
-        while (reader) {
+        while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value);
+          const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split('\n');
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.content) {
-                  fullContent += parsed.content;
-                  if (originalAssistantMsg) {
-                    setMessages(prev => prev.map(m => 
-                      m.id === originalAssistantMsg.id ? { ...m, content: fullContent } : m
-                    ));
-                  }
+            if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              if (parsed.type === 'delta' && parsed.content) {
+                fullContent += parsed.content;
+                if (originalAssistantMsg) {
+                  setMessages(prev => prev.map(m => 
+                    m.id === originalAssistantMsg.id ? { ...m, content: fullContent } : m
+                  ));
                 }
-              } catch {}
-            }
+              } else if (parsed.type === 'image' && parsed.url) {
+                imageUrl = parsed.url;
+                fullContent += `\n\n![Generated Image](${parsed.url})`;
+                if (originalAssistantMsg) {
+                  setMessages(prev => prev.map(m => 
+                    m.id === originalAssistantMsg.id ? { ...m, content: fullContent, image_url: parsed.url } : m
+                  ));
+                }
+              }
+            } catch {}
           }
         }
         
         if (fullContent && originalAssistantMsg) {
           const newVariant = { content: fullContent, created_at: new Date().toISOString(), model_used: selectedModel };
+          const updatedVariants = [...assistantVariants, newVariant];
           setMessages(prev => prev.map(m => {
             if (m.id === originalAssistantMsg.id) {
-              const updatedVariants = [...(m.variants || assistantVariants), newVariant];
-              return { ...m, content: fullContent, variants: updatedVariants, activeVariant: updatedVariants.length - 1, pairedMessageId: message.id };
+              return { ...m, content: fullContent, variants: updatedVariants, activeVariant: updatedVariants.length - 1, pairedMessageId: message.id, image_url: imageUrl || undefined };
             }
             return m;
           }));
           
-          // Persist variants
-          fetch(`/api/messages/${message.id}/variants`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ variants: userVariants }),
-          }).catch(() => {});
+          // Persist assistant variants to DB
           fetch(`/api/messages/${originalAssistantMsg.id}/variants`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ variants: [...assistantVariants, newVariant] }),
+            body: JSON.stringify({ variants: updatedVariants, activeVariant: updatedVariants.length - 1 }),
           }).catch(() => {});
+        } else if (originalAssistantMsg) {
+          // Restore on empty response
+          setMessages(prev => prev.map(m => 
+            m.id === originalAssistantMsg.id ? { ...m, content: assistantVariants[assistantVariants.length - 1]?.content || originalAssistantMsg.content } : m
+          ));
         }
       }
     } catch (err) {

@@ -2477,7 +2477,7 @@ export default function ChatPage() {
         return { ...m, content: editedContent, variants: userVariants, activeVariant: userVariants.length - 1, pairedMessageId: originalAssistantMsg?.id };
       }
       if (originalAssistantMsg && m.id === originalAssistantMsg.id) {
-        return { ...m, variants: assistantVariants, activeVariant: assistantVariants.length - 1, pairedMessageId: editingMessageId, content: '...' };
+        return { ...m, variants: assistantVariants, activeVariant: assistantVariants.length - 1, pairedMessageId: editingMessageId, content: '⏳ Generating new response...' };
       }
       return m;
     }));
@@ -2486,58 +2486,69 @@ export default function ChatPage() {
     setEditingContent('');
     setLoading(true);
     
-    // Build conversation history up to (not including) the edited message
-    const historyForRegeneration = messages.slice(0, editedMsgIndex).map(m => ({
-      role: m.role,
-      content: typeof m.content === 'string' ? m.content : String(m.content || ''),
-    }));
-    
-    // Send the edited message to get a new response
+    // Save user message variants to DB
     try {
-      const res = await fetch('/api/chat', {
+      await fetch(`/api/messages/${editingMessageId}/variants`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ variants: userVariants, activeVariant: userVariants.length - 1 }),
+      });
+    } catch (variantErr) {
+      console.warn('Failed to save user variants:', variantErr);
+    }
+    
+    // Send the edited message via the chat stream endpoint to get a new response
+    try {
+      const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           content: editedContent,
-          conversation_id: conversationId,
+          conversationId: conversationId,
           model: selectedModel,
-          history: historyForRegeneration,
-          edited_from: editingMessageId,
-          web_search_enabled: webSearchEnabled,
+          enableWebSearch: webSearchEnabled,
         }),
       });
       
-      if (res.ok) {
-        const reader = res.body?.getReader();
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let fullContent = '';
         let newAssistantId = null;
+        let imageUrl = null;
         
-        while (reader) {
+        while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value);
+          const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split('\n');
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
-              try {
-                const parsed = JSON.parse(data);
-                if (parsed.content) {
-                  fullContent += parsed.content;
-                  // Update the assistant message's content while streaming
-                  if (originalAssistantMsg) {
-                    setMessages(prev => prev.map(m => 
-                      m.id === originalAssistantMsg.id ? { ...m, content: fullContent } : m
-                    ));
-                  } else {
-                    setStreamingContent(fullContent);
-                  }
+            if (!line.startsWith('data: ') || line === 'data: [DONE]') continue;
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              
+              if (parsed.type === 'delta' && parsed.content) {
+                fullContent += parsed.content;
+                // Update the assistant message content while streaming
+                if (originalAssistantMsg) {
+                  setMessages(prev => prev.map(m => 
+                    m.id === originalAssistantMsg.id ? { ...m, content: fullContent } : m
+                  ));
                 }
+              } else if (parsed.type === 'meta' && parsed.messageId) {
+                newAssistantId = parsed.messageId;
+              } else if (parsed.type === 'image' && parsed.url) {
+                imageUrl = parsed.url;
+                fullContent += `\n\n![Generated Image](${parsed.url})`;
+                if (originalAssistantMsg) {
+                  setMessages(prev => prev.map(m => 
+                    m.id === originalAssistantMsg.id ? { ...m, content: fullContent, image_url: parsed.url } : m
+                  ));
+                }
+              } else if (parsed.type === 'done') {
                 if (parsed.messageId) newAssistantId = parsed.messageId;
-              } catch {}
-            }
+              }
+            } catch {}
           }
         }
         
@@ -2546,55 +2557,52 @@ export default function ChatPage() {
           
           if (originalAssistantMsg) {
             // Add new response as a variant to the existing assistant message
+            const updatedVariants = [...assistantVariants, newVariant];
             setMessages(prev => prev.map(m => {
               if (m.id === originalAssistantMsg.id) {
-                const updatedVariants = [...(m.variants || assistantVariants), newVariant];
-                return { ...m, content: fullContent, variants: updatedVariants, activeVariant: updatedVariants.length - 1, pairedMessageId: editingMessageId, model_used: selectedModel };
+                return { ...m, content: fullContent, variants: updatedVariants, activeVariant: updatedVariants.length - 1, pairedMessageId: editingMessageId, model_used: selectedModel, image_url: imageUrl || undefined };
               }
               return m;
             }));
-          } else {
-            // No existing assistant message — add a new one with the variant
-            setMessages(prev => [...prev, {
-              id: newAssistantId || `response-${Date.now()}`,
-              role: 'assistant',
-              content: fullContent,
-              model_used: selectedModel,
-              created_at: new Date().toISOString(),
-              variants: [newVariant],
-              activeVariant: 0,
-            }]);
-          }
-          setStreamingContent('');
-          
-          // Persist variants to backend
-          if (originalAssistantMsg) {
-            fetch(`/api/messages/${editingMessageId}/variants`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ variants: userVariants }),
-            }).catch(() => {});
             
-            fetch(`/api/messages/${originalAssistantMsg.id}/variants`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ variants: [...assistantVariants, newVariant] }),
-            }).catch(() => {});
+            // Save assistant variants to DB
+            try {
+              await fetch(`/api/messages/${originalAssistantMsg.id}/variants`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ variants: updatedVariants, activeVariant: updatedVariants.length - 1 }),
+              });
+            } catch (variantErr) {
+              console.warn('Failed to save assistant variants:', variantErr);
+            }
+          }
+        } else {
+          // No content generated - revert
+          if (originalAssistantMsg) {
+            setMessages(prev => prev.map(m => 
+              m.id === originalAssistantMsg.id ? { ...m, content: assistantVariants[assistantVariants.length - 1]?.content || originalAssistantMsg.content } : m
+            ));
           }
         }
+      } else {
+        console.error('Edit regeneration failed:', res.status);
+        // Revert assistant message
+        if (originalAssistantMsg) {
+          setMessages(prev => prev.map(m => 
+            m.id === originalAssistantMsg.id ? { ...m, content: assistantVariants[assistantVariants.length - 1]?.content || originalAssistantMsg.content } : m
+          ));
+        }
       }
-    } catch (e) {
-      console.error('Edit message failed:', e);
-      // Restore original content on error
+    } catch (err) {
+      console.error('Edit regeneration error:', err);
       if (originalAssistantMsg) {
-        setMessages(prev => prev.map(m => {
-          if (m.id === originalAssistantMsg.id) return { ...m, content: assistantVariants[0]?.content || m.content, activeVariant: 0 };
-          if (m.id === editingMessageId) return { ...m, content: userVariants[0]?.content || m.content, activeVariant: 0 };
-          return m;
-        }));
+        setMessages(prev => prev.map(m => 
+          m.id === originalAssistantMsg.id ? { ...m, content: assistantVariants[assistantVariants.length - 1]?.content || originalAssistantMsg.content } : m
+        ));
       }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   // Toggle message variant (Claude-style ◀ 1/2 ▶)
