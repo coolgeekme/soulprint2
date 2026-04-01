@@ -143,16 +143,46 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
   const onVideoReadyRef = useRef(onVideoReady);
   useEffect(() => { onVideoReadyRef.current = onVideoReady; }, [onVideoReady]);
 
+  const [stuckWarning, setStuckWarning] = useState(false);
+  const MAX_POLL_TIME = 10 * 60 * 1000; // 10 minutes max
+  const STUCK_WARNING_TIME = 5 * 60 * 1000; // 5 minutes warning
+  const consecutiveErrorsRef = useRef(0);
+
   useEffect(() => {
     if (status === 'success' || status === 'failed' || status === 'cancelled') return;
     if (!token) return; // Don't poll without valid token
     
     const poll = async () => {
       if (cancelledRef.current) return;
+      const elapsed = Date.now() - startTimeRef.current;
+      
+      // Show warning after 5 minutes
+      if (elapsed > STUCK_WARNING_TIME && !stuckWarning) {
+        setStuckWarning(true);
+      }
+      
+      // Auto-fail after 10 minutes
+      if (elapsed > MAX_POLL_TIME) {
+        setStatus('failed');
+        setError('Video generation timed out. The provider may be experiencing delays. You can try again or use a different model.');
+        clearInterval(pollRef.current);
+        return;
+      }
+      
       try {
         const res = await fetch(`/api/media/status/${taskId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (!res.ok) {
+          consecutiveErrorsRef.current++;
+          if (consecutiveErrorsRef.current >= 5) {
+            setStatus('failed');
+            setError('Lost connection to video service. Please try again.');
+            clearInterval(pollRef.current);
+          }
+          return;
+        }
+        consecutiveErrorsRef.current = 0;
         const d = await res.json();
         if (cancelledRef.current) return;
         if ((d.status === 'completed' || d.status === 'success') && (d.url || d.videoUrl)) {
@@ -176,11 +206,24 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
           setError(d.error || 'Generation failed');
           clearInterval(pollRef.current);
         } else {
-          const elapsed = (Date.now() - startTimeRef.current) / 1000;
-          setProgress(Math.min(90, Math.round((elapsed / 120) * 90)));
+          // Calculate progress: ramp up to 85% over first 3 min, then slow crawl to 95%
+          const elapsedSec = elapsed / 1000;
+          let estimatedProgress;
+          if (elapsedSec < 180) {
+            estimatedProgress = Math.min(85, Math.round((elapsedSec / 180) * 85));
+          } else {
+            estimatedProgress = Math.min(95, 85 + Math.round(((elapsedSec - 180) / 420) * 10));
+          }
+          setProgress(estimatedProgress);
         }
       } catch (e) {
         console.log('[MobileVideoCard] Poll error:', e.message);
+        consecutiveErrorsRef.current++;
+        if (consecutiveErrorsRef.current >= 5) {
+          setStatus('failed');
+          setError('Lost connection to video service. Please try again.');
+          clearInterval(pollRef.current);
+        }
       }
     };
     poll();
@@ -351,11 +394,20 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
           </div>
         </div>
         <p className="text-[10px] text-gray-700 mt-2 truncate italic">"{prompt}"</p>
+        {/* Stuck warning */}
+        {stuckWarning && (
+          <div className="mt-2 flex items-center gap-2 px-2.5 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <span className="text-[10px]">⚠️</span>
+            <p className="text-[10px] text-amber-400/80">Taking longer than expected. The video provider may be busy. You can wait or cancel and try a different model.</p>
+          </div>
+        )}
         {/* Leave notification hint */}
-        <div className="mt-3 flex items-center gap-2 px-2.5 py-2 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
-          <span className="text-[10px]">💡</span>
-          <p className="text-[10px] text-cyan-400/70">You can leave this chat — we'll notify you when it's ready.</p>
-        </div>
+        {!stuckWarning && (
+          <div className="mt-3 flex items-center gap-2 px-2.5 py-2 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
+            <span className="text-[10px]">💡</span>
+            <p className="text-[10px] text-cyan-400/70">You can leave this chat — we'll notify you when it's ready.</p>
+          </div>
+        )}
       </div>
     </div>
   );
