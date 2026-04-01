@@ -6207,12 +6207,12 @@ async function handleChatStream(request) {
     
     // Image detection - clear requests for image/picture/art generation
     const imagePatterns = [
-      // Direct "generate/create/make [an] image/picture/photo" patterns
-      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?generate\s+(?:me\s+)?(?:an?\s+)?(?:image|picture|photo|illustration|art|artwork|graphic|visual)\b/i, 
-      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?create\s+(?:me\s+)?(?:an?\s+)?(?:image|picture|photo|illustration|art|artwork|graphic|visual|logo|icon|banner|design)\b/i,
-      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?make\s+(?:me\s+)?(?:an?\s+)?(?:image|picture|photo|illustration|art|artwork|graphic|visual|logo|icon|banner|design)\b/i, 
+      // Direct "generate/create/make [an/the] image/picture/photo" patterns
+      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?generate\s+(?:me\s+)?(?:an?|the)\s+(?:image|picture|photo|illustration|art|artwork|graphic|visual)\b/i, 
+      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?create\s+(?:me\s+)?(?:an?|the)\s+(?:image|picture|photo|illustration|art|artwork|graphic|visual|logo|icon|banner|design)\b/i,
+      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?make\s+(?:me\s+)?(?:an?|the)\s+(?:image|picture|photo|illustration|art|artwork|graphic|visual|logo|icon|banner|design)\b/i, 
       // "create/make a picture OF" patterns
-      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?(?:create|make|generate)\s+(?:me\s+)?(?:an?\s+)?(?:picture|photo|portrait|sketch|illustration|painting|cartoon|drawing|rendering)\s+(?:of|for|with|showing)\b/i,
+      /^(?:please\s+)?(?:can you\s+)?(?:i\s+(?:want|need|would like)\s+(?:you\s+to\s+)?)?(?:create|make|generate)\s+(?:me\s+)?(?:an?|the)\s+(?:picture|photo|portrait|sketch|illustration|painting|cartoon|drawing|rendering)\s+(?:of|for|with|showing)\b/i,
       // "draw/paint me a [subject]" patterns
       /^(?:please\s+)?(?:can you\s+)?draw\s+(?:me\s+)?(?:a|an)\s+/i,
       /^(?:please\s+)?(?:can you\s+)?paint\s+(?:me\s+)?(?:a|an)\s+/i, 
@@ -6230,15 +6230,20 @@ async function handleChatStream(request) {
       /^(?:please\s+)?(?:can you\s+)?visualize\s+/i,
       // "I want/need" patterns with image keywords
       /(?:i\s+)?(?:want|need|would like)\s+(?:an?\s+)?(?:image|picture|photo|illustration|logo|icon|graphic|drawing|sketch|portrait|painting|render|rendering)\s+(?:of|for|with|showing)\b/i,
-      /(?:i\s+)?(?:want|need|would like)\s+(?:you\s+to\s+)?(?:generate|create|make|draw|design)\s+(?:me\s+)?(?:an?\s+)?(?:picture|image|photo|logo)\b/i,
+      /(?:i\s+)?(?:want|need|would like)\s+(?:you\s+to\s+)?(?:generate|create|make|draw|design)\s+(?:me\s+)?(?:an?|the)\s+(?:picture|image|photo|logo|visual|graphic)\b/i,
       // "make me a logo/design for" patterns
       /^(?:please\s+)?(?:can you\s+)?(?:make|create|design|generate)\s+(?:me\s+)?(?:an?\s+)?(?:logo|icon|badge|emblem)\s+(?:for|of|with)\b/i,
       // Tool/platform references
       /\bdall-?e\b/i, /\bstable\s+diffusion\b/i, /\bmidjourney\b/i,
       // Short confirmation/request patterns for image generation (after discussing a design)
       /^image[!.\s]*$/i,  // Just "Image" or "Image!"
-      /^(?:generate|create|make)\s+(?:the\s+)?(?:image|picture|logo|design)[!.\s]*$/i,  // "generate the image"
-      /^(?:yes|yeah|please|go ahead)[,!\s]*(?:generate|create|make)\s+(?:the\s+)?(?:image|picture|logo|design)[!.\s]*$/i,  // "yes, generate the image" - must mention what to generate
+      // "generate/create/make the image [for X]" - RELAXED: allows text after "image"
+      /^(?:generate|create|make)\s+(?:the\s+)?(?:image|picture|logo|design|visual|graphic)\b/i,
+      /^(?:yes|yeah|please|sure|ok|okay|go ahead|do it)[,!\s]*(?:generate|create|make)\s+(?:the\s+)?(?:image|picture|logo|design|visual|graphic)\b/i,
+      // "generate it / create it / make it" (after discussing the visual)
+      /^(?:please\s+)?(?:generate|create|make)\s+it[!.\s]*$/i,
+      // "now generate/create/make" patterns
+      /^(?:now\s+)?(?:please\s+)?(?:go ahead and\s+)?(?:generate|create|make|build)\s+(?:the\s+|that\s+)?(?:image|picture|photo|visual|graphic|infographic|flyer|poster|banner)\b/i,
     ];
     if (imagePatterns.some(p => p.test(lower))) return 'image';
     return null;
@@ -8085,6 +8090,189 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             console.error('Memory extraction background error:', memErr);
           }
         })();
+
+        // ── Auto-Image Generation Detection ──────────────────────────────
+        // If the AI's text response indicates it wants to generate an image but 
+        // the pre-LLM intent detection didn't trigger image generation, 
+        // auto-trigger it now so the user doesn't have to send another message.
+        if (!toolImageUrl && fullContent.length > 0) {
+          const autoGenPatterns = [
+            /(?:let me|I['']ll|I will|I am going to|going to)\s+(?:generate|create|make|design|produce)\s+(?:the|an?|that|this|your)\s+(?:image|visual|picture|graphic|infographic|illustration|design|mockup|photo|poster|banner|flyer)/i,
+            /(?:generating|creating|making|designing|producing)\s+(?:the|an?|that|this|your)\s+(?:image|visual|picture|graphic|infographic|illustration|design|mockup|photo|poster|banner|flyer)\s+(?:now|for you|right now)/i,
+            /(?:hold on|please wait|one moment)\s+(?:while|as)\s+I\s+(?:generate|create|make|design)\s+/i,
+            /(?:I['']ll|let me)\s+(?:now|go ahead and)\s+(?:generate|create|make)/i,
+          ];
+          
+          const shouldAutoGenerate = autoGenPatterns.some(p => p.test(fullContent));
+          
+          if (shouldAutoGenerate) {
+            console.log('[Auto-Image-Gen] AI response indicates image generation intent — auto-triggering');
+            try {
+              // Extract a prompt from the AI's response or use the user's original message
+              const userContent = typeof userMessageContent === 'string' 
+                ? userMessageContent 
+                : userMessageContent.find(c => c.type === 'text')?.text || '';
+              
+              // Try to get context from the conversation for a better prompt
+              const recentMsgs = await db.collection('messages')
+                .find({ conversation_id: convId })
+                .sort({ created_at: -1 })
+                .limit(6)
+                .toArray();
+              
+              const contextSummary = recentMsgs
+                .reverse()
+                .map(m => `${m.role}: ${(m.content || '').substring(0, 200)}`)
+                .join('\n');
+              
+              // Ask the LLM to create an image generation prompt from the context
+              let imagePrompt = userContent;
+              try {
+                const promptRes = await fetch('https://api.openai.com/v1/chat/completions', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.LLM_API_KEY || process.env.OPENAI_API_KEY}` },
+                  body: JSON.stringify({
+                    model: 'gpt-4o-mini',
+                    messages: [
+                      { role: 'system', content: 'You are an image prompt engineer. Given a conversation context, create a single detailed image generation prompt. Output ONLY the prompt text, nothing else. Make it vivid and specific.' },
+                      { role: 'user', content: `Based on this conversation, create an image generation prompt:\n\n${contextSummary}` }
+                    ],
+                    max_tokens: 300,
+                    temperature: 0.7,
+                  }),
+                });
+                if (promptRes.ok) {
+                  const promptData = await promptRes.json();
+                  const extracted = promptData.choices?.[0]?.message?.content?.trim();
+                  if (extracted && extracted.length > 10) {
+                    imagePrompt = extracted;
+                    console.log('[Auto-Image-Gen] Extracted prompt:', imagePrompt.substring(0, 100));
+                  }
+                }
+              } catch (promptErr) {
+                console.log('[Auto-Image-Gen] Prompt extraction failed, using user message:', promptErr.message);
+              }
+              
+              // Notify the frontend that image generation is starting
+              send({ type: 'generating_visual', visualType: 'image', model: 'auto' });
+              
+              // Use the same image generation logic
+              const { selectBestImageModel } = await import('@/lib/handlers/media-intelligence.js');
+              const modelSelection = selectBestImageModel(imagePrompt, null);
+              let selectedModelKey = modelSelection.model;
+              let modelConfig = KIE_IMAGE_MODELS[selectedModelKey];
+              
+              if (!modelConfig || modelConfig.available === false) {
+                selectedModelKey = 'nano-banana';
+                modelConfig = KIE_IMAGE_MODELS['nano-banana'];
+              }
+              
+              console.log(`[Auto-Image-Gen] Selected model: ${selectedModelKey}`);
+              
+              const kieApiKey = process.env.KIE_API_KEY;
+              let autoImageUrl = null;
+              
+              if (kieApiKey && modelConfig) {
+                const inputPayload = modelConfig.formatInput(imagePrompt, '1:1');
+                const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieApiKey}` },
+                  body: JSON.stringify({ model: modelConfig.model, input: inputPayload }),
+                });
+                
+                if (createRes.ok) {
+                  const createData = await createRes.json();
+                  const taskId = createData.data?.taskId;
+                  
+                  if (taskId) {
+                    // Poll for completion
+                    for (let poll = 0; poll < 60; poll++) {
+                      await new Promise(r => setTimeout(r, 2000));
+                      const statusRes = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`, {
+                        headers: { 'Authorization': `Bearer ${kieApiKey}` },
+                      });
+                      if (statusRes.ok) {
+                        const statusData = await statusRes.json();
+                        const status = statusData.data?.status;
+                        if (status === 'SUCCESS') {
+                          const resultJson = typeof statusData.data?.resultJson === 'string'
+                            ? JSON.parse(statusData.data.resultJson)
+                            : statusData.data?.resultJson;
+                          autoImageUrl = resultJson?.images?.[0]?.url || resultJson?.url || resultJson?.image_url || resultJson?.output;
+                          
+                          if (!autoImageUrl && statusData.data?.resultJson) {
+                            const rawJson = typeof statusData.data.resultJson === 'string' ? statusData.data.resultJson : JSON.stringify(statusData.data.resultJson);
+                            const urlMatch = rawJson.match(/https?:\/\/[^\s"']+\.(?:png|jpg|jpeg|webp)/);
+                            if (urlMatch) autoImageUrl = urlMatch[0];
+                          }
+                          break;
+                        } else if (status === 'FAILED') {
+                          console.log('[Auto-Image-Gen] Kie.ai task failed');
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // Persist the image URL if we got one
+              if (autoImageUrl) {
+                // Persist to permanent storage
+                if (autoImageUrl.includes('tempfile.aiquickdraw.com') || autoImageUrl.includes('oaidalleapiprodscus')) {
+                  try {
+                    const imgResp = await fetch(autoImageUrl, { signal: AbortSignal.timeout(30000) });
+                    if (imgResp.ok) {
+                      const imgBuf = Buffer.from(await imgResp.arrayBuffer());
+                      if (imgBuf.length <= 10 * 1024 * 1024) {
+                        const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieApiKey}` },
+                          body: JSON.stringify({
+                            base64Data: `data:image/png;base64,${imgBuf.toString('base64')}`,
+                            uploadPath: 'soulprint/generated',
+                            fileName: `auto_gen_${Date.now()}.png`
+                          }),
+                        });
+                        if (upRes.ok) {
+                          const upData = await upRes.json();
+                          if (upData.success && upData.data?.downloadUrl) {
+                            autoImageUrl = upData.data.downloadUrl;
+                          }
+                        }
+                      }
+                    }
+                  } catch (persistErr) {
+                    console.warn('[Auto-Image-Gen] Persistence failed:', persistErr.message);
+                  }
+                }
+                
+                // Send image event
+                send({ type: 'image', url: autoImageUrl, revised_prompt: imagePrompt, model: selectedModelKey });
+                
+                // Append the image markdown to the message content
+                const imageMarkdown = `\n\n![Generated Image](${autoImageUrl})`;
+                const updatedContent = fullContent + imageMarkdown;
+                
+                await db.collection('messages').updateOne(
+                  { id: assistantMsgId },
+                  { $set: { 
+                    content: updatedContent, 
+                    image_url: autoImageUrl,
+                    auto_generated_image: true,
+                    content_type: 'image'
+                  }}
+                );
+                
+                console.log('[Auto-Image-Gen] Successfully generated and appended image');
+              } else {
+                console.log('[Auto-Image-Gen] No image URL obtained — generation may have failed');
+              }
+            } catch (autoGenErr) {
+              console.error('[Auto-Image-Gen] Error:', autoGenErr.message);
+            }
+          }
+        }
 
         send({ type: 'done' });
         controller.close();
