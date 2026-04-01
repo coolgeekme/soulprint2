@@ -174,10 +174,17 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {
+          const errBody = await res.text().catch(() => '');
+          console.error(`[MobileVideoCard] Poll error: HTTP ${res.status} — ${errBody.substring(0, 200)}`);
           consecutiveErrorsRef.current++;
           if (consecutiveErrorsRef.current >= 5) {
             setStatus('failed');
-            setError('Lost connection to video service. Please try again.');
+            let errorMsg = 'Lost connection to video service. Please try again.';
+            try {
+              const parsed = JSON.parse(errBody);
+              if (parsed.error) errorMsg = parsed.error;
+            } catch {}
+            setError(errorMsg);
             clearInterval(pollRef.current);
           }
           return;

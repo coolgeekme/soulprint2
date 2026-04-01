@@ -75,10 +75,18 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {
+          const errBody = await res.text().catch(() => '');
+          console.error(`[VideoCard] Poll error: HTTP ${res.status} — ${errBody.substring(0, 200)}`);
           consecutiveErrorsRef.current++;
           if (consecutiveErrorsRef.current >= 5) {
             setStatus('failed');
-            setError('Lost connection to video service. Please try again.');
+            // Try to parse error body for a useful message
+            let errorMsg = 'Lost connection to video service. Please try again.';
+            try {
+              const parsed = JSON.parse(errBody);
+              if (parsed.error) errorMsg = parsed.error;
+            } catch {}
+            setError(errorMsg);
             clearInterval(pollRef.current);
           }
           return;
