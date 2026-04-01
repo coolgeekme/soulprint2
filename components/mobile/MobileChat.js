@@ -766,7 +766,15 @@ export default function MobileChat({
     fetch(`/api/messages?conversationId=${conversationId}`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
-        setMessages(Array.isArray(data) ? data : []);
+        // Process messages to display active variant content
+        const msgs = (Array.isArray(data) ? data : []).map(m => {
+          if (m.variants && m.variants.length > 1 && m.activeVariant !== undefined) {
+            const activeContent = m.variants[m.activeVariant]?.content;
+            if (activeContent) return { ...m, content: activeContent };
+          }
+          return m;
+        });
+        setMessages(msgs);
       })
       .catch(console.error);
   }, [token, conversationId, assistantName, profile, user, loading]);
@@ -2149,20 +2157,147 @@ export default function MobileChat({
   // Edit message
   const handleEditMessage = async (message, newContent) => {
     if (!newContent.trim()) return;
+    
+    const editedContent = newContent.trim();
+    const editedMsgIndex = messages.findIndex(m => m.id === message.id);
+    if (editedMsgIndex === -1) return;
+    
+    const originalAssistantMsg = messages[editedMsgIndex + 1]?.role === 'assistant' ? messages[editedMsgIndex + 1] : null;
+    
+    // Initialize variants for user message
+    const userVariants = message.variants || [{ content: message.content, created_at: message.created_at }];
+    userVariants.push({ content: editedContent, created_at: new Date().toISOString() });
+    
+    // Initialize variants for assistant message
+    let assistantVariants = [];
+    if (originalAssistantMsg) {
+      assistantVariants = originalAssistantMsg.variants || [{ content: originalAssistantMsg.content, created_at: originalAssistantMsg.created_at, model_used: originalAssistantMsg.model_used }];
+    }
+    
+    // Update messages with variants
+    setMessages(prev => prev.map(m => {
+      if (m.id === message.id) {
+        return { ...m, content: editedContent, variants: userVariants, activeVariant: userVariants.length - 1, pairedMessageId: originalAssistantMsg?.id };
+      }
+      if (originalAssistantMsg && m.id === originalAssistantMsg.id) {
+        return { ...m, variants: assistantVariants, activeVariant: assistantVariants.length - 1, pairedMessageId: message.id, content: '...' };
+      }
+      return m;
+    }));
+    setEditingMessage(null);
+    setIsLoading(true);
+    
+    // Build history and regenerate
+    const historyForRegeneration = messages.slice(0, editedMsgIndex).map(m => ({
+      role: m.role,
+      content: typeof m.content === 'string' ? m.content : String(m.content || ''),
+    }));
+    
     try {
-      await fetch('/api/chat/edit', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message_id: message.id, content: newContent.trim() }),
+        body: JSON.stringify({
+          content: editedContent,
+          conversation_id: conversationId,
+          model: selectedModel,
+          history: historyForRegeneration,
+          edited_from: message.id,
+          web_search_enabled: webSearchEnabled,
+        }),
       });
-      setMessages(prev => prev.map(m => 
-        m.id === message.id ? { ...m, content: newContent.trim() } : m
-      ));
+      
+      if (res.ok) {
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        
+        while (reader) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.content) {
+                  fullContent += parsed.content;
+                  if (originalAssistantMsg) {
+                    setMessages(prev => prev.map(m => 
+                      m.id === originalAssistantMsg.id ? { ...m, content: fullContent } : m
+                    ));
+                  }
+                }
+              } catch {}
+            }
+          }
+        }
+        
+        if (fullContent && originalAssistantMsg) {
+          const newVariant = { content: fullContent, created_at: new Date().toISOString(), model_used: selectedModel };
+          setMessages(prev => prev.map(m => {
+            if (m.id === originalAssistantMsg.id) {
+              const updatedVariants = [...(m.variants || assistantVariants), newVariant];
+              return { ...m, content: fullContent, variants: updatedVariants, activeVariant: updatedVariants.length - 1, pairedMessageId: message.id };
+            }
+            return m;
+          }));
+          
+          // Persist variants
+          fetch(`/api/messages/${message.id}/variants`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ variants: userVariants }),
+          }).catch(() => {});
+          fetch(`/api/messages/${originalAssistantMsg.id}/variants`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ variants: [...assistantVariants, newVariant] }),
+          }).catch(() => {});
+        }
+      }
     } catch (err) {
       console.error('Edit error:', err);
+      // Restore originals on error
+      if (originalAssistantMsg) {
+        setMessages(prev => prev.map(m => {
+          if (m.id === originalAssistantMsg.id) return { ...m, content: assistantVariants[0]?.content || m.content, activeVariant: 0 };
+          if (m.id === message.id) return { ...m, content: userVariants[0]?.content || m.content, activeVariant: 0 };
+          return m;
+        }));
+      }
     }
-    setEditingMessage(null);
+    setIsLoading(false);
   };
+
+  // Toggle message variant (Claude-style ◀ 1/2 ▶)
+  function toggleVariant(messageId, direction) {
+    setMessages(prev => {
+      const msgIndex = prev.findIndex(m => m.id === messageId);
+      if (msgIndex === -1) return prev;
+      const msg = prev[msgIndex];
+      if (!msg.variants || msg.variants.length <= 1) return prev;
+      
+      const currentIndex = msg.activeVariant || 0;
+      const newIndex = direction === 'next'
+        ? Math.min(currentIndex + 1, msg.variants.length - 1)
+        : Math.max(currentIndex - 1, 0);
+      if (newIndex === currentIndex) return prev;
+      
+      return prev.map(m => {
+        if (m.id === messageId) {
+          return { ...m, content: m.variants[newIndex].content, activeVariant: newIndex, model_used: m.variants[newIndex].model_used || m.model_used };
+        }
+        if (m.id === msg.pairedMessageId && m.variants?.length > newIndex) {
+          return { ...m, content: m.variants[newIndex].content, activeVariant: newIndex, model_used: m.variants[newIndex].model_used || m.model_used };
+        }
+        return m;
+      });
+    });
+  }
 
   // Dismiss announcement (24-hour dismiss or permanent)
   const dismissAnnouncement = async (announcementId, permanent = false) => {
@@ -2412,6 +2547,8 @@ export default function MobileChat({
                   onRegenerateWith={handleRegenerateWithModel}
                   onReadAloud={handleReadAloud}
                   readingAloudId={readingAloudId}
+                  onEdit={msg.role === 'user' ? (m) => { setEditingMessage(m); } : undefined}
+                  onToggleVariant={toggleVariant}
                   onVideoReady={(messageId, videoUrl) => {
                     setMessages(prev => prev.map(m => 
                       m.id === messageId ? { ...m, video_url: videoUrl } : m

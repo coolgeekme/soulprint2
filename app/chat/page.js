@@ -1932,7 +1932,15 @@ export default function ChatPage() {
     try {
       const res = await fetch(`/api/messages?conversationId=${convId}`, { headers: { Authorization: `Bearer ${token}` } });
       const msgs = await res.json();
-      setMessages(Array.isArray(msgs) ? msgs : []);
+      // Process messages to display active variant content
+      const processedMsgs = (Array.isArray(msgs) ? msgs : []).map(m => {
+        if (m.variants && m.variants.length > 1 && m.activeVariant !== undefined) {
+          const activeContent = m.variants[m.activeVariant]?.content;
+          if (activeContent) return { ...m, content: activeContent };
+        }
+        return m;
+      });
+      setMessages(processedMsgs);
     } catch (e) {}
     setShowSidebar(false);
   }
@@ -2436,30 +2444,47 @@ export default function ChatPage() {
     setEditingContent('');
   }
 
-  // Submit edited message - creates a new branch in the conversation
+  // Submit edited message - stores variants and generates new response (Claude-style)
   async function submitEditedMessage() {
     if (!editingContent.trim() || !editingMessageId) return;
     
     const editedMsgIndex = messages.findIndex(m => m.id === editingMessageId);
     if (editedMsgIndex === -1) return;
     
-    // Keep messages up to and including the one before the edited message
-    const messagesBeforeEdit = messages.slice(0, editedMsgIndex);
+    const originalUserMsg = messages[editedMsgIndex];
+    const originalAssistantMsg = messages[editedMsgIndex + 1]?.role === 'assistant' ? messages[editedMsgIndex + 1] : null;
+    const editedContent = editingContent.trim();
     
-    // Create the edited message
-    const editedMessage = {
-      id: `edited-${Date.now()}`,
-      role: 'user',
-      content: editingContent.trim(),
-      created_at: new Date().toISOString(),
-      edited_from: editingMessageId,
-    };
+    // Initialize variants on user message if first edit
+    const userVariants = originalUserMsg.variants || [{ content: originalUserMsg.content, created_at: originalUserMsg.created_at }];
+    userVariants.push({ content: editedContent, created_at: new Date().toISOString() });
     
-    // Update UI with trimmed history + edited message
-    setMessages([...messagesBeforeEdit, editedMessage]);
+    // Initialize variants on assistant message if it exists
+    let assistantVariants = [];
+    if (originalAssistantMsg) {
+      assistantVariants = originalAssistantMsg.variants || [{ content: originalAssistantMsg.content, created_at: originalAssistantMsg.created_at, model_used: originalAssistantMsg.model_used }];
+    }
+    
+    // Update the user message in the messages array with new variant active
+    setMessages(prev => prev.map(m => {
+      if (m.id === editingMessageId) {
+        return { ...m, content: editedContent, variants: userVariants, activeVariant: userVariants.length - 1, pairedMessageId: originalAssistantMsg?.id };
+      }
+      if (originalAssistantMsg && m.id === originalAssistantMsg.id) {
+        return { ...m, variants: assistantVariants, activeVariant: assistantVariants.length - 1, pairedMessageId: editingMessageId, content: '...' };
+      }
+      return m;
+    }));
+    
     setEditingMessageId(null);
     setEditingContent('');
     setLoading(true);
+    
+    // Build conversation history up to (not including) the edited message
+    const historyForRegeneration = messages.slice(0, editedMsgIndex).map(m => ({
+      role: m.role,
+      content: typeof m.content === 'string' ? m.content : String(m.content || ''),
+    }));
     
     // Send the edited message to get a new response
     try {
@@ -2467,10 +2492,10 @@ export default function ChatPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          content: editingContent.trim(),
+          content: editedContent,
           conversation_id: conversationId,
           model: selectedModel,
-          history: messagesBeforeEdit.map(m => ({ role: m.role, content: m.content })),
+          history: historyForRegeneration,
           edited_from: editingMessageId,
           web_search_enabled: webSearchEnabled,
         }),
@@ -2480,6 +2505,7 @@ export default function ChatPage() {
         const reader = res.body?.getReader();
         const decoder = new TextDecoder();
         let fullContent = '';
+        let newAssistantId = null;
         
         while (reader) {
           const { done, value } = await reader.read();
@@ -2494,28 +2520,105 @@ export default function ChatPage() {
                 const parsed = JSON.parse(data);
                 if (parsed.content) {
                   fullContent += parsed.content;
-                  setStreamingContent(fullContent);
+                  // Update the assistant message's content while streaming
+                  if (originalAssistantMsg) {
+                    setMessages(prev => prev.map(m => 
+                      m.id === originalAssistantMsg.id ? { ...m, content: fullContent } : m
+                    ));
+                  } else {
+                    setStreamingContent(fullContent);
+                  }
                 }
+                if (parsed.messageId) newAssistantId = parsed.messageId;
               } catch {}
             }
           }
         }
         
         if (fullContent) {
-          setMessages(prev => [...prev, {
-            id: `response-${Date.now()}`,
-            role: 'assistant',
-            content: fullContent,
-            model_used: selectedModel,
-            created_at: new Date().toISOString(),
-          }]);
+          const newVariant = { content: fullContent, created_at: new Date().toISOString(), model_used: selectedModel };
+          
+          if (originalAssistantMsg) {
+            // Add new response as a variant to the existing assistant message
+            setMessages(prev => prev.map(m => {
+              if (m.id === originalAssistantMsg.id) {
+                const updatedVariants = [...(m.variants || assistantVariants), newVariant];
+                return { ...m, content: fullContent, variants: updatedVariants, activeVariant: updatedVariants.length - 1, pairedMessageId: editingMessageId, model_used: selectedModel };
+              }
+              return m;
+            }));
+          } else {
+            // No existing assistant message — add a new one with the variant
+            setMessages(prev => [...prev, {
+              id: newAssistantId || `response-${Date.now()}`,
+              role: 'assistant',
+              content: fullContent,
+              model_used: selectedModel,
+              created_at: new Date().toISOString(),
+              variants: [newVariant],
+              activeVariant: 0,
+            }]);
+          }
+          setStreamingContent('');
+          
+          // Persist variants to backend
+          if (originalAssistantMsg) {
+            fetch(`/api/messages/${editingMessageId}/variants`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ variants: userVariants }),
+            }).catch(() => {});
+            
+            fetch(`/api/messages/${originalAssistantMsg.id}/variants`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ variants: [...assistantVariants, newVariant] }),
+            }).catch(() => {});
+          }
         }
-        setStreamingContent('');
       }
     } catch (e) {
       console.error('Edit message failed:', e);
+      // Restore original content on error
+      if (originalAssistantMsg) {
+        setMessages(prev => prev.map(m => {
+          if (m.id === originalAssistantMsg.id) return { ...m, content: assistantVariants[0]?.content || m.content, activeVariant: 0 };
+          if (m.id === editingMessageId) return { ...m, content: userVariants[0]?.content || m.content, activeVariant: 0 };
+          return m;
+        }));
+      }
     }
     setLoading(false);
+  }
+
+  // Toggle message variant (Claude-style ◀ 1/2 ▶)
+  function toggleVariant(messageId, direction) {
+    setMessages(prev => {
+      const msgIndex = prev.findIndex(m => m.id === messageId);
+      if (msgIndex === -1) return prev;
+      const msg = prev[msgIndex];
+      if (!msg.variants || msg.variants.length <= 1) return prev;
+      
+      const currentIndex = msg.activeVariant || 0;
+      const newIndex = direction === 'next'
+        ? Math.min(currentIndex + 1, msg.variants.length - 1)
+        : Math.max(currentIndex - 1, 0);
+      
+      if (newIndex === currentIndex) return prev;
+      
+      const updated = prev.map(m => {
+        if (m.id === messageId) {
+          return { ...m, content: m.variants[newIndex].content, activeVariant: newIndex, model_used: m.variants[newIndex].model_used || m.model_used };
+        }
+        // Also toggle the paired message
+        if (m.id === msg.pairedMessageId && m.variants?.length > newIndex) {
+          return { ...m, content: m.variants[newIndex].content, activeVariant: newIndex, model_used: m.variants[newIndex].model_used || m.model_used };
+        }
+        return m;
+      });
+      
+      return updated;
+    });
   }
 
   const currentModel = MODELS.find(m => m.value === selectedModel) || MODELS[0];
@@ -3387,10 +3490,56 @@ export default function ChatPage() {
                         <p className="whitespace-pre-wrap break-words">{typeof msg.content === 'string' ? msg.content : String(msg.content || '')}</p>
                       )
                     )}
+                    {/* Variant toggle for user messages */}
+                    {msg.role === 'user' && msg.variants && msg.variants.length > 1 && editingMessageId !== msg.id && (
+                      <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-white/5">
+                        <button 
+                          onClick={() => toggleVariant(msg.id, 'prev')}
+                          disabled={(msg.activeVariant || 0) === 0}
+                          className="p-0.5 rounded text-gray-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronLeft className="w-3 h-3" />
+                        </button>
+                        <span className="text-[10px] text-gray-500 font-mono min-w-[28px] text-center">
+                          {(msg.activeVariant || 0) + 1}/{msg.variants.length}
+                        </span>
+                        <button 
+                          onClick={() => toggleVariant(msg.id, 'next')}
+                          disabled={(msg.activeVariant || 0) >= msg.variants.length - 1}
+                          className="p-0.5 rounded text-gray-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                        <span className="text-[10px] text-gray-600 ml-1">
+                          {(msg.activeVariant || 0) === 0 ? 'original' : 'edited'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   {msg.role === 'assistant' && msg.id !== 'greeting' && (
                     <div className="flex items-center gap-2 mt-1.5 ml-1">
-                      {/* Thumbs Up */}
+                      {/* Variant toggle for assistant messages */}
+                      {msg.variants && msg.variants.length > 1 && (
+                        <div className="flex items-center gap-1 mr-2 pr-2 border-r border-white/10">
+                          <button 
+                            onClick={() => toggleVariant(msg.id, 'prev')}
+                            disabled={(msg.activeVariant || 0) === 0}
+                            className="p-0.5 rounded text-gray-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <ChevronLeft className="w-3 h-3" />
+                          </button>
+                          <span className="text-[10px] text-gray-500 font-mono min-w-[28px] text-center">
+                            {(msg.activeVariant || 0) + 1}/{msg.variants.length}
+                          </span>
+                          <button 
+                            onClick={() => toggleVariant(msg.id, 'next')}
+                            disabled={(msg.activeVariant || 0) >= msg.variants.length - 1}
+                            className="p-0.5 rounded text-gray-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <ChevronRight className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
                       <button 
                         onClick={() => submitFeedback(msg.id, 'up')} 
                         className={`transition-colors p-1 rounded ${messageFeedback[msg.id] === 'up' ? 'text-green-400 bg-green-400/10' : 'text-gray-700 hover:text-green-400'}`}

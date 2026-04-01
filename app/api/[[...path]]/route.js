@@ -7906,7 +7906,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   from: process.env.SENDER_EMAIL || 'support@soulprintengine.ai',
-                  to: process.env.SENDER_EMAIL || 'support@soulprintengine.ai',
+                  to: 'team@archeforge.com',
                   subject: `[SoulPrint Support] ${escalationData.issue?.slice(0, 80) || 'User reported issue'}`,
                   html: `
                     <h2>Support Escalation from SoulPrint</h2>
@@ -7995,7 +7995,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                   headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     from: process.env.SENDER_EMAIL || 'support@soulprintengine.ai',
-                    to: process.env.SENDER_EMAIL || 'support@soulprintengine.ai',
+                    to: 'team@archeforge.com',
                     subject: `[SoulPrint Support] ${issueDescription.slice(0, 80)}`,
                     html: `
                       <h2>Support Escalation from SoulPrint</h2>
@@ -10102,6 +10102,23 @@ export async function PATCH(request, { params }) {
       await db.collection('messages').updateOne(
         { id: messageId, user_id: user.id },
         { $set: { video_url, thumbnail_url: thumbnail_url || null, 'video_task.status': 'success' } }
+      );
+      return ok({ success: true });
+    }
+
+    // Save message variants (for edit-regeneration feature)
+    // PATCH /api/messages/:id/variants
+    if (pathStr.startsWith('messages/') && pathStr.endsWith('/variants')) {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      const messageId = pathArr[1];
+      const body = await request.json();
+      const { variants, activeVariant } = body;
+      if (!variants || !Array.isArray(variants)) return err('variants array required', 400);
+      const db = await getDb();
+      await db.collection('messages').updateOne(
+        { id: messageId },
+        { $set: { variants, activeVariant: activeVariant ?? variants.length - 1 } }
       );
       return ok({ success: true });
     }

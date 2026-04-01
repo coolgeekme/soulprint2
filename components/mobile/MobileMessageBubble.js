@@ -2,10 +2,10 @@
 import { useState } from 'react';
 import SafeMarkdown from '@/components/SafeMarkdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
-import { Copy, Edit3, ThumbsUp, ThumbsDown, MoreVertical, Loader2, Globe, Sparkles, Film, Check, Volume2, VolumeX } from 'lucide-react';
+import { Copy, Edit3, ThumbsUp, ThumbsDown, MoreVertical, Loader2, Globe, Sparkles, Film, Check, Volume2, VolumeX, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MobileVideoCard, MobileSavedVideoCard, MobileImageCard } from './MobileMediaCards';
 
-const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId }) => {
+const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId, onToggleVariant }) => {
   const [showActions, setShowActions] = useState(false);
   const [feedback, setFeedback] = useState(message.feedback || null);
 
@@ -34,6 +34,31 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           onClick={() => setShowActions(!showActions)}
         >
           <p className="text-white text-base leading-7">{String(message?.content || '')}</p>
+          {/* Variant toggle for user messages */}
+          {message.variants && message.variants.length > 1 && !showActions && (
+            <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-orange-500/10" onClick={e => e.stopPropagation()}>
+              <button 
+                onClick={() => onToggleVariant?.(message.id, 'prev')}
+                disabled={(message.activeVariant || 0) === 0}
+                className="p-0.5 rounded text-orange-400/60 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <span className="text-[10px] text-orange-400/60 font-mono">
+                {(message.activeVariant || 0) + 1}/{message.variants.length}
+              </span>
+              <button 
+                onClick={() => onToggleVariant?.(message.id, 'next')}
+                disabled={(message.activeVariant || 0) >= message.variants.length - 1}
+                className="p-0.5 rounded text-orange-400/60 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-3 h-3" />
+              </button>
+              <span className="text-[9px] text-orange-400/40 ml-1">
+                {(message.activeVariant || 0) === 0 ? 'original' : 'edited'}
+              </span>
+            </div>
+          )}
           {showActions && (
             <div className="flex items-center gap-2 mt-2 pt-2 border-t border-orange-500/20">
               <button onClick={handleCopy} className="text-orange-300 text-xs flex items-center gap-1">
@@ -170,6 +195,28 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           </div>
           {showActions && (
             <div className="flex items-center gap-3 mt-2 pt-2 border-t border-white/10">
+              {/* Variant toggle for assistant messages */}
+              {message.variants && message.variants.length > 1 && (
+                <div className="flex items-center gap-1 mr-1 pr-2 border-r border-white/10" onClick={e => e.stopPropagation()}>
+                  <button 
+                    onClick={() => onToggleVariant?.(message.id, 'prev')}
+                    disabled={(message.activeVariant || 0) === 0}
+                    className="p-0.5 text-gray-400 disabled:opacity-30"
+                  >
+                    <ChevronLeft className="w-3 h-3" />
+                  </button>
+                  <span className="text-[10px] text-gray-500 font-mono">
+                    {(message.activeVariant || 0) + 1}/{message.variants.length}
+                  </span>
+                  <button 
+                    onClick={() => onToggleVariant?.(message.id, 'next')}
+                    disabled={(message.activeVariant || 0) >= message.variants.length - 1}
+                    className="p-0.5 text-gray-400 disabled:opacity-30"
+                  >
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
               <button onClick={handleCopy} className="text-gray-400 text-xs flex items-center gap-1">
                 <Copy className="w-3 h-3" /> Copy
               </button>
