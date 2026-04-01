@@ -7960,6 +7960,77 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           }
         }
 
+        // ── Fallback Escalation Detection (NLP) ──────────────────────────────
+        // If the AI mentioned escalating but forgot the [SUPPORT_ESCALATION] marker,
+        // detect it from natural language and send the email anyway
+        if (!fullContent.includes('[SUPPORT_ESCALATION]')) {
+          const escalationPhrases = [
+            /\b(?:team has been notified|engineering team.*notified|notified.*engineering|escalat(?:ed|ing).*(?:team|engineering|support)|sent? (?:this|it) to (?:the )?(?:engineering|support|tech) team)\b/i,
+            /\b(?:I['']ll (?:escalate|send|report|flag) this|reported (?:this|it) to|flagging (?:this|it) for)\b/i,
+          ];
+          const looksLikeEscalation = escalationPhrases.some(p => p.test(fullContent));
+          
+          if (looksLikeEscalation) {
+            console.log('[Support] NLP fallback: AI mentioned escalation without marker. Sending email...');
+            (async () => {
+              try {
+                const userEmail = user.email || 'unknown';
+                const userName = user.display_name || user.email || 'Unknown user';
+                
+                // Try to find the user's recent messages for context
+                const recentUserMsgs = await db.collection('messages')
+                  .find({ conversation_id: convId, role: 'user' })
+                  .sort({ created_at: -1 }).limit(3).toArray();
+                const contextMessages = recentUserMsgs.map(m => {
+                  const c = typeof m.content === 'string' ? m.content : (Array.isArray(m.content) ? m.content.find(p => p.type === 'text')?.text : '') || '';
+                  return c.substring(0, 200);
+                }).filter(Boolean).join(' | ');
+                
+                // Extract issue from AI response (first sentence that mentions the problem)
+                const issueMatch = fullContent.match(/(?:issue|problem|error|bug|fail(?:ing|ed|ure)|not working|broken)[^.]*\./i);
+                const issueDescription = issueMatch ? issueMatch[0].trim() : 'Technical issue reported by user (see context)';
+                
+                const emailRes = await fetch('https://api.resend.com/emails', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    from: process.env.SENDER_EMAIL || 'support@soulprintengine.ai',
+                    to: process.env.SENDER_EMAIL || 'support@soulprintengine.ai',
+                    subject: `[SoulPrint Support] ${issueDescription.slice(0, 80)}`,
+                    html: `
+                      <h2>Support Escalation from SoulPrint</h2>
+                      <p><em style="color:#e67e22;">⚠️ NLP fallback — AI mentioned escalation without formal marker</em></p>
+                      <p><strong>User:</strong> ${userName} (${userEmail})</p>
+                      <p><strong>Detected Issue:</strong> ${issueDescription}</p>
+                      <p><strong>User's Recent Messages:</strong> ${contextMessages || 'N/A'}</p>
+                      <p><strong>AI Response (excerpt):</strong> ${fullContent.substring(0, 500).replace(/</g, '&lt;')}</p>
+                      <p><strong>Conversation ID:</strong> ${convId}</p>
+                      <p><strong>Model:</strong> ${model}</p>
+                      <p><strong>Time:</strong> ${new Date().toISOString()}</p>
+                      <hr>
+                      <p style="color:#888;font-size:12px;">Auto-detected escalation via NLP fallback. The AI mentioned notifying the team but did not include the [SUPPORT_ESCALATION] marker.</p>
+                    `,
+                  }),
+                });
+                if (!emailRes.ok) {
+                  const errText = await emailRes.text().catch(() => '');
+                  console.error('[Support] NLP fallback email failed:', emailRes.status, errText);
+                } else {
+                  console.log(`[Support] NLP fallback escalation email sent for user ${userEmail}, conv ${convId}`);
+                }
+                
+                // Mark the message as escalated
+                await db.collection('messages').updateOne(
+                  { id: assistantMsgId },
+                  { $set: { support_escalated: true, escalation_method: 'nlp_fallback' } }
+                );
+              } catch (escErr) {
+                console.error('[Support] NLP fallback email error:', escErr);
+              }
+            })();
+          }
+        }
+
         // ── Long-Term Memory Extraction (async, non-blocking) ──────────────────
         // Extract and save important facts from this conversation exchange
         (async () => {
