@@ -446,7 +446,7 @@ function PrivacyTab({ token }) {
   };
 
   const purgeImportedData = async () => {
-    if (!confirm('Are you sure you want to delete all imported data (ChatGPT, Facebook, etc.)? This cannot be undone.')) return;
+    if (!confirm('Are you sure you want to delete all imported data (ChatGPT, Facebook, etc.)? This will also remove your soul profile and communication analysis. This cannot be undone.')) return;
     setActionLoading('purge-imports');
     try {
       const res = await fetch('/api/privacy/purge-imports', {
@@ -454,10 +454,45 @@ function PrivacyTab({ token }) {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      alert(`Deleted ${data.imported_messages_deleted} imported messages.`);
+      alert(`Deleted ${data.total_deleted || 0} imported data records.`);
       loadData();
     } catch (e) {
       alert('Failed to purge imported data');
+    }
+    setActionLoading(null);
+  };
+
+  const purgeMemories = async () => {
+    if (!confirm('Are you sure you want to delete ALL your memories? This will remove all learned preferences, facts, and context the AI has about you. This cannot be undone.')) return;
+    setActionLoading('purge-memories');
+    try {
+      const res = await fetch('/api/privacy/purge-memories', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      alert(`Deleted ${data.memories_deleted || 0} memories.`);
+      loadData();
+    } catch (e) {
+      alert('Failed to purge memories');
+    }
+    setActionLoading(null);
+  };
+
+  const purgeAllData = async () => {
+    if (!confirm('⚠️ DANGER: Are you sure you want to delete ALL your data? This includes:\n\n• All chat conversations & messages\n• All imported data & analysis\n• All memories & preferences\n• Soul profile & personalization\n\nThis action is PERMANENT and cannot be undone.')) return;
+    if (!confirm('This is your final confirmation. ALL data will be permanently deleted. Continue?')) return;
+    setActionLoading('purge-all');
+    try {
+      const res = await fetch('/api/privacy/purge-all', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      alert(`All data cleared:\n• ${data.messages_deleted || 0} messages deleted\n• ${data.conversations_deleted || 0} conversations deleted\n• ${data.memories_deleted || 0} memories deleted`);
+      loadData();
+    } catch (e) {
+      alert('Failed to purge all data');
     }
     setActionLoading(null);
   };
@@ -592,6 +627,27 @@ function PrivacyTab({ token }) {
             {actionLoading === 'purge-imports' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             Delete All Imported Data
           </button>
+          <button
+            onClick={purgeMemories}
+            disabled={!!actionLoading}
+            className="w-full px-4 py-2.5 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-yellow-400 text-sm rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {actionLoading === 'purge-memories' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            Delete All Memories
+          </button>
+        </div>
+
+        {/* Clear Everything */}
+        <div className="mt-3 pt-3 border-t border-white/5">
+          <button
+            onClick={purgeAllData}
+            disabled={!!actionLoading}
+            className="w-full px-4 py-2.5 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-400 text-sm rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {actionLoading === 'purge-all' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            🔄 Clear Everything (Start Fresh)
+          </button>
+          <p className="text-gray-600 text-xs mt-1.5 text-center">Deletes all chats, imports, memories, and personalization data</p>
         </div>
       </div>
 

@@ -77,6 +77,8 @@ import {
   handleGetDataUsageSummary,
   handleGetSessions,
   handleRevokeSession,
+  handlePurgeMemories,
+  handlePurgeAll,
 } from '@/lib/handlers/privacy';
 
 import {
@@ -10136,6 +10138,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'profile/soulprint/generate') return handleGenerateSoulPrint(request);
     if (pathStr === 'privacy/purge-chats') return handlePurgeChatHistory(request);
     if (pathStr === 'privacy/purge-imports') return handlePurgeImportedData(request);
+    if (pathStr === 'privacy/purge-memories') return handlePurgeMemories(request);
+    if (pathStr === 'privacy/purge-all') return handlePurgeAll(request);
     if (pathStr === 'privacy/settings') return handleUpdatePrivacySettings(request);
     if (pathStr === 'privacy/delete-account') return handleDeleteUserData(request);
     if (pathStr === 'privacy/revoke-session') return handleRevokeSession(request);
