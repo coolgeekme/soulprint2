@@ -140,7 +140,8 @@ async function handleChunkedComplete(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { uploadId } = body;
+  // Support both formats: { uploadId } (direct) and { uploads: [{ uploadId }] } (CloudImportModal)
+  const uploadId = body.uploadId || body.uploads?.[0]?.uploadId;
 
   if (!uploadId) return err('uploadId required');
 
@@ -150,25 +151,35 @@ async function handleChunkedComplete(request) {
   if (!session) return err('Upload session not found', 404);
 
   const fs = require('fs').promises;
+  const fsSync = require('fs');
   const chunkDir = path.join('/tmp', 'uploads', uploadId);
 
   try {
-    // Read and combine all chunks
+    // Step 1: Assemble chunks into a single file on disk (NOT into memory)
     const files = await fs.readdir(chunkDir);
     const sortedFiles = files.sort();
-    const chunks = [];
-
+    const assembledPath = path.join('/tmp', 'uploads', `${uploadId}_assembled`);
+    
+    // Create a write stream and pipe chunks to it
+    const writeStream = fsSync.createWriteStream(assembledPath);
+    let totalSize = 0;
+    
     for (const file of sortedFiles) {
       const chunkPath = path.join(chunkDir, file);
       const chunkData = await fs.readFile(chunkPath);
-      chunks.push(chunkData);
+      writeStream.write(chunkData);
+      totalSize += chunkData.length;
     }
-
-    const buffer = Buffer.concat(chunks);
-    console.log(`[ChunkedUpload] Assembled ${buffer.length} bytes from ${chunks.length} chunks`);
+    
+    await new Promise((resolve, reject) => {
+      writeStream.end(() => resolve());
+      writeStream.on('error', reject);
+    });
+    
+    console.log(`[ChunkedUpload] Assembled ${(totalSize / (1024 * 1024)).toFixed(1)} MB from ${sortedFiles.length} chunks to disk`);
 
     // Clean up chunk directory
-    for (const file of files) {
+    for (const file of sortedFiles) {
       await fs.unlink(path.join(chunkDir, file)).catch(() => {});
     }
     await fs.rmdir(chunkDir).catch(() => {});
@@ -176,15 +187,19 @@ async function handleChunkedComplete(request) {
     // Update session status
     await db.collection('upload_sessions').updateOne(
       { id: uploadId },
-      { $set: { status: 'processing', assembled_at: new Date() } }
+      { $set: { status: 'processing', assembled_at: new Date(), file_size_bytes: totalSize } }
     );
 
-    // Process the file
-    const result = await processUploadedFile(db, user.id, uploadId, session.type, buffer, session.filename);
+    // Step 2: Process the file using streaming for large files
+    const result = await processLargeFile(db, user.id, uploadId, session.type, assembledPath, session.filename, totalSize);
+
+    // Clean up assembled file
+    await fs.unlink(assembledPath).catch(() => {});
 
     return ok({
       success: true,
       uploadId,
+      importId: uploadId, // Return as importId for polling compatibility
       ...result,
     });
   } catch (error) {
@@ -193,8 +208,370 @@ async function handleChunkedComplete(request) {
       { id: uploadId },
       { $set: { status: 'error', error: error.message } }
     );
+    // Clean up on error
+    const assembledPath = path.join('/tmp', 'uploads', `${uploadId}_assembled`);
+    await fs.unlink(assembledPath).catch(() => {});
     return err(error.message || 'Failed to process upload', 500);
   }
+}
+
+// ============================================================
+// STREAMING FILE PROCESSING (for 1GB+ files)
+// ============================================================
+
+async function processLargeFile(db, userId, uploadId, type, filePath, filename, totalSize) {
+  const fs = require('fs');
+  const fsPromises = require('fs').promises;
+  const readline = require('readline');
+  
+  let detectedType = type || 'chatgpt';
+  let conversationCount = 0;
+  let messageCount = 0;
+  const textSamples = []; // Collect samples for AI analysis (not the whole file)
+  const MAX_SAMPLE_SIZE = 50000; // 50KB of text for AI analysis
+  let sampledSize = 0;
+  
+  const lowerFilename = filename.toLowerCase();
+  const fileSizeMB = totalSize / (1024 * 1024);
+  
+  console.log(`[ProcessLargeFile] Processing ${fileSizeMB.toFixed(1)} MB file: ${filename}`);
+  
+  // Create import_jobs entry so the frontend can poll /api/imports/status
+  await db.collection('import_jobs').updateOne(
+    { id: uploadId },
+    { $set: {
+      id: uploadId,
+      user_id: userId,
+      status: 'processing',
+      message: `Processing ${fileSizeMB.toFixed(0)} MB file...`,
+      progress: 10,
+      created_at: new Date(),
+    }},
+    { upsert: true }
+  );
+  
+  if (lowerFilename.endsWith('.zip')) {
+    // For ZIP files, we need to extract - but for very large ZIPs, use streaming
+    if (totalSize > 500 * 1024 * 1024) {
+      // Very large ZIP: extract conversations.json to disk first
+      try {
+        const { exec } = require('child_process');
+        const extractDir = path.join('/tmp', 'uploads', `${uploadId}_extracted`);
+        await fsPromises.mkdir(extractDir, { recursive: true });
+        
+        // Use system unzip which handles large files better than AdmZip
+        await new Promise((resolve, reject) => {
+          exec(`unzip -o -j "${filePath}" "*.json" -d "${extractDir}" 2>&1 | tail -5`, 
+            { maxBuffer: 10 * 1024 * 1024 },
+            (error, stdout, stderr) => {
+              if (error && !stdout.includes('extracting')) {
+                reject(new Error(`Unzip failed: ${error.message}`));
+              } else {
+                resolve();
+              }
+            }
+          );
+        });
+        
+        // Find and process conversations.json
+        const extractedFiles = await fsPromises.readdir(extractDir);
+        const conversationsFile = extractedFiles.find(f => f.toLowerCase().includes('conversations'));
+        
+        if (conversationsFile) {
+          const convPath = path.join(extractDir, conversationsFile);
+          const result = await streamParseJsonFile(db, userId, uploadId, convPath, detectedType);
+          conversationCount = result.conversationCount;
+          messageCount = result.messageCount;
+          textSamples.push(...result.textSamples);
+          sampledSize = result.sampledSize;
+        }
+        
+        // Clean up
+        for (const f of extractedFiles) {
+          await fsPromises.unlink(path.join(extractDir, f)).catch(() => {});
+        }
+        await fsPromises.rmdir(extractDir).catch(() => {});
+      } catch (e) {
+        console.error('[ProcessLargeFile] Large ZIP extraction failed:', e.message);
+        throw new Error('Failed to extract ZIP file: ' + e.message);
+      }
+    } else {
+      // Smaller ZIP: use AdmZip (fits in memory)
+      const buffer = await fsPromises.readFile(filePath);
+      const AdmZip = (await import('adm-zip')).default;
+      const zip = new AdmZip(buffer);
+      const entries = zip.getEntries();
+      
+      for (const entry of entries) {
+        if (!entry.isDirectory && entry.entryName.toLowerCase().endsWith('.json')) {
+          const content = entry.getData().toString('utf8');
+          try {
+            const parsed = JSON.parse(content);
+            if (Array.isArray(parsed)) conversationCount += parsed.length;
+            const text = extractTextFromJson(parsed, detectedType);
+            textSamples.push(text);
+            sampledSize += text.length;
+          } catch {
+            textSamples.push(content.slice(0, 5000));
+            sampledSize += 5000;
+          }
+          if (sampledSize >= MAX_SAMPLE_SIZE) break;
+        }
+      }
+    }
+  } else if (lowerFilename.endsWith('.json')) {
+    // For large JSON files, use streaming parser
+    if (totalSize > 100 * 1024 * 1024) {
+      // Large JSON (>100MB): Stream parse
+      const result = await streamParseJsonFile(db, userId, uploadId, filePath, detectedType);
+      conversationCount = result.conversationCount;
+      messageCount = result.messageCount;
+      textSamples.push(...result.textSamples);
+      sampledSize = result.sampledSize;
+    } else {
+      // Smaller JSON: load into memory
+      const content = await fsPromises.readFile(filePath, 'utf8');
+      try {
+        const parsed = JSON.parse(content);
+        if (Array.isArray(parsed)) conversationCount = parsed.length;
+        const text = extractTextFromJson(parsed, type);
+        textSamples.push(text);
+        sampledSize = text.length;
+      } catch {
+        textSamples.push(content.slice(0, MAX_SAMPLE_SIZE));
+        sampledSize = MAX_SAMPLE_SIZE;
+      }
+    }
+  } else {
+    // Plain text or other
+    const fd = await fsPromises.open(filePath, 'r');
+    const sampleBuffer = Buffer.alloc(Math.min(totalSize, MAX_SAMPLE_SIZE));
+    await fd.read(sampleBuffer, 0, sampleBuffer.length, 0);
+    await fd.close();
+    textSamples.push(sampleBuffer.toString('utf8'));
+    sampledSize = sampleBuffer.length;
+  }
+  
+  const extractedText = textSamples.join('\n\n').slice(0, MAX_SAMPLE_SIZE);
+  messageCount = messageCount || (extractedText.match(/\n\n/g) || []).length;
+  
+  console.log(`[ProcessLargeFile] Extracted ${conversationCount} conversations, ~${messageCount} messages, ${(sampledSize / 1024).toFixed(1)}KB sample text`);
+  
+  // Generate soul profile summary using AI
+  let soulSummary = '';
+  if (extractedText.length > 100) {
+    try {
+      const { getProvider } = await import('@/lib/llm/providers');
+      const provider = getProvider('openai', 'gpt-4o-mini');
+      soulSummary = await provider.generateChatCompletion({
+        systemPrompt: 'You are analyzing personal data exports to understand communication style and personality. Be concise.',
+        messages: [{
+          role: 'user',
+          content: `Based on this data export (type: ${detectedType}, ${conversationCount} conversations, ~${messageCount} messages), create a brief profile summary (200 words) covering communication style, interests, and personality traits.\n\nSample Data:\n${extractedText.slice(0, 8000)}`,
+        }],
+        model: 'gpt-4o-mini',
+        temperature: 0.5,
+      });
+    } catch (e) {
+      console.log('[ProcessLargeFile] AI summary failed:', e.message);
+    }
+  }
+
+  // Store text chunks for soul profile
+  const chunkSize = 2000;
+  const chunks = [];
+  for (let i = 0; i < extractedText.length; i += chunkSize) {
+    chunks.push(extractedText.slice(i, i + chunkSize));
+  }
+
+  for (const chunkText of chunks.slice(0, 25)) {
+    await db.collection('source_corpus_chunks').insertOne({
+      id: uuidv4(),
+      user_id: userId,
+      import_job_id: uploadId,
+      chunk_text: chunkText,
+      metadata: { type: detectedType },
+      created_at: new Date(),
+    });
+  }
+
+  // Update profile with summary
+  if (soulSummary) {
+    await db.collection('profiles').updateOne(
+      { user_id: userId },
+      { 
+        $set: { 
+          soul_profile_summary: soulSummary,
+          soul_profile_updated_at: new Date(),
+          soul_profile_source: detectedType,
+        }
+      }
+    );
+  }
+
+  // Update upload session
+  await db.collection('upload_sessions').updateOne(
+    { id: uploadId },
+    {
+      $set: {
+        status: 'completed',
+        detected_type: detectedType,
+        conversation_count: conversationCount,
+        message_count: messageCount,
+        summary_generated: !!soulSummary,
+        completed_at: new Date(),
+      }
+    }
+  );
+
+  // Update import_jobs for frontend polling
+  await db.collection('import_jobs').updateOne(
+    { id: uploadId },
+    { $set: {
+      status: 'completed',
+      message: `Imported ${conversationCount} conversations, ~${messageCount} messages`,
+      progress: 100,
+      messages_count: messageCount,
+      conversation_count: conversationCount,
+      memories_added: chunks.length,
+      completed_at: new Date(),
+      stats: {
+        messagesCount: messageCount,
+        conversationCount,
+        summaryGenerated: !!soulSummary,
+      }
+    }}
+  );
+
+  return {
+    detectedType,
+    conversationCount,
+    messageCount,
+    summaryGenerated: !!soulSummary,
+    importId: uploadId,
+  };
+}
+
+// Stream-parse a large JSON file (ChatGPT conversations.json format)
+// Reads the file line-by-line to avoid loading entire file into memory
+async function streamParseJsonFile(db, userId, uploadId, filePath, type) {
+  const fs = require('fs');
+  const MAX_SAMPLE_SIZE = 50000;
+  let conversationCount = 0;
+  let messageCount = 0;
+  const textSamples = [];
+  let sampledSize = 0;
+  
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    let depth = 0;
+    let inConversation = false;
+    let currentConversation = '';
+    let conversationsParsed = 0;
+    const MAX_CONVERSATIONS_TO_SAMPLE = 50; // Parse first 50 conversations for sampling
+    
+    const stream = fs.createReadStream(filePath, { encoding: 'utf8', highWaterMark: 64 * 1024 });
+    
+    // Count conversations by counting top-level array elements
+    // ChatGPT format: [{ "title": ..., "mapping": {...} }, ...]
+    let bracketCount = 0;
+    let inString = false;
+    let escaped = false;
+    let topLevelItems = 0;
+    
+    stream.on('data', (chunk) => {
+      for (let i = 0; i < chunk.length; i++) {
+        const char = chunk[i];
+        
+        if (escaped) {
+          escaped = false;
+          if (inConversation && sampledSize < MAX_SAMPLE_SIZE) currentConversation += char;
+          continue;
+        }
+        
+        if (char === '\\' && inString) {
+          escaped = true;
+          if (inConversation && sampledSize < MAX_SAMPLE_SIZE) currentConversation += char;
+          continue;
+        }
+        
+        if (char === '"' && !escaped) {
+          inString = !inString;
+          if (inConversation && sampledSize < MAX_SAMPLE_SIZE) currentConversation += char;
+          continue;
+        }
+        
+        if (!inString) {
+          if (char === '{') {
+            bracketCount++;
+            if (bracketCount === 1) {
+              // Start of a top-level object in the array
+              inConversation = (conversationsParsed < MAX_CONVERSATIONS_TO_SAMPLE);
+              currentConversation = '{';
+              continue;
+            }
+          } else if (char === '}') {
+            bracketCount--;
+            if (bracketCount === 0) {
+              // End of a top-level object
+              topLevelItems++;
+              
+              if (inConversation && sampledSize < MAX_SAMPLE_SIZE) {
+                currentConversation += '}';
+                try {
+                  const conv = JSON.parse(currentConversation);
+                  conversationsParsed++;
+                  
+                  // Extract text from this conversation
+                  if (conv.mapping) {
+                    for (const [, node] of Object.entries(conv.mapping)) {
+                      const msg = node?.message;
+                      if (msg?.content?.parts) {
+                        const text = msg.content.parts.join(' ');
+                        if (text.trim()) {
+                          messageCount++;
+                          if (sampledSize < MAX_SAMPLE_SIZE) {
+                            textSamples.push(text);
+                            sampledSize += text.length;
+                          }
+                        }
+                      }
+                    }
+                  }
+                } catch {
+                  // Malformed conversation object, skip
+                }
+              }
+              
+              inConversation = false;
+              currentConversation = '';
+              continue;
+            }
+          }
+        }
+        
+        if (inConversation && sampledSize < MAX_SAMPLE_SIZE) {
+          currentConversation += char;
+          // Safety: don't let a single conversation buffer grow too large
+          if (currentConversation.length > 5 * 1024 * 1024) {
+            inConversation = false;
+            currentConversation = '';
+          }
+        }
+      }
+    });
+    
+    stream.on('end', () => {
+      conversationCount = topLevelItems;
+      console.log(`[StreamParse] Parsed ${conversationCount} conversations, sampled ${conversationsParsed}, ${messageCount} messages`);
+      resolve({ conversationCount, messageCount, textSamples, sampledSize });
+    });
+    
+    stream.on('error', (err) => {
+      console.error('[StreamParse] Error:', err.message);
+      reject(err);
+    });
+  });
 }
 
 // ============================================================
