@@ -9,7 +9,7 @@ import json
 import uuid
 
 # Configuration
-BASE_URL = "https://data-import-trace.preview.emergentagent.com"
+BASE_URL = "https://veo-ux-polling.preview.emergentagent.com"
 TEST_EMAIL = "test@soulprint.com"
 TEST_PASSWORD = "test123"
 

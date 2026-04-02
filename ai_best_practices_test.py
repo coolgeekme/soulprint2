@@ -9,7 +9,7 @@ import json
 import time
 import os
 
-BASE_URL = "https://data-import-trace.preview.emergentagent.com"
+BASE_URL = "https://veo-ux-polling.preview.emergentagent.com"
 
 # Test credentials
 TEST_EMAIL = "test@soulprint.com"  

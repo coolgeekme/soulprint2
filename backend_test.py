@@ -1,55 +1,49 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for Image Generation with Attachments Fix
-Tests the fix in app/api/[[...path]]/route.js line 6784
+Backend Testing Script for Veo Video Generation UX Enhancement
+Tests the enhanced video status polling endpoint with model-specific progress data
 """
 
 import requests
 import json
-import uuid
-import base64
 import time
 import sys
-from io import BytesIO
-from PIL import Image
+from typing import Dict, Any, Optional
 
-# Configuration
-BASE_URL = "https://data-import-trace.preview.emergentagent.com"
-AUTH_EMAIL = "testchat@example.com"
-AUTH_PASSCODE = "Test123456"
+# Test Configuration
+BASE_URL = "https://veo-ux-polling.preview.emergentagent.com"
+TEST_EMAIL = "testchat@example.com"
+TEST_PASSWORD = "Test123456"
 
-class ImageGenerationTester:
+class VeoUXTester:
     def __init__(self):
         self.base_url = BASE_URL
-        self.auth_token = None
         self.session = requests.Session()
+        self.auth_token = None
+        self.test_results = []
         
-    def create_test_image_base64(self):
-        """Create a small 1x1 pixel PNG image as base64 for testing"""
+    def log_result(self, test_name: str, success: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status} {test_name}")
+        if details:
+            print(f"    {details}")
+        self.test_results.append({
+            'test': test_name,
+            'success': success,
+            'details': details
+        })
+        
+    def authenticate(self) -> bool:
+        """Authenticate and get token"""
         try:
-            # Create a 1x1 red pixel image
-            img = Image.new('RGB', (1, 1), color='red')
-            buffer = BytesIO()
-            img.save(buffer, format='PNG')
-            buffer.seek(0)
+            print(f"\n🔐 Authenticating with {TEST_EMAIL}...")
             
-            # Convert to base64
-            image_data = buffer.getvalue()
-            base64_data = base64.b64encode(image_data).decode('utf-8')
-            return f"data:image/png;base64,{base64_data}"
-        except Exception as e:
-            print(f"❌ Failed to create test image: {e}")
-            return None
-    
-    def login(self):
-        """Login to get auth token"""
-        try:
-            print("🔐 Logging in...")
             response = self.session.post(
                 f"{self.base_url}/api/auth/login",
                 json={
-                    "email": AUTH_EMAIL,
-                    "passcode": AUTH_PASSCODE
+                    "email": TEST_EMAIL,
+                    "passcode": TEST_PASSWORD
                 },
                 headers={"Content-Type": "application/json"}
             )
@@ -58,326 +52,376 @@ class ImageGenerationTester:
                 data = response.json()
                 self.auth_token = data.get('token')
                 if self.auth_token:
-                    print(f"✅ Login successful")
+                    self.session.headers.update({
+                        'Authorization': f'Bearer {self.auth_token}'
+                    })
+                    self.log_result("Authentication", True, f"Token obtained: {self.auth_token[:20]}...")
                     return True
                 else:
-                    print(f"❌ Login failed: No token in response")
+                    self.log_result("Authentication", False, "No token in response")
                     return False
             else:
-                print(f"❌ Login failed: {response.status_code} - {response.text}")
+                self.log_result("Authentication", False, f"HTTP {response.status_code}: {response.text}")
                 return False
                 
         except Exception as e:
-            print(f"❌ Login error: {e}")
+            self.log_result("Authentication", False, f"Exception: {str(e)}")
             return False
     
-    def parse_sse_stream(self, response_text):
-        """Parse Server-Sent Events stream (newline-delimited JSON)"""
-        events = []
-        lines = response_text.strip().split('\n')
-        
-        for line in lines:
-            line = line.strip()
-            if line:
-                try:
-                    event = json.loads(line)
-                    events.append(event)
-                except json.JSONDecodeError:
-                    # Skip invalid JSON lines
-                    continue
-        
-        return events
-    
-    def test_image_generation_without_attachments(self):
-        """Test 1: Image generation WITHOUT attachments (regression test)"""
-        print("\n🧪 TEST 1: Image generation WITHOUT attachments (regression test)")
-        
+    def test_health_check(self) -> bool:
+        """Test health endpoint"""
         try:
-            conversation_id = str(uuid.uuid4())
+            print(f"\n🏥 Testing health check...")
             
-            payload = {
-                "content": "create an image of a sunset over mountains",
-                "conversationId": conversation_id,
-                "model": "gpt-4o",
-                "attachments": []
-            }
+            response = self.session.get(f"{self.base_url}/api/health")
             
-            print(f"📤 Sending request to POST /api/chat/stream")
-            print(f"   Message: {payload['content']}")
-            print(f"   Attachments: {len(payload['attachments'])}")
-            
-            response = self.session.post(
-                f"{self.base_url}/api/chat/stream",
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {self.auth_token}",
-                    "Content-Type": "application/json"
-                },
-                stream=True
-            )
-            
-            if response.status_code != 200:
-                print(f"❌ Request failed: {response.status_code} - {response.text}")
-                return False
-            
-            # Collect the full response
-            full_response = ""
-            for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
-                if chunk:
-                    full_response += chunk
-            
-            # Parse SSE events
-            events = self.parse_sse_stream(full_response)
-            
-            print(f"📥 Received {len(events)} events")
-            
-            # Check for required events
-            generating_visual_found = False
-            image_event_found = False
-            done_event_found = False
-            image_url = None
-            
-            for event in events:
-                event_type = event.get('type')
-                print(f"   📋 Event: {event_type}")
-                
-                if event_type == 'generating_visual':
-                    generating_visual_found = True
-                    visual_type = event.get('visualType')
-                    print(f"      ✅ generating_visual event found (visualType: {visual_type})")
-                
-                elif event_type == 'image':
-                    image_event_found = True
-                    image_url = event.get('url')
-                    print(f"      ✅ image event found (url: {image_url[:50] if image_url else 'None'}...)")
-                
-                elif event_type == 'done':
-                    done_event_found = True
-                    message_id = event.get('messageId')
-                    print(f"      ✅ done event found (messageId: {message_id})")
-            
-            # Verify all required events are present
-            success = generating_visual_found and image_event_found and done_event_found
-            
-            if success:
-                print(f"✅ TEST 1 PASSED: All required SSE events found")
-                
-                # Verify image URL is accessible
-                if image_url and image_url.startswith('http'):
-                    try:
-                        img_response = self.session.head(image_url, timeout=10)
-                        if img_response.status_code == 200:
-                            print(f"✅ Image URL is accessible (HTTP {img_response.status_code})")
-                        else:
-                            print(f"⚠️  Image URL returned HTTP {img_response.status_code}")
-                    except Exception as e:
-                        print(f"⚠️  Could not verify image URL accessibility: {e}")
-                
-                return True
-            else:
-                print(f"❌ TEST 1 FAILED: Missing required events")
-                print(f"   generating_visual: {generating_visual_found}")
-                print(f"   image: {image_event_found}")
-                print(f"   done: {done_event_found}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ TEST 1 ERROR: {e}")
-            return False
-    
-    def test_image_generation_with_attachments(self):
-        """Test 2: Image generation WITH attachments (the bug fix)"""
-        print("\n🧪 TEST 2: Image generation WITH attachments (the bug fix)")
-        
-        try:
-            # Create test image
-            test_image_base64 = self.create_test_image_base64()
-            if not test_image_base64:
-                print("❌ Could not create test image")
-                return False
-            
-            conversation_id = str(uuid.uuid4())
-            
-            payload = {
-                "content": "create an image of a person standing in front of this background",
-                "conversationId": conversation_id,
-                "model": "gpt-4o",
-                "attachments": [{
-                    "type": "image",
-                    "base64": test_image_base64,
-                    "mimeType": "image/png",
-                    "name": "reference.png"
-                }]
-            }
-            
-            print(f"📤 Sending request to POST /api/chat/stream")
-            print(f"   Message: {payload['content']}")
-            print(f"   Attachments: {len(payload['attachments'])} (1 image)")
-            
-            response = self.session.post(
-                f"{self.base_url}/api/chat/stream",
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {self.auth_token}",
-                    "Content-Type": "application/json"
-                },
-                stream=True
-            )
-            
-            if response.status_code != 200:
-                print(f"❌ Request failed: {response.status_code} - {response.text}")
-                return False
-            
-            # Collect the full response
-            full_response = ""
-            for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
-                if chunk:
-                    full_response += chunk
-            
-            # Parse SSE events
-            events = self.parse_sse_stream(full_response)
-            
-            print(f"📥 Received {len(events)} events")
-            
-            # Check for required events
-            generating_visual_found = False
-            image_generation_attempted = False
-            
-            for event in events:
-                event_type = event.get('type')
-                print(f"   📋 Event: {event_type}")
-                
-                if event_type == 'generating_visual':
-                    generating_visual_found = True
-                    visual_type = event.get('visualType')
-                    print(f"      ✅ generating_visual event found (visualType: {visual_type})")
-                    print(f"      🎯 KEY FIX VERIFIED: Image generation was triggered WITH attachments!")
-                
-                elif event_type == 'image':
-                    image_generation_attempted = True
-                    image_url = event.get('url')
-                    print(f"      ✅ image event found - generation completed successfully")
-                
-                elif event_type == 'delta':
-                    content = event.get('content', '')
-                    if 'gpt-image-1' in content.lower() or 'reference' in content.lower():
-                        print(f"      🎯 Reference image processing detected in content")
-            
-            # The key test: generating_visual event should be present
-            # This proves the fix worked - previously this would be skipped entirely
-            if generating_visual_found:
-                print(f"✅ TEST 2 PASSED: Image generation was triggered WITH attachments")
-                print(f"   🎯 BUG FIX CONFIRMED: The condition 'if (mediaIntent === 'image')' allows generation with attachments")
-                
-                if image_generation_attempted:
-                    print(f"   ✅ BONUS: Image generation completed successfully with gpt-image-1")
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('status') == 'ok':
+                    self.log_result("Health Check", True, "API is healthy")
+                    return True
                 else:
-                    print(f"   ℹ️  Note: Generation triggered but may have fallen back to text (expected behavior)")
-                
-                return True
+                    self.log_result("Health Check", False, f"Unexpected status: {data}")
+                    return False
             else:
-                print(f"❌ TEST 2 FAILED: No generating_visual event found")
-                print(f"   This suggests image generation was still skipped with attachments")
+                self.log_result("Health Check", False, f"HTTP {response.status_code}: {response.text}")
                 return False
                 
         except Exception as e:
-            print(f"❌ TEST 2 ERROR: {e}")
+            self.log_result("Health Check", False, f"Exception: {str(e)}")
             return False
     
-    def test_media_intent_detection(self):
-        """Test 3: Media intent detection test"""
-        print("\n🧪 TEST 3: Media intent detection test")
-        
+    def test_auth_required(self) -> bool:
+        """Test that endpoints require authentication"""
         try:
-            conversation_id = str(uuid.uuid4())
+            print(f"\n🔒 Testing auth requirements...")
             
-            payload = {
-                "content": "create an image of a beautiful landscape",
-                "conversationId": conversation_id,
-                "model": "gpt-4o",
-                "attachments": []
-            }
+            # Test without auth token
+            temp_session = requests.Session()
             
-            print(f"📤 Testing media intent detection with: '{payload['content']}'")
-            
-            response = self.session.post(
-                f"{self.base_url}/api/chat/stream",
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {self.auth_token}",
-                    "Content-Type": "application/json"
-                },
-                stream=True
+            # Test video generation endpoint
+            response = temp_session.post(
+                f"{self.base_url}/api/media/generate",
+                json={
+                    "type": "video",
+                    "model": "kling-3",
+                    "prompt": "A cat walking in a garden",
+                    "aspectRatio": "16:9"
+                }
             )
             
-            if response.status_code != 200:
-                print(f"❌ Request failed: {response.status_code} - {response.text}")
+            if response.status_code == 401:
+                self.log_result("Auth Required - Video Generate", True, "401 Unauthorized as expected")
+            else:
+                self.log_result("Auth Required - Video Generate", False, f"Expected 401, got {response.status_code}")
                 return False
             
-            # Collect the full response
-            full_response = ""
-            for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
-                if chunk:
-                    full_response += chunk
+            # Test status polling endpoint
+            response = temp_session.get(f"{self.base_url}/api/media/status/test-task-id")
             
-            # Parse SSE events
-            events = self.parse_sse_stream(full_response)
-            
-            # Check if generating_visual event is present
-            generating_visual_found = False
-            
-            for event in events:
-                if event.get('type') == 'generating_visual':
-                    generating_visual_found = True
-                    visual_type = event.get('visualType')
-                    print(f"✅ Media intent detection working: generating_visual event found (visualType: {visual_type})")
-                    break
-            
-            if generating_visual_found:
-                print(f"✅ TEST 3 PASSED: Media intent detection correctly identified image request")
+            if response.status_code == 401:
+                self.log_result("Auth Required - Status Poll", True, "401 Unauthorized as expected")
                 return True
             else:
-                print(f"❌ TEST 3 FAILED: Media intent detection did not trigger image generation")
+                self.log_result("Auth Required - Status Poll", False, f"Expected 401, got {response.status_code}")
                 return False
                 
         except Exception as e:
-            print(f"❌ TEST 3 ERROR: {e}")
+            self.log_result("Auth Required", False, f"Exception: {str(e)}")
+            return False
+    
+    def create_video_job(self) -> Optional[str]:
+        """Create a video generation job and return taskId"""
+        try:
+            print(f"\n🎬 Creating video generation job...")
+            
+            response = self.session.post(
+                f"{self.base_url}/api/media/generate",
+                json={
+                    "type": "video",
+                    "model": "kling-3",
+                    "prompt": "A cat walking in a garden",
+                    "aspectRatio": "16:9"
+                },
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Check required fields in response
+                required_fields = ['success', 'taskId', 'mediaId', 'type', 'status']
+                missing_fields = [field for field in required_fields if field not in data]
+                
+                if missing_fields:
+                    self.log_result("Video Job Creation", False, f"Missing fields: {missing_fields}")
+                    return None
+                
+                # Check enhanced UX fields
+                enhanced_fields = ['estimatedTime', 'modelLabel', 'modelId']
+                has_enhanced = all(field in data for field in enhanced_fields)
+                
+                if not has_enhanced:
+                    self.log_result("Video Job Creation - Enhanced Fields", False, f"Missing enhanced UX fields: {[f for f in enhanced_fields if f not in data]}")
+                else:
+                    self.log_result("Video Job Creation - Enhanced Fields", True, f"estimatedTime: {data.get('estimatedTime')}, modelLabel: {data.get('modelLabel')}")
+                
+                # Verify field values
+                if data.get('success') == True and data.get('type') == 'video' and data.get('status') == 'generating':
+                    task_id = data.get('taskId')
+                    self.log_result("Video Job Creation", True, f"TaskId: {task_id}")
+                    return task_id
+                else:
+                    self.log_result("Video Job Creation", False, f"Unexpected response values: {data}")
+                    return None
+            else:
+                self.log_result("Video Job Creation", False, f"HTTP {response.status_code}: {response.text}")
+                return None
+                
+        except Exception as e:
+            self.log_result("Video Job Creation", False, f"Exception: {str(e)}")
+            return None
+    
+    def test_enhanced_status_polling(self, task_id: str) -> bool:
+        """Test enhanced status polling with UX fields"""
+        try:
+            print(f"\n📊 Testing enhanced status polling for task: {task_id}")
+            
+            response = self.session.get(f"{self.base_url}/api/media/status/{task_id}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Check if status is generating (to see enhanced fields)
+                if data.get('status') == 'generating':
+                    # Check for enhanced UX fields
+                    enhanced_fields = [
+                        'statusMessage',
+                        'estimatedTime', 
+                        'modelLabel',
+                        'modelId',
+                        'elapsedSeconds',
+                        'progressPct',
+                        'pollTimeoutMs',
+                        'stuckWarningMs'
+                    ]
+                    
+                    present_fields = []
+                    missing_fields = []
+                    
+                    for field in enhanced_fields:
+                        if field in data:
+                            present_fields.append(f"{field}: {data[field]}")
+                        else:
+                            missing_fields.append(field)
+                    
+                    if missing_fields:
+                        self.log_result("Enhanced Status Polling", False, f"Missing enhanced fields: {missing_fields}")
+                        return False
+                    else:
+                        self.log_result("Enhanced Status Polling", True, f"All enhanced fields present")
+                        print(f"    Enhanced fields: {', '.join(present_fields)}")
+                        
+                        # Verify field types and reasonable values
+                        if (isinstance(data.get('elapsedSeconds'), int) and 
+                            isinstance(data.get('progressPct'), int) and
+                            0 <= data.get('progressPct') <= 100 and
+                            isinstance(data.get('pollTimeoutMs'), int) and
+                            isinstance(data.get('stuckWarningMs'), int)):
+                            self.log_result("Enhanced Fields Validation", True, "Field types and ranges valid")
+                            return True
+                        else:
+                            self.log_result("Enhanced Fields Validation", False, "Invalid field types or values")
+                            return False
+                
+                elif data.get('status') in ['success', 'failed']:
+                    self.log_result("Enhanced Status Polling", True, f"Job completed with status: {data.get('status')}")
+                    return True
+                else:
+                    self.log_result("Enhanced Status Polling", False, f"Unexpected status: {data.get('status')}")
+                    return False
+                    
+            elif response.status_code == 404:
+                self.log_result("Enhanced Status Polling", True, "404 for non-existent task (expected)")
+                return True
+            else:
+                self.log_result("Enhanced Status Polling", False, f"HTTP {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Enhanced Status Polling", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_nonexistent_task(self) -> bool:
+        """Test status polling for non-existent task"""
+        try:
+            print(f"\n🔍 Testing non-existent task handling...")
+            
+            fake_task_id = "fake-task-id-12345"
+            response = self.session.get(f"{self.base_url}/api/media/status/{fake_task_id}")
+            
+            if response.status_code == 404:
+                self.log_result("Non-existent Task", True, "404 returned for fake task ID")
+                return True
+            else:
+                self.log_result("Non-existent Task", False, f"Expected 404, got {response.status_code}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Non-existent Task", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_model_specific_ux(self) -> bool:
+        """Test different models have different UX parameters"""
+        try:
+            print(f"\n🎯 Testing model-specific UX parameters...")
+            
+            # Test Kling Pro model (should have different estimated time than standard Kling)
+            pro_response = self.session.post(
+                f"{self.base_url}/api/media/generate",
+                json={
+                    "type": "video",
+                    "model": "kling-3-pro",
+                    "prompt": "A cinematic sunset over mountains",
+                    "aspectRatio": "16:9"
+                },
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if pro_response.status_code == 200:
+                pro_data = pro_response.json()
+                pro_estimated = pro_data.get('estimatedTime', '')
+                pro_label = pro_data.get('modelLabel', '')
+                
+                # Verify enhanced fields are present in creation response
+                if pro_estimated and pro_label:
+                    self.log_result("Model-Specific UX - Kling Pro", True, f"Kling Pro estimated time: {pro_estimated}, label: {pro_label}")
+                    
+                    # Test status polling for Kling Pro to see enhanced fields
+                    pro_task_id = pro_data.get('taskId')
+                    if pro_task_id:
+                        time.sleep(1)  # Brief delay
+                        status_response = self.session.get(f"{self.base_url}/api/media/status/{pro_task_id}")
+                        if status_response.status_code == 200:
+                            status_data = status_response.json()
+                            
+                            # Verify all enhanced fields are present
+                            enhanced_fields = [
+                                'statusMessage', 'estimatedTime', 'modelLabel', 'modelId',
+                                'elapsedSeconds', 'progressPct', 'pollTimeoutMs', 'stuckWarningMs'
+                            ]
+                            
+                            missing_fields = [field for field in enhanced_fields if field not in status_data]
+                            
+                            if not missing_fields:
+                                self.log_result("Model-Specific UX - Enhanced Fields", True, f"All enhanced fields present for {pro_label}")
+                                return True
+                            else:
+                                self.log_result("Model-Specific UX - Enhanced Fields", False, f"Missing fields: {missing_fields}")
+                                return False
+                        else:
+                            self.log_result("Model-Specific UX - Pro Status", False, f"Failed to get Pro status: {status_response.status_code}")
+                            return False
+                    else:
+                        self.log_result("Model-Specific UX - Kling Pro", False, "No taskId returned for Kling Pro")
+                        return False
+                else:
+                    self.log_result("Model-Specific UX - Kling Pro", False, f"Missing enhanced fields in creation response")
+                    return False
+            else:
+                self.log_result("Model-Specific UX - Kling Pro", False, f"Failed to create Kling Pro job: {pro_response.status_code}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Model-Specific UX", False, f"Exception: {str(e)}")
             return False
     
     def run_all_tests(self):
-        """Run all tests"""
-        print("🚀 Starting Image Generation with Attachments Fix Testing")
-        print(f"🌐 Base URL: {self.base_url}")
-        print(f"👤 Auth: {AUTH_EMAIL}")
+        """Run all tests in sequence"""
+        print("🚀 Starting Veo Video Generation UX Enhancement Tests")
+        print("=" * 60)
         
-        # Login first
-        if not self.login():
-            print("❌ Cannot proceed without authentication")
+        # Step 1: Health check
+        if not self.test_health_check():
+            print("❌ Health check failed - aborting tests")
             return False
         
-        # Run tests
-        test_results = []
+        # Step 2: Authentication
+        if not self.authenticate():
+            print("❌ Authentication failed - aborting tests")
+            return False
         
-        test_results.append(self.test_image_generation_without_attachments())
-        test_results.append(self.test_image_generation_with_attachments())
-        test_results.append(self.test_media_intent_detection())
+        # Step 3: Test auth requirements
+        if not self.test_auth_required():
+            print("❌ Auth requirement tests failed")
+        
+        # Step 4: Test non-existent task handling
+        if not self.test_nonexistent_task():
+            print("❌ Non-existent task test failed")
+        
+        # Step 5: Create video job and test enhanced fields
+        task_id = self.create_video_job()
+        if not task_id:
+            print("❌ Video job creation failed - skipping status tests")
+        else:
+            # Step 6: Test enhanced status polling
+            if not self.test_enhanced_status_polling(task_id):
+                print("❌ Enhanced status polling test failed")
+        
+        # Step 7: Test model-specific UX parameters
+        if not self.test_model_specific_ux():
+            print("❌ Model-specific UX test failed")
         
         # Summary
-        passed = sum(test_results)
-        total = len(test_results)
+        self.print_summary()
         
-        print(f"\n📊 TEST SUMMARY")
-        print(f"✅ Passed: {passed}/{total}")
-        print(f"❌ Failed: {total - passed}/{total}")
+        return all(result['success'] for result in self.test_results)
+    
+    def print_summary(self):
+        """Print test summary"""
+        print("\n" + "=" * 60)
+        print("📋 TEST SUMMARY")
+        print("=" * 60)
         
-        if passed == total:
-            print(f"🎉 ALL TESTS PASSED - Image Generation with Attachments fix is working correctly!")
-            return True
+        passed = sum(1 for r in self.test_results if r['success'])
+        total = len(self.test_results)
+        
+        print(f"Total Tests: {total}")
+        print(f"Passed: {passed}")
+        print(f"Failed: {total - passed}")
+        print(f"Success Rate: {(passed/total*100):.1f}%")
+        
+        if total - passed > 0:
+            print("\n❌ FAILED TESTS:")
+            for result in self.test_results:
+                if not result['success']:
+                    print(f"  • {result['test']}: {result['details']}")
+        
+        print("\n✅ PASSED TESTS:")
+        for result in self.test_results:
+            if result['success']:
+                print(f"  • {result['test']}")
+
+def main():
+    """Main test execution"""
+    tester = VeoUXTester()
+    
+    try:
+        success = tester.run_all_tests()
+        
+        if success:
+            print("\n🎉 ALL TESTS PASSED!")
+            sys.exit(0)
         else:
-            print(f"⚠️  Some tests failed - please review the results above")
-            return False
+            print("\n💥 SOME TESTS FAILED!")
+            sys.exit(1)
+            
+    except KeyboardInterrupt:
+        print("\n⏹️  Tests interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n💥 Unexpected error: {str(e)}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    tester = ImageGenerationTester()
-    success = tester.run_all_tests()
-    sys.exit(0 if success else 1)
+    main()

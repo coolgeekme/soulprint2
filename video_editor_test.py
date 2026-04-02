@@ -16,7 +16,7 @@ import tempfile
 from pathlib import Path
 
 # Configuration
-BASE_URL = "https://data-import-trace.preview.emergentagent.com"
+BASE_URL = "https://veo-ux-polling.preview.emergentagent.com"
 AUTH_EMAIL = "testchat@example.com"
 AUTH_PASSCODE = "Test123456"
 

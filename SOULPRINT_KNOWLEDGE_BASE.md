@@ -32,7 +32,7 @@
 - **Bot Integration**: Telegram
 
 ### Key URLs
-- **Production**: https://data-import-trace.preview.emergentagent.com
+- **Production**: https://veo-ux-polling.preview.emergentagent.com
 - **API Base**: `/api/*`
 - **Admin Dashboard**: `/admin`
 

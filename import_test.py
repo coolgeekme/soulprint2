@@ -13,7 +13,7 @@ import os
 from datetime import datetime
 
 # Configuration
-BASE_URL = "https://data-import-trace.preview.emergentagent.com/api"
+BASE_URL = "https://veo-ux-polling.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSWORD = "test123"
 

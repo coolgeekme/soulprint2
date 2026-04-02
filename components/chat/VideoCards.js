@@ -11,12 +11,19 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('Queuing your video...');
+  const [estimatedTime, setEstimatedTime] = useState(null);
+  const [elapsedDisplay, setElapsedDisplay] = useState('');
   const [showModelPicker, setShowModelPicker] = useState(false);
   const pollRef = useRef(null);
   const startTimeRef = useRef(Date.now());
   const onVideoReadyRef = useRef(onVideoReady);
   const cancelledRef = useRef(false);
   useEffect(() => { onVideoReadyRef.current = onVideoReady; }, [onVideoReady]);
+
+  // Determine model-specific timeouts from modelLabel
+  const isVeo = modelLabel?.toLowerCase().includes('veo');
+  const isRunway = modelLabel?.toLowerCase().includes('runway');
 
   // Available video models for regeneration
   const VIDEO_MODELS_LIST = [
@@ -47,9 +54,13 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
   };
 
   const [stuckWarning, setStuckWarning] = useState(false);
-  const MAX_POLL_TIME = 10 * 60 * 1000; // 10 minutes max
-  const STUCK_WARNING_TIME = 5 * 60 * 1000; // 5 minutes warning
+  // Model-aware timeouts: Veo gets 12 min, Runway 10 min, Kling 10 min
+  const MAX_POLL_TIME = isVeo ? 12 * 60 * 1000 : 10 * 60 * 1000;
+  const STUCK_WARNING_TIME = isVeo ? 8 * 60 * 1000 : isRunway ? 6 * 60 * 1000 : 5 * 60 * 1000;
   const consecutiveErrorsRef = useRef(0);
+
+  // Default estimated time based on model
+  const defaultEstimatedTime = isVeo ? '3-8 min' : isRunway ? '2-5 min' : '1-3 min';
 
   useEffect(() => {
     if (status === 'success' || status === 'failed' || status === 'cancelled') return;
@@ -57,15 +68,20 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
       if (cancelledRef.current) return;
       const elapsed = Date.now() - startTimeRef.current;
       
-      // Show warning after 5 minutes
+      // Update elapsed display
+      const mins = Math.floor(elapsed / 60000);
+      const secs = Math.floor((elapsed % 60000) / 1000);
+      setElapsedDisplay(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`);
+      
+      // Show warning after model-specific threshold
       if (elapsed > STUCK_WARNING_TIME && !stuckWarning) {
         setStuckWarning(true);
       }
       
-      // Auto-fail after 10 minutes of polling
+      // Auto-fail after model-specific max poll time
       if (elapsed > MAX_POLL_TIME) {
         setStatus('failed');
-        setError('Video generation timed out. The provider may be experiencing delays. You can try again or use a different model.');
+        setError(`Video generation timed out after ${Math.round(elapsed/60000)} minutes. The provider may be experiencing delays. You can try again or use a different model.`);
         clearInterval(pollRef.current);
         return;
       }
@@ -80,7 +96,6 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
           consecutiveErrorsRef.current++;
           if (consecutiveErrorsRef.current >= 5) {
             setStatus('failed');
-            // Try to parse error body for a useful message
             let errorMsg = 'Lost connection to video service. Please try again.';
             try {
               const parsed = JSON.parse(errBody);
@@ -101,6 +116,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
           setVideoUrl(vUrl);
           setThumbnailUrl(tUrl);
           setProgress(100);
+          setStatusMessage('Done!');
           clearInterval(pollRef.current);
           // Persist video_url to the message in DB so it survives navigation
           if (messageId && vUrl) {
@@ -116,15 +132,29 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
           setError(d.error || 'Generation failed');
           clearInterval(pollRef.current);
         } else {
-          // Calculate progress: ramp up to 85% over first 3 min, then slow crawl to 95%
-          const elapsedSec = elapsed / 1000;
-          let estimatedProgress;
-          if (elapsedSec < 180) {
-            estimatedProgress = Math.min(85, Math.round((elapsedSec / 180) * 85));
+          // Use backend-provided progress data if available, otherwise fall back to local estimation
+          if (d.progressPct !== undefined) {
+            setProgress(d.progressPct);
           } else {
-            estimatedProgress = Math.min(95, 85 + Math.round(((elapsedSec - 180) / 420) * 10));
+            const elapsedSec = elapsed / 1000;
+            // Model-aware progress curve
+            const midpoint = isVeo ? 330 : isRunway ? 210 : 120; // seconds to reach 80%
+            let estimatedProgress;
+            if (elapsedSec < midpoint) {
+              estimatedProgress = Math.min(80, Math.round((elapsedSec / midpoint) * 80));
+            } else {
+              estimatedProgress = Math.min(95, 80 + Math.round(((elapsedSec - midpoint) / (midpoint * 0.8)) * 15));
+            }
+            setProgress(estimatedProgress);
           }
-          setProgress(estimatedProgress);
+          // Use backend status message or generate locally
+          if (d.statusMessage) {
+            setStatusMessage(d.statusMessage);
+          }
+          // Use backend estimated time if provided
+          if (d.estimatedTime) {
+            setEstimatedTime(d.estimatedTime);
+          }
         }
       } catch (e) {
         consecutiveErrorsRef.current++;
@@ -281,6 +311,9 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
             </div>
             <p className="text-xs font-medium text-blue-400">Creating your video...</p>
             <p className="text-[10px] text-gray-600 mt-1">{modelLabel || 'AI'}</p>
+            {isVeo && (
+              <p className="text-[10px] text-purple-400/70 mt-1">Premium cinematic quality — please allow extra time</p>
+            )}
           </div>
         </div>
         {/* Model selection reason badge */}
@@ -300,14 +333,15 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
           />
         </div>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
-            <p className="text-[11px] text-gray-400">
-              {progress < 30 ? 'Queuing...' : progress < 60 ? 'Rendering frames...' : progress < 90 ? 'Almost done...' : 'Finalizing...'}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Loader2 className="w-3 h-3 animate-spin text-blue-400 flex-shrink-0" />
+            <p className="text-[11px] text-gray-400 truncate">
+              {statusMessage}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <p className="text-[10px] text-gray-600">~1-3 min</p>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {elapsedDisplay && <p className="text-[10px] text-gray-600">{elapsedDisplay}</p>}
+            <p className="text-[10px] text-gray-500 font-medium">~{estimatedTime || defaultEstimatedTime}</p>
             <button
               onClick={handleCancel}
               className="px-2.5 py-1 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-[10px] font-medium hover:bg-red-500/20 transition-colors"
@@ -317,11 +351,16 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
           </div>
         </div>
         <p className="text-[10px] text-gray-700 mt-2 truncate italic">"{prompt}"</p>
-        {/* Stuck warning */}
+        {/* Stuck warning — model-aware messaging */}
         {stuckWarning && (
           <div className="mt-2 flex items-center gap-2 px-2.5 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
             <span className="text-[10px]">⚠️</span>
-            <p className="text-[10px] text-amber-400/80">Taking longer than expected. The video provider may be busy. You can wait or cancel and try a different model.</p>
+            <p className="text-[10px] text-amber-400/80">
+              {isVeo 
+                ? 'Veo 3.1 cinematic videos can take up to 10 minutes for 1080p quality. Still processing — you can wait or cancel and try Kling 3.0 for faster results.'
+                : 'Taking longer than expected. The video provider may be busy. You can wait or cancel and try a different model.'
+              }
+            </p>
           </div>
         )}
         {/* Leave notification hint */}

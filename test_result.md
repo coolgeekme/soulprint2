@@ -127,11 +127,26 @@ agent_communication:
     message: "VIDEO PERSISTENCE TESTING COMPLETE: All critical video persistence and status polling endpoints working perfectly. ✅ PATCH /api/messages/:id/video-complete (authentication, validation, successful updates with video_url/thumbnail_url, sets video_task.status='success'). ✅ GET /api/media/status/:taskId (authentication, 404 for non-existent tasks, proper response format). ✅ Both mobile and desktop status polling paths working identically. ✅ GET /api/messages includes video_url and video_task fields after PATCH. ✅ Edge cases handled gracefully (invalid IDs, empty URLs, long task IDs). All comprehensive tests passed - no major issues found."
   - agent: "testing"
     message: "VIDEO GENERATION FLOW TESTING COMPLETE: All critical video generation endpoints working perfectly for both desktop and mobile paths. ✅ POST /api/chat/stream (video generation with SSE stream includes video_task event with taskId, status, prompt, messageId AND done event with messageId). ✅ GET /api/media/status/:taskId (mobile polling - authentication, 404 for non-existent tasks, proper JSON response with status field). ✅ GET /api/media/video/status/:taskId (desktop polling - identical behavior to mobile path). ✅ PATCH /api/messages/:id/video-complete (authentication, validation, successful persistence). ✅ GET /api/messages?conversationId=X (returns video_url and video_task fields when present). ✅ SSE stream parsing working correctly with real video generation tasks. All comprehensive video generation flow tests passed - no major issues found."
+  - agent: "main"
+    message: "VEO UX POLLING FIX: Enhanced video generation progress UX across all 4 files. (1) Backend video-models.js: Added VIDEO_MODEL_UX registry with per-model estimated times (Veo 3-8min, Kling 1-3min, Runway 2-5min), progress stages, and timeout configs. Added getProgressMessage() and calculateModelProgress() utilities. (2) Backend media-intelligence.js: Enhanced handleMediaStatusByTaskId to return rich status data (statusMessage, estimatedTime, modelLabel, elapsedSeconds, progressPct, pollTimeoutMs, stuckWarningMs) when status=generating. (3) Frontend VideoCards.js + MobileMediaCards.js: Model-aware timeouts (Veo 12min vs 10min), model-aware progress curves (Veo ramps slower), elapsed time display, backend-driven status messages, Veo-specific stuck warnings, and correct estimated time labels. Auth: testchat@example.com/Test123456. Test: GET /api/media/status/:taskId should return enhanced fields when status=generating."
   - agent: "testing"
-    message: "CHATGPT IMPORT MEMORY EXTRACTION END-TO-END TEST COMPLETE: All critical functionality working perfectly with real ZIP file as requested in review. ✅ ZIP Extraction (yauzl vs unzip) working correctly - successfully extracted 3 conversations and 5 messages from test ChatGPT export ZIP. ✅ Memory Extraction Integration working perfectly - extracted 10 memories with source 'chatgpt_import' including personal facts (software engineer, hiking, photography, San Francisco location). ✅ Import Record Creation working - proper stats recorded in import history (5 messages, 3 conversations, 2 memories). ✅ OpenAI API Integration working (memories extracted successfully using real API). ✅ Complete chunked upload flow (POST /api/import/chunked/init → POST /api/import/chunked/chunk → POST /api/import/chunked/complete) working end-to-end. ✅ Authentication working with testchat@example.com/Test123456. All 6/6 comprehensive tests passed (100% success rate). The main fix replacing unzip system command with yauzl Node.js library and adding extractMemoriesFromImport call is working correctly. No major issues found."
+    message: "VEO UX POLLING ENHANCEMENT TESTING COMPLETE: All enhanced video status polling features working perfectly. ✅ POST /api/auth/login with testchat@example.com/Test123456 working. ✅ GET /api/health returns {status: 'ok'}. ✅ POST /api/media/generate returns enhanced fields (estimatedTime, modelLabel, modelId) in creation response. ✅ GET /api/media/status/:taskId returns ALL enhanced UX fields when status=generating: statusMessage ('Queuing your video...', 'Rendering frames at 720p...'), estimatedTime ('1-3 min', '2-4 min'), modelLabel ('Kling 3.0 (Std)', 'Kling 3.0 (Pro)'), modelId, elapsedSeconds, progressPct (0-95), pollTimeoutMs (600000), stuckWarningMs (300000). ✅ Authentication required (401 without token). ✅ 404 for non-existent tasks. ✅ Model-specific UX parameters working (different models have different estimated times and labels). ✅ Field validation working (correct types and ranges). FIXED: Enhanced fields were missing from media_gallery polling path - added enhanced UX logic to both video_jobs and media_gallery collection paths in handleMediaStatusByTaskId. All 11/11 comprehensive tests passed (100% success rate). The enhanced video status polling is now fully functional and provides rich progress data to improve user experience during video generation."
 
 
-  - task: "Video Generation Chat Stream with SSE (POST /api/chat/stream)"
+  - task: "Veo Video Generation UX Enhancement"
+    implemented: true
+    working: true
+    file: "lib/handlers/video-models.js, lib/handlers/media-intelligence.js, components/chat/VideoCards.js, components/mobile/MobileMediaCards.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented Veo UX polling fix. Backend: Added VIDEO_MODEL_UX metadata with per-model estimated times and progress stages. Enhanced status polling to return statusMessage, estimatedTime, modelLabel, progressPct, elapsedSeconds. Frontend: Model-aware timeouts (Veo 12min max, 8min stuck warning vs Kling 10/5), model-aware progress curves, elapsed timer display, backend-driven status messages, Veo-specific hint ('Premium cinematic quality — please allow extra time'). Need testing to verify GET /api/media/status/:taskId returns enhanced data."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Enhanced video status polling working perfectly. ✅ POST /api/auth/login with testchat@example.com/Test123456 working. ✅ POST /api/media/generate returns enhanced fields (estimatedTime, modelLabel, modelId) in creation response. ✅ GET /api/media/status/:taskId returns all enhanced UX fields when status=generating: statusMessage, estimatedTime, modelLabel, modelId, elapsedSeconds, progressPct, pollTimeoutMs, stuckWarningMs. ✅ Authentication required (401 without token). ✅ 404 for non-existent tasks. ✅ Model-specific UX parameters working (Kling Pro vs Standard have different estimated times). ✅ Field validation working (correct types and ranges). Fixed issue where enhanced fields were missing from media_gallery polling path - added enhanced UX logic to both video_jobs and media_gallery collection paths. All 11/11 comprehensive tests passed (100% success rate)."
     implemented: true
     working: true
     file: "app/api/[[...path]]/route.js"
@@ -1320,7 +1335,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/image/edit, POST /api/composite/test
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://data-import-trace.preview.emergentagent.com
+- **Base URL**: https://veo-ux-polling.preview.emergentagent.com
 
 ## Test Results
 
@@ -1361,7 +1376,7 @@ test_plan:
 - **Date**: 2025-01-27
 - **Endpoints Tested**: POST /api/media/generate, GET /api/media/status/:taskId, GET /api/media/video/status/:taskId, POST /api/media/save-to-gallery, GET /api/media/gallery
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://data-import-trace.preview.emergentagent.com
+- **Base URL**: https://veo-ux-polling.preview.emergentagent.com
 
 ## Test Results
 
@@ -1420,7 +1435,7 @@ test_plan:
 - **Date**: 2026-03-26
 - **Endpoint Tested**: POST /api/chat/stream (Image Generation Flow)
 - **Authentication**: ✅ Working (test@soulprint.com/test123)
-- **Base URL**: https://data-import-trace.preview.emergentagent.com
+- **Base URL**: https://veo-ux-polling.preview.emergentagent.com
 
 ## Test Results
 
@@ -1779,7 +1794,7 @@ metadata:
 - **Date**: 2026-04-01
 - **Endpoint Tested**: POST /api/chat/stream (Image Generation Fix)
 - **Authentication**: ✅ Working (testchat@example.com/Test123456)
-- **Base URL**: https://data-import-trace.preview.emergentagent.com
+- **Base URL**: https://veo-ux-polling.preview.emergentagent.com
 
 ## Test Results
 
@@ -1846,7 +1861,7 @@ backend:
 
 test_plan:
   current_focus:
-    - "ChatGPT Import Memory Extraction (P0)"
+    - "Veo Video Generation UX Enhancement"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -1855,4 +1870,4 @@ agent_communication:
   - agent: "testing"
     message: "IMAGE GENERATION FIX TESTING COMPLETE: ✅ All critical image generation fixes verified and working perfectly."
   - agent: "main"
-    message: "VIDEO EDITOR FEATURE: New feature - video upload, AI review, trim, and text overlay. Backend: lib/handlers/video-editor.js with routes POST /api/video/upload (FormData with 'video' field), POST /api/video/analyze ({videoId}), POST /api/video/trim ({videoId, startTime, endTime}), POST /api/video/text-overlay ({videoId, textOverlays}), GET /api/video/serve/:id, GET /api/video/download/:id. All routes require auth. Auth: testchat@example.com/Test123456. ffmpeg is installed for video processing. Test: Upload a small test video, verify metadata extraction, test trim with start/end times, test text overlay."
+    message: "VEO UX POLLING FIX COMPLETE: Enhanced all video generation progress UX. Backend video-models.js now has VIDEO_MODEL_UX registry with per-model timing/progress stages. Backend media-intelligence.js handleMediaStatusByTaskId now returns enhanced fields when status=generating: statusMessage, estimatedTime, modelLabel, modelId, elapsedSeconds, progressPct. Frontend VideoCards.js and MobileMediaCards.js now use model-aware timeouts (Veo 12min/8min stuck), model-aware progress curves, elapsed time display, and backend status messages. Test: (1) POST /api/auth/login with testchat@example.com/Test123456 to get token. (2) POST /api/media/generate with type=video, model=kling-3, prompt='test video' to create a video task. (3) GET /api/media/status/:taskId should return enhanced fields when generating (statusMessage, estimatedTime, modelLabel, progressPct etc). (4) Verify auth on all endpoints."
