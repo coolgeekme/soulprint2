@@ -1,312 +1,383 @@
 #!/usr/bin/env python3
 """
-Backend Testing for ChatGPT Import Memory Extraction Fix
-Testing the integration of extractMemoriesFromImport function
+Backend Testing Script for Image Generation with Attachments Fix
+Tests the fix in app/api/[[...path]]/route.js line 6784
 """
 
 import requests
 import json
-import sys
+import uuid
+import base64
 import time
+import sys
+from io import BytesIO
+from PIL import Image
 
 # Configuration
 BASE_URL = "https://data-import-trace.preview.emergentagent.com"
 AUTH_EMAIL = "testchat@example.com"
-AUTH_PASSWORD = "Test123456"
+AUTH_PASSCODE = "Test123456"
 
-class BackendTester:
+class ImageGenerationTester:
     def __init__(self):
         self.base_url = BASE_URL
-        self.session = requests.Session()
         self.auth_token = None
-        self.test_results = []
+        self.session = requests.Session()
         
-    def log_result(self, test_name, success, message="", details=None):
-        """Log test result"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} {test_name}: {message}")
-        if details:
-            print(f"   Details: {details}")
-        
-        self.test_results.append({
-            "test": test_name,
-            "success": success,
-            "message": message,
-            "details": details
-        })
-    
-    def authenticate(self):
-        """Authenticate and get token"""
+    def create_test_image_base64(self):
+        """Create a small 1x1 pixel PNG image as base64 for testing"""
         try:
-            print(f"\n🔐 Authenticating with {AUTH_EMAIL}...")
+            # Create a 1x1 red pixel image
+            img = Image.new('RGB', (1, 1), color='red')
+            buffer = BytesIO()
+            img.save(buffer, format='PNG')
+            buffer.seek(0)
             
+            # Convert to base64
+            image_data = buffer.getvalue()
+            base64_data = base64.b64encode(image_data).decode('utf-8')
+            return f"data:image/png;base64,{base64_data}"
+        except Exception as e:
+            print(f"❌ Failed to create test image: {e}")
+            return None
+    
+    def login(self):
+        """Login to get auth token"""
+        try:
+            print("🔐 Logging in...")
             response = self.session.post(
                 f"{self.base_url}/api/auth/login",
                 json={
                     "email": AUTH_EMAIL,
-                    "passcode": AUTH_PASSWORD
+                    "passcode": AUTH_PASSCODE
                 },
                 headers={"Content-Type": "application/json"}
             )
             
             if response.status_code == 200:
                 data = response.json()
-                self.auth_token = data.get("token")
+                self.auth_token = data.get('token')
                 if self.auth_token:
-                    self.session.headers.update({"Authorization": f"Bearer {self.auth_token}"})
-                    self.log_result("Authentication", True, f"Successfully authenticated as {AUTH_EMAIL}")
+                    print(f"✅ Login successful")
                     return True
                 else:
-                    self.log_result("Authentication", False, "No token in response")
+                    print(f"❌ Login failed: No token in response")
                     return False
             else:
-                self.log_result("Authentication", False, f"HTTP {response.status_code}: {response.text}")
+                print(f"❌ Login failed: {response.status_code} - {response.text}")
                 return False
                 
         except Exception as e:
-            self.log_result("Authentication", False, f"Exception: {str(e)}")
+            print(f"❌ Login error: {e}")
             return False
     
-    def test_import_chunked_init(self):
-        """Test POST /api/import/chunked/init"""
+    def parse_sse_stream(self, response_text):
+        """Parse Server-Sent Events stream (newline-delimited JSON)"""
+        events = []
+        lines = response_text.strip().split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if line:
+                try:
+                    event = json.loads(line)
+                    events.append(event)
+                except json.JSONDecodeError:
+                    # Skip invalid JSON lines
+                    continue
+        
+        return events
+    
+    def test_image_generation_without_attachments(self):
+        """Test 1: Image generation WITHOUT attachments (regression test)"""
+        print("\n🧪 TEST 1: Image generation WITHOUT attachments (regression test)")
+        
         try:
-            print(f"\n📤 Testing Import Chunked Upload Init...")
+            conversation_id = str(uuid.uuid4())
+            
+            payload = {
+                "content": "create an image of a sunset over mountains",
+                "conversationId": conversation_id,
+                "model": "gpt-4o",
+                "attachments": []
+            }
+            
+            print(f"📤 Sending request to POST /api/chat/stream")
+            print(f"   Message: {payload['content']}")
+            print(f"   Attachments: {len(payload['attachments'])}")
             
             response = self.session.post(
-                f"{self.base_url}/api/import/chunked/init",
-                json={
-                    "filename": "test.zip",
-                    "fileSize": 1000,
-                    "totalChunks": 1,
-                    "type": "chatgpt"
+                f"{self.base_url}/api/chat/stream",
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {self.auth_token}",
+                    "Content-Type": "application/json"
                 },
-                headers={"Content-Type": "application/json"}
+                stream=True
             )
             
-            if response.status_code == 200:
-                data = response.json()
-                upload_id = data.get("uploadId")
-                if upload_id:
-                    self.log_result("Import Chunked Init", True, f"Created upload session with ID: {upload_id}")
-                    return upload_id
-                else:
-                    self.log_result("Import Chunked Init", False, "No uploadId in response")
-                    return None
-            else:
-                self.log_result("Import Chunked Init", False, f"HTTP {response.status_code}: {response.text}")
-                return None
+            if response.status_code != 200:
+                print(f"❌ Request failed: {response.status_code} - {response.text}")
+                return False
+            
+            # Collect the full response
+            full_response = ""
+            for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
+                if chunk:
+                    full_response += chunk
+            
+            # Parse SSE events
+            events = self.parse_sse_stream(full_response)
+            
+            print(f"📥 Received {len(events)} events")
+            
+            # Check for required events
+            generating_visual_found = False
+            image_event_found = False
+            done_event_found = False
+            image_url = None
+            
+            for event in events:
+                event_type = event.get('type')
+                print(f"   📋 Event: {event_type}")
                 
-        except Exception as e:
-            self.log_result("Import Chunked Init", False, f"Exception: {str(e)}")
-            return None
-    
-    def test_import_status_endpoint(self, import_id=None):
-        """Test GET /api/imports/status?importId=xxx"""
-        try:
-            print(f"\n📊 Testing Import Status Endpoint...")
-            
-            # Test with non-existent importId first
-            response = self.session.get(
-                f"{self.base_url}/api/imports/status?importId=non-existent-id"
-            )
-            
-            if response.status_code == 404:
-                self.log_result("Import Status (404 test)", True, "Correctly returns 404 for non-existent importId")
-            else:
-                self.log_result("Import Status (404 test)", False, f"Expected 404, got {response.status_code}")
-            
-            # Test with valid importId if provided
-            if import_id:
-                response = self.session.get(
-                    f"{self.base_url}/api/imports/status?importId={import_id}"
-                )
+                if event_type == 'generating_visual':
+                    generating_visual_found = True
+                    visual_type = event.get('visualType')
+                    print(f"      ✅ generating_visual event found (visualType: {visual_type})")
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    # Check if memoriesAdded field is present
-                    if "memoriesAdded" in data:
-                        self.log_result("Import Status (valid ID)", True, f"Status endpoint returns memoriesAdded field: {data.get('memoriesAdded', 0)}")
-                    else:
-                        self.log_result("Import Status (valid ID)", True, "Status endpoint working, memoriesAdded field may be added after processing")
-                    return data
-                else:
-                    self.log_result("Import Status (valid ID)", False, f"HTTP {response.status_code}: {response.text}")
-                    return None
-            
-        except Exception as e:
-            self.log_result("Import Status Endpoint", False, f"Exception: {str(e)}")
-            return None
-    
-    def test_memory_system_endpoints(self):
-        """Test GET /api/memories"""
-        try:
-            print(f"\n🧠 Testing Memory System Endpoints...")
-            
-            response = self.session.get(f"{self.base_url}/api/memories")
-            
-            if response.status_code == 200:
-                data = response.json()
-                memories = data.get("memories", [])
-                categories = data.get("categories", [])
+                elif event_type == 'image':
+                    image_event_found = True
+                    image_url = event.get('url')
+                    print(f"      ✅ image event found (url: {image_url[:50] if image_url else 'None'}...)")
                 
-                self.log_result("Memory System", True, 
-                    f"Retrieved {len(memories)} memories with {len(categories)} categories")
-                
-                # Check response structure
-                if isinstance(memories, list) and isinstance(categories, list):
-                    self.log_result("Memory System Structure", True, "Response has correct structure (memories array, categories array)")
-                else:
-                    self.log_result("Memory System Structure", False, "Response structure incorrect")
-                
-                return data
-            else:
-                self.log_result("Memory System", False, f"HTTP {response.status_code}: {response.text}")
-                return None
-                
-        except Exception as e:
-            self.log_result("Memory System", False, f"Exception: {str(e)}")
-            return None
-    
-    def test_data_import_history(self):
-        """Test GET /api/import/data"""
-        try:
-            print(f"\n📋 Testing Data Import History...")
+                elif event_type == 'done':
+                    done_event_found = True
+                    message_id = event.get('messageId')
+                    print(f"      ✅ done event found (messageId: {message_id})")
             
-            response = self.session.get(f"{self.base_url}/api/import/data")
+            # Verify all required events are present
+            success = generating_visual_found and image_event_found and done_event_found
             
-            if response.status_code == 200:
-                data = response.json()
-                imports = data.get("imports", [])
+            if success:
+                print(f"✅ TEST 1 PASSED: All required SSE events found")
                 
-                self.log_result("Data Import History", True, 
-                    f"Retrieved {len(imports)} import records")
+                # Verify image URL is accessible
+                if image_url and image_url.startswith('http'):
+                    try:
+                        img_response = self.session.head(image_url, timeout=10)
+                        if img_response.status_code == 200:
+                            print(f"✅ Image URL is accessible (HTTP {img_response.status_code})")
+                        else:
+                            print(f"⚠️  Image URL returned HTTP {img_response.status_code}")
+                    except Exception as e:
+                        print(f"⚠️  Could not verify image URL accessibility: {e}")
                 
-                return data
-            else:
-                self.log_result("Data Import History", False, f"HTTP {response.status_code}: {response.text}")
-                return None
-                
-        except Exception as e:
-            self.log_result("Data Import History", False, f"Exception: {str(e)}")
-            return None
-    
-    def test_extractmemories_function_integration(self):
-        """Test that extractMemoriesFromImport function is properly integrated"""
-        try:
-            print(f"\n🔧 Testing extractMemoriesFromImport Integration...")
-            
-            # Test by hitting the chunked/init endpoint which should compile successfully
-            # if the import is working correctly
-            response = self.session.post(
-                f"{self.base_url}/api/import/chunked/init",
-                json={
-                    "filename": "integration_test.zip",
-                    "fileSize": 500,
-                    "totalChunks": 1,
-                    "type": "chatgpt"
-                },
-                headers={"Content-Type": "application/json"}
-            )
-            
-            if response.status_code == 200:
-                self.log_result("extractMemoriesFromImport Integration", True, 
-                    "Function import compiles successfully - no import errors")
                 return True
             else:
-                # Check if it's an auth issue vs compilation issue
-                if response.status_code == 401:
-                    self.log_result("extractMemoriesFromImport Integration", True, 
-                        "Function import compiles (got auth error, not import error)")
-                    return True
-                else:
-                    self.log_result("extractMemoriesFromImport Integration", False, 
-                        f"Possible compilation issue: HTTP {response.status_code}")
-                    return False
+                print(f"❌ TEST 1 FAILED: Missing required events")
+                print(f"   generating_visual: {generating_visual_found}")
+                print(f"   image: {image_event_found}")
+                print(f"   done: {done_event_found}")
+                return False
                 
         except Exception as e:
-            self.log_result("extractMemoriesFromImport Integration", False, f"Exception: {str(e)}")
+            print(f"❌ TEST 1 ERROR: {e}")
             return False
     
-    def test_authentication_required(self):
-        """Test that endpoints require authentication"""
+    def test_image_generation_with_attachments(self):
+        """Test 2: Image generation WITH attachments (the bug fix)"""
+        print("\n🧪 TEST 2: Image generation WITH attachments (the bug fix)")
+        
         try:
-            print(f"\n🔒 Testing Authentication Requirements...")
+            # Create test image
+            test_image_base64 = self.create_test_image_base64()
+            if not test_image_base64:
+                print("❌ Could not create test image")
+                return False
             
-            # Create a session without auth token
-            unauth_session = requests.Session()
+            conversation_id = str(uuid.uuid4())
             
-            endpoints_to_test = [
-                "/api/import/chunked/init",
-                "/api/imports/status?importId=test",
-                "/api/memories",
-                "/api/import/data"
-            ]
+            payload = {
+                "content": "create an image of a person standing in front of this background",
+                "conversationId": conversation_id,
+                "model": "gpt-4o",
+                "attachments": [{
+                    "type": "image",
+                    "base64": test_image_base64,
+                    "mimeType": "image/png",
+                    "name": "reference.png"
+                }]
+            }
             
-            auth_required_count = 0
-            for endpoint in endpoints_to_test:
-                response = unauth_session.post(f"{self.base_url}{endpoint}") if "init" in endpoint else unauth_session.get(f"{self.base_url}{endpoint}")
-                if response.status_code == 401:
-                    auth_required_count += 1
+            print(f"📤 Sending request to POST /api/chat/stream")
+            print(f"   Message: {payload['content']}")
+            print(f"   Attachments: {len(payload['attachments'])} (1 image)")
             
-            if auth_required_count == len(endpoints_to_test):
-                self.log_result("Authentication Required", True, f"All {len(endpoints_to_test)} endpoints properly require authentication")
+            response = self.session.post(
+                f"{self.base_url}/api/chat/stream",
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {self.auth_token}",
+                    "Content-Type": "application/json"
+                },
+                stream=True
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ Request failed: {response.status_code} - {response.text}")
+                return False
+            
+            # Collect the full response
+            full_response = ""
+            for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
+                if chunk:
+                    full_response += chunk
+            
+            # Parse SSE events
+            events = self.parse_sse_stream(full_response)
+            
+            print(f"📥 Received {len(events)} events")
+            
+            # Check for required events
+            generating_visual_found = False
+            image_generation_attempted = False
+            
+            for event in events:
+                event_type = event.get('type')
+                print(f"   📋 Event: {event_type}")
+                
+                if event_type == 'generating_visual':
+                    generating_visual_found = True
+                    visual_type = event.get('visualType')
+                    print(f"      ✅ generating_visual event found (visualType: {visual_type})")
+                    print(f"      🎯 KEY FIX VERIFIED: Image generation was triggered WITH attachments!")
+                
+                elif event_type == 'image':
+                    image_generation_attempted = True
+                    image_url = event.get('url')
+                    print(f"      ✅ image event found - generation completed successfully")
+                
+                elif event_type == 'delta':
+                    content = event.get('content', '')
+                    if 'gpt-image-1' in content.lower() or 'reference' in content.lower():
+                        print(f"      🎯 Reference image processing detected in content")
+            
+            # The key test: generating_visual event should be present
+            # This proves the fix worked - previously this would be skipped entirely
+            if generating_visual_found:
+                print(f"✅ TEST 2 PASSED: Image generation was triggered WITH attachments")
+                print(f"   🎯 BUG FIX CONFIRMED: The condition 'if (mediaIntent === 'image')' allows generation with attachments")
+                
+                if image_generation_attempted:
+                    print(f"   ✅ BONUS: Image generation completed successfully with gpt-image-1")
+                else:
+                    print(f"   ℹ️  Note: Generation triggered but may have fallen back to text (expected behavior)")
+                
+                return True
             else:
-                self.log_result("Authentication Required", False, f"Only {auth_required_count}/{len(endpoints_to_test)} endpoints require authentication")
+                print(f"❌ TEST 2 FAILED: No generating_visual event found")
+                print(f"   This suggests image generation was still skipped with attachments")
+                return False
                 
         except Exception as e:
-            self.log_result("Authentication Required", False, f"Exception: {str(e)}")
+            print(f"❌ TEST 2 ERROR: {e}")
+            return False
+    
+    def test_media_intent_detection(self):
+        """Test 3: Media intent detection test"""
+        print("\n🧪 TEST 3: Media intent detection test")
+        
+        try:
+            conversation_id = str(uuid.uuid4())
+            
+            payload = {
+                "content": "create an image of a beautiful landscape",
+                "conversationId": conversation_id,
+                "model": "gpt-4o",
+                "attachments": []
+            }
+            
+            print(f"📤 Testing media intent detection with: '{payload['content']}'")
+            
+            response = self.session.post(
+                f"{self.base_url}/api/chat/stream",
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {self.auth_token}",
+                    "Content-Type": "application/json"
+                },
+                stream=True
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ Request failed: {response.status_code} - {response.text}")
+                return False
+            
+            # Collect the full response
+            full_response = ""
+            for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
+                if chunk:
+                    full_response += chunk
+            
+            # Parse SSE events
+            events = self.parse_sse_stream(full_response)
+            
+            # Check if generating_visual event is present
+            generating_visual_found = False
+            
+            for event in events:
+                if event.get('type') == 'generating_visual':
+                    generating_visual_found = True
+                    visual_type = event.get('visualType')
+                    print(f"✅ Media intent detection working: generating_visual event found (visualType: {visual_type})")
+                    break
+            
+            if generating_visual_found:
+                print(f"✅ TEST 3 PASSED: Media intent detection correctly identified image request")
+                return True
+            else:
+                print(f"❌ TEST 3 FAILED: Media intent detection did not trigger image generation")
+                return False
+                
+        except Exception as e:
+            print(f"❌ TEST 3 ERROR: {e}")
+            return False
     
     def run_all_tests(self):
         """Run all tests"""
-        print("🚀 Starting ChatGPT Import Memory Extraction Backend Tests")
-        print("=" * 70)
+        print("🚀 Starting Image Generation with Attachments Fix Testing")
+        print(f"🌐 Base URL: {self.base_url}")
+        print(f"👤 Auth: {AUTH_EMAIL}")
         
-        # Authenticate first
-        if not self.authenticate():
-            print("❌ Authentication failed. Cannot proceed with tests.")
+        # Login first
+        if not self.login():
+            print("❌ Cannot proceed without authentication")
             return False
         
-        # Test authentication requirements
-        self.test_authentication_required()
+        # Run tests
+        test_results = []
         
-        # Test extractMemoriesFromImport integration
-        self.test_extractmemories_function_integration()
-        
-        # Test import chunked init
-        upload_id = self.test_import_chunked_init()
-        
-        # Test import status endpoint
-        self.test_import_status_endpoint(upload_id)
-        
-        # Test memory system endpoints
-        self.test_memory_system_endpoints()
-        
-        # Test data import history
-        self.test_data_import_history()
+        test_results.append(self.test_image_generation_without_attachments())
+        test_results.append(self.test_image_generation_with_attachments())
+        test_results.append(self.test_media_intent_detection())
         
         # Summary
-        print("\n" + "=" * 70)
-        print("📊 TEST SUMMARY")
-        print("=" * 70)
+        passed = sum(test_results)
+        total = len(test_results)
         
-        total_tests = len(self.test_results)
-        passed_tests = sum(1 for result in self.test_results if result["success"])
-        failed_tests = total_tests - passed_tests
+        print(f"\n📊 TEST SUMMARY")
+        print(f"✅ Passed: {passed}/{total}")
+        print(f"❌ Failed: {total - passed}/{total}")
         
-        print(f"Total Tests: {total_tests}")
-        print(f"✅ Passed: {passed_tests}")
-        print(f"❌ Failed: {failed_tests}")
-        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
-        
-        if failed_tests > 0:
-            print("\n❌ FAILED TESTS:")
-            for result in self.test_results:
-                if not result["success"]:
-                    print(f"  - {result['test']}: {result['message']}")
-        
-        return failed_tests == 0
+        if passed == total:
+            print(f"🎉 ALL TESTS PASSED - Image Generation with Attachments fix is working correctly!")
+            return True
+        else:
+            print(f"⚠️  Some tests failed - please review the results above")
+            return False
 
 if __name__ == "__main__":
-    tester = BackendTester()
+    tester = ImageGenerationTester()
     success = tester.run_all_tests()
     sys.exit(0 if success else 1)

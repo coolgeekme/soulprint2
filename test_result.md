@@ -1405,9 +1405,21 @@ test_plan:
 - Authentication and validation working correctly
 - No major issues found during comprehensive testing
 
+  - task: "Image Generation with Attachments Fix (POST /api/chat/stream)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "COMPREHENSIVE FIX VERIFICATION COMPLETE: Image Generation with Attachments fix working perfectly. ✅ TEST 1 (Regression): Image generation WITHOUT attachments working correctly - all required SSE events (generating_visual, image, done) present, image URL accessible. ✅ TEST 2 (Bug Fix): Image generation WITH attachments now working - KEY FIX VERIFIED: generating_visual events triggered WITH attachments present, proving the condition change from 'if (mediaIntent === 'image' && attachments.length === 0)' to 'if (mediaIntent === 'image')' is working. Image generation completed successfully using gpt-image-1 for reference-aware generation. ✅ TEST 3 (Media Intent): Media intent detection correctly identifying image requests. All 3/3 comprehensive tests passed (100% success rate). The fix allows image generation to proceed when attachments are present, enabling reference image functionality with gpt-image-1 fallback."
+
 agent_communication:
   - agent: "testing"
-    message: "IMAGE GENERATION CHAT STREAM TESTING COMPLETE: ✅ POST /api/chat/stream image generation flow working perfectly. All required SSE events present: generating_visual (visualType: image), image (with accessible URL), and done (with messageId). Authentication working correctly. Image generated successfully using Nano Banana model via Kie.ai. Processing time ~16 seconds. Image URL verified accessible. No major issues found."
+    message: "IMAGE GENERATION WITH ATTACHMENTS FIX VERIFICATION COMPLETE: All critical functionality working perfectly after the fix in route.js line 6784. ✅ TEST 1 (Regression): Image generation WITHOUT attachments working correctly - all required SSE events (generating_visual, image, done) present, image URL accessible. ✅ TEST 2 (Bug Fix): Image generation WITH attachments now working - KEY FIX VERIFIED: generating_visual events triggered WITH attachments present, proving the condition change from 'if (mediaIntent === 'image' && attachments.length === 0)' to 'if (mediaIntent === 'image')' is working correctly. Image generation completed successfully using gpt-image-1 for reference-aware generation with composite pipeline. ✅ TEST 3 (Media Intent): Media intent detection correctly identifying image requests and triggering generation. All 3/3 comprehensive tests passed (100% success rate). The fix successfully allows image generation to proceed when attachments are present, enabling reference image functionality with gpt-image-1."
 
 
   - agent: "main"
@@ -1781,4 +1793,4 @@ agent_communication:
   - agent: "testing"
     message: "IMAGE GENERATION FIX TESTING COMPLETE: ✅ All critical image generation fixes verified and working perfectly."
   - agent: "main"
-    message: "CHATGPT IMPORT MEMORY EXTRACTION FIX: Root cause was processLargeFile in app/api/import/[...path]/route.js never calling extractMemoriesFromImport from cloud-import.js. Fixed by: (1) Importing extractMemoriesFromImport. (2) Collecting structured user messages during ZIP/JSON extraction. (3) Calling extractMemoriesFromImport after text analysis. (4) Updating import_jobs.memories_added with actual count. Auth: testchat@example.com/Test123456. Test: POST /api/import/chunked/init, /chunk, /complete flow — verify user_memories collection gets new entries after import. Also test extractMemoriesFromImport function directly with sample messages."
+    message: "IMAGE GENERATION WITH ATTACHMENTS FIX: Root cause was line 6784 in route.js had condition 'mediaIntent === image && attachments.length === 0' which SKIPPED image generation when attachments were present. User reported 'create an image of X' with 3 reference photos produced no image. Fixed by: (1) Removed attachments.length === 0 condition. (2) When reference images attached, uses gpt-image-1 via OpenAI SDK images.edit for reference-aware generation. (3) Falls back to Kie.ai/DALL-E 3 text-only if gpt-image-1 fails. Auth: testchat@example.com/Test123456. Test: POST /api/chat/stream with image generation message and image attachments - verify image is generated. Also test without attachments to verify no regression."

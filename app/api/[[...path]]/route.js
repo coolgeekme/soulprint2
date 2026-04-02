@@ -6781,7 +6781,14 @@ async function handleChatStream(request) {
         }
 
         // ── Handle image generation ───────────────────────────────────────
-        if (mediaIntent === 'image' && attachments.length === 0) {
+        if (mediaIntent === 'image') {
+          // Check if user has image attachments (reference photos)
+          const imageAttachments = attachments.filter(a => 
+            a.type === 'image' || a.type?.startsWith('image/') || 
+            a.mime_type?.startsWith('image/') || a.mimeType?.startsWith('image/')
+          );
+          const hasReferenceImages = imageAttachments.length > 0;
+          
           // Detect if this is an infographic/flyer request and enhance the prompt
           const lowerContent = content.toLowerCase();
           const isInfographic = /\binfographic\b/i.test(lowerContent);
@@ -6872,8 +6879,87 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             const kieKey = process.env.KIE_API_KEY;
             const openaiApiKey = process.env.OPENAI_API_KEY;
             
-            // ── PRIMARY: Use Kie.ai with dynamically selected model ──
-            if (kieKey && modelConfig) {
+            // ── REFERENCE IMAGE PATH: Use gpt-image-1 when user has reference images ──
+            if (hasReferenceImages && openaiApiKey) {
+              console.log(`[Image Generation] User has ${imageAttachments.length} reference image(s), using gpt-image-1 for reference-aware generation`);
+              usedModel = 'gpt-image-1';
+              
+              try {
+                const OpenAI = (await import('openai')).default;
+                const { toFile } = await import('openai/uploads');
+                const openai = new OpenAI({ apiKey: openaiApiKey });
+                
+                // Prepare reference images
+                const imageFiles = [];
+                for (let i = 0; i < Math.min(imageAttachments.length, 3); i++) {
+                  const att = imageAttachments[i];
+                  let imageBuffer;
+                  
+                  if (att.base64) {
+                    const base64Data = att.base64.replace(/^data:[^;]+;base64,/, '');
+                    imageBuffer = Buffer.from(base64Data, 'base64');
+                  } else if (att.url) {
+                    const resp = await fetch(att.url, { signal: AbortSignal.timeout(15000) });
+                    imageBuffer = Buffer.from(await resp.arrayBuffer());
+                  }
+                  
+                  if (imageBuffer) {
+                    const mimeType = att.mimeType || att.mime_type || 'image/png';
+                    const file = await toFile(imageBuffer, `ref_${i}.png`, { type: mimeType });
+                    imageFiles.push(file);
+                  }
+                }
+                
+                if (imageFiles.length > 0) {
+                  console.log(`[Image Generation] Prepared ${imageFiles.length} reference image(s), calling gpt-image-1 edit...`);
+                  
+                  const editResult = await openai.images.edit({
+                    model: 'gpt-image-1',
+                    image: imageFiles.length === 1 ? imageFiles[0] : imageFiles,
+                    prompt: `Using the attached reference image(s) as visual context, create a new image: ${enhancedPrompt}`,
+                    n: 1,
+                    size: '1024x1024',
+                  });
+                  
+                  if (editResult.data?.[0]) {
+                    if (editResult.data[0].url) {
+                      imageUrl = editResult.data[0].url;
+                    } else if (editResult.data[0].b64_json) {
+                      // Upload base64 to persistent storage
+                      if (kieKey) {
+                        const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey}` },
+                          body: JSON.stringify({
+                            base64Data: `data:image/png;base64,${editResult.data[0].b64_json}`,
+                            uploadPath: 'soulprint/generated',
+                            fileName: `gen_ref_${Date.now()}.png`
+                          }),
+                        });
+                        const upData = await upRes.json();
+                        if (upData.success && upData.data?.downloadUrl) {
+                          imageUrl = upData.data.downloadUrl;
+                        }
+                      }
+                      // Fallback: use data URL
+                      if (!imageUrl) {
+                        imageUrl = `data:image/png;base64,${editResult.data[0].b64_json}`;
+                      }
+                    }
+                    
+                    if (imageUrl) {
+                      console.log(`[Image Generation] gpt-image-1 reference generation success!`);
+                      revisedPrompt = editResult.data[0].revised_prompt || content;
+                    }
+                  }
+                }
+              } catch (refErr) {
+                console.log('[Image Generation] gpt-image-1 reference path failed:', refErr.message, '- falling back to text-only generation');
+              }
+            }
+            
+            // ── PRIMARY: Use Kie.ai with dynamically selected model (text-only) ──
+            if (!imageUrl && kieKey && modelConfig) {
               console.log(`[Image Generation] Using Kie.ai model: ${modelConfig.model} for prompt:`, enhancedPrompt.substring(0, 150));
               
               const inputParams = modelConfig.formatInput 
