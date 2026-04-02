@@ -221,7 +221,7 @@ async function handleChunkedComplete(request) {
 // ============================================================
 
 async function processLargeFile(db, userId, uploadId, type, filePath, filename, totalSize) {
-  const fs = require('fs');
+  const fsSync = require('fs');
   const fsPromises = require('fs').promises;
   const readline = require('readline');
   
@@ -256,62 +256,105 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
   );
   
   if (lowerFilename.endsWith('.zip')) {
-    // For ZIP files, we need to extract - but for very large ZIPs, use streaming
-    if (totalSize > 500 * 1024 * 1024) {
-      // Very large ZIP: extract conversations.json to disk first
-      try {
-        const { exec } = require('child_process');
-        const extractDir = path.join('/tmp', 'uploads', `${uploadId}_extracted`);
-        await fsPromises.mkdir(extractDir, { recursive: true });
-        
-        // Use system unzip which handles large files better than AdmZip
-        await new Promise((resolve, reject) => {
-          exec(`unzip -o -j "${filePath}" "*.json" -d "${extractDir}" 2>&1 | tail -5`, 
-            { maxBuffer: 10 * 1024 * 1024 },
-            (error, stdout, stderr) => {
-              if (error && !stdout.includes('extracting')) {
-                reject(new Error(`Unzip failed: ${error.message}`));
-              } else {
-                resolve();
-              }
-            }
-          );
-        });
-        
-        // Find and process conversations.json
-        const extractedFiles = await fsPromises.readdir(extractDir);
-        const conversationsFile = extractedFiles.find(f => f.toLowerCase().includes('conversations'));
-        
-        if (conversationsFile) {
-          const convPath = path.join(extractDir, conversationsFile);
-          const result = await streamParseJsonFile(db, userId, uploadId, convPath, detectedType);
-          conversationCount = result.conversationCount;
-          messageCount = result.messageCount;
-          textSamples.push(...result.textSamples);
-          sampledSize = result.sampledSize;
-          collectedUserMessages = result.userMessages || [];
-        }
-        
-        // Clean up
-        for (const f of extractedFiles) {
-          await fsPromises.unlink(path.join(extractDir, f)).catch(() => {});
-        }
-        await fsPromises.rmdir(extractDir).catch(() => {});
-      } catch (e) {
-        console.error('[ProcessLargeFile] Large ZIP extraction failed:', e.message);
-        throw new Error('Failed to extract ZIP file: ' + e.message);
-      }
-    } else {
-      // Smaller ZIP: use AdmZip (fits in memory)
-      const buffer = await fsPromises.readFile(filePath);
-      const AdmZip = (await import('adm-zip')).default;
-      const zip = new AdmZip(buffer);
-      const entries = zip.getEntries();
+    // For all ZIP files: use yauzl (memory-efficient, streams from disk)
+    // yauzl handles files of any size without loading entire ZIP into memory
+    try {
+      const yauzl = require('yauzl');
+      const extractDir = path.join('/tmp', 'uploads', `${uploadId}_extracted`);
+      await fsPromises.mkdir(extractDir, { recursive: true });
       
-      for (const entry of entries) {
-        if (!entry.isDirectory && entry.entryName.toLowerCase().endsWith('.json')) {
-          const content = entry.getData().toString('utf8');
+      console.log(`[ProcessLargeFile] Extracting JSON files from ZIP using yauzl...`);
+      
+      // Extract conversation JSON files from ZIP to disk using yauzl (streaming)
+      const extractedConvFiles = await new Promise((resolve, reject) => {
+        yauzl.open(filePath, { lazyEntries: true }, (err, zipfile) => {
+          if (err) return reject(new Error(`Failed to open ZIP: ${err.message}`));
+          
+          const convFiles = [];
+          let filesProcessed = 0;
+          
+          zipfile.readEntry();
+          
+          zipfile.on('entry', (entry) => {
+            const fileName = entry.fileName;
+            const lowerName = fileName.toLowerCase();
+            
+            // Skip directories
+            if (/\/$/.test(fileName)) {
+              zipfile.readEntry();
+              return;
+            }
+            
+            // Only extract conversation JSON files
+            const isConversationFile = lowerName.endsWith('.json') && (
+              lowerName.includes('conversation') || 
+              /conversations(-\d+)?(\(\d+\))?\.json$/.test(lowerName)
+            );
+            
+            if (!isConversationFile) {
+              zipfile.readEntry();
+              return;
+            }
+            
+            filesProcessed++;
+            // Use just the base filename (strip directory path)
+            const baseName = path.basename(fileName);
+            const outputPath = path.join(extractDir, `conv_${filesProcessed}_${baseName}`);
+            
+            zipfile.openReadStream(entry, (err, readStream) => {
+              if (err) {
+                console.log(`[ProcessLargeFile] Error reading ${fileName}:`, err.message);
+                zipfile.readEntry();
+                return;
+              }
+              
+              const writeStream = fsSync.createWriteStream(outputPath);
+              readStream.pipe(writeStream);
+              
+              writeStream.on('finish', () => {
+                convFiles.push(outputPath);
+                console.log(`[ProcessLargeFile] Extracted: ${baseName} (${filesProcessed})`);
+                zipfile.readEntry();
+              });
+              
+              writeStream.on('error', (err) => {
+                console.log(`[ProcessLargeFile] Write error for ${baseName}:`, err.message);
+                zipfile.readEntry();
+              });
+            });
+          });
+          
+          zipfile.on('end', () => {
+            console.log(`[ProcessLargeFile] ZIP scan complete. Found ${convFiles.length} conversation files.`);
+            resolve(convFiles);
+          });
+          
+          zipfile.on('error', (err) => {
+            console.error('[ProcessLargeFile] ZIP error:', err);
+            reject(new Error(`ZIP processing error: ${err.message}`));
+          });
+        });
+      });
+      
+      // Process each extracted conversation file
+      for (const convPath of extractedConvFiles) {
+        const fileStats = await fsPromises.stat(convPath);
+        console.log(`[ProcessLargeFile] Processing ${path.basename(convPath)} (${(fileStats.size / 1024 / 1024).toFixed(1)}MB)`);
+        
+        if (fileStats.size > 100 * 1024 * 1024) {
+          // Large file: use streaming parser
+          const result = await streamParseJsonFile(db, userId, uploadId, convPath, detectedType);
+          conversationCount += result.conversationCount;
+          messageCount += result.messageCount;
+          textSamples.push(...result.textSamples);
+          sampledSize += result.sampledSize;
+          if (result.userMessages) {
+            collectedUserMessages.push(...result.userMessages);
+          }
+        } else {
+          // Smaller file: load into memory
           try {
+            const content = await fsPromises.readFile(convPath, 'utf8');
             const parsed = JSON.parse(content);
             if (Array.isArray(parsed)) conversationCount += parsed.length;
             const text = extractTextFromJson(parsed, detectedType);
@@ -320,13 +363,28 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
             
             // Extract structured user messages for memory extraction
             extractUserMessagesFromJson(parsed, collectedUserMessages, 200);
-          } catch {
-            textSamples.push(content.slice(0, 5000));
-            sampledSize += 5000;
+          } catch (parseErr) {
+            console.log(`[ProcessLargeFile] Parse error for ${path.basename(convPath)}:`, parseErr.message);
           }
-          if (sampledSize >= MAX_SAMPLE_SIZE) break;
         }
       }
+      
+      // Clean up extracted files
+      for (const f of extractedConvFiles) {
+        await fsPromises.unlink(f).catch(() => {});
+      }
+      // Also clean any remaining files in extractDir
+      const remainingFiles = await fsPromises.readdir(extractDir).catch(() => []);
+      for (const f of remainingFiles) {
+        await fsPromises.unlink(path.join(extractDir, f)).catch(() => {});
+      }
+      await fsPromises.rmdir(extractDir).catch(() => {});
+      
+      console.log(`[ProcessLargeFile] ZIP extraction complete: ${conversationCount} conversations, ${messageCount} messages, ${collectedUserMessages.length} user messages`);
+      
+    } catch (e) {
+      console.error('[ProcessLargeFile] ZIP extraction failed:', e.message);
+      throw new Error('Failed to extract ZIP file: ' + e.message);
     }
   } else if (lowerFilename.endsWith('.json')) {
     // For large JSON files, use streaming parser

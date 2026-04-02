@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ChatGPT Import Memory Extraction End-to-End Test
-Tests the complete flow with a real ZIP file as requested in the review.
+Final ChatGPT Import Memory Extraction Test
+Comprehensive test of the complete flow with corrected field checking.
 """
 
 import requests
@@ -10,14 +10,13 @@ import sys
 import time
 import zipfile
 import os
-import tempfile
 
 # Configuration
 BASE_URL = "https://data-import-trace.preview.emergentagent.com"
 AUTH_EMAIL = "testchat@example.com"
 AUTH_PASSWORD = "Test123456"
 
-class ChatGPTImportTester:
+class FinalChatGPTImportTester:
     def __init__(self):
         self.base_url = BASE_URL
         self.session = requests.Session()
@@ -41,7 +40,7 @@ class ChatGPTImportTester:
     def authenticate(self):
         """Authenticate and get token"""
         try:
-            print(f"\n🔐 Step 1: Authenticating with {AUTH_EMAIL}...")
+            print(f"\n🔐 Step 1: Login with test credentials...")
             
             response = self.session.post(
                 f"{self.base_url}/api/auth/login",
@@ -71,11 +70,11 @@ class ChatGPTImportTester:
             return False
     
     def create_test_chatgpt_zip(self):
-        """Create a test ChatGPT ZIP file with conversations.json"""
+        """Create a test ChatGPT ZIP file with conversations.json containing personal facts"""
         try:
-            print(f"\n📦 Step 2: Creating test ChatGPT ZIP file...")
+            print(f"\n📦 Step 2: Create test ChatGPT ZIP with conversations.json...")
             
-            # Create test conversations data with personal facts
+            # Create test conversations data with personal facts for memory extraction
             conversations_data = [
                 {
                     "title": "Career Discussion",
@@ -146,7 +145,7 @@ class ChatGPTImportTester:
             # Verify ZIP file was created
             if os.path.exists(zip_path):
                 file_size = os.path.getsize(zip_path)
-                self.log_result("Create Test ZIP", True, f"Created test ZIP file at {zip_path} ({file_size} bytes)")
+                self.log_result("Create Test ZIP", True, f"Created test ZIP file with 3 conversations containing personal facts ({file_size} bytes)")
                 return zip_path
             else:
                 self.log_result("Create Test ZIP", False, "Failed to create ZIP file")
@@ -156,11 +155,16 @@ class ChatGPTImportTester:
             self.log_result("Create Test ZIP", False, f"Exception: {str(e)}")
             return None
     
-    def test_chunked_upload_init(self, filename, file_size):
-        """Test POST /api/import/chunked/init"""
+    def test_chunked_upload_flow(self, zip_path):
+        """Test the complete chunked upload flow"""
         try:
-            print(f"\n📤 Step 3a: Testing chunked upload init...")
+            print(f"\n📤 Step 3: Test chunked upload flow...")
             
+            file_size = os.path.getsize(zip_path)
+            filename = "test_chatgpt_export.zip"
+            
+            # Step 3a: Initialize upload
+            print(f"   3a: POST /api/import/chunked/init...")
             response = self.session.post(
                 f"{self.base_url}/api/import/chunked/init",
                 json={
@@ -172,28 +176,17 @@ class ChatGPTImportTester:
                 headers={"Content-Type": "application/json"}
             )
             
-            if response.status_code == 200:
-                data = response.json()
-                upload_id = data.get("uploadId")
-                if upload_id:
-                    self.log_result("Chunked Upload Init", True, f"Created upload session: {upload_id}")
-                    return upload_id
-                else:
-                    self.log_result("Chunked Upload Init", False, "No uploadId in response")
-                    return None
-            else:
-                self.log_result("Chunked Upload Init", False, f"HTTP {response.status_code}: {response.text}")
+            if response.status_code != 200:
+                self.log_result("Chunked Upload Flow", False, f"Init failed: HTTP {response.status_code}")
                 return None
-                
-        except Exception as e:
-            self.log_result("Chunked Upload Init", False, f"Exception: {str(e)}")
-            return None
-    
-    def test_chunked_upload_chunk(self, upload_id, zip_path):
-        """Test POST /api/import/chunked/chunk"""
-        try:
-            print(f"\n📤 Step 3b: Testing chunked upload chunk...")
             
+            upload_id = response.json().get("uploadId")
+            if not upload_id:
+                self.log_result("Chunked Upload Flow", False, "No uploadId in init response")
+                return None
+            
+            # Step 3b: Upload chunk
+            print(f"   3b: POST /api/import/chunked/chunk...")
             with open(zip_path, 'rb') as f:
                 files = {
                     'chunk': ('test_chatgpt_export.zip', f, 'application/zip')
@@ -209,28 +202,12 @@ class ChatGPTImportTester:
                     data=data
                 )
             
-            if response.status_code == 200:
-                data = response.json()
-                received = data.get("received")
-                if received is not None:
-                    self.log_result("Chunked Upload Chunk", True, f"Uploaded chunk {received}")
-                    return True
-                else:
-                    self.log_result("Chunked Upload Chunk", False, "No received index in response")
-                    return False
-            else:
-                self.log_result("Chunked Upload Chunk", False, f"HTTP {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_result("Chunked Upload Chunk", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_chunked_upload_complete(self, upload_id):
-        """Test POST /api/import/chunked/complete"""
-        try:
-            print(f"\n📤 Step 3c: Testing chunked upload complete...")
+            if response.status_code != 200:
+                self.log_result("Chunked Upload Flow", False, f"Chunk upload failed: HTTP {response.status_code}")
+                return None
             
+            # Step 3c: Complete upload
+            print(f"   3c: POST /api/import/chunked/complete...")
             response = self.session.post(
                 f"{self.base_url}/api/import/chunked/complete",
                 json={"uploadId": upload_id},
@@ -243,30 +220,30 @@ class ChatGPTImportTester:
                 message_count = data.get("messageCount", 0)
                 memories_added = data.get("memoriesAdded", 0)
                 
-                self.log_result("Chunked Upload Complete", True, 
-                    f"Processing complete - Conversations: {conversation_count}, Messages: {message_count}, Memories: {memories_added}")
+                self.log_result("Chunked Upload Flow", True, 
+                    f"Complete flow successful - Conversations: {conversation_count}, Messages: {message_count}, Memories: {memories_added}")
                 
                 # Verify non-zero counts (key requirement from review)
                 if conversation_count > 0 and message_count > 0:
-                    self.log_result("ZIP Extraction Verification", True, 
-                        f"ZIP extraction working - found {conversation_count} conversations and {message_count} messages")
+                    self.log_result("ZIP Extraction (yauzl vs unzip)", True, 
+                        f"ZIP extraction working correctly - found {conversation_count} conversations and {message_count} messages")
                 else:
-                    self.log_result("ZIP Extraction Verification", False, 
-                        f"ZIP extraction may have failed - got {conversation_count} conversations and {message_count} messages")
+                    self.log_result("ZIP Extraction (yauzl vs unzip)", False, 
+                        f"ZIP extraction failed - got {conversation_count} conversations and {message_count} messages")
                 
                 return data
             else:
-                self.log_result("Chunked Upload Complete", False, f"HTTP {response.status_code}: {response.text}")
+                self.log_result("Chunked Upload Flow", False, f"Complete failed: HTTP {response.status_code}: {response.text}")
                 return None
                 
         except Exception as e:
-            self.log_result("Chunked Upload Complete", False, f"Exception: {str(e)}")
+            self.log_result("Chunked Upload Flow", False, f"Exception: {str(e)}")
             return None
     
     def test_verify_memories(self):
-        """Test GET /api/memories to verify new memories were added"""
+        """Test GET /api/memories to verify new memories were added with source 'chatgpt_import'"""
         try:
-            print(f"\n🧠 Step 4a: Verifying memories were added...")
+            print(f"\n🧠 Step 4a: Verify memories were added...")
             
             response = self.session.get(f"{self.base_url}/api/memories")
             
@@ -278,32 +255,33 @@ class ChatGPTImportTester:
                 chatgpt_memories = [m for m in memories if m.get("source") == "chatgpt_import"]
                 
                 if len(chatgpt_memories) > 0:
-                    self.log_result("Memory Verification", True, 
-                        f"Found {len(chatgpt_memories)} memories from ChatGPT import")
+                    self.log_result("Memory Extraction Integration", True, 
+                        f"Found {len(chatgpt_memories)} memories from ChatGPT import with source 'chatgpt_import'")
                     
                     # Show some example memories
+                    print(f"   Example memories extracted:")
                     for i, memory in enumerate(chatgpt_memories[:3]):
-                        content = memory.get("content", "")[:100]
+                        content = memory.get("content", "")[:80]
                         category = memory.get("category", "unknown")
-                        print(f"   Memory {i+1}: [{category}] {content}...")
+                        print(f"     {i+1}. [{category}] {content}...")
                     
                 else:
-                    self.log_result("Memory Verification", False, 
+                    self.log_result("Memory Extraction Integration", False, 
                         f"No memories found with source 'chatgpt_import' (total memories: {len(memories)})")
                 
-                return data
+                return len(chatgpt_memories)
             else:
-                self.log_result("Memory Verification", False, f"HTTP {response.status_code}: {response.text}")
-                return None
+                self.log_result("Memory Extraction Integration", False, f"HTTP {response.status_code}: {response.text}")
+                return 0
                 
         except Exception as e:
-            self.log_result("Memory Verification", False, f"Exception: {str(e)}")
-            return None
+            self.log_result("Memory Extraction Integration", False, f"Exception: {str(e)}")
+            return 0
     
     def test_verify_import_history(self):
-        """Test GET /api/import/data to verify import history"""
+        """Test GET /api/import/data to verify import history with proper stats"""
         try:
-            print(f"\n📋 Step 4b: Verifying import history...")
+            print(f"\n📋 Step 4b: Verify import history...")
             
             response = self.session.get(f"{self.base_url}/api/import/data")
             
@@ -312,43 +290,48 @@ class ChatGPTImportTester:
                 imports = data.get("imports", [])
                 
                 if len(imports) > 0:
-                    # Look for recent ChatGPT import
+                    # Look for recent ChatGPT import with proper stats
                     recent_import = None
                     for imp in imports:
-                        if imp.get("type") == "chatgpt" and imp.get("messageCount", 0) > 0:
+                        stats = imp.get("stats", {})
+                        if (imp.get("source") == "chatgpt" and 
+                            stats.get("messageCount", 0) > 0 and 
+                            stats.get("conversationCount", 0) > 0):
                             recent_import = imp
                             break
                     
                     if recent_import:
-                        message_count = recent_import.get("messageCount", 0)
-                        conversation_count = recent_import.get("conversationCount", 0)
-                        self.log_result("Import History Verification", True, 
-                            f"Found import record with {message_count} messages and {conversation_count} conversations")
+                        stats = recent_import.get("stats", {})
+                        message_count = stats.get("messageCount", 0)
+                        conversation_count = stats.get("conversationCount", 0)
+                        memories_added = stats.get("memoriesAdded", 0)
+                        self.log_result("Import Record Creation", True, 
+                            f"Found import record with {message_count} messages, {conversation_count} conversations, {memories_added} memories")
                     else:
-                        self.log_result("Import History Verification", False, 
-                            f"No recent ChatGPT import found with non-zero messageCount (total imports: {len(imports)})")
+                        self.log_result("Import Record Creation", False, 
+                            f"No recent ChatGPT import found with non-zero stats (total imports: {len(imports)})")
                 else:
-                    self.log_result("Import History Verification", False, "No import records found")
+                    self.log_result("Import Record Creation", False, "No import records found")
                 
                 return data
             else:
-                self.log_result("Import History Verification", False, f"HTTP {response.status_code}: {response.text}")
+                self.log_result("Import Record Creation", False, f"HTTP {response.status_code}: {response.text}")
                 return None
                 
         except Exception as e:
-            self.log_result("Import History Verification", False, f"Exception: {str(e)}")
+            self.log_result("Import Record Creation", False, f"Exception: {str(e)}")
             return None
     
-    def run_end_to_end_test(self):
-        """Run the complete end-to-end test as specified in the review"""
-        print("🚀 Starting ChatGPT Import Memory Extraction End-to-End Test")
-        print("=" * 80)
-        print("Testing the complete flow with real ZIP file as requested in review:")
-        print("1. Login with test credentials")
-        print("2. Create test ChatGPT ZIP with conversations.json")
-        print("3. Test chunked upload flow (init → chunk → complete)")
-        print("4. Verify results (memories added, import history)")
-        print("=" * 80)
+    def run_comprehensive_test(self):
+        """Run the comprehensive end-to-end test as specified in the review"""
+        print("🚀 ChatGPT Import Memory Extraction - COMPREHENSIVE END-TO-END TEST")
+        print("=" * 90)
+        print("TESTING CRITICAL CONTEXT FROM REVIEW:")
+        print("• Main fix: yauzl (Node.js library) replacing unzip (system command)")
+        print("• Added extractMemoriesFromImport call to create user memories")
+        print("• Testing real end-to-end flow with test ZIP file")
+        print("• Verifying: ZIP extraction, memory creation, import history")
+        print("=" * 90)
         
         # Step 1: Authenticate
         if not self.authenticate():
@@ -361,31 +344,19 @@ class ChatGPTImportTester:
             print("❌ Failed to create test ZIP file. Cannot proceed.")
             return False
         
-        file_size = os.path.getsize(zip_path)
-        filename = "test_chatgpt_export.zip"
-        
         # Step 3: Test chunked upload flow
-        upload_id = self.test_chunked_upload_init(filename, file_size)
-        if not upload_id:
-            print("❌ Failed to initialize upload. Cannot proceed.")
-            return False
-        
-        if not self.test_chunked_upload_chunk(upload_id, zip_path):
-            print("❌ Failed to upload chunk. Cannot proceed.")
-            return False
-        
-        complete_result = self.test_chunked_upload_complete(upload_id)
-        if not complete_result:
-            print("❌ Failed to complete upload. Cannot proceed.")
+        upload_result = self.test_chunked_upload_flow(zip_path)
+        if not upload_result:
+            print("❌ Chunked upload flow failed. Cannot proceed.")
             return False
         
         # Step 4: Verify results
-        print(f"\n🔍 Step 4: Verifying results...")
+        print(f"\n🔍 Step 4: Verify results...")
         
         # Wait a moment for processing to complete
         time.sleep(2)
         
-        self.test_verify_memories()
+        memories_count = self.test_verify_memories()
         self.test_verify_import_history()
         
         # Cleanup
@@ -396,9 +367,9 @@ class ChatGPTImportTester:
             pass
         
         # Summary
-        print("\n" + "=" * 80)
-        print("📊 END-TO-END TEST SUMMARY")
-        print("=" * 80)
+        print("\n" + "=" * 90)
+        print("📊 COMPREHENSIVE TEST SUMMARY")
+        print("=" * 90)
         
         total_tests = len(self.test_results)
         passed_tests = sum(1 for result in self.test_results if result["success"])
@@ -409,11 +380,26 @@ class ChatGPTImportTester:
         print(f"❌ Failed: {failed_tests}")
         print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
         
-        # Key findings summary
-        print("\n🔑 KEY FINDINGS:")
-        print("1. ZIP Extraction (yauzl vs unzip):", "✅ Working" if any("ZIP Extraction Verification" in r["test"] and r["success"] for r in self.test_results) else "❌ Failed")
-        print("2. Memory Extraction Integration:", "✅ Working" if any("Memory Verification" in r["test"] and r["success"] for r in self.test_results) else "❌ Failed")
-        print("3. Import Record Creation:", "✅ Working" if any("Import History Verification" in r["test"] and r["success"] for r in self.test_results) else "❌ Failed")
+        # Key findings summary based on review requirements
+        print("\n🔑 KEY FINDINGS (Review Requirements):")
+        zip_working = any("ZIP Extraction" in r["test"] and r["success"] for r in self.test_results)
+        memory_working = any("Memory Extraction Integration" in r["test"] and r["success"] for r in self.test_results)
+        import_working = any("Import Record Creation" in r["test"] and r["success"] for r in self.test_results)
+        
+        print(f"1. ZIP Extraction (yauzl vs unzip): {'✅ Working' if zip_working else '❌ Failed'}")
+        print(f"2. Memory Extraction Integration: {'✅ Working' if memory_working else '❌ Failed'}")
+        print(f"3. Import Record Creation: {'✅ Working' if import_working else '❌ Failed'}")
+        
+        if memories_count > 0:
+            print(f"4. Memories Added: ✅ {memories_count} memories successfully extracted")
+        else:
+            print(f"4. Memories Added: ❌ No memories extracted")
+        
+        # OpenAI API status
+        if memories_count > 0:
+            print(f"5. OpenAI API Integration: ✅ Working (memories extracted successfully)")
+        else:
+            print(f"5. OpenAI API Integration: ⚠️  May not be configured (expected graceful failure)")
         
         if failed_tests > 0:
             print("\n❌ FAILED TESTS:")
@@ -421,9 +407,18 @@ class ChatGPTImportTester:
                 if not result["success"]:
                     print(f"  - {result['test']}: {result['message']}")
         
+        print("\n🎯 CONCLUSION:")
+        if zip_working and memory_working and import_working:
+            print("✅ All critical functionality working correctly!")
+            print("✅ yauzl ZIP extraction successful")
+            print("✅ extractMemoriesFromImport integration working")
+            print("✅ End-to-end flow complete")
+        else:
+            print("❌ Some critical functionality failed")
+        
         return failed_tests == 0
 
 if __name__ == "__main__":
-    tester = ChatGPTImportTester()
-    success = tester.run_end_to_end_test()
+    tester = FinalChatGPTImportTester()
+    success = tester.run_comprehensive_test()
     sys.exit(0 if success else 1)
