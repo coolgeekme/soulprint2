@@ -243,9 +243,12 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
       id: uploadId,
       user_id: userId,
       status: 'processing',
+      type: detectedType,
+      file_name: filename,
       message: `Processing ${fileSizeMB.toFixed(0)} MB file...`,
       progress: 10,
       created_at: new Date(),
+      updated_at: new Date(),
     }},
     { upsert: true }
   );
@@ -429,18 +432,52 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
     { id: uploadId },
     { $set: {
       status: 'completed',
+      type: detectedType,
+      file_name: filename,
       message: `Imported ${conversationCount} conversations, ~${messageCount} messages`,
       progress: 100,
       messages_count: messageCount,
       conversation_count: conversationCount,
+      chunk_count: chunks.length,
       memories_added: chunks.length,
       completed_at: new Date(),
+      updated_at: new Date(),
       stats: {
         messagesCount: messageCount,
         conversationCount,
         summaryGenerated: !!soulSummary,
+        memoriesAdded: chunks.length,
       }
     }}
+  );
+
+  // Also create a data_imports entry for the Settings import history
+  const analysisResult = soulSummary ? {
+    summary: soulSummary,
+    communicationStyle: { tone: 'detected', formality: 'detected' },
+    interests: [],
+    insights: [`Analyzed ${conversationCount} conversations with ${messageCount} messages from ${detectedType} export.`],
+  } : null;
+
+  await db.collection('data_imports').updateOne(
+    { id: uploadId },
+    { $set: {
+      id: uploadId,
+      user_id: userId,
+      source: detectedType,
+      status: 'complete',
+      created_at: new Date(),
+      completed_at: new Date(),
+      parsed_stats: {
+        source: detectedType,
+        conversationCount,
+        messageCount,
+        userMessageCount: Math.floor(messageCount / 2),
+        postCount: 0,
+      },
+      analysis: analysisResult,
+    }},
+    { upsert: true }
   );
 
   return {
