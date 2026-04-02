@@ -5175,6 +5175,29 @@ export default function ChatPage() {
           token={token}
           onImportComplete={(data) => {
             console.log('Import completed:', data);
+            // Show toast notification so user knows even after modal closes
+            if (data?.memoriesAdded > 0) {
+              toast({
+                title: '✅ Import Complete!',
+                description: `${data.memoriesAdded} new memories extracted from your chat history. Your AI is now more personalized.`,
+                duration: 8000,
+                className: 'bg-[#1a1f2e] border-green-500/30 text-white',
+              });
+            } else if (data?.messagesCount > 0) {
+              toast({
+                title: '✅ Import Complete!',
+                description: `${data.messagesCount} messages analyzed from your chat history.`,
+                duration: 5000,
+                className: 'bg-[#1a1f2e] border-green-500/30 text-white',
+              });
+            } else if (data?.background) {
+              toast({
+                title: '⏳ Import Processing',
+                description: 'Your data is still being processed in the background. Check Settings for results.',
+                duration: 6000,
+                className: 'bg-[#1a1f2e] border-cyan-500/30 text-white',
+              });
+            }
           }}
         />
         </SafeSection>

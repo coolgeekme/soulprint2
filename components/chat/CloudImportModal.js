@@ -707,9 +707,9 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           // Poll for import job completion
           const pollImportStatus = async (attempts = 0) => {
             if (attempts > 120) { // 4 minutes max
-              setImportStatus({ status: 'complete', message: 'Processing in background. This may take a few minutes for large files.', progress: 100 });
+              setImportStatus({ status: 'complete', message: 'Processing in background. Check Settings for results when done.', progress: 100 });
               setIsImporting(false);
-              setTimeout(() => onImportComplete?.(), 2000);
+              onImportComplete?.({ memoriesAdded: 0, messagesCount: 0, conversationCount: 0, background: true });
               return;
             }
             
@@ -720,16 +720,34 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
               const statusData = await statusRes.json();
               
               if (statusData.status === 'completed' || statusData.status === 'complete') {
+                const memoriesCount = statusData.memoriesAdded || statusData.stats?.memoriesAdded || 0;
+                const messagesCount = statusData.messagesCount || statusData.stats?.messagesCount || 0;
+                const conversationCount = statusData.stats?.conversationCount || 0;
+                
+                let completeMessage = 'Import complete!';
+                const details = [];
+                if (conversationCount > 0) details.push(`${conversationCount} conversations`);
+                if (messagesCount > 0) details.push(`${messagesCount} messages`);
+                if (memoriesCount > 0) details.push(`${memoriesCount} new memories`);
+                if (details.length > 0) completeMessage += ` ${details.join(', ')} analyzed.`;
+                
                 setImportStatus({ 
                   status: 'complete', 
-                  message: `Import complete! ${statusData.stats?.messagesCount || ''} messages analyzed.`, 
-                  progress: 100 
+                  message: completeMessage, 
+                  progress: 100,
+                  memoriesAdded: memoriesCount,
+                  messagesCount,
+                  conversationCount,
                 });
                 setIsImporting(false);
-                setTimeout(() => {
-                  onImportComplete?.();
-                  onClose();
-                }, 2000);
+                // Notify parent with import stats (for toast notification)
+                onImportComplete?.({
+                  memoriesAdded: memoriesCount,
+                  messagesCount,
+                  conversationCount,
+                  analysis: statusData.analysis,
+                });
+                // Don't auto-close — let user see the results
                 return;
               }
               
@@ -753,13 +771,36 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           
           pollImportStatus();
         } else {
-          // No import ID, assume success
-          setImportStatus({ status: 'complete', message: 'Upload complete! Your data is being processed.', progress: 100 });
+          // No import ID, assume success - backend processed synchronously
+          // Try to get stats from the result
+          const memoriesCount = result?.memoriesAdded || 0;
+          const messagesCount = result?.messageCount || 0;
+          const conversationCount = result?.conversationCount || 0;
+          
+          let completeMessage = 'Import complete!';
+          const details = [];
+          if (conversationCount > 0) details.push(`${conversationCount} conversations`);
+          if (messagesCount > 0) details.push(`${messagesCount} messages`);
+          if (memoriesCount > 0) details.push(`${memoriesCount} new memories`);
+          if (details.length > 0) completeMessage += ` ${details.join(', ')} analyzed.`;
+          else completeMessage += ' Your data is being processed.';
+          
+          setImportStatus({ 
+            status: 'complete', 
+            message: completeMessage, 
+            progress: 100,
+            memoriesAdded: memoriesCount,
+            messagesCount,
+            conversationCount,
+          });
           setIsImporting(false);
-          setTimeout(() => {
-            onImportComplete?.();
-            onClose();
-          }, 2000);
+          // Notify parent with import stats
+          onImportComplete?.({
+            memoriesAdded: memoriesCount,
+            messagesCount,
+            conversationCount,
+          });
+          // Don't auto-close — let user see results
         }
       } catch (err) {
         console.error('Upload error:', err);
@@ -1011,24 +1052,15 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
           )}
 
           {/* Progress */}
-          {importStatus && importStatus.status !== 'extracting' && (
-            <div className={`p-4 rounded-lg ${
-              importStatus.status === 'completed' 
-                ? 'bg-green-500/10 border border-green-500/30' 
-                : 'bg-cyan-500/10 border border-cyan-500/30'
-            }`}>
+          {importStatus && importStatus.status !== 'extracting' && importStatus.status !== 'complete' && importStatus.status !== 'completed' && (
+            <div className="p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
               <div className="flex items-center gap-2 mb-2">
-                {importStatus.status === 'completed' 
-                  ? <CheckCircle2 className="w-4 h-4 text-green-400" /> 
-                  : <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
-                }
-                <span className={`text-sm font-medium ${
-                  importStatus.status === 'completed' ? 'text-green-400' : 'text-cyan-400'
-                }`}>
+                <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
+                <span className="text-sm font-medium text-cyan-400">
                   {importStatus.message}
                 </span>
               </div>
-              {importStatus.progress > 0 && importStatus.status !== 'completed' && (
+              {importStatus.progress > 0 && (
                 <div className="w-full bg-white/10 rounded-full h-2">
                   <div 
                     className="bg-cyan-500 h-2 rounded-full transition-all" 
@@ -1039,21 +1071,41 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
             </div>
           )}
 
-          {/* Completion with Analysis */}
-          {importStatus?.status === 'completed' && analysisResult && (
+          {/* Completion Screen */}
+          {(importStatus?.status === 'completed' || importStatus?.status === 'complete') && (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-white">{analysisResult.messagesCount}</div>
-                  <div className="text-xs text-gray-500">Messages Imported</div>
-                </div>
-                <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-orange-400">{analysisResult.memoriesAdded}</div>
-                  <div className="text-xs text-gray-500">Memories Added</div>
+              {/* Success Header */}
+              <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-green-400" />
+                  <span className="text-sm font-medium text-green-400">
+                    {importStatus.message}
+                  </span>
                 </div>
               </div>
 
-              {analysisResult.analysis && (
+              {/* Stats Grid — show whenever we have stats from polling or analysis */}
+              {(importStatus.memoriesAdded > 0 || importStatus.messagesCount > 0 || importStatus.conversationCount > 0 || analysisResult) && (
+                <div className="grid grid-cols-3 gap-3">
+                  {(importStatus.conversationCount > 0 || analysisResult?.conversationCount > 0) && (
+                    <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-white">{(importStatus.conversationCount || analysisResult?.conversationCount || 0).toLocaleString()}</div>
+                      <div className="text-xs text-gray-500">Conversations</div>
+                    </div>
+                  )}
+                  <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-white">{(importStatus.messagesCount || analysisResult?.messagesCount || 0).toLocaleString()}</div>
+                    <div className="text-xs text-gray-500">Messages</div>
+                  </div>
+                  <div className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-orange-400">{(importStatus.memoriesAdded || analysisResult?.memoriesAdded || 0).toLocaleString()}</div>
+                    <div className="text-xs text-gray-500">New Memories</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Analysis Details */}
+              {analysisResult?.analysis && (
                 <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Sparkles className="w-4 h-4 text-purple-400" />
@@ -1075,11 +1127,25 @@ function CloudImportModal({ onClose, token, onImportComplete }) {
                   )}
                 </div>
               )}
+
+              {/* Memories Added Hint — when no analysis detail is available but memories were added */}
+              {!analysisResult?.analysis && (importStatus.memoriesAdded > 0) && (
+                <div className="bg-gradient-to-br from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="w-4 h-4 text-orange-400" />
+                    <span className="text-sm font-medium text-orange-300">Memories Extracted</span>
+                  </div>
+                  <p className="text-gray-300 text-sm">
+                    {importStatus.memoriesAdded} new memories have been extracted from your conversation history. 
+                    These will help personalize your AI experience.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
           {/* Action Button */}
-          {importStatus?.status === 'completed' ? (
+          {(importStatus?.status === 'completed' || importStatus?.status === 'complete') ? (
             <button 
               onClick={onClose} 
               className="w-full py-3 rounded-xl text-sm font-medium bg-green-500 text-white hover:bg-green-600 flex items-center justify-center gap-2">
