@@ -158,7 +158,14 @@ async function handleLogin(request) {
     return err(`Too many login attempts. Try again in ${rateCheck.retryAfter} seconds.`, 429);
   }
 
-  const db = await getDb();
+  let db;
+  try {
+    db = await getDb();
+  } catch (dbErr) {
+    console.error('[Auth] Database connection failed:', dbErr.message);
+    return err('Service temporarily unavailable. Please try again in a moment.', 503);
+  }
+
   const user = await db.collection('users').findOne({ email: email.toLowerCase() });
   if (!user) return err('User not found', 404);
 
@@ -587,26 +594,30 @@ export async function POST(request, { params }) {
   try {
     switch (endpoint) {
       case 'register':
-        return handleRegister(request);
+        return await handleRegister(request);
       case 'login':
-        return handleLogin(request);
+        return await handleLogin(request);
       case 'firebase':
-        return handleFirebaseAuth(request);
+        return await handleFirebaseAuth(request);
       case 'redeem-code':
-        return handleRedeemBetaCode(request);
+        return await handleRedeemBetaCode(request);
       case 'validate-code':
-        return handleValidateBetaCode(request);
+        return await handleValidateBetaCode(request);
       case 'verify-captcha':
-        return handleVerifyCaptcha(request);
+        return await handleVerifyCaptcha(request);
       case 'send-verification':
-        return handleSendVerificationEmail(request);
+        return await handleSendVerificationEmail(request);
       case 'verify-email':
-        return handleVerifyEmail(request);
+        return await handleVerifyEmail(request);
       default:
         return err('Auth endpoint not found', 404);
     }
   } catch (error) {
     console.error('[Auth API] Error:', error);
+    // Provide more helpful error message for DB connection issues
+    if (error.name === 'MongoServerSelectionError' || error.message?.includes('ECONNREFUSED') || error.message?.includes('connect')) {
+      return err('Service temporarily unavailable. Please try again in a moment.', 503);
+    }
     return err(error.message || 'Internal server error', 500);
   }
 }
@@ -618,11 +629,14 @@ export async function GET(request, { params }) {
 
   try {
     if (endpoint === 'me') {
-      return handleMe(request);
+      return await handleMe(request);
     }
     return err('Auth endpoint not found', 404);
   } catch (error) {
     console.error('[Auth API] GET Error:', error);
+    if (error.name === 'MongoServerSelectionError' || error.message?.includes('ECONNREFUSED') || error.message?.includes('connect')) {
+      return err('Service temporarily unavailable. Please try again in a moment.', 503);
+    }
     return err(error.message || 'Internal server error', 500);
   }
 }
