@@ -11,6 +11,14 @@ import yauzl from 'yauzl';
 
 // ── Extracted handler modules ──────────────────────────────────────────────────
 import {
+  handleVideoUpload,
+  handleVideoAnalyze,
+  handleVideoTrim,
+  handleVideoTextOverlay,
+  handleVideoServe,
+  handleVideoDownload,
+} from '@/lib/handlers/video-editor';
+import {
   VIDEO_MODELS,
   KIE_VIDEO_MODELS,
   parseExplicitVideoModelFromPrompt,
@@ -9996,6 +10004,14 @@ export async function GET(request, { params }) {
     if (pathStr === 'user/voice-settings') return handleGetVoiceSettings(request);
     if (pathStr === 'user/voice-stats') return handleGetVoiceStats(request);
 
+    // ── Video Editor GET Routes ──
+    if (pathStr.match(/^video\/serve\/[^\/]+$/)) {
+      return handleVideoServe(request, pathArr[2]);
+    }
+    if (pathStr.match(/^video\/download\/[^\/]+$/)) {
+      return handleVideoDownload(request, pathArr[2]);
+    }
+
     // Admin routes
     // Admin user details: admin/users/:userId
     if (pathStr === 'user/location') return handleGetUserLocation(request);
@@ -10140,6 +10156,12 @@ export async function POST(request, { params }) {
     if (pathStr === 'privacy/purge-imports') return handlePurgeImportedData(request);
     if (pathStr === 'privacy/purge-memories') return handlePurgeMemories(request);
     if (pathStr === 'privacy/purge-all') return handlePurgeAll(request);
+    
+    // ── Video Editor Routes ──
+    if (pathStr === 'video/upload') return handleVideoUpload(request);
+    if (pathStr === 'video/analyze') return handleVideoAnalyze(request);
+    if (pathStr === 'video/trim') return handleVideoTrim(request);
+    if (pathStr === 'video/text-overlay') return handleVideoTextOverlay(request);
     if (pathStr === 'privacy/settings') return handleUpdatePrivacySettings(request);
     if (pathStr === 'privacy/delete-account') return handleDeleteUserData(request);
     if (pathStr === 'privacy/revoke-session') return handleRevokeSession(request);

@@ -1,8 +1,9 @@
 'use client';
-import { X, FileText, Image as ImageIcon, Code } from 'lucide-react';
+import { X, FileText, Image as ImageIcon, Code, Film, Scissors } from 'lucide-react';
 
-function AttachmentPill({ att, onRemove, onGenerateJson }) {
+function AttachmentPill({ att, onRemove, onGenerateJson, onEditVideo }) {
   const isImage = att.type === 'image';
+  const isVideo = att.type === 'video';
   return (
     <div className="relative group">
       {isImage ? (
@@ -23,6 +24,26 @@ function AttachmentPill({ att, onRemove, onGenerateJson }) {
               title="Generate image config JSON"
             >
               <Code className="w-2.5 h-2.5" /> JSON
+            </button>
+          )}
+        </div>
+      ) : isVideo ? (
+        <div className="relative">
+          <div className="w-16 h-16 bg-blue-500/10 border-2 border-blue-500/40 rounded-xl flex flex-col items-center justify-center p-1 shadow-lg">
+            <Film className="w-5 h-5 text-blue-400" />
+            <span className="text-[8px] text-gray-300 truncate w-full text-center mt-0.5">{att.name}</span>
+            {att.size && (
+              <span className="text-[7px] text-gray-500">{(att.size / (1024*1024)).toFixed(1)}MB</span>
+            )}
+          </div>
+          {/* Edit Video button */}
+          {onEditVideo && (
+            <button 
+              onClick={() => onEditVideo(att)}
+              className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-blue-500 rounded-full text-[8px] text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 shadow-lg whitespace-nowrap"
+              title="Edit video"
+            >
+              <Scissors className="w-2.5 h-2.5" /> Edit
             </button>
           )}
         </div>

@@ -54,6 +54,7 @@ import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { TypingIndicator } from '@/components/chat/TypingIndicator';
 import { VideoCard, SavedVideoCard } from '@/components/chat/VideoCards';
 import ImageEditor from '@/components/chat/ImageEditor';
+import VideoEditor from '@/components/chat/VideoEditor';
 import { MockupGenerator } from '@/components/chat/MockupGenerator';
 import ImageCard from '@/components/chat/ImageCard';
 import { CompareResponseCard, CompareModePicker } from '@/components/chat/CompareMode';
@@ -186,6 +187,8 @@ export default function ChatPage() {
   // Image editing state
   const [editableImage, setEditableImage] = useState(null); // { url, base64, source: 'upload'|'generated', messageId }
   const [showImageEditor, setShowImageEditor] = useState(false);
+  const [showVideoEditor, setShowVideoEditor] = useState(false);
+  const [editableVideo, setEditableVideo] = useState(null); // { url, videoId }
   const [isEditingImage, setIsEditingImage] = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
   // Mockup generator state
@@ -618,6 +621,7 @@ export default function ChatPage() {
   // Process a file into an attachment object (image, document, or text)
   async function processFile(file) {
     const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|avi)$/i);
     const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     const isDOCX = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
                    file.name.toLowerCase().endsWith('.docx');
@@ -632,6 +636,17 @@ export default function ChatPage() {
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+    } else if (isVideo) {
+      // Handle video files — create a local URL and metadata
+      const localUrl = URL.createObjectURL(file);
+      return {
+        type: 'video',
+        name: file.name,
+        mimeType: file.type || 'video/mp4',
+        size: file.size,
+        localUrl,
+        file, // Keep the file reference for upload
+      };
     } else if (isPDF || isDOCX) {
       // Parse PDF/DOCX on the server
       try {
@@ -682,7 +697,12 @@ export default function ChatPage() {
     const files = Array.from(e.target.files || []);
     setFileError('');
     for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) { setFileError(`${file.name} is too large (max 10MB)`); continue; }
+      const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|avi)$/i);
+      const maxSize = isVideo ? 100 * 1024 * 1024 : MAX_FILE_SIZE; // 100MB for video, 10MB for others
+      if (file.size > maxSize) { 
+        setFileError(`${file.name} is too large (max ${isVideo ? '100MB' : '10MB'})`); 
+        continue; 
+      }
       try {
         const processed = await processFile(file);
         setAttachments(prev => [...prev, processed]);
@@ -3452,14 +3472,25 @@ export default function ChatPage() {
                         )}
                         {/* Saved video - direct URL from database */}
                         {msg.video_url && (
-                          <SavedVideoCard 
-                            videoUrl={msg.video_url} 
-                            modelLabel={msg.model_label} 
-                            prompt={msg.video_task?.prompt || msg.generation_params?.prompt || ''} 
-                            token={token}
-                            sourceImageUrl={msg.source_image || msg.video_task?.sourceImage}
-                            onRegenerateWith={handleRegenerateWithModel}
-                          />
+                          <div className="relative group">
+                            <SavedVideoCard 
+                              videoUrl={msg.video_url} 
+                              modelLabel={msg.model_label} 
+                              prompt={msg.video_task?.prompt || msg.generation_params?.prompt || ''} 
+                              token={token}
+                              sourceImageUrl={msg.source_image || msg.video_task?.sourceImage}
+                              onRegenerateWith={handleRegenerateWithModel}
+                            />
+                            <button
+                              onClick={() => {
+                                setEditableVideo({ url: msg.video_url });
+                                setShowVideoEditor(true);
+                              }}
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity px-2.5 py-1 bg-black/70 hover:bg-black/90 text-white text-xs rounded-lg flex items-center gap-1 border border-white/20 backdrop-blur-sm"
+                            >
+                              ✂️ Edit Video
+                            </button>
+                          </div>
                         )}
                         {/* Regular text (skip for pure image/video messages and active video tasks) */}
                         {!msg.image_url && !msg.video_url && !(msg.video_task && !msg.video_url) && (
@@ -4154,6 +4185,10 @@ export default function ChatPage() {
                         att={att} 
                         onRemove={() => setAttachments(prev => prev.filter((_, j) => j !== i))}
                         onGenerateJson={att.type === 'image' ? generateImageJson : null}
+                        onEditVideo={att.type === 'video' ? (videoAtt) => {
+                          setEditableVideo({ url: videoAtt.localUrl });
+                          setShowVideoEditor(true);
+                        } : null}
                       />
                     ))}
                   </div>
@@ -4555,6 +4590,18 @@ export default function ChatPage() {
           isGenerating={isGeneratingMockup}
           token={token}
         />
+        </SafeSection>
+      )}
+
+      {/* Video Editor Modal */}
+      {showVideoEditor && (
+        <SafeSection name="VideoEditor">
+          <VideoEditor
+            videoUrl={editableVideo?.url}
+            videoId={editableVideo?.videoId}
+            onClose={() => { setShowVideoEditor(false); setEditableVideo(null); }}
+            token={token}
+          />
         </SafeSection>
       )}
       
