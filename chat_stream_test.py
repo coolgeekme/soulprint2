@@ -7,7 +7,7 @@ import requests
 import json
 import time
 
-BASE_URL = "https://image-routing-patch.preview.emergentagent.com"
+BASE_URL = "https://data-import-trace.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 TEST_EMAIL = "test@soulprint.com"

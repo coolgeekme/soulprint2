@@ -14,7 +14,7 @@ import base64
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://image-routing-patch.preview.emergentagent.com"
+BASE_URL = "https://data-import-trace.preview.emergentagent.com"
 LOGIN_EMAIL = "testchat@example.com"
 LOGIN_PASSCODE = "Test123456"
 

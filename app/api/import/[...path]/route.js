@@ -4,6 +4,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { getDb } from '@/lib/mongodb';
 import { ok, err, authenticate, requireAdmin } from '@/lib/api-utils';
+import { extractMemoriesFromImport } from '@/lib/handlers/cloud-import';
 
 // ============================================================
 // CONSTANTS & HELPERS
@@ -228,6 +229,7 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
   let conversationCount = 0;
   let messageCount = 0;
   const textSamples = []; // Collect samples for AI analysis (not the whole file)
+  let collectedUserMessages = []; // Structured user messages for memory extraction
   const MAX_SAMPLE_SIZE = 50000; // 50KB of text for AI analysis
   let sampledSize = 0;
   
@@ -287,6 +289,7 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
           messageCount = result.messageCount;
           textSamples.push(...result.textSamples);
           sampledSize = result.sampledSize;
+          collectedUserMessages = result.userMessages || [];
         }
         
         // Clean up
@@ -314,6 +317,9 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
             const text = extractTextFromJson(parsed, detectedType);
             textSamples.push(text);
             sampledSize += text.length;
+            
+            // Extract structured user messages for memory extraction
+            extractUserMessagesFromJson(parsed, collectedUserMessages, 200);
           } catch {
             textSamples.push(content.slice(0, 5000));
             sampledSize += 5000;
@@ -331,6 +337,7 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
       messageCount = result.messageCount;
       textSamples.push(...result.textSamples);
       sampledSize = result.sampledSize;
+      collectedUserMessages = result.userMessages || [];
     } else {
       // Smaller JSON: load into memory
       const content = await fsPromises.readFile(filePath, 'utf8');
@@ -340,6 +347,9 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
         const text = extractTextFromJson(parsed, type);
         textSamples.push(text);
         sampledSize = text.length;
+        
+        // Extract structured user messages for memory extraction
+        extractUserMessagesFromJson(parsed, collectedUserMessages, 200);
       } catch {
         textSamples.push(content.slice(0, MAX_SAMPLE_SIZE));
         sampledSize = MAX_SAMPLE_SIZE;
@@ -358,7 +368,17 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
   const extractedText = textSamples.join('\n\n').slice(0, MAX_SAMPLE_SIZE);
   messageCount = messageCount || (extractedText.match(/\n\n/g) || []).length;
   
-  console.log(`[ProcessLargeFile] Extracted ${conversationCount} conversations, ~${messageCount} messages, ${(sampledSize / 1024).toFixed(1)}KB sample text`);
+  console.log(`[ProcessLargeFile] Extracted ${conversationCount} conversations, ~${messageCount} messages, ${collectedUserMessages.length} user messages for memory extraction, ${(sampledSize / 1024).toFixed(1)}KB sample text`);
+  
+  // Update progress - entering AI analysis phase
+  await db.collection('import_jobs').updateOne(
+    { id: uploadId },
+    { $set: { 
+      message: 'Analyzing communication style and extracting memories...', 
+      progress: 50, 
+      updated_at: new Date() 
+    }}
+  );
   
   // Generate soul profile summary using AI
   let soulSummary = '';
@@ -377,6 +397,34 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
       });
     } catch (e) {
       console.log('[ProcessLargeFile] AI summary failed:', e.message);
+    }
+  }
+
+  // Extract and save user memories from imported messages
+  let memoriesAdded = 0;
+  if (collectedUserMessages.length > 0) {
+    try {
+      console.log(`[ProcessLargeFile] Extracting memories from ${collectedUserMessages.length} user messages...`);
+      memoriesAdded = await extractMemoriesFromImport(db, userId, collectedUserMessages, detectedType);
+      console.log(`[ProcessLargeFile] Successfully extracted ${memoriesAdded} memories`);
+    } catch (e) {
+      console.error('[ProcessLargeFile] Memory extraction failed:', e.message);
+    }
+  } else if (extractedText.length > 100) {
+    // Fallback: if no structured messages were collected, create pseudo-messages from text samples
+    console.log('[ProcessLargeFile] No structured messages found, creating from text samples for memory extraction...');
+    const pseudoMessages = textSamples
+      .filter(t => t && t.trim().length > 20)
+      .slice(0, 100)
+      .map(t => ({ role: 'user', content: t.substring(0, 2000) }));
+    
+    if (pseudoMessages.length > 0) {
+      try {
+        memoriesAdded = await extractMemoriesFromImport(db, userId, pseudoMessages, detectedType);
+        console.log(`[ProcessLargeFile] Extracted ${memoriesAdded} memories from text samples`);
+      } catch (e) {
+        console.error('[ProcessLargeFile] Fallback memory extraction failed:', e.message);
+      }
     }
   }
 
@@ -422,6 +470,7 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
         conversation_count: conversationCount,
         message_count: messageCount,
         summary_generated: !!soulSummary,
+        memories_added: memoriesAdded,
         completed_at: new Date(),
       }
     }
@@ -434,19 +483,19 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
       status: 'completed',
       type: detectedType,
       file_name: filename,
-      message: `Imported ${conversationCount} conversations, ~${messageCount} messages`,
+      message: `Imported ${conversationCount} conversations, ~${messageCount} messages. ${memoriesAdded} memories extracted.`,
       progress: 100,
       messages_count: messageCount,
       conversation_count: conversationCount,
       chunk_count: chunks.length,
-      memories_added: chunks.length,
+      memories_added: memoriesAdded,
       completed_at: new Date(),
       updated_at: new Date(),
       stats: {
         messagesCount: messageCount,
         conversationCount,
         summaryGenerated: !!soulSummary,
-        memoriesAdded: chunks.length,
+        memoriesAdded: memoriesAdded,
       }
     }}
   );
@@ -456,7 +505,7 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
     summary: soulSummary,
     communicationStyle: { tone: 'detected', formality: 'detected' },
     interests: [],
-    insights: [`Analyzed ${conversationCount} conversations with ${messageCount} messages from ${detectedType} export.`],
+    insights: [`Analyzed ${conversationCount} conversations with ${messageCount} messages from ${detectedType} export. ${memoriesAdded} memories extracted.`],
   } : null;
 
   await db.collection('data_imports').updateOne(
@@ -472,7 +521,8 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
         source: detectedType,
         conversationCount,
         messageCount,
-        userMessageCount: Math.floor(messageCount / 2),
+        userMessageCount: collectedUserMessages.length || Math.floor(messageCount / 2),
+        memoriesAdded,
         postCount: 0,
       },
       analysis: analysisResult,
@@ -484,9 +534,53 @@ async function processLargeFile(db, userId, uploadId, type, filePath, filename, 
     detectedType,
     conversationCount,
     messageCount,
+    memoriesAdded,
     summaryGenerated: !!soulSummary,
     importId: uploadId,
   };
+}
+
+// Helper: Extract structured user messages from parsed JSON (ChatGPT format)
+function extractUserMessagesFromJson(data, messages, maxMessages = 200) {
+  if (messages.length >= maxMessages) return;
+  
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      if (messages.length >= maxMessages) break;
+      extractUserMessagesFromJson(item, messages, maxMessages);
+    }
+    return;
+  }
+  
+  // ChatGPT mapping format
+  if (data && data.mapping) {
+    for (const [, node] of Object.entries(data.mapping)) {
+      if (messages.length >= maxMessages) break;
+      const msg = node?.message;
+      if (msg?.author?.role === 'user' && msg?.content?.parts) {
+        const text = msg.content.parts.join(' ');
+        if (text && text.trim().length > 20) {
+          messages.push({
+            role: 'user',
+            content: text.trim().substring(0, 2000),
+          });
+        }
+      }
+    }
+  }
+  
+  // Direct messages array format
+  if (data && data.messages && Array.isArray(data.messages)) {
+    for (const msg of data.messages) {
+      if (messages.length >= maxMessages) break;
+      if (msg.role === 'user' && msg.content && typeof msg.content === 'string' && msg.content.length > 20) {
+        messages.push({
+          role: 'user',
+          content: msg.content.substring(0, 2000),
+        });
+      }
+    }
+  }
 }
 
 // Stream-parse a large JSON file (ChatGPT conversations.json format)
@@ -497,6 +591,8 @@ async function streamParseJsonFile(db, userId, uploadId, filePath, type) {
   let conversationCount = 0;
   let messageCount = 0;
   const textSamples = [];
+  const userMessages = []; // Structured messages for memory extraction
+  const MAX_USER_MESSAGES = 200; // Collect up to 200 user messages for memory extraction
   let sampledSize = 0;
   
   return new Promise((resolve, reject) => {
@@ -571,6 +667,13 @@ async function streamParseJsonFile(db, userId, uploadId, filePath, type) {
                             textSamples.push(text);
                             sampledSize += text.length;
                           }
+                          // Collect structured user messages for memory extraction
+                          if (msg.author?.role === 'user' && text.trim().length > 20 && userMessages.length < MAX_USER_MESSAGES) {
+                            userMessages.push({
+                              role: 'user',
+                              content: text.trim().substring(0, 2000),
+                            });
+                          }
                         }
                       }
                     }
@@ -600,8 +703,8 @@ async function streamParseJsonFile(db, userId, uploadId, filePath, type) {
     
     stream.on('end', () => {
       conversationCount = topLevelItems;
-      console.log(`[StreamParse] Parsed ${conversationCount} conversations, sampled ${conversationsParsed}, ${messageCount} messages`);
-      resolve({ conversationCount, messageCount, textSamples, sampledSize });
+      console.log(`[StreamParse] Parsed ${conversationCount} conversations, sampled ${conversationsParsed}, ${messageCount} messages, ${userMessages.length} user messages for memory extraction`);
+      resolve({ conversationCount, messageCount, textSamples, sampledSize, userMessages });
     });
     
     stream.on('error', (err) => {

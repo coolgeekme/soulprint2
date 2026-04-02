@@ -8,7 +8,7 @@ import json
 import time
 
 # Configuration
-BASE_URL = "https://image-routing-patch.preview.emergentagent.com"
+BASE_URL = "https://data-import-trace.preview.emergentagent.com"
 AUTH_EMAIL = "test@soulprint.com"
 AUTH_PASSWORD = "test123"
 

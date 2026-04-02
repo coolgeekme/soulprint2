@@ -14,7 +14,7 @@ import sys
 import os
 
 # Configuration
-BASE_URL = "https://image-routing-patch.preview.emergentagent.com/api"
+BASE_URL = "https://data-import-trace.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSCODE = "test123"
 
