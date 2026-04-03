@@ -7765,8 +7765,23 @@ Style: Professional graphic design quality. Make it look like a skilled designer
             : (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.find(p => p.type === 'text')?.text : null);
           
           if (userText) {
-            const lowerText = userText.toLowerCase();
+            const lowerText = userText.toLowerCase().trim();
             
+            // ── CONVERSATION FOLLOW-UP DETECTION ──
+            // Skip web search for short messages that are clearly referencing the current conversation context.
+            // These are conversational follow-ups, NOT web search queries.
+            const isConversationalFollowUp = (
+              // Very short messages (under 60 chars) with conversational pronouns/references
+              (lowerText.length < 60 && /^(what happened|what's wrong|what went wrong|what was that|what do you mean|what does that mean|can you explain|explain that|why did you|why is that|why not|how so|how come|tell me more|go on|continue|say more|elaborate|and then|so what|now what|what now|what next|ok but|yeah but|sure but|huh|wait what|wait|hmm|oh|really|seriously|nice|cool|great|thanks|ok|okay|got it|i see|interesting|wow|haha|lol|love it|perfect|awesome|good|bad|no|yes|yep|nope|exactly|right|correct|wrong|that's not|not quite|close|almost)\b/i.test(lowerText)) ||
+              // Short questions with "it/that/this/the" referencing conversation context
+              (lowerText.length < 80 && /^(what|why|how|can you|could you|do you|is|are|was|were|did)\b/.test(lowerText) && /\b(it|that|this|the image|the video|the picture|the photo|the result|your|you)\b/i.test(lowerText) && !/\b(weather|news|price|stock|score|latest|current|today|2024|2025|2026)\b/i.test(lowerText)) ||
+              // Explicit conversational continuations
+              /^(regarding|about that|on that note|speaking of|back to|as for|like i said|as i mentioned)\b/i.test(lowerText)
+            );
+            
+            if (isConversationalFollowUp) {
+              console.log('[Chat] Skipping proactive search — conversational follow-up detected:', lowerText.substring(0, 80));
+            } else {
             // Check if query contains a URL - always search for URLs
             const urlPattern = /https?:\/\/[^\s]+|www\.[^\s]+|\.[a-z]{2,}\/[^\s]*/i;
             const hasUrl = urlPattern.test(userText);
@@ -7826,6 +7841,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                 console.log('[Chat] Proactive search failed:', searchErr.message);
               }
             }
+            } // close else for conversational follow-up check
           }
         }
 

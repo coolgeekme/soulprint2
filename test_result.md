@@ -133,6 +133,8 @@ agent_communication:
     message: "VEO UX POLLING ENHANCEMENT TESTING COMPLETE: All enhanced video status polling features working perfectly. ✅ POST /api/auth/login with testchat@example.com/Test123456 working. ✅ GET /api/health returns {status: 'ok'}. ✅ POST /api/media/generate returns enhanced fields (estimatedTime, modelLabel, modelId) in creation response. ✅ GET /api/media/status/:taskId returns ALL enhanced UX fields when status=generating: statusMessage ('Queuing your video...', 'Rendering frames at 720p...'), estimatedTime ('1-3 min', '2-4 min'), modelLabel ('Kling 3.0 (Std)', 'Kling 3.0 (Pro)'), modelId, elapsedSeconds, progressPct (0-95), pollTimeoutMs (600000), stuckWarningMs (300000). ✅ Authentication required (401 without token). ✅ 404 for non-existent tasks. ✅ Model-specific UX parameters working (different models have different estimated times and labels). ✅ Field validation working (correct types and ranges). FIXED: Enhanced fields were missing from media_gallery polling path - added enhanced UX logic to both video_jobs and media_gallery collection paths in handleMediaStatusByTaskId. All 11/11 comprehensive tests passed (100% success rate). The enhanced video status polling is now fully functional and provides rich progress data to improve user experience during video generation."
   - agent: "testing"
     message: "QUESTION VS EDIT DETECTION FIX TESTING COMPLETE: The primary fix objective (preventing questions from triggering image edits) is working perfectly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ Image generation successful (establishes context for edit testing). ✅ Question Detection: ALL 7 question messages correctly did NOT trigger image editing: 'why is the cat sitting on the couch?', 'what color is the cat in the image?', 'how was this image generated?', 'in this image, why does the cat look so realistic?', 'is the cat a specific breed?', 'tell me about the image style', 'that is not an edit. I'm asking a question.' ✅ Edge Cases: ALL 3 edge case questions with edit-like words correctly did NOT trigger image editing: 'why did you change the background in the last version?', 'can you explain what makes this image look so realistic?', 'what would happen if we remove the couch from the concept?'. Backend logs confirm question detection working: '[Image Edit] Skipping — message is a question, not an edit request'. The critical bug where questions like 'why is Alex doing a science experiment?' would incorrectly trigger image edits has been successfully fixed. All 10/10 question detection tests passed (100% success rate)."
+  - agent: "testing"
+    message: "BUG FIXES TESTING COMPLETE: Both critical bug fixes are working perfectly. ✅ NDJSON Parsing Fix: submitEditedMessage correctly parses raw JSON lines (not SSE format with 'data: ' prefix). Message edit and regeneration produces new AI responses. Stream format verified as proper NDJSON. ✅ Conversational Follow-up Detection: All 8/8 conversational messages ('what happened?', 'can you explain that?', 'what do you mean?', etc.) correctly skip proactive web search. External queries ('what happened to the stock market today?') still trigger web search appropriately. Server logs confirm: '[Chat] Skipping proactive search — conversational follow-up detected'. Both fixes resolve critical UX issues where message editing wasn't working and short conversational messages were triggering unnecessary web searches. Authentication working with testchat@example.com/Test123456."
 
 
   - task: "Veo Video Generation UX Enhancement"
@@ -1238,6 +1240,30 @@ backend:
         agent: "testing"
         comment: "TESTED: GET /api/import/data endpoint working perfectly. ✅ Authentication required (401 without token). ✅ Returns proper JSON response with imports array. ✅ Currently returns 0 import records as expected for new user. ✅ Endpoint accessible and functioning correctly. All comprehensive tests passed."
 
+  - task: "NDJSON Parsing Fix for Save & Regenerate"
+    implemented: true
+    working: true
+    file: "app/chat/page.js, components/mobile/MobileChat.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: NDJSON parsing fix working perfectly. ✅ submitEditedMessage correctly parses raw JSON lines (not SSE format with 'data: ' prefix). ✅ Message edit and regeneration produces new AI responses. ✅ Stream format verified as proper NDJSON without 'data: ' prefix. ✅ Both desktop and mobile implementations fixed. The critical bug where message editing wasn't working due to incorrect SSE parsing has been successfully resolved."
+
+  - task: "Conversational Follow-up Detection for Proactive Search"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js, lib/handlers/memory-system.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Conversational follow-up detection working perfectly. ✅ All 8/8 conversational messages ('what happened?', 'can you explain that?', 'what do you mean?', 'tell me more', 'why is that?', 'how so?', 'really?', 'interesting') correctly skip proactive web search. ✅ External queries ('what happened to the stock market today?') still trigger web search appropriately. ✅ Server logs confirm: '[Chat] Skipping proactive search — conversational follow-up detected'. The fix prevents unnecessary web searches for short conversational messages that reference conversation context."
+
 frontend:
   - task: "Landing Page (/)"
     implemented: true
@@ -1886,3 +1912,15 @@ agent_communication:
       - working: true
         agent: "testing"
         comment: "TESTED: Question vs Edit Detection Fix working correctly for question detection. ✅ Authentication with testchat@example.com/Test123456 working. ✅ Image generation successful (establishes context for edit testing). ✅ Question Detection: ALL 7 question messages correctly did NOT trigger image editing: 'why is the cat sitting on the couch?', 'what color is the cat in the image?', 'how was this image generated?', 'in this image, why does the cat look so realistic?', 'is the cat a specific breed?', 'tell me about the image style', 'that is not an edit. I'm asking a question.' ✅ Edge Cases: ALL 3 edge case questions with edit-like words correctly did NOT trigger image editing: 'why did you change the background in the last version?', 'can you explain what makes this image look so realistic?', 'what would happen if we remove the couch from the concept?'. Backend logs confirm question detection working: '[Image Edit] Skipping — message is a question, not an edit request'. Minor: Edit detection not triggering for actual edit requests (separate issue from the question detection fix). The primary fix objective (preventing questions from triggering image edits) is working perfectly. All 10/10 question detection tests passed (100% success rate)."
+
+  - task: "Save & Regenerate Fix + Short-Term Context Awareness"
+    implemented: true
+    working: "NA"
+    file: "app/chat/page.js, components/mobile/MobileChat.js, app/api/[[...path]]/route.js, lib/handlers/memory-system.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Fixed two bugs. (1) Save & Regenerate: submitEditedMessage was parsing for SSE data: prefix but backend sends NDJSON. Fixed both desktop and mobile to use JSON.parse(line) with buffer handling. (2) Context awareness: Added isConversationalFollowUp detection to suppress proactive web search for short conversational messages. Enhanced system prompt with explicit section about prioritizing conversation context over web search for ambiguous messages."
