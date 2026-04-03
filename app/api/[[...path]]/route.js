@@ -2777,7 +2777,8 @@ Requirements:
         image: imageFile,
         prompt: `Edit this image: ${safeEditInstruction}. Preserve the overall composition, subject identity, and style while making the requested change.`,
         n: 1,
-        size: '1024x1024',
+        size: '1536x1024',
+        quality: 'high',
       });
       
       console.log('[ImageEdit] GPT Image edit completed');
@@ -3033,7 +3034,7 @@ Output ONLY the DALL-E prompt to recreate this IDENTICAL scene with the modifica
               model: 'dall-e-3',
               prompt: editPrompt,
               n: 1,
-              size: '1024x1024',
+              size: '1792x1024',
               quality: 'hd',
               style: 'natural',
             }),
@@ -3111,7 +3112,7 @@ async function handleMockupGenerateInternal(userId, design, product) {
         model: 'dall-e-3',
         prompt: cleanProductPrompt,
         n: 1,
-        size: '1024x1024',
+        size: '1792x1024',
         quality: 'hd',
         style: 'natural',
       }),
@@ -6486,7 +6487,7 @@ async function handleChatStream(request) {
                     model: 'dall-e-3',
                     prompt: baseGenPrompt,
                     n: 1,
-                    size: '1024x1024',
+                    size: '1792x1024',
                     quality: 'hd',
                     style: 'natural',
                   }),
@@ -6623,7 +6624,8 @@ async function handleChatStream(request) {
                   image: baseFile,
                   prompt: `Remove ALL logos, text, graphics, designs, and branding from the clothing/products in this image. Make all surfaces clean and plain. Keep the rest of the scene EXACTLY the same — same people, same poses, same lighting, same background. Only erase printed designs and logos.`,
                   n: 1,
-                  size: '1024x1024',
+                  size: '1536x1024',
+                  quality: 'high',
                 });
                 
                 if (cleanResult.data?.[0]?.b64_json) {
@@ -6909,6 +6911,28 @@ Style: Professional graphic design quality. Make it look like a skilled designer
           let revisedPrompt = content;
           let usedModel = selectedModelKey;
           
+          // ── Detect aspect ratio from user prompt for highest quality output ──
+          const detectedImageAspectRatio = detectAspectRatioFromPrompt(content) || '1:1';
+          console.log(`[Image Generation] Detected aspect ratio: ${detectedImageAspectRatio}`);
+          
+          // Map aspect ratio to highest resolution sizes per model type
+          const openaiSizeMap = {
+            '1:1': '1024x1024',
+            '16:9': '1792x1024',
+            '9:16': '1024x1792',
+            '4:3': '1792x1024',   // DALL-E 3 doesn't have 4:3, use landscape
+            '3:4': '1024x1792',   // portrait-ish → use portrait
+          };
+          const gptImage1SizeMap = {
+            '1:1': '1024x1024',
+            '16:9': '1536x1024',
+            '9:16': '1024x1536',
+            '4:3': '1536x1024',
+            '3:4': '1024x1536',
+          };
+          const dalleSize = openaiSizeMap[detectedImageAspectRatio] || '1792x1024';
+          const gptImageSize = gptImage1SizeMap[detectedImageAspectRatio] || '1536x1024';
+          
           try {
             const kieKey = process.env.KIE_API_KEY;
             const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -6952,7 +6976,8 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                     image: imageFiles.length === 1 ? imageFiles[0] : imageFiles,
                     prompt: `Using the attached reference image(s) as visual context, create a new image: ${enhancedPrompt}`,
                     n: 1,
-                    size: '1024x1024',
+                    size: gptImageSize,
+                    quality: 'high',
                   });
                   
                   if (editResult.data?.[0]) {
@@ -6997,7 +7022,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               console.log(`[Image Generation] Using Kie.ai model: ${modelConfig.model} for prompt:`, enhancedPrompt.substring(0, 150));
               
               const inputParams = modelConfig.formatInput 
-                ? modelConfig.formatInput(enhancedPrompt, '1:1') 
+                ? modelConfig.formatInput(enhancedPrompt, detectedImageAspectRatio) 
                 : { prompt: enhancedPrompt, image_size: 'square_hd' };
               
               const requestBody = {
@@ -7069,7 +7094,7 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               const imgRes = await fetch('https://api.openai.com/v1/images/generations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiApiKey}` },
-                body: JSON.stringify({ model: 'dall-e-3', prompt: enhancedPrompt, n: 1, size: '1024x1024', quality: 'hd', style: 'vivid' }),
+                body: JSON.stringify({ model: 'dall-e-3', prompt: enhancedPrompt, n: 1, size: dalleSize, quality: 'hd', style: 'vivid' }),
               });
               
               const imgData = await imgRes.json();
@@ -7108,8 +7133,8 @@ Style: Professional graphic design quality. Make it look like a skilled designer
                     const fileSizeMB = (imgBuf.length / (1024 * 1024)).toFixed(2);
                     console.log(`[Image Persistence] Image fetched: ${fileSizeMB}MB`);
                     
-                    // Skip re-upload for very large images (>10MB base64 would be ~13MB+ JSON body)
-                    if (imgBuf.length > 10 * 1024 * 1024) {
+                    // Skip re-upload for very large images (>20MB base64 would be ~27MB+ JSON body)
+                    if (imgBuf.length > 20 * 1024 * 1024) {
                       console.log('[Image Persistence] Image too large for re-upload, using original URL');
                     } else {
                       const upRes = await fetch('https://kieai.redpandaai.co/api/file-base64-upload', {
@@ -8295,7 +8320,8 @@ Style: Professional graphic design quality. Make it look like a skilled designer
               let autoImageUrl = null;
               
               if (kieApiKey && modelConfig) {
-                const inputPayload = modelConfig.formatInput(imagePrompt, '1:1');
+                const autoDetectedAspect = detectAspectRatioFromPrompt(imagePrompt) || '1:1';
+                const inputPayload = modelConfig.formatInput(imagePrompt, autoDetectedAspect);
                 const createRes = await fetch('https://api.kie.ai/api/v1/jobs/createTask', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieApiKey}` },

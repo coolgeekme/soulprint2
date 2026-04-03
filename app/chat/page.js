@@ -698,9 +698,9 @@ export default function ChatPage() {
     setFileError('');
     for (const file of files) {
       const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|avi)$/i);
-      const maxSize = isVideo ? 100 * 1024 * 1024 : MAX_FILE_SIZE; // 100MB for video, 10MB for others
+      const maxSize = isVideo ? 100 * 1024 * 1024 : MAX_FILE_SIZE; // 100MB for video, 50MB for others
       if (file.size > maxSize) { 
-        setFileError(`${file.name} is too large (max ${isVideo ? '100MB' : '10MB'})`); 
+        setFileError(`${file.name} is too large (max ${isVideo ? '100MB' : '50MB'})`); 
         continue; 
       }
       try {
@@ -729,7 +729,7 @@ export default function ChatPage() {
       if (!file) continue;
       
       if (file.size > MAX_FILE_SIZE) {
-        setFileError(`Pasted image is too large (max 10MB)`);
+        setFileError(`Pasted image is too large (max 50MB)`);
         continue;
       }
       
@@ -799,7 +799,7 @@ export default function ChatPage() {
       }
       
       if (file.size > MAX_FILE_SIZE) {
-        setFileError(`${file.name} is too large (max 10MB)`);
+        setFileError(`${file.name} is too large (max 50MB)`);
         continue;
       }
       
@@ -4353,7 +4353,7 @@ export default function ChatPage() {
                 ? <span className="text-orange-500/70 animate-pulse">🎙 {speech.mode === 'live' ? 'Listening — tap mic to stop' : 'Recording — tap to stop'}</span>
                 : compareMode
                   ? <span className="text-blue-400/70">Compare: {compareModels.length} model{compareModels.length !== 1 ? 's' : ''}</span>
-                  : <span className="hidden sm:inline">Supports JPG, PNG, PDF, TXT, CSV · Paste images with Ctrl+V · Max 10MB</span>}
+                  : <span className="hidden sm:inline">Supports JPG, PNG, PDF, TXT, CSV · Paste images with Ctrl+V · Max 50MB</span>}
               {!speech.isListening && !compareMode && <span className="sm:hidden">Tap 🎙 for voice · Paste or attach files</span>}
             </p>
           </div>

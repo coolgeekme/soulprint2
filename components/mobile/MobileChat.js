@@ -850,7 +850,7 @@ export default function MobileChat({
     setIsProcessingFile(true);
     for (const file of files) {
       if (file.size > MAX_FILE_SIZE) {
-        alert(`File ${file.name} is too large. Max size is 10MB.`);
+        alert(`File ${file.name} is too large. Max size is 50MB.`);
         continue;
       }
       try {
