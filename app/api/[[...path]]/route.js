@@ -2344,7 +2344,7 @@ const IMAGE_TOOLS = [
     type: 'function',
     function: {
       name: 'edit_image',
-      description: 'Edit an image that the user has uploaded or that was previously generated in the conversation. Use this when the user asks to modify, change, remove, or add something to an existing image. Examples: "remove the hat", "change the shirt color to blue", "add sunglasses", "remove the background text".',
+      description: 'Edit an image that the user has uploaded or that was previously generated in the conversation. Use this ONLY when the user explicitly asks to modify, change, remove, or add something to an existing image. Examples: "remove the hat", "change the shirt color to blue", "add sunglasses", "remove the background text". Do NOT use this tool when the user is asking a question ABOUT an image (e.g., "why does the image show X?", "what is this?", "explain the image"). Questions should be answered with text, not image edits.',
       parameters: {
         type: 'object',
         properties: {
@@ -6711,7 +6711,6 @@ async function handleChatStream(request) {
         const editImagePatterns = [
           // Direct edit verbs
           /\b(add|put|place|insert|overlay|stick|apply|remove|delete|erase|crop|rotate)\b/i,
-          /\b(add|put|place|insert|overlay|stick|apply|remove|delete|erase|crop|rotate)\b/i,
           // Swap/replace/change
           /\b(swap|replace|change|switch|modify|alter|update|edit|transform|convert|adjust)\b/i,
           // Make/turn + adjective (e.g., "make it red", "turn it into a cartoon")
@@ -6730,13 +6729,38 @@ async function handleChatStream(request) {
           /\b(edit|modify|change|update|alter|tweak|fix|improve|enhance)\b.*\b(the|that|this|my|it|image|picture|photo|previous|last)\b/i,
         ];
         
-        const isEditRequest = lastImageUrlInConversation && editImagePatterns.some(p => p.test(sanitizedContent));
+        // ── QUESTION DETECTION ──────────────────────────────────────────────
+        // If the user is asking a question, do NOT treat it as an image edit request.
+        // This prevents "why is Alex doing X?" from triggering image edits.
+        const trimmedContent = sanitizedContent.trim();
+        const isLikelyQuestion = (
+          // Starts with a question word
+          /^(?:why|what|how|when|where|who|which|is|are|do|does|did|can|could|would|should|will|shall|have|has|had|was|were|isn't|aren't|don't|doesn't|didn't|wasn't|weren't|won't|wouldn't|couldn't|shouldn't|tell me|explain|describe|clarify|elaborate)\b/i.test(trimmedContent) ||
+          // Ends with question mark
+          trimmedContent.endsWith('?') ||
+          // Explicitly says "question" or "asking"
+          /\b(?:question|i'?m asking|not an edit|not asking for (?:an )?edit|just asking|i have a question|asking a question|that is not an edit|that's not an edit)\b/i.test(trimmedContent) ||
+          // "In this [concept/video/idea], why/what/how..." pattern
+          /\bin this\b.*\b(?:why|what|how|who)\b/i.test(trimmedContent) ||
+          // "Why is/are/does [subject] [verb]ing" — clearly a question even without "?"
+          /^why\s+(?:is|are|does|do|did|was|were|would|should|can|could)\b/i.test(trimmedContent)
+        );
+        
+        const isEditRequest = !isLikelyQuestion && lastImageUrlInConversation && editImagePatterns.some(p => p.test(sanitizedContent));
         
         // Also detect if user is explicitly asking to edit without patterns (AI-assisted detection)
-        const couldBeEditRequest = lastImageUrlInConversation && !mediaIntent && 
-          sanitizedContent.length < 200 && // Short messages are likely edit requests if there's a recent image
+        // CONSERVATIVE: Requires stronger edit signals than just containing "the" or "it"
+        const couldBeEditRequest = !isLikelyQuestion && lastImageUrlInConversation && !mediaIntent && 
+          sanitizedContent.length < 120 && // Very short messages only (reduced from 200)
           !/\b(generate|create|new image|new picture|new photo|from scratch)\b/i.test(sanitizedContent) && // Not asking for new image
-          /\b(the|it|that|this|image|picture|photo|otter|minivan|car|person|dog|cat|background)\b/i.test(sanitizedContent);
+          // Require reference to the image itself, not just any pronoun
+          /\b(image|picture|photo|the (?:image|picture|photo|logo|design|graphic))\b/i.test(sanitizedContent) &&
+          // Must also contain an action verb suggesting modification
+          /\b(make|change|add|remove|edit|modify|adjust|crop|fix|update|redo|undo)\b/i.test(sanitizedContent);
+        
+        if (isLikelyQuestion) {
+          console.log('[Image Edit] Skipping — message is a question, not an edit request:', trimmedContent.substring(0, 100));
+        }
         
         if ((isEditRequest || couldBeEditRequest) && attachments.length === 0) {
           console.log('[Image Edit] Detected edit request for existing image:', lastImageUrlInConversation.substring(0, 80));
