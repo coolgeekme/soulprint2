@@ -1589,7 +1589,7 @@ export default function ChatPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          message: flow.finalPrompt,
+          content: flow.finalPrompt,
           conversationId: conversationId || undefined,
           model: selectedModel,
           webSearch: false,

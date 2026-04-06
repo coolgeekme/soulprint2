@@ -440,13 +440,6 @@ export async function GET(request, { params }) {
     if (pathStr === 'user/profile/soul') return handleGetSoulProfile(request);
     if (pathStr === 'user/profile/export') return handleProfileExport(request);
     if (pathStr === 'user/voice-settings') return handleGetVoiceSettings(request);
-    if (pathStr === 'user/settings') {
-      const user = await authenticate(request);
-      if (!user) return err('Unauthorized', 401);
-      const db = await getDb();
-      const settings = await db.collection('user_settings').findOne({ user_id: user.id });
-      return ok({ quick_generate: settings?.quick_generate || false });
-    }
     if (pathStr === 'user/voice-stats') return handleGetVoiceStats(request);
 
     // ── Video Editor GET Routes ──
@@ -841,27 +834,6 @@ export async function PATCH(request, { params }) {
         { $set: { variants, activeVariant: activeVariant ?? variants.length - 1 } }
       );
       return ok({ success: true });
-    }
-
-    // Update user settings (quick_generate, etc.)
-    // PATCH /api/user/settings
-    if (pathStr === 'user/settings') {
-      const user = await authenticate(request);
-      if (!user) return err('Unauthorized', 401);
-      const body = await request.json();
-      const db = await getDb();
-      const allowedFields = ['quick_generate'];
-      const updateDoc = {};
-      for (const key of allowedFields) {
-        if (body[key] !== undefined) updateDoc[key] = body[key];
-      }
-      if (Object.keys(updateDoc).length === 0) return err('No valid fields to update', 400);
-      await db.collection('user_settings').updateOne(
-        { user_id: user.id },
-        { $set: { ...updateDoc, updated_at: new Date() } },
-        { upsert: true }
-      );
-      return ok({ success: true, settings: updateDoc });
     }
 
     return err('Not found', 404);
