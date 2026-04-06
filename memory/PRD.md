@@ -104,3 +104,31 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
 - `/app/lib/mongo.js` — MongoDB connection (lazy loading)
 - `/app/api/[[...path]]/route.js` — Main API router
 - `/app/components/SafeMarkdown.js` — Markdown renderer with bare URL linking
+
+### Route.js Decomposition Session
+- **MAJOR REFACTORING**: Reduced `app/api/[[...path]]/route.js` from 10,473 lines to 835 lines (92% reduction)
+- Created 15 NEW extracted handler modules in `lib/handlers/`:
+  - `google-integration.js` (1,066 lines) - Google OAuth, Gmail, Calendar, Drive handlers
+  - `auth-handlers.js` (434 lines) - Register, Login, Firebase Auth, Me, Profile
+  - `assessment-core.js` (179 lines) - Questions, Progress, Submit, Complete, Reset
+  - `conversations-crud.js` (169 lines) - CRUD operations for conversations
+  - `scheduling.js` (294 lines) - Social media post generation, scheduled tasks
+  - `telegram-handlers.js` (302 lines) - Telegram bot connector
+  - `voice-misc.js` (202 lines) - Voice settings, feature flags, transcription, models
+  - `blog-notifications.js` (129 lines) - Blog posts and notifications
+  - `location-handlers.js` (246 lines) - Places search, geocoding, user location/timezone
+  - `import-extracted.js` (239 lines) - Client-side data import processing
+  - `document-parsing.js` (425 lines) - PDF conversion, document parsing, image-to-JSON
+  - `image-editing.js` (2,065 lines) - Image editing, compositing, mockup generation
+  - `chat-stream.js` (3,247 lines) - Chat streaming with web search, tool calling
+  - `chat-cache.js` (18 lines) - Shared in-memory caches
+  - `import-upload.js` (582 lines) - Upload processing for ChatGPT/Facebook imports
+- **Mask Editing UI Polish**: Enhanced `components/chat/ImageEditor.js` with canvas-based mask drawing:
+  - Brush/eraser tools with adjustable size
+  - Real-time mask preview with purple overlay
+  - Touch support for mobile
+  - Keyboard shortcuts (B for brush, E for eraser, [ ] for size)
+  - Mask-to-dataURL conversion for API submission
+  - Clear/undo mask functionality
+  - Mask visibility toggle
+- All 17+ backend endpoints verified working after refactoring
