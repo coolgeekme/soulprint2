@@ -9,7 +9,7 @@ import io
 import base64
 import time
 
-BASE_URL = "https://veo-ux-polling.preview.emergentagent.com/api"
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com/api"
 EMAIL = "test@soulprint.com"
 PASSWORD = "test123"
 

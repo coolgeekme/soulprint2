@@ -7,7 +7,7 @@ import requests
 import json
 
 # Configuration
-BASE_URL = "https://veo-ux-polling.preview.emergentagent.com"
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
 AUTH_EMAIL = "testchat@example.com"
 AUTH_PASSCODE = "Test123456"
 CONV_ID = "240f53a6-65ce-4ee0-b11e-09ceeb63b07a"  # From previous test

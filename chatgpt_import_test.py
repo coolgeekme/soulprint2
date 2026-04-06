@@ -13,7 +13,7 @@ import os
 import tempfile
 
 # Configuration
-BASE_URL = "https://veo-ux-polling.preview.emergentagent.com"
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
 AUTH_EMAIL = "testchat@example.com"
 AUTH_PASSWORD = "Test123456"
 

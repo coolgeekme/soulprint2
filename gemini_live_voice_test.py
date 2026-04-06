@@ -15,7 +15,7 @@ import time
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://veo-ux-polling.preview.emergentagent.com"
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
 LOGIN_EMAIL = "testchat@example.com"
 LOGIN_PASSCODE = "Test123456"
 

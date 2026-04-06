@@ -1,315 +1,484 @@
 #!/usr/bin/env python3
 """
-Backend Test for Bug Fixes:
-1. Save & Regenerate NDJSON parsing fix
-2. Conversational follow-up detection for proactive search
-
-Base URL: https://veo-ux-polling.preview.emergentagent.com
-Auth: testchat@example.com / Test123456
+Backend Route.js Decomposition Verification Test
+Tests all critical endpoints after massive refactoring from 10,473 lines to 835 lines (92% reduction)
 """
 
 import requests
 import json
 import time
-import sys
+import os
+from typing import Dict, Any, Optional
 
-BASE_URL = "https://veo-ux-polling.preview.emergentagent.com"
+# Test configuration
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+TEST_EMAIL = "testchat@example.com"
+TEST_PASSWORD = "Test123456"
 
-def test_auth():
-    """Test authentication and get token"""
-    print("🔐 Testing authentication...")
-    
-    response = requests.post(f"{BASE_URL}/api/auth/login", json={
-        "email": "testchat@example.com",
-        "passcode": "Test123456"
-    })
-    
-    if response.status_code == 200:
-        data = response.json()
-        token = data.get('token')
-        if token:
-            print(f"✅ Authentication successful")
-            return token
-        else:
-            print(f"❌ No token in response: {data}")
-            return None
-    else:
-        print(f"❌ Authentication failed: {response.status_code} - {response.text}")
-        return None
-
-def create_test_conversation(token):
-    """Create a test conversation"""
-    print("📝 Creating test conversation...")
-    
-    response = requests.post(f"{BASE_URL}/api/conversations", 
-        headers={"Authorization": f"Bearer {token}"},
-        json={"title": "Test Edit Regenerate"}
-    )
-    
-    if response.status_code == 200:
-        data = response.json()
-        conv_id = data.get('id')
-        print(f"✅ Created conversation: {conv_id}")
-        return conv_id
-    else:
-        print(f"❌ Failed to create conversation: {response.status_code} - {response.text}")
-        return None
-
-def test_ndjson_stream(token, conversation_id, content, model="gpt-4o"):
-    """Test NDJSON stream parsing (not SSE format)"""
-    print(f"🔄 Testing NDJSON stream: {content[:50]}...")
-    
-    response = requests.post(f"{BASE_URL}/api/chat/stream",
-        headers={"Authorization": f"Bearer {token}"},
-        json={
-            "content": content,
-            "conversationId": conversation_id,
-            "model": model
-        },
-        stream=True
-    )
-    
-    if response.status_code != 200:
-        print(f"❌ Stream request failed: {response.status_code} - {response.text}")
-        return None, None
-    
-    # Parse NDJSON stream (NOT SSE format)
-    full_content = ""
-    message_id = None
-    delta_count = 0
-    
-    try:
-        for line in response.iter_lines(decode_unicode=True):
-            if line.strip():
-                try:
-                    # CRITICAL: Parse as raw JSON, NOT SSE format with "data: " prefix
-                    data = json.loads(line)
-                    
-                    if data.get('type') == 'delta':
-                        full_content += data.get('content', '')
-                        delta_count += 1
-                    elif data.get('type') == 'meta' and data.get('messageId'):
-                        message_id = data['messageId']
-                    elif data.get('type') == 'done':
-                        if data.get('messageId'):
-                            message_id = data['messageId']
-                        break
-                        
-                except json.JSONDecodeError as e:
-                    print(f"❌ JSON parse error: {e} - Line: {line[:100]}")
-                    return None, None
-                    
-    except Exception as e:
-        print(f"❌ Stream parsing error: {e}")
-        return None, None
-    
-    if delta_count > 0 and full_content:
-        print(f"✅ NDJSON stream parsed successfully - {delta_count} delta chunks, {len(full_content)} chars")
-        return full_content, message_id
-    else:
-        print(f"❌ No content received from stream")
-        return None, None
-
-def get_conversation_messages(token, conversation_id):
-    """Get messages from conversation"""
-    response = requests.get(f"{BASE_URL}/api/messages?conversationId={conversation_id}",
-        headers={"Authorization": f"Bearer {token}"}
-    )
-    
-    if response.status_code == 200:
-        messages = response.json()
-        print(f"✅ Retrieved {len(messages)} messages")
-        return messages
-    else:
-        print(f"❌ Failed to get messages: {response.status_code}")
-        return []
-
-def test_conversational_followup(token, conversation_id, message, enable_web_search=True):
-    """Test conversational follow-up detection"""
-    print(f"🤔 Testing conversational follow-up: '{message}'")
-    
-    response = requests.post(f"{BASE_URL}/api/chat/stream",
-        headers={"Authorization": f"Bearer {token}"},
-        json={
-            "content": message,
-            "conversationId": conversation_id,
-            "model": "gpt-4o",
-            "enableWebSearch": enable_web_search
-        },
-        stream=True
-    )
-    
-    if response.status_code != 200:
-        print(f"❌ Stream request failed: {response.status_code}")
-        return False
-    
-    # Look for the skip message in server logs (we can't see server logs directly,
-    # but we can check if the response is contextual vs web-search based)
-    full_content = ""
-    sources_received = False
-    
-    for line in response.iter_lines(decode_unicode=True):
-        if line.strip():
-            try:
-                data = json.loads(line)
+class BackendTester:
+    def __init__(self):
+        self.base_url = BASE_URL
+        self.session = requests.Session()
+        self.auth_token = None
+        self.test_results = []
+        
+    def log_test(self, test_name: str, success: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status} {test_name}: {details}")
+        self.test_results.append({
+            "test": test_name,
+            "success": success,
+            "details": details
+        })
+        
+    def make_request(self, method: str, endpoint: str, data: Dict = None, headers: Dict = None) -> tuple:
+        """Make HTTP request and return (success, response, status_code)"""
+        try:
+            url = f"{self.base_url}/api/{endpoint}"
+            req_headers = {"Content-Type": "application/json"}
+            if headers:
+                req_headers.update(headers)
                 
-                if data.get('type') == 'delta':
-                    full_content += data.get('content', '')
-                elif data.get('type') == 'sources':
-                    sources_received = True
-                elif data.get('type') == 'done':
-                    break
-                    
-            except json.JSONDecodeError:
-                continue
+            if method.upper() == "GET":
+                response = self.session.get(url, headers=req_headers)
+            elif method.upper() == "POST":
+                response = self.session.post(url, json=data, headers=req_headers)
+            elif method.upper() == "PUT":
+                response = self.session.put(url, json=data, headers=req_headers)
+            elif method.upper() == "DELETE":
+                response = self.session.delete(url, headers=req_headers)
+            else:
+                return False, None, 0
+                
+            return True, response, response.status_code
+        except Exception as e:
+            return False, str(e), 0
     
-    # Analyze response to determine if it was contextual or web-search based
-    is_contextual = not sources_received and len(full_content) > 0
-    
-    if is_contextual:
-        print(f"✅ Conversational follow-up detected (no web search triggered)")
-        return True
-    else:
-        print(f"⚠️ Web search may have been triggered (sources: {sources_received})")
-        return False
-
-def main():
-    print("🧪 Testing Bug Fixes: NDJSON Parsing & Conversational Follow-up Detection")
-    print("=" * 80)
-    
-    # Step 1: Authentication
-    token = test_auth()
-    if not token:
-        sys.exit(1)
-    
-    # Step 2: Create test conversation
-    conversation_id = create_test_conversation(token)
-    if not conversation_id:
-        sys.exit(1)
-    
-    print("\n" + "=" * 80)
-    print("TEST 1: Save & Regenerate (NDJSON Parsing)")
-    print("=" * 80)
-    
-    # Step 3: Send initial message and verify NDJSON parsing
-    content1, msg_id1 = test_ndjson_stream(token, conversation_id, "Tell me a joke about cats")
-    if not content1:
-        print("❌ Initial message failed")
-        sys.exit(1)
-    
-    # Step 4: Verify messages exist in conversation
-    messages = get_conversation_messages(token, conversation_id)
-    if len(messages) < 2:
-        print(f"❌ Expected at least 2 messages, got {len(messages)}")
-        sys.exit(1)
-    
-    # Step 5: Test "Save & Regenerate" with different content
-    print("\n🔄 Testing Save & Regenerate (simulating message edit)...")
-    content2, msg_id2 = test_ndjson_stream(token, conversation_id, "Tell me a joke about dogs instead")
-    if not content2:
-        print("❌ Regenerate message failed")
-        sys.exit(1)
-    
-    # Verify the content is different and about dogs
-    if "dog" in content2.lower() or "canine" in content2.lower():
-        print("✅ Regenerated content is about dogs as requested")
-    else:
-        print("⚠️ Regenerated content may not be about dogs")
-    
-    print("\n" + "=" * 80)
-    print("TEST 2: Conversational Follow-up Detection")
-    print("=" * 80)
-    
-    # Step 6: Test conversational follow-ups (should NOT trigger web search)
-    conversational_messages = [
-        "what happened?",
-        "can you explain that?",
-        "what do you mean?",
-        "tell me more",
-        "why is that?",
-        "how so?",
-        "really?",
-        "interesting"
-    ]
-    
-    followup_success = 0
-    for msg in conversational_messages:
-        if test_conversational_followup(token, conversation_id, msg, True):
-            followup_success += 1
-        time.sleep(1)  # Brief pause between requests
-    
-    print(f"\n📊 Conversational follow-up detection: {followup_success}/{len(conversational_messages)} successful")
-    
-    # Step 7: Test external query (SHOULD trigger web search)
-    print("\n🌐 Testing external query (should trigger web search)...")
-    external_success = test_conversational_followup(token, conversation_id, "what happened to the stock market today?", True)
-    if not external_success:
-        print("✅ External query correctly triggered web search")
-    else:
-        print("⚠️ External query may not have triggered web search")
-    
-    print("\n" + "=" * 80)
-    print("TEST 3: NDJSON Format Verification")
-    print("=" * 80)
-    
-    # Step 8: Verify raw NDJSON format (no "data: " prefix)
-    print("🔍 Testing raw NDJSON format...")
-    
-    response = requests.post(f"{BASE_URL}/api/chat/stream",
-        headers={"Authorization": f"Bearer {token}"},
-        json={
-            "content": "Say hello",
-            "conversationId": conversation_id,
-            "model": "gpt-4o"
-        },
-        stream=True
-    )
-    
-    if response.status_code == 200:
-        raw_lines = []
-        for line in response.iter_lines(decode_unicode=True):
-            if line.strip():
-                raw_lines.append(line)
-                if len(raw_lines) >= 3:  # Get first few lines
-                    break
+    def authenticate(self) -> bool:
+        """Authenticate and get token"""
+        print(f"\n🔐 Authenticating with {TEST_EMAIL}...")
         
-        # Verify format
-        ndjson_valid = True
-        for line in raw_lines:
-            # Should be valid JSON without "data: " prefix
-            if line.startswith("data: "):
-                print(f"❌ Found SSE format (data: prefix): {line[:50]}")
-                ndjson_valid = False
-                break
+        success, response, status_code = self.make_request("POST", "auth/login", {
+            "email": TEST_EMAIL,
+            "passcode": TEST_PASSWORD
+        })
+        
+        if not success:
+            self.log_test("Authentication", False, f"Request failed: {response}")
+            return False
             
+        if status_code == 200:
             try:
-                json.loads(line)
-            except json.JSONDecodeError:
-                print(f"❌ Invalid JSON line: {line[:50]}")
-                ndjson_valid = False
-                break
-        
-        if ndjson_valid and raw_lines:
-            print(f"✅ NDJSON format verified - {len(raw_lines)} valid JSON lines")
-            print(f"   Sample: {raw_lines[0][:80]}...")
+                data = response.json()
+                if "token" in data:
+                    self.auth_token = data["token"]
+                    self.log_test("Authentication", True, f"Login successful, token received")
+                    return True
+                else:
+                    self.log_test("Authentication", False, f"No token in response: {data}")
+                    return False
+            except Exception as e:
+                self.log_test("Authentication", False, f"JSON parse error: {e}")
+                return False
         else:
-            print("❌ NDJSON format validation failed")
+            try:
+                error_data = response.json()
+                self.log_test("Authentication", False, f"Status {status_code}: {error_data}")
+            except:
+                self.log_test("Authentication", False, f"Status {status_code}: {response.text}")
+            return False
     
-    print("\n" + "=" * 80)
-    print("🎯 SUMMARY")
-    print("=" * 80)
+    def get_auth_headers(self) -> Dict:
+        """Get authorization headers"""
+        if not self.auth_token:
+            return {}
+        return {"Authorization": f"Bearer {self.auth_token}"}
     
-    print("✅ Bug Fix 1: NDJSON Parsing - Working correctly")
-    print("   - submitEditedMessage parses raw JSON lines (not SSE format)")
-    print("   - Message regeneration produces new AI responses")
-    print("   - Stream format verified as NDJSON without 'data: ' prefix")
+    def test_health_check(self):
+        """Test GET /api/health"""
+        print("\n🏥 Testing Health Check...")
+        success, response, status_code = self.make_request("GET", "health")
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if data.get("status") == "ok":
+                    self.log_test("Health Check", True, f"Status: {data.get('status')}")
+                else:
+                    self.log_test("Health Check", False, f"Unexpected response: {data}")
+            except Exception as e:
+                self.log_test("Health Check", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Health Check", False, f"Status {status_code}: {response}")
     
-    print(f"✅ Bug Fix 2: Conversational Follow-up Detection - {followup_success}/{len(conversational_messages)} working")
-    print("   - Short conversational messages skip proactive web search")
-    print("   - External queries still trigger web search appropriately")
-    print("   - Server logs should show: '[Chat] Skipping proactive search — conversational follow-up detected'")
+    def test_auth_me(self):
+        """Test GET /api/auth/me"""
+        print("\n👤 Testing Auth Me...")
+        headers = self.get_auth_headers()
+        success, response, status_code = self.make_request("GET", "auth/me", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if "id" in data and "email" in data:
+                    self.log_test("Auth Me", True, f"User data received: {data.get('email')}")
+                else:
+                    self.log_test("Auth Me", False, f"Missing user fields: {data}")
+            except Exception as e:
+                self.log_test("Auth Me", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Auth Me", False, f"Status {status_code}: {response}")
     
-    print("\n🎉 Both bug fixes are working correctly!")
+    def test_profile_update(self):
+        """Test PUT /api/profile"""
+        print("\n📝 Testing Profile Update...")
+        headers = self.get_auth_headers()
+        test_data = {
+            "name": "Test User Updated",
+            "bio": "Updated via backend test"
+        }
+        success, response, status_code = self.make_request("PUT", "profile", test_data, headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success"):
+                    self.log_test("Profile Update", True, "Profile updated successfully")
+                else:
+                    self.log_test("Profile Update", False, f"Update failed: {data}")
+            except Exception as e:
+                self.log_test("Profile Update", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Profile Update", False, f"Status {status_code}: {response}")
+    
+    def test_models(self):
+        """Test GET /api/models"""
+        print("\n🤖 Testing Models...")
+        success, response, status_code = self.make_request("GET", "models")
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    self.log_test("Models", True, f"Received {len(data)} models")
+                else:
+                    self.log_test("Models", False, f"No models returned: {data}")
+            except Exception as e:
+                self.log_test("Models", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Models", False, f"Status {status_code}: {response}")
+    
+    def test_feature_flags(self):
+        """Test GET /api/feature-flags"""
+        print("\n🚩 Testing Feature Flags...")
+        headers = self.get_auth_headers()
+        success, response, status_code = self.make_request("GET", "feature-flags", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, dict):
+                    self.log_test("Feature Flags", True, f"Received feature flags: {list(data.keys())}")
+                else:
+                    self.log_test("Feature Flags", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("Feature Flags", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Feature Flags", False, f"Status {status_code}: {response}")
+    
+    def test_assessment_questions(self):
+        """Test GET /api/assessment/questions"""
+        print("\n❓ Testing Assessment Questions...")
+        success, response, status_code = self.make_request("GET", "assessment/questions")
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    self.log_test("Assessment Questions", True, f"Received {len(data)} questions")
+                else:
+                    self.log_test("Assessment Questions", False, f"No questions returned: {data}")
+            except Exception as e:
+                self.log_test("Assessment Questions", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Assessment Questions", False, f"Status {status_code}: {response}")
+    
+    def test_assessment_progress(self):
+        """Test GET /api/assessment/progress"""
+        print("\n📊 Testing Assessment Progress...")
+        headers = self.get_auth_headers()
+        success, response, status_code = self.make_request("GET", "assessment/progress", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, dict):
+                    self.log_test("Assessment Progress", True, f"Progress data received")
+                else:
+                    self.log_test("Assessment Progress", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("Assessment Progress", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Assessment Progress", False, f"Status {status_code}: {response}")
+    
+    def test_conversations(self):
+        """Test GET /api/conversations"""
+        print("\n💬 Testing Conversations...")
+        headers = self.get_auth_headers()
+        success, response, status_code = self.make_request("GET", "conversations", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, list):
+                    self.log_test("Conversations", True, f"Received {len(data)} conversations")
+                else:
+                    self.log_test("Conversations", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("Conversations", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Conversations", False, f"Status {status_code}: {response}")
+    
+    def test_blog_posts(self):
+        """Test GET /api/blog/posts"""
+        print("\n📝 Testing Blog Posts...")
+        success, response, status_code = self.make_request("GET", "blog/posts")
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, dict) and 'posts' in data:
+                    self.log_test("Blog Posts", True, f"Received {len(data['posts'])} blog posts")
+                else:
+                    self.log_test("Blog Posts", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("Blog Posts", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Blog Posts", False, f"Status {status_code}: {response}")
+    
+    def test_notifications(self):
+        """Test GET /api/notifications"""
+        print("\n🔔 Testing Notifications...")
+        headers = self.get_auth_headers()
+        success, response, status_code = self.make_request("GET", "notifications", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, dict) and 'notifications' in data:
+                    self.log_test("Notifications", True, f"Received {len(data['notifications'])} notifications")
+                else:
+                    self.log_test("Notifications", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("Notifications", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Notifications", False, f"Status {status_code}: {response}")
+    
+    def test_schedules(self):
+        """Test GET /api/schedules"""
+        print("\n📅 Testing Schedules...")
+        headers = self.get_auth_headers()
+        success, response, status_code = self.make_request("GET", "schedules", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, list):
+                    self.log_test("Schedules", True, f"Received {len(data)} schedules")
+                else:
+                    self.log_test("Schedules", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("Schedules", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Schedules", False, f"Status {status_code}: {response}")
+    
+    def test_telegram_status(self):
+        """Test GET /api/telegram/status"""
+        print("\n📱 Testing Telegram Status...")
+        headers = self.get_auth_headers()
+        success, response, status_code = self.make_request("GET", "telegram/status", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, dict):
+                    self.log_test("Telegram Status", True, f"Status received")
+                else:
+                    self.log_test("Telegram Status", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("Telegram Status", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Telegram Status", False, f"Status {status_code}: {response}")
+    
+    def test_voice_settings(self):
+        """Test GET /api/voice/settings"""
+        print("\n🎤 Testing Voice Settings...")
+        headers = self.get_auth_headers()
+        success, response, status_code = self.make_request("GET", "user/voice-settings", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, dict):
+                    self.log_test("Voice Settings", True, f"Settings received")
+                else:
+                    self.log_test("Voice Settings", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("Voice Settings", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("Voice Settings", False, f"Status {status_code}: {response}")
+    
+    def test_user_location(self):
+        """Test GET /api/user/location"""
+        print("\n📍 Testing User Location...")
+        headers = self.get_auth_headers()
+        success, response, status_code = self.make_request("GET", "user/location", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, dict):
+                    self.log_test("User Location", True, f"Location data received")
+                else:
+                    self.log_test("User Location", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("User Location", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("User Location", False, f"Status {status_code}: {response}")
+    
+    def test_user_timezone(self):
+        """Test GET /api/user/timezone"""
+        print("\n🌍 Testing User Timezone...")
+        headers = self.get_auth_headers()
+        success, response, status_code = self.make_request("GET", "user/timezone", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, dict):
+                    self.log_test("User Timezone", True, f"Timezone data received")
+                else:
+                    self.log_test("User Timezone", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("User Timezone", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("User Timezone", False, f"Status {status_code}: {response}")
+    
+    def test_chat_stream(self):
+        """Test POST /api/chat/stream"""
+        print("\n💭 Testing Chat Stream...")
+        headers = self.get_auth_headers()
+        headers["Accept"] = "text/event-stream"
+        
+        test_data = {
+            "content": "Hello, this is a test message",
+            "model": "gpt-4o",
+            "conversationId": None
+        }
+        
+        try:
+            url = f"{self.base_url}/api/chat/stream"
+            response = self.session.post(url, json=test_data, headers=headers, stream=True, timeout=30)
+            
+            if response.status_code == 200:
+                # Check if we get streaming response
+                content_type = response.headers.get('content-type', '')
+                if 'text/event-stream' in content_type:
+                    # Read first few chunks to verify streaming
+                    chunks_received = 0
+                    for chunk in response.iter_content(chunk_size=1024):
+                        if chunk:
+                            chunks_received += 1
+                            if chunks_received >= 3:  # Got some streaming data
+                                break
+                    
+                    if chunks_received > 0:
+                        self.log_test("Chat Stream", True, f"Streaming response received ({chunks_received} chunks)")
+                    else:
+                        self.log_test("Chat Stream", False, "No streaming data received")
+                else:
+                    self.log_test("Chat Stream", False, f"Wrong content type: {content_type}")
+            else:
+                try:
+                    error_data = response.json()
+                    self.log_test("Chat Stream", False, f"Status {response.status_code}: {error_data}")
+                except:
+                    self.log_test("Chat Stream", False, f"Status {response.status_code}: {response.text}")
+        except Exception as e:
+            self.log_test("Chat Stream", False, f"Request error: {e}")
+    
+    def run_all_tests(self):
+        """Run all backend tests"""
+        print("🚀 Starting Backend Route.js Decomposition Verification Tests")
+        print(f"📍 Base URL: {self.base_url}")
+        print(f"👤 Test User: {TEST_EMAIL}")
+        print("=" * 80)
+        
+        # Test health check first (no auth required)
+        self.test_health_check()
+        
+        # Authenticate
+        if not self.authenticate():
+            print("\n❌ Authentication failed - cannot proceed with authenticated tests")
+            return
+        
+        # Run all authenticated tests
+        self.test_auth_me()
+        self.test_profile_update()
+        self.test_models()
+        self.test_feature_flags()
+        self.test_assessment_questions()
+        self.test_assessment_progress()
+        self.test_conversations()
+        self.test_blog_posts()
+        self.test_notifications()
+        self.test_schedules()
+        self.test_telegram_status()
+        self.test_voice_settings()
+        self.test_user_location()
+        self.test_user_timezone()
+        self.test_chat_stream()
+        
+        # Print summary
+        self.print_summary()
+    
+    def print_summary(self):
+        """Print test summary"""
+        print("\n" + "=" * 80)
+        print("📊 TEST SUMMARY")
+        print("=" * 80)
+        
+        passed = sum(1 for result in self.test_results if result["success"])
+        total = len(self.test_results)
+        
+        print(f"✅ Passed: {passed}/{total}")
+        print(f"❌ Failed: {total - passed}/{total}")
+        print(f"📈 Success Rate: {(passed/total)*100:.1f}%")
+        
+        if total - passed > 0:
+            print("\n❌ FAILED TESTS:")
+            for result in self.test_results:
+                if not result["success"]:
+                    print(f"  • {result['test']}: {result['details']}")
+        
+        print("\n🎯 CRITICAL ENDPOINTS VERIFICATION:")
+        critical_endpoints = [
+            "Health Check", "Authentication", "Auth Me", "Profile Update", 
+            "Models", "Feature Flags", "Assessment Questions", "Assessment Progress",
+            "Conversations", "Blog Posts", "Notifications", "Schedules",
+            "Telegram Status", "Voice Settings", "User Location", "User Timezone",
+            "Chat Stream"
+        ]
+        
+        for endpoint in critical_endpoints:
+            result = next((r for r in self.test_results if r["test"] == endpoint), None)
+            if result:
+                status = "✅" if result["success"] else "❌"
+                print(f"  {status} {endpoint}")
+            else:
+                print(f"  ⚠️  {endpoint} (not tested)")
 
 if __name__ == "__main__":
-    main()
+    tester = BackendTester()
+    tester.run_all_tests()

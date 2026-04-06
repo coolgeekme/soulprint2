@@ -14,7 +14,7 @@ import sys
 import os
 
 # Configuration
-BASE_URL = "https://veo-ux-polling.preview.emergentagent.com/api"
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com/api"
 TEST_EMAIL = "test@soulprint.com"  
 TEST_PASSCODE = "test123"
 
