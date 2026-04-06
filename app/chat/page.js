@@ -1468,7 +1468,14 @@ export default function ChatPage() {
               setMessages(prev => [...prev, finalMsg]);
               setStreamingContent('');
               setStreamingImageUrl(null);
-              setStreamingVideoTask(null);
+              // Only clear streamingVideoTask after message list has rendered with the VideoCard
+              // This prevents a flash where neither the streaming zone nor message list shows the VideoCard
+              if (streamingVideoTaskRef.current) {
+                // Delay clearing so message list VideoCard renders first
+                setTimeout(() => setStreamingVideoTask(null), 200);
+              } else {
+                setStreamingVideoTask(null);
+              }
               setSearchQueries([]);
               setStreamingSources([]);
               streamingSourcesRef.current = [];
@@ -1607,6 +1614,7 @@ export default function ChatPage() {
       let buffer = '';
       let fullContent = '';
       let realMessageId = null;
+      let hasVideoTask = false;
       
       while (true) {
         const { done, value } = await reader.read();
@@ -1626,12 +1634,28 @@ export default function ChatPage() {
             } else if (data.type === 'delta') {
               fullContent += data.content;
               setStreamingContent(fullContent);
-            } else if (data.type === 'image_result') {
+            } else if (data.type === 'image_result' || data.type === 'image') {
               streamingImageUrlRef.current = data.url;
               fullContent += data.content || '';
               setStreamingContent(fullContent);
             } else if (data.type === 'video_task') {
-              streamingVideoTaskRef.current = data;
+              // Video job started — build proper video task data with status for VideoCard
+              const videoTaskData = {
+                taskId: data.taskId,
+                status: 'generating',
+                prompt: data.prompt || flow.finalPrompt,
+                messageId: data.messageId || realMessageId,
+                videoModel: data.videoModel,
+                videoModelLabel: data.videoModelLabel,
+                videoModelReason: data.videoModelReason,
+                sourceImage: data.sourceImage || undefined,
+              };
+              setStreamingVideoTask(videoTaskData);
+              streamingVideoTaskRef.current = videoTaskData;
+              hasVideoTask = true;
+              // Dismiss the generating_visual animation — VideoCard takes over
+              setIsGeneratingVisual(false);
+              setVisualGenerationType('');
             } else if (data.type === 'generating_visual') {
               setIsGeneratingVisual(true);
               setVisualGenerationType(data.visualType || 'image');
@@ -1645,11 +1669,15 @@ export default function ChatPage() {
                 image_url: streamingImageUrlRef.current || undefined,
                 video_task: streamingVideoTaskRef.current || undefined,
                 model_label: streamingVideoTaskRef.current?.videoModelLabel || undefined,
+                video_model_reason: streamingVideoTaskRef.current?.videoModelReason || undefined,
               };
               setMessages(prev => [...prev, finalMsg]);
               setStreamingContent('');
               streamingImageUrlRef.current = null;
-              streamingVideoTaskRef.current = null;
+              // Don't clear video task ref if video is still generating — VideoCard needs it
+              if (!hasVideoTask) {
+                streamingVideoTaskRef.current = null;
+              }
             }
           } catch (e) { /* skip malformed lines */ }
         }
@@ -1661,8 +1689,11 @@ export default function ChatPage() {
     } finally {
       setStreamingContent('');
       setLoading(false);
-      setIsGeneratingVisual(false);
-      setVisualGenerationType('');
+      // Don't clear visual generation states if video task is active (VideoCard handles animation)
+      if (!streamingVideoTaskRef.current) {
+        setIsGeneratingVisual(false);
+        setVisualGenerationType('');
+      }
       isStreamingRef.current = false;
       abortControllerRef.current = null;
       setTimeout(() => inputRef.current?.focus(), 100);
