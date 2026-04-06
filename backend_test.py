@@ -407,6 +407,380 @@ class BackendTester:
                     self.log_test("Chat Stream", False, f"Status {response.status_code}: {response.text}")
         except Exception as e:
             self.log_test("Chat Stream", False, f"Request error: {e}")
+
+    def test_user_settings_api(self):
+        """Test User Settings API (Quick Generate toggle) - GET/PATCH /api/user/settings"""
+        print("\n⚙️ Testing User Settings API (Quick Generate)...")
+        headers = self.get_auth_headers()
+        
+        # Test GET /api/user/settings - should return { quick_generate: false } (default)
+        print("  📖 Testing GET /api/user/settings...")
+        success, response, status_code = self.make_request("GET", "user/settings", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if isinstance(data, dict):
+                    quick_generate = data.get("quick_generate", False)
+                    self.log_test("User Settings GET", True, f"Settings received, quick_generate: {quick_generate}")
+                else:
+                    self.log_test("User Settings GET", False, f"Unexpected format: {data}")
+            except Exception as e:
+                self.log_test("User Settings GET", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("User Settings GET", False, f"Status {status_code}: {response}")
+        
+        # Test PATCH /api/user/settings with { quick_generate: true }
+        print("  ✏️ Testing PATCH /api/user/settings (enable quick_generate)...")
+        patch_data = {"quick_generate": True}
+        success, response, status_code = self.make_patch_request("user/settings", patch_data, headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success"):
+                    self.log_test("User Settings PATCH (enable)", True, "quick_generate enabled successfully")
+                else:
+                    self.log_test("User Settings PATCH (enable)", False, f"Update failed: {data}")
+            except Exception as e:
+                self.log_test("User Settings PATCH (enable)", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("User Settings PATCH (enable)", False, f"Status {status_code}: {response}")
+        
+        # Verify the setting was updated
+        print("  🔍 Verifying quick_generate was enabled...")
+        success, response, status_code = self.make_request("GET", "user/settings", headers=headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                quick_generate = data.get("quick_generate", False)
+                if quick_generate:
+                    self.log_test("User Settings Verify (enabled)", True, f"quick_generate is now: {quick_generate}")
+                else:
+                    self.log_test("User Settings Verify (enabled)", False, f"quick_generate not enabled: {quick_generate}")
+            except Exception as e:
+                self.log_test("User Settings Verify (enabled)", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("User Settings Verify (enabled)", False, f"Status {status_code}: {response}")
+        
+        # Test PATCH /api/user/settings with { quick_generate: false } - reset it
+        print("  🔄 Testing PATCH /api/user/settings (disable quick_generate)...")
+        patch_data = {"quick_generate": False}
+        success, response, status_code = self.make_patch_request("user/settings", patch_data, headers)
+        
+        if success and status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success"):
+                    self.log_test("User Settings PATCH (disable)", True, "quick_generate disabled successfully")
+                else:
+                    self.log_test("User Settings PATCH (disable)", False, f"Update failed: {data}")
+            except Exception as e:
+                self.log_test("User Settings PATCH (disable)", False, f"JSON parse error: {e}")
+        else:
+            self.log_test("User Settings PATCH (disable)", False, f"Status {status_code}: {response}")
+
+    def make_patch_request(self, endpoint: str, data: Dict = None, headers: Dict = None) -> tuple:
+        """Make PATCH request and return (success, response, status_code)"""
+        try:
+            url = f"{self.base_url}/api/{endpoint}"
+            req_headers = {"Content-Type": "application/json"}
+            if headers:
+                req_headers.update(headers)
+                
+            response = self.session.patch(url, json=data, headers=req_headers)
+            return True, response, response.status_code
+        except Exception as e:
+            return False, str(e), 0
+
+    def parse_ndjson_stream(self, response_text: str) -> list:
+        """Parse NDJSON stream response"""
+        lines = []
+        for line in response_text.strip().split('\n'):
+            line = line.strip()
+            if line:
+                try:
+                    # Handle SSE format (data: {...}) or plain NDJSON
+                    if line.startswith('data: '):
+                        json_str = line[6:]  # Remove 'data: ' prefix
+                    else:
+                        json_str = line
+                    
+                    if json_str and json_str != '[DONE]':
+                        parsed = json.loads(json_str)
+                        lines.append(parsed)
+                except json.JSONDecodeError:
+                    continue
+        return lines
+
+    def test_media_confirmation_flow(self):
+        """Test Chat Stream - Media Confirmation Flow"""
+        print("\n🎨 Testing Media Confirmation Flow...")
+        headers = self.get_auth_headers()
+        headers["Content-Type"] = "application/json"
+        
+        # First ensure quick_generate is disabled
+        print("  🔧 Ensuring quick_generate is disabled...")
+        patch_data = {"quick_generate": False}
+        self.make_patch_request("user/settings", patch_data, headers)
+        
+        # Test with image-triggering message
+        print("  🖼️ Testing image generation request (should trigger confirmation)...")
+        test_data = {
+            "message": "generate an image of a sunset over the ocean",
+            "model": "gpt-4o"
+        }
+        
+        try:
+            url = f"{self.base_url}/api/chat/stream"
+            response = self.session.post(url, json=test_data, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                response_text = response.text
+                parsed_lines = self.parse_ndjson_stream(response_text)
+                
+                # Look for media_confirmation type
+                media_confirmation_found = False
+                detected_text_found = False
+                done_found = False
+                
+                for line in parsed_lines:
+                    if line.get("type") == "media_confirmation":
+                        media_confirmation_found = True
+                        required_fields = ["detectedType", "originalPrompt", "refinedPrompt", "availableModels", "recommendedModel"]
+                        missing_fields = [field for field in required_fields if field not in line]
+                        
+                        if not missing_fields:
+                            self.log_test("Media Confirmation Structure", True, f"All required fields present: {required_fields}")
+                            
+                            # Check specific values
+                            if line.get("detectedType") == "image":
+                                self.log_test("Media Confirmation Type", True, f"detectedType: {line.get('detectedType')}")
+                            else:
+                                self.log_test("Media Confirmation Type", False, f"Expected 'image', got: {line.get('detectedType')}")
+                                
+                            if line.get("recommendedModel") == "smart":
+                                self.log_test("Media Confirmation Model", True, f"recommendedModel: {line.get('recommendedModel')}")
+                            else:
+                                self.log_test("Media Confirmation Model", False, f"Expected 'smart', got: {line.get('recommendedModel')}")
+                        else:
+                            self.log_test("Media Confirmation Structure", False, f"Missing fields: {missing_fields}")
+                    
+                    elif line.get("type") == "delta" and "detected" in line.get("content", "").lower():
+                        detected_text_found = True
+                        self.log_test("Media Confirmation Text", True, f"Detection message: {line.get('content', '')[:50]}...")
+                    
+                    elif line.get("type") == "done":
+                        done_found = True
+                
+                if media_confirmation_found:
+                    self.log_test("Media Confirmation Flow", True, "media_confirmation type found in stream")
+                else:
+                    self.log_test("Media Confirmation Flow", False, "media_confirmation type not found in stream")
+                
+                if detected_text_found:
+                    self.log_test("Media Detection Message", True, "Detection message found")
+                else:
+                    self.log_test("Media Detection Message", False, "Detection message not found")
+                
+                if done_found:
+                    self.log_test("Media Confirmation End", True, "Stream ended with done type")
+                else:
+                    self.log_test("Media Confirmation End", False, "Stream did not end with done type")
+                    
+            else:
+                try:
+                    error_data = response.json()
+                    self.log_test("Media Confirmation Flow", False, f"Status {response.status_code}: {error_data}")
+                except:
+                    self.log_test("Media Confirmation Flow", False, f"Status {response.status_code}: {response.text}")
+        except Exception as e:
+            self.log_test("Media Confirmation Flow", False, f"Request error: {e}")
+
+    def test_quick_generate_flow(self):
+        """Test Chat Stream - Confirmed MediaFlow (Quick Generate test)"""
+        print("\n⚡ Testing Quick Generate Flow...")
+        headers = self.get_auth_headers()
+        headers["Content-Type"] = "application/json"
+        
+        # First enable quick_generate
+        print("  🔧 Enabling quick_generate...")
+        patch_data = {"quick_generate": True}
+        success, response, status_code = self.make_patch_request("user/settings", patch_data, headers)
+        
+        if not (success and status_code == 200):
+            self.log_test("Quick Generate Setup", False, "Failed to enable quick_generate")
+            return
+        
+        # Test with image-triggering message - should skip confirmation
+        print("  🚀 Testing image generation with quick_generate enabled...")
+        test_data = {
+            "message": "generate an image of a mountain landscape",
+            "model": "gpt-4o"
+        }
+        
+        try:
+            url = f"{self.base_url}/api/chat/stream"
+            response = self.session.post(url, json=test_data, headers=headers, timeout=45)
+            
+            if response.status_code == 200:
+                response_text = response.text
+                parsed_lines = self.parse_ndjson_stream(response_text)
+                
+                # Look for generation types (should skip confirmation)
+                media_confirmation_found = False
+                generating_visual_found = False
+                image_result_found = False
+                
+                for line in parsed_lines:
+                    if line.get("type") == "media_confirmation":
+                        media_confirmation_found = True
+                    elif line.get("type") == "generating_visual":
+                        generating_visual_found = True
+                        self.log_test("Quick Generate Visual", True, f"generating_visual type found")
+                    elif line.get("type") == "image_result" or line.get("type") == "image":
+                        image_result_found = True
+                        self.log_test("Quick Generate Result", True, f"Image result type found")
+                
+                if media_confirmation_found:
+                    self.log_test("Quick Generate Skip", False, "media_confirmation found - should have been skipped")
+                else:
+                    self.log_test("Quick Generate Skip", True, "media_confirmation correctly skipped")
+                
+                if generating_visual_found or image_result_found:
+                    self.log_test("Quick Generate Flow", True, "Direct generation flow detected")
+                else:
+                    self.log_test("Quick Generate Flow", False, "No generation flow detected")
+                    
+            else:
+                try:
+                    error_data = response.json()
+                    self.log_test("Quick Generate Flow", False, f"Status {response.status_code}: {error_data}")
+                except:
+                    self.log_test("Quick Generate Flow", False, f"Status {response.status_code}: {response.text}")
+        except Exception as e:
+            self.log_test("Quick Generate Flow", False, f"Request error: {e}")
+        
+        # Reset quick_generate to false
+        print("  🔄 Resetting quick_generate to false...")
+        patch_data = {"quick_generate": False}
+        self.make_patch_request("user/settings", patch_data, headers)
+
+    def test_mediaflow_confirmed_payload(self):
+        """Test Chat Stream - MediaFlow Confirmed Payload"""
+        print("\n✅ Testing MediaFlow Confirmed Payload...")
+        headers = self.get_auth_headers()
+        headers["Content-Type"] = "application/json"
+        
+        # Test with confirmed mediaFlow payload
+        test_data = {
+            "message": "generate a sunset image",
+            "mediaFlow": {
+                "step": "confirmed",
+                "type": "image",
+                "finalPrompt": "A beautiful golden sunset",
+                "selectedModel": "nano-banana"
+            }
+        }
+        
+        try:
+            url = f"{self.base_url}/api/chat/stream"
+            response = self.session.post(url, json=test_data, headers=headers, timeout=45)
+            
+            if response.status_code == 200:
+                response_text = response.text
+                parsed_lines = self.parse_ndjson_stream(response_text)
+                
+                # Should skip confirmation and proceed directly to generation
+                media_confirmation_found = False
+                generating_visual_found = False
+                
+                for line in parsed_lines:
+                    if line.get("type") == "media_confirmation":
+                        media_confirmation_found = True
+                    elif line.get("type") == "generating_visual":
+                        generating_visual_found = True
+                        self.log_test("MediaFlow Confirmed Generation", True, "generating_visual type found")
+                
+                if media_confirmation_found:
+                    self.log_test("MediaFlow Confirmed Skip", False, "media_confirmation found - should have been skipped")
+                else:
+                    self.log_test("MediaFlow Confirmed Skip", True, "media_confirmation correctly skipped")
+                
+                if generating_visual_found:
+                    self.log_test("MediaFlow Confirmed Payload", True, "Direct generation flow with confirmed payload")
+                else:
+                    self.log_test("MediaFlow Confirmed Payload", False, "No generation flow detected")
+                    
+            else:
+                try:
+                    error_data = response.json()
+                    self.log_test("MediaFlow Confirmed Payload", False, f"Status {response.status_code}: {error_data}")
+                except:
+                    self.log_test("MediaFlow Confirmed Payload", False, f"Status {response.status_code}: {response.text}")
+        except Exception as e:
+            self.log_test("MediaFlow Confirmed Payload", False, f"Request error: {e}")
+
+    def test_mediaflow_chat_fallback(self):
+        """Test Chat Stream - MediaFlow Chat Fallback"""
+        print("\n💬 Testing MediaFlow Chat Fallback...")
+        headers = self.get_auth_headers()
+        headers["Content-Type"] = "application/json"
+        
+        # Test with chat fallback mediaFlow payload
+        test_data = {
+            "message": "generate a sunset image",
+            "mediaFlow": {
+                "step": "confirmed",
+                "type": "chat"
+            }
+        }
+        
+        try:
+            url = f"{self.base_url}/api/chat/stream"
+            response = self.session.post(url, json=test_data, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                response_text = response.text
+                parsed_lines = self.parse_ndjson_stream(response_text)
+                
+                # Should produce normal text response (deltas), NOT media_confirmation or image generation
+                media_confirmation_found = False
+                generating_visual_found = False
+                delta_found = False
+                
+                for line in parsed_lines:
+                    if line.get("type") == "media_confirmation":
+                        media_confirmation_found = True
+                    elif line.get("type") == "generating_visual":
+                        generating_visual_found = True
+                    elif line.get("type") == "delta":
+                        delta_found = True
+                
+                if media_confirmation_found:
+                    self.log_test("MediaFlow Chat No Confirmation", False, "media_confirmation found - should not be present")
+                else:
+                    self.log_test("MediaFlow Chat No Confirmation", True, "media_confirmation correctly absent")
+                
+                if generating_visual_found:
+                    self.log_test("MediaFlow Chat No Generation", False, "generating_visual found - should not be present")
+                else:
+                    self.log_test("MediaFlow Chat No Generation", True, "generating_visual correctly absent")
+                
+                if delta_found:
+                    self.log_test("MediaFlow Chat Fallback", True, "Normal text response (deltas) produced")
+                else:
+                    self.log_test("MediaFlow Chat Fallback", False, "No text response deltas found")
+                    
+            else:
+                try:
+                    error_data = response.json()
+                    self.log_test("MediaFlow Chat Fallback", False, f"Status {response.status_code}: {error_data}")
+                except:
+                    self.log_test("MediaFlow Chat Fallback", False, f"Status {response.status_code}: {response.text}")
+        except Exception as e:
+            self.log_test("MediaFlow Chat Fallback", False, f"Request error: {e}")
     
     def run_all_tests(self):
         """Run all backend tests"""
@@ -439,6 +813,16 @@ class BackendTester:
         self.test_user_location()
         self.test_user_timezone()
         self.test_chat_stream()
+        
+        # Test Media Generation Confirmation Flow features
+        print("\n" + "="*60)
+        print("🎨 MEDIA GENERATION CONFIRMATION FLOW TESTS")
+        print("="*60)
+        self.test_user_settings_api()
+        self.test_media_confirmation_flow()
+        self.test_quick_generate_flow()
+        self.test_mediaflow_confirmed_payload()
+        self.test_mediaflow_chat_fallback()
         
         # Print summary
         self.print_summary()

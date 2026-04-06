@@ -63,6 +63,7 @@ import { GalleryItem, GalleryModal } from '@/components/chat/Gallery';
 import CloudImportModal from '@/components/chat/CloudImportModal';
 import { SettingsModal, FeedbackModal } from '@/components/chat/SettingsModal';
 import AttachmentPill from '@/components/chat/AttachmentPill';
+import { MediaConfirmCard, PromptReviewCard, ModelSelectionCard } from '@/components/chat/MediaConfirmation';
 import { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from '@/components/chat/constants';
 import AssessmentNudge from '@/components/AssessmentNudge';
 
@@ -180,6 +181,13 @@ export default function ChatPage() {
   // Visual content generation state (flyers, infographics, images)
   const [isGeneratingVisual, setIsGeneratingVisual] = useState(false);
   const [visualGenerationType, setVisualGenerationType] = useState(''); // 'flyer', 'infographic', 'image'
+  // Media confirmation flow state
+  const [mediaConfirmation, setMediaConfirmation] = useState(null); // { detectedType, originalPrompt, refinedPrompt, availableModels, recommendedModel }
+  const [mediaConfirmStep, setMediaConfirmStep] = useState(0); // 0=intent, 1=prompt review, 2=model selection
+  const [mediaConfirmType, setMediaConfirmType] = useState(null); // 'image' | 'video' | null (chosen by user)
+  const [quickGenerateEnabled, setQuickGenerateEnabled] = useState(false); // Skip confirmation flow
+  const mediaConfirmRef = useRef(null); // Ref for current confirmation data to avoid stale closures
+  const pendingMediaFlowRef = useRef(null); // Ref for pending mediaFlow to send with next message
   // Image-to-JSON generation state
   const [generatingImageJson, setGeneratingImageJson] = useState(false);
   const [imageJsonResult, setImageJsonResult] = useState(null);
@@ -408,6 +416,11 @@ export default function ChatPage() {
         if (!d.accepted && d.role === 'user') { router.push('/waitlist'); return; }
         setUser(d);
         setAssistantName(d.profile?.assistant_name || 'SoulPrint');
+        // Load user settings (quick_generate, etc.)
+        fetch('/api/user/settings', { headers: { Authorization: `Bearer ${t}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(settings => { if (settings) setQuickGenerateEnabled(settings.quick_generate || false); })
+          .catch(() => {}); // Best effort
         const greet = d.profile?.display_name || 'there';
         const botName = d.profile?.assistant_name || 'SoulPrint';
         const customGreeting = d.profile?.custom_greeting;
@@ -1170,6 +1183,7 @@ export default function ChatPage() {
     setInput('');
     setAttachments([]);
     setPendingMediaAttachment(null); // Clear pending attachment
+    pendingMediaFlowRef.current = null; // Clear pending mediaFlow after sending
     setStreamingContent('');
     setStreamingImageUrl(null);
     setStreamingVideoTask(null);
@@ -1258,6 +1272,7 @@ export default function ChatPage() {
           projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
           videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null, // Pass user's video model preference
           imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null, // Pass user's image model preference
+          mediaFlow: pendingMediaFlowRef.current || null, // Media confirmation flow payload
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -1307,6 +1322,20 @@ export default function ChatPage() {
               // Received sources from web search
               setStreamingSources(data.sources || []);
               streamingSourcesRef.current = data.sources || [];
+            } else if (data.type === 'media_confirmation') {
+              // Media confirmation flow — store the confirmation data
+              const confirmData = {
+                detectedType: data.detectedType,
+                originalPrompt: data.originalPrompt,
+                refinedPrompt: data.refinedPrompt,
+                availableModels: data.availableModels || [],
+                recommendedModel: data.recommendedModel || 'smart',
+                messageId: data.messageId,
+              };
+              setMediaConfirmation(confirmData);
+              mediaConfirmRef.current = confirmData;
+              setMediaConfirmStep(0); // Start at intent confirmation
+              setMediaConfirmType(null);
             } else if (data.type === 'generating_visual') {
               // Backend is generating an image/video - show indicator immediately
               setIsGeneratingVisual(true);
@@ -1434,6 +1463,7 @@ export default function ChatPage() {
                 model_label: streamingVideoTaskRef.current ? (streamingVideoTaskRef.current.videoModelLabel || 'AI Video') : undefined,
                 video_model_reason: streamingVideoTaskRef.current?.videoModelReason || undefined,
                 sources: streamingSourcesRef.current?.length > 0 ? streamingSourcesRef.current : undefined,
+                media_confirmation: mediaConfirmRef.current || undefined,
               };
               setMessages(prev => [...prev, finalMsg]);
               setStreamingContent('');
@@ -1520,6 +1550,176 @@ export default function ChatPage() {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [streamingContent, selectedModel]);
+
+  // ── Media Confirmation Flow Handlers ─────────────────────────────────
+  // Submit a confirmed media generation flow directly to the chat stream API
+  const submitMediaConfirmation = useCallback(async (flow) => {
+    if (!token || loading) return;
+    
+    setMediaConfirmStep(-1);
+    setMediaConfirmation(null);
+    setMediaConfirmType(null);
+    mediaConfirmRef.current = null;
+    
+    if (flow.type === 'chat') {
+      // Just chat — re-send the original prompt without media intent
+      setInput(flow.originalPrompt || '');
+      // Don't auto-send, let user press Enter manually for chat fallback
+      return;
+    }
+    
+    // Build user message for display
+    const confirmLabel = flow.type === 'image' ? '🎨 Generate Image' : '🎬 Generate Video';
+    const userMsg = {
+      id: `u-${Date.now()}`,
+      role: 'user',
+      content: `${confirmLabel}: ${flow.finalPrompt}`,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, userMsg]);
+    setLoading(true);
+    setInput('');
+    
+    try {
+      const ctrl = new AbortController();
+      abortControllerRef.current = ctrl;
+      isStreamingRef.current = true;
+      
+      const response = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          message: flow.finalPrompt,
+          conversationId: conversationId || undefined,
+          model: selectedModel,
+          webSearch: false,
+          videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null,
+          imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null,
+          mediaFlow: { step: 'confirmed', type: flow.type, finalPrompt: flow.finalPrompt, selectedModel: flow.selectedModel },
+        }),
+        signal: ctrl.signal,
+      });
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
+      let realMessageId = null;
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line);
+            if (data.type === 'meta') {
+              if (data.conversationId && !conversationId) setConversationId(data.conversationId);
+              if (data.messageId) realMessageId = data.messageId;
+            } else if (data.type === 'delta') {
+              fullContent += data.content;
+              setStreamingContent(fullContent);
+            } else if (data.type === 'image_result') {
+              streamingImageUrlRef.current = data.url;
+              fullContent += data.content || '';
+              setStreamingContent(fullContent);
+            } else if (data.type === 'video_task') {
+              streamingVideoTaskRef.current = data;
+            } else if (data.type === 'generating_visual') {
+              setIsGeneratingVisual(true);
+              setVisualGenerationType(data.visualType || 'image');
+            } else if (data.type === 'done') {
+              const finalMsg = {
+                id: realMessageId || `a-${Date.now()}`,
+                role: 'assistant',
+                content: fullContent,
+                created_at: new Date().toISOString(),
+                model_used: data.model_used || selectedModel,
+                image_url: streamingImageUrlRef.current || undefined,
+                video_task: streamingVideoTaskRef.current || undefined,
+                model_label: streamingVideoTaskRef.current?.videoModelLabel || undefined,
+              };
+              setMessages(prev => [...prev, finalMsg]);
+              setStreamingContent('');
+              streamingImageUrlRef.current = null;
+              streamingVideoTaskRef.current = null;
+            }
+          } catch (e) { /* skip malformed lines */ }
+        }
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: 'Connection error during media generation. Please try again.', created_at: new Date().toISOString() }]);
+      }
+    } finally {
+      setStreamingContent('');
+      setLoading(false);
+      setIsGeneratingVisual(false);
+      setVisualGenerationType('');
+      isStreamingRef.current = false;
+      abortControllerRef.current = null;
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [token, loading, conversationId, selectedModel, selectedVideoModel, selectedImageModel]);
+  
+  // Step 1: User selects intent type (Image / Video / Just Chat)
+  const handleMediaConfirmType = useCallback((type) => {
+    const confirm = mediaConfirmRef.current;
+    if (!confirm) return;
+    
+    if (type === 'chat') {
+      // User chose "Just Chat" — clear UI and put prompt back in input
+      submitMediaConfirmation({ type: 'chat', originalPrompt: confirm.originalPrompt });
+      return;
+    }
+    
+    // User chose image or video — advance to step 1 (prompt review)
+    setMediaConfirmType(type);
+    setMediaConfirmStep(1);
+  }, [submitMediaConfirmation]);
+  
+  // Step 2: User approves prompt (possibly edited)
+  const handleMediaConfirmPrompt = useCallback((finalPrompt) => {
+    const confirm = mediaConfirmRef.current;
+    if (!confirm) return;
+    mediaConfirmRef.current = { ...confirm, finalPrompt };
+    setMediaConfirmStep(2);
+  }, []);
+  
+  // Step 3: User selects a model — triggers generation
+  const handleMediaConfirmModel = useCallback((selectedModelKey) => {
+    const confirm = mediaConfirmRef.current;
+    if (!confirm || !mediaConfirmType) return;
+    
+    submitMediaConfirmation({
+      type: mediaConfirmType,
+      originalPrompt: confirm.originalPrompt,
+      finalPrompt: confirm.finalPrompt || confirm.refinedPrompt,
+      selectedModel: selectedModelKey,
+    });
+  }, [mediaConfirmType, submitMediaConfirmation]);
+  
+  // Toggle quick generate on/off and persist to backend
+  const toggleQuickGenerate = useCallback(async () => {
+    const newValue = !quickGenerateEnabled;
+    setQuickGenerateEnabled(newValue);
+    if (token) {
+      try {
+        await fetch('/api/user/settings', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ quick_generate: newValue }),
+        });
+      } catch (e) { /* best effort */ }
+    }
+  }, [quickGenerateEnabled, token]);
 
   // Generate JSON config from an uploaded image
   const generateImageJson = useCallback(async (attachment) => {
@@ -3118,6 +3318,14 @@ export default function ChatPage() {
               <Globe className="w-3 h-3" />
               {webSearchEnabled ? 'Web On' : 'Web Off'}
             </button>
+            {/* Quick Generate toggle */}
+            <button
+              onClick={toggleQuickGenerate}
+              title={quickGenerateEnabled ? 'Quick Generate ON — skips media confirmation' : 'Quick Generate OFF — shows confirmation before generating'}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] border transition-all ${quickGenerateEnabled ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'bg-white/4 border-white/10 text-gray-600'}`}>
+              <Zap className="w-3 h-3" />
+              {quickGenerateEnabled ? 'Quick Gen' : 'Confirm Gen'}
+            </button>
             {/* Feedback button */}
             <button
               onClick={() => setShowFeedbackModal(true)}
@@ -3497,6 +3705,40 @@ export default function ChatPage() {
                         {/* Regular text (skip for pure image/video messages and active video tasks) */}
                         {!msg.image_url && !msg.video_url && !(msg.video_task && !msg.video_url) && (
                           <SafeMarkdown content={typeof msg.content === 'string' ? msg.content : String(msg.content || '')} />
+                        )}
+                        
+                        {/* Media Confirmation Flow — inline cards */}
+                        {msg.media_confirmation && (
+                          <div className="mt-3 space-y-3">
+                            {/* Step 0: Intent Selection */}
+                            {(mediaConfirmation && mediaConfirmStep === 0 && msg.id === messages[messages.length - 1]?.id) ? (
+                              <MediaConfirmCard
+                                detectedType={msg.media_confirmation.detectedType}
+                                onSelect={handleMediaConfirmType}
+                              />
+                            ) : msg.media_confirmation?.selectedType ? null : null}
+                            
+                            {/* Step 1: Prompt Review */}
+                            {(mediaConfirmation && mediaConfirmStep === 1 && msg.id === messages[messages.length - 1]?.id) && (
+                              <PromptReviewCard
+                                refinedPrompt={msg.media_confirmation.refinedPrompt}
+                                mediaType={mediaConfirmType}
+                                onApprove={handleMediaConfirmPrompt}
+                                disabled={loading}
+                              />
+                            )}
+                            
+                            {/* Step 2: Model Selection */}
+                            {(mediaConfirmation && mediaConfirmStep === 2 && msg.id === messages[messages.length - 1]?.id) && (
+                              <ModelSelectionCard
+                                models={msg.media_confirmation.availableModels}
+                                mediaType={mediaConfirmType}
+                                recommended={msg.media_confirmation.recommendedModel || 'smart'}
+                                onSelect={handleMediaConfirmModel}
+                                disabled={loading}
+                              />
+                            )}
+                          </div>
                         )}
                         
                         {/* Sources Section - Like Perplexity */}

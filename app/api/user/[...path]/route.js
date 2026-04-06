@@ -720,6 +720,15 @@ export async function GET(request, { params }) {
       }
     }
 
+    // Settings endpoint
+    if (pathStr === 'settings') {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      const db = await getDb();
+      const settings = await db.collection('user_settings').findOne({ user_id: user.id });
+      return ok({ quick_generate: settings?.quick_generate || false });
+    }
+
     return err('User endpoint not found', 404);
   } catch (error) {
     console.error('[User API] GET Error:', error);
@@ -820,6 +829,38 @@ export async function PUT(request, { params }) {
     return err('User endpoint not found', 404);
   } catch (error) {
     console.error('[User API] PUT Error:', error);
+    return err(error.message || 'Internal server error', 500);
+  }
+}
+
+export async function PATCH(request, { params }) {
+  const pathArr = params?.path || [];
+  const pathStr = pathArr.join('/');
+
+  try {
+    // Settings endpoint
+    if (pathStr === 'settings') {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      const body = await request.json();
+      const db = await getDb();
+      const allowedFields = ['quick_generate'];
+      const updateDoc = {};
+      for (const key of allowedFields) {
+        if (body[key] !== undefined) updateDoc[key] = body[key];
+      }
+      if (Object.keys(updateDoc).length === 0) return err('No valid fields to update', 400);
+      await db.collection('user_settings').updateOne(
+        { user_id: user.id },
+        { $set: { ...updateDoc, updated_at: new Date() } },
+        { upsert: true }
+      );
+      return ok({ success: true });
+    }
+
+    return err('User endpoint not found', 404);
+  } catch (error) {
+    console.error('[User API] PATCH Error:', error);
     return err(error.message || 'Internal server error', 500);
   }
 }
