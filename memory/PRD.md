@@ -132,3 +132,11 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
   - Clear/undo mask functionality
   - Mask visibility toggle
 - All 17+ backend endpoints verified working after refactoring
+
+- **Smart Aspect Ratio Recreation (P0)**: When a user requests to change an existing image's aspect ratio (e.g., "recreate this as 1:1", "make this square", "convert to portrait"), the system now:
+  - Detects the intent via `aspectRatioRecreationPatterns` BEFORE standard edit detection
+  - Fetches the original image and analyzes it with GPT-4o Vision for detailed description
+  - Generates a BRAND NEW image at the target aspect ratio (not a crop/shrink)
+  - Uses gpt-image-1 (primary), Kie.ai Nano Banana (fallback 1), DALL-E 3 (fallback 2)
+  - Both `isEditRequest` and `couldBeEditRequest` exclude aspect ratio recreation requests
+  - File: `lib/handlers/chat-stream.js`
