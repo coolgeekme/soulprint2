@@ -181,7 +181,8 @@ export default function ChatPage() {
   // Visual content generation state (flyers, infographics, images)
   const [isGeneratingVisual, setIsGeneratingVisual] = useState(false);
   const [visualGenerationType, setVisualGenerationType] = useState(''); // 'flyer', 'infographic', 'image'
-  // Media confirmation flow state
+  // Invite count state
+  const [invitesRemaining, setInvitesRemaining] = useState(null);
   const [mediaConfirmation, setMediaConfirmation] = useState(null); // { detectedType, originalPrompt, refinedPrompt, availableModels, recommendedModel }
   const [mediaConfirmStep, setMediaConfirmStep] = useState(0); // 0=intent, 1=prompt review, 2=model selection
   const [mediaConfirmType, setMediaConfirmType] = useState(null); // 'image' | 'video' | null (chosen by user)
@@ -420,7 +421,16 @@ export default function ChatPage() {
         fetch('/api/user/settings', { headers: { Authorization: `Bearer ${t}` } })
           .then(r => r.ok ? r.json() : null)
           .then(settings => { if (settings) setQuickGenerateEnabled(settings.quick_generate || false); })
-          .catch(() => {}); // Best effort
+          .catch(() => {});
+        // Load invite count
+        fetch('/api/invites', { headers: { Authorization: `Bearer ${t}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => { 
+            if (data && data.enabled !== false) {
+              setInvitesRemaining(data.invites_remaining ?? 0); 
+            }
+          })
+          .catch(() => {});
         const greet = d.profile?.display_name || 'there';
         const botName = d.profile?.assistant_name || 'SoulPrint';
         const customGreeting = d.profile?.custom_greeting;
@@ -1560,8 +1570,10 @@ export default function ChatPage() {
 
   // ── Media Confirmation Flow Handlers ─────────────────────────────────
   // Submit a confirmed media generation flow directly to the chat stream API
+  const isSubmittingMediaRef = useRef(false);
   const submitMediaConfirmation = useCallback(async (flow) => {
-    if (!token || loading) return;
+    if (!token || loading || isSubmittingMediaRef.current) return;
+    isSubmittingMediaRef.current = true;
     
     setMediaConfirmStep(-1);
     setMediaConfirmation(null);
@@ -1696,6 +1708,7 @@ export default function ChatPage() {
       }
       isStreamingRef.current = false;
       abortControllerRef.current = null;
+      isSubmittingMediaRef.current = false;
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [token, loading, conversationId, selectedModel, selectedVideoModel, selectedImageModel]);
@@ -3287,6 +3300,20 @@ export default function ChatPage() {
           >
             <GalleryHorizontal className="w-3.5 h-3.5" /> {!sidebarCollapsed && 'Media Gallery'}
           </button>
+          {/* Invite count */}
+          {invitesRemaining !== null && (
+            <div 
+              className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-1.5'} w-full py-2 px-3 bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs`}
+              title={`You have ${invitesRemaining} invite${invitesRemaining !== 1 ? 's' : ''} remaining`}
+            >
+              <UserPlus className="w-3.5 h-3.5 flex-shrink-0" /> 
+              {!sidebarCollapsed && (
+                <span className="truncate">
+                  <span className="font-semibold">{invitesRemaining}</span> Invite{invitesRemaining !== 1 ? 's' : ''} Left
+                </span>
+              )}
+            </div>
+          )}
           {/* Admin Dashboard link - only for admins */}
           {(user?.role === 'admin' || user?.role === 'superadmin') && (
             <a 
