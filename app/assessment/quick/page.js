@@ -179,9 +179,13 @@ export default function QuickAssessmentPage() {
             router.push('/waitlist');
           }
         }, 3000);
+      } else {
+        // Show error to user instead of silently failing
+        alert(data.error || 'Something went wrong. Please try again.');
       }
     } catch (e) {
       console.error('Failed to complete assessment:', e);
+      alert('Connection error. Please check your internet and try again.');
     } finally {
       setSubmitting(false);
     }
