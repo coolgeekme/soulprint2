@@ -790,8 +790,48 @@ export default function MobileChat({
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
-          const base64 = e.target.result.split(',')[1];
-          resolve({ type: 'image', base64, mimeType: file.type, name: file.name });
+          const originalBase64 = e.target.result;
+          
+          // Compress images to reduce request payload size
+          const img = new window.Image();
+          img.onload = () => {
+            const MAX_DIM = 1536;
+            let { width, height } = img;
+            const originalSize = originalBase64.length;
+            const needsResize = width > MAX_DIM || height > MAX_DIM;
+            const needsCompress = originalSize > 500_000 || needsResize;
+            
+            if (!needsCompress) {
+              const base64 = originalBase64.split(',')[1];
+              resolve({ type: 'image', base64, mimeType: file.type, name: file.name });
+              return;
+            }
+            
+            if (needsResize) {
+              const scale = MAX_DIM / Math.max(width, height);
+              width = Math.round(width * scale);
+              height = Math.round(height * scale);
+            }
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+            const quality = outputType === 'image/jpeg' ? 0.75 : undefined;
+            const compressedDataUrl = canvas.toDataURL(outputType, quality);
+            const compressedBase64 = compressedDataUrl.split(',')[1];
+            
+            console.log(`[Mobile:Attach] Compressed ${file.name}: ${Math.round(originalSize/1024)}KB → ${Math.round(compressedBase64.length/1024)}KB (${width}x${height})`);
+            resolve({ type: 'image', base64: compressedBase64, mimeType: outputType, name: file.name });
+          };
+          img.onerror = () => {
+            const base64 = originalBase64.split(',')[1];
+            resolve({ type: 'image', base64, mimeType: file.type, name: file.name });
+          };
+          img.src = originalBase64;
         };
         reader.onerror = reject;
         reader.readAsDataURL(file);
@@ -980,6 +1020,33 @@ export default function MobileChat({
         name: 'regeneration-source.jpg',
         isUrlReference: true, // Flag to indicate this is a URL not base64
       });
+    }
+    
+    // Pre-upload large image attachments to reduce chat payload size
+    const imageAtts = finalAttachments.filter(a => a.type === 'image' && a.base64 && !a.isUrlReference);
+    const totalSize = imageAtts.reduce((sum, a) => sum + (a.base64?.length || 0), 0);
+    if (totalSize > 800_000 || imageAtts.length >= 2) {
+      console.log(`[Mobile:PreUpload] ${imageAtts.length} images, total ${Math.round(totalSize/1024)}KB — pre-uploading...`);
+      try {
+        finalAttachments = await Promise.all(finalAttachments.map(async (att) => {
+          if (att.type !== 'image' || !att.base64 || att.isUrlReference) return att;
+          try {
+            const res = await fetch('/api/attachments/upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ base64: att.base64, mimeType: att.mimeType, name: att.name }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.success && data.url) {
+                console.log(`[Mobile:PreUpload] ${att.name} → ${data.url.substring(0, 60)}...`);
+                return { ...att, base64: data.url, isUrlReference: true };
+              }
+            }
+            return att;
+          } catch (e) { return att; }
+        }));
+      } catch (e) { console.warn('[Mobile:PreUpload] Failed, sending inline:', e.message); }
     }
     
     const userMessage = { 

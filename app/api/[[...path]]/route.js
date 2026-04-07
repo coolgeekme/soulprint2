@@ -357,6 +357,11 @@ import {
   handleGetImports,
 } from '@/lib/handlers/import-upload';
 
+import {
+  handleAttachmentUpload,
+  resolveAttachmentUrl,
+} from '@/lib/handlers/attachment-upload';
+
 // ══════════════════════════════════════════════════════════════════════════════
 
 
@@ -556,6 +561,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'tags') return handleCreateTag(request);
     if (pathStr === 'notifications/mark-read') return handleMarkNotificationsRead(request);
     
+    if (pathStr === 'attachments/upload') return handleAttachmentUpload(request);
     if (pathStr === 'chat/stream') return handleChatStream(request);
     if (pathStr === 'chat/compare') return handleChatCompare(request);
     if (pathStr === 'chat/compare/select') return handleCompareSelect(request);

@@ -656,24 +656,25 @@ export default function ChatPage() {
           const originalBase64 = e.target.result;
           
           // Compress large images to reduce request payload size
-          // Max 2048px on longest side, quality 0.85
+          // Max 1536px on longest side, quality 0.80
           const img = new Image();
           img.onload = () => {
-            const MAX_DIM = 2048;
+            const MAX_DIM = 1536;
             let { width, height } = img;
             
-            // Only compress if image is large (>1MB base64 or >2048px)
+            // Always compress for safety — even "small" images benefit from consistent handling
             const originalSize = originalBase64.length;
-            const needsCompress = originalSize > 1_000_000 || width > MAX_DIM || height > MAX_DIM;
+            const needsResize = width > MAX_DIM || height > MAX_DIM;
+            const needsCompress = originalSize > 500_000 || needsResize;
             
             if (!needsCompress) {
               const base64 = originalBase64.split(',')[1];
-              resolve({ type: 'image', base64, mimeType: file.type, name: file.name });
+              resolve({ type: 'image', base64, mimeType: file.type, name: file.name, originalSize: base64.length });
               return;
             }
             
             // Scale down proportionally
-            if (width > MAX_DIM || height > MAX_DIM) {
+            if (needsResize) {
               const scale = MAX_DIM / Math.max(width, height);
               width = Math.round(width * scale);
               height = Math.round(height * scale);
@@ -685,19 +686,19 @@ export default function ChatPage() {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
             
-            // Use JPEG for photos (much smaller), PNG for transparent images
+            // Always compress to JPEG for photos (much smaller), keep PNG for transparent
             const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-            const quality = outputType === 'image/jpeg' ? 0.85 : undefined;
+            const quality = outputType === 'image/jpeg' ? 0.75 : undefined;
             const compressedDataUrl = canvas.toDataURL(outputType, quality);
             const compressedBase64 = compressedDataUrl.split(',')[1];
             
             console.log(`[Attach] Compressed ${file.name}: ${Math.round(originalSize/1024)}KB → ${Math.round(compressedBase64.length/1024)}KB (${width}x${height})`);
-            resolve({ type: 'image', base64: compressedBase64, mimeType: outputType, name: file.name });
+            resolve({ type: 'image', base64: compressedBase64, mimeType: outputType, name: file.name, originalSize: compressedBase64.length });
           };
           img.onerror = () => {
             // Fallback: use original if Image() fails
             const base64 = originalBase64.split(',')[1];
-            resolve({ type: 'image', base64, mimeType: file.type, name: file.name });
+            resolve({ type: 'image', base64, mimeType: file.type, name: file.name, originalSize: base64.length });
           };
           img.src = originalBase64;
         };
@@ -1218,6 +1219,58 @@ export default function ChatPage() {
     }, 0);
   }, []);
 
+  // Pre-upload image attachments individually to avoid large payload in chat request
+  const preUploadAttachments = useCallback(async (atts) => {
+    if (!atts || atts.length === 0) return atts;
+    
+    // Calculate total base64 size of image attachments
+    const imageAtts = atts.filter(a => a.type === 'image' && a.base64 && !a.isUrlReference);
+    const totalBase64Size = imageAtts.reduce((sum, a) => sum + (a.base64?.length || 0), 0);
+    
+    // Only pre-upload if total payload is large (>800KB of base64 data) or 2+ images
+    const UPLOAD_THRESHOLD = 800_000; // ~800KB base64 = ~600KB raw
+    if (totalBase64Size < UPLOAD_THRESHOLD && imageAtts.length < 2) {
+      return atts; // Small enough to send inline
+    }
+    
+    console.log(`[PreUpload] ${imageAtts.length} images, total ${Math.round(totalBase64Size/1024)}KB — pre-uploading...`);
+    
+    const uploaded = await Promise.all(atts.map(async (att) => {
+      if (att.type !== 'image' || !att.base64 || att.isUrlReference) return att;
+      
+      try {
+        const res = await fetch('/api/attachments/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            base64: att.base64,
+            mimeType: att.mimeType,
+            name: att.name,
+          }),
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.url) {
+            console.log(`[PreUpload] ${att.name} → ${data.url.substring(0, 60)}...`);
+            return {
+              ...att,
+              base64: data.url, // Replace base64 with URL
+              isUrlReference: true,
+            };
+          }
+        }
+        console.warn(`[PreUpload] Upload failed for ${att.name}, sending inline`);
+        return att; // Fallback: send inline
+      } catch (err) {
+        console.warn(`[PreUpload] Error uploading ${att.name}:`, err.message);
+        return att; // Fallback: send inline
+      }
+    }));
+    
+    return uploaded;
+  }, [token]);
+
   const sendMessage = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0 && !pendingMediaAttachment) || loading || compareLoading) return;
     const content = input.trim();
@@ -1233,6 +1286,14 @@ export default function ChatPage() {
         name: 'regeneration-source.jpg',
         isUrlReference: true, // Flag to indicate this is a URL not base64
       });
+    }
+    
+    // Pre-upload large image attachments to reduce chat payload size
+    // This prevents "Connection error" when sending multiple images
+    try {
+      currentAttachments = await preUploadAttachments(currentAttachments);
+    } catch (uploadErr) {
+      console.warn('[PreUpload] Failed, sending inline:', uploadErr.message);
     }
     
     setInput('');

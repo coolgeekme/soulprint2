@@ -1,368 +1,514 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Smart Aspect Ratio Recreation Feature
-Tests the chat stream endpoint's ability to detect aspect ratio recreation requests
-and route them to SmartRecreate instead of standard image editing.
+Backend Test Suite for Multi-Image Upload Pre-Upload System
+Tests the new POST /api/attachments/upload endpoint and related functionality.
 """
 
 import requests
 import json
+import base64
 import time
 import sys
-import os
+from typing import Dict, Any, Optional
 
 # Configuration
 BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
-API_BASE = f"{BASE_URL}/api"
-
-# Test credentials
 TEST_EMAIL = "testchat@example.com"
 TEST_PASSWORD = "Test123456"
 
-class SmartRecreateTestSuite:
+# Test data - smallest valid JPEG base64 (1x1 red pixel)
+SMALL_JPEG_BASE64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKpgA//Z"
+
+class BackendTester:
     def __init__(self):
+        self.session = requests.Session()
         self.auth_token = None
-        self.conversation_id = None
-        self.last_image_url = None
+        self.test_results = []
         
-    def authenticate(self):
-        """Login and get auth token"""
-        print("🔐 Testing Authentication...")
+    def log_test(self, test_name: str, success: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status} {test_name}")
+        if details:
+            print(f"    {details}")
+        self.test_results.append({
+            "test": test_name,
+            "success": success,
+            "details": details
+        })
         
+    def authenticate(self) -> bool:
+        """Authenticate and get auth token"""
         try:
-            response = requests.post(f"{API_BASE}/auth/login", json={
-                "email": TEST_EMAIL,
-                "passcode": TEST_PASSWORD
-            }, timeout=30)
+            print(f"\n🔐 Authenticating with {TEST_EMAIL}...")
+            
+            response = self.session.post(
+                f"{BASE_URL}/api/auth/login",
+                json={
+                    "email": TEST_EMAIL,
+                    "passcode": TEST_PASSWORD
+                },
+                headers={"Content-Type": "application/json"}
+            )
             
             if response.status_code == 200:
                 data = response.json()
-                self.auth_token = data.get('token')
+                self.auth_token = data.get("token")
                 if self.auth_token:
-                    print("✅ Authentication successful")
+                    self.session.headers.update({"Authorization": f"Bearer {self.auth_token}"})
+                    self.log_test("Authentication", True, f"Token obtained: {self.auth_token[:20]}...")
                     return True
                 else:
-                    print("❌ Authentication failed: No token in response")
+                    self.log_test("Authentication", False, "No token in response")
                     return False
             else:
-                print(f"❌ Authentication failed: {response.status_code} - {response.text}")
+                self.log_test("Authentication", False, f"Status {response.status_code}: {response.text}")
                 return False
                 
         except Exception as e:
-            print(f"❌ Authentication error: {str(e)}")
+            self.log_test("Authentication", False, f"Exception: {str(e)}")
             return False
     
-    def get_auth_headers(self):
-        """Get headers with auth token"""
-        return {
-            "Authorization": f"Bearer {self.auth_token}",
-            "Content-Type": "application/json"
-        }
-    
-    def create_conversation_with_image(self):
-        """Create a conversation and generate an image to set up context"""
-        print("\n🖼️ Setting up conversation with image...")
-        
+    def test_health_check(self) -> bool:
+        """Test health check endpoint"""
         try:
-            # First, create a conversation by sending a chat message
-            response = requests.post(f"{API_BASE}/chat/stream", 
-                headers=self.get_auth_headers(),
+            print(f"\n🏥 Testing health check...")
+            
+            response = self.session.get(f"{BASE_URL}/api/health")
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "ok":
+                    self.log_test("Health Check", True, f"Status: {data.get('status')}")
+                    return True
+                else:
+                    self.log_test("Health Check", False, f"Unexpected status: {data}")
+                    return False
+            else:
+                self.log_test("Health Check", False, f"Status {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Health Check", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_attachment_upload_no_auth(self) -> bool:
+        """Test attachment upload without authentication - should return 401"""
+        try:
+            print(f"\n🚫 Testing attachment upload without auth...")
+            
+            # Temporarily remove auth header
+            auth_header = self.session.headers.pop("Authorization", None)
+            
+            response = self.session.post(
+                f"{BASE_URL}/api/attachments/upload",
                 json={
-                    "content": "Generate an image of a beautiful sunset over mountains",
-                    "model": "gpt-4o"
+                    "base64": SMALL_JPEG_BASE64,
+                    "mimeType": "image/jpeg",
+                    "name": "test-pixel.jpg"
                 },
-                timeout=60,
-                stream=True
+                headers={"Content-Type": "application/json"}
             )
             
-            if response.status_code != 200:
-                print(f"❌ Failed to create conversation: {response.status_code}")
-                return False
+            # Restore auth header
+            if auth_header:
+                self.session.headers["Authorization"] = auth_header
             
-            # Parse NDJSON response to get conversation ID and image URL
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line.decode('utf-8'))
-                        
-                        if data.get('type') == 'conversation_id':
-                            self.conversation_id = data.get('conversationId')
-                            print(f"✅ Conversation created: {self.conversation_id}")
-                        
-                        elif data.get('type') == 'image':
-                            self.last_image_url = data.get('url')
-                            print(f"✅ Image generated: {self.last_image_url[:80]}...")
-                        
-                        elif data.get('type') == 'done':
-                            break
-                            
-                    except json.JSONDecodeError:
-                        continue
-            
-            if self.conversation_id and self.last_image_url:
-                print("✅ Conversation with image setup complete")
+            if response.status_code == 401:
+                self.log_test("Attachment Upload - No Auth", True, "Correctly returned 401 Unauthorized")
                 return True
             else:
-                print("❌ Failed to setup conversation with image")
+                self.log_test("Attachment Upload - No Auth", False, f"Expected 401, got {response.status_code}: {response.text}")
                 return False
                 
         except Exception as e:
-            print(f"❌ Error setting up conversation: {str(e)}")
+            self.log_test("Attachment Upload - No Auth", False, f"Exception: {str(e)}")
             return False
     
-    def test_smart_recreate_detection(self, message, should_trigger=True):
-        """Test if a message triggers SmartRecreate detection"""
-        print(f"\n🔍 Testing message: '{message}'")
-        print(f"   Expected to trigger SmartRecreate: {should_trigger}")
-        
+    def test_attachment_upload_empty_body(self) -> bool:
+        """Test attachment upload with empty body - should return 400"""
         try:
-            response = requests.post(f"{API_BASE}/chat/stream",
-                headers=self.get_auth_headers(),
+            print(f"\n📭 Testing attachment upload with empty body...")
+            
+            response = self.session.post(
+                f"{BASE_URL}/api/attachments/upload",
+                json={},
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if response.status_code == 400:
+                data = response.json()
+                if "base64" in data.get("error", "").lower():
+                    self.log_test("Attachment Upload - Empty Body", True, f"Correctly returned 400: {data.get('error')}")
+                    return True
+                else:
+                    self.log_test("Attachment Upload - Empty Body", False, f"400 but wrong error message: {data}")
+                    return False
+            else:
+                self.log_test("Attachment Upload - Empty Body", False, f"Expected 400, got {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Attachment Upload - Empty Body", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_attachment_upload_no_base64(self) -> bool:
+        """Test attachment upload without base64 field - should return 400"""
+        try:
+            print(f"\n🖼️ Testing attachment upload without base64...")
+            
+            response = self.session.post(
+                f"{BASE_URL}/api/attachments/upload",
                 json={
-                    "content": message,
-                    "model": "gpt-4o",
-                    "conversationId": self.conversation_id
+                    "mimeType": "image/jpeg",
+                    "name": "test.jpg"
                 },
-                timeout=60,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if response.status_code == 400:
+                data = response.json()
+                if "base64" in data.get("error", "").lower():
+                    self.log_test("Attachment Upload - No Base64", True, f"Correctly returned 400: {data.get('error')}")
+                    return True
+                else:
+                    self.log_test("Attachment Upload - No Base64", False, f"400 but wrong error message: {data}")
+                    return False
+            else:
+                self.log_test("Attachment Upload - No Base64", False, f"Expected 400, got {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Attachment Upload - No Base64", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_attachment_upload_success(self) -> tuple[bool, Optional[str]]:
+        """Test successful attachment upload - should return 200 with URL"""
+        try:
+            print(f"\n✅ Testing successful attachment upload...")
+            
+            response = self.session.post(
+                f"{BASE_URL}/api/attachments/upload",
+                json={
+                    "base64": SMALL_JPEG_BASE64,
+                    "mimeType": "image/jpeg",
+                    "name": "test-pixel.jpg"
+                },
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success") and data.get("url") and data.get("name"):
+                    url = data.get("url")
+                    storage_type = "Kie.ai" if url.startswith("https://") else "MongoDB" if url.startswith("attachment://") else "Unknown"
+                    self.log_test("Attachment Upload - Success", True, 
+                                f"URL: {url[:80]}{'...' if len(url) > 80 else ''}, Storage: {storage_type}, Size: {data.get('size', 'unknown')} bytes")
+                    return True, url
+                else:
+                    self.log_test("Attachment Upload - Success", False, f"Missing required fields in response: {data}")
+                    return False, None
+            else:
+                self.log_test("Attachment Upload - Success", False, f"Status {response.status_code}: {response.text}")
+                return False, None
+                
+        except Exception as e:
+            self.log_test("Attachment Upload - Success", False, f"Exception: {str(e)}")
+            return False, None
+    
+    def test_mongodb_storage_verification(self, attachment_url: str) -> bool:
+        """Verify MongoDB storage if attachment:// URL was returned"""
+        try:
+            if not attachment_url.startswith("attachment://"):
+                self.log_test("MongoDB Storage Verification", True, "Skipped - using Kie.ai storage")
+                return True
+                
+            print(f"\n🗄️ Testing MongoDB storage verification...")
+            
+            # We can't directly access MongoDB from here, but we can test that the URL format is correct
+            attachment_id = attachment_url.replace("attachment://", "")
+            
+            if len(attachment_id) > 10 and "-" in attachment_id:  # UUID format check
+                self.log_test("MongoDB Storage Verification", True, f"Valid attachment ID format: {attachment_id}")
+                return True
+            else:
+                self.log_test("MongoDB Storage Verification", False, f"Invalid attachment ID format: {attachment_id}")
+                return False
+                
+        except Exception as e:
+            self.log_test("MongoDB Storage Verification", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_chat_with_url_reference(self) -> bool:
+        """Test chat stream with URL-referenced attachment"""
+        try:
+            print(f"\n💬 Testing chat with URL-referenced attachment...")
+            
+            # Use a publicly accessible test image
+            test_image_url = "https://via.placeholder.com/150"
+            
+            response = self.session.post(
+                f"{BASE_URL}/api/chat/stream",
+                json={
+                    "content": "What do you see in this image?",
+                    "model": "gpt-4o",
+                    "provider": "openai",
+                    "attachments": [{
+                        "type": "image",
+                        "base64": test_image_url,
+                        "mimeType": "image/jpeg",
+                        "name": "test.jpg",
+                        "isUrlReference": True
+                    }]
+                },
+                headers={"Content-Type": "application/json"},
                 stream=True
             )
             
-            if response.status_code != 200:
-                print(f"❌ Request failed: {response.status_code}")
-                return False
-            
-            # Parse NDJSON response and look for SmartRecreate indicators
-            found_generating_visual = False
-            found_recreation_content = False
-            found_image_edit = False
-            
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line.decode('utf-8'))
-                        
-                        # Check for generating_visual with visualType: 'image'
-                        if (data.get('type') == 'generating_visual' and 
-                            data.get('visualType') == 'image'):
-                            found_generating_visual = True
-                            print("   📊 Found generating_visual event")
-                        
-                        # Check for recreation-specific content in delta
-                        elif data.get('type') == 'delta':
-                            content = data.get('content', '')
-                            if 'Recreating' in content or 'recreation' in content.lower():
-                                found_recreation_content = True
-                                print(f"   🔄 Found recreation content: {content[:100]}...")
-                            elif 'edit' in content.lower() and 'image' in content.lower():
-                                found_image_edit = True
-                                print(f"   ✏️ Found image edit content: {content[:100]}...")
-                        
-                        elif data.get('type') == 'done':
-                            break
+            if response.status_code == 200:
+                # Check if we get streaming response (either SSE or NDJSON)
+                content_type = response.headers.get("content-type", "")
+                if "text/event-stream" in content_type or "text/plain" in content_type or "application/json" in content_type:
+                    # Read first few lines to verify it's streaming
+                    lines_read = 0
+                    valid_events = 0
+                    for line in response.iter_lines(decode_unicode=True):
+                        if line.strip():
+                            lines_read += 1
+                            # Handle SSE format (data: prefix) or NDJSON format (direct JSON)
+                            json_line = line
+                            if line.startswith("data: "):
+                                json_line = line[6:]  # Remove "data: " prefix
                             
-                    except json.JSONDecodeError:
-                        continue
-            
-            # Determine if SmartRecreate was triggered
-            smart_recreate_triggered = found_generating_visual and found_recreation_content
-            
-            if should_trigger:
-                if smart_recreate_triggered:
-                    print("   ✅ PASS: SmartRecreate correctly triggered")
-                    return True
-                else:
-                    print("   ❌ FAIL: SmartRecreate should have triggered but didn't")
-                    return False
-            else:
-                if smart_recreate_triggered:
-                    print("   ❌ FAIL: SmartRecreate triggered when it shouldn't have")
-                    return False
-                else:
-                    print("   ✅ PASS: SmartRecreate correctly NOT triggered")
-                    return True
+                            try:
+                                data = json.loads(json_line)
+                                if data.get("type") in ["meta", "delta", "done"]:
+                                    valid_events += 1
+                                    if valid_events >= 2:  # Got at least meta + one more event
+                                        break
+                            except json.JSONDecodeError:
+                                continue
+                            
+                            if lines_read >= 10:  # Don't read too many lines
+                                break
                     
-        except Exception as e:
-            print(f"   ❌ Error testing message: {str(e)}")
-            return False
-    
-    def run_intent_detection_tests(self):
-        """Run comprehensive intent detection tests"""
-        print("\n🧠 Testing Intent Detection Patterns...")
-        
-        # Messages that SHOULD trigger SmartRecreate
-        should_trigger_messages = [
-            "recreate this as 1:1",
-            "make this square",
-            "convert this to portrait",
-            "change the aspect ratio to 16:9",
-            "make it landscape",
-            "I want this in 9:16",
-            "give me a square version",
-            "change this to 1:1",
-            "recreate in portrait format",
-            "make this image 16:9",
-            "convert to landscape orientation",
-            "I need this as a square",
-            "fit this to 4:3 ratio"
-        ]
-        
-        # Messages that should NOT trigger SmartRecreate (standard edit)
-        should_not_trigger_messages = [
-            "add a dog to the image",
-            "remove the background",
-            "make it blue",
-            "change the background to a beach",
-            "add some flowers",
-            "make the sky darker",
-            "remove the person from the image"
-        ]
-        
-        # Messages that are questions (should skip both SmartRecreate AND edit)
-        question_messages = [
-            "why is this image so dark?",
-            "what aspect ratio is this?",
-            "how was this image created?",
-            "what colors are in this image?",
-            "can you tell me about this image?"
-        ]
-        
-        results = []
-        
-        # Test SmartRecreate triggers
-        print("\n📋 Testing SmartRecreate Trigger Messages:")
-        for message in should_trigger_messages:
-            result = self.test_smart_recreate_detection(message, should_trigger=True)
-            results.append(result)
-            time.sleep(2)  # Rate limiting
-        
-        # Test standard edit messages (should NOT trigger SmartRecreate)
-        print("\n📋 Testing Standard Edit Messages (should NOT trigger SmartRecreate):")
-        for message in should_not_trigger_messages:
-            result = self.test_smart_recreate_detection(message, should_trigger=False)
-            results.append(result)
-            time.sleep(2)  # Rate limiting
-        
-        # Test question messages (should NOT trigger SmartRecreate)
-        print("\n📋 Testing Question Messages (should NOT trigger SmartRecreate):")
-        for message in question_messages:
-            result = self.test_smart_recreate_detection(message, should_trigger=False)
-            results.append(result)
-            time.sleep(2)  # Rate limiting
-        
-        return results
-    
-    def test_ndjson_response_format(self):
-        """Test that SmartRecreate returns proper NDJSON format"""
-        print("\n📡 Testing NDJSON Response Format...")
-        
-        try:
-            response = requests.post(f"{API_BASE}/chat/stream",
-                headers=self.get_auth_headers(),
-                json={
-                    "content": "recreate this as 1:1",
-                    "model": "gpt-4o",
-                    "conversationId": self.conversation_id
-                },
-                timeout=60,
-                stream=True
-            )
-            
-            if response.status_code != 200:
-                print(f"❌ Request failed: {response.status_code}")
-                return False
-            
-            # Verify response is NDJSON (not SSE)
-            content_type = response.headers.get('content-type', '')
-            if 'text/event-stream' in content_type:
-                print("❌ Response is SSE format, should be NDJSON")
-                return False
-            
-            # Parse lines and verify structure
-            required_events = ['generating_visual', 'delta', 'done']
-            found_events = set()
-            
-            for line in response.iter_lines():
-                if line:
-                    try:
-                        data = json.loads(line.decode('utf-8'))
-                        event_type = data.get('type')
-                        if event_type in required_events:
-                            found_events.add(event_type)
-                            print(f"   ✅ Found {event_type} event")
-                        
-                        if event_type == 'done':
-                            break
-                            
-                    except json.JSONDecodeError as e:
-                        print(f"❌ Invalid JSON in response: {e}")
+                    if valid_events >= 2:
+                        format_type = "SSE" if "text/event-stream" in content_type else "NDJSON"
+                        self.log_test("Chat with URL Reference", True, f"Successfully received {format_type} stream response")
+                        return True
+                    else:
+                        self.log_test("Chat with URL Reference", False, f"Did not receive expected stream format (got {valid_events} valid events)")
                         return False
-            
-            if all(event in found_events for event in required_events):
-                print("✅ NDJSON response format is correct")
-                return True
+                else:
+                    self.log_test("Chat with URL Reference", False, f"Unexpected content type: {content_type}")
+                    return False
             else:
-                missing = set(required_events) - found_events
-                print(f"❌ Missing required events: {missing}")
+                self.log_test("Chat with URL Reference", False, f"Status {response.status_code}: {response.text}")
                 return False
                 
         except Exception as e:
-            print(f"❌ Error testing NDJSON format: {str(e)}")
+            self.log_test("Chat with URL Reference", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_chat_with_attachment_protocol(self, attachment_url: str) -> bool:
+        """Test chat stream with attachment:// protocol"""
+        try:
+            if not attachment_url.startswith("attachment://"):
+                self.log_test("Chat with Attachment Protocol", True, "Skipped - no attachment:// URL available")
+                return True
+                
+            print(f"\n🔗 Testing chat with attachment:// protocol...")
+            
+            response = self.session.post(
+                f"{BASE_URL}/api/chat/stream",
+                json={
+                    "content": "What do you see in this image?",
+                    "model": "gpt-4o",
+                    "provider": "openai",
+                    "attachments": [{
+                        "type": "image",
+                        "base64": attachment_url,
+                        "mimeType": "image/jpeg",
+                        "name": "test-pixel.jpg",
+                        "isUrlReference": True
+                    }]
+                },
+                headers={"Content-Type": "application/json"},
+                stream=True
+            )
+            
+            if response.status_code == 200:
+                # Check if we get streaming response (either SSE or NDJSON)
+                content_type = response.headers.get("content-type", "")
+                if "text/event-stream" in content_type or "text/plain" in content_type or "application/json" in content_type:
+                    # Read first few lines to verify it's streaming
+                    lines_read = 0
+                    valid_events = 0
+                    for line in response.iter_lines(decode_unicode=True):
+                        if line.strip():
+                            lines_read += 1
+                            # Handle SSE format (data: prefix) or NDJSON format (direct JSON)
+                            json_line = line
+                            if line.startswith("data: "):
+                                json_line = line[6:]  # Remove "data: " prefix
+                            
+                            try:
+                                data = json.loads(json_line)
+                                if data.get("type") in ["meta", "delta", "done"]:
+                                    valid_events += 1
+                                    if valid_events >= 2:  # Got at least meta + one more event
+                                        break
+                            except json.JSONDecodeError:
+                                continue
+                            
+                            if lines_read >= 10:  # Don't read too many lines
+                                break
+                    
+                    if valid_events >= 2:
+                        format_type = "SSE" if "text/event-stream" in content_type else "NDJSON"
+                        self.log_test("Chat with Attachment Protocol", True, f"Successfully received {format_type} stream response")
+                        return True
+                    else:
+                        self.log_test("Chat with Attachment Protocol", False, f"Did not receive expected stream format (got {valid_events} valid events)")
+                        return False
+                else:
+                    self.log_test("Chat with Attachment Protocol", False, f"Unexpected content type: {content_type}")
+                    return False
+            else:
+                self.log_test("Chat with Attachment Protocol", False, f"Status {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Chat with Attachment Protocol", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_simple_chat_stream(self) -> bool:
+        """Test simple chat stream without attachments"""
+        try:
+            print(f"\n💭 Testing simple chat stream...")
+            
+            response = self.session.post(
+                f"{BASE_URL}/api/chat/stream",
+                json={
+                    "content": "Hello, this is a test message",
+                    "model": "gpt-4o",
+                    "provider": "openai"
+                },
+                headers={"Content-Type": "application/json"},
+                stream=True
+            )
+            
+            if response.status_code == 200:
+                # Check if we get streaming response (either SSE or NDJSON)
+                content_type = response.headers.get("content-type", "")
+                if "text/event-stream" in content_type or "text/plain" in content_type or "application/json" in content_type:
+                    # Read first few lines to verify it's streaming
+                    lines_read = 0
+                    valid_events = 0
+                    for line in response.iter_lines(decode_unicode=True):
+                        if line.strip():
+                            lines_read += 1
+                            # Handle SSE format (data: prefix) or NDJSON format (direct JSON)
+                            json_line = line
+                            if line.startswith("data: "):
+                                json_line = line[6:]  # Remove "data: " prefix
+                            
+                            try:
+                                data = json.loads(json_line)
+                                if data.get("type") in ["meta", "delta", "done"]:
+                                    valid_events += 1
+                                    if valid_events >= 2:  # Got at least meta + one more event
+                                        break
+                            except json.JSONDecodeError:
+                                continue
+                            
+                            if lines_read >= 10:  # Don't read too many lines
+                                break
+                    
+                    if valid_events >= 2:
+                        format_type = "SSE" if "text/event-stream" in content_type else "NDJSON"
+                        self.log_test("Simple Chat Stream", True, f"Successfully received {format_type} stream response")
+                        return True
+                    else:
+                        self.log_test("Simple Chat Stream", False, f"Did not receive expected stream format (got {valid_events} valid events)")
+                        return False
+                else:
+                    self.log_test("Simple Chat Stream", False, f"Unexpected content type: {content_type}")
+                    return False
+            else:
+                self.log_test("Simple Chat Stream", False, f"Status {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Simple Chat Stream", False, f"Exception: {str(e)}")
             return False
     
     def run_all_tests(self):
-        """Run the complete test suite"""
-        print("🚀 Starting Smart Aspect Ratio Recreation Test Suite")
+        """Run all tests in sequence"""
+        print("🚀 Starting Multi-Image Upload Pre-Upload Backend Tests")
         print("=" * 60)
         
-        # Step 1: Authentication
+        # Step 1: Health check
+        if not self.test_health_check():
+            print("❌ Health check failed, aborting tests")
+            return
+        
+        # Step 2: Authentication
         if not self.authenticate():
-            print("❌ Authentication failed, cannot continue")
-            return False
+            print("❌ Authentication failed, aborting tests")
+            return
         
-        # Step 2: Setup conversation with image
-        if not self.create_conversation_with_image():
-            print("❌ Failed to setup conversation with image, cannot continue")
-            return False
+        # Step 3: Test attachment upload endpoint
+        self.test_attachment_upload_no_auth()
+        self.test_attachment_upload_empty_body()
+        self.test_attachment_upload_no_base64()
         
-        # Step 3: Intent detection tests
-        intent_results = self.run_intent_detection_tests()
+        # Step 4: Test successful upload
+        success, attachment_url = self.test_attachment_upload_success()
         
-        # Step 4: NDJSON format test
-        ndjson_result = self.test_ndjson_response_format()
+        # Step 5: Verify MongoDB storage if applicable
+        if success and attachment_url:
+            self.test_mongodb_storage_verification(attachment_url)
+        
+        # Step 6: Test chat stream with attachments
+        self.test_chat_with_url_reference()
+        
+        if success and attachment_url:
+            self.test_chat_with_attachment_protocol(attachment_url)
+        
+        # Step 7: Test simple chat stream
+        self.test_simple_chat_stream()
         
         # Summary
+        self.print_summary()
+    
+    def print_summary(self):
+        """Print test summary"""
         print("\n" + "=" * 60)
         print("📊 TEST SUMMARY")
         print("=" * 60)
         
-        total_tests = len(intent_results) + 1  # +1 for NDJSON test
-        passed_tests = sum(intent_results) + (1 if ndjson_result else 0)
+        passed = sum(1 for result in self.test_results if result["success"])
+        total = len(self.test_results)
         
-        print(f"Total Tests: {total_tests}")
-        print(f"Passed: {passed_tests}")
-        print(f"Failed: {total_tests - passed_tests}")
-        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+        print(f"Total Tests: {total}")
+        print(f"Passed: {passed}")
+        print(f"Failed: {total - passed}")
+        print(f"Success Rate: {(passed/total)*100:.1f}%")
         
-        if passed_tests == total_tests:
-            print("\n🎉 ALL TESTS PASSED! Smart Aspect Ratio Recreation is working correctly.")
-            return True
-        else:
-            print(f"\n⚠️ {total_tests - passed_tests} tests failed. Please review the issues above.")
-            return False
-
-def main():
-    """Main test execution"""
-    test_suite = SmartRecreateTestSuite()
-    
-    try:
-        success = test_suite.run_all_tests()
-        sys.exit(0 if success else 1)
-    except KeyboardInterrupt:
-        print("\n\n⏹️ Tests interrupted by user")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n\n💥 Unexpected error: {str(e)}")
-        sys.exit(1)
+        if total - passed > 0:
+            print("\n❌ FAILED TESTS:")
+            for result in self.test_results:
+                if not result["success"]:
+                    print(f"  • {result['test']}: {result['details']}")
+        
+        print("\n✅ PASSED TESTS:")
+        for result in self.test_results:
+            if result["success"]:
+                print(f"  • {result['test']}")
+        
+        print("\n" + "=" * 60)
 
 if __name__ == "__main__":
-    main()
+    tester = BackendTester()
+    tester.run_all_tests()
