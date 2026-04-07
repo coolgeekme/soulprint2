@@ -2,8 +2,8 @@
 
 ## Primary Test Account
 - Email: `test@soulprint.com`
-- Password: `Admin123!`
-- Auth method: Google OAuth (legacy) + password login
+- Password: `test123`
+- Auth method: Google OAuth + password login
 - Role: superadmin
 
 ## Secondary Test Account (email/password)
