@@ -157,3 +157,11 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
   - Tested: 21/21 tests pass — confirmation triggers correctly for both image and video, quick gen bypasses correctly, non-media messages unaffected
   - Applied to both desktop (`page.js`) and mobile (`MobileChat.js`)
   - File: `lib/handlers/chat-stream.js`
+
+- **Multi-Image Composite Fix — Double Generation & Missing Reference (P0)**:
+  - Fixed double image generation when confirmed mediaFlow triggers alongside auto-generation
+  - Added image generation dedup guard (like video already had) — checks if image already exists for assistantMsgId before generating
+  - Made `send()` function safe against closed ReadableStream controllers (prevents crashes)
+  - Fixed Vision analysis limit: expanded from 2 to 4 reference images analyzed by GPT-4o
+  - Strengthened composite prompt: explicitly requires ALL reference images to appear, with individual element descriptions
+  - Fixed URL reference handling through entire pipeline: Vision refinement, Kie.ai pre-upload, and gpt-image-1 reference download all properly handle `http://`, `attachment://`, `data:`, and raw base64
