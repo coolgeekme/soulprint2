@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
-import { generateToken, hashPassword, comparePassword } from '@/lib/auth';
+import { generateToken, hashPassword, comparePassword, getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { sendWelcomeEmail, sendBetaCodeEmail } from '@/lib/email';
 import { ok, err, authenticate, requireAdmin, checkRateLimit } from '@/lib/api-utils';
 
@@ -643,38 +643,64 @@ export async function GET(request, { params }) {
 
 // Handle GET /api/auth/me
 async function handleMe(request) {
-  const user = await authenticate(request);
-  if (!user) return err('Unauthorized', 401);
+  const token = getTokenFromRequest(request);
+  if (!token) return err('Unauthorized', 401);
+  
+  const decoded = verifyToken(token);
+  if (!decoded) return err('Unauthorized', 401);
 
   const db = await getDb();
-  const profile = await db.collection('profiles').findOne({ user_id: user.id });
   
-  // Get connected Google accounts
-  const googleConnections = await db.collection('google_connections')
-    .find({ user_id: user.id })
-    .toArray();
-  
-  const connectedAccounts = googleConnections.map(conn => ({
-    email: conn.email,
-    name: conn.name,
-    picture: conn.picture,
-    is_default: conn.is_default,
-    connection_id: conn.connection_id
-  }));
+  // First try the users collection
+  const user = await db.collection('users').findOne({ id: decoded.userId });
+  if (user) {
+    await db.collection('users').updateOne(
+      { id: decoded.userId },
+      { $set: { last_active_at: new Date() } }
+    );
+    
+    const profile = await db.collection('profiles').findOne({ user_id: user.id });
+    const googleConnections = await db.collection('google_connections')
+      .find({ user_id: user.id })
+      .toArray();
+    
+    const connectedAccounts = googleConnections.map(conn => ({
+      email: conn.email,
+      name: conn.name,
+      picture: conn.picture,
+      is_default: conn.is_default,
+      connection_id: conn.connection_id
+    }));
 
-  return ok({
-    id: user.id,
-    email: user.email,
-    role: user.role,
-    accepted: user.accepted,
-    email_verified: user.email_verified || false,
-    firebase_linked: !!user.firebase_uid,
-    profile: {
-      ...profile,
-      display_name: profile?.display_name || user.display_name,
-    },
-    onboarding_complete: profile?.onboarding_complete || false,
-    assessment_complete: profile?.assessment_complete || false,
-    connected_accounts: connectedAccounts,
-  });
+    return ok({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      accepted: user.accepted,
+      email_verified: user.email_verified || false,
+      firebase_linked: !!user.firebase_uid,
+      profile: {
+        ...profile,
+        display_name: profile?.display_name || user.display_name,
+      },
+      onboarding_complete: profile?.onboarding_complete || false,
+      assessment_complete: profile?.assessment_complete || false,
+      connected_accounts: connectedAccounts,
+    });
+  }
+  
+  // Fallback: check support_agents collection
+  const supportAgent = await db.collection('support_agents').findOne({ id: decoded.userId });
+  if (supportAgent && supportAgent.active) {
+    return ok({
+      id: supportAgent.id,
+      email: supportAgent.email,
+      role: 'support',
+      accepted: true,
+      name: supportAgent.name,
+      profile: { display_name: supportAgent.name },
+    });
+  }
+
+  return err('Unauthorized', 401);
 }

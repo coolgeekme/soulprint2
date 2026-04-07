@@ -5,6 +5,7 @@ import { generateToken, verifyToken, hashPassword, comparePassword, getTokenFrom
 import { getProvider, AVAILABLE_MODELS } from '@/lib/llm/providers';
 import { sendWelcomeEmail, sendAcceptedEmail, sendBetaCodeEmail } from '@/lib/email';
 import { ok, err, authenticate } from '@/lib/api-utils';
+import { handleCreateSupportAgent, handleGetSupportAgents } from '@/lib/handlers/support-tickets';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import {
@@ -5135,6 +5136,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'pricing-features/calculate') return handleAdminCalculatePricing(request);
     if (pathStr === 'voice-sessions') return handleGetVoiceSessions(request);
     if (pathStr === 'support-history') return handleAdminGetSupportHistory(request);
+    if (pathStr === 'support-agents') return handleGetSupportAgents(request);
     if (pathStr === 'blog/posts') return handleAdminGetBlogPosts(request);
     if (pathStr === 'feature-flags') return handleAdminGetFeatureFlags(request);
 
@@ -5170,6 +5172,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'pricing-features') return handleAdminAddPricingFeature(request);
     if (pathStr === 'pricing-features/update') return handleAdminUpdatePricingFeature(request);
     if (pathStr === 'resolve-issue') return handleAdminResolveIssue(request);
+    if (pathStr === 'support-agents') return handleCreateSupportAgent(request);
 
     return err('Admin endpoint not found', 404);
   } catch (error) {

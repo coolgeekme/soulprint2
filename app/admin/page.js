@@ -7,7 +7,7 @@ import {
   UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
   PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar,
-  KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone, LifeBuoy
+  KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone, LifeBuoy, LogIn
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
@@ -5506,184 +5506,666 @@ function SettingsTab({ token }) {
   );
 }
 
-// Support Tab - Resolve Issues & Notify Users
-function SupportTab({ token }) {
-  const [userEmail, setUserEmail] = useState('');
-  const [conversationId, setConversationId] = useState('');
-  const [message, setMessage] = useState('');
-  const [subjectSuffix, setSubjectSuffix] = useState('Your reported issue has been resolved');
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState(null);
-  const [history, setHistory] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
+// Support Tab — AI-Assisted Ticketing System
+function SupportTab({ token, adminRole }) {
+  const [subTab, setSubTab] = useState('tickets');
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [diagnosing, setDiagnosing] = useState(null);
+  const [approving, setApproving] = useState(null);
 
-  // Load resolution history
-  useEffect(() => {
-    const loadHistory = async () => {
-      try {
-        const res = await fetch('/api/admin/support-history', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setHistory(data.resolutions || []);
-        }
-      } catch {}
-      setLoadingHistory(false);
-    };
-    if (token) loadHistory();
-  }, [token]);
+  // Create ticket form state
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ user_email: '', user_name: '', subject: '', description: '' });
+  const [creating, setCreating] = useState(false);
 
-  const handleResolve = async () => {
-    if (!userEmail || !message) return;
-    setSending(true);
-    setResult(null);
+  // Support agent management (superadmin)
+  const [agents, setAgents] = useState([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [showAgentForm, setShowAgentForm] = useState(false);
+  const [agentForm, setAgentForm] = useState({ name: '', email: '', password: '' });
+  const [creatingAgent, setCreatingAgent] = useState(false);
+
+  // Resolve & Notify (legacy functionality preserved)
+  const [resolveEmail, setResolveEmail] = useState('');
+  const [resolveConvId, setResolveConvId] = useState('');
+  const [resolveMsg, setResolveMsg] = useState('');
+  const [resolveSubject, setResolveSubject] = useState('Your reported issue has been resolved');
+  const [resolveSending, setResolveSending] = useState(false);
+  const [resolveResult, setResolveResult] = useState(null);
+
+  const fetchTickets = async () => {
+    setLoading(true);
+    try {
+      let url = '/api/support/tickets';
+      if (statusFilter) url += `?status=${statusFilter}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setTickets(data.tickets || []);
+    } catch (e) { console.error('Failed to load tickets', e); }
+    setLoading(false);
+  };
+
+  const fetchAgents = async () => {
+    setLoadingAgents(true);
+    try {
+      const res = await fetch('/api/admin/support-agents', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setAgents(data.agents || []);
+    } catch (e) { console.error('Failed to load agents', e); }
+    setLoadingAgents(false);
+  };
+
+  useEffect(() => { fetchTickets(); }, [statusFilter]);
+  useEffect(() => { if (subTab === 'agents') fetchAgents(); }, [subTab]);
+
+  const handleCreateTicket = async () => {
+    if (!createForm.description) return alert('Paste the email or describe the issue');
+    setCreating(true);
+    try {
+      const res = await fetch('/api/support/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(createForm),
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); setCreating(false); return; }
+      setShowCreate(false);
+      setCreateForm({ user_email: '', user_name: '', subject: '', description: '' });
+      fetchTickets();
+    } catch (e) { alert('Failed to create ticket'); }
+    setCreating(false);
+  };
+
+  const handleDiagnose = async (ticketId) => {
+    setDiagnosing(ticketId);
+    try {
+      const res = await fetch(`/api/support/tickets/${ticketId}/diagnose`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); } else {
+        setSelectedTicket(data.ticket);
+        fetchTickets();
+      }
+    } catch (e) { alert('Diagnosis failed'); }
+    setDiagnosing(null);
+  };
+
+  const handleApproveFix = async (ticketId) => {
+    if (!confirm('Apply this fix to the database? This action will modify user data.')) return;
+    setApproving(ticketId);
+    try {
+      const res = await fetch(`/api/support/tickets/${ticketId}/approve-fix`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); } else {
+        setSelectedTicket(data.ticket);
+        fetchTickets();
+      }
+    } catch (e) { alert('Fix approval failed'); }
+    setApproving(null);
+  };
+
+  const handleUpdateStatus = async (ticketId, status) => {
+    try {
+      const res = await fetch(`/api/support/tickets/${ticketId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (data.ticket) { setSelectedTicket(data.ticket); fetchTickets(); }
+    } catch (e) { alert('Failed to update'); }
+  };
+
+  const handleCreateAgent = async () => {
+    if (!agentForm.name || !agentForm.email || !agentForm.password) return alert('All fields required');
+    setCreatingAgent(true);
+    try {
+      const res = await fetch('/api/admin/support-agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(agentForm),
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); } else {
+        setShowAgentForm(false);
+        setAgentForm({ name: '', email: '', password: '' });
+        fetchAgents();
+      }
+    } catch (e) { alert('Failed to create agent'); }
+    setCreatingAgent(false);
+  };
+
+  const handleResolveNotify = async () => {
+    if (!resolveEmail || !resolveMsg) return;
+    setResolveSending(true);
+    setResolveResult(null);
     try {
       const res = await fetch('/api/admin/resolve-issue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          user_email: userEmail,
-          conversation_id: conversationId || undefined,
-          message,
-          subject_suffix: subjectSuffix,
-        }),
+        body: JSON.stringify({ user_email: resolveEmail, conversation_id: resolveConvId || undefined, message: resolveMsg, subject_suffix: resolveSubject }),
       });
       const data = await res.json();
-      setResult(data);
-      if (data.success) {
-        // Add to history
-        setHistory(prev => [{ user_email: userEmail, conversation_id: conversationId, message, created_at: new Date().toISOString(), results: data.results }, ...prev]);
-        // Clear form
-        setUserEmail('');
-        setConversationId('');
-        setMessage('');
-      }
-    } catch (e) {
-      setResult({ success: false, message: e.message });
-    }
-    setSending(false);
+      setResolveResult(data);
+      if (data.success) { setResolveEmail(''); setResolveConvId(''); setResolveMsg(''); }
+    } catch (e) { setResolveResult({ success: false, message: e.message }); }
+    setResolveSending(false);
   };
+
+  const statusColors = {
+    new: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    diagnosing: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    diagnosed: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    fix_pending: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+    fix_approved: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
+    fix_applied: 'bg-green-500/20 text-green-400 border-green-500/30',
+    needs_development: 'bg-red-500/20 text-red-400 border-red-500/30',
+    resolved: 'bg-green-500/20 text-green-300 border-green-500/30',
+    closed: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  };
+
+  const fixTypeLabels = {
+    data_fix: { label: 'Data Fix', color: 'text-green-400 bg-green-500/10 border-green-500/30', icon: '🔧' },
+    code_fix: { label: 'Needs Development', color: 'text-red-400 bg-red-500/10 border-red-500/30', icon: '💻' },
+    user_action: { label: 'User Action Required', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30', icon: '👤' },
+    no_fix: { label: 'No Fix Needed', color: 'text-gray-400 bg-gray-500/10 border-gray-500/30', icon: '✅' },
+  };
+
+  const subTabs = [
+    { id: 'tickets', label: 'Tickets', icon: FileText },
+    { id: 'resolve', label: 'Resolve & Notify', icon: Send },
+    ...(adminRole === 'superadmin' ? [{ id: 'agents', label: 'Support Agents', icon: Users }] : []),
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Resolve Issue Form */}
-      <div className="bg-[#111] border border-white/8 rounded-xl p-5">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center">
-            <LifeBuoy className="w-5 h-5 text-green-400" />
-          </div>
-          <div>
-            <h3 className="text-white font-bold text-base">Resolve Issue & Notify User</h3>
-            <p className="text-gray-500 text-xs">Send resolution notice via email, in-app popup, and conversation message</p>
-          </div>
-        </div>
-        
-        <div className="space-y-4">
-          {/* User Email */}
-          <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1.5">User Email *</label>
-            <input
-              type="email"
-              value={userEmail}
-              onChange={e => setUserEmail(e.target.value)}
-              placeholder="user@example.com"
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors"
-            />
-          </div>
+      {/* Sub-tabs */}
+      <div className="flex gap-2 border-b border-white/10 pb-3">
+        {subTabs.map(st => {
+          const Icon = st.icon;
+          return (
+            <button key={st.id} onClick={() => setSubTab(st.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${subTab === st.id ? 'bg-orange-500/15 text-orange-400 border border-orange-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}`}>
+              <Icon className="w-4 h-4" /> {st.label}
+            </button>
+          );
+        })}
+      </div>
 
-          {/* Conversation ID */}
-          <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1.5">Conversation ID <span className="text-gray-600">(optional — to inject message in chat)</span></label>
-            <input
-              value={conversationId}
-              onChange={e => setConversationId(e.target.value)}
-              placeholder="e.g. 495341f5-22d9-4931-9286-efee08199374"
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors font-mono"
-            />
-          </div>
+      {/* ═══ TICKETS SUB-TAB ═══ */}
+      {subTab === 'tickets' && (
+        <>
+          {/* Ticket Detail Modal */}
+          {selectedTicket && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-[#141a21] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between p-5 border-b border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
+                      <Cpu className="w-5 h-5 text-orange-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-white font-bold text-base">{selectedTicket.subject}</h3>
+                      <p className="text-gray-500 text-xs font-mono">{selectedTicket.id?.slice(0, 8)}...</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedTicket(null)} className="text-gray-500 hover:text-white p-1.5 rounded-lg hover:bg-white/10">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
 
-          {/* Email Subject */}
-          <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1.5">Email Subject Line</label>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-600 whitespace-nowrap">[SoulPrint Engine Support]</span>
-              <input
-                value={subjectSuffix}
-                onChange={e => setSubjectSuffix(e.target.value)}
-                className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors"
-              />
-            </div>
-          </div>
+                <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                  {/* Status & Meta */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`text-[11px] px-2.5 py-1 rounded-full border font-bold ${statusColors[selectedTicket.status] || 'bg-gray-500/20 text-gray-400'}`}>
+                      {selectedTicket.status?.replace(/_/g, ' ').toUpperCase()}
+                    </span>
+                    {selectedTicket.fix_type && fixTypeLabels[selectedTicket.fix_type] && (
+                      <span className={`text-[11px] px-2.5 py-1 rounded-full border font-bold ${fixTypeLabels[selectedTicket.fix_type].color}`}>
+                        {fixTypeLabels[selectedTicket.fix_type].icon} {fixTypeLabels[selectedTicket.fix_type].label}
+                      </span>
+                    )}
+                    {selectedTicket.category && (
+                      <span className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 text-gray-400 border border-white/10">
+                        {selectedTicket.category}
+                      </span>
+                    )}
+                  </div>
 
-          {/* Resolution Message */}
-          <div>
-            <label className="block text-xs font-medium text-gray-400 mb-1.5">Resolution Message *</label>
-            <textarea
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              placeholder="Describe what was fixed and any next steps for the user..."
-              rows={4}
-              className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors resize-none"
-            />
-          </div>
+                  {/* Original Issue */}
+                  <div className="bg-black/30 rounded-xl p-4 border border-white/5">
+                    <h4 className="text-xs font-bold text-gray-500 tracking-widest uppercase mb-2">Original Issue</h4>
+                    <p className="text-sm text-gray-300 whitespace-pre-wrap">{selectedTicket.description}</p>
+                    <div className="flex flex-wrap gap-3 mt-3 text-[10px] text-gray-600">
+                      {selectedTicket.user_email && <span>📧 {selectedTicket.user_email}</span>}
+                      {selectedTicket.user_name && <span>👤 {selectedTicket.user_name}</span>}
+                      <span>📅 {new Date(selectedTicket.created_at).toLocaleString()}</span>
+                      <span>📋 {selectedTicket.source}</span>
+                    </div>
+                  </div>
 
-          {/* Notification Channels Preview */}
-          <div className="flex flex-wrap gap-2 text-xs">
-            <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">📧 Email</span>
-            <span className="px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">🔔 In-App Popup</span>
-            {conversationId && <span className="px-2.5 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">💬 Conversation Message</span>}
-          </div>
+                  {/* User Data Found */}
+                  {selectedTicket.user_data && (
+                    <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+                      <h4 className="text-xs font-bold text-blue-400 tracking-widest uppercase mb-2">User Found in System</h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                        <div><span className="text-gray-600">Email:</span> <span className="text-white">{selectedTicket.user_data.email}</span></div>
+                        <div><span className="text-gray-600">Name:</span> <span className="text-white">{selectedTicket.user_data.name || '—'}</span></div>
+                        <div><span className="text-gray-600">Role:</span> <span className="text-white">{selectedTicket.user_data.role}</span></div>
+                        <div><span className="text-gray-600">Accepted:</span> <span className={selectedTicket.user_data.accepted ? 'text-green-400' : 'text-red-400'}>{selectedTicket.user_data.accepted ? 'Yes' : 'No'}</span></div>
+                      </div>
+                    </div>
+                  )}
 
-          {/* Submit Button */}
-          <button
-            onClick={handleResolve}
-            disabled={sending || !userEmail || !message}
-            className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            {sending ? 'Sending Notifications...' : 'Resolve & Notify User'}
-          </button>
+                  {/* AI Diagnosis */}
+                  {selectedTicket.diagnosis && (
+                    <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4">
+                      <h4 className="text-xs font-bold text-purple-400 tracking-widest uppercase mb-3">🤖 AI Diagnosis</h4>
+                      <p className="text-sm text-gray-300 mb-3">{selectedTicket.diagnosis}</p>
+                      {selectedTicket.suggested_fix && (
+                        <div className="mt-3 bg-black/20 rounded-lg p-3">
+                          <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase mb-1">Suggested Fix</p>
+                          <p className="text-sm text-green-300">{selectedTicket.suggested_fix}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-          {/* Result */}
-          {result && (
-            <div className={`p-4 rounded-lg border ${result.success ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
-              <p className={`text-sm font-medium ${result.success ? 'text-green-400' : 'text-red-400'}`}>
-                {result.success ? '✅ ' : '❌ '}{result.message}
-              </p>
+                  {/* DB Findings */}
+                  {selectedTicket.db_findings && Object.keys(selectedTicket.db_findings).length > 0 && (
+                    <div className="bg-white/3 border border-white/10 rounded-xl p-4">
+                      <h4 className="text-xs font-bold text-gray-500 tracking-widest uppercase mb-2">📊 Database Findings</h4>
+                      <pre className="text-[11px] text-gray-400 overflow-x-auto max-h-48 overflow-y-auto bg-black/30 rounded-lg p-3 font-mono">
+                        {JSON.stringify(selectedTicket.db_findings, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Fix Actions (if data_fix) */}
+                  {selectedTicket.fix_type === 'data_fix' && selectedTicket.fix_actions?.length > 0 && (
+                    <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
+                      <h4 className="text-xs font-bold text-green-400 tracking-widest uppercase mb-3">🔧 Proposed Data Fix Actions</h4>
+                      <div className="space-y-2">
+                        {selectedTicket.fix_actions.map((action, i) => (
+                          <div key={i} className="flex items-start gap-2 bg-black/20 rounded-lg p-3">
+                            <span className="text-green-400 text-xs font-bold mt-0.5">{i + 1}.</span>
+                            <div className="flex-1">
+                              <p className="text-sm text-green-300">{action.description}</p>
+                              <p className="text-[10px] text-gray-600 mt-1 font-mono">{action.type}: {action.collection}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fix Results (if applied) */}
+                  {selectedTicket.fix_results && (
+                    <div className="bg-teal-500/5 border border-teal-500/20 rounded-xl p-4">
+                      <h4 className="text-xs font-bold text-teal-400 tracking-widest uppercase mb-2">Fix Results</h4>
+                      {selectedTicket.fix_results.map((r, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs mb-1">
+                          <span className={r.success ? 'text-green-400' : 'text-red-400'}>{r.success ? '✅' : '❌'}</span>
+                          <span className="text-gray-300">{r.action}</span>
+                          {r.error && <span className="text-red-400">— {r.error}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Suggested User Response */}
+                  {selectedTicket.diagnosis && (
+                    <div className="bg-white/3 border border-white/10 rounded-xl p-4">
+                      <h4 className="text-xs font-bold text-gray-500 tracking-widest uppercase mb-2">📧 Suggested User Response</h4>
+                      <p className="text-sm text-gray-300 italic">
+                        {(() => {
+                          try {
+                            // Try to parse if diagnosis has user_response embedded
+                            return selectedTicket.user_response || 'AI will suggest a response after diagnosis.';
+                          } catch { return 'AI will suggest a response after diagnosis.'; }
+                        })()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="p-5 border-t border-white/10 flex flex-wrap gap-2">
+                  {selectedTicket.status === 'new' && (
+                    <button onClick={() => handleDiagnose(selectedTicket.id)} disabled={diagnosing === selectedTicket.id}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50">
+                      {diagnosing === selectedTicket.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cpu className="w-4 h-4" />}
+                      {diagnosing === selectedTicket.id ? 'Diagnosing...' : 'Run AI Diagnosis'}
+                    </button>
+                  )}
+                  {selectedTicket.fix_type === 'data_fix' && selectedTicket.status === 'diagnosed' && adminRole === 'superadmin' && (
+                    <button onClick={() => handleApproveFix(selectedTicket.id)} disabled={approving === selectedTicket.id}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-50">
+                      {approving === selectedTicket.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                      {approving === selectedTicket.id ? 'Applying...' : 'Approve & Apply Fix'}
+                    </button>
+                  )}
+                  {selectedTicket.status === 'fix_applied' && (
+                    <button onClick={() => handleUpdateStatus(selectedTicket.id, 'resolved')}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium">
+                      <Check className="w-4 h-4" /> Mark Resolved
+                    </button>
+                  )}
+                  {!['closed', 'resolved'].includes(selectedTicket.status) && (
+                    <button onClick={() => handleUpdateStatus(selectedTicket.id, 'closed')}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-gray-400 rounded-lg text-sm font-medium border border-white/10">
+                      <X className="w-4 h-4" /> Close Ticket
+                    </button>
+                  )}
+                  <button onClick={() => setSelectedTicket(null)}
+                    className="ml-auto px-4 py-2.5 text-gray-500 hover:text-white text-sm">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Resolution History */}
-      <div className="bg-[#111] border border-white/8 rounded-xl p-5">
-        <h3 className="text-white font-bold text-base mb-4">Recent Resolutions</h3>
-        {loadingHistory ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 text-gray-500 animate-spin" /></div>
-        ) : history.length === 0 ? (
-          <p className="text-gray-600 text-sm text-center py-6">No resolutions yet</p>
-        ) : (
-          <div className="space-y-3">
-            {history.slice(0, 10).map((item, idx) => (
-              <div key={idx} className="p-3 bg-black/30 rounded-lg border border-white/5">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-white font-medium">{item.user_email}</span>
-                  <span className="text-[10px] text-gray-600">{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</span>
+          {/* Header + Create Button */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-purple-400" /> AI Support Tickets
+              </h2>
+              <p className="text-gray-500 text-xs mt-1">Paste user emails for AI-powered diagnosis and automated fixes</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={fetchTickets} className="p-2.5 bg-[#111] border border-white/10 rounded-xl text-gray-500 hover:text-white transition-colors">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button onClick={() => setShowCreate(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-all">
+                <Plus className="w-4 h-4" /> New Ticket
+              </button>
+            </div>
+          </div>
+
+          {/* Create Ticket Form */}
+          {showCreate && (
+            <div className="bg-[#111] border border-orange-500/20 rounded-xl p-5 space-y-4">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
+                  <Mail className="w-4 h-4 text-orange-400" />
                 </div>
-                <p className="text-xs text-gray-400 line-clamp-2">{item.message}</p>
-                {item.results && (
-                  <div className="flex gap-2 mt-1.5">
-                    <span className={`text-[10px] ${item.results.email ? 'text-green-500' : 'text-red-500'}`}>Email {item.results.email ? '✓' : '✗'}</span>
-                    <span className={`text-[10px] ${item.results.notification ? 'text-green-500' : 'text-red-500'}`}>In-app {item.results.notification ? '✓' : '✗'}</span>
-                    <span className={`text-[10px] ${item.results.conversation_message ? 'text-green-500' : 'text-red-500'}`}>Chat {item.results.conversation_message ? '✓' : '✗'}</span>
-                  </div>
-                )}
+                <h3 className="text-white font-bold">Paste User Email / Issue</h3>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">User Email</label>
+                  <input type="email" value={createForm.user_email} onChange={e => setCreateForm({ ...createForm, user_email: e.target.value })}
+                    placeholder="user@example.com"
+                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-orange-500/40 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">User Name (optional)</label>
+                  <input value={createForm.user_name} onChange={e => setCreateForm({ ...createForm, user_name: e.target.value })}
+                    placeholder="John Doe"
+                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-orange-500/40 outline-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Subject (auto-generated if empty)</label>
+                <input value={createForm.subject} onChange={e => setCreateForm({ ...createForm, subject: e.target.value })}
+                  placeholder="Brief summary of the issue"
+                  className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-orange-500/40 outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Paste email or describe the issue *</label>
+                <textarea value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })}
+                  placeholder="Paste the full support email here, or describe the problem..."
+                  rows={6}
+                  className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-orange-500/40 outline-none resize-none" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleCreateTicket} disabled={creating || !createForm.description}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-all">
+                  {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  {creating ? 'Creating...' : 'Create Ticket'}
+                </button>
+                <button onClick={() => setShowCreate(false)} className="px-4 py-2.5 bg-white/5 text-gray-400 rounded-lg text-sm hover:bg-white/10">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Status Filters */}
+          <div className="flex flex-wrap gap-2">
+            {['', 'new', 'diagnosing', 'diagnosed', 'needs_development', 'fix_applied', 'resolved', 'closed'].map(s => (
+              <button key={s} onClick={() => setStatusFilter(s)}
+                className={`text-[11px] px-3 py-1.5 rounded-lg font-medium transition-all ${statusFilter === s ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40' : 'bg-white/5 text-gray-500 border border-white/10 hover:bg-white/10'}`}>
+                {s === '' ? 'All' : s.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </button>
             ))}
           </div>
-        )}
-      </div>
+
+          {/* Ticket List */}
+          {loading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-orange-500" /></div>
+          ) : tickets.length === 0 ? (
+            <div className="text-center py-16 text-gray-600">
+              <LifeBuoy className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No support tickets yet</p>
+              <p className="text-xs mt-1">Click "New Ticket" to paste a user email for AI diagnosis</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {tickets.map(ticket => (
+                <div key={ticket.id}
+                  className="bg-[#111] border border-white/8 rounded-xl px-5 py-4 hover:border-white/15 transition-colors cursor-pointer"
+                  onClick={() => setSelectedTicket(ticket)}>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="text-white text-sm font-medium truncate">{ticket.subject}</h4>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${statusColors[ticket.status] || 'bg-gray-500/20 text-gray-400'}`}>
+                          {ticket.status?.replace(/_/g, ' ')}
+                        </span>
+                        {ticket.fix_type && fixTypeLabels[ticket.fix_type] && (
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${fixTypeLabels[ticket.fix_type].color}`}>
+                            {fixTypeLabels[ticket.fix_type].icon} {fixTypeLabels[ticket.fix_type].label}
+                          </span>
+                        )}
+                        {ticket.category && (
+                          <span className="text-[10px] text-gray-600">{ticket.category}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <div className="text-right">
+                        <p className="text-xs text-gray-400">{ticket.user_email || 'No email'}</p>
+                        <p className="text-[10px] text-gray-600">{ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : '—'}</p>
+                      </div>
+                      {ticket.status === 'new' && (
+                        <button onClick={(e) => { e.stopPropagation(); handleDiagnose(ticket.id); }}
+                          disabled={diagnosing === ticket.id}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-purple-500/15 border border-purple-500/30 text-purple-400 text-xs rounded-lg hover:bg-purple-500/25 transition-colors font-medium disabled:opacity-50">
+                          {diagnosing === ticket.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Cpu className="w-3 h-3" />}
+                          Diagnose
+                        </button>
+                      )}
+                      {ticket.fix_type === 'data_fix' && ticket.status === 'diagnosed' && adminRole === 'superadmin' && (
+                        <button onClick={(e) => { e.stopPropagation(); handleApproveFix(ticket.id); }}
+                          disabled={approving === ticket.id}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-green-500/15 border border-green-500/30 text-green-400 text-xs rounded-lg hover:bg-green-500/25 transition-colors font-medium disabled:opacity-50">
+                          {approving === ticket.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                          Approve
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ═══ RESOLVE & NOTIFY SUB-TAB ═══ */}
+      {subTab === 'resolve' && (
+        <div className="space-y-6">
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-9 h-9 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center justify-center">
+                <LifeBuoy className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-base">Resolve Issue & Notify User</h3>
+                <p className="text-gray-500 text-xs">Send resolution notice via email, in-app popup, and conversation message</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">User Email *</label>
+                <input type="email" value={resolveEmail} onChange={e => setResolveEmail(e.target.value)} placeholder="user@example.com"
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Conversation ID <span className="text-gray-600">(optional)</span></label>
+                <input value={resolveConvId} onChange={e => setResolveConvId(e.target.value)} placeholder="e.g. 495341f5-22d9-..."
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors font-mono" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Email Subject</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-600 whitespace-nowrap">[SoulPrint Engine Support]</span>
+                  <input value={resolveSubject} onChange={e => setResolveSubject(e.target.value)}
+                    className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Resolution Message *</label>
+                <textarea value={resolveMsg} onChange={e => setResolveMsg(e.target.value)} placeholder="Describe what was fixed..."
+                  rows={4} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:border-green-500/50 focus:outline-none transition-colors resize-none" />
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">📧 Email</span>
+                <span className="px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">🔔 In-App Popup</span>
+                {resolveConvId && <span className="px-2.5 py-1 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">💬 Chat Message</span>}
+              </div>
+              <button onClick={handleResolveNotify} disabled={resolveSending || !resolveEmail || !resolveMsg}
+                className="w-full py-3 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {resolveSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {resolveSending ? 'Sending...' : 'Resolve & Notify User'}
+              </button>
+              {resolveResult && (
+                <div className={`p-4 rounded-lg border ${resolveResult.success ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                  <p className={`text-sm font-medium ${resolveResult.success ? 'text-green-400' : 'text-red-400'}`}>
+                    {resolveResult.success ? '✅ ' : '❌ '}{resolveResult.message}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ SUPPORT AGENTS SUB-TAB (Superadmin Only) ═══ */}
+      {subTab === 'agents' && adminRole === 'superadmin' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-400" /> Support Agents
+              </h2>
+              <p className="text-gray-500 text-xs mt-1">Manage support team members who can triage tickets</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={fetchAgents} className="p-2.5 bg-[#111] border border-white/10 rounded-xl text-gray-500 hover:text-white transition-colors">
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button onClick={() => setShowAgentForm(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-all">
+                <Plus className="w-4 h-4" /> Add Agent
+              </button>
+            </div>
+          </div>
+
+          {showAgentForm && (
+            <div className="bg-[#111] border border-blue-500/20 rounded-xl p-5 space-y-4">
+              <h3 className="text-white font-bold">Create Support Agent</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Name *</label>
+                  <input value={agentForm.name} onChange={e => setAgentForm({ ...agentForm, name: e.target.value })} placeholder="Jane Smith"
+                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/40 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Email *</label>
+                  <input type="email" value={agentForm.email} onChange={e => setAgentForm({ ...agentForm, email: e.target.value })} placeholder="support@example.com"
+                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/40 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Password *</label>
+                  <input type="password" value={agentForm.password} onChange={e => setAgentForm({ ...agentForm, password: e.target.value })} placeholder="••••••••"
+                    className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500/40 outline-none" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleCreateAgent} disabled={creatingAgent}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                  {creatingAgent ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  {creatingAgent ? 'Creating...' : 'Create Agent'}
+                </button>
+                <button onClick={() => setShowAgentForm(false)} className="px-4 py-2 bg-white/5 text-gray-400 rounded-lg text-sm hover:bg-white/10">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {loadingAgents ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
+          ) : agents.length === 0 ? (
+            <div className="text-center py-16 text-gray-600">
+              <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No support agents yet</p>
+              <p className="text-xs mt-1">Create agents who can log in to triage support tickets</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {agents.map(agent => (
+                <div key={agent.id} className="bg-[#111] border border-white/8 rounded-xl px-5 py-4 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-blue-500/15 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm flex-shrink-0">
+                    {(agent.name || agent.email || '?').charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium">{agent.name}</p>
+                    <p className="text-gray-500 text-xs truncate">{agent.email}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${agent.active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {agent.active ? 'Active' : 'Inactive'}
+                    </span>
+                    {agent.last_login && <p className="text-[10px] text-gray-600 mt-1">Last: {new Date(agent.last_login).toLocaleDateString()}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+            <p className="text-blue-400 text-xs font-medium mb-1">ℹ️ Support Agent Login</p>
+            <p className="text-gray-500 text-xs">
+              Support agents log in via <code className="text-blue-300 bg-blue-500/10 px-1 py-0.5 rounded text-[11px]">POST /api/support/login</code> with their email and password.
+              They can only access the Support tab — they cannot view Feature Flags, Settings, or other admin areas.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -5753,22 +6235,84 @@ export default function AdminPage() {
     }
   };
 
+  // Support login state
+  const [showSupportLogin, setShowSupportLogin] = useState(false);
+  const [supportEmail, setSupportEmail] = useState('');
+  const [supportPassword, setSupportPassword] = useState('');
+  const [supportLoginError, setSupportLoginError] = useState('');
+  const [supportLoginLoading, setSupportLoginLoading] = useState(false);
+
+  const handleSupportLogin = async () => {
+    if (!supportEmail || !supportPassword) return;
+    setSupportLoginLoading(true);
+    setSupportLoginError('');
+    try {
+      const res = await fetch('/api/support/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: supportEmail, password: supportPassword }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setSupportLoginError(data.error);
+      } else if (data.token) {
+        localStorage.setItem('sp_token', data.token);
+        setToken(data.token);
+        setAdminRole('support');
+        setActiveTab('support');
+        setShowSupportLogin(false);
+        setLoading(false);
+      }
+    } catch (e) {
+      setSupportLoginError('Login failed. Please try again.');
+    }
+    setSupportLoginLoading(false);
+  };
+
   useEffect(() => {
+    // Check URL params for support login mode
+    const params = new URLSearchParams(window.location.search);
+    const isSupportMode = params.get('role') === 'support';
+
     const t = localStorage.getItem('sp_token');
-    if (!t) { router.push('/auth'); return; }
+    if (!t) {
+      if (isSupportMode) {
+        setShowSupportLogin(true);
+        setLoading(false);
+        return;
+      }
+      router.push('/auth');
+      return;
+    }
     setToken(t);
 
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${t}` } })
       .then(r => r.json())
       .then(d => {
-        if (!['admin', 'superadmin'].includes(d.role)) {
+        if (!['admin', 'superadmin', 'support'].includes(d.role)) {
+          if (isSupportMode) {
+            // Token is for a non-support user, show support login
+            localStorage.removeItem('sp_token');
+            setShowSupportLogin(true);
+            setLoading(false);
+            return;
+          }
           router.push('/chat');
           return;
         }
         setAdminRole(d.role);
+        // Support role defaults to the support tab
+        if (d.role === 'support') setActiveTab('support');
         setLoading(false);
       })
-      .catch(() => router.push('/auth'));
+      .catch(() => {
+        if (isSupportMode) {
+          setShowSupportLogin(true);
+          setLoading(false);
+        } else {
+          router.push('/auth');
+        }
+      });
 
     loadMetrics(t);
   }, []);
@@ -5791,6 +6335,57 @@ export default function AdminPage() {
       </div>
     );
   }
+
+  // Support Login Screen
+  if (showSupportLogin) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-orange-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center mb-4">
+              <LifeBuoy className="w-8 h-8 text-orange-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-1">Support Portal</h1>
+            <p className="text-gray-500 text-sm">Sign in to triage and diagnose user issues</p>
+          </div>
+          <div className="bg-[#111] border border-white/10 rounded-2xl p-6 space-y-4">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5">Email</label>
+              <input type="email" value={supportEmail} onChange={e => setSupportEmail(e.target.value)}
+                placeholder="support@example.com"
+                onKeyDown={e => e.key === 'Enter' && handleSupportLogin()}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-orange-500/50 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5">Password</label>
+              <input type="password" value={supportPassword} onChange={e => setSupportPassword(e.target.value)}
+                placeholder="••••••••"
+                onKeyDown={e => e.key === 'Enter' && handleSupportLogin()}
+                className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-3 text-sm text-white placeholder-gray-600 focus:border-orange-500/50 outline-none" />
+            </div>
+            {supportLoginError && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+                {supportLoginError}
+              </div>
+            )}
+            <button onClick={handleSupportLogin} disabled={supportLoginLoading || !supportEmail || !supportPassword}
+              className="w-full py-3 rounded-lg bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-white font-semibold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+              {supportLoginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+              {supportLoginLoading ? 'Signing in...' : 'Sign In'}
+            </button>
+          </div>
+          <p className="text-center text-gray-600 text-xs mt-6">
+            Not a support agent? <a href="/auth" className="text-orange-400 hover:text-orange-300">Sign in as admin</a>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Filter tabs by role — support users only see the Support tab
+  const visibleTabs = adminRole === 'support' 
+    ? TABS.filter(t => t.id === 'support')
+    : TABS;
 
   // Cost by model table helper
   const costByModelEntries = metrics?.cost_by_model
@@ -5817,7 +6412,7 @@ export default function AdminPage() {
             onChange={(e) => setActiveTab(e.target.value)}
             className="bg-[#111] border border-white/10 rounded-lg px-3 py-2 text-xs text-white"
           >
-            {TABS.map(tab => (
+            {visibleTabs.map(tab => (
               <option key={tab.id} value={tab.id}>{tab.label}</option>
             ))}
           </select>
@@ -5836,7 +6431,7 @@ export default function AdminPage() {
           </span>
         </div>
         <nav className="flex-1 p-2">
-          {TABS.map(tab => {
+          {visibleTabs.map(tab => {
             const Icon = tab.icon;
             const isWaitlist = tab.id === 'waitlist';
             return (
@@ -5870,7 +6465,7 @@ export default function AdminPage() {
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-                {TABS.find(t => t.id === activeTab)?.label}
+                {visibleTabs.find(t => t.id === activeTab)?.label || TABS.find(t => t.id === activeTab)?.label}
                 {activeTab === 'waitlist' && waitlistCount > 0 && (
                   <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold">
                     {waitlistCount} pending
@@ -6706,7 +7301,7 @@ export default function AdminPage() {
           )}
 
           {activeTab === 'support' && token && (
-            <SupportTab token={token} />
+            <SupportTab token={token} adminRole={adminRole} />
           )}
 
           {activeTab === 'featureflags' && token && (

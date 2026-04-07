@@ -12,6 +12,13 @@
 - Role: user
 - Accepted: true (auto-accepted)
 
+## Support Agent Test Account
+- Email: `support@soulprint.com`
+- Password: `Support123!`
+- Role: support
+- Login URL: `/admin?role=support`
+- Note: Created via `/api/admin/support-agents` endpoint. Can only access the Support tab.
+
 ## User's Account
 - Email: `reggie+test@archeforge.com`
 - Auth method: Firebase/Google OAuth
