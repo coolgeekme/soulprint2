@@ -1288,7 +1288,31 @@ export default function ChatPage() {
       });
 
       if (!res.ok) {
-        const errData = await res.json();
+        const errData = await res.json().catch(() => ({ error: 'Something went wrong' }));
+        
+        // Handle auth errors gracefully — prompt re-login
+        if (res.status === 401 || res.status === 403) {
+          setMessages(prev => [...prev, { 
+            id: `e-${Date.now()}`, role: 'assistant', 
+            content: '⚠️ Your session has expired. Please refresh the page or log in again to continue.', 
+            created_at: new Date().toISOString() 
+          }]);
+          localStorage.removeItem('token');
+          setLoading(false);
+          return;
+        }
+        
+        // Handle server overload / DB issues
+        if (res.status === 503) {
+          setMessages(prev => [...prev, { 
+            id: `e-${Date.now()}`, role: 'assistant', 
+            content: '⏳ The server is temporarily busy. Please wait a moment and try again.', 
+            created_at: new Date().toISOString() 
+          }]);
+          setLoading(false);
+          return;
+        }
+        
         setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: `Error: ${errData.error || 'Something went wrong'}`, created_at: new Date().toISOString() }]);
         setLoading(false);
         return;
@@ -1622,7 +1646,12 @@ export default function ChatPage() {
         signal: ctrl.signal,
       });
       
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Your session has expired. Please refresh the page or log in again.');
+        }
+        throw new Error(`Generation failed (HTTP ${response.status}). Please try again.`);
+      }
       
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
