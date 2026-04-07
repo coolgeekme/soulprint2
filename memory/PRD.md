@@ -139,4 +139,13 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
   - Generates a BRAND NEW image at the target aspect ratio (not a crop/shrink)
   - Uses gpt-image-1 (primary), Kie.ai Nano Banana (fallback 1), DALL-E 3 (fallback 2)
   - Both `isEditRequest` and `couldBeEditRequest` exclude aspect ratio recreation requests
+
+- **Multi-Image Upload Pre-Upload System (P0)**: Fixed "Connection error" when users attach 2+ images:
+  - Created `POST /api/attachments/upload` endpoint for pre-uploading individual images
+  - Primary storage: Kie.ai persistent cloud storage (returns https:// URLs)
+  - Fallback: MongoDB `temp_attachments` collection with 24h TTL auto-cleanup
+  - Frontend auto-pre-uploads when payload exceeds 800KB or 2+ images attached
+  - Backend `chat-stream.js` updated to handle URL references, `attachment://` protocol, and standard base64
+  - Client-side compression: MAX_DIM 1536px, JPEG quality 0.75 for all images
+  - Applied to both desktop (`page.js`) and mobile (`MobileChat.js`)
   - File: `lib/handlers/chat-stream.js`
