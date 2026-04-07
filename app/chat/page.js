@@ -1343,6 +1343,7 @@ export default function ChatPage() {
                 messageId: data.messageId,
                 sourceImageUrl: data.sourceImageUrl || null,
                 hasAttachedImage: data.hasAttachedImage || false,
+                referenceImageUrls: data.referenceImageUrls || null,
               };
               setMediaConfirmation(confirmData);
               mediaConfirmRef.current = confirmData;
@@ -1616,7 +1617,7 @@ export default function ChatPage() {
           webSearch: false,
           videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null,
           imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null,
-          mediaFlow: { step: 'confirmed', type: flow.type, finalPrompt: flow.finalPrompt, selectedModel: flow.selectedModel, sourceImageUrl: flow.sourceImageUrl || null },
+          mediaFlow: { step: 'confirmed', type: flow.type, finalPrompt: flow.finalPrompt, selectedModel: flow.selectedModel, sourceImageUrl: flow.sourceImageUrl || null, referenceImageUrls: flow.referenceImageUrls || null },
         }),
         signal: ctrl.signal,
       });
@@ -1750,6 +1751,7 @@ export default function ChatPage() {
       finalPrompt: confirm.finalPrompt || confirm.refinedPrompt,
       selectedModel: selectedModelKey,
       sourceImageUrl: confirm.sourceImageUrl || null,
+      referenceImageUrls: confirm.referenceImageUrls || null,
     });
   }, [mediaConfirmType, submitMediaConfirmation]);
   
