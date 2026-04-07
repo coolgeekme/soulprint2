@@ -1,514 +1,336 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Multi-Image Upload Pre-Upload System
-Tests the new POST /api/attachments/upload endpoint and related functionality.
+Backend Testing for Media Confirmation Flow
+Tests the SoulPrint Engine chat API media confirmation flow functionality.
 """
 
 import requests
 import json
-import base64
 import time
 import sys
-from typing import Dict, Any, Optional
+import os
 
 # Configuration
 BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
 TEST_EMAIL = "testchat@example.com"
 TEST_PASSWORD = "Test123456"
 
-# Test data - smallest valid JPEG base64 (1x1 red pixel)
-SMALL_JPEG_BASE64 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKpgA//Z"
-
-class BackendTester:
+class MediaConfirmationFlowTester:
     def __init__(self):
+        self.base_url = BASE_URL
         self.session = requests.Session()
         self.auth_token = None
         self.test_results = []
         
-    def log_test(self, test_name: str, success: bool, details: str = ""):
-        """Log test result"""
+    def log_test(self, test_name, success, details=""):
+        """Log test results"""
         status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} {test_name}")
+        print(f"{status}: {test_name}")
         if details:
-            print(f"    {details}")
+            print(f"   Details: {details}")
         self.test_results.append({
             "test": test_name,
             "success": success,
             "details": details
         })
         
-    def authenticate(self) -> bool:
-        """Authenticate and get auth token"""
+    def login(self):
+        """Authenticate with the API"""
         try:
-            print(f"\n🔐 Authenticating with {TEST_EMAIL}...")
-            
-            response = self.session.post(
-                f"{BASE_URL}/api/auth/login",
-                json={
-                    "email": TEST_EMAIL,
-                    "passcode": TEST_PASSWORD
-                },
-                headers={"Content-Type": "application/json"}
-            )
+            response = self.session.post(f"{self.base_url}/api/auth/login", json={
+                "email": TEST_EMAIL,
+                "passcode": TEST_PASSWORD
+            })
             
             if response.status_code == 200:
                 data = response.json()
                 self.auth_token = data.get("token")
                 if self.auth_token:
                     self.session.headers.update({"Authorization": f"Bearer {self.auth_token}"})
-                    self.log_test("Authentication", True, f"Token obtained: {self.auth_token[:20]}...")
+                    self.log_test("Authentication", True, f"Logged in as {TEST_EMAIL}")
                     return True
                 else:
                     self.log_test("Authentication", False, "No token in response")
                     return False
             else:
-                self.log_test("Authentication", False, f"Status {response.status_code}: {response.text}")
+                self.log_test("Authentication", False, f"Status: {response.status_code}, Response: {response.text}")
                 return False
                 
         except Exception as e:
             self.log_test("Authentication", False, f"Exception: {str(e)}")
             return False
     
-    def test_health_check(self) -> bool:
-        """Test health check endpoint"""
+    def set_user_setting(self, setting_name, value):
+        """Update user settings"""
         try:
-            print(f"\n🏥 Testing health check...")
-            
-            response = self.session.get(f"{BASE_URL}/api/health")
+            response = self.session.patch(f"{self.base_url}/api/user/settings", json={
+                setting_name: value
+            })
             
             if response.status_code == 200:
-                data = response.json()
-                if data.get("status") == "ok":
-                    self.log_test("Health Check", True, f"Status: {data.get('status')}")
-                    return True
-                else:
-                    self.log_test("Health Check", False, f"Unexpected status: {data}")
-                    return False
-            else:
-                self.log_test("Health Check", False, f"Status {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Health Check", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_attachment_upload_no_auth(self) -> bool:
-        """Test attachment upload without authentication - should return 401"""
-        try:
-            print(f"\n🚫 Testing attachment upload without auth...")
-            
-            # Temporarily remove auth header
-            auth_header = self.session.headers.pop("Authorization", None)
-            
-            response = self.session.post(
-                f"{BASE_URL}/api/attachments/upload",
-                json={
-                    "base64": SMALL_JPEG_BASE64,
-                    "mimeType": "image/jpeg",
-                    "name": "test-pixel.jpg"
-                },
-                headers={"Content-Type": "application/json"}
-            )
-            
-            # Restore auth header
-            if auth_header:
-                self.session.headers["Authorization"] = auth_header
-            
-            if response.status_code == 401:
-                self.log_test("Attachment Upload - No Auth", True, "Correctly returned 401 Unauthorized")
+                self.log_test(f"Set {setting_name} to {value}", True)
                 return True
             else:
-                self.log_test("Attachment Upload - No Auth", False, f"Expected 401, got {response.status_code}: {response.text}")
+                self.log_test(f"Set {setting_name} to {value}", False, f"Status: {response.status_code}, Response: {response.text}")
                 return False
                 
         except Exception as e:
-            self.log_test("Attachment Upload - No Auth", False, f"Exception: {str(e)}")
+            self.log_test(f"Set {setting_name} to {value}", False, f"Exception: {str(e)}")
             return False
     
-    def test_attachment_upload_empty_body(self) -> bool:
-        """Test attachment upload with empty body - should return 400"""
+    def send_chat_message(self, content, model="claude-sonnet-4-20250514", provider="anthropic"):
+        """Send a chat message and return the NDJSON stream response"""
         try:
-            print(f"\n📭 Testing attachment upload with empty body...")
-            
-            response = self.session.post(
-                f"{BASE_URL}/api/attachments/upload",
-                json={},
-                headers={"Content-Type": "application/json"}
-            )
-            
-            if response.status_code == 400:
-                data = response.json()
-                if "base64" in data.get("error", "").lower():
-                    self.log_test("Attachment Upload - Empty Body", True, f"Correctly returned 400: {data.get('error')}")
-                    return True
-                else:
-                    self.log_test("Attachment Upload - Empty Body", False, f"400 but wrong error message: {data}")
-                    return False
-            else:
-                self.log_test("Attachment Upload - Empty Body", False, f"Expected 400, got {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Attachment Upload - Empty Body", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_attachment_upload_no_base64(self) -> bool:
-        """Test attachment upload without base64 field - should return 400"""
-        try:
-            print(f"\n🖼️ Testing attachment upload without base64...")
-            
-            response = self.session.post(
-                f"{BASE_URL}/api/attachments/upload",
+            response = self.session.post(f"{self.base_url}/api/chat/stream", 
                 json={
-                    "mimeType": "image/jpeg",
-                    "name": "test.jpg"
+                    "content": content,
+                    "model": model,
+                    "provider": provider
                 },
-                headers={"Content-Type": "application/json"}
+                stream=True,
+                timeout=30
             )
             
-            if response.status_code == 400:
-                data = response.json()
-                if "base64" in data.get("error", "").lower():
-                    self.log_test("Attachment Upload - No Base64", True, f"Correctly returned 400: {data.get('error')}")
-                    return True
-                else:
-                    self.log_test("Attachment Upload - No Base64", False, f"400 but wrong error message: {data}")
-                    return False
-            else:
-                self.log_test("Attachment Upload - No Base64", False, f"Expected 400, got {response.status_code}: {response.text}")
-                return False
-                
+            if response.status_code != 200:
+                return None, f"HTTP {response.status_code}: {response.text}"
+            
+            # Parse NDJSON stream
+            events = []
+            for line in response.iter_lines(decode_unicode=True):
+                if line.strip():
+                    try:
+                        event = json.loads(line)
+                        events.append(event)
+                    except json.JSONDecodeError:
+                        continue
+            
+            return events, None
+            
         except Exception as e:
-            self.log_test("Attachment Upload - No Base64", False, f"Exception: {str(e)}")
-            return False
+            return None, f"Exception: {str(e)}"
     
-    def test_attachment_upload_success(self) -> tuple[bool, Optional[str]]:
-        """Test successful attachment upload - should return 200 with URL"""
-        try:
-            print(f"\n✅ Testing successful attachment upload...")
-            
-            response = self.session.post(
-                f"{BASE_URL}/api/attachments/upload",
-                json={
-                    "base64": SMALL_JPEG_BASE64,
-                    "mimeType": "image/jpeg",
-                    "name": "test-pixel.jpg"
-                },
-                headers={"Content-Type": "application/json"}
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("success") and data.get("url") and data.get("name"):
-                    url = data.get("url")
-                    storage_type = "Kie.ai" if url.startswith("https://") else "MongoDB" if url.startswith("attachment://") else "Unknown"
-                    self.log_test("Attachment Upload - Success", True, 
-                                f"URL: {url[:80]}{'...' if len(url) > 80 else ''}, Storage: {storage_type}, Size: {data.get('size', 'unknown')} bytes")
-                    return True, url
+    def check_media_confirmation_event(self, events, expected_type):
+        """Check if events contain media_confirmation with expected type"""
+        for event in events:
+            if event.get("type") == "media_confirmation":
+                detected_type = event.get("detectedType")
+                if detected_type == expected_type:
+                    return True, f"Found media_confirmation with detectedType: {detected_type}"
                 else:
-                    self.log_test("Attachment Upload - Success", False, f"Missing required fields in response: {data}")
-                    return False, None
-            else:
-                self.log_test("Attachment Upload - Success", False, f"Status {response.status_code}: {response.text}")
-                return False, None
-                
-        except Exception as e:
-            self.log_test("Attachment Upload - Success", False, f"Exception: {str(e)}")
-            return False, None
+                    return False, f"Found media_confirmation but detectedType was {detected_type}, expected {expected_type}"
+        return False, "No media_confirmation event found"
     
-    def test_mongodb_storage_verification(self, attachment_url: str) -> bool:
-        """Verify MongoDB storage if attachment:// URL was returned"""
-        try:
-            if not attachment_url.startswith("attachment://"):
-                self.log_test("MongoDB Storage Verification", True, "Skipped - using Kie.ai storage")
-                return True
-                
-            print(f"\n🗄️ Testing MongoDB storage verification...")
-            
-            # We can't directly access MongoDB from here, but we can test that the URL format is correct
-            attachment_id = attachment_url.replace("attachment://", "")
-            
-            if len(attachment_id) > 10 and "-" in attachment_id:  # UUID format check
-                self.log_test("MongoDB Storage Verification", True, f"Valid attachment ID format: {attachment_id}")
-                return True
-            else:
-                self.log_test("MongoDB Storage Verification", False, f"Invalid attachment ID format: {attachment_id}")
-                return False
-                
-        except Exception as e:
-            self.log_test("MongoDB Storage Verification", False, f"Exception: {str(e)}")
-            return False
+    def check_no_direct_generation(self, events, media_type):
+        """Check that direct generation events are NOT present"""
+        forbidden_events = []
+        if media_type == "video":
+            forbidden_events = ["video_task", "generating_visual"]
+        elif media_type == "image":
+            forbidden_events = ["image", "generating_visual"]
+        
+        for event in events:
+            if event.get("type") in forbidden_events:
+                return False, f"Found forbidden direct generation event: {event.get('type')}"
+        return True, "No direct generation events found (confirmation flow working)"
     
-    def test_chat_with_url_reference(self) -> bool:
-        """Test chat stream with URL-referenced attachment"""
-        try:
-            print(f"\n💬 Testing chat with URL-referenced attachment...")
-            
-            # Use a publicly accessible test image
-            test_image_url = "https://via.placeholder.com/150"
-            
-            response = self.session.post(
-                f"{BASE_URL}/api/chat/stream",
-                json={
-                    "content": "What do you see in this image?",
-                    "model": "gpt-4o",
-                    "provider": "openai",
-                    "attachments": [{
-                        "type": "image",
-                        "base64": test_image_url,
-                        "mimeType": "image/jpeg",
-                        "name": "test.jpg",
-                        "isUrlReference": True
-                    }]
-                },
-                headers={"Content-Type": "application/json"},
-                stream=True
-            )
-            
-            if response.status_code == 200:
-                # Check if we get streaming response (either SSE or NDJSON)
-                content_type = response.headers.get("content-type", "")
-                if "text/event-stream" in content_type or "text/plain" in content_type or "application/json" in content_type:
-                    # Read first few lines to verify it's streaming
-                    lines_read = 0
-                    valid_events = 0
-                    for line in response.iter_lines(decode_unicode=True):
-                        if line.strip():
-                            lines_read += 1
-                            # Handle SSE format (data: prefix) or NDJSON format (direct JSON)
-                            json_line = line
-                            if line.startswith("data: "):
-                                json_line = line[6:]  # Remove "data: " prefix
-                            
-                            try:
-                                data = json.loads(json_line)
-                                if data.get("type") in ["meta", "delta", "done"]:
-                                    valid_events += 1
-                                    if valid_events >= 2:  # Got at least meta + one more event
-                                        break
-                            except json.JSONDecodeError:
-                                continue
-                            
-                            if lines_read >= 10:  # Don't read too many lines
-                                break
-                    
-                    if valid_events >= 2:
-                        format_type = "SSE" if "text/event-stream" in content_type else "NDJSON"
-                        self.log_test("Chat with URL Reference", True, f"Successfully received {format_type} stream response")
-                        return True
-                    else:
-                        self.log_test("Chat with URL Reference", False, f"Did not receive expected stream format (got {valid_events} valid events)")
-                        return False
-                else:
-                    self.log_test("Chat with URL Reference", False, f"Unexpected content type: {content_type}")
-                    return False
-            else:
-                self.log_test("Chat with URL Reference", False, f"Status {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Chat with URL Reference", False, f"Exception: {str(e)}")
-            return False
+    def check_direct_generation(self, events, media_type):
+        """Check that direct generation events ARE present (for quick_generate=true)"""
+        expected_events = []
+        if media_type == "video":
+            expected_events = ["video_task", "generating_visual"]
+        elif media_type == "image":
+            expected_events = ["image", "generating_visual"]
+        
+        found_events = []
+        for event in events:
+            if event.get("type") in expected_events:
+                found_events.append(event.get("type"))
+        
+        if found_events:
+            return True, f"Found direct generation events: {found_events}"
+        else:
+            return False, f"No direct generation events found, expected one of: {expected_events}"
     
-    def test_chat_with_attachment_protocol(self, attachment_url: str) -> bool:
-        """Test chat stream with attachment:// protocol"""
-        try:
-            if not attachment_url.startswith("attachment://"):
-                self.log_test("Chat with Attachment Protocol", True, "Skipped - no attachment:// URL available")
-                return True
-                
-            print(f"\n🔗 Testing chat with attachment:// protocol...")
-            
-            response = self.session.post(
-                f"{BASE_URL}/api/chat/stream",
-                json={
-                    "content": "What do you see in this image?",
-                    "model": "gpt-4o",
-                    "provider": "openai",
-                    "attachments": [{
-                        "type": "image",
-                        "base64": attachment_url,
-                        "mimeType": "image/jpeg",
-                        "name": "test-pixel.jpg",
-                        "isUrlReference": True
-                    }]
-                },
-                headers={"Content-Type": "application/json"},
-                stream=True
-            )
-            
-            if response.status_code == 200:
-                # Check if we get streaming response (either SSE or NDJSON)
-                content_type = response.headers.get("content-type", "")
-                if "text/event-stream" in content_type or "text/plain" in content_type or "application/json" in content_type:
-                    # Read first few lines to verify it's streaming
-                    lines_read = 0
-                    valid_events = 0
-                    for line in response.iter_lines(decode_unicode=True):
-                        if line.strip():
-                            lines_read += 1
-                            # Handle SSE format (data: prefix) or NDJSON format (direct JSON)
-                            json_line = line
-                            if line.startswith("data: "):
-                                json_line = line[6:]  # Remove "data: " prefix
-                            
-                            try:
-                                data = json.loads(json_line)
-                                if data.get("type") in ["meta", "delta", "done"]:
-                                    valid_events += 1
-                                    if valid_events >= 2:  # Got at least meta + one more event
-                                        break
-                            except json.JSONDecodeError:
-                                continue
-                            
-                            if lines_read >= 10:  # Don't read too many lines
-                                break
-                    
-                    if valid_events >= 2:
-                        format_type = "SSE" if "text/event-stream" in content_type else "NDJSON"
-                        self.log_test("Chat with Attachment Protocol", True, f"Successfully received {format_type} stream response")
-                        return True
-                    else:
-                        self.log_test("Chat with Attachment Protocol", False, f"Did not receive expected stream format (got {valid_events} valid events)")
-                        return False
-                else:
-                    self.log_test("Chat with Attachment Protocol", False, f"Unexpected content type: {content_type}")
-                    return False
-            else:
-                self.log_test("Chat with Attachment Protocol", False, f"Status {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Chat with Attachment Protocol", False, f"Exception: {str(e)}")
+    def test_video_confirmation_flow(self):
+        """Test video confirmation flow with various prompts"""
+        print("\n=== Testing Video Confirmation Flow ===")
+        
+        # Set confirmation mode (quick_generate = false)
+        if not self.set_user_setting("quick_generate", False):
             return False
+        
+        video_test_cases = [
+            "need a video prompt for a long horn bull, standing in snow, breathing, steam coming from nostrils",
+            "give me a video of a sunset over the ocean with dolphins jumping"
+        ]
+        
+        for i, prompt in enumerate(video_test_cases, 1):
+            print(f"\n--- Video Test Case {i}: {prompt[:50]}... ---")
+            
+            events, error = self.send_chat_message(prompt)
+            if error:
+                self.log_test(f"Video Test {i} - Send Message", False, error)
+                continue
+            
+            # Check for media_confirmation event
+            has_confirmation, conf_details = self.check_media_confirmation_event(events, "video")
+            self.log_test(f"Video Test {i} - Media Confirmation", has_confirmation, conf_details)
+            
+            # Check that direct generation is NOT happening
+            no_direct, direct_details = self.check_no_direct_generation(events, "video")
+            self.log_test(f"Video Test {i} - No Direct Generation", no_direct, direct_details)
+            
+            # Check for delta event with intent detection message
+            has_delta = any(event.get("type") == "delta" for event in events)
+            self.log_test(f"Video Test {i} - Has Delta Event", has_delta, "Found delta event with text response" if has_delta else "No delta event found")
+        
+        return True
     
-    def test_simple_chat_stream(self) -> bool:
-        """Test simple chat stream without attachments"""
-        try:
-            print(f"\n💭 Testing simple chat stream...")
-            
-            response = self.session.post(
-                f"{BASE_URL}/api/chat/stream",
-                json={
-                    "content": "Hello, this is a test message",
-                    "model": "gpt-4o",
-                    "provider": "openai"
-                },
-                headers={"Content-Type": "application/json"},
-                stream=True
-            )
-            
-            if response.status_code == 200:
-                # Check if we get streaming response (either SSE or NDJSON)
-                content_type = response.headers.get("content-type", "")
-                if "text/event-stream" in content_type or "text/plain" in content_type or "application/json" in content_type:
-                    # Read first few lines to verify it's streaming
-                    lines_read = 0
-                    valid_events = 0
-                    for line in response.iter_lines(decode_unicode=True):
-                        if line.strip():
-                            lines_read += 1
-                            # Handle SSE format (data: prefix) or NDJSON format (direct JSON)
-                            json_line = line
-                            if line.startswith("data: "):
-                                json_line = line[6:]  # Remove "data: " prefix
-                            
-                            try:
-                                data = json.loads(json_line)
-                                if data.get("type") in ["meta", "delta", "done"]:
-                                    valid_events += 1
-                                    if valid_events >= 2:  # Got at least meta + one more event
-                                        break
-                            except json.JSONDecodeError:
-                                continue
-                            
-                            if lines_read >= 10:  # Don't read too many lines
-                                break
-                    
-                    if valid_events >= 2:
-                        format_type = "SSE" if "text/event-stream" in content_type else "NDJSON"
-                        self.log_test("Simple Chat Stream", True, f"Successfully received {format_type} stream response")
-                        return True
-                    else:
-                        self.log_test("Simple Chat Stream", False, f"Did not receive expected stream format (got {valid_events} valid events)")
-                        return False
-                else:
-                    self.log_test("Simple Chat Stream", False, f"Unexpected content type: {content_type}")
-                    return False
-            else:
-                self.log_test("Simple Chat Stream", False, f"Status {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("Simple Chat Stream", False, f"Exception: {str(e)}")
+    def test_image_confirmation_flow(self):
+        """Test image confirmation flow with various prompts"""
+        print("\n=== Testing Image Confirmation Flow ===")
+        
+        # Ensure confirmation mode is still set
+        if not self.set_user_setting("quick_generate", False):
             return False
+        
+        image_test_cases = [
+            "need an image of a cyberpunk city at night with neon lights",
+            "can I get a picture of a golden retriever puppy playing in the park"
+        ]
+        
+        for i, prompt in enumerate(image_test_cases, 1):
+            print(f"\n--- Image Test Case {i}: {prompt[:50]}... ---")
+            
+            events, error = self.send_chat_message(prompt)
+            if error:
+                self.log_test(f"Image Test {i} - Send Message", False, error)
+                continue
+            
+            # Check for media_confirmation event
+            has_confirmation, conf_details = self.check_media_confirmation_event(events, "image")
+            self.log_test(f"Image Test {i} - Media Confirmation", has_confirmation, conf_details)
+            
+            # Check that direct generation is NOT happening
+            no_direct, direct_details = self.check_no_direct_generation(events, "image")
+            self.log_test(f"Image Test {i} - No Direct Generation", no_direct, direct_details)
+            
+            # Check for delta event with intent detection message
+            has_delta = any(event.get("type") == "delta" for event in events)
+            self.log_test(f"Image Test {i} - Has Delta Event", has_delta, "Found delta event with text response" if has_delta else "No delta event found")
+        
+        return True
+    
+    def test_quick_generate_mode(self):
+        """Test that quick_generate=true bypasses confirmation"""
+        print("\n=== Testing Quick Generate Mode ===")
+        
+        # Set quick generate mode (quick_generate = true)
+        if not self.set_user_setting("quick_generate", True):
+            return False
+        
+        prompt = "generate a video of a majestic eagle soaring over mountains"
+        print(f"\n--- Quick Generate Test: {prompt[:50]}... ---")
+        
+        events, error = self.send_chat_message(prompt)
+        if error:
+            self.log_test("Quick Generate Test - Send Message", False, error)
+            return False
+        
+        # Check that there's NO media_confirmation event
+        has_confirmation = any(event.get("type") == "media_confirmation" for event in events)
+        self.log_test("Quick Generate Test - No Confirmation", not has_confirmation, 
+                     "No media_confirmation found (correct for quick_generate=true)" if not has_confirmation 
+                     else "Found media_confirmation (should not happen with quick_generate=true)")
+        
+        # Check that direct generation IS happening
+        has_direct, direct_details = self.check_direct_generation(events, "video")
+        self.log_test("Quick Generate Test - Direct Generation", has_direct, direct_details)
+        
+        return True
+    
+    def test_non_media_message(self):
+        """Test that non-media messages don't trigger confirmation"""
+        print("\n=== Testing Non-Media Message ===")
+        
+        # Reset to confirmation mode
+        if not self.set_user_setting("quick_generate", False):
+            return False
+        
+        prompt = "What is the capital of France?"
+        print(f"\n--- Non-Media Test: {prompt} ---")
+        
+        events, error = self.send_chat_message(prompt)
+        if error:
+            self.log_test("Non-Media Test - Send Message", False, error)
+            return False
+        
+        # Check that there's NO media_confirmation event
+        has_confirmation = any(event.get("type") == "media_confirmation" for event in events)
+        self.log_test("Non-Media Test - No Confirmation", not has_confirmation, 
+                     "No media_confirmation found (correct for non-media message)" if not has_confirmation 
+                     else "Found media_confirmation (should not happen for non-media message)")
+        
+        # Check for normal delta events
+        has_delta = any(event.get("type") == "delta" for event in events)
+        self.log_test("Non-Media Test - Has Delta Event", has_delta, "Found normal text response" if has_delta else "No delta event found")
+        
+        return True
     
     def run_all_tests(self):
-        """Run all tests in sequence"""
-        print("🚀 Starting Multi-Image Upload Pre-Upload Backend Tests")
-        print("=" * 60)
+        """Run all media confirmation flow tests"""
+        print("🚀 Starting Media Confirmation Flow Tests")
+        print(f"Base URL: {self.base_url}")
+        print(f"Test User: {TEST_EMAIL}")
         
-        # Step 1: Health check
-        if not self.test_health_check():
-            print("❌ Health check failed, aborting tests")
-            return
+        # Login first
+        if not self.login():
+            print("❌ Authentication failed, cannot continue tests")
+            return False
         
-        # Step 2: Authentication
-        if not self.authenticate():
-            print("❌ Authentication failed, aborting tests")
-            return
-        
-        # Step 3: Test attachment upload endpoint
-        self.test_attachment_upload_no_auth()
-        self.test_attachment_upload_empty_body()
-        self.test_attachment_upload_no_base64()
-        
-        # Step 4: Test successful upload
-        success, attachment_url = self.test_attachment_upload_success()
-        
-        # Step 5: Verify MongoDB storage if applicable
-        if success and attachment_url:
-            self.test_mongodb_storage_verification(attachment_url)
-        
-        # Step 6: Test chat stream with attachments
-        self.test_chat_with_url_reference()
-        
-        if success and attachment_url:
-            self.test_chat_with_attachment_protocol(attachment_url)
-        
-        # Step 7: Test simple chat stream
-        self.test_simple_chat_stream()
+        # Run all test suites
+        try:
+            self.test_video_confirmation_flow()
+            self.test_image_confirmation_flow()
+            self.test_quick_generate_mode()
+            self.test_non_media_message()
+        except Exception as e:
+            print(f"❌ Test execution failed: {str(e)}")
+            return False
         
         # Summary
-        self.print_summary()
-    
-    def print_summary(self):
-        """Print test summary"""
-        print("\n" + "=" * 60)
+        print("\n" + "="*60)
         print("📊 TEST SUMMARY")
-        print("=" * 60)
+        print("="*60)
         
-        passed = sum(1 for result in self.test_results if result["success"])
-        total = len(self.test_results)
+        total_tests = len(self.test_results)
+        passed_tests = sum(1 for result in self.test_results if result["success"])
+        failed_tests = total_tests - passed_tests
         
-        print(f"Total Tests: {total}")
-        print(f"Passed: {passed}")
-        print(f"Failed: {total - passed}")
-        print(f"Success Rate: {(passed/total)*100:.1f}%")
+        print(f"Total Tests: {total_tests}")
+        print(f"Passed: {passed_tests}")
+        print(f"Failed: {failed_tests}")
+        print(f"Success Rate: {(passed_tests/total_tests)*100:.1f}%")
         
-        if total - passed > 0:
+        if failed_tests > 0:
             print("\n❌ FAILED TESTS:")
             for result in self.test_results:
                 if not result["success"]:
-                    print(f"  • {result['test']}: {result['details']}")
+                    print(f"  - {result['test']}: {result['details']}")
         
-        print("\n✅ PASSED TESTS:")
-        for result in self.test_results:
-            if result["success"]:
-                print(f"  • {result['test']}")
-        
-        print("\n" + "=" * 60)
+        return failed_tests == 0
+
+def main():
+    """Main test execution"""
+    tester = MediaConfirmationFlowTester()
+    success = tester.run_all_tests()
+    
+    if success:
+        print("\n🎉 All tests passed!")
+        sys.exit(0)
+    else:
+        print("\n💥 Some tests failed!")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    tester = BackendTester()
-    tester.run_all_tests()
+    main()
