@@ -4761,7 +4761,10 @@ export default function ChatPage() {
                   style={{ 
                     minHeight: '24px', 
                     maxHeight: '150px',
-                    color: speech.isListening ? '#fdba74' : isDark ? '#ffffff' : '#000000'
+                    color: speech.isListening ? '#fdba74' : isDark ? '#ffffff' : '#000000',
+                    caretColor: speech.isListening ? '#fdba74' : isDark ? '#ffffff' : '#000000',
+                    WebkitTextFillColor: speech.isListening ? '#fdba74' : isDark ? '#ffffff' : '#000000',
+                    backgroundColor: 'transparent',
                   }}
                 />
               </div>

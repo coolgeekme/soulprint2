@@ -737,3 +737,21 @@ html.light body {
   animation: progress 2s ease-in-out infinite;
 }
 
+
+/* Firefox Android: Force white text in all form inputs on dark backgrounds */
+textarea,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"] {
+  color: inherit;
+  -moz-appearance: none !important;
+}
+
+/* Dark theme form elements — ensure text is always visible */
+.dark textarea,
+.dark input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] input {
+  color-scheme: dark;
+}

@@ -2869,7 +2869,7 @@ export default function MobileChat({
                   className="flex-1 bg-transparent text-white text-[16px] placeholder-gray-600 focus:outline-none resize-none min-h-[28px] max-h-[100px] min-w-0 leading-normal"
                   rows={1}
                   disabled={loading}
-                  style={{ fontSize: '16px', lineHeight: '1.4' }} // Prevent iOS zoom on focus
+                  style={{ fontSize: '16px', lineHeight: '1.4', color: '#ffffff', caretColor: '#ffffff', backgroundColor: 'transparent', WebkitTextFillColor: '#ffffff' }}
                 />
                 {/* Voice input button */}
                 <button 
@@ -4175,9 +4175,14 @@ export default function MobileChat({
         /* Ensure textarea text is always visible */
         .mobile-input-area textarea {
           -webkit-appearance: none;
+          -moz-appearance: none;
           appearance: none;
           overflow-y: auto;
           overflow-x: hidden;
+          color: #ffffff !important;
+          caret-color: #ffffff !important;
+          -webkit-text-fill-color: #ffffff !important;
+          background-color: transparent !important;
         }
         
         /* When keyboard is visible - ensure input stays above keyboard */
@@ -4196,12 +4201,17 @@ export default function MobileChat({
           }
         }
         
-        /* Android Chrome fix for textarea visibility */
-        @media screen and (-webkit-min-device-pixel-ratio: 0) {
-          textarea {
-            -webkit-text-fill-color: white;
-            opacity: 1;
-          }
+        /* Universal fix for textarea text visibility on all browsers */
+        textarea, input[type="text"], input[type="email"], input[type="password"] {
+          color: #ffffff !important;
+          -webkit-text-fill-color: #ffffff !important;
+          caret-color: #ffffff !important;
+          -moz-appearance: none !important;
+        }
+        textarea::placeholder, input::placeholder {
+          color: #4b5563 !important;
+          -webkit-text-fill-color: #4b5563 !important;
+          opacity: 1 !important;
         }
       `}</style>
       
