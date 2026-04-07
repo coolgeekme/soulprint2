@@ -5528,6 +5528,12 @@ function SupportTab({ token, adminRole }) {
   const [agentForm, setAgentForm] = useState({ name: '', email: '', password: '' });
   const [creatingAgent, setCreatingAgent] = useState(false);
 
+  // Respond to user state
+  const [showRespond, setShowRespond] = useState(false);
+  const [respondMsg, setRespondMsg] = useState('');
+  const [respondMarkResolved, setRespondMarkResolved] = useState(true);
+  const [responding, setResponding] = useState(false);
+
   // Resolve & Notify (legacy functionality preserved)
   const [resolveEmail, setResolveEmail] = useState('');
   const [resolveConvId, setResolveConvId] = useState('');
@@ -5641,6 +5647,34 @@ function SupportTab({ token, adminRole }) {
       }
     } catch (e) { alert('Failed to create agent'); }
     setCreatingAgent(false);
+  };
+
+  const handleRespondToUser = async (ticketId) => {
+    if (!respondMsg.trim()) return alert('Please write a response message');
+    setResponding(true);
+    try {
+      const res = await fetch(`/api/support/tickets/${ticketId}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: respondMsg, markResolved: respondMarkResolved }),
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); } else {
+        alert(data.message || 'Response sent!');
+        setShowRespond(false);
+        setRespondMsg('');
+        setRespondMarkResolved(true);
+        fetchTickets();
+        // Refresh the selected ticket
+        if (selectedTicket) {
+          const tRes = await fetch(`/api/support/tickets/${ticketId}`, { headers: { Authorization: `Bearer ${token}` } });
+          const tData = await tRes.json();
+          if (tData.ticket) setSelectedTicket(tData.ticket);
+          else if (tData.id) setSelectedTicket(tData);
+        }
+      }
+    } catch (e) { alert('Failed to send response'); }
+    setResponding(false);
   };
 
   const handleResolveNotify = async () => {
@@ -5821,18 +5855,88 @@ function SupportTab({ token, adminRole }) {
                     </div>
                   )}
 
-                  {/* Suggested User Response */}
-                  {selectedTicket.diagnosis && (
+                  {/* Respond to User section */}
+                  {selectedTicket.source === 'ace_escalation' && (
+                    <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-4">
+                      <h4 className="text-xs font-bold text-orange-400 tracking-widest uppercase mb-2">🤖 Escalated from Ace</h4>
+                      {selectedTicket.bot_conversation_summary && (
+                        <details className="mb-2">
+                          <summary className="text-[11px] text-gray-500 cursor-pointer hover:text-gray-300">View Ace conversation</summary>
+                          <pre className="text-[11px] text-gray-400 mt-2 bg-black/30 rounded-lg p-3 max-h-32 overflow-y-auto whitespace-pre-wrap font-mono">
+                            {selectedTicket.bot_conversation_summary}
+                          </pre>
+                        </details>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Previous Responses */}
+                  {selectedTicket.responses?.length > 0 && (
                     <div className="bg-white/3 border border-white/10 rounded-xl p-4">
-                      <h4 className="text-xs font-bold text-gray-500 tracking-widest uppercase mb-2">📧 Suggested User Response</h4>
-                      <p className="text-sm text-gray-300 italic">
-                        {(() => {
-                          try {
-                            // Try to parse if diagnosis has user_response embedded
-                            return selectedTicket.user_response || 'AI will suggest a response after diagnosis.';
-                          } catch { return 'AI will suggest a response after diagnosis.'; }
-                        })()}
-                      </p>
+                      <h4 className="text-xs font-bold text-gray-500 tracking-widest uppercase mb-3">Previous Responses</h4>
+                      <div className="space-y-2">
+                        {selectedTicket.responses.map((resp, i) => (
+                          <div key={i} className="bg-black/20 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] text-gray-400 font-medium">{resp.agent_name}</span>
+                              <span className="text-[10px] text-gray-600">{resp.created_at ? new Date(resp.created_at).toLocaleString() : ''}</span>
+                            </div>
+                            <p className="text-sm text-gray-300">{resp.message}</p>
+                            <div className="flex gap-2 mt-1.5">
+                              {resp.channels?.notification && <span className="text-[10px] text-green-400">✓ In-app</span>}
+                              {resp.channels?.conversation_message && <span className="text-[10px] text-green-400">✓ Chat</span>}
+                              {resp.mark_resolved && <span className="text-[10px] text-blue-400">→ Marked resolved</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Respond Form */}
+                  {showRespond && (
+                    <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4 space-y-3">
+                      <h4 className="text-xs font-bold text-green-400 tracking-widest uppercase">📩 Respond to User</h4>
+                      <p className="text-[10px] text-gray-500">This will send an in-app notification to <span className="text-white">{selectedTicket.user_email}</span>{selectedTicket.conversation_id ? ' and inject a message into their conversation' : ''}</p>
+                      <textarea
+                        value={respondMsg}
+                        onChange={e => setRespondMsg(e.target.value)}
+                        placeholder="Write your response to the user..."
+                        rows={4}
+                        className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-green-500/40 outline-none resize-none"
+                      />
+                      {selectedTicket.user_response && !respondMsg && (
+                        <button onClick={() => setRespondMsg(selectedTicket.user_response)}
+                          className="text-[11px] text-purple-400 hover:text-purple-300">
+                          ✨ Use AI-suggested response
+                        </button>
+                      )}
+                      <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+                        <input type="checkbox" checked={respondMarkResolved} onChange={e => setRespondMarkResolved(e.target.checked)}
+                          className="rounded border-gray-600 text-green-500 focus:ring-green-500" />
+                        Mark ticket as resolved after sending
+                      </label>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleRespondToUser(selectedTicket.id)} disabled={responding || !respondMsg.trim()}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium disabled:opacity-50">
+                          {responding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                          {responding ? 'Sending...' : 'Send Response'}
+                        </button>
+                        <button onClick={() => { setShowRespond(false); setRespondMsg(''); }}
+                          className="px-4 py-2 bg-white/5 text-gray-400 rounded-lg text-sm hover:bg-white/10">Cancel</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Suggested User Response from AI */}
+                  {selectedTicket.user_response && !showRespond && (
+                    <div className="bg-white/3 border border-white/10 rounded-xl p-4">
+                      <h4 className="text-xs font-bold text-gray-500 tracking-widest uppercase mb-2">📧 AI-Suggested User Response</h4>
+                      <p className="text-sm text-gray-300 italic">{selectedTicket.user_response}</p>
+                      <button onClick={() => { setRespondMsg(selectedTicket.user_response); setShowRespond(true); }}
+                        className="mt-2 text-[11px] text-orange-400 hover:text-orange-300 font-medium">
+                        Use this as response →
+                      </button>
                     </div>
                   )}
                 </div>
@@ -5857,6 +5961,12 @@ function SupportTab({ token, adminRole }) {
                     <button onClick={() => handleUpdateStatus(selectedTicket.id, 'resolved')}
                       className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium">
                       <Check className="w-4 h-4" /> Mark Resolved
+                    </button>
+                  )}
+                  {!showRespond && !['closed'].includes(selectedTicket.status) && (
+                    <button onClick={() => { setShowRespond(true); setRespondMsg(''); }}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all">
+                      <Send className="w-4 h-4" /> Respond to User
                     </button>
                   )}
                   {!['closed', 'resolved'].includes(selectedTicket.status) && (
@@ -5983,6 +6093,9 @@ function SupportTab({ token, adminRole }) {
                         )}
                         {ticket.category && (
                           <span className="text-[10px] text-gray-600">{ticket.category}</span>
+                        )}
+                        {ticket.source === 'ace_escalation' && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">🤖 Ace</span>
                         )}
                       </div>
                     </div>

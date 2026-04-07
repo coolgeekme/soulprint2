@@ -37,7 +37,7 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
     if (open && messages.length === 0) {
       setMessages([{
         role: 'assistant',
-        content: "Hey! 👋 I'm your SoulPrint Support Bot. I can help with anything — chat features, image & video generation tips, account issues, prompting advice, or troubleshooting.\n\nWhat can I help you with?",
+        content: "Hey! 👋 I'm Ace, your SoulPrint AI Support Agent. I can help with anything — chat features, image & video generation tips, account issues, prompting advice, or troubleshooting.\n\nWhat can I help you with?",
       }]);
     }
   }, [open]);
@@ -125,7 +125,7 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
       <button
         onClick={toggleOpen}
         className="fixed bottom-5 right-5 z-[9999] w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg shadow-orange-500/25 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 group"
-        title="SoulPrint Support"
+        title="Ask Ace"
       >
         <MessageCircleQuestion className="w-6 h-6 text-white" />
         {hasUnread && (
@@ -150,9 +150,9 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
             <MessageCircleQuestion className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h3 className="text-white text-sm font-semibold leading-tight">Support Bot</h3>
+            <h3 className="text-white text-sm font-semibold leading-tight">Ace</h3>
             <p className="text-green-400 text-[10px] font-medium flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" /> Online
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" /> AI Support Agent
             </p>
           </div>
         </div>

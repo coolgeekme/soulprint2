@@ -370,6 +370,7 @@ import {
   handleDiagnoseTicket,
   handleApproveTicketFix,
   handleUpdateTicket,
+  handleRespondToTicketUser,
   handleCreateSupportAgent,
   handleGetSupportAgents,
 } from '@/lib/handlers/support-tickets';
@@ -601,6 +602,10 @@ export async function POST(request, { params }) {
     if (pathStr.match(/^support\/tickets\/[^/]+\/approve-fix$/)) {
       const ticketId = pathStr.split('/')[2];
       return handleApproveTicketFix(request, ticketId);
+    }
+    if (pathStr.match(/^support\/tickets\/[^/]+\/respond$/)) {
+      const ticketId = pathStr.split('/')[2];
+      return handleRespondToTicketUser(request, ticketId);
     }
     
     if (pathStr === 'chat/stream') return handleChatStream(request);
