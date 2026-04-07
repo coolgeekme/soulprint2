@@ -25,6 +25,7 @@ const TABS = [
   { id: 'assessments', label: 'Assessments', icon: FileText },
   { id: 'imports', label: 'Imports', icon: Upload },
   { id: 'support', label: 'Support', icon: LifeBuoy },
+  { id: 'featureflags', label: 'Feature Flags', icon: Zap },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -4766,6 +4767,315 @@ function InsightsTab({ token }) {
   );
 }
 
+
+// Feature Flags Tab
+function FeatureFlagsTab({ token }) {
+  const [flags, setFlags] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newFlag, setNewFlag] = useState({ key: '', name: '', description: '', enabled: false });
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editData, setEditData] = useState({});
+
+  const fetchFlags = () => {
+    setLoading(true);
+    fetch('/api/admin/feature-flags', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => { setFlags(data.flags || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchFlags(); }, [token]);
+
+  const createFlag = async () => {
+    if (!newFlag.key || !newFlag.name) return alert('Key and name are required');
+    setSaving(true);
+    try {
+      const res = await fetch('/api/admin/feature-flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(newFlag),
+      });
+      const data = await res.json();
+      if (data.error) { alert(data.error); return; }
+      setShowCreate(false);
+      setNewFlag({ key: '', name: '', description: '', enabled: false });
+      fetchFlags();
+    } catch (e) { alert('Failed to create flag'); }
+    finally { setSaving(false); }
+  };
+
+  const toggleFlag = async (flag) => {
+    try {
+      await fetch('/api/admin/feature-flags', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: flag.id, enabled: !flag.enabled }),
+      });
+      fetchFlags();
+    } catch (e) { alert('Failed to toggle flag'); }
+  };
+
+  const updateFlag = async (flag) => {
+    try {
+      await fetch('/api/admin/feature-flags', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: flag.id, ...editData }),
+      });
+      setEditingId(null);
+      setEditData({});
+      fetchFlags();
+    } catch (e) { alert('Failed to update flag'); }
+  };
+
+  const deleteFlag = async (flag) => {
+    if (!confirm(`Delete "${flag.name}" (${flag.key})? This cannot be undone.`)) return;
+    try {
+      await fetch(`/api/admin/feature-flags?id=${flag.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchFlags();
+    } catch (e) { alert('Failed to delete flag'); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <Zap className="w-5 h-5 text-yellow-400" /> Feature Flags
+          </h2>
+          <p className="text-gray-400 text-sm mt-1">
+            Control feature rollouts without redeploying. Toggle features on/off instantly.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={fetchFlags} className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 text-sm">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm flex items-center gap-2">
+            <Plus className="w-4 h-4" /> New Flag
+          </button>
+        </div>
+      </div>
+
+      {/* Create New Flag Form */}
+      {showCreate && (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 space-y-4">
+          <h3 className="text-white font-semibold">Create Feature Flag</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Key (lowercase, underscores)</label>
+              <input
+                type="text"
+                placeholder="e.g., mask_editor"
+                value={newFlag.key}
+                onChange={e => setNewFlag({ ...newFlag, key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Display Name</label>
+              <input
+                type="text"
+                placeholder="e.g., Mask Image Editor"
+                value={newFlag.name}
+                onChange={e => setNewFlag({ ...newFlag, name: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Description (optional)</label>
+            <input
+              type="text"
+              placeholder="What does this feature flag control?"
+              value={newFlag.description}
+              onChange={e => setNewFlag({ ...newFlag, description: e.target.value })}
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={newFlag.enabled}
+                onChange={e => setNewFlag({ ...newFlag, enabled: e.target.checked })}
+                className="rounded"
+              />
+              Enable immediately
+            </label>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button onClick={createFlag} disabled={saving} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50">
+              {saving ? 'Creating...' : 'Create Flag'}
+            </button>
+            <button onClick={() => setShowCreate(false)} className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 text-sm">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Usage Instructions */}
+      <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-gray-300 mb-2">How to use in code:</h3>
+        <code className="text-xs text-green-400 bg-gray-900 rounded px-2 py-1 block">
+          {`import { isFeatureEnabled } from '@/lib/handlers/feature-flags';`}<br/>
+          {`if (await isFeatureEnabled('your_flag_key', userId)) { /* feature code */ }`}
+        </code>
+      </div>
+
+      {/* Flags List */}
+      {loading ? (
+        <div className="text-center py-8 text-gray-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+      ) : flags.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">
+          <Zap className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="text-lg font-medium">No feature flags yet</p>
+          <p className="text-sm mt-1">Create your first feature flag to start controlling rollouts.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {flags.map(flag => (
+            <div key={flag.id} className={`border rounded-xl p-4 transition-all ${
+              flag.enabled 
+                ? 'bg-green-900/10 border-green-700/40' 
+                : 'bg-gray-800/50 border-gray-700/50'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {/* Toggle Switch */}
+                  <button
+                    onClick={() => toggleFlag(flag)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      flag.enabled ? 'bg-green-600' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      flag.enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                  
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-medium">{flag.name}</span>
+                      <code className="text-xs text-gray-500 bg-gray-900 px-2 py-0.5 rounded">{flag.key}</code>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        flag.enabled 
+                          ? 'bg-green-900/50 text-green-400' 
+                          : 'bg-gray-700 text-gray-400'
+                      }`}>
+                        {flag.enabled ? 'ENABLED' : 'DISABLED'}
+                      </span>
+                    </div>
+                    {flag.description && (
+                      <p className="text-xs text-gray-500 mt-0.5">{flag.description}</p>
+                    )}
+                    <div className="flex items-center gap-3 mt-1">
+                      {flag.targeted_users?.length > 0 && (
+                        <span className="text-xs text-blue-400">
+                          <Users className="w-3 h-3 inline mr-1" />{flag.targeted_users.length} targeted users
+                        </span>
+                      )}
+                      {flag.rollout_percentage && (
+                        <span className="text-xs text-purple-400">
+                          {flag.rollout_percentage}% rollout
+                        </span>
+                      )}
+                      {flag.environments?.length > 0 && (
+                        <span className="text-xs text-orange-400">
+                          {flag.environments.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { setEditingId(editingId === flag.id ? null : flag.id); setEditData({ targeted_users: flag.targeted_users || [], rollout_percentage: flag.rollout_percentage || '', environments: flag.environments || [] }); }}
+                    className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => deleteFlag(flag)}
+                    className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Expanded Edit Panel */}
+              {editingId === flag.id && (
+                <div className="mt-4 pt-4 border-t border-gray-700 space-y-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Targeted User IDs (comma-separated)</label>
+                    <input
+                      type="text"
+                      placeholder="user-id-1, user-id-2"
+                      value={(editData.targeted_users || []).join(', ')}
+                      onChange={e => setEditData({ ...editData, targeted_users: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                      className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-xs"
+                    />
+                    <p className="text-xs text-gray-600 mt-1">Leave empty for all users. Add specific user IDs to limit access.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Rollout Percentage (0-100)</label>
+                      <input
+                        type="number"
+                        min="0" max="100"
+                        placeholder="100"
+                        value={editData.rollout_percentage || ''}
+                        onChange={e => setEditData({ ...editData, rollout_percentage: e.target.value ? parseInt(e.target.value) : null })}
+                        className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-400 mb-1">Environments</label>
+                      <div className="flex gap-2 mt-1">
+                        {['development', 'production'].map(env => (
+                          <label key={env} className="flex items-center gap-1 text-xs text-gray-300 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={(editData.environments || []).includes(env)}
+                              onChange={e => {
+                                const envs = editData.environments || [];
+                                setEditData({ ...editData, environments: e.target.checked ? [...envs, env] : envs.filter(x => x !== env) });
+                              }}
+                              className="rounded"
+                            />
+                            {env}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => updateFlag(flag)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs">
+                      Save Changes
+                    </button>
+                    <button onClick={() => { setEditingId(null); setEditData({}); }} className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-600 text-xs">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // Settings Tab
 function SettingsTab({ token }) {
   const [settings, setSettings] = useState(null);
@@ -6397,6 +6707,10 @@ export default function AdminPage() {
 
           {activeTab === 'support' && token && (
             <SupportTab token={token} />
+          )}
+
+          {activeTab === 'featureflags' && token && (
+            <FeatureFlagsTab token={token} />
           )}
 
           {activeTab === 'settings' && token && (

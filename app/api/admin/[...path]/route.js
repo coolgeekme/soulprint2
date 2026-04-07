@@ -7,6 +7,12 @@ import { sendWelcomeEmail, sendAcceptedEmail, sendBetaCodeEmail } from '@/lib/em
 import { ok, err, authenticate } from '@/lib/api-utils';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import {
+  handleAdminGetFeatureFlags,
+  handleAdminCreateFeatureFlag,
+  handleAdminUpdateFeatureFlag,
+  handleAdminDeleteFeatureFlag,
+} from '@/lib/handlers/feature-flags';
 
 // ============================================================
 // ADMIN AUTHENTICATION HELPER
@@ -5130,6 +5136,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'voice-sessions') return handleGetVoiceSessions(request);
     if (pathStr === 'support-history') return handleAdminGetSupportHistory(request);
     if (pathStr === 'blog/posts') return handleAdminGetBlogPosts(request);
+    if (pathStr === 'feature-flags') return handleAdminGetFeatureFlags(request);
 
     return err('Admin endpoint not found', 404);
   } catch (error) {
@@ -5153,6 +5160,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'app-updates') return handleAdminCreateAppUpdate(request);
     if (pathStr === 'app-updates/generate') return handleAdminGenerateReleaseNotes(request);
     if (pathStr === 'blog/posts') return handleAdminCreateBlogPost(request);
+    if (pathStr === 'feature-flags') return handleAdminCreateFeatureFlag(request);
     if (pathStr === 'beta-code') return handleAdminCreateBetaCode(request);
     if (pathStr === 'beta-code/send') return handleAdminSendBetaCode(request);
     if (pathStr === 'beta-groups') return handleAdminCreateBetaGroup(request);
@@ -5200,6 +5208,7 @@ export async function PUT(request, { params }) {
       return handleAdminUpdateBlogPost(request, pathArr[2]);
     }
     if (pathStr === 'beta-codes') return handleAdminUpdateBetaCode(request);
+    if (pathStr === 'feature-flags') return handleAdminUpdateFeatureFlag(request);
 
     return err('Admin endpoint not found', 404);
   } catch (error) {
@@ -5207,6 +5216,21 @@ export async function PUT(request, { params }) {
     return err(error.message || 'Internal server error', 500);
   }
 }
+
+export async function PATCH(request, { params }) {
+  const pathArr = params?.path || [];
+  const pathStr = pathArr.join('/');
+  try {
+    if (pathStr === 'feature-flags') return handleAdminUpdateFeatureFlag(request);
+    // Fallback to PUT handler for other PATCH requests
+    return PUT(request, { params });
+  } catch (error) {
+    console.error('[Admin API] PATCH Error:', error);
+    return err(error.message || 'Internal server error', 500);
+  }
+}
+
+
 
 export async function DELETE(request, { params }) {
   const pathArr = params?.path || [];
@@ -5229,6 +5253,7 @@ export async function DELETE(request, { params }) {
     if (pathStr === 'beta-groups') return handleAdminDeleteBetaGroup(request);
     if (pathStr === 'beta-codes') return handleAdminDeleteBetaCodeV2(request);
     if (pathStr === 'pricing-features') return handleAdminDeletePricingFeature(request);
+    if (pathStr === 'feature-flags') return handleAdminDeleteFeatureFlag(request);
 
     return err('Admin endpoint not found', 404);
   } catch (error) {
