@@ -9,6 +9,8 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
   const isListeningRef = useRef(false); // Ref to track listening state for callbacks
   const [mode, setMode] = useState(null); // 'live' | 'whisper'
   const [error, setError] = useState(null);
+  const lastFinalIndexRef = useRef(0); // Track last processed final result index
+  const lastFinalTextRef = useRef(''); // Track last final text to prevent duplicates
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -52,12 +54,20 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
       rec.onresult = (e) => {
         let interim = '';
         let final = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
+        // Only process results we haven't seen yet
+        const startIdx = Math.max(e.resultIndex, lastFinalIndexRef.current);
+        for (let i = startIdx; i < e.results.length; i++) {
           const transcript = e.results[i][0].transcript;
           if (e.results[i].isFinal) {
-            final += transcript;
+            // Deduplicate: skip if this exact text was just finalized
+            const trimmed = transcript.trim();
+            if (trimmed && trimmed !== lastFinalTextRef.current) {
+              final += transcript;
+              lastFinalTextRef.current = trimmed;
+            }
+            lastFinalIndexRef.current = i + 1;
           } else {
-            interim += transcript;
+            interim = transcript; // Use ONLY the latest interim, don't concatenate
           }
         }
         if (final) {
@@ -65,6 +75,7 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
           onTranscript(final);
         }
         if (interim) onInterim(interim);
+        else if (final) onInterim(''); // Clear interim when we get a final
       };
       
       rec.onerror = (e) => { 
@@ -97,12 +108,21 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
         // Auto-restart if still supposed to be listening (for continuous mode)
         if (isListeningRef.current && recognitionRef.current) {
           try {
+            // Reset tracking refs for the new session
+            lastFinalIndexRef.current = 0;
+            // Delay restart to avoid echo pickup on mobile
             setTimeout(() => {
               if (isListeningRef.current && recognitionRef.current) {
                 console.log('startLive: Auto-restarting recognition');
-                recognitionRef.current.start();
+                try {
+                  recognitionRef.current.start();
+                } catch (e) {
+                  console.error('Failed to restart recognition:', e);
+                  setIsListening(false);
+                  isListeningRef.current = false;
+                }
               }
-            }, 100);
+            }, 300);
           } catch (e) {
             console.error('Failed to restart recognition:', e);
             setIsListening(false);
@@ -112,6 +132,8 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
       };
 
       recognitionRef.current = rec;
+      lastFinalIndexRef.current = 0;
+      lastFinalTextRef.current = '';
       console.log('startLive: Starting recognition...');
       rec.start();
       console.log('startLive: Recognition started successfully');
@@ -259,6 +281,8 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
     }
     setIsListening(false);
     isListeningRef.current = false;
+    lastFinalIndexRef.current = 0;
+    lastFinalTextRef.current = '';
   }
 
   function toggle() {
