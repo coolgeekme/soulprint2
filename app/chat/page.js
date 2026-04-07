@@ -653,8 +653,53 @@ export default function ChatPage() {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
-          const base64 = e.target.result.split(',')[1];
-          resolve({ type: 'image', base64, mimeType: file.type, name: file.name });
+          const originalBase64 = e.target.result;
+          
+          // Compress large images to reduce request payload size
+          // Max 2048px on longest side, quality 0.85
+          const img = new Image();
+          img.onload = () => {
+            const MAX_DIM = 2048;
+            let { width, height } = img;
+            
+            // Only compress if image is large (>1MB base64 or >2048px)
+            const originalSize = originalBase64.length;
+            const needsCompress = originalSize > 1_000_000 || width > MAX_DIM || height > MAX_DIM;
+            
+            if (!needsCompress) {
+              const base64 = originalBase64.split(',')[1];
+              resolve({ type: 'image', base64, mimeType: file.type, name: file.name });
+              return;
+            }
+            
+            // Scale down proportionally
+            if (width > MAX_DIM || height > MAX_DIM) {
+              const scale = MAX_DIM / Math.max(width, height);
+              width = Math.round(width * scale);
+              height = Math.round(height * scale);
+            }
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Use JPEG for photos (much smaller), PNG for transparent images
+            const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+            const quality = outputType === 'image/jpeg' ? 0.85 : undefined;
+            const compressedDataUrl = canvas.toDataURL(outputType, quality);
+            const compressedBase64 = compressedDataUrl.split(',')[1];
+            
+            console.log(`[Attach] Compressed ${file.name}: ${Math.round(originalSize/1024)}KB → ${Math.round(compressedBase64.length/1024)}KB (${width}x${height})`);
+            resolve({ type: 'image', base64: compressedBase64, mimeType: outputType, name: file.name });
+          };
+          img.onerror = () => {
+            // Fallback: use original if Image() fails
+            const base64 = originalBase64.split(',')[1];
+            resolve({ type: 'image', base64, mimeType: file.type, name: file.name });
+          };
+          img.src = originalBase64;
         };
         reader.onerror = reject;
         reader.readAsDataURL(file);
