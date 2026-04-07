@@ -147,5 +147,13 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
   - Frontend auto-pre-uploads when payload exceeds 800KB or 2+ images attached
   - Backend `chat-stream.js` updated to handle URL references, `attachment://` protocol, and standard base64
   - Client-side compression: MAX_DIM 1536px, JPEG quality 0.75 for all images
+
+- **Media Confirmation Flow Fix (P0)**: Fixed bypass of confirmation when Confirm Gen mode was active:
+  - Root cause: Two paths — (1) `detectMediaIntent` regex patterns were too narrow, missing natural phrases like "need a video of", "give me an image of", and (2) post-LLM auto-generation blocks were not gated by `quickGenerate` setting
+  - Expanded video detection patterns: "need a video", "give me a video", "can I get a video", "video prompt for"
+  - Expanded image detection patterns: "need an image/picture", "give me an image", "can I get a picture", "image prompt for"
+  - Moved `quickGenerate` preference fetch earlier in the flow so it's accessible to all downstream checks
+  - Gated Auto-Image and Auto-Video generation detection blocks with `quickGenerate` — when false (Confirm Gen mode), auto-generation is suppressed
+  - Tested: 21/21 tests pass — confirmation triggers correctly for both image and video, quick gen bypasses correctly, non-media messages unaffected
   - Applied to both desktop (`page.js`) and mobile (`MobileChat.js`)
   - File: `lib/handlers/chat-stream.js`
