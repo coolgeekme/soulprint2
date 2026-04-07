@@ -165,3 +165,15 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
   - Fixed Vision analysis limit: expanded from 2 to 4 reference images analyzed by GPT-4o
   - Strengthened composite prompt: explicitly requires ALL reference images to appear, with individual element descriptions
   - Fixed URL reference handling through entire pipeline: Vision refinement, Kie.ai pre-upload, and gpt-image-1 reference download all properly handle `http://`, `attachment://`, `data:`, and raw base64
+- **AI-Assisted Support Ticketing System (P0)**: Full implementation of AI-powered support triage:
+  - Backend (`lib/handlers/support-tickets.js`): Support agent login, ticket CRUD, GPT-4o AI diagnosis (DATA_FIX vs CODE_FIX categorization), superadmin fix approval, automated fix execution engine
+  - Admin API routes: Support agent management (create/list) via `/api/admin/support-agents`
+  - Support routes: Login (`/api/support/login`), tickets CRUD/diagnose/approve (`/api/support/tickets/*`)
+  - Auth: Updated `auth/me` to support both regular users and support agents from different collections
+  - Frontend (`app/admin/page.js`): Complete Support tab with 3 sub-tabs: Tickets, Resolve & Notify, Support Agents (superadmin only)
+  - Support login portal: Accessible via `/admin?role=support` with dedicated login screen
+  - Role-based access: Support users only see the Support tab; cannot access Feature Flags, Settings, or other admin areas
+  - Ticket detail modal: Shows original issue, user data from DB, AI diagnosis, suggested fix, fix actions, approval buttons
+  - Status workflow: new → diagnosing → diagnosed → fix_applied/needs_development → resolved/closed
+  - AI categorizes issues as: data_fix (auto-appliable), code_fix (needs development), user_action, no_fix
+  - Test credentials: support@soulprint.com / Support123!
