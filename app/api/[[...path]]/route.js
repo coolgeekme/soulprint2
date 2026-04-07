@@ -373,6 +373,10 @@ import {
   handleCreateSupportAgent,
   handleGetSupportAgents,
 } from '@/lib/handlers/support-tickets';
+import {
+  handleSupportBotChat,
+  handleSupportEscalate,
+} from '@/lib/handlers/support-bot';
 
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -587,6 +591,8 @@ export async function POST(request, { params }) {
     
     // Support ticket routes
     if (pathStr === 'support/login') return handleSupportLogin(request);
+    if (pathStr === 'support/bot-chat') return handleSupportBotChat(request);
+    if (pathStr === 'support/escalate') return handleSupportEscalate(request);
     if (pathStr === 'support/tickets') return handleCreateTicket(request);
     if (pathStr.match(/^support\/tickets\/[^/]+\/diagnose$/)) {
       const ticketId = pathStr.split('/')[2];

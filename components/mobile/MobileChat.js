@@ -27,6 +27,7 @@ import MessageBubble from './MobileMessageBubble';
 import { ConversationItem, ThemeToggle, AttachmentPreview, RenameModal } from './MobileSmallComponents';
 import { ProfileView, AnnouncementsView, GalleryView } from './MobileViews';
 import { MoreOptionsSheet, CreateOptionsSheet, ImageGenSheet, VideoGenSheet, FlyerGenSheet, CompareModeSheet, CompareResultsView, ImportSheet } from './MobileSheets';
+import SupportBubble from '@/components/chat/SupportBubble';
 
 
 export default function MobileChat({ 
@@ -4203,6 +4204,15 @@ export default function MobileChat({
           }
         }
       `}</style>
+      
+      {/* AI Support Bot Bubble */}
+      {token && (
+        <SupportBubble
+          token={token}
+          conversationId={conversationId}
+          recentMessages={messages.slice(-6)}
+        />
+      )}
     </div>
   );
 }

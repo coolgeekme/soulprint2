@@ -2034,12 +2034,54 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "SUPPORT TICKETING SYSTEM - RE-TEST WITH CORRECT CREDENTIALS. The previous test failed because testchat@example.com has 'user' role. Use test@soulprint.com/Admin123! (superadmin) instead to create support agents. Also note: the auth/login endpoint uses 'passcode' field NOT 'password'. Flow: (1) Login as superadmin: POST /api/auth/login with {email:'test@soulprint.com', passcode:'Admin123!'} - this returns a token. (2) Create support agent: POST /api/admin/support-agents with that admin token. (3) Login as support: POST /api/support/login with {email:'support@soulprint.com', password:'Support123!'} - note: support login uses 'password' field. (4) Create ticket, diagnose, etc. All routes are ready."
+    message: "SUPPORT BOT IMPLEMENTATION COMPLETE. New endpoints: POST /api/support/bot-chat (AI-powered support chat with GPT-4o and full platform knowledge base) and POST /api/support/escalate (creates a support ticket from the bot). Frontend: SupportBubble.js component added to both desktop and mobile chat views. Test: Login as testchat@example.com/Test123456, then POST /api/support/bot-chat with {message:'How do I generate images?', chatHistory:[]} and Authorization Bearer token. Also test POST /api/support/escalate with {description:'Test escalation', subject:'Test'}."
   - agent: "testing"
     message: "SUPPORT TICKETING SYSTEM COMPREHENSIVE TESTING COMPLETE: All 11 steps of the AI-Assisted Support Ticketing System tested successfully with proper credentials. ✅ Admin Authentication: test@soulprint.com/Admin123! working (role: superadmin). ✅ Support Agent Management: Creation and listing working correctly. ✅ Support Authentication: support@soulprint.com/Support123! working (role: support). ✅ Ticket Lifecycle: Creation → Listing → AI Diagnosis → Status Updates → Fix Approval all working. ✅ AI Integration: GPT-4o diagnosis completing in ~3.5s with proper field population (diagnosis, fix_type, category, suggested_fix). ✅ Database Integration: User lookup, ticket persistence, agent management all working. ✅ Authorization: Proper role-based access control throughout. The system is fully functional and ready for production use. All backend endpoints verified working with 100% success rate."
   test_priority: "high_first"
 
 backend:
+  - task: "AI Support Bot Chat Endpoint (POST /api/support/bot-chat)"
+    implemented: true
+    working: true
+    file: "lib/handlers/support-bot.js, app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "SUPPORT BOT IMPLEMENTATION COMPLETE. New endpoints: POST /api/support/bot-chat (AI-powered support chat with GPT-4o and full platform knowledge base) and POST /api/support/escalate (creates a support ticket from the bot). Frontend: SupportBubble.js component added to both desktop and mobile chat views. Test: Login as testchat@example.com/Test123456, then POST /api/support/bot-chat with {message:'How do I generate images?', chatHistory:[]} and Authorization Bearer token. Also test POST /api/support/escalate with {description:'Test escalation', subject:'Test'}."
+      - working: true
+        agent: "testing"
+        comment: "AI SUPPORT BOT CHAT ENDPOINT TESTING COMPLETE: All critical functionality working perfectly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ POST /api/support/bot-chat with basic message ('How do I generate an image with text in it?') returns proper response format with reply and sessionId fields. Reply mentions GPT-4o Image and GPT Image 1.5 models for text generation as expected. ✅ Follow-up message with chat history and sessionId working correctly - maintains conversation context and provides appropriate video generation guidance. ✅ Conversation context feature working - accepts conversationContext parameter with conversationId and recentMessages, provides contextual help about image issues. ✅ GPT-4o integration working with 30-second timeout as specified. ✅ Session logging to support_bot_sessions collection working. ✅ User profile integration working for personalized support. All comprehensive tests passed (100% success rate). The AI Support Bot provides helpful, specific guidance about platform features and troubleshooting."
+
+  - task: "AI Support Bot Escalation Endpoint (POST /api/support/escalate)"
+    implemented: true
+    working: true
+    file: "lib/handlers/support-bot.js, app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Support escalation endpoint implemented as part of the AI Support Bot system. Creates support tickets from bot conversations and sends them to the support team for review."
+      - working: true
+        agent: "testing"
+        comment: "AI SUPPORT BOT ESCALATION ENDPOINT TESTING COMPLETE: All critical functionality working perfectly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ POST /api/support/escalate with subject 'Image generation failing' and description creates support ticket successfully. Returns proper response format with success: true, ticketId, and message fields. ✅ Ticket creation working - generates UUID ticket ID and stores in support_tickets collection with proper metadata (user_email, user_name, status: 'new', source: 'support_bot_escalation'). ✅ Bot session context integration working - includes bot_session_id and bot_conversation_summary when sessionId provided. ✅ User notification creation working - creates notification in notifications collection about escalation submission. ✅ Proper access control - regular users can escalate but cannot access GET /api/support/tickets (requires support agent/admin authentication). All comprehensive tests passed (100% success rate). The escalation system properly bridges user issues to the support ticketing system."
+
+  - task: "Support Ticket Verification (GET /api/support/tickets)"
+    implemented: true
+    working: true
+    file: "lib/handlers/support-tickets.js, app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "SUPPORT TICKET VERIFICATION TESTING COMPLETE: Endpoint working correctly with proper access control. ✅ Authentication requirements verified - endpoint requires support agent or admin/superadmin authentication via authenticateSupport() function. ✅ Regular users (role: 'user') correctly receive 401 Unauthorized when attempting to access tickets list - this is expected and proper security behavior. ✅ Ticket escalation from support bot creates tickets successfully in support_tickets collection with source: 'support_bot_escalation'. ✅ Access control working as designed - only support agents and admin users can view ticket lists, regular users can only escalate issues. The endpoint is functioning correctly with appropriate security restrictions."
+
   - task: "Media Confirmation Flow Fix — auto-generation must respect quickGenerate setting"
     implemented: true
     working: true
@@ -2083,6 +2125,8 @@ backend:
         comment: "DOUBLE GENERATION PREVENTION & MULTI-REFERENCE COMPOSITE TESTING COMPLETE: All critical improvements working perfectly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ Multi-Reference Composite: All 3 reference image URLs preserved in confirmation flow (detectedType: 'image', hasAttachedImage: true, referenceImageUrls count: 3). Backend logs confirm '[Image Generation] Restoring 3 reference images from confirmation flow', '[Image Generation] User has 3 reference image(s), using gpt-image-1 for reference-aware generation', '[Image Generation] Prepared 3 reference image(s), calling gpt-image-1 edit...', '[Image Generation] Analyzing reference images with GPT-4o Vision for composite...'. ✅ Controller Close Safety: Normal chat completed without controller errors (delta=20, done=1, error=0). Backend logs show safe handling: '[Stream] Controller write failed (closed?): Invalid state: Controller is already closed', '[Stream] Attempted to send after controller closed, ignoring: delta/done/error'. ✅ Event Flow: Proper generating_visual and done events, no double generation detected. ✅ Vision Analysis: GPT-4o Vision successfully analyzing multiple reference images for composite generation. ✅ Dedup Guard: Image generation dedup logic implemented (checks assistantMsgId before starting). All comprehensive tests passed (100% success rate). The improvements successfully prevent double generation, ensure controller safety, and enable robust multi-reference composite generation with up to 4 images."
 
 agent_communication:
+  - agent: "testing"
+    message: "AI SUPPORT BOT BACKEND TESTING COMPLETE: All critical endpoints working perfectly according to the detailed test sequence. ✅ Step 1: Authentication with testchat@example.com/Test123456 working (token received). ✅ Step 2: POST /api/support/bot-chat with 'How do I generate an image with text in it?' returns proper response format (reply + sessionId), mentions GPT-4o Image and GPT Image 1.5 models as expected, GPT-4o integration working with 30s timeout. ✅ Step 3: Follow-up message with chat history and sessionId maintains conversation context, provides appropriate video generation guidance. ✅ Step 4: Conversation context feature working - accepts conversationContext parameter with conversationId and recentMessages, provides contextual help about image issues. ✅ Step 5: POST /api/support/escalate creates support ticket successfully (returns success: true, ticketId, message), stores in support_tickets collection with source: 'support_bot_escalation'. ✅ Step 6: GET /api/support/tickets properly enforces access control - regular users receive 401 Unauthorized (expected behavior), only support agents/admins can access ticket lists. All 6/6 comprehensive tests passed (100% success rate). The AI Support Bot system is fully functional with proper GPT-4o integration, session management, escalation workflow, and security controls."
   - agent: "testing"
     message: "MULTI-IMAGE COMPOSITE/REFERENCE GENERATION FLOW TESTING COMPLETE: All critical functionality working perfectly. Comprehensive testing of the complete pipeline from image pre-upload through confirmation to generation. Key findings: (1) Image upload API working - all 3 test images uploaded to Kie.ai persistent storage. (2) Multi-image chat with URL references correctly triggers confirmation flow with detectedType: 'image', hasAttachedImage: true, and all 3 referenceImageUrls preserved. (3) Confirmed generation successfully processes referenceImageUrls parameter - backend restores reference images, uses GPT-4o Vision analysis, and generates composite with gpt-image-1-5. (4) Backend logs confirm full pipeline working: image restoration, URL downloading, vision analysis, and successful generation. All 6/6 tests passed (100% success rate). The reported bug where uploading 3 images to generate a composite image no longer works has been RESOLVED - the URL reference handling through confirmation → generation pipeline is working correctly."
   - agent: "testing"

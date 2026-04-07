@@ -16,6 +16,8 @@ const RealtimeVoiceChat = dynamic(
   }
 );
 
+import SupportBubble from '@/components/chat/SupportBubble';
+
 // Dynamically import GeminiVoiceChat for Gemini Live WebSocket voice
 const GeminiVoiceChat = dynamic(
   () => import('@/app/chat/components/GeminiVoiceChat'),
@@ -5716,6 +5718,15 @@ export default function ChatPage() {
           />
         )}
         </SafeSection>
+      )}
+
+      {/* AI Support Bot Bubble */}
+      {token && (
+        <SupportBubble 
+          token={token}
+          conversationId={conversationId}
+          recentMessages={messages.slice(-6)}
+        />
       )}
     </div>
   );
