@@ -379,6 +379,9 @@ import {
 
 export const maxDuration = 300; // 5 minutes max for this route (large file processing)
 export const dynamic = 'force-dynamic';
+
+// Allow up to 50MB request body for image uploads
+export const fetchCache = 'force-no-store';
 export async function GET(request, { params }) {
   const pathArr = params?.path || [];
   const pathStr = pathArr.join('/');
