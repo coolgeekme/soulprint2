@@ -2,6 +2,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { MessageCircleQuestion, X, Minus, Send, Loader2, AlertTriangle, ChevronDown } from 'lucide-react';
 
+const ACE_AVATAR = 'https://customer-assets.emergentagent.com/job_04f65d68-fd79-43ef-a03b-b9263d8f6209/artifacts/3s5ouxqh_9BCBB119-5703-48DD-B2AC-8A3C81920B84.png';
+
 export default function SupportBubble({ token, conversationId, recentMessages = [] }) {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
@@ -124,10 +126,10 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
     return (
       <button
         onClick={toggleOpen}
-        className="fixed bottom-5 right-5 z-[9999] w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg shadow-orange-500/25 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 group"
+        className="fixed bottom-5 right-5 z-[9999] w-14 h-14 rounded-full shadow-lg shadow-black/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 group overflow-hidden border-2 border-orange-500/50"
         title="Ask Ace"
       >
-        <MessageCircleQuestion className="w-6 h-6 text-white" />
+        <img src={ACE_AVATAR} alt="Ace" className="w-full h-full object-cover" />
         {hasUnread && (
           <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full border-2 border-[#0a0a0a] animate-pulse" />
         )}
@@ -146,8 +148,8 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-500/10 to-transparent border-b border-white/8 flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0">
-            <MessageCircleQuestion className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-orange-500/30">
+            <img src={ACE_AVATAR} alt="Ace" className="w-full h-full object-cover" />
           </div>
           <div>
             <h3 className="text-white text-sm font-semibold leading-tight">Ace</h3>
