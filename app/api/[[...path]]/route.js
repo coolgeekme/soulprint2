@@ -362,6 +362,18 @@ import {
   resolveAttachmentUrl,
 } from '@/lib/handlers/attachment-upload';
 
+import {
+  handleSupportLogin,
+  handleGetTickets,
+  handleGetTicket,
+  handleCreateTicket,
+  handleDiagnoseTicket,
+  handleApproveTicketFix,
+  handleUpdateTicket,
+  handleCreateSupportAgent,
+  handleGetSupportAgents,
+} from '@/lib/handlers/support-tickets';
+
 // ══════════════════════════════════════════════════════════════════════════════
 
 
@@ -393,6 +405,13 @@ export async function GET(request, { params }) {
     }
 
     if (pathStr === 'auth/me') return handleMe(request);
+    
+    // Support ticket GET routes
+    if (pathStr === 'support/tickets') return handleGetTickets(request);
+    if (pathStr.match(/^support\/tickets\/[a-f0-9-]+$/)) {
+      const ticketId = pathStr.split('/')[2];
+      return handleGetTicket(request, ticketId);
+    }
     if (pathStr === 'assessment/questions') return handleGetQuestions(request);
     if (pathStr === 'assessment/progress') return handleGetProgress(request);
     if (pathStr === 'assessment/layered/questions') return handleGetLayeredQuestions(request);
@@ -562,6 +581,19 @@ export async function POST(request, { params }) {
     if (pathStr === 'notifications/mark-read') return handleMarkNotificationsRead(request);
     
     if (pathStr === 'attachments/upload') return handleAttachmentUpload(request);
+    
+    // Support ticket routes
+    if (pathStr === 'support/login') return handleSupportLogin(request);
+    if (pathStr === 'support/tickets') return handleCreateTicket(request);
+    if (pathStr.match(/^support\/tickets\/[^/]+\/diagnose$/)) {
+      const ticketId = pathStr.split('/')[2];
+      return handleDiagnoseTicket(request, ticketId);
+    }
+    if (pathStr.match(/^support\/tickets\/[^/]+\/approve-fix$/)) {
+      const ticketId = pathStr.split('/')[2];
+      return handleApproveTicketFix(request, ticketId);
+    }
+    
     if (pathStr === 'chat/stream') return handleChatStream(request);
     if (pathStr === 'chat/compare') return handleChatCompare(request);
     if (pathStr === 'chat/compare/select') return handleCompareSelect(request);
@@ -806,6 +838,12 @@ export async function PATCH(request, { params }) {
     // Voice session update: voice-sessions/:id
     if (pathStr.startsWith('voice-sessions/') && pathArr.length === 2) {
       const sessionId = pathArr[1];
+    }
+
+    // Support ticket update: support/tickets/:id
+    if (pathStr.match(/^support\/tickets\/[a-f0-9-]+$/)) {
+      const ticketId = pathStr.split('/')[2];
+      return handleUpdateTicket(request, ticketId);
     }
 
     // Update message video_url when video generation completes
