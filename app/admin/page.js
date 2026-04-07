@@ -5823,6 +5823,23 @@ function SupportTab({ token, adminRole }) {
                     </div>
                   )}
 
+                  {/* Emergent Prompt (for code fixes) */}
+                  {selectedTicket.emergent_prompt && (
+                    <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-xs font-bold text-red-400 tracking-widest uppercase">💻 Emergent Fix Prompt</h4>
+                        <button onClick={() => { navigator.clipboard.writeText(selectedTicket.emergent_prompt); alert('Copied to clipboard!'); }}
+                          className="text-[11px] px-2.5 py-1 bg-red-500/15 border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/25 transition-colors font-medium">
+                          📋 Copy Prompt
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-gray-600 mb-2">Paste this directly into Emergent to fix the issue:</p>
+                      <pre className="text-[11px] text-gray-300 overflow-x-auto max-h-48 overflow-y-auto bg-black/40 rounded-lg p-3 font-mono whitespace-pre-wrap border border-white/5">
+                        {selectedTicket.emergent_prompt}
+                      </pre>
+                    </div>
+                  )}
+
                   {/* Fix Actions (if data_fix) */}
                   {selectedTicket.fix_type === 'data_fix' && selectedTicket.fix_actions?.length > 0 && (
                     <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
