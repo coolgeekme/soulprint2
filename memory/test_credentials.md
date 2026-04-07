@@ -2,9 +2,9 @@
 
 ## Primary Test Account
 - Email: `test@soulprint.com`
-- Auth method: Google OAuth (legacy/passwordless - no local password set)
+- Password: `Admin123!`
+- Auth method: Google OAuth (legacy) + password login
 - Role: superadmin
-- Note: This account uses Google OAuth login, not email/password
 
 ## Secondary Test Account (email/password)
 - Email: `testchat@example.com`
