@@ -1,419 +1,442 @@
 #!/usr/bin/env python3
 """
-Backend Testing for Video Generation Status Communication Fix
-Tests the comprehensive fix across multiple backend files for video generation status handling.
+Backend Testing for Video Edit Auto-Execution Fix
+Tests the video edit intent detection and auto-execution pipeline.
 """
 
 import requests
 import json
 import time
-import uuid
-from datetime import datetime, timedelta
-import os
 import sys
+import os
 
-# Get base URL from environment
-BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://soulprint-engine.preview.emergentagent.com')
+# Configuration
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
-class VideoStatusTestSuite:
+# Test credentials
+TEST_EMAIL = "testchat@example.com"
+TEST_PASSWORD = "Test123456"
+
+class VideoEditAutoExecutionTester:
     def __init__(self):
-        self.session = requests.Session()
-        self.auth_token = None
-        self.test_results = []
-        
-    def log_test(self, test_name, success, details=""):
-        """Log test results"""
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} {test_name}")
-        if details:
-            print(f"    {details}")
-        self.test_results.append({
-            'test': test_name,
-            'success': success,
-            'details': details
-        })
+        self.token = None
+        self.conversation_id = None
         
     def authenticate(self):
-        """Authenticate with test credentials"""
-        try:
-            response = self.session.post(f"{API_BASE}/auth/login", json={
-                "email": "testchat@example.com",
-                "passcode": "Test123456"
-            })
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.auth_token = data.get('token')
-                self.session.headers.update({'Authorization': f'Bearer {self.auth_token}'})
-                self.log_test("Authentication", True, f"Token received: {self.auth_token[:20]}...")
-                return True
-            else:
-                self.log_test("Authentication", False, f"Status: {response.status_code}, Response: {response.text}")
-                return False
-        except Exception as e:
-            self.log_test("Authentication", False, f"Exception: {str(e)}")
+        """Authenticate and get token"""
+        print("🔐 Authenticating...")
+        
+        response = requests.post(f"{API_BASE}/auth/login", json={
+            "email": TEST_EMAIL,
+            "passcode": TEST_PASSWORD
+        })
+        
+        if response.status_code == 200:
+            data = response.json()
+            self.token = data.get('token')
+            print(f"✅ Authentication successful")
+            return True
+        else:
+            print(f"❌ Authentication failed: {response.status_code} - {response.text}")
             return False
+    
+    def get_headers(self):
+        """Get headers with auth token"""
+        return {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
     
     def test_health_check(self):
         """Test basic health check"""
-        try:
-            response = self.session.get(f"{API_BASE}/health")
-            success = response.status_code == 200 and response.json().get('status') == 'ok'
-            self.log_test("Health Check", success, f"Status: {response.status_code}")
-            return success
-        except Exception as e:
-            self.log_test("Health Check", False, f"Exception: {str(e)}")
+        print("\n🏥 Testing health check...")
+        
+        response = requests.get(f"{API_BASE}/health")
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'ok':
+                print("✅ Health check passed")
+                return True
+            else:
+                print(f"❌ Health check failed: {data}")
+                return False
+        else:
+            print(f"❌ Health check failed: {response.status_code}")
             return False
     
-    def create_test_video_job(self, status='generating', completed_at=None):
-        """Create a test video job in the database via direct MongoDB simulation"""
-        task_id = str(uuid.uuid4())
-        message_id = str(uuid.uuid4())
+    def test_video_edit_intent_detection(self):
+        """Test video edit intent detection patterns"""
+        print("\n🎬 Testing Video Edit Intent Detection...")
         
-        # We'll simulate this by creating a job that would exist in the database
-        # In a real test, this would insert into MongoDB directly
-        test_job = {
-            'task_id': task_id,
-            'message_id': message_id,
-            'user_id': 'test-user-id',  # This would be the actual user ID from auth
-            'status': status,
-            'prompt': 'Test video generation',
-            'model': 'kling-3',
-            'created_at': datetime.utcnow(),
-            'completed_at': completed_at
-        }
+        # Test messages that SHOULD trigger video edit intent
+        video_edit_messages = [
+            "can you edit this video and remove the tags from both ears of the bull?",
+            "edit the clip to remove the background noise",
+            "modify this video and change the color of the car",
+            "remove the watermark from the video",
+            "can you fix the lighting in this footage?",
+            "edit this video to make it brighter",
+            "can you remove the person in the background from this clip?",
+            "modify the video to add text overlay",
+            "change the color grading in this footage",
+            "crop this video to remove the edges"
+        ]
         
-        return test_job
-    
-    def test_media_pending_recently_completed(self):
-        """Test GET /api/media/pending returns recently-completed jobs within 30 seconds"""
-        try:
-            # Test the endpoint exists and requires authentication
-            response = self.session.get(f"{API_BASE}/media/pending")
+        # Test messages that should NOT trigger video edit intent
+        non_video_edit_messages = [
+            "what is video editing?",
+            "tell me about video formats",
+            "how do I edit videos in premiere pro?",
+            "what are the best video editing tools?",
+            "explain video compression",
+            "what's the difference between MP4 and AVI?"
+        ]
+        
+        success_count = 0
+        total_tests = len(video_edit_messages) + len(non_video_edit_messages)
+        
+        # Test video edit messages (should trigger video generation pipeline)
+        for message in video_edit_messages:
+            print(f"  Testing: '{message[:50]}...'")
             
-            if response.status_code == 401:
-                self.log_test("Media Pending - Auth Required", True, "401 Unauthorized without token (expected)")
-            else:
-                self.log_test("Media Pending - Auth Required", False, f"Expected 401, got {response.status_code}")
-                return False
-            
-            # Test with authentication
-            if not self.auth_token:
-                self.log_test("Media Pending - With Auth", False, "No auth token available")
-                return False
-                
-            response = self.session.get(f"{API_BASE}/media/pending")
+            response = requests.post(f"{API_BASE}/chat/stream", 
+                headers=self.get_headers(),
+                json={
+                    "content": message,
+                    "model": "gpt-4o"
+                }
+            )
             
             if response.status_code == 200:
-                data = response.json()
-                # Should return an array (even if empty)
-                if isinstance(data, list):
-                    self.log_test("Media Pending - Response Format", True, f"Returned array with {len(data)} items")
+                # Parse NDJSON response
+                lines = response.text.strip().split('\n')
+                events = []
+                for line in lines:
+                    if line.strip() and not line.startswith(':'):
+                        try:
+                            events.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+                
+                # Check for video generation events
+                has_generating_visual = any(e.get('type') == 'generating_visual' for e in events)
+                has_video_task = any(e.get('type') == 'video_task' for e in events)
+                
+                if has_generating_visual or has_video_task:
+                    print(f"    ✅ Correctly detected video edit intent")
+                    success_count += 1
+                else:
+                    print(f"    ❌ Failed to detect video edit intent")
+                    # Print events for debugging
+                    event_types = [e.get('type') for e in events]
+                    print(f"    Events: {event_types}")
+            else:
+                print(f"    ❌ Request failed: {response.status_code}")
+            
+            time.sleep(1)  # Rate limiting
+        
+        # Test non-video edit messages (should NOT trigger video generation)
+        for message in non_video_edit_messages:
+            print(f"  Testing: '{message[:50]}...'")
+            
+            response = requests.post(f"{API_BASE}/chat/stream", 
+                headers=self.get_headers(),
+                json={
+                    "content": message,
+                    "model": "gpt-4o"
+                }
+            )
+            
+            if response.status_code == 200:
+                # Parse NDJSON response
+                lines = response.text.strip().split('\n')
+                events = []
+                for line in lines:
+                    if line.strip() and not line.startswith(':'):
+                        try:
+                            events.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue
+                
+                # Check for video generation events (should NOT be present)
+                has_generating_visual = any(e.get('type') == 'generating_visual' for e in events)
+                has_video_task = any(e.get('type') == 'video_task' for e in events)
+                
+                if not has_generating_visual and not has_video_task:
+                    print(f"    ✅ Correctly did NOT trigger video edit")
+                    success_count += 1
+                else:
+                    print(f"    ❌ Incorrectly triggered video edit")
+                    event_types = [e.get('type') for e in events]
+                    print(f"    Events: {event_types}")
+            else:
+                print(f"    ❌ Request failed: {response.status_code}")
+            
+            time.sleep(1)  # Rate limiting
+        
+        print(f"\n📊 Video Edit Intent Detection: {success_count}/{total_tests} tests passed ({success_count/total_tests*100:.1f}%)")
+        return success_count == total_tests
+    
+    def test_chat_stream_video_edit_flow(self):
+        """Test chat stream video edit flow with video context"""
+        print("\n🎥 Testing Chat Stream Video Edit Flow...")
+        
+        # First, create a conversation with video context
+        print("  Setting up conversation with video context...")
+        
+        # Generate a video first to establish context
+        video_gen_response = requests.post(f"{API_BASE}/chat/stream", 
+            headers=self.get_headers(),
+            json={
+                "content": "generate a video of a bull in a field",
+                "model": "gpt-4o"
+            }
+        )
+        
+        if video_gen_response.status_code != 200:
+            print(f"❌ Failed to generate initial video: {video_gen_response.status_code}")
+            return False
+        
+        # Parse response to get conversation ID
+        lines = video_gen_response.text.strip().split('\n')
+        conversation_id = None
+        for line in lines:
+            if line.strip() and not line.startswith(':'):
+                try:
+                    event = json.loads(line)
+                    if event.get('type') == 'meta':
+                        conversation_id = event.get('conversationId')
+                        break
+                except json.JSONDecodeError:
+                    continue
+        
+        if not conversation_id:
+            print("❌ Failed to get conversation ID from video generation")
+            return False
+        
+        print(f"  ✅ Created conversation: {conversation_id}")
+        
+        # Now test video edit request in the same conversation
+        print("  Testing video edit request...")
+        
+        edit_response = requests.post(f"{API_BASE}/chat/stream", 
+            headers=self.get_headers(),
+            json={
+                "conversationId": conversation_id,
+                "content": "edit this video to remove the tags from the bull's ears",
+                "model": "gpt-4o"
+            }
+        )
+        
+        if edit_response.status_code == 200:
+            # Parse NDJSON response
+            lines = edit_response.text.strip().split('\n')
+            events = []
+            for line in lines:
+                if line.strip() and not line.startswith(':'):
+                    try:
+                        events.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+            
+            # Check for required events
+            has_generating_visual = any(e.get('type') == 'generating_visual' for e in events)
+            has_video_task = any(e.get('type') == 'video_task' for e in events)
+            
+            video_task_event = next((e for e in events if e.get('type') == 'video_task'), None)
+            
+            if has_generating_visual and has_video_task:
+                print("  ✅ Video edit flow triggered correctly")
+                
+                # Verify video_task event has required fields
+                if video_task_event:
+                    required_fields = ['taskId', 'status']
+                    missing_fields = [f for f in required_fields if f not in video_task_event]
                     
-                    # Check if any items have the expected fields for recently completed jobs
-                    for item in data:
-                        if item.get('status') in ['success', 'failed'] and item.get('completedAt'):
-                            self.log_test("Media Pending - Recently Completed Fields", True, 
-                                        f"Found recently completed job with status: {item['status']}")
-                            break
+                    if not missing_fields:
+                        print("  ✅ video_task event has required fields")
+                        return True
                     else:
-                        self.log_test("Media Pending - Recently Completed Fields", True, 
-                                    "No recently completed jobs found (expected if none exist)")
-                    
-                    return True
+                        print(f"  ❌ video_task event missing fields: {missing_fields}")
+                        return False
                 else:
-                    self.log_test("Media Pending - Response Format", False, f"Expected array, got {type(data)}")
+                    print("  ❌ video_task event not found")
                     return False
             else:
-                self.log_test("Media Pending - With Auth", False, f"Status: {response.status_code}, Response: {response.text}")
+                print("  ❌ Video edit flow did not trigger")
+                event_types = [e.get('type') for e in events]
+                print(f"  Events: {event_types}")
                 return False
-                
-        except Exception as e:
-            self.log_test("Media Pending - Exception", False, f"Exception: {str(e)}")
+        else:
+            print(f"  ❌ Video edit request failed: {edit_response.status_code}")
             return False
     
-    def test_patch_video_complete_updates_video_jobs(self):
-        """Test PATCH /api/messages/:id/video-complete also updates video_jobs collection"""
-        try:
-            # Create a test message ID
-            test_message_id = str(uuid.uuid4())
-            test_video_url = "https://test.com/video.mp4"
-            test_thumbnail_url = "https://test.com/thumb.jpg"
+    def test_system_prompt_update(self):
+        """Test that system prompt includes video editing capabilities"""
+        print("\n📝 Testing System Prompt Update...")
+        
+        # Test a simple chat to see if the system prompt includes video editing info
+        response = requests.post(f"{API_BASE}/chat/stream", 
+            headers=self.get_headers(),
+            json={
+                "content": "what are your video editing capabilities?",
+                "model": "gpt-4o"
+            }
+        )
+        
+        if response.status_code == 200:
+            # Parse NDJSON response
+            lines = response.text.strip().split('\n')
+            full_response = ""
+            for line in lines:
+                if line.strip() and not line.startswith(':'):
+                    try:
+                        event = json.loads(line)
+                        if event.get('type') == 'delta':
+                            full_response += event.get('content', '')
+                    except json.JSONDecodeError:
+                        continue
             
-            # Test without authentication first
-            response = self.session.patch(f"{API_BASE}/messages/{test_message_id}/video-complete", 
-                                        json={
-                                            "video_url": test_video_url,
-                                            "thumbnail_url": test_thumbnail_url
-                                        },
-                                        headers={})  # Remove auth header temporarily
+            # Check if response mentions video editing capabilities
+            video_edit_keywords = [
+                "video edit", "extract", "frame", "generate", "new video",
+                "edit description", "video generation", "pipeline"
+            ]
             
-            if response.status_code == 401:
-                self.log_test("PATCH Video Complete - Auth Required", True, "401 Unauthorized without token (expected)")
-            else:
-                self.log_test("PATCH Video Complete - Auth Required", False, f"Expected 401, got {response.status_code}")
+            response_lower = full_response.lower()
+            found_keywords = [kw for kw in video_edit_keywords if kw in response_lower]
             
-            # Test with authentication but missing video_url
-            response = self.session.patch(f"{API_BASE}/messages/{test_message_id}/video-complete", 
-                                        json={"thumbnail_url": test_thumbnail_url})
+            # Also check if it mentions NOT saying "I'll get started"
+            avoids_promise = "i'll get started" not in response_lower and "i'll work on it" not in response_lower
             
-            if response.status_code == 400:
-                error_data = response.json()
-                if 'video_url required' in error_data.get('error', ''):
-                    self.log_test("PATCH Video Complete - Validation", True, "video_url required validation working")
-                else:
-                    self.log_test("PATCH Video Complete - Validation", False, f"Unexpected error: {error_data}")
-            else:
-                self.log_test("PATCH Video Complete - Validation", False, f"Expected 400, got {response.status_code}")
-            
-            # Test with valid data
-            response = self.session.patch(f"{API_BASE}/messages/{test_message_id}/video-complete", 
-                                        json={
-                                            "video_url": test_video_url,
-                                            "thumbnail_url": test_thumbnail_url
-                                        })
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success'):
-                    self.log_test("PATCH Video Complete - Success", True, "Message update successful")
-                    return True
-                else:
-                    self.log_test("PATCH Video Complete - Success", False, f"Success field missing: {data}")
-                    return False
-            else:
-                self.log_test("PATCH Video Complete - Success", False, f"Status: {response.status_code}, Response: {response.text}")
-                return False
-                
-        except Exception as e:
-            self.log_test("PATCH Video Complete - Exception", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_media_status_consistency(self):
-        """Test GET /api/media/status/:taskId for status consistency"""
-        try:
-            # Test with non-existent task ID
-            fake_task_id = str(uuid.uuid4())
-            response = self.session.get(f"{API_BASE}/media/status/{fake_task_id}")
-            
-            if response.status_code == 404:
-                self.log_test("Media Status - 404 for Non-existent", True, "404 for non-existent task (expected)")
-            else:
-                self.log_test("Media Status - 404 for Non-existent", False, f"Expected 404, got {response.status_code}")
-            
-            # Test without authentication
-            response = self.session.get(f"{API_BASE}/media/status/{fake_task_id}", headers={})
-            
-            if response.status_code == 401:
-                self.log_test("Media Status - Auth Required", True, "401 Unauthorized without token (expected)")
-            else:
-                self.log_test("Media Status - Auth Required", False, f"Expected 401, got {response.status_code}")
-            
-            # Test the endpoint format and response structure
-            # Since we don't have real video jobs, we'll test the endpoint behavior
-            response = self.session.get(f"{API_BASE}/media/status/{fake_task_id}")
-            
-            if response.status_code in [404, 401]:
-                self.log_test("Media Status - Endpoint Accessible", True, f"Endpoint responding correctly: {response.status_code}")
+            if found_keywords and avoids_promise:
+                print(f"  ✅ System prompt includes video editing capabilities")
+                print(f"  Found keywords: {found_keywords}")
                 return True
             else:
-                self.log_test("Media Status - Endpoint Accessible", False, f"Unexpected status: {response.status_code}")
+                print(f"  ❌ System prompt may not include proper video editing info")
+                print(f"  Found keywords: {found_keywords}")
+                print(f"  Avoids promises: {avoids_promise}")
+                print(f"  Response preview: {full_response[:200]}...")
                 return False
-                
-        except Exception as e:
-            self.log_test("Media Status - Exception", False, f"Exception: {str(e)}")
+        else:
+            print(f"  ❌ System prompt test failed: {response.status_code}")
             return False
     
-    def test_existing_endpoints_regression(self):
-        """Test that existing endpoints still work (regression testing)"""
-        try:
-            # Test health endpoint
-            response = self.session.get(f"{API_BASE}/health")
-            health_ok = response.status_code == 200 and response.json().get('status') == 'ok'
-            self.log_test("Regression - Health", health_ok, f"Health endpoint: {response.status_code}")
-            
-            # Test models endpoint
-            response = self.session.get(f"{API_BASE}/models")
-            if response.status_code == 200:
-                models_data = response.json()
-                models_ok = isinstance(models_data, list) and len(models_data) > 0
-                self.log_test("Regression - Models", models_ok, f"Models count: {len(models_data) if models_ok else 'Invalid'}")
-            else:
-                self.log_test("Regression - Models", False, f"Models endpoint: {response.status_code}")
-                models_ok = False
-            
-            # Test media gallery (requires auth)
-            response = self.session.get(f"{API_BASE}/media/gallery")
-            if response.status_code in [200, 401]:  # 401 is acceptable if auth is required
-                gallery_ok = True
-                self.log_test("Regression - Media Gallery", True, f"Gallery endpoint: {response.status_code}")
-            else:
-                gallery_ok = False
-                self.log_test("Regression - Media Gallery", False, f"Gallery endpoint: {response.status_code}")
-            
-            # Test chat stream endpoint (should require auth and proper body)
-            response = self.session.post(f"{API_BASE}/chat/stream", json={"message": "test"})
-            if response.status_code in [200, 400, 401]:  # Various acceptable responses
-                stream_ok = True
-                self.log_test("Regression - Chat Stream", True, f"Chat stream endpoint: {response.status_code}")
-            else:
-                stream_ok = False
-                self.log_test("Regression - Chat Stream", False, f"Chat stream endpoint: {response.status_code}")
-            
-            return health_ok and models_ok and gallery_ok and stream_ok
-            
-        except Exception as e:
-            self.log_test("Regression Tests - Exception", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_video_status_enhanced_fields(self):
-        """Test that video status endpoints return enhanced UX fields when status=generating"""
-        try:
-            # Test the enhanced status endpoint behavior
-            fake_task_id = str(uuid.uuid4())
-            
-            # Test mobile path: /api/media/status/:taskId
-            response = self.session.get(f"{API_BASE}/media/status/{fake_task_id}")
-            mobile_path_ok = response.status_code in [404, 401]  # Expected for non-existent task
-            self.log_test("Enhanced Fields - Mobile Path", mobile_path_ok, f"Mobile status path: {response.status_code}")
-            
-            # Test desktop path: /api/media/video/status/:taskId
-            response = self.session.get(f"{API_BASE}/media/video/status/{fake_task_id}")
-            desktop_path_ok = response.status_code in [404, 401]  # Expected for non-existent task
-            self.log_test("Enhanced Fields - Desktop Path", desktop_path_ok, f"Desktop status path: {response.status_code}")
-            
-            # Both paths should behave identically
-            if mobile_path_ok and desktop_path_ok:
-                self.log_test("Enhanced Fields - Path Consistency", True, "Both mobile and desktop paths working")
-                return True
-            else:
-                self.log_test("Enhanced Fields - Path Consistency", False, "Inconsistent behavior between paths")
-                return False
-                
-        except Exception as e:
-            self.log_test("Enhanced Fields - Exception", False, f"Exception: {str(e)}")
-            return False
-    
-    def test_processVideoStatus_state_handling(self):
-        """Test that processVideoStatus handles 'completed' and 'succeed' states"""
-        try:
-            # This is more of an integration test since we can't directly test the internal function
-            # We'll test the endpoints that use processVideoStatus
-            
-            # Test that the media status endpoints are accessible and handle various scenarios
-            fake_task_id = str(uuid.uuid4())
-            
-            # Test the status endpoint with authentication
-            response = self.session.get(f"{API_BASE}/media/status/{fake_task_id}")
-            
-            # Should return 404 for non-existent task, which means the endpoint is working
-            if response.status_code == 404:
-                self.log_test("ProcessVideoStatus - State Handling", True, "Status endpoint properly handles non-existent tasks")
-                return True
-            elif response.status_code == 401:
-                self.log_test("ProcessVideoStatus - State Handling", True, "Status endpoint requires authentication (expected)")
-                return True
-            else:
-                self.log_test("ProcessVideoStatus - State Handling", False, f"Unexpected response: {response.status_code}")
-                return False
-                
-        except Exception as e:
-            self.log_test("ProcessVideoStatus - Exception", False, f"Exception: {str(e)}")
-            return False
-    
-    def run_comprehensive_tests(self):
-        """Run all video status communication fix tests"""
-        print("=" * 80)
-        print("VIDEO GENERATION STATUS COMMUNICATION FIX - BACKEND TESTING")
-        print("=" * 80)
-        print()
+    def test_regression_endpoints(self):
+        """Test that existing functionality still works"""
+        print("\n🔄 Testing Regression - Core Endpoints...")
         
-        # Step 1: Basic setup
-        if not self.test_health_check():
-            print("❌ Health check failed - aborting tests")
-            return False
+        tests = []
         
-        if not self.authenticate():
-            print("❌ Authentication failed - aborting tests")
-            return False
+        # Test auth/login
+        print("  Testing POST /api/auth/login...")
+        response = requests.post(f"{API_BASE}/auth/login", json={
+            "email": TEST_EMAIL,
+            "passcode": TEST_PASSWORD
+        })
+        tests.append(("Auth Login", response.status_code == 200))
         
-        print()
-        print("🔍 Testing Video Status Communication Fix Components:")
-        print()
+        # Test media/pending
+        print("  Testing GET /api/media/pending...")
+        response = requests.get(f"{API_BASE}/media/pending", headers=self.get_headers())
+        tests.append(("Media Pending", response.status_code == 200))
         
-        # Step 2: Test the main fix components
-        test_results = []
+        # Test regular chat (non-video-edit)
+        print("  Testing regular chat message...")
+        response = requests.post(f"{API_BASE}/chat/stream", 
+            headers=self.get_headers(),
+            json={
+                "content": "Hello, how are you today?",
+                "model": "gpt-4o"
+            }
+        )
+        tests.append(("Regular Chat", response.status_code == 200))
         
-        # Test 1: GET /api/media/pending recently-completed jobs window
-        print("1️⃣  Testing GET /api/media/pending - Recently-completed jobs window")
-        test_results.append(self.test_media_pending_recently_completed())
-        print()
+        # Test video generation request
+        print("  Testing video generation request...")
+        response = requests.post(f"{API_BASE}/chat/stream", 
+            headers=self.get_headers(),
+            json={
+                "content": "generate a video of a sunset",
+                "model": "gpt-4o"
+            }
+        )
         
-        # Test 2: PATCH /api/messages/:id/video-complete now also updates video_jobs
-        print("2️⃣  Testing PATCH /api/messages/:id/video-complete - video_jobs update")
-        test_results.append(self.test_patch_video_complete_updates_video_jobs())
-        print()
-        
-        # Test 3: GET /api/media/status/:taskId status consistency
-        print("3️⃣  Testing GET /api/media/status/:taskId - Status consistency")
-        test_results.append(self.test_media_status_consistency())
-        print()
-        
-        # Test 4: Enhanced UX fields for generating status
-        print("4️⃣  Testing Enhanced UX fields for video status")
-        test_results.append(self.test_video_status_enhanced_fields())
-        print()
-        
-        # Test 5: ProcessVideoStatus state handling
-        print("5️⃣  Testing processVideoStatus state handling")
-        test_results.append(self.test_processVideoStatus_state_handling())
-        print()
-        
-        # Test 6: Regression testing
-        print("6️⃣  Testing existing endpoints (regression)")
-        test_results.append(self.test_existing_endpoints_regression())
-        print()
+        if response.status_code == 200:
+            # Check for media_confirmation or generating_visual events
+            lines = response.text.strip().split('\n')
+            events = []
+            for line in lines:
+                if line.strip() and not line.startswith(':'):
+                    try:
+                        events.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+            
+            has_media_flow = any(e.get('type') in ['media_confirmation', 'generating_visual', 'video_task'] for e in events)
+            tests.append(("Video Generation", has_media_flow))
+        else:
+            tests.append(("Video Generation", False))
         
         # Summary
-        passed_tests = sum(test_results)
-        total_tests = len(test_results)
+        passed = sum(1 for _, result in tests if result)
+        total = len(tests)
         
-        print("=" * 80)
-        print("TEST SUMMARY")
-        print("=" * 80)
+        print(f"\n📊 Regression Tests: {passed}/{total} passed")
+        for test_name, result in tests:
+            status = "✅" if result else "❌"
+            print(f"  {status} {test_name}")
         
-        for result in self.test_results:
-            status = "✅" if result['success'] else "❌"
-            print(f"{status} {result['test']}")
-            if result['details'] and not result['success']:
-                print(f"    {result['details']}")
+        return passed == total
+    
+    def run_all_tests(self):
+        """Run all tests"""
+        print("🚀 Starting Video Edit Auto-Execution Fix Testing")
+        print("=" * 60)
         
-        print()
-        print(f"📊 OVERALL RESULT: {passed_tests}/{total_tests} major test categories passed")
+        if not self.authenticate():
+            print("❌ Authentication failed, cannot continue")
+            return False
         
-        if passed_tests == total_tests:
-            print("🎉 ALL VIDEO STATUS COMMUNICATION FIX TESTS PASSED!")
+        if not self.test_health_check():
+            print("❌ Health check failed, cannot continue")
+            return False
+        
+        # Run all test categories
+        test_results = []
+        
+        test_results.append(("Video Edit Intent Detection", self.test_video_edit_intent_detection()))
+        test_results.append(("Chat Stream Video Edit Flow", self.test_chat_stream_video_edit_flow()))
+        test_results.append(("System Prompt Update", self.test_system_prompt_update()))
+        test_results.append(("Regression Tests", self.test_regression_endpoints()))
+        
+        # Final summary
+        print("\n" + "=" * 60)
+        print("📊 FINAL TEST RESULTS")
+        print("=" * 60)
+        
+        passed = 0
+        total = len(test_results)
+        
+        for test_name, result in test_results:
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"{status} {test_name}")
+            if result:
+                passed += 1
+        
+        print(f"\nOverall: {passed}/{total} test categories passed ({passed/total*100:.1f}%)")
+        
+        if passed == total:
+            print("🎉 All tests passed! Video Edit Auto-Execution Fix is working correctly.")
             return True
         else:
-            print(f"⚠️  {total_tests - passed_tests} test categories failed")
+            print("⚠️  Some tests failed. Please review the issues above.")
             return False
 
-def main():
-    """Main test execution"""
-    print("Starting Video Generation Status Communication Fix Backend Tests...")
-    print(f"Testing against: {BASE_URL}")
-    print()
-    
-    test_suite = VideoStatusTestSuite()
-    success = test_suite.run_comprehensive_tests()
-    
-    if success:
-        print("\n✅ Video Status Communication Fix testing completed successfully!")
-        sys.exit(0)
-    else:
-        print("\n❌ Some tests failed. Please review the output above.")
-        sys.exit(1)
-
 if __name__ == "__main__":
-    main()
+    tester = VideoEditAutoExecutionTester()
+    success = tester.run_all_tests()
+    sys.exit(0 if success else 1)
