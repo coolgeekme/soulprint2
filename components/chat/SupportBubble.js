@@ -135,16 +135,22 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
     return (
       <button
         onClick={toggleOpen}
-        className="fixed right-5 z-[9999] rounded-full shadow-lg shadow-black/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 group overflow-hidden border-2 border-orange-500/50"
-        style={{ bottom: isMobile ? 'calc(10rem + env(safe-area-inset-bottom, 0px))' : '1.25rem', width: isMobile ? '48px' : '56px', height: isMobile ? '48px' : '56px' }}
+        className="fixed right-5 z-[9999] flex flex-col items-center group"
+        style={{ bottom: isMobile ? 'calc(10rem + env(safe-area-inset-bottom, 0px))' : '1.25rem' }}
         title="Ask Ace"
       >
-        <img src={ACE_AVATAR} alt="Ace" className="w-full h-full object-cover" />
+        <span className="text-[10px] font-semibold text-orange-400 mb-1 opacity-80 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full border border-orange-500/20">
+          Ask Ace
+        </span>
+        <div className="rounded-full shadow-lg shadow-black/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden border-2 border-orange-500/50"
+          style={{ width: isMobile ? '48px' : '56px', height: isMobile ? '48px' : '56px' }}>
+          <img src={ACE_AVATAR} alt="Ace" className="w-full h-full object-cover" style={{ objectPosition: 'center 25%' }} />
+        </div>
         {hasUnread && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full border-2 border-[#0a0a0a] animate-pulse" />
+          <span className="absolute bottom-0 right-0 w-4 h-4 bg-red-500 rounded-full border-2 border-[#0a0a0a] animate-pulse" />
         )}
         {minimized && (
-          <span className="absolute -top-1 -left-1 w-5 h-5 bg-blue-500 rounded-full border-2 border-[#0a0a0a] flex items-center justify-center">
+          <span className="absolute bottom-0 left-0 w-5 h-5 bg-blue-500 rounded-full border-2 border-[#0a0a0a] flex items-center justify-center">
             <Minus className="w-3 h-3 text-white" />
           </span>
         )}
@@ -171,7 +177,7 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-500/10 to-transparent border-b border-white/8 flex-shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-orange-500/30">
-            <img src={ACE_AVATAR} alt="Ace" className="w-full h-full object-cover" />
+            <img src={ACE_AVATAR} alt="Ace" className="w-full h-full object-cover" style={{ objectPosition: 'center 25%' }} />
           </div>
           <div>
             <h3 className="text-white text-sm font-semibold leading-tight">Ace</h3>
