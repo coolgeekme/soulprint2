@@ -69,6 +69,7 @@ export default function MobileChat({
   
   // AbortController for stopping requests
   const abortControllerRef = useRef(null);
+  const sendingRef = useRef(false); // Synchronous guard against double-sends on mobile
   
   // New state for additional features
   const [showImageGenSheet, setShowImageGenSheet] = useState(false);
@@ -778,7 +779,7 @@ export default function MobileChat({
         setMessages(msgs);
       })
       .catch(console.error);
-  }, [token, conversationId, assistantName, profile, user, loading]);
+  }, [token, conversationId, assistantName, profile, user]);
 
   // Process file for attachment
   const processFile = async (file) => {
@@ -1006,6 +1007,9 @@ export default function MobileChat({
   // Send message
   const sendMessage = async () => {
     if ((!input.trim() && !attachments.length && !pendingMediaAttachment) || loading) return;
+    // Synchronous guard to prevent double-sends on mobile (rapid tap / Enter + tap)
+    if (sendingRef.current) return;
+    sendingRef.current = true;
     
     // Create abort controller for this request
     abortControllerRef.current = new AbortController();
