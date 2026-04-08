@@ -3102,6 +3102,13 @@ async function handleAdminGetBusinessInsights(request) {
   const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
   const ninetyDaysAgo = new Date(now - 90 * 24 * 60 * 60 * 1000);
 
+  // ── INTERNAL USER DETECTION ───────────────────────────────────────────────
+  const isInternalEmail = (email) => {
+    if (!email) return false;
+    const lower = email.toLowerCase();
+    return lower.endsWith('@archeforge.com') || lower === 'reggie@coolgeek.me';
+  };
+
   // ── USER SEGMENTATION BY USAGE ─────────────────────────────────────────────
   // Get message counts per user for segmentation
   const userMessageCounts = await db.collection('messages').aggregate([
@@ -3113,13 +3120,17 @@ async function handleAdminGetBusinessInsights(request) {
   userMessageCounts.forEach(u => { userCountMap[u._id] = u.message_count; });
 
   // Define usage tiers
-  const usageSegments = {
-    inactive: { min: 0, max: 0, count: 0, users: [] },      // 0 messages
-    light: { min: 1, max: 20, count: 0, users: [] },        // 1-20 messages
-    moderate: { min: 21, max: 100, count: 0, users: [] },   // 21-100 messages
-    heavy: { min: 101, max: 500, count: 0, users: [] },     // 101-500 messages
-    power: { min: 501, max: Infinity, count: 0, users: [] } // 500+ messages
-  };
+  const createEmptySegments = () => ({
+    inactive: { min: 0, max: 0, count: 0, users: [] },
+    light: { min: 1, max: 20, count: 0, users: [] },
+    moderate: { min: 21, max: 100, count: 0, users: [] },
+    heavy: { min: 101, max: 500, count: 0, users: [] },
+    power: { min: 501, max: Infinity, count: 0, users: [] }
+  });
+  
+  const usageSegments = createEmptySegments();         // ALL users
+  const externalSegments = createEmptySegments();      // External only
+  const internalSegments = createEmptySegments();      // Internal only
 
   // Get all accepted users
   const allUsers = await db.collection('users')
@@ -3127,22 +3138,36 @@ async function handleAdminGetBusinessInsights(request) {
     .project({ id: 1, email: 1, created_at: 1, last_active_at: 1 })
     .toArray();
 
+  // Track internal user IDs for cost calculations
+  const internalUserIds = new Set();
+  const externalUserIds = new Set();
+  
   allUsers.forEach(user => {
+    const internal = isInternalEmail(user.email);
+    if (internal) internalUserIds.add(user.id);
+    else externalUserIds.add(user.id);
+    
     const msgCount = userCountMap[user.id] || 0;
     for (const [tier, config] of Object.entries(usageSegments)) {
       if (msgCount >= config.min && msgCount <= config.max) {
         config.count++;
-        if (config.users.length < 5) { // Keep top 5 examples per tier
-          config.users.push({ email: user.email, messages: msgCount });
-        }
+        if (config.users.length < 5) config.users.push({ email: user.email, messages: msgCount, is_internal: internal });
+        
+        // Also populate external/internal segments
+        const targetSegments = internal ? internalSegments : externalSegments;
+        targetSegments[tier].count++;
+        if (targetSegments[tier].users.length < 5) targetSegments[tier].users.push({ email: user.email, messages: msgCount, is_internal: internal });
+        
         break;
       }
     }
   });
 
   // Sort users in each segment by message count
-  Object.values(usageSegments).forEach(seg => {
-    seg.users.sort((a, b) => b.messages - a.messages);
+  [usageSegments, externalSegments, internalSegments].forEach(segments => {
+    Object.values(segments).forEach(seg => {
+      seg.users.sort((a, b) => b.messages - a.messages);
+    });
   });
 
   // ── TOP USERS (POTENTIAL ENTERPRISE) ───────────────────────────────────────
@@ -3181,6 +3206,7 @@ async function handleAdminGetBusinessInsights(request) {
       estimated_cost: parseFloat(userCost.toFixed(2)),
       joined: user?.created_at,
       last_active: user?.last_active_at,
+      is_internal: isInternalEmail(user?.email),
     });
   }
 
@@ -3771,16 +3797,140 @@ async function handleAdminGetBusinessInsights(request) {
     cost_per_user: parseFloat(voiceCostPerUser.toFixed(4)),
   };
 
+  // ── DOGFOOD BURN (INTERNAL TEAM COST) ───────────────────────────────────────
+  // Calculate costs generated exclusively by internal users
+  const internalUserIdArray = [...internalUserIds];
+  const externalUserIdArray = [...externalUserIds];
+  
+  // Internal LLM cost
+  const internalLLMCostAgg = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', user_id: { $in: internalUserIdArray }, est_input_tokens: { $exists: true } } },
+    { $group: { _id: null, input: { $sum: '$est_input_tokens' }, output: { $sum: '$est_output_tokens' } } },
+  ]).toArray();
+  const internalLLMCost = internalLLMCostAgg.length > 0
+    ? (internalLLMCostAgg[0].input / 1_000_000) * 5 + (internalLLMCostAgg[0].output / 1_000_000) * 15
+    : 0;
+  
+  // Internal media cost
+  const internalMediaCostAgg = await db.collection('media_gallery').aggregate([
+    { $match: { user_id: { $in: internalUserIdArray } } },
+    { $group: { _id: null, total_cost: { $sum: '$cost_usd' }, count: { $sum: 1 } } },
+  ]).toArray();
+  const internalMediaCost = internalMediaCostAgg[0]?.total_cost || 0;
+  const internalMediaCount = internalMediaCostAgg[0]?.count || 0;
+  
+  // Internal video cost
+  const internalVideoCount = await db.collection('video_jobs').countDocuments({ user_id: { $in: internalUserIdArray } });
+  
+  // Internal voice cost
+  const internalVoiceCostAgg = await db.collection('voice_sessions').aggregate([
+    { $match: { user_id: { $in: internalUserIdArray }, status: 'completed' } },
+    { $group: { _id: null, total_cost: { $sum: { $ifNull: ['$estimated_cost_usd', 0] } }, count: { $sum: 1 } } },
+  ]).toArray();
+  const internalVoiceCost = internalVoiceCostAgg[0]?.total_cost || 0;
+  
+  // Internal messages
+  const internalMessageCount = await db.collection('messages').countDocuments({ user_id: { $in: internalUserIdArray }, role: 'user' });
+  
+  // Per-internal-user breakdown
+  const dogfoodByUser = [];
+  for (const intUserId of internalUserIdArray) {
+    const intUser = allUsers.find(u => u.id === intUserId);
+    if (!intUser) continue;
+    
+    const userMsgCount = userCountMap[intUserId] || 0;
+    const userCostAgg = await db.collection('messages').aggregate([
+      { $match: { user_id: intUserId, role: 'assistant', est_input_tokens: { $exists: true } } },
+      { $group: { _id: null, input: { $sum: '$est_input_tokens' }, output: { $sum: '$est_output_tokens' } } },
+    ]).toArray();
+    const userLLMCost = userCostAgg.length > 0
+      ? (userCostAgg[0].input / 1_000_000) * 5 + (userCostAgg[0].output / 1_000_000) * 15
+      : 0;
+    const userMediaAgg = await db.collection('media_gallery').aggregate([
+      { $match: { user_id: intUserId } },
+      { $group: { _id: null, cost: { $sum: '$cost_usd' }, count: { $sum: 1 } } },
+    ]).toArray();
+    const userMediaCost = userMediaAgg[0]?.cost || 0;
+    const userMediaCount = userMediaAgg[0]?.count || 0;
+    const userVideoCount = await db.collection('video_jobs').countDocuments({ user_id: intUserId });
+    
+    dogfoodByUser.push({
+      email: intUser.email,
+      messages: userMsgCount,
+      llm_cost: parseFloat(userLLMCost.toFixed(2)),
+      media_cost: parseFloat(userMediaCost.toFixed(2)),
+      media_count: userMediaCount,
+      video_count: userVideoCount,
+      total_cost: parseFloat((userLLMCost + userMediaCost).toFixed(2)),
+    });
+  }
+  dogfoodByUser.sort((a, b) => b.total_cost - a.total_cost);
+  
+  const totalDogfoodBurn = parseFloat((internalLLMCost + internalMediaCost + internalVoiceCost).toFixed(2));
+  
+  // ── EXTERNAL-ONLY COST METRICS ────────────────────────────────────────────
+  const externalLLMCostAgg = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', user_id: { $in: externalUserIdArray }, est_input_tokens: { $exists: true } } },
+    { $group: { _id: null, input: { $sum: '$est_input_tokens' }, output: { $sum: '$est_output_tokens' } } },
+  ]).toArray();
+  const externalLLMCost = externalLLMCostAgg.length > 0
+    ? (externalLLMCostAgg[0].input / 1_000_000) * 5 + (externalLLMCostAgg[0].output / 1_000_000) * 15
+    : 0;
+  const externalMediaCostAgg = await db.collection('media_gallery').aggregate([
+    { $match: { user_id: { $in: externalUserIdArray } } },
+    { $group: { _id: null, total_cost: { $sum: '$cost_usd' } } },
+  ]).toArray();
+  const externalMediaCost = externalMediaCostAgg[0]?.total_cost || 0;
+  const externalActiveUserCount = userMessageCounts.filter(u => externalUserIds.has(u._id)).length || 1;
+  const externalAvgCostPerUser = (externalLLMCost + externalMediaCost) / externalActiveUserCount;
+  const totalExternalAccepted = allUsers.filter(u => !isInternalEmail(u.email)).length;
+
   return ok({
     generated_at: now.toISOString(),
     
-    // User Segmentation
+    // Internal user metadata
+    internal_users: {
+      count: internalUserIds.size,
+      emails: internalUserIdArray.map(id => allUsers.find(u => u.id === id)?.email).filter(Boolean),
+    },
+    
+    // Dogfood Burn — internal team cost
+    dogfood_burn: {
+      total_cost: totalDogfoodBurn,
+      llm_cost: parseFloat(internalLLMCost.toFixed(2)),
+      media_cost: parseFloat(internalMediaCost.toFixed(2)),
+      voice_cost: parseFloat(internalVoiceCost.toFixed(2)),
+      messages: internalMessageCount,
+      media_generated: internalMediaCount,
+      videos_generated: internalVideoCount,
+      by_user: dogfoodByUser,
+    },
+    
+    // User Segmentation (ALL users)
     user_segments: {
       inactive: { count: usageSegments.inactive.count, percentage: parseFloat(((usageSegments.inactive.count / totalAccepted) * 100).toFixed(1)) },
       light: { count: usageSegments.light.count, percentage: parseFloat(((usageSegments.light.count / totalAccepted) * 100).toFixed(1)), range: '1-20 msgs' },
       moderate: { count: usageSegments.moderate.count, percentage: parseFloat(((usageSegments.moderate.count / totalAccepted) * 100).toFixed(1)), range: '21-100 msgs' },
       heavy: { count: usageSegments.heavy.count, percentage: parseFloat(((usageSegments.heavy.count / totalAccepted) * 100).toFixed(1)), range: '101-500 msgs' },
       power: { count: usageSegments.power.count, percentage: parseFloat(((usageSegments.power.count / totalAccepted) * 100).toFixed(1)), range: '500+ msgs' },
+    },
+    
+    // User Segmentation (EXTERNAL only — excludes internal/dogfood users)
+    user_segments_external: {
+      total_external: totalExternalAccepted,
+      inactive: { count: externalSegments.inactive.count, percentage: totalExternalAccepted > 0 ? parseFloat(((externalSegments.inactive.count / totalExternalAccepted) * 100).toFixed(1)) : 0 },
+      light: { count: externalSegments.light.count, percentage: totalExternalAccepted > 0 ? parseFloat(((externalSegments.light.count / totalExternalAccepted) * 100).toFixed(1)) : 0, range: '1-20 msgs' },
+      moderate: { count: externalSegments.moderate.count, percentage: totalExternalAccepted > 0 ? parseFloat(((externalSegments.moderate.count / totalExternalAccepted) * 100).toFixed(1)) : 0, range: '21-100 msgs' },
+      heavy: { count: externalSegments.heavy.count, percentage: totalExternalAccepted > 0 ? parseFloat(((externalSegments.heavy.count / totalExternalAccepted) * 100).toFixed(1)) : 0, range: '101-500 msgs' },
+      power: { count: externalSegments.power.count, percentage: totalExternalAccepted > 0 ? parseFloat(((externalSegments.power.count / totalExternalAccepted) * 100).toFixed(1)) : 0, range: '500+ msgs' },
+    },
+    
+    // External cost metrics for ARPU/MRR calculations
+    external_costs: {
+      total_llm_cost: parseFloat(externalLLMCost.toFixed(2)),
+      total_media_cost: parseFloat(externalMediaCost.toFixed(2)),
+      avg_cost_per_user: parseFloat(externalAvgCostPerUser.toFixed(2)),
+      active_users: externalActiveUserCount,
     },
     
     // Top Users
