@@ -1848,8 +1848,14 @@ export default function ChatPage() {
               setMessages(prev => [...prev, finalMsg]);
               setStreamingContent('');
               streamingImageUrlRef.current = null;
-              // Don't clear video task ref if video is still generating — VideoCard needs it
-              if (!hasVideoTask) {
+              // Clear streaming video task after the message renders to avoid duplicates
+              if (hasVideoTask) {
+                setTimeout(() => {
+                  setStreamingVideoTask(null);
+                  streamingVideoTaskRef.current = null;
+                }, 200);
+              } else {
+                setStreamingVideoTask(null);
                 streamingVideoTaskRef.current = null;
               }
             }
