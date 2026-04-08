@@ -1928,24 +1928,16 @@ export default function ChatPage() {
     });
   }, [submitMediaConfirmation]);
   
-  // Extend Video button from SavedVideoCard — send a message that triggers extend flow
+  // Extend Video button from SavedVideoCard — directly submit extend request
   const handleExtendVideo = useCallback(({ videoUrl, videoTaskId, prompt }) => {
-    // Set up the mediaFlow directly and submit
-    const extendMessage = `Extend this video: continue the scene naturally`;
-    pendingMediaFlowRef.current = {
-      step: 'confirmed',
+    submitMediaConfirmation({
       type: 'video_extend',
-      finalPrompt: prompt || extendMessage,
+      originalPrompt: prompt || 'Extend this video: continue the scene naturally',
+      finalPrompt: prompt || 'Continue the video naturally with smooth transitions',
       sourceVideoUrl: videoUrl || null,
       sourceVideoTaskId: videoTaskId || null,
-    };
-    // Trigger submission with the extend message
-    setInput(extendMessage);
-    setTimeout(() => {
-      const syntheticEvent = { preventDefault: () => {} };
-      handleSubmit(syntheticEvent);
-    }, 100);
-  }, [handleSubmit]);
+    });
+  }, [submitMediaConfirmation]);
   
   // Toggle quick generate on/off and persist to backend
   const toggleQuickGenerate = useCallback(async () => {
