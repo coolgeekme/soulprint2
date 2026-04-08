@@ -3179,6 +3179,7 @@ function InsightsTab({ token }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [excludeInternal, setExcludeInternal] = useState(true);
   
   // Pricing Calculator State
   const [customPricing, setCustomPricing] = useState({
@@ -3371,7 +3372,9 @@ function InsightsTab({ token }) {
   const calculateEstimatedMRR = () => {
     if (!insights?.user_segments) return { mrr: 0, breakdown: {} };
     
-    const segments = insights.user_segments;
+    const segments = excludeInternal && insights.user_segments_external 
+      ? insights.user_segments_external 
+      : insights.user_segments;
     const pricing = customPricing;
     
     // Estimate which users would be on which tier
@@ -3436,10 +3439,96 @@ function InsightsTab({ token }) {
           </h2>
           <p className="text-gray-500 text-xs mt-1">Data-driven insights to help determine pricing tiers</p>
         </div>
-        <div className="text-[10px] text-gray-600 bg-white/5 px-2 py-1 rounded">
-          Generated: {new Date(insights.generated_at).toLocaleString()}
+        <div className="flex items-center gap-4">
+          {/* Exclude Internal Users Toggle */}
+          <button
+            onClick={() => setExcludeInternal(!excludeInternal)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+              excludeInternal
+                ? 'bg-orange-500/20 border-orange-500/40 text-orange-400'
+                : 'bg-white/5 border-white/10 text-gray-500 hover:text-gray-400'
+            }`}
+          >
+            {excludeInternal ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {excludeInternal ? 'Internal Excluded' : 'Show All Users'}
+          </button>
+          <div className="text-[10px] text-gray-600 bg-white/5 px-2 py-1 rounded">
+            Generated: {new Date(insights.generated_at).toLocaleString()}
+          </div>
         </div>
       </div>
+
+      {/* Dogfood Burn — Internal Team Cost */}
+      {insights.dogfood_burn && (
+        <div className="bg-gradient-to-r from-red-500/5 to-amber-500/5 border border-red-500/20 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-red-400 text-xs font-bold tracking-widest uppercase flex items-center gap-2">
+                <Zap className="w-4 h-4" />
+                Dogfood Burn (Internal Team Cost)
+              </h3>
+              <p className="text-gray-500 text-xs mt-1">
+                Cost consumed by {insights.internal_users?.count || 0} internal staff 
+                ({insights.internal_users?.emails?.join(', ') || 'none'})
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-red-400 text-2xl font-bold">${insights.dogfood_burn.total_cost?.toFixed(2) || '0.00'}</p>
+              <p className="text-gray-600 text-[10px]">total internal burn</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
+            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
+              <p className="text-gray-500 text-[10px] uppercase">LLM Cost</p>
+              <p className="text-blue-400 font-bold">${insights.dogfood_burn.llm_cost?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
+              <p className="text-gray-500 text-[10px] uppercase">Media Cost</p>
+              <p className="text-purple-400 font-bold">${insights.dogfood_burn.media_cost?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
+              <p className="text-gray-500 text-[10px] uppercase">Voice Cost</p>
+              <p className="text-orange-400 font-bold">${insights.dogfood_burn.voice_cost?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
+              <p className="text-gray-500 text-[10px] uppercase">Messages</p>
+              <p className="text-white font-bold">{insights.dogfood_burn.messages?.toLocaleString() || 0}</p>
+            </div>
+            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
+              <p className="text-gray-500 text-[10px] uppercase">Media Gen.</p>
+              <p className="text-white font-bold">{insights.dogfood_burn.media_generated || 0}</p>
+            </div>
+            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
+              <p className="text-gray-500 text-[10px] uppercase">Videos</p>
+              <p className="text-white font-bold">{insights.dogfood_burn.videos_generated || 0}</p>
+            </div>
+          </div>
+
+          {/* Per-User Breakdown */}
+          {insights.dogfood_burn.by_user?.length > 0 && (
+            <div className="bg-black/20 border border-white/5 rounded-lg p-3">
+              <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-2">Burn by Team Member</p>
+              <div className="space-y-2">
+                {insights.dogfood_burn.by_user.map((u, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600">{idx + 1}.</span>
+                      <span className="text-white">{u.email}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-gray-500">{u.messages} msgs</span>
+                      <span className="text-gray-500">{u.media} media</span>
+                      <span className="text-gray-500">{u.videos} videos</span>
+                      <span className="text-red-400 font-medium">${u.total_cost?.toFixed(2) || '0.00'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Feature & Cost Management */}
       <div className="bg-gradient-to-r from-pink-500/5 to-transparent border border-pink-500/20 rounded-xl p-4">
@@ -3764,34 +3853,48 @@ function InsightsTab({ token }) {
         <h3 className="text-purple-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
           <Users className="w-4 h-4" />
           User Segmentation by Usage
+          {excludeInternal && <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded ml-2 normal-case font-normal">External Only</span>}
         </h3>
-        <p className="text-gray-500 text-xs mb-4">Understanding how users consume your product helps set tier limits</p>
+        <p className="text-gray-500 text-xs mb-4">
+          {excludeInternal 
+            ? `Showing ${insights.user_segments_external?.total_external || 0} external users (staff excluded)` 
+            : 'Understanding how users consume your product helps set tier limits'}
+        </p>
         
-        <div className="grid grid-cols-5 gap-2">
-          {insights.user_segments && Object.entries(insights.user_segments).map(([tier, data]) => (
-            <div key={tier} className={`p-3 rounded-lg border ${
-              tier === 'power' ? 'bg-orange-500/10 border-orange-500/30' :
-              tier === 'heavy' ? 'bg-green-500/10 border-green-500/30' :
-              tier === 'moderate' ? 'bg-blue-500/10 border-blue-500/30' :
-              tier === 'light' ? 'bg-gray-500/10 border-gray-500/30' :
-              'bg-red-500/10 border-red-500/30'
-            }`}>
-              <p className="text-white text-lg font-bold">{data.count}</p>
-              <p className="text-gray-400 text-xs capitalize">{tier}</p>
-              <p className="text-gray-600 text-[10px]">{data.percentage}%</p>
-              {data.range && <p className="text-gray-600 text-[10px]">{data.range}</p>}
-            </div>
-          ))}
-        </div>
-        
-        {/* Visual Bar */}
-        <div className="mt-4 h-4 rounded-full overflow-hidden flex">
-          <div style={{width: `${insights.user_segments.inactive?.percentage || 0}%`}} className="bg-red-500/50" title="Inactive" />
-          <div style={{width: `${insights.user_segments.light?.percentage || 0}%`}} className="bg-gray-500/50" title="Light" />
-          <div style={{width: `${insights.user_segments.moderate?.percentage || 0}%`}} className="bg-blue-500/50" title="Moderate" />
-          <div style={{width: `${insights.user_segments.heavy?.percentage || 0}%`}} className="bg-green-500/50" title="Heavy" />
-          <div style={{width: `${insights.user_segments.power?.percentage || 0}%`}} className="bg-orange-500/50" title="Power" />
-        </div>
+        {(() => {
+          const segments = excludeInternal && insights.user_segments_external 
+            ? insights.user_segments_external 
+            : insights.user_segments;
+          return (
+            <>
+              <div className="grid grid-cols-5 gap-2">
+                {segments && Object.entries(segments).filter(([key]) => key !== 'total_external').map(([tier, data]) => (
+                  <div key={tier} className={`p-3 rounded-lg border ${
+                    tier === 'power' ? 'bg-orange-500/10 border-orange-500/30' :
+                    tier === 'heavy' ? 'bg-green-500/10 border-green-500/30' :
+                    tier === 'moderate' ? 'bg-blue-500/10 border-blue-500/30' :
+                    tier === 'light' ? 'bg-gray-500/10 border-gray-500/30' :
+                    'bg-red-500/10 border-red-500/30'
+                  }`}>
+                    <p className="text-white text-lg font-bold">{data.count}</p>
+                    <p className="text-gray-400 text-xs capitalize">{tier}</p>
+                    <p className="text-gray-600 text-[10px]">{data.percentage}%</p>
+                    {data.range && <p className="text-gray-600 text-[10px]">{data.range}</p>}
+                  </div>
+                ))}
+              </div>
+              
+              {/* Visual Bar */}
+              <div className="mt-4 h-4 rounded-full overflow-hidden flex">
+                <div style={{width: `${segments?.inactive?.percentage || 0}%`}} className="bg-red-500/50" title="Inactive" />
+                <div style={{width: `${segments?.light?.percentage || 0}%`}} className="bg-gray-500/50" title="Light" />
+                <div style={{width: `${segments?.moderate?.percentage || 0}%`}} className="bg-blue-500/50" title="Moderate" />
+                <div style={{width: `${segments?.heavy?.percentage || 0}%`}} className="bg-green-500/50" title="Heavy" />
+                <div style={{width: `${segments?.power?.percentage || 0}%`}} className="bg-orange-500/50" title="Power" />
+              </div>
+            </>
+          );
+        })()}
         <div className="flex justify-between text-[10px] text-gray-600 mt-1">
           <span>Inactive</span>
           <span>Light (1-20)</span>
@@ -3813,8 +3916,33 @@ function InsightsTab({ token }) {
         <div className="bg-black/30 border border-white/10 rounded-lg p-3 mb-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm">💰</span>
-            <span className="text-white text-xs font-medium">Your Cost Structure</span>
+            <span className="text-white text-xs font-medium">
+              {excludeInternal ? 'External User Cost Structure' : 'Your Cost Structure'}
+            </span>
+            {excludeInternal && insights.external_costs && (
+              <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded">Staff excluded</span>
+            )}
           </div>
+          {excludeInternal && insights.external_costs ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+              <div>
+                <p className="text-gray-500 text-[10px]">Ext. LLM Cost</p>
+                <p className="text-blue-400 font-bold">${insights.external_costs.total_llm_cost?.toFixed(2) || '0.00'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-[10px]">Ext. Media Cost</p>
+                <p className="text-purple-400 font-bold">${insights.external_costs.total_media_cost?.toFixed(2) || '0.00'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-[10px]">Avg Cost/Ext User</p>
+                <p className="text-green-400 font-bold">${insights.external_costs.avg_cost_per_user?.toFixed(2) || '0.00'}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-[10px]">Active External Users</p>
+                <p className="text-white font-bold text-lg">{insights.external_costs.active_users || 0}</p>
+              </div>
+            </div>
+          ) : (
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
             <div>
               <p className="text-gray-500 text-[10px]">Cost/Message</p>
@@ -3841,7 +3969,12 @@ function InsightsTab({ token }) {
               <p className="text-white font-bold text-lg">${insights.pricing_recommendations.total_platform_cost?.toFixed(2) || '0.00'}</p>
             </div>
           </div>
-          <p className="text-gray-600 text-[10px]">Tier pricing below includes all costs (LLM + Voice + Media) for accurate margin calculations</p>
+          )}
+          <p className="text-gray-600 text-[10px]">
+            {excludeInternal 
+              ? 'Showing external user costs only — internal staff burn tracked separately above' 
+              : 'Tier pricing below includes all costs (LLM + Voice + Media) for accurate margin calculations'}
+          </p>
         </div>
 
         {/* Voice Chat Cost Analysis */}
@@ -4579,11 +4712,14 @@ function InsightsTab({ token }) {
             </thead>
             <tbody>
               {insights.top_users?.slice(0, 10).map((user, idx) => (
-                <tr key={idx} className="border-b border-white/5 hover:bg-white/5">
+                <tr key={idx} className={`border-b border-white/5 hover:bg-white/5 ${user.is_internal ? 'opacity-60' : ''}`}>
                   <td className="py-2 px-2 text-gray-600">{idx + 1}</td>
                   <td className="py-2 px-2">
                     <span className="text-white">{user.name}</span>
                     <span className="text-gray-600 ml-2">{user.email?.substring(0, 20)}...</span>
+                    {user.is_internal && (
+                      <span className="ml-2 text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">STAFF</span>
+                    )}
                   </td>
                   <td className="py-2 px-2 text-right text-orange-400 font-medium">{user.messages}</td>
                   <td className="py-2 px-2 text-right text-purple-400">{user.media_generated}</td>
