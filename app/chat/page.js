@@ -1482,6 +1482,8 @@ export default function ChatPage() {
                 conversationVideoTaskId: data.conversationVideoTaskId || null,
                 sourceVideoUrl: data.sourceVideoUrl || null,
                 sourceVideoTaskId: data.sourceVideoTaskId || null,
+                // Extracted seed image for video extension
+                seedImageUrl: data.seedImageUrl || null,
               };
               setMediaConfirmation(confirmData);
               mediaConfirmRef.current = confirmData;
@@ -1759,6 +1761,7 @@ export default function ChatPage() {
         referenceImageUrls: flow.referenceImageUrls || null,
         sourceVideoUrl: flow.sourceVideoUrl || null,
         sourceVideoTaskId: flow.sourceVideoTaskId || null,
+        seedImageUrl: flow.seedImageUrl || null,
       };
       
       const response = await fetch('/api/chat/stream', {
@@ -1931,6 +1934,7 @@ export default function ChatPage() {
       finalPrompt: finalPrompt,
       sourceVideoUrl: confirm.sourceVideoUrl || confirm.conversationVideoUrl || null,
       sourceVideoTaskId: confirm.sourceVideoTaskId || confirm.conversationVideoTaskId || null,
+      seedImageUrl: confirm.seedImageUrl || null,
     });
   }, [submitMediaConfirmation]);
   
@@ -3978,6 +3982,7 @@ export default function ChatPage() {
                               <VideoExtendConfirmCard
                                 refinedPrompt={msg.media_confirmation.refinedPrompt}
                                 sourceVideoUrl={msg.media_confirmation.sourceVideoUrl || msg.media_confirmation.conversationVideoUrl}
+                                seedImageUrl={msg.media_confirmation.seedImageUrl}
                                 onConfirm={handleVideoExtendConfirm}
                                 onCancel={() => {
                                   setMediaConfirmStep(-1);

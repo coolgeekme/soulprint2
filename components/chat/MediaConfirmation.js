@@ -4,7 +4,7 @@ import { Image, Film, MessageCircle, Check, Pencil, Sparkles, Zap, ChevronRight,
 
 // ── Video Extension Confirmation Card ─────────────────────────────────
 // Shows a preview of the source video and lets user confirm extension
-export function VideoExtendConfirmCard({ refinedPrompt, sourceVideoUrl, onConfirm, onCancel, disabled }) {
+export function VideoExtendConfirmCard({ refinedPrompt, sourceVideoUrl, seedImageUrl, onConfirm, onCancel, disabled }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedPrompt, setEditedPrompt] = useState(refinedPrompt);
   const [confirming, setConfirming] = useState(false);
@@ -17,20 +17,28 @@ export function VideoExtendConfirmCard({ refinedPrompt, sourceVideoUrl, onConfir
   return (
     <div className="mt-3 mb-1">
       <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 sm:p-4">
-        {/* Source video preview */}
-        {sourceVideoUrl && (
+        {/* Source video preview OR extracted frame preview */}
+        {(sourceVideoUrl || seedImageUrl) && (
           <div className="mb-3 rounded-lg overflow-hidden border border-white/10 relative">
-            <video
-              src={sourceVideoUrl}
-              className="w-full max-h-[200px] object-contain bg-black"
-              controls={false}
-              muted
-              playsInline
-              autoPlay
-              loop
-            />
+            {sourceVideoUrl ? (
+              <video
+                src={sourceVideoUrl}
+                className="w-full max-h-[200px] object-contain bg-black"
+                controls={false}
+                muted
+                playsInline
+                autoPlay
+                loop
+              />
+            ) : seedImageUrl ? (
+              <img
+                src={seedImageUrl}
+                alt="Extracted frame from your video"
+                className="w-full max-h-[200px] object-contain bg-black"
+              />
+            ) : null}
             <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/60 border border-white/10 text-[10px] text-blue-300 font-medium">
-              <Play className="w-3 h-3" fill="currentColor" /> Source Video
+              <Play className="w-3 h-3" fill="currentColor" /> {seedImageUrl && !sourceVideoUrl ? 'Last Frame (Seed)' : 'Source Video'}
             </div>
           </div>
         )}
