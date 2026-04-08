@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Film, Loader2, X, Square, Check, Download, RefreshCw, GalleryHorizontal, Sparkles } from 'lucide-react';
+import { Film, Loader2, X, Square, Check, Download, RefreshCw, GalleryHorizontal, Sparkles, FastForward } from 'lucide-react';
 
 // ── VideoCard: polls for video status and renders player when ready ──────────
 function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady, videoModelReason, onCancel, onRegenerateWith, sourceImageUrl }) {
@@ -376,7 +376,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
 }
 
 // ── SavedVideoCard: renders a saved video with matching image card UX ────────
-function SavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith, sourceImageUrl }) {
+function SavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith, sourceImageUrl, onExtendVideo, videoTaskId }) {
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -488,6 +488,15 @@ function SavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith,
               </div>
             )}
           </div>
+        )}
+        {/* Extend Video */}
+        {onExtendVideo && (
+          <button
+            onClick={() => onExtendVideo({ videoUrl, videoTaskId, prompt })}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-500/15 border border-blue-500/30 text-blue-400 text-xs rounded-lg hover:bg-blue-500/25 transition-colors"
+          >
+            <FastForward className="w-3.5 h-3.5" /> Extend Video
+          </button>
         )}
       </div>
     </div>

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Film, Loader2, X, Square, Check, Download, RefreshCw, GalleryHorizontal, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { Film, Loader2, X, Square, Check, Download, RefreshCw, GalleryHorizontal, Sparkles, Image as ImageIcon, FastForward } from 'lucide-react';
 
 // ── MobileImageCard: image display with Save to Gallery button ─────────────
 function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
@@ -474,7 +474,7 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
 }
 
 // ── MobileSavedVideoCard: displays a saved video from database with matching UX ─
-function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith, sourceImageUrl }) {
+function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith, sourceImageUrl, onExtendVideo, videoTaskId }) {
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -581,6 +581,15 @@ function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerat
               </div>
             )}
           </div>
+        )}
+        {/* Extend Video */}
+        {onExtendVideo && (
+          <button
+            onClick={() => onExtendVideo({ videoUrl, videoTaskId, prompt })}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-500/15 border border-blue-500/30 text-blue-400 text-xs rounded-xl active:bg-blue-500/25 transition-colors"
+          >
+            <FastForward className="w-3.5 h-3.5" /> Extend Video
+          </button>
         )}
       </div>
     </div>

@@ -65,7 +65,7 @@ import { GalleryItem, GalleryModal } from '@/components/chat/Gallery';
 import CloudImportModal from '@/components/chat/CloudImportModal';
 import { SettingsModal, FeedbackModal } from '@/components/chat/SettingsModal';
 import AttachmentPill from '@/components/chat/AttachmentPill';
-import { MediaConfirmCard, PromptReviewCard, ModelSelectionCard } from '@/components/chat/MediaConfirmation';
+import { MediaConfirmCard, PromptReviewCard, ModelSelectionCard, VideoExtendConfirmCard, SourceMediaBanner } from '@/components/chat/MediaConfirmation';
 import { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from '@/components/chat/constants';
 import AssessmentNudge from '@/components/AssessmentNudge';
 
@@ -1476,10 +1476,21 @@ export default function ChatPage() {
                 sourceImageUrl: data.sourceImageUrl || null,
                 hasAttachedImage: data.hasAttachedImage || false,
                 referenceImageUrls: data.referenceImageUrls || null,
+                // Video/image context from conversation
+                conversationImageUrl: data.conversationImageUrl || null,
+                conversationVideoUrl: data.conversationVideoUrl || null,
+                conversationVideoTaskId: data.conversationVideoTaskId || null,
+                sourceVideoUrl: data.sourceVideoUrl || null,
+                sourceVideoTaskId: data.sourceVideoTaskId || null,
               };
               setMediaConfirmation(confirmData);
               mediaConfirmRef.current = confirmData;
-              setMediaConfirmStep(0); // Start at intent confirmation
+              // For video_extend, skip directly to the extend confirmation UI
+              if (data.detectedType === 'video_extend') {
+                setMediaConfirmStep(10); // Special step for video extension
+              } else {
+                setMediaConfirmStep(0); // Start at intent confirmation
+              }
               setMediaConfirmType(null);
             } else if (data.type === 'generating_visual') {
               // Backend is generating an image/video - show indicator immediately
@@ -1723,7 +1734,7 @@ export default function ChatPage() {
     }
     
     // Build user message for display
-    const confirmLabel = flow.type === 'image' ? '🎨 Generate Image' : '🎬 Generate Video';
+    const confirmLabel = flow.type === 'image' ? '🎨 Generate Image' : flow.type === 'video_extend' ? '🎬 Extend Video' : '🎬 Generate Video';
     const userMsg = {
       id: `u-${Date.now()}`,
       role: 'user',
@@ -1739,6 +1750,17 @@ export default function ChatPage() {
       abortControllerRef.current = ctrl;
       isStreamingRef.current = true;
       
+      const mediaFlowPayload = { 
+        step: 'confirmed', 
+        type: flow.type, 
+        finalPrompt: flow.finalPrompt, 
+        selectedModel: flow.selectedModel, 
+        sourceImageUrl: flow.sourceImageUrl || null, 
+        referenceImageUrls: flow.referenceImageUrls || null,
+        sourceVideoUrl: flow.sourceVideoUrl || null,
+        sourceVideoTaskId: flow.sourceVideoTaskId || null,
+      };
+      
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -1749,7 +1771,7 @@ export default function ChatPage() {
           webSearch: false,
           videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null,
           imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null,
-          mediaFlow: { step: 'confirmed', type: flow.type, finalPrompt: flow.finalPrompt, selectedModel: flow.selectedModel, sourceImageUrl: flow.sourceImageUrl || null, referenceImageUrls: flow.referenceImageUrls || null },
+          mediaFlow: mediaFlowPayload,
         }),
         signal: ctrl.signal,
       });
@@ -1891,6 +1913,39 @@ export default function ChatPage() {
       referenceImageUrls: confirm.referenceImageUrls || null,
     });
   }, [mediaConfirmType, submitMediaConfirmation]);
+  
+  // Video Extension: User confirmed extension from the VideoExtendConfirmCard
+  const handleVideoExtendConfirm = useCallback((finalPrompt) => {
+    const confirm = mediaConfirmRef.current;
+    if (!confirm) return;
+    
+    submitMediaConfirmation({
+      type: 'video_extend',
+      originalPrompt: confirm.originalPrompt,
+      finalPrompt: finalPrompt,
+      sourceVideoUrl: confirm.sourceVideoUrl || confirm.conversationVideoUrl || null,
+      sourceVideoTaskId: confirm.sourceVideoTaskId || confirm.conversationVideoTaskId || null,
+    });
+  }, [submitMediaConfirmation]);
+  
+  // Extend Video button from SavedVideoCard — send a message that triggers extend flow
+  const handleExtendVideo = useCallback(({ videoUrl, videoTaskId, prompt }) => {
+    // Set up the mediaFlow directly and submit
+    const extendMessage = `Extend this video: continue the scene naturally`;
+    pendingMediaFlowRef.current = {
+      step: 'confirmed',
+      type: 'video_extend',
+      finalPrompt: prompt || extendMessage,
+      sourceVideoUrl: videoUrl || null,
+      sourceVideoTaskId: videoTaskId || null,
+    };
+    // Trigger submission with the extend message
+    setInput(extendMessage);
+    setTimeout(() => {
+      const syntheticEvent = { preventDefault: () => {} };
+      handleSubmit(syntheticEvent);
+    }, 100);
+  }, [handleSubmit]);
   
   // Toggle quick generate on/off and persist to backend
   const toggleQuickGenerate = useCallback(async () => {
@@ -3890,6 +3945,8 @@ export default function ChatPage() {
                               token={token}
                               sourceImageUrl={msg.source_image || msg.video_task?.sourceImage}
                               onRegenerateWith={handleRegenerateWithModel}
+                              onExtendVideo={handleExtendVideo}
+                              videoTaskId={msg.video_task?.taskId}
                             />
                             <button
                               onClick={() => {
@@ -3910,6 +3967,29 @@ export default function ChatPage() {
                         {/* Media Confirmation Flow — inline cards */}
                         {msg.media_confirmation && (
                           <div className="mt-3 space-y-3">
+                            {/* Source Media Context Banner — shows user their referenced media */}
+                            {(msg.media_confirmation.conversationVideoUrl || msg.media_confirmation.conversationImageUrl || msg.media_confirmation.sourceImageUrl) && msg.media_confirmation.detectedType !== 'video_extend' && (
+                              <SourceMediaBanner 
+                                imageUrl={msg.media_confirmation.sourceImageUrl || msg.media_confirmation.conversationImageUrl}
+                                videoUrl={msg.media_confirmation.conversationVideoUrl}
+                              />
+                            )}
+                            
+                            {/* Video Extension Confirmation (Step 10) */}
+                            {(mediaConfirmation && mediaConfirmStep === 10 && msg.id === messages[messages.length - 1]?.id) && (
+                              <VideoExtendConfirmCard
+                                refinedPrompt={msg.media_confirmation.refinedPrompt}
+                                sourceVideoUrl={msg.media_confirmation.sourceVideoUrl || msg.media_confirmation.conversationVideoUrl}
+                                onConfirm={handleVideoExtendConfirm}
+                                onCancel={() => {
+                                  setMediaConfirmStep(-1);
+                                  setMediaConfirmation(null);
+                                  mediaConfirmRef.current = null;
+                                }}
+                                disabled={loading}
+                              />
+                            )}
+                            
                             {/* Step 0: Intent Selection */}
                             {(mediaConfirmation && mediaConfirmStep === 0 && msg.id === messages[messages.length - 1]?.id) ? (
                               <MediaConfirmCard
