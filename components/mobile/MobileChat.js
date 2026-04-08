@@ -1925,6 +1925,9 @@ export default function MobileChat({
     const prompt = input.trim();
     setInput('');
     if (inputRef.current) inputRef.current.style.height = 'auto';
+    
+    try {
+      const responses = await Promise.all(
         compareModels.map(async (model) => {
           const modelInfo = MODELS.find(m => m.value === model) || { provider: 'openai' };
           const res = await fetch('/api/chat/stream', {
