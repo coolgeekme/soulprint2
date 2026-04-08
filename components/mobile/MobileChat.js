@@ -1295,6 +1295,7 @@ export default function MobileChat({
     } finally {
       setLoading(false);
       isStreamingRef.current = false; // Clear streaming flag
+      sendingRef.current = false; // Reset double-send guard so next message can be sent
       abortControllerRef.current = null;
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -1305,6 +1306,7 @@ export default function MobileChat({
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       setLoading(false);
+      sendingRef.current = false; // Reset double-send guard
       // If there's streaming content, save it
       if (streamingContent) {
         setMessages(prev => [...prev, {
@@ -3032,9 +3034,19 @@ export default function MobileChat({
                 ) : (
                   <button 
                     onClick={() => {
+                      // If speech is listening, stop it and include interim text
+                      if (speech.isListening) {
+                        if (interimText) {
+                          setInput(prev => (prev ? prev + ' ' + interimText : interimText));
+                          setInterimText('');
+                        }
+                        speech.toggle(); // Stop recording
+                        setTimeout(() => sendMessage(), 150);
+                        return;
+                      }
                       sendMessage();
                     }}
-                    disabled={!input.trim() && !attachments.length}
+                    disabled={!input.trim() && !attachments.length && !speech.isListening}
                     className={`p-2 rounded-full transition-all flex-shrink-0 ${
                       input.trim() || attachments.length
                         ? 'bg-orange-500 text-white'

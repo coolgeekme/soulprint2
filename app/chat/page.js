@@ -4895,6 +4895,23 @@ export default function ChatPage() {
                 </button>
               ) : (
                 <button onClick={() => {
+                  // If speech is listening, stop it and include interim text before sending
+                  if (speech.isListening) {
+                    if (interimText) {
+                      setInput(prev => (prev ? prev + ' ' + interimText : interimText));
+                      setInterimText('');
+                    }
+                    speech.toggle(); // Stop recording
+                    // Delay send slightly to allow state to settle after stopping speech
+                    setTimeout(() => {
+                      sendMessage();
+                      if (inputRef.current) {
+                        inputRef.current.style.height = 'auto';
+                        setTimeout(() => inputRef.current?.focus(), 50);
+                      }
+                    }, 150);
+                    return;
+                  }
                   sendMessage();
                   // Reset textarea height and refocus after sending
                   if (inputRef.current) {
