@@ -2556,7 +2556,8 @@ export default function MobileChat({
     <div className="min-h-screen bg-sp-black text-white">
       {/* Support Notifications Popup */}
       {supportNotifications.length > 0 && (
-        <div className="fixed top-2 left-2 right-2 z-[60] space-y-2">
+        <div className="fixed left-2 right-2 z-[60] space-y-2"
+          style={{ top: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}>
           {supportNotifications.map(notif => (
             <div key={notif.id} className="bg-[#0d1f15] border border-green-500/30 rounded-xl p-3.5 shadow-2xl shadow-green-500/10">
               <div className="flex items-start gap-2.5">
@@ -2567,8 +2568,8 @@ export default function MobileChat({
                   <p className="text-green-400 font-semibold text-xs mb-1">Issue Resolved</p>
                   <p className="text-gray-300 text-xs leading-relaxed">{notif.message}</p>
                 </div>
-                <button onClick={() => dismissSupportNotification(notif.id)} className="text-gray-600 hover:text-white p-1">
-                  <X className="w-3.5 h-3.5" />
+                <button onClick={() => dismissSupportNotification(notif.id)} className="text-gray-400 hover:text-white active:text-white p-2 -mr-1 -mt-1 min-w-[36px] min-h-[36px] flex items-center justify-center">
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
