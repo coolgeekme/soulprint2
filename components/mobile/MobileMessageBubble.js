@@ -5,7 +5,7 @@ import MessageErrorBoundary from '@/components/MessageErrorBoundary';
 import { Copy, Edit3, ThumbsUp, ThumbsDown, MoreVertical, Loader2, Globe, Sparkles, Film, Check, Volume2, VolumeX, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MobileVideoCard, MobileSavedVideoCard, MobileImageCard } from './MobileMediaCards';
 
-const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId, onToggleVariant }) => {
+const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId, onToggleVariant, onExtendVideo }) => {
   const [showActions, setShowActions] = useState(false);
   const [feedback, setFeedback] = useState(message.feedback || null);
 
@@ -102,6 +102,8 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               prompt={message.video_task?.prompt || message.generation_params?.prompt || ''} 
               token={token}
               onRegenerateWith={onRegenerateWith}
+              onExtendVideo={onExtendVideo}
+              videoTaskId={message.video_task?.taskId}
               sourceImageUrl={message.source_image || message.video_task?.sourceImage}
             />
           )}

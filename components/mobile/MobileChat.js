@@ -1518,6 +1518,96 @@ export default function MobileChat({
     setInput(newPrompt);
   };
 
+  // Extend an existing video — send a message that triggers the extend flow
+  const handleExtendVideo = ({ videoUrl, videoTaskId, prompt }) => {
+    const extendPrompt = prompt || 'Extend this video: continue the scene naturally';
+    // Send the extend request directly through the chat stream with mediaFlow
+    const sendExtend = async () => {
+      try {
+        const ctrl = new AbortController();
+        setLoading(true);
+        setStreamingContent('');
+        
+        const userMsg = {
+          id: `u-${Date.now()}`,
+          role: 'user',
+          content: `🎬 Extend Video: ${extendPrompt}`,
+          created_at: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, userMsg]);
+        
+        const res = await fetch('/api/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            content: extendPrompt,
+            conversationId: conversationId,
+            model: selectedModel,
+            mediaFlow: {
+              step: 'confirmed',
+              type: 'video_extend',
+              finalPrompt: extendPrompt,
+              sourceVideoUrl: videoUrl || null,
+              sourceVideoTaskId: videoTaskId || null,
+            },
+          }),
+          signal: ctrl.signal,
+        });
+        
+        if (!res.ok) {
+          setMessages(prev => [...prev, { id: `e-${Date.now()}`, role: 'assistant', content: 'Error extending video. Please try again.', created_at: new Date().toISOString() }]);
+          setLoading(false);
+          return;
+        }
+        
+        const reader = res.body?.getReader();
+        if (!reader) { setLoading(false); return; }
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const data = JSON.parse(line);
+              if (data.type === 'delta' && data.content) {
+                fullContent += data.content;
+                setStreamingContent(fullContent);
+              } else if (data.type === 'video_task') {
+                setStreamingVideoTask(data);
+                setMessages(prev => [...prev.filter(m => m.id !== `e-${Date.now()}`), {
+                  id: data.messageId || `v-${Date.now()}`,
+                  role: 'assistant',
+                  content: fullContent,
+                  video_task: { taskId: data.taskId, status: 'generating', prompt: extendPrompt, videoModel: data.videoModel, videoModelLabel: data.videoModelLabel },
+                  created_at: new Date().toISOString(),
+                }]);
+              } else if (data.type === 'done') {
+                if (data.conversationId) setConversationId(data.conversationId);
+              }
+            } catch (e) { /* skip unparseable lines */ }
+          }
+        }
+        
+        setStreamingContent('');
+        setStreamingVideoTask(null);
+        setLoading(false);
+      } catch (err) {
+        console.error('[MobileExtendVideo] Error:', err.message);
+        setLoading(false);
+      }
+    };
+    sendExtend();
+  };
+
+
   // ─────────────────────────────────────────────────────────────────
   // PROJECT MANAGEMENT FUNCTIONS
   // ─────────────────────────────────────────────────────────────────
@@ -2628,6 +2718,7 @@ export default function MobileChat({
                   onFeedback={handleFeedback}
                   token={token}
                   onRegenerateWith={handleRegenerateWithModel}
+                  onExtendVideo={handleExtendVideo}
                   onReadAloud={handleReadAloud}
                   readingAloudId={readingAloudId}
                   onEdit={msg.role === 'user' ? (m) => { setEditingMessage(m); } : undefined}
