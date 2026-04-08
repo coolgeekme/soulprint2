@@ -244,6 +244,7 @@ export default function ChatPage() {
         const tasks = await res.json();
         
         for (const task of tasks) {
+          // Handle completed videos
           if (task.status === 'success' && !notifiedTasksRef.current.has(task.taskId)) {
             notifiedTasksRef.current.add(task.taskId);
             
@@ -254,13 +255,13 @@ export default function ChatPage() {
             if (isInSameConv) {
               setMessages(prev => prev.map(m => {
                 if (m.video_task?.taskId === task.taskId) {
-                  return { ...m, video_url: task.videoUrl, video_task: { ...m.video_task, status: 'success' } };
+                  return { ...m, video_url: task.videoUrl, thumbnail_url: task.thumbnailUrl, video_task: { ...m.video_task, status: 'success' } };
                 }
                 return m;
               }));
             }
             
-            // Show toast notification
+            // Show toast notification so user knows even after modal closes
             toast({
               title: `🎬 ${task.type === 'image' ? 'Image' : 'Video'} Ready!`,
               description: isInSameConv 
@@ -270,15 +271,37 @@ export default function ChatPage() {
               className: 'bg-[#1a1f2e] border-orange-500/30 text-white cursor-pointer',
             });
           }
+          
+          // Handle failed videos — notify user so they're not left wondering
+          if (task.status === 'failed' && !notifiedTasksRef.current.has(`fail-${task.taskId}`)) {
+            notifiedTasksRef.current.add(`fail-${task.taskId}`);
+            
+            const isInSameConv = conversationIdRef.current === task.conversationId;
+            if (isInSameConv) {
+              setMessages(prev => prev.map(m => {
+                if (m.video_task?.taskId === task.taskId) {
+                  return { ...m, video_task: { ...m.video_task, status: 'failed', error: task.error } };
+                }
+                return m;
+              }));
+            }
+            
+            toast({
+              title: `⚠️ ${task.type === 'image' ? 'Image' : 'Video'} Failed`,
+              description: task.error || 'Generation failed. You can try again.',
+              duration: 8000,
+              variant: 'destructive',
+            });
+          }
         }
       } catch (e) {
         // Silently fail
       }
     };
     
-    // Poll every 10 seconds
+    // Poll every 8 seconds for faster notification
     pollPendingMedia();
-    mediaPollIntervalRef.current = setInterval(pollPendingMedia, 10000);
+    mediaPollIntervalRef.current = setInterval(pollPendingMedia, 8000);
     
     return () => {
       if (mediaPollIntervalRef.current) clearInterval(mediaPollIntervalRef.current);

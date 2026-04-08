@@ -870,10 +870,22 @@ export async function PATCH(request, { params }) {
       const { video_url, thumbnail_url } = body;
       if (!video_url) return err('video_url required', 400);
       const db = await getDb();
+      
+      // Update message with video URL
       await db.collection('messages').updateOne(
         { id: messageId, user_id: user.id },
         { $set: { video_url, thumbnail_url: thumbnail_url || null, 'video_task.status': 'success' } }
       );
+      
+      // Also ensure video_jobs is updated for consistency (so global polling stops re-checking this job)
+      const message = await db.collection('messages').findOne({ id: messageId });
+      if (message?.video_task?.taskId) {
+        await db.collection('video_jobs').updateOne(
+          { task_id: message.video_task.taskId },
+          { $set: { status: 'success', video_url, thumbnail_url: thumbnail_url || null, completed_at: new Date() } }
+        ).catch(() => {}); // Non-critical
+      }
+      
       return ok({ success: true });
     }
 

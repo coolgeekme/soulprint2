@@ -230,12 +230,28 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
           setStatusMessage('Done!');
           clearInterval(pollRef.current);
           // Persist video_url to message DB so it survives navigation
+          // Retry up to 3 times with exponential backoff for reliability
           if (messageId && vUrl) {
-            fetch(`/api/messages/${messageId}/video-complete`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ video_url: vUrl, thumbnail_url: d.thumbnailUrl || d.thumbnail_url }),
-            }).catch(() => {});
+            const persistVideoUrl = async (attempt = 0) => {
+              try {
+                const patchRes = await fetch(`/api/messages/${messageId}/video-complete`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ video_url: vUrl, thumbnail_url: d.thumbnailUrl || d.thumbnail_url }),
+                });
+                if (!patchRes.ok && attempt < 2) {
+                  await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                  return persistVideoUrl(attempt + 1);
+                }
+              } catch (e) {
+                if (attempt < 2) {
+                  await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                  return persistVideoUrl(attempt + 1);
+                }
+                console.error('[MobileVideoCard] Failed to persist video_url after 3 attempts:', e.message);
+              }
+            };
+            persistVideoUrl();
           }
           // Use ref to get latest callback
           if (onVideoReadyRef.current) onVideoReadyRef.current(vUrl);
