@@ -708,16 +708,36 @@ export default function ChatPage() {
         reader.readAsDataURL(file);
       });
     } else if (isVideo) {
-      // Handle video files — create a local URL and metadata
+      // Handle video files — convert to base64 so backend can process the video data
       const localUrl = URL.createObjectURL(file);
-      return {
-        type: 'video',
-        name: file.name,
-        mimeType: file.type || 'video/mp4',
-        size: file.size,
-        localUrl,
-        file, // Keep the file reference for upload
-      };
+      
+      // Convert video to base64 for backend frame extraction
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result.split(',')[1]; // Strip data URL prefix
+          console.log(`[Attach] Video ${file.name}: ${Math.round(file.size/1024)}KB → base64 ${Math.round(base64.length/1024)}KB`);
+          resolve({
+            type: 'video',
+            name: file.name,
+            mimeType: file.type || 'video/mp4',
+            size: file.size,
+            base64,
+            localUrl,
+          });
+        };
+        reader.onerror = () => {
+          console.warn(`[Attach] Failed to read video ${file.name}, keeping file reference only`);
+          resolve({
+            type: 'video',
+            name: file.name,
+            mimeType: file.type || 'video/mp4',
+            size: file.size,
+            localUrl,
+          });
+        };
+        reader.readAsDataURL(file);
+      });
     } else if (isPDF || isDOCX) {
       // Parse PDF/DOCX on the server
       try {
