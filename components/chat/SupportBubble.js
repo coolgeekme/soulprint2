@@ -13,12 +13,21 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
   const [sessionId, setSessionId] = useState(null);
   const [showEscalation, setShowEscalation] = useState(false);
   const [escalationDesc, setEscalationDesc] = useState('');
+  const [isMobile, setIsMobile] = useState(false);
   const [escalationSubject, setEscalationSubject] = useState('');
   const [escalating, setEscalating] = useState(false);
   const [escalationSent, setEscalationSent] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Detect mobile
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -126,7 +135,8 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
     return (
       <button
         onClick={toggleOpen}
-        className="fixed bottom-5 right-5 z-[9999] w-14 h-14 rounded-full shadow-lg shadow-black/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 group overflow-hidden border-2 border-orange-500/50"
+        className="fixed right-5 z-[9999] rounded-full shadow-lg shadow-black/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 group overflow-hidden border-2 border-orange-500/50"
+        style={{ bottom: isMobile ? 'calc(10rem + env(safe-area-inset-bottom, 0px))' : '1.25rem', width: isMobile ? '48px' : '56px', height: isMobile ? '48px' : '56px' }}
         title="Ask Ace"
       >
         <img src={ACE_AVATAR} alt="Ace" className="w-full h-full object-cover" />
@@ -144,7 +154,19 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
 
   // Expanded chat window
   return (
-    <div className="fixed bottom-5 right-5 z-[9999] w-[380px] max-w-[calc(100vw-40px)] h-[520px] max-h-[calc(100vh-100px)] bg-[#0f1318] border border-white/10 rounded-2xl shadow-2xl shadow-black/50 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200">
+    <div className="fixed right-5 z-[9999] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200"
+      style={{
+        bottom: isMobile ? 'calc(10rem + env(safe-area-inset-bottom, 0px))' : '1.25rem',
+        width: isMobile ? 'calc(100vw - 40px)' : '380px',
+        maxWidth: 'calc(100vw - 40px)',
+        height: isMobile ? 'calc(100vh - 14rem)' : '520px',
+        maxHeight: isMobile ? 'calc(100vh - 14rem)' : 'calc(100vh - 100px)',
+        background: '#0f1318',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '16px',
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+      }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-500/10 to-transparent border-b border-white/8 flex-shrink-0">
         <div className="flex items-center gap-2.5">
