@@ -921,6 +921,8 @@ export default function MobileChat({
     };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    // Reset textarea height after sending
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     setDetectedMediaIntent(null);
     
     try {
@@ -1058,6 +1060,7 @@ export default function MobileChat({
     };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     setAttachments([]);
     setPendingMediaAttachment(null); // Clear pending attachment
     setStreamingContent('');
@@ -1921,9 +1924,7 @@ export default function MobileChat({
     setMessages(prev => [...prev, userMessage]);
     const prompt = input.trim();
     setInput('');
-
-    try {
-      const responses = await Promise.all(
+    if (inputRef.current) inputRef.current.style.height = 'auto';
         compareModels.map(async (model) => {
           const modelInfo = MODELS.find(m => m.value === model) || { provider: 'openai' };
           const res = await fetch('/api/chat/stream', {
@@ -2844,14 +2845,16 @@ export default function MobileChat({
               >
                 <Plus className="w-6 h-6" />
               </button>
-              <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-2.5 flex items-center gap-2 min-w-0">
+              <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl px-4 py-2.5 flex items-end gap-2 min-w-0">
                 <textarea
                   ref={inputRef}
                   value={input}
                   onChange={(e) => {
                     setInput(e.target.value);
+                    // Auto-grow: reset height then expand to content, capped at 40% viewport
                     e.target.style.height = 'auto';
-                    e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
+                    const maxH = Math.min(window.innerHeight * 0.4, 320);
+                    e.target.style.height = Math.min(e.target.scrollHeight, maxH) + 'px';
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -2866,10 +2869,10 @@ export default function MobileChat({
                     }, 300);
                   }}
                   placeholder="Message..."
-                  className="flex-1 bg-transparent text-white text-[16px] placeholder-gray-600 focus:outline-none resize-none min-h-[28px] max-h-[100px] min-w-0 leading-normal"
+                  className="flex-1 bg-transparent text-white text-[16px] placeholder-gray-600 focus:outline-none resize-none min-h-[28px] min-w-0 leading-normal"
                   rows={1}
                   disabled={loading}
-                  style={{ fontSize: '16px', lineHeight: '1.4', color: '#ffffff', caretColor: '#ffffff', backgroundColor: 'transparent', WebkitTextFillColor: '#ffffff' }}
+                  style={{ fontSize: '16px', lineHeight: '1.4', color: '#ffffff', caretColor: '#ffffff', backgroundColor: 'transparent', WebkitTextFillColor: '#ffffff', maxHeight: '40vh', overflowY: 'auto' }}
                 />
                 {/* Voice input button */}
                 <button 
