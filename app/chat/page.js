@@ -1669,14 +1669,10 @@ export default function ChatPage() {
               setMessages(prev => [...prev, finalMsg]);
               setStreamingContent('');
               setStreamingImageUrl(null);
-              // Only clear streamingVideoTask after message list has rendered with the VideoCard
-              // This prevents a flash where neither the streaming zone nor message list shows the VideoCard
-              if (streamingVideoTaskRef.current) {
-                // Delay clearing so message list VideoCard renders first
-                setTimeout(() => setStreamingVideoTask(null), 200);
-              } else {
-                setStreamingVideoTask(null);
-              }
+              // Clear streaming video task immediately — the message list now has the VideoCard
+              // Using a synchronous ref clear + state clear to prevent any overlap window
+              streamingVideoTaskRef.current = null;
+              setStreamingVideoTask(null);
               setSearchQueries([]);
               setStreamingSources([]);
               streamingSourcesRef.current = [];
@@ -1894,16 +1890,9 @@ export default function ChatPage() {
               setMessages(prev => [...prev, finalMsg]);
               setStreamingContent('');
               streamingImageUrlRef.current = null;
-              // Clear streaming video task after the message renders to avoid duplicates
-              if (hasVideoTask) {
-                setTimeout(() => {
-                  setStreamingVideoTask(null);
-                  streamingVideoTaskRef.current = null;
-                }, 200);
-              } else {
-                setStreamingVideoTask(null);
-                streamingVideoTaskRef.current = null;
-              }
+              // Clear streaming video task immediately — the message list now owns the VideoCard
+              streamingVideoTaskRef.current = null;
+              setStreamingVideoTask(null);
             }
           } catch (e) { /* skip malformed lines */ }
         }
@@ -4257,8 +4246,8 @@ export default function ChatPage() {
                   {streamingImageUrl && loading && (
                     <ImageCard url={streamingImageUrl} revisedPrompt={streamingRevPrompt} onRegenerateWith={handleRegenerateWithModel} />
                   )}
-                  {/* Live video card */}
-                  {streamingVideoTask && !streamingImageUrl && (
+                  {/* Live video card — ONLY show if no message in the list already has this taskId */}
+                  {streamingVideoTask && !streamingImageUrl && !messages.some(m => m.video_task?.taskId === streamingVideoTask?.taskId) && (
                     <VideoCard
                       taskId={streamingVideoTask.taskId}
                       prompt={streamingVideoTask.prompt}

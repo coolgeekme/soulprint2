@@ -2779,7 +2779,8 @@ export default function MobileChat({
               )}
               
               {/* Live video generation card — shows animation during streaming */}
-              {streamingVideoTask && (
+              {/* ONLY show if no message in the list already has this same taskId (prevents duplicates) */}
+              {streamingVideoTask && !messages.some(m => m.video_task?.taskId === streamingVideoTask?.taskId) && (
                 <div className="px-4 mb-4">
                   <MobileVideoCard
                     taskId={streamingVideoTask.taskId}
