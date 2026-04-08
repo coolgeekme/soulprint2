@@ -153,7 +153,8 @@ export default function SupportChat({ token, userEmail }) {
         title="Get Help"
       >
         <HelpCircle className="w-6 h-6" />
-        <span className="absolute -top-10 right-0 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+        <span className="absolute -top-10 right-0 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
+          style={{ backgroundColor: 'var(--theme-bg)', color: 'var(--theme-text)' }}>
           Need help?
         </span>
       </button>
@@ -161,10 +162,16 @@ export default function SupportChat({ token, userEmail }) {
   }
 
   return (
-    <div className={`fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-48px)] bg-[#0D1217] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all ${isMinimized ? 'h-14' : 'h-[500px] max-h-[calc(100vh-100px)]'}`}>
+    <div className={`fixed bottom-6 right-6 z-50 w-[380px] max-w-[calc(100vw-48px)] rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all ${isMinimized ? 'h-14' : 'h-[500px] max-h-[calc(100vh-100px)]'}`}
+      style={{
+        backgroundColor: 'var(--theme-bg)',
+        border: '1px solid var(--theme-border)',
+      }}
+    >
       {/* Header */}
       <div 
-        className="flex items-center justify-between p-4 border-b border-white/10 bg-[#111820] cursor-pointer"
+        className="flex items-center justify-between p-4 cursor-pointer"
+        style={{ borderBottom: '1px solid var(--theme-border)', backgroundColor: 'var(--theme-bg-secondary)' }}
         onClick={() => isMinimized && setIsMinimized(false)}
       >
         <div className="flex items-center gap-3">
@@ -172,28 +179,31 @@ export default function SupportChat({ token, userEmail }) {
             <MessageCircle className="w-4 h-4 text-orange-400" />
           </div>
           <div>
-            <h3 className="text-white text-sm font-semibold">Support Chat</h3>
-            <p className="text-gray-500 text-xs">We're here to help</p>
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--theme-text)' }}>Support Chat</h3>
+            <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>We're here to help</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={(e) => { e.stopPropagation(); handleReset(); }}
-            className="p-2 text-gray-500 hover:text-white transition-colors"
+            className="p-2 transition-colors"
+            style={{ color: 'var(--theme-text-muted)' }}
             title="Start over"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); setIsMinimized(!isMinimized); }}
-            className="p-2 text-gray-500 hover:text-white transition-colors"
+            className="p-2 transition-colors"
+            style={{ color: 'var(--theme-text-muted)' }}
             title={isMinimized ? "Expand" : "Minimize"}
           >
             <ChevronDown className={`w-4 h-4 transition-transform ${isMinimized ? 'rotate-180' : ''}`} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleClose(); }}
-            className="p-2 text-gray-500 hover:text-white transition-colors"
+            className="p-2 transition-colors"
+            style={{ color: 'var(--theme-text-muted)' }}
             title="Close"
           >
             <X className="w-4 h-4" />
@@ -215,13 +225,18 @@ export default function SupportChat({ token, userEmail }) {
                     msg.role === 'user'
                       ? 'bg-orange-500 text-white'
                       : msg.isError
-                      ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                      : 'bg-white/5 text-gray-200'
+                      ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      : ''
                   }`}
+                  style={msg.role !== 'user' && !msg.isError ? {
+                    backgroundColor: 'var(--theme-bg-secondary)',
+                    color: 'var(--theme-text)',
+                    border: '1px solid var(--theme-border)',
+                  } : undefined}
                 >
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                   {msg.escalated && (
-                    <p className="text-xs text-green-400 mt-2 pt-2 border-t border-white/10">
+                    <p className="text-xs text-green-400 mt-2 pt-2" style={{ borderTop: '1px solid var(--theme-border)' }}>
                       ✓ Escalated to the team
                     </p>
                   )}
@@ -231,7 +246,8 @@ export default function SupportChat({ token, userEmail }) {
             
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-white/5 rounded-2xl px-4 py-3">
+                <div className="rounded-2xl px-4 py-3"
+                  style={{ backgroundColor: 'var(--theme-bg-secondary)', border: '1px solid var(--theme-border)' }}>
                   <Loader2 className="w-4 h-4 text-orange-400 animate-spin" />
                 </div>
               </div>
@@ -243,13 +259,18 @@ export default function SupportChat({ token, userEmail }) {
           {/* Quick Actions - show only at start */}
           {messages.length === 1 && (
             <div className="px-4 pb-2">
-              <p className="text-gray-500 text-xs mb-2">Common issues:</p>
+              <p className="text-xs mb-2" style={{ color: 'var(--theme-text-muted)' }}>Common issues:</p>
               <div className="flex flex-wrap gap-2">
                 {quickActions.map((action, i) => (
                   <button
                     key={i}
                     onClick={() => handleQuickAction(action)}
-                    className="text-xs px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-gray-300 hover:text-white transition-colors"
+                    className="text-xs px-3 py-1.5 rounded-full transition-colors"
+                    style={{
+                      backgroundColor: 'var(--theme-bg-secondary)',
+                      color: 'var(--theme-text-secondary)',
+                      border: '1px solid var(--theme-border)',
+                    }}
                   >
                     {action.label}
                   </button>
@@ -259,7 +280,7 @@ export default function SupportChat({ token, userEmail }) {
           )}
 
           {/* Input */}
-          <div className="p-4 border-t border-white/10 bg-[#111820]">
+          <div className="p-4" style={{ borderTop: '1px solid var(--theme-border)', backgroundColor: 'var(--theme-bg-secondary)' }}>
             <div className="flex items-center gap-2">
               <input
                 ref={inputRef}
@@ -269,7 +290,12 @@ export default function SupportChat({ token, userEmail }) {
                 onKeyDown={handleKeyDown}
                 placeholder="Describe your issue..."
                 disabled={isLoading}
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-orange-500/40 disabled:opacity-50"
+                className="flex-1 rounded-xl px-4 py-2.5 text-sm focus:outline-none disabled:opacity-50 transition-colors"
+                style={{
+                  backgroundColor: 'var(--theme-bg)',
+                  border: '1px solid var(--theme-border)',
+                  color: 'var(--theme-text)',
+                }}
               />
               <button
                 onClick={sendMessage}

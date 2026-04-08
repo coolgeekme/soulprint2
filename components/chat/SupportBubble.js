@@ -139,18 +139,21 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
         style={{ bottom: isMobile ? 'calc(10rem + env(safe-area-inset-bottom, 0px))' : '1.25rem' }}
         title="Ask Ace"
       >
-        <span className="text-[10px] font-semibold text-orange-400 mb-1 opacity-80 group-hover:opacity-100 transition-opacity bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full border border-orange-500/20">
+        <span className="text-[10px] font-semibold text-orange-400 mb-1 opacity-80 group-hover:opacity-100 transition-opacity px-2 py-0.5 rounded-full border border-orange-500/20"
+          style={{ backgroundColor: 'var(--theme-bg)', backdropFilter: 'blur(8px)' }}>
           Ask Ace
         </span>
-        <div className="rounded-full shadow-lg shadow-black/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden border-2 border-orange-500/50"
-          style={{ width: isMobile ? '48px' : '56px', height: isMobile ? '48px' : '56px' }}>
+        <div className="rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 overflow-hidden border-2 border-orange-500/50"
+          style={{ width: isMobile ? '48px' : '56px', height: isMobile ? '48px' : '56px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
           <img src={ACE_AVATAR} alt="Ace" className="w-full h-full object-cover" style={{ objectPosition: 'center 25%' }} />
         </div>
         {hasUnread && (
-          <span className="absolute bottom-0 right-0 w-4 h-4 bg-red-500 rounded-full border-2 border-[#0a0a0a] animate-pulse" />
+          <span className="absolute bottom-0 right-0 w-4 h-4 bg-red-500 rounded-full animate-pulse"
+            style={{ borderWidth: '2px', borderColor: 'var(--theme-bg)' }} />
         )}
         {minimized && (
-          <span className="absolute bottom-0 left-0 w-5 h-5 bg-blue-500 rounded-full border-2 border-[#0a0a0a] flex items-center justify-center">
+          <span className="absolute bottom-0 left-0 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center"
+            style={{ borderWidth: '2px', borderColor: 'var(--theme-bg)' }}>
             <Minus className="w-3 h-3 text-white" />
           </span>
         )}
@@ -158,7 +161,7 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
     );
   }
 
-  // Expanded chat window
+  // Expanded chat window — uses CSS theme variables for dark/light adaptiveness
   return (
     <div className="fixed right-5 z-[9999] flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200"
       style={{
@@ -167,30 +170,41 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
         maxWidth: 'calc(100vw - 40px)',
         height: isMobile ? 'calc(100vh - 14rem)' : '520px',
         maxHeight: isMobile ? 'calc(100vh - 14rem)' : 'calc(100vh - 100px)',
-        background: '#0f1318',
-        border: '1px solid rgba(255,255,255,0.1)',
+        background: 'var(--theme-bg)',
+        border: '1px solid var(--theme-border)',
         borderRadius: '16px',
-        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+        boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
       }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-orange-500/10 to-transparent border-b border-white/8 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 flex-shrink-0"
+        style={{ borderBottom: '1px solid var(--theme-border)', background: 'var(--theme-bg-secondary)' }}>
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-orange-500/30">
             <img src={ACE_AVATAR} alt="Ace" className="w-full h-full object-cover" style={{ objectPosition: 'center 25%' }} />
           </div>
           <div>
-            <h3 className="text-white text-sm font-semibold leading-tight">Ace</h3>
+            <h3 className="text-sm font-semibold leading-tight" style={{ color: 'var(--theme-text)' }}>Ace</h3>
             <p className="text-green-400 text-[10px] font-medium flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" /> AI Support Agent
             </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => setMinimized(true)} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors" title="Minimize">
+          <button onClick={() => setMinimized(true)}
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: 'var(--theme-text-muted)' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-text-muted)'}
+            title="Minimize">
             <Minus className="w-4 h-4" />
           </button>
-          <button onClick={() => { setOpen(false); setMinimized(false); }} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors" title="Close">
+          <button onClick={() => { setOpen(false); setMinimized(false); }}
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: 'var(--theme-text-muted)' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--theme-text)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--theme-text-muted)'}
+            title="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -203,8 +217,14 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
             <div className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed ${
               msg.role === 'user'
                 ? 'bg-orange-500 text-white rounded-br-md'
-                : 'bg-white/7 text-gray-200 border border-white/5 rounded-bl-md'
-            }`}>
+                : 'rounded-bl-md'
+            }`}
+              style={msg.role !== 'user' ? {
+                backgroundColor: 'var(--theme-bg-secondary)',
+                color: 'var(--theme-text)',
+                border: '1px solid var(--theme-border)',
+              } : undefined}
+            >
               {msg.content.split('\n').map((line, j) => (
                 <React.Fragment key={j}>
                   {line}
@@ -216,7 +236,8 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-white/7 border border-white/5 rounded-2xl rounded-bl-md px-4 py-3">
+            <div className="rounded-2xl rounded-bl-md px-4 py-3"
+              style={{ backgroundColor: 'var(--theme-bg-secondary)', border: '1px solid var(--theme-border)' }}>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 bg-orange-400/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                 <span className="w-2 h-2 bg-orange-400/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -230,12 +251,14 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
 
       {/* Escalation Panel */}
       {showEscalation && (
-        <div className="px-3 py-3 border-t border-white/8 bg-red-500/5 space-y-2 flex-shrink-0">
+        <div className="px-3 py-3 space-y-2 flex-shrink-0"
+          style={{ borderTop: '1px solid var(--theme-border)', backgroundColor: 'var(--theme-bg-secondary)' }}>
           <div className="flex items-center justify-between">
             <p className="text-orange-400 text-xs font-semibold flex items-center gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" /> Escalate to Human Support
             </p>
-            <button onClick={() => setShowEscalation(false)} className="text-gray-500 hover:text-white p-1">
+            <button onClick={() => setShowEscalation(false)} className="p-1"
+              style={{ color: 'var(--theme-text-muted)' }}>
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -243,14 +266,24 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
             value={escalationSubject}
             onChange={e => setEscalationSubject(e.target.value)}
             placeholder="Subject (optional)"
-            className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-orange-500/40"
+            className="w-full rounded-lg px-3 py-1.5 text-xs outline-none transition-colors"
+            style={{
+              backgroundColor: 'var(--theme-bg)',
+              border: '1px solid var(--theme-border)',
+              color: 'var(--theme-text)',
+            }}
           />
           <textarea
             value={escalationDesc}
             onChange={e => setEscalationDesc(e.target.value)}
             placeholder="Describe your issue in detail..."
             rows={3}
-            className="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-orange-500/40 resize-none"
+            className="w-full rounded-lg px-3 py-1.5 text-xs outline-none resize-none transition-colors"
+            style={{
+              backgroundColor: 'var(--theme-bg)',
+              border: '1px solid var(--theme-border)',
+              color: 'var(--theme-text)',
+            }}
           />
           <button
             onClick={handleEscalate}
@@ -264,7 +297,8 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
       )}
 
       {/* Input */}
-      <div className="px-3 py-2.5 border-t border-white/8 flex-shrink-0">
+      <div className="px-3 py-2.5 flex-shrink-0"
+        style={{ borderTop: '1px solid var(--theme-border)', background: 'var(--theme-bg-secondary)' }}>
         <div className="flex items-end gap-2">
           <div className="flex-1 relative">
             <textarea
@@ -274,20 +308,26 @@ export default function SupportBubble({ token, conversationId, recentMessages = 
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
               placeholder="Ask anything..."
               rows={1}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-[13px] text-white placeholder-gray-500 outline-none focus:border-orange-500/40 resize-none max-h-[80px] overflow-y-auto transition-colors"
-              style={{ minHeight: '40px' }}
+              className="w-full rounded-xl px-3.5 py-2.5 text-[13px] outline-none resize-none max-h-[80px] overflow-y-auto transition-colors"
+              style={{
+                backgroundColor: 'var(--theme-bg)',
+                border: '1px solid var(--theme-border)',
+                color: 'var(--theme-text)',
+                minHeight: '40px',
+              }}
             />
           </div>
           <button
             onClick={handleSend}
             disabled={!input.trim() || loading}
-            className="w-10 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center disabled:opacity-30 disabled:bg-white/10 transition-all flex-shrink-0"
+            className="w-10 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center disabled:opacity-30 transition-all flex-shrink-0"
+            style={!input.trim() || loading ? { backgroundColor: 'var(--theme-bg-tertiary, var(--theme-bg-secondary))' } : undefined}
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
         <div className="flex items-center justify-between mt-1.5">
-          <p className="text-[10px] text-gray-600">Powered by GPT-4o</p>
+          <p className="text-[10px]" style={{ color: 'var(--theme-text-muted)' }}>Powered by GPT-4o</p>
           {!showEscalation && !escalationSent && (
             <button
               onClick={() => setShowEscalation(true)}
