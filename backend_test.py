@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Backend Testing for Video Edit Auto-Execution Fix
-Tests the video edit intent detection and auto-execution pipeline.
+Backend Test for Image-to-Video Intent Detection Fix
+Tests the isImageToVideoRequest check in chat-stream.js
 """
 
 import requests
 import json
 import time
 import sys
-import os
+from typing import Dict, Any, List
 
 # Configuration
 BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
@@ -18,425 +18,360 @@ API_BASE = f"{BASE_URL}/api"
 TEST_EMAIL = "testchat@example.com"
 TEST_PASSWORD = "Test123456"
 
-class VideoEditAutoExecutionTester:
+class ImageToVideoTester:
     def __init__(self):
         self.token = None
-        self.conversation_id = None
+        self.conversation_id = "test-video-intent-conv"
         
-    def authenticate(self):
-        """Authenticate and get token"""
-        print("🔐 Authenticating...")
-        
-        response = requests.post(f"{API_BASE}/auth/login", json={
-            "email": TEST_EMAIL,
-            "passcode": TEST_PASSWORD
-        })
-        
-        if response.status_code == 200:
-            data = response.json()
-            self.token = data.get('token')
-            print(f"✅ Authentication successful")
-            return True
-        else:
-            print(f"❌ Authentication failed: {response.status_code} - {response.text}")
-            return False
-    
-    def get_headers(self):
-        """Get headers with auth token"""
-        return {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json"
-        }
-    
-    def test_health_check(self):
-        """Test basic health check"""
-        print("\n🏥 Testing health check...")
-        
-        response = requests.get(f"{API_BASE}/health")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('status') == 'ok':
-                print("✅ Health check passed")
+    def authenticate(self) -> bool:
+        """Test authentication with provided credentials"""
+        try:
+            print("🔐 Testing authentication...")
+            response = requests.post(f"{API_BASE}/auth/login", json={
+                "email": TEST_EMAIL,
+                "passcode": TEST_PASSWORD
+            }, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.token = data.get('token')
+                print(f"✅ Authentication successful - Token received")
                 return True
             else:
-                print(f"❌ Health check failed: {data}")
+                print(f"❌ Authentication failed: {response.status_code} - {response.text}")
                 return False
-        else:
-            print(f"❌ Health check failed: {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Authentication error: {str(e)}")
             return False
     
-    def test_video_edit_intent_detection(self):
-        """Test video edit intent detection patterns"""
-        print("\n🎬 Testing Video Edit Intent Detection...")
-        
-        # Test messages that SHOULD trigger video edit intent
-        video_edit_messages = [
-            "can you edit this video and remove the tags from both ears of the bull?",
-            "edit the clip to remove the background noise",
-            "modify this video and change the color of the car",
-            "remove the watermark from the video",
-            "can you fix the lighting in this footage?",
-            "edit this video to make it brighter",
-            "can you remove the person in the background from this clip?",
-            "modify the video to add text overlay",
-            "change the color grading in this footage",
-            "crop this video to remove the edges"
-        ]
-        
-        # Test messages that should NOT trigger video edit intent
-        non_video_edit_messages = [
-            "what is video editing?",
-            "tell me about video formats",
-            "how do I edit videos in premiere pro?",
-            "what are the best video editing tools?",
-            "explain video compression",
-            "what's the difference between MP4 and AVI?"
-        ]
-        
-        success_count = 0
-        total_tests = len(video_edit_messages) + len(non_video_edit_messages)
-        
-        # Test video edit messages (should trigger video generation pipeline)
-        for message in video_edit_messages:
-            print(f"  Testing: '{message[:50]}...'")
+    def setup_conversation_with_image(self) -> bool:
+        """Create a conversation with an image to test image-to-video intent"""
+        try:
+            print("🖼️ Setting up conversation with image...")
             
+            # First, create a conversation by sending a simple message
+            headers = {"Authorization": f"Bearer {self.token}"}
             response = requests.post(f"{API_BASE}/chat/stream", 
-                headers=self.get_headers(),
                 json={
-                    "content": message,
-                    "model": "gpt-4o"
-                }
+                    "content": "Hello, I need to test image generation",
+                    "model": "gpt-4o",
+                    "conversation_id": self.conversation_id
+                },
+                headers=headers,
+                timeout=30
             )
             
-            if response.status_code == 200:
-                # Parse NDJSON response
-                lines = response.text.strip().split('\n')
-                events = []
-                for line in lines:
-                    if line.strip() and not line.startswith(':'):
-                        try:
-                            events.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            continue
-                
-                # Check for video generation events
-                has_generating_visual = any(e.get('type') == 'generating_visual' for e in events)
-                has_video_task = any(e.get('type') == 'video_task' for e in events)
-                
-                if has_generating_visual or has_video_task:
-                    print(f"    ✅ Correctly detected video edit intent")
-                    success_count += 1
-                else:
-                    print(f"    ❌ Failed to detect video edit intent")
-                    # Print events for debugging
-                    event_types = [e.get('type') for e in events]
-                    print(f"    Events: {event_types}")
-            else:
-                print(f"    ❌ Request failed: {response.status_code}")
+            if response.status_code != 200:
+                print(f"❌ Failed to create conversation: {response.status_code}")
+                return False
             
-            time.sleep(1)  # Rate limiting
-        
-        # Test non-video edit messages (should NOT trigger video generation)
-        for message in non_video_edit_messages:
-            print(f"  Testing: '{message[:50]}...'")
-            
-            response = requests.post(f"{API_BASE}/chat/stream", 
-                headers=self.get_headers(),
-                json={
-                    "content": message,
-                    "model": "gpt-4o"
-                }
-            )
-            
-            if response.status_code == 200:
-                # Parse NDJSON response
-                lines = response.text.strip().split('\n')
-                events = []
-                for line in lines:
-                    if line.strip() and not line.startswith(':'):
-                        try:
-                            events.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            continue
-                
-                # Check for video generation events (should NOT be present)
-                has_generating_visual = any(e.get('type') == 'generating_visual' for e in events)
-                has_video_task = any(e.get('type') == 'video_task' for e in events)
-                
-                if not has_generating_visual and not has_video_task:
-                    print(f"    ✅ Correctly did NOT trigger video edit")
-                    success_count += 1
-                else:
-                    print(f"    ❌ Incorrectly triggered video edit")
-                    event_types = [e.get('type') for e in events]
-                    print(f"    Events: {event_types}")
-            else:
-                print(f"    ❌ Request failed: {response.status_code}")
-            
-            time.sleep(1)  # Rate limiting
-        
-        print(f"\n📊 Video Edit Intent Detection: {success_count}/{total_tests} tests passed ({success_count/total_tests*100:.1f}%)")
-        return success_count == total_tests
-    
-    def test_chat_stream_video_edit_flow(self):
-        """Test chat stream video edit flow with video context"""
-        print("\n🎥 Testing Chat Stream Video Edit Flow...")
-        
-        # First, create a conversation with video context
-        print("  Setting up conversation with video context...")
-        
-        # Generate a video first to establish context
-        video_gen_response = requests.post(f"{API_BASE}/chat/stream", 
-            headers=self.get_headers(),
-            json={
-                "content": "generate a video of a bull in a field",
-                "model": "gpt-4o"
-            }
-        )
-        
-        if video_gen_response.status_code != 200:
-            print(f"❌ Failed to generate initial video: {video_gen_response.status_code}")
-            return False
-        
-        # Parse response to get conversation ID
-        lines = video_gen_response.text.strip().split('\n')
-        conversation_id = None
-        for line in lines:
-            if line.strip() and not line.startswith(':'):
-                try:
-                    event = json.loads(line)
-                    if event.get('type') == 'meta':
-                        conversation_id = event.get('conversationId')
-                        break
-                except json.JSONDecodeError:
-                    continue
-        
-        if not conversation_id:
-            print("❌ Failed to get conversation ID from video generation")
-            return False
-        
-        print(f"  ✅ Created conversation: {conversation_id}")
-        
-        # Now test video edit request in the same conversation
-        print("  Testing video edit request...")
-        
-        edit_response = requests.post(f"{API_BASE}/chat/stream", 
-            headers=self.get_headers(),
-            json={
-                "conversationId": conversation_id,
-                "content": "edit this video to remove the tags from the bull's ears",
-                "model": "gpt-4o"
-            }
-        )
-        
-        if edit_response.status_code == 200:
-            # Parse NDJSON response
-            lines = edit_response.text.strip().split('\n')
-            events = []
+            # Extract the actual conversation ID from the response
+            lines = response.text.strip().split('\n')
+            actual_conv_id = None
             for line in lines:
-                if line.strip() and not line.startswith(':'):
+                if line.strip():
                     try:
-                        events.append(json.loads(line))
+                        event = json.loads(line)
+                        if event.get('type') == 'meta' and event.get('conversationId'):
+                            actual_conv_id = event['conversationId']
+                            break
                     except json.JSONDecodeError:
                         continue
             
-            # Check for required events
-            has_generating_visual = any(e.get('type') == 'generating_visual' for e in events)
-            has_video_task = any(e.get('type') == 'video_task' for e in events)
-            
-            video_task_event = next((e for e in events if e.get('type') == 'video_task'), None)
-            
-            if has_generating_visual and has_video_task:
-                print("  ✅ Video edit flow triggered correctly")
-                
-                # Verify video_task event has required fields
-                if video_task_event:
-                    required_fields = ['taskId', 'status']
-                    missing_fields = [f for f in required_fields if f not in video_task_event]
-                    
-                    if not missing_fields:
-                        print("  ✅ video_task event has required fields")
-                        return True
-                    else:
-                        print(f"  ❌ video_task event missing fields: {missing_fields}")
-                        return False
-                else:
-                    print("  ❌ video_task event not found")
-                    return False
+            if actual_conv_id:
+                self.conversation_id = actual_conv_id
+                print(f"✅ Conversation created with ID: {actual_conv_id}")
             else:
-                print("  ❌ Video edit flow did not trigger")
-                event_types = [e.get('type') for e in events]
-                print(f"  Events: {event_types}")
+                print("⚠️ Could not extract conversation ID, using original")
+            
+            # Now generate an image to establish image context
+            print("🎨 Generating an image to establish context...")
+            response = requests.post(f"{API_BASE}/chat/stream", 
+                json={
+                    "content": "generate an image of a cat sitting on a couch",
+                    "model": "gpt-4o",
+                    "conversation_id": self.conversation_id
+                },
+                headers=headers,
+                timeout=60
+            )
+            
+            if response.status_code == 200:
+                # Parse NDJSON response to check for image generation
+                lines = response.text.strip().split('\n')
+                image_generated = False
+                for line in lines:
+                    if line.strip():
+                        try:
+                            event = json.loads(line)
+                            if event.get('type') == 'image' and event.get('url'):
+                                image_generated = True
+                                print(f"✅ Image generated successfully: {event['url'][:50]}...")
+                                break
+                        except json.JSONDecodeError:
+                            continue
+                
+                if image_generated:
+                    print("✅ Conversation with image context established")
+                    return True
+                else:
+                    print("⚠️ Image generation may have failed, but continuing with test...")
+                    return True
+            else:
+                print(f"❌ Failed to generate image: {response.status_code}")
                 return False
-        else:
-            print(f"  ❌ Video edit request failed: {edit_response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Setup error: {str(e)}")
             return False
     
-    def test_system_prompt_update(self):
-        """Test that system prompt includes video editing capabilities"""
-        print("\n📝 Testing System Prompt Update...")
-        
-        # Test a simple chat to see if the system prompt includes video editing info
-        response = requests.post(f"{API_BASE}/chat/stream", 
-            headers=self.get_headers(),
-            json={
-                "content": "what are your video editing capabilities?",
-                "model": "gpt-4o"
-            }
-        )
-        
-        if response.status_code == 200:
+    def test_video_intent_detection(self, test_phrase: str, should_detect: bool = True) -> bool:
+        """Test if a phrase correctly triggers image-to-video intent detection"""
+        try:
+            print(f"🎬 Testing phrase: '{test_phrase}'")
+            
+            headers = {"Authorization": f"Bearer {self.token}"}
+            response = requests.post(f"{API_BASE}/chat/stream", 
+                json={
+                    "content": test_phrase,
+                    "model": "gpt-4o", 
+                    "conversation_id": self.conversation_id
+                },
+                headers=headers,
+                timeout=45
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ Request failed: {response.status_code}")
+                return False
+            
             # Parse NDJSON response
             lines = response.text.strip().split('\n')
-            full_response = ""
+            detected_image_to_video = False
+            found_generating_visual = False
+            found_video_task = False
+            found_confirmation = False
+            
             for line in lines:
-                if line.strip() and not line.startswith(':'):
+                if line.strip():
+                    try:
+                        event = json.loads(line)
+                        event_type = event.get('type')
+                        
+                        if event_type == 'generating_visual' and event.get('visualType') == 'video':
+                            found_generating_visual = True
+                            detected_image_to_video = True
+                            
+                        elif event_type == 'video_task':
+                            found_video_task = True
+                            detected_image_to_video = True
+                            
+                        elif event_type == 'media_confirmation':
+                            found_confirmation = True
+                            
+                    except json.JSONDecodeError:
+                        continue
+            
+            # Check if detection matches expectation
+            if should_detect:
+                if detected_image_to_video:
+                    print(f"✅ Correctly detected image-to-video intent (generating_visual: {found_generating_visual}, video_task: {found_video_task})")
+                    return True
+                else:
+                    print(f"❌ Failed to detect image-to-video intent (found confirmation: {found_confirmation})")
+                    return False
+            else:
+                if not detected_image_to_video:
+                    print(f"✅ Correctly did NOT detect image-to-video intent")
+                    return True
+                else:
+                    print(f"❌ Incorrectly detected image-to-video intent when it shouldn't")
+                    return False
+                    
+        except Exception as e:
+            print(f"❌ Test error: {str(e)}")
+            return False
+    
+    def test_regression_regular_video(self) -> bool:
+        """Test that regular video prompts without conversation image work normally"""
+        try:
+            print("🔄 Testing regression: regular video prompts...")
+            
+            # Create a new conversation without image context
+            new_conv_id = "test-regular-video-conv"
+            headers = {"Authorization": f"Bearer {self.token}"}
+            
+            response = requests.post(f"{API_BASE}/chat/stream", 
+                json={
+                    "content": "generate a video of a sunset over the ocean",
+                    "model": "gpt-4o",
+                    "conversation_id": new_conv_id
+                },
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ Regular video request failed: {response.status_code}")
+                return False
+            
+            # Should NOT trigger isImageToVideoRequest (should go to confirmation or normal video generation)
+            lines = response.text.strip().split('\n')
+            found_image_to_video_auto_exec = False
+            
+            for line in lines:
+                if line.strip():
                     try:
                         event = json.loads(line)
                         if event.get('type') == 'delta':
-                            full_response += event.get('content', '')
+                            content = event.get('content', '')
+                            if '🎬 **Animating your image...**' in content:
+                                found_image_to_video_auto_exec = True
+                                break
                     except json.JSONDecodeError:
                         continue
             
-            # Check if response mentions video editing capabilities
-            video_edit_keywords = [
-                "video edit", "extract", "frame", "generate", "new video",
-                "edit description", "video generation", "pipeline"
-            ]
-            
-            response_lower = full_response.lower()
-            found_keywords = [kw for kw in video_edit_keywords if kw in response_lower]
-            
-            # Also check if it mentions NOT saying "I'll get started"
-            avoids_promise = "i'll get started" not in response_lower and "i'll work on it" not in response_lower
-            
-            if found_keywords and avoids_promise:
-                print(f"  ✅ System prompt includes video editing capabilities")
-                print(f"  Found keywords: {found_keywords}")
+            if not found_image_to_video_auto_exec:
+                print("✅ Regular video request correctly did NOT trigger image-to-video path")
                 return True
             else:
-                print(f"  ❌ System prompt may not include proper video editing info")
-                print(f"  Found keywords: {found_keywords}")
-                print(f"  Avoids promises: {avoids_promise}")
-                print(f"  Response preview: {full_response[:200]}...")
+                print("❌ Regular video request incorrectly triggered image-to-video path")
                 return False
-        else:
-            print(f"  ❌ System prompt test failed: {response.status_code}")
+                
+        except Exception as e:
+            print(f"❌ Regression test error: {str(e)}")
             return False
     
-    def test_regression_endpoints(self):
-        """Test that existing functionality still works"""
-        print("\n🔄 Testing Regression - Core Endpoints...")
-        
-        tests = []
-        
-        # Test auth/login
-        print("  Testing POST /api/auth/login...")
-        response = requests.post(f"{API_BASE}/auth/login", json={
-            "email": TEST_EMAIL,
-            "passcode": TEST_PASSWORD
-        })
-        tests.append(("Auth Login", response.status_code == 200))
-        
-        # Test media/pending
-        print("  Testing GET /api/media/pending...")
-        response = requests.get(f"{API_BASE}/media/pending", headers=self.get_headers())
-        tests.append(("Media Pending", response.status_code == 200))
-        
-        # Test regular chat (non-video-edit)
-        print("  Testing regular chat message...")
-        response = requests.post(f"{API_BASE}/chat/stream", 
-            headers=self.get_headers(),
-            json={
-                "content": "Hello, how are you today?",
-                "model": "gpt-4o"
-            }
-        )
-        tests.append(("Regular Chat", response.status_code == 200))
-        
-        # Test video generation request
-        print("  Testing video generation request...")
-        response = requests.post(f"{API_BASE}/chat/stream", 
-            headers=self.get_headers(),
-            json={
-                "content": "generate a video of a sunset",
-                "model": "gpt-4o"
-            }
-        )
-        
-        if response.status_code == 200:
-            # Check for media_confirmation or generating_visual events
-            lines = response.text.strip().split('\n')
-            events = []
-            for line in lines:
-                if line.strip() and not line.startswith(':'):
-                    try:
-                        events.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        continue
+    def test_regular_chat(self) -> bool:
+        """Test that regular chat still works normally"""
+        try:
+            print("💬 Testing regression: regular chat...")
             
-            has_media_flow = any(e.get('type') in ['media_confirmation', 'generating_visual', 'video_task'] for e in events)
-            tests.append(("Video Generation", has_media_flow))
-        else:
-            tests.append(("Video Generation", False))
-        
-        # Summary
-        passed = sum(1 for _, result in tests if result)
-        total = len(tests)
-        
-        print(f"\n📊 Regression Tests: {passed}/{total} passed")
-        for test_name, result in tests:
-            status = "✅" if result else "❌"
-            print(f"  {status} {test_name}")
-        
-        return passed == total
-    
-    def run_all_tests(self):
-        """Run all tests"""
-        print("🚀 Starting Video Edit Auto-Execution Fix Testing")
-        print("=" * 60)
-        
-        if not self.authenticate():
-            print("❌ Authentication failed, cannot continue")
-            return False
-        
-        if not self.test_health_check():
-            print("❌ Health check failed, cannot continue")
-            return False
-        
-        # Run all test categories
-        test_results = []
-        
-        test_results.append(("Video Edit Intent Detection", self.test_video_edit_intent_detection()))
-        test_results.append(("Chat Stream Video Edit Flow", self.test_chat_stream_video_edit_flow()))
-        test_results.append(("System Prompt Update", self.test_system_prompt_update()))
-        test_results.append(("Regression Tests", self.test_regression_endpoints()))
-        
-        # Final summary
-        print("\n" + "=" * 60)
-        print("📊 FINAL TEST RESULTS")
-        print("=" * 60)
-        
-        passed = 0
-        total = len(test_results)
-        
-        for test_name, result in test_results:
-            status = "✅ PASS" if result else "❌ FAIL"
-            print(f"{status} {test_name}")
-            if result:
-                passed += 1
-        
-        print(f"\nOverall: {passed}/{total} test categories passed ({passed/total*100:.1f}%)")
-        
-        if passed == total:
-            print("🎉 All tests passed! Video Edit Auto-Execution Fix is working correctly.")
-            return True
-        else:
-            print("⚠️  Some tests failed. Please review the issues above.")
+            headers = {"Authorization": f"Bearer {self.token}"}
+            response = requests.post(f"{API_BASE}/chat/stream", 
+                json={
+                    "content": "What is the weather like?",
+                    "model": "gpt-4o",
+                    "conversation_id": "test-regular-chat-conv"
+                },
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                # Should return normal text response, no video/image generation
+                lines = response.text.strip().split('\n')
+                found_text_response = False
+                found_media_generation = False
+                
+                for line in lines:
+                    if line.strip():
+                        try:
+                            event = json.loads(line)
+                            if event.get('type') == 'delta' and event.get('content'):
+                                found_text_response = True
+                            elif event.get('type') in ['generating_visual', 'video_task', 'image']:
+                                found_media_generation = True
+                        except json.JSONDecodeError:
+                            continue
+                
+                if found_text_response and not found_media_generation:
+                    print("✅ Regular chat working correctly")
+                    return True
+                else:
+                    print(f"❌ Regular chat issue (text: {found_text_response}, media: {found_media_generation})")
+                    return False
+            else:
+                print(f"❌ Regular chat failed: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Regular chat test error: {str(e)}")
             return False
 
+def main():
+    """Main test execution"""
+    print("🚀 Starting Image-to-Video Intent Detection Fix Testing")
+    print("=" * 60)
+    
+    tester = ImageToVideoTester()
+    
+    # Step 1: Authentication
+    if not tester.authenticate():
+        print("❌ Authentication failed - cannot proceed")
+        sys.exit(1)
+    
+    # Step 2: Setup conversation with image
+    if not tester.setup_conversation_with_image():
+        print("❌ Failed to setup conversation with image")
+        sys.exit(1)
+    
+    # Step 3: Test video intent detection phrases that should work
+    test_phrases_should_detect = [
+        "make a video out of it",
+        "generate a video of it", 
+        "create a video",
+        "turn it into a video",
+        "generate a video of the generated image",
+        "make a video from this",
+        "animate this image",
+        "create a video of this",
+        "video of it",
+        "make it move"
+    ]
+    
+    print("\n🎯 Testing phrases that SHOULD trigger image-to-video detection:")
+    print("-" * 50)
+    
+    success_count = 0
+    total_tests = len(test_phrases_should_detect)
+    
+    for phrase in test_phrases_should_detect:
+        if tester.test_video_intent_detection(phrase, should_detect=True):
+            success_count += 1
+        time.sleep(2)  # Brief pause between tests
+    
+    # Step 4: Test regression - regular video prompts
+    print("\n🔄 Testing regression scenarios:")
+    print("-" * 30)
+    
+    regression_tests = [
+        ("Regular video without image context", tester.test_regression_regular_video),
+        ("Regular chat functionality", tester.test_regular_chat)
+    ]
+    
+    regression_success = 0
+    for test_name, test_func in regression_tests:
+        print(f"Testing: {test_name}")
+        if test_func():
+            regression_success += 1
+        time.sleep(2)
+    
+    # Summary
+    print("\n" + "=" * 60)
+    print("📊 TEST SUMMARY")
+    print("=" * 60)
+    print(f"✅ Authentication: {'PASS' if tester.token else 'FAIL'}")
+    print(f"✅ Image-to-Video Intent Detection: {success_count}/{total_tests} phrases detected correctly")
+    print(f"✅ Regression Tests: {regression_success}/{len(regression_tests)} passed")
+    
+    overall_success = (success_count == total_tests and regression_success == len(regression_tests))
+    
+    if overall_success:
+        print("\n🎉 ALL TESTS PASSED - Image-to-Video intent detection fix is working correctly!")
+        print("✅ The isImageToVideoRequest patterns now correctly detect natural phrases")
+        print("✅ Auto-execution bypasses confirmation flow as expected")
+        print("✅ No regressions in regular video or chat functionality")
+    else:
+        print(f"\n⚠️ SOME TESTS FAILED")
+        if success_count < total_tests:
+            print(f"❌ {total_tests - success_count} intent detection phrases failed")
+        if regression_success < len(regression_tests):
+            print(f"❌ {len(regression_tests) - regression_success} regression tests failed")
+    
+    return overall_success
+
 if __name__ == "__main__":
-    tester = VideoEditAutoExecutionTester()
-    success = tester.run_all_tests()
+    success = main()
     sys.exit(0 if success else 1)
