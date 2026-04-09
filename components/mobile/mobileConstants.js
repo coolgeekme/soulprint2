@@ -28,7 +28,7 @@ const MODELS = [
   { value: 'moonshot-v1-8k', label: 'Moonshot 8k (Fast)', provider: 'kimi', group: 'Kimi' },
 ];
 
-const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx,.mp4,.mov,.webm,.avi,.mkv,.m4v,video/mp4,video/quicktime,video/webm';
+const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx,.xlsx,.xls,.mp4,.mov,.webm,.avi,.mkv,.m4v,video/mp4,video/quicktime,video/webm';
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 const IMAGE_MODELS = [

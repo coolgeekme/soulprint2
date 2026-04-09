@@ -811,6 +811,10 @@ export default function MobileChat({
     const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     const isDOCX = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
                    file.name.toLowerCase().endsWith('.docx');
+    const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                    file.type === 'application/vnd.ms-excel' ||
+                    file.name.toLowerCase().endsWith('.xlsx') ||
+                    file.name.toLowerCase().endsWith('.xls');
     
     if (isImage) {
       return new Promise((resolve, reject) => {
@@ -891,7 +895,7 @@ export default function MobileChat({
         };
         reader.readAsDataURL(file);
       });
-    } else if (isPDF || isDOCX) {
+    } else if (isPDF || isDOCX || isExcel) {
       // Parse PDF/DOCX on the server
       try {
         const formData = new FormData();
