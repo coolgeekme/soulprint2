@@ -807,6 +807,7 @@ export default function MobileChat({
   // Process file for attachment
   const processFile = async (file) => {
     const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i);
     const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     const isDOCX = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
                    file.name.toLowerCase().endsWith('.docx');
@@ -859,6 +860,35 @@ export default function MobileChat({
           img.src = originalBase64;
         };
         reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    } else if (isVideo) {
+      // Handle video files — convert to base64 so backend can process for frame extraction
+      const localUrl = URL.createObjectURL(file);
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result.split(',')[1]; // Strip data URL prefix
+          console.log(`[Mobile:Attach] Video ${file.name}: ${Math.round(file.size/1024)}KB → base64 ${Math.round(base64.length/1024)}KB`);
+          resolve({
+            type: 'video',
+            name: file.name,
+            mimeType: file.type || 'video/mp4',
+            size: file.size,
+            base64,
+            localUrl,
+          });
+        };
+        reader.onerror = () => {
+          console.warn(`[Mobile:Attach] Failed to read video ${file.name}, keeping file reference only`);
+          resolve({
+            type: 'video',
+            name: file.name,
+            mimeType: file.type || 'video/mp4',
+            size: file.size,
+            localUrl,
+          });
+        };
         reader.readAsDataURL(file);
       });
     } else if (isPDF || isDOCX) {
@@ -2931,6 +2961,19 @@ export default function MobileChat({
                               />
                               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent rounded-b-xl px-1.5 py-1">
                                 <span className="text-[9px] text-white truncate block font-medium">{att.name}</span>
+                              </div>
+                            </div>
+                          ) : att.type === 'video' ? (
+                            <div className="relative">
+                              {att.localUrl ? (
+                                <video src={att.localUrl} className="w-20 h-20 object-cover rounded-xl border-2 border-purple-500/40 shadow-lg" muted />
+                              ) : (
+                                <div className="w-20 h-20 bg-purple-500/10 border-2 border-purple-500/40 rounded-xl flex items-center justify-center">
+                                  <Film className="w-6 h-6 text-purple-400" />
+                                </div>
+                              )}
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent rounded-b-xl px-1.5 py-1">
+                                <span className="text-[9px] text-white truncate block font-medium">🎬 {att.name}</span>
                               </div>
                             </div>
                           ) : (
