@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, IMAGE_MODELS, VIDEO_MODELS, ASPECT_RATIOS } from './mobileConstants';
 import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { MobileImageCard, MobileVideoCard, MobileSavedVideoCard } from './MobileMediaCards';
+import VideoProgressBanner from '@/components/chat/VideoProgressBanner';
 import { TabBar, ChatHeader } from './MobileNavigation';
 import MessageBubble from './MobileMessageBubble';
 import { ConversationItem, ThemeToggle, AttachmentPreview, RenameModal } from './MobileSmallComponents';
@@ -2770,6 +2771,21 @@ export default function MobileChat({
               </div>
             )}>
             <div className="px-2 pb-4">
+              {/* Persistent Video Progress Banner — shows active video jobs */}
+              {conversationId && token && (
+                <VideoProgressBanner 
+                  conversationId={conversationId} 
+                  token={token}
+                  onVideoReady={(taskId, videoUrl, thumbnailUrl) => {
+                    setMessages(prev => prev.map(m => {
+                      if (m.video_task?.taskId === taskId) {
+                        return { ...m, video_url: videoUrl, thumbnail_url: thumbnailUrl, video_task: { ...m.video_task, status: 'success' } };
+                      }
+                      return m;
+                    }));
+                  }}
+                />
+              )}
               {(messages || []).map((msg, idx) => {
                 if (!msg) return null;
                 return (

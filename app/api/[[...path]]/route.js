@@ -505,6 +505,25 @@ export async function GET(request, { params }) {
       const taskId = pathStr.replace('media/video/status/', '');
       return handleMediaStatusByTaskId(request, taskId);
     }
+    // Active video jobs for a conversation (for persistent progress indicators)
+    if (pathStr.startsWith('video/active/')) {
+      const convId = pathStr.replace('video/active/', '');
+      try {
+        const db = await getDb();
+        const activeJobs = await db.collection('video_jobs').find({
+          conversation_id: convId,
+          status: { $in: ['generating', 'processing', 'queued'] },
+          created_at: { $gte: new Date(Date.now() - 15 * 60 * 1000) } // Last 15 minutes
+        }).sort({ created_at: -1 }).limit(5).toArray();
+        return NextResponse.json({ jobs: activeJobs.map(j => ({
+          taskId: j.task_id, status: j.status, prompt: j.prompt,
+          model: j.model, messageId: j.message_id, sourceImage: j.source_image,
+          type: j.type, createdAt: j.created_at,
+        })) });
+      } catch (e) {
+        return NextResponse.json({ jobs: [] });
+      }
+    }
     if (pathStr === 'media/recommend') return handleMediaRecommend(request);
     if (pathStr === 'imports/status') return handleImportStatus(request);
     if (pathStr === 'pwa/install-status') return handleGetInstallPromptStatus(request);

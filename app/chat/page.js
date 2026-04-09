@@ -55,6 +55,7 @@ import { useToast } from '@/hooks/use-toast';
 import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { TypingIndicator } from '@/components/chat/TypingIndicator';
 import { VideoCard, SavedVideoCard } from '@/components/chat/VideoCards';
+import VideoProgressBanner from '@/components/chat/VideoProgressBanner';
 import ImageEditor from '@/components/chat/ImageEditor';
 import VideoEditor from '@/components/chat/VideoEditor';
 import { MockupGenerator } from '@/components/chat/MockupGenerator';
@@ -3863,6 +3864,23 @@ export default function ChatPage() {
               </div>
             )}
             
+            {/* Persistent Video Progress Banner — shows active video jobs for this conversation */}
+            {conversationId && token && (
+              <VideoProgressBanner 
+                conversationId={conversationId} 
+                token={token}
+                onVideoReady={(taskId, videoUrl, thumbnailUrl) => {
+                  // Update the message that has this video_task
+                  setMessages(prev => prev.map(m => {
+                    if (m.video_task?.taskId === taskId) {
+                      return { ...m, video_url: videoUrl, thumbnail_url: thumbnailUrl, video_task: { ...m.video_task, status: 'success' } };
+                    }
+                    return m;
+                  }));
+                }}
+              />
+            )}
+
             {(messages || []).map((msg, idx) => {
               if (!msg) return null;
               return (
@@ -4413,62 +4431,87 @@ export default function ChatPage() {
             {isGeneratingVisual && !streamingVideoTask && (
               <div className="px-2 sm:px-4 py-3">
                 <div className="max-w-3xl mx-auto">
-                  <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 border border-purple-500/20 p-5">
-                    {/* Animated background shimmer */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
-                    
-                    {/* Content */}
-                    <div className="relative flex items-center gap-4">
-                      {/* Animated icon */}
-                      <div className="relative flex-shrink-0">
-                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
-                          <Sparkles className="w-7 h-7 text-purple-400 animate-pulse" />
+                  {visualGenerationType === 'video' ? (
+                    /* Enhanced Video Generation Trigger — larger, more prominent */
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600/10 via-purple-600/10 to-cyan-600/10 border-2 border-blue-500/30 p-6 shadow-lg shadow-blue-500/5">
+                      {/* Animated background shimmer */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+                      
+                      {/* Pulsing border glow */}
+                      <div className="absolute inset-0 rounded-2xl border-2 border-blue-400/20 animate-pulse" />
+                      
+                      <div className="relative flex items-center gap-5">
+                        {/* Large animated video icon */}
+                        <div className="relative flex-shrink-0">
+                          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/30 to-purple-500/30 flex items-center justify-center">
+                            <Film className="w-8 h-8 text-blue-400 animate-pulse" />
+                          </div>
+                          <div className="absolute inset-0 rounded-2xl border-2 border-transparent border-t-blue-500/60 animate-spin" style={{ animationDuration: '2s' }} />
+                          {/* Outer glow ring */}
+                          <div className="absolute -inset-1 rounded-2xl border border-blue-500/10 animate-ping" style={{ animationDuration: '3s' }} />
                         </div>
-                        {/* Spinning ring */}
-                        <div className="absolute inset-0 rounded-xl border-2 border-transparent border-t-purple-500/50 animate-spin" style={{ animationDuration: '2s' }} />
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-bold text-lg mb-1">🎬 Video Generation Started!</p>
+                          <p className="text-blue-300/80 text-sm">Your video is being created. This typically takes 1-5 minutes.</p>
+                        </div>
                       </div>
                       
-                      {/* Text */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-semibold text-base mb-1">
-                          {visualGenerationType === 'infographic' ? '📊 Creating your infographic...' :
-                           visualGenerationType === 'flyer' ? '📄 Designing your flyer...' :
-                           visualGenerationType === 'poster' ? '🖼️ Creating your poster...' :
-                           visualGenerationType === 'edit' ? '✏️ Editing your image...' :
-                           visualGenerationType === 'composite' ? '🎨 Creating realistic mockup...' :
-                           visualGenerationType === 'video' ? '🎬 Generating your video...' :
-                           '✨ Generating your image...'}
-                        </p>
-                        <p className="text-gray-400 text-sm">
-                          {visualGenerationType === 'video' 
-                            ? 'This may take 1-3 minutes. Creating cinematic magic!' 
-                            : visualGenerationType === 'composite'
-                            ? 'AI is blending your design into the image naturally. ~15-20 seconds.'
-                            : 'This may take 15-30 seconds. We\'re crafting something beautiful!'}
-                        </p>
+                      {/* Animated progress bar */}
+                      <div className="mt-5 relative h-2 bg-white/5 rounded-full overflow-hidden">
+                        <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500 rounded-full animate-progress" />
                       </div>
-                    </div>
-                    
-                    {/* Progress animation */}
-                    <div className="mt-4 relative h-1.5 bg-white/10 rounded-full overflow-hidden">
-                      <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 rounded-full animate-progress" />
-                    </div>
-                    
-                    {/* Progress dots */}
-                    <div className="flex justify-center gap-2 mt-4">
-                      <div className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
+                      
+                      {/* Bouncing dots */}
+                      <div className="flex justify-center gap-2.5 mt-4">
+                        <div className="w-3 h-3 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-3 h-3 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-3 h-3 rounded-full bg-cyan-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
 
-                    {/* Leave notification hint */}
-                    {visualGenerationType === 'video' && (
+                      {/* Hint */}
                       <div className="mt-4 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
                         <span className="text-xs">💡</span>
-                        <p className="text-[11px] text-cyan-400/70">You can leave this chat — we'll notify you when it's ready.</p>
+                        <p className="text-[11px] text-cyan-400/70">You can keep chatting — the video will appear when it's ready.</p>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    /* Original animation for images/infographics/etc. */
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-orange-500/10 border border-purple-500/20 p-5">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+                      <div className="relative flex items-center gap-4">
+                        <div className="relative flex-shrink-0">
+                          <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+                            <Sparkles className="w-7 h-7 text-purple-400 animate-pulse" />
+                          </div>
+                          <div className="absolute inset-0 rounded-xl border-2 border-transparent border-t-purple-500/50 animate-spin" style={{ animationDuration: '2s' }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-semibold text-base mb-1">
+                            {visualGenerationType === 'infographic' ? '📊 Creating your infographic...' :
+                             visualGenerationType === 'flyer' ? '📄 Designing your flyer...' :
+                             visualGenerationType === 'poster' ? '🖼️ Creating your poster...' :
+                             visualGenerationType === 'edit' ? '✏️ Editing your image...' :
+                             visualGenerationType === 'composite' ? '🎨 Creating realistic mockup...' :
+                             '✨ Generating your image...'}
+                          </p>
+                          <p className="text-gray-400 text-sm">
+                            {visualGenerationType === 'composite'
+                              ? 'AI is blending your design into the image naturally. ~15-20 seconds.'
+                              : 'This may take 15-30 seconds. We\'re crafting something beautiful!'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 relative h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 rounded-full animate-progress" />
+                      </div>
+                      <div className="flex justify-center gap-2 mt-4">
+                        <div className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
