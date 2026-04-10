@@ -211,6 +211,8 @@ export default function ChatPage() {
   const streamingVideoTaskRef = useRef(null);
   const streamingSourcesRef = useRef([]);
   const messagesEndRef = useRef(null);
+  const streamingBubbleRef = useRef(null);  // Ref for the top of the assistant's streaming reply
+  const hasScrolledToReply = useRef(false); // Track if we've already scrolled to the reply start
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const abortControllerRef = useRef(null); // For stopping requests
@@ -591,9 +593,40 @@ export default function ChatPage() {
       .catch(() => {});
   }, [token, user]);
 
+  // Auto-scroll: scroll to the TOP of the assistant's reply bubble once when streaming starts
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingContent]);
+    if (loading && streamingContent && !hasScrolledToReply.current) {
+      // Streaming just started — scroll the reply bubble top into view
+      hasScrolledToReply.current = true;
+      setTimeout(() => {
+        streamingBubbleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+    if (!loading) {
+      // Streaming ended — reset for next reply
+      hasScrolledToReply.current = false;
+    }
+  }, [loading, streamingContent]);
+
+  // When user sends a message (new message added), scroll to bottom so they see their message
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg?.role === 'user') {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+      // For completed assistant messages (e.g., after streaming ends), scroll to top of that message
+      if (lastMsg?.role === 'assistant' && !loading) {
+        // Find the message element and scroll to its top
+        const msgEl = document.getElementById(`msg-${lastMsg.id}`);
+        if (msgEl) {
+          setTimeout(() => {
+            msgEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 150);
+        }
+      }
+    }
+  }, [messages.length, loading]);
 
   // Detect stalled streaming - if no chunk received for 8 seconds while loading
   useEffect(() => {
@@ -3885,7 +3918,7 @@ export default function ChatPage() {
               if (!msg) return null;
               return (
               <MessageErrorBoundary key={`eb-${msg.id || idx}`}>
-              <div key={msg.id || idx} className={`msg-appear group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id || idx} id={`msg-${msg.id || idx}`} className={`msg-appear group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 {msg.role === 'assistant' && (
                   <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0 mt-0.5">
                     <SoulPrintLogo size={12} className="sm:hidden" />
@@ -4258,7 +4291,7 @@ export default function ChatPage() {
             {/* Streaming */}
             {(streamingContent || (streamingImageUrl && loading) || streamingVideoTask) && (
               <MessageErrorBoundary key="streaming-boundary">
-              <div className="msg-appear flex justify-start">
+              <div ref={streamingBubbleRef} className="msg-appear flex justify-start">
                 <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0 mt-0.5">
                   <SoulPrintLogo size={12} className="sm:hidden" />
                   <SoulPrintLogo size={14} className="hidden sm:block" />

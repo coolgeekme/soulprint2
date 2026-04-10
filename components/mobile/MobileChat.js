@@ -149,6 +149,8 @@ export default function MobileChat({
   const readAloudAudioRef = useRef(null);
   
   const messagesEndRef = useRef(null);
+  const streamingBubbleRef = useRef(null);  // Ref for the top of the assistant's streaming reply
+  const hasScrolledToReply = useRef(false); // Track if we've already scrolled to the reply start
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const inputContainerRef = useRef(null);
@@ -250,9 +252,36 @@ export default function MobileChat({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
+  // Auto-scroll: scroll to TOP of the assistant's reply bubble once when streaming starts
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, streamingContent, scrollToBottom]);
+    if (loading && streamingContent && !hasScrolledToReply.current) {
+      hasScrolledToReply.current = true;
+      setTimeout(() => {
+        streamingBubbleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+    if (!loading) {
+      hasScrolledToReply.current = false;
+    }
+  }, [loading, streamingContent]);
+
+  // When user sends a message, scroll to bottom so they see their message
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg?.role === 'user') {
+        scrollToBottom();
+      }
+      if (lastMsg?.role === 'assistant' && !loading) {
+        const msgEl = document.getElementById(`msg-mobile-${lastMsg.id}`);
+        if (msgEl) {
+          setTimeout(() => {
+            msgEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 150);
+        }
+      }
+    }
+  }, [messages.length, loading, scrollToBottom]);
 
   // iOS/Android Keyboard handling - keep input visible above keyboard
   useEffect(() => {
@@ -2790,6 +2819,7 @@ export default function MobileChat({
                 if (!msg) return null;
                 return (
                 <MessageErrorBoundary key={`eb-${msg.id || idx}`}>
+                <div id={`msg-mobile-${msg.id || idx}`}>
                 <MessageBubble 
                   key={msg.id || idx} 
                   message={msg} 
@@ -2809,6 +2839,7 @@ export default function MobileChat({
                     ));
                   }}
                 />
+                </div>
                 </MessageErrorBoundary>
                 );
               })}
@@ -2816,11 +2847,13 @@ export default function MobileChat({
               {/* Streaming message — hide when video is generating (show animation instead) */}
               <MessageErrorBoundary key="mobile-streaming-boundary">
               {streamingContent && !streamingVideoTask && !(isGeneratingVisual && visualGenerationType === 'video') && (
+                <div ref={streamingBubbleRef}>
                 <MessageBubble 
                   message={{ content: streamingContent }}
                   isUser={false}
                   assistantName={assistantName}
                 />
+                </div>
               )}
               
               {/* Live streaming image — shows image immediately when received, hide when done */}
