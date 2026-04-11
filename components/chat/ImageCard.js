@@ -19,27 +19,22 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, o
     setDownloading(true);
     try {
       const proxyUrl = `/api/media/download?url=${encodeURIComponent(url)}`;
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      if (isIOS) {
-        window.open(proxyUrl, '_blank');
-      } else {
-        const res = await fetch(proxyUrl);
-        if (!res.ok) throw new Error('Download failed');
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        const cd = res.headers.get('content-disposition');
-        a.download = cd?.match(/filename="(.+)"/)?.[1] || `soulprint-image-${Date.now()}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-      }
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const cd = res.headers.get('content-disposition');
+      a.download = cd?.match(/filename="(.+)"/)?.[1] || `soulprint-image-${Date.now()}.png`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 2000);
     } catch (e) {
-      window.open(url, '_blank');
+      window.location.href = `/api/media/download?url=${encodeURIComponent(url)}`;
     } finally {
-      setTimeout(() => setDownloading(false), 1500);
+      setTimeout(() => setDownloading(false), 3000);
     }
   };
 

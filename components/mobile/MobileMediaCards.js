@@ -10,38 +10,33 @@ function useMobileDownload() {
     if (downloading || !url) return;
     setDownloading(true);
     try {
-      // Use backend proxy to get the file with Content-Disposition: attachment
+      // Fetch through same-origin proxy — this avoids CORS issues and
+      // lets us use <a download> reliably on ALL browsers (including iOS Safari)
       const proxyUrl = `/api/media/download?url=${encodeURIComponent(url)}`;
-      
-      // On iOS Safari, window.open with the proxy URL is the most reliable method
-      // The server returns Content-Disposition: attachment which triggers the download dialog
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-      
-      if (isIOS) {
-        // iOS: open proxy URL directly — Safari will show the download dialog
-        window.open(proxyUrl, '_blank');
-      } else {
-        // Android/other: fetch as blob and use createObjectURL
-        const res = await fetch(proxyUrl);
-        if (!res.ok) throw new Error('Download failed');
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        const contentDisposition = res.headers.get('content-disposition');
-        const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
-        a.download = filenameMatch?.[1] || `soulprint-${Date.now()}.${blob.type.includes('video') ? 'mp4' : 'png'}`;
-        document.body.appendChild(a);
-        a.click();
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const cd = res.headers.get('content-disposition');
+      const filenameMatch = cd?.match(/filename="(.+)"/);
+      a.download = filenameMatch?.[1] || `soulprint-${Date.now()}.${blob.type.includes('video') ? 'mp4' : 'png'}`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      // Cleanup after a delay
+      setTimeout(() => {
         document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-      }
+        URL.revokeObjectURL(blobUrl);
+      }, 2000);
     } catch (e) {
       console.error('Download error:', e);
-      // Fallback: open in new tab
-      window.open(url, '_blank');
+      // Last resort fallback: open the proxy URL directly (triggers browser download)
+      const proxyUrl = `/api/media/download?url=${encodeURIComponent(url)}`;
+      window.location.href = proxyUrl;
     } finally {
-      setTimeout(() => setDownloading(false), 1500);
+      setTimeout(() => setDownloading(false), 3000);
     }
   };
   
