@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { ok, err, authenticate } from '@/lib/api-utils';
+import { generateProfileMarkdown } from '@/lib/handlers/memory-system';
 
 // ============================================================
 // CONSTANTS
@@ -106,37 +107,18 @@ async function handleProfileExport(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
 
-  const db = await getDb();
-  
-  const profile = await db.collection('profiles').findOne({ user_id: user.id });
-  const memories = await db.collection('user_memories').find({ user_id: user.id }).toArray();
-  const assessmentAnswers = await db.collection('assessment_answers').find({ user_id: user.id }).toArray();
-  const conversations = await db.collection('conversations').find({ user_id: user.id }).toArray();
-
-  return ok({
-    export_date: new Date().toISOString(),
-    profile: {
-      email: user.email,
-      display_name: profile?.display_name,
-      assistant_name: profile?.assistant_name,
-      descriptors: profile?.descriptors,
-      field: profile?.field,
-      help_with: profile?.help_with,
-      created_at: user.created_at,
-    },
-    memories: memories.map(m => ({
-      content: m.content,
-      category: m.category,
-      importance: m.importance,
-      created_at: m.created_at,
-    })),
-    assessment_answers: assessmentAnswers.map(a => ({
-      question_id: a.question_id,
-      answer_text: a.answer_text,
-      created_at: a.created_at,
-    })),
-    conversation_count: conversations.length,
-  });
+  try {
+    const db = await getDb();
+    const markdown = await generateProfileMarkdown(db, user.id);
+    
+    return ok({
+      markdown,
+      filename: `soulprint-profile-${new Date().toISOString().split('T')[0]}.md`,
+    });
+  } catch (e) {
+    console.error('Profile export error:', e);
+    return err(`Export failed: ${e.message}`, 500);
+  }
 }
 
 // ============================================================
