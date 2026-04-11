@@ -505,6 +505,33 @@ export async function GET(request, { params }) {
       const taskId = pathStr.replace('media/video/status/', '');
       return handleMediaStatusByTaskId(request, taskId);
     }
+    // ── Media Download Proxy — serves files with Content-Disposition: attachment ──
+    // Needed because mobile browsers ignore <a download> for cross-origin URLs.
+    if (pathStr === 'media/download') {
+      const { searchParams } = new URL(request.url);
+      const fileUrl = searchParams.get('url');
+      if (!fileUrl) return NextResponse.json({ error: 'Missing url parameter' }, { status: 400 });
+      try {
+        const upstream = await fetch(fileUrl, { headers: { 'User-Agent': 'SoulPrint/1.0' } });
+        if (!upstream.ok) return NextResponse.json({ error: 'Failed to fetch file' }, { status: 502 });
+        const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+        const isVideo = contentType.includes('video') || fileUrl.match(/\.(mp4|mov|webm|avi)(\?|$)/i);
+        const isImage = contentType.includes('image') || fileUrl.match(/\.(png|jpg|jpeg|webp|gif)(\?|$)/i);
+        const ext = isVideo ? 'mp4' : isImage ? (fileUrl.match(/\.(png|jpg|jpeg|webp|gif)/i)?.[1] || 'png') : 'bin';
+        const filename = `soulprint-${isVideo ? 'video' : 'image'}-${Date.now()}.${ext}`;
+        const body = await upstream.arrayBuffer();
+        return new Response(body, {
+          headers: {
+            'Content-Type': contentType,
+            'Content-Disposition': `attachment; filename="${filename}"`,
+            'Content-Length': body.byteLength.toString(),
+            'Cache-Control': 'no-cache',
+          },
+        });
+      } catch (e) {
+        return NextResponse.json({ error: 'Download failed: ' + e.message }, { status: 500 });
+      }
+    }
     // Active video jobs for a conversation (for persistent progress indicators)
     if (pathStr.startsWith('video/active/')) {
       const convId = pathStr.replace('video/active/', '');

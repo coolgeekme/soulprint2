@@ -2,12 +2,59 @@
 import { useState, useEffect, useRef } from 'react';
 import { Film, Loader2, X, Square, Check, Download, RefreshCw, GalleryHorizontal, Sparkles, Image as ImageIcon, FastForward } from 'lucide-react';
 
+// ── Mobile download helper — uses backend proxy for reliable cross-origin downloads ──
+function useMobileDownload() {
+  const [downloading, setDownloading] = useState(false);
+  
+  const handleDownload = async (url) => {
+    if (downloading || !url) return;
+    setDownloading(true);
+    try {
+      // Use backend proxy to get the file with Content-Disposition: attachment
+      const proxyUrl = `/api/media/download?url=${encodeURIComponent(url)}`;
+      
+      // On iOS Safari, window.open with the proxy URL is the most reliable method
+      // The server returns Content-Disposition: attachment which triggers the download dialog
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      
+      if (isIOS) {
+        // iOS: open proxy URL directly — Safari will show the download dialog
+        window.open(proxyUrl, '_blank');
+      } else {
+        // Android/other: fetch as blob and use createObjectURL
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error('Download failed');
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        const contentDisposition = res.headers.get('content-disposition');
+        const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+        a.download = filenameMatch?.[1] || `soulprint-${Date.now()}.${blob.type.includes('video') ? 'mp4' : 'png'}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      }
+    } catch (e) {
+      console.error('Download error:', e);
+      // Fallback: open in new tab
+      window.open(url, '_blank');
+    } finally {
+      setTimeout(() => setDownloading(false), 1500);
+    }
+  };
+  
+  return { downloading, handleDownload };
+}
+
 // ── MobileImageCard: image display with Save to Gallery button ─────────────
 function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const { downloading, handleDownload } = useMobileDownload();
   
   // Available image models for regeneration
   const IMAGE_MODELS = [
@@ -76,10 +123,10 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
             >
               {saved ? '✓ Saved' : saving ? '...' : '📁 Gallery'}
             </button>
-            <a href={url} target="_blank" rel="noopener noreferrer" download
-              className="flex items-center gap-1 px-2.5 py-1 bg-orange-500/15 text-orange-400 text-[11px] rounded-lg">
-              ↓ Save
-            </a>
+            <button onClick={() => handleDownload(url)} disabled={downloading}
+              className="flex items-center gap-1 px-2.5 py-1 bg-orange-500/15 text-orange-400 text-[11px] rounded-lg active:bg-orange-500/25 disabled:opacity-50">
+              {downloading ? '⏳ Saving...' : '↓ Save'}
+            </button>
           </div>
         </div>
         {/* Try Different Model - always show if callback is provided */}
@@ -114,6 +161,7 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
 
 // ── MobileVideoCard: handles video generation with polling ─────────────────
 function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', modelLabel, messageId, onVideoReady, onCancel, onRegenerateWith, sourceImageUrl }) {
+  const { downloading, handleDownload } = useMobileDownload();
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
@@ -354,10 +402,10 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
             >
               {savedToGallery ? <><Check className="w-3.5 h-3.5" /> Saved</> : saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><GalleryHorizontal className="w-3.5 h-3.5" /> Save to Gallery</>}
             </button>
-            <a href={videoUrl} target="_blank" rel="noopener noreferrer" download
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl active:bg-orange-500/25 transition-colors">
-              <Download className="w-3.5 h-3.5" /> Download
-            </a>
+            <button onClick={() => handleDownload(videoUrl)} disabled={downloading}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl active:bg-orange-500/25 transition-colors disabled:opacity-50">
+              {downloading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Download className="w-3.5 h-3.5" /> Download</>}
+            </button>
           </div>
           {/* Try Different Model */}
           {onRegenerateWith && (
@@ -491,6 +539,7 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
 
 // ── MobileSavedVideoCard: displays a saved video from database with matching UX ─
 function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith, sourceImageUrl, onExtendVideo, videoTaskId }) {
+  const { downloading, handleDownload } = useMobileDownload();
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -568,10 +617,10 @@ function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerat
           >
             {savedToGallery ? <><Check className="w-3.5 h-3.5" /> Saved</> : saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><GalleryHorizontal className="w-3.5 h-3.5" /> Save to Gallery</>}
           </button>
-          <a href={videoUrl} target="_blank" rel="noopener noreferrer" download
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl active:bg-orange-500/25 transition-colors">
-            <Download className="w-3.5 h-3.5" /> Download
-          </a>
+          <button onClick={() => handleDownload(videoUrl)} disabled={downloading}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl active:bg-orange-500/25 transition-colors disabled:opacity-50">
+            {downloading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Download className="w-3.5 h-3.5" /> Download</>}
+          </button>
         </div>
         {/* Try Different Model - always show */}
         {onRegenerateWith && (

@@ -11,6 +11,37 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, o
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  // Reliable download via backend proxy (works on all browsers including iOS Safari)
+  const handleDownload = async () => {
+    if (downloading || !url) return;
+    setDownloading(true);
+    try {
+      const proxyUrl = `/api/media/download?url=${encodeURIComponent(url)}`;
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      if (isIOS) {
+        window.open(proxyUrl, '_blank');
+      } else {
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error('Download failed');
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        const cd = res.headers.get('content-disposition');
+        a.download = cd?.match(/filename="(.+)"/)?.[1] || `soulprint-image-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      }
+    } catch (e) {
+      window.open(url, '_blank');
+    } finally {
+      setTimeout(() => setDownloading(false), 1500);
+    }
+  };
 
   // Available image models for regeneration
   const IMAGE_MODELS_LIST = [
@@ -157,10 +188,10 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, o
             >
               <Code className="w-3.5 h-3.5" /> JSON
             </button>
-            <a href={url} target="_blank" rel="noopener noreferrer" download
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-lg hover:bg-orange-500/25 transition-colors whitespace-nowrap">
-              <Download className="w-3.5 h-3.5" /> Download
-            </a>
+            <button onClick={handleDownload} disabled={downloading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-lg hover:bg-orange-500/25 transition-colors whitespace-nowrap disabled:opacity-50">
+              {downloading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Download className="w-3.5 h-3.5" /> Download</>}
+            </button>
           </div>
         </div>
         

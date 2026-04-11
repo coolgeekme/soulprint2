@@ -8,6 +8,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
   const [videoUrl, setVideoUrl] = useState(null);
   const [thumbnailUrl, setThumbnailUrl] = useState(null);
   const [error, setError] = useState(null);
+  const [downloading, setDownloading] = useState(false);
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -20,6 +21,36 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
   const onVideoReadyRef = useRef(onVideoReady);
   const cancelledRef = useRef(false);
   useEffect(() => { onVideoReadyRef.current = onVideoReady; }, [onVideoReady]);
+
+  // Reliable download via backend proxy (works on all browsers including iOS Safari)
+  const handleDownload = async (url) => {
+    if (downloading || !url) return;
+    setDownloading(true);
+    try {
+      const proxyUrl = `/api/media/download?url=${encodeURIComponent(url)}`;
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      if (isIOS) {
+        window.open(proxyUrl, '_blank');
+      } else {
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error('Download failed');
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        const cd = res.headers.get('content-disposition');
+        a.download = cd?.match(/filename="(.+)"/)?.[1] || `soulprint-video-${Date.now()}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      }
+    } catch (e) {
+      window.open(url, '_blank');
+    } finally {
+      setTimeout(() => setDownloading(false), 1500);
+    }
+  };
 
   // Determine model-specific timeouts from modelLabel
   const isVeo = modelLabel?.toLowerCase().includes('veo');
@@ -245,10 +276,10 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
               >
                 {savedToGallery ? <><Check className="w-3.5 h-3.5" /> Saved</> : saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><GalleryHorizontal className="w-3.5 h-3.5" /> Gallery</>}
               </button>
-              <a href={videoUrl} target="_blank" rel="noopener noreferrer" download
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-lg hover:bg-orange-500/25 transition-colors whitespace-nowrap">
-                <Download className="w-3.5 h-3.5" /> Download
-              </a>
+              <button onClick={() => handleDownload(videoUrl)} disabled={downloading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-lg hover:bg-orange-500/25 transition-colors whitespace-nowrap disabled:opacity-50">
+                {downloading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Download className="w-3.5 h-3.5" /> Download</>}
+              </button>
             </div>
           </div>
           {/* Try Different Model */}
@@ -396,6 +427,37 @@ function SavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith,
   const [savedToGallery, setSavedToGallery] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  // Reliable download via backend proxy
+  const handleDownload = async () => {
+    if (downloading || !videoUrl) return;
+    setDownloading(true);
+    try {
+      const proxyUrl = `/api/media/download?url=${encodeURIComponent(videoUrl)}`;
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      if (isIOS) {
+        window.open(proxyUrl, '_blank');
+      } else {
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error('Download failed');
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        const cd = res.headers.get('content-disposition');
+        a.download = cd?.match(/filename="(.+)"/)?.[1] || `soulprint-video-${Date.now()}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      }
+    } catch (e) {
+      window.open(videoUrl, '_blank');
+    } finally {
+      setTimeout(() => setDownloading(false), 1500);
+    }
+  };
 
   // Available video models for regeneration
   const VIDEO_MODELS_LIST = [
@@ -474,10 +536,10 @@ function SavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith,
             >
               {savedToGallery ? <><Check className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Saved</> : saving ? <><Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin" /> ...</> : <><GalleryHorizontal className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Gallery</>}
             </button>
-            <a href={videoUrl} target="_blank" rel="noopener noreferrer" download
-              className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-[11px] sm:text-xs rounded-lg hover:bg-orange-500/25 transition-colors whitespace-nowrap">
-              <Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Download
-            </a>
+            <button onClick={handleDownload} disabled={downloading}
+              className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-[11px] sm:text-xs rounded-lg hover:bg-orange-500/25 transition-colors whitespace-nowrap disabled:opacity-50">
+              {downloading ? <><Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin" /> Saving...</> : <><Download className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> Download</>}
+            </button>
           </div>
         </div>
         {/* Try Different Model */}
