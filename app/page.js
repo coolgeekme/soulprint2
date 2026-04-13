@@ -119,7 +119,7 @@ function BlogPreview() {
   );
 }
 
-const HERO_IMAGE = "https://customer-assets.emergentagent.com/job_04f65d68-fd79-43ef-a03b-b9263d8f6209/artifacts/e37g03vg_Nick_headshot.png";
+const HERO_IMAGE = "/hero-headshot-nobg.png";
 const FEATURE_IMAGES = [
   "https://images.unsplash.com/photo-1610715945878-f567a10e6bb4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwzfHxzbWFydHBob25lJTIwbWVzc2FnaW5nfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MjU0NTM2NHww&ixlib=rb-4.1.0&q=85",
   "https://images.unsplash.com/photo-1604525241109-c3b7eecf4add?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwzfHx3b3JraW5nJTIwbGFwdG9wfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MjU0NTM3MHww&ixlib=rb-4.1.0&q=85",
@@ -239,19 +239,18 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right: portrait — blended into background */}
-            <div className="flex-shrink-0 w-[420px] h-[560px] relative">
+            {/* Right: portrait — background removed */}
+            <div className="flex-shrink-0 w-[440px] h-[580px] relative">
               <img 
                 src={HERO_IMAGE} 
                 alt="SoulPrint" 
-                className="w-full h-full object-cover grayscale contrast-110"
+                className="w-full h-full object-contain"
                 style={{
-                  maskImage: 'linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 10%, black 80%, transparent 100%)',
-                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 10%, black 80%, transparent 100%)',
-                  maskComposite: 'intersect',
-                  WebkitMaskComposite: 'destination-in',
+                  filter: 'contrast(1.1) brightness(1.05)',
                 }}
               />
+              {/* Bottom fade */}
+              <div className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none" style={{ background: 'linear-gradient(to top, #0a0a0a, transparent)' }} />
             </div>
           </div>
         </div>
