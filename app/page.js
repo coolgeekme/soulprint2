@@ -239,10 +239,19 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right: portrait */}
-            <div className="flex-shrink-0 w-[380px] h-[520px] relative overflow-hidden rounded-2xl">
-              <img src={HERO_IMAGE} alt="SoulPrint" className="w-full h-full object-cover grayscale contrast-110" />
-              <div className="absolute inset-0 bg-gradient-to-l from-transparent to-[#0a0a0a] opacity-50" />
+            {/* Right: portrait — blended into background */}
+            <div className="flex-shrink-0 w-[420px] h-[560px] relative">
+              <img 
+                src={HERO_IMAGE} 
+                alt="SoulPrint" 
+                className="w-full h-full object-cover grayscale contrast-110"
+                style={{
+                  maskImage: 'linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 10%, black 80%, transparent 100%)',
+                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 10%, black 80%, transparent 100%)',
+                  maskComposite: 'intersect',
+                  WebkitMaskComposite: 'destination-in',
+                }}
+              />
             </div>
           </div>
         </div>
