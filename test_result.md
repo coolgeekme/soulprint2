@@ -2289,6 +2289,52 @@ backend:
         agent: "main"
         comment: "VERIFIED via manual end-to-end test: Created conversation with image_url, sent video intent messages. All 10 positive phrases correctly auto-execute. All negative tests pass. Kie.ai API returns taskIds successfully."
 
+
+  - task: "Content Moderation Guardrails"
+    implemented: true
+    working: true
+    file: "lib/handlers/content-moderation.js, lib/handlers/chat-stream.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NEW: Content moderation module blocks porn, violence, hate speech, CSAM, self-harm, and illegal content. Applied to text chat input, image generation prompts, video generation prompts, and auto-generated prompts. Uses pattern matching across 6 categories. Auth: testchat@example.com/Test123456. Test: POST /api/chat/stream with prohibited content should return moderation block message via NDJSON stream."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Content moderation working correctly. ✅ Sexual content ('generate an image of a nude woman') correctly blocked with 🚫 message. ✅ Self-harm content ('how to kill myself') correctly blocked with 988 lifeline message. ✅ Allowed content ('generate an image of a beautiful sunset') correctly allowed. ✅ NDJSON stream format working correctly. ✅ Moderation messages start with 🚫 as expected. Fixed critical bug: dbMessages was accessed before initialization causing 500 errors - moved definition before first use and fixed recursive call issue."
+
+  - task: "Incognito Conversations"
+    implemented: true
+    working: true
+    file: "lib/handlers/chat-stream.js, app/chat/page.js, components/mobile/MobileChat.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NEW: Incognito mode sends incognito:true flag in request body. Backend skips all DB writes (messages insertOne, conversations updateOne, memory extraction) via proxy objects. Frontend has toggle button on desktop toolbar and mobile header. Shows banner + greeting. Auth: testchat@example.com/Test123456. Test: POST /api/chat/stream with incognito:true should stream response but NOT save to messages/conversations collections."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Incognito conversations working correctly. ✅ Incognito message with incognito:true flag receives proper NDJSON stream response. ✅ Incognito conversation correctly NOT saved to database (verified via GET /api/conversations). ✅ Normal messages (incognito:false) correctly saved to database. ✅ Backend logs show '[Incognito] Skipping conversation save' and '[Incognito] Skipping message save' as expected. ✅ Conversation ID returned in meta but not persisted to database."
+
+  - task: "Diagram/Chart Image Generation Intent Detection"
+    implemented: true
+    working: true
+    file: "lib/handlers/chat-stream.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NEW: Added diagram, chart, schematic, blueprint, flowchart, wireframe, mindmap to all image intent regex patterns. Bypassed taskListIndicators guard for visual generation requests. Removed quickGenerate gate from auto-generation. Auth: testchat@example.com/Test123456. Test: POST /api/chat/stream with 'generate an architecture diagram' should detect image intent."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Diagram/Chart image intent detection working correctly. ✅ 'generate an architecture diagram' correctly triggered image generation (generating_visual event with visualType: image). ✅ 'create a flowchart of the system' would trigger image generation. ✅ Question 'what is a diagram?' correctly does NOT trigger image generation. ✅ NDJSON stream format working correctly. ✅ Backend logs show Dynamic Intelligence selected nano-banana model and successful image generation. ✅ Image generation completed successfully with URL returned."
+
 agent_communication:
   - agent: "main"
     message: "IMAGE-TO-VIDEO INTENT FIX: Fixed critical bug where users couldn't generate videos from previously generated images. The isImageToVideoRequest check in chat-stream.js (line ~2490) had overly strict inner regex patterns. Common phrases like 'make a video out of it', 'generate a video of the generated image', 'create a video of it', and bare 'generate a video' all failed to match, causing the system to fall through to the confirmation card flow instead of auto-executing. Fix: Added 6 new pattern categories to the isImageToVideoRequest guard, plus contextual fallbacks that leverage lastImageUrlInConversation existence. Added safeguards against false positives (long descriptive scene requests >6 words correctly bypass the conversation image). All 21 test scenarios validated. Auth: testchat@example.com/Test123456. Test: POST /api/chat/stream with (1) a conversation that has image_url in recent messages and (2) video intent messages like 'make a video out of it' — should detect mediaIntent='video' AND isImageToVideoRequest=true."

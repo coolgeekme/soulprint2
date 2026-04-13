@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MessageSquare, User, ChevronDown, 
-  Plus, Settings, X, Check, Loader2, Globe, Sparkles,
+  Plus, Settings, X, Check, Loader2, Globe, Sparkles, EyeOff,
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
@@ -67,6 +67,7 @@ export default function MobileChat({
   const [editingMessage, setEditingMessage] = useState(null);
   const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
   const [supportNotifications, setSupportNotifications] = useState([]);
+  const [isIncognito, setIsIncognito] = useState(false); // Incognito mode — ephemeral, no DB saves
   
   // AbortController for stopping requests
   const abortControllerRef = useRef(null);
@@ -1178,6 +1179,7 @@ export default function MobileChat({
           projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
           videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null,
           imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null,
+          incognito: isIncognito,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -1506,6 +1508,9 @@ export default function MobileChat({
     setStreamingImageUrl(null);
     setStreamingVideoTask(null);
     setStreamingContent('');
+    
+    // Exit incognito mode on new conversation
+    setIsIncognito(false);
     
     setConversationId(null);
     const greet = profile?.display_name || user?.profile?.display_name || 'there';
@@ -2815,6 +2820,13 @@ export default function MobileChat({
                   }}
                 />
               )}
+              {/* Incognito Mode Banner */}
+              {isIncognito && (
+                <div className="flex items-center gap-2 px-3 py-2 mb-2 mx-2 rounded-lg bg-gray-800/60 border border-gray-600/30 text-gray-400 text-[11px]">
+                  <EyeOff className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Incognito — Nothing saved. Disappears when you leave.</span>
+                </div>
+              )}
               {(messages || []).map((msg, idx) => {
                 if (!msg) return null;
                 return (
@@ -3201,6 +3213,20 @@ export default function MobileChat({
                 className="bg-orange-500 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-1"
               >
                 <Plus className="w-4 h-4" /> New Chat
+              </button>
+              <button
+                onClick={() => {
+                  const goingIncognito = !isIncognito;
+                  setIsIncognito(goingIncognito);
+                  if (goingIncognito) {
+                    setConversationId(null);
+                    setMessages([{ id: 'incognito-greeting', role: 'assistant', content: '🕶️ **Incognito Mode** — This conversation is completely private. No messages, memories, or history will be saved. Everything disappears when you leave or start a new chat.', created_at: new Date().toISOString() }]);
+                  }
+                }}
+                title={isIncognito ? 'Incognito ON' : 'Incognito OFF'}
+                className={`p-2 rounded-full ${isIncognito ? 'bg-gray-500/30 text-gray-200' : 'bg-white/5 text-gray-400'}`}
+              >
+                <EyeOff className="w-5 h-5" />
               </button>
             </div>
           </div>

@@ -38,7 +38,7 @@ import {
   Plus, Mic, Send, Settings, ChevronLeft, ThumbsUp, ThumbsDown,
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
   Image as ImageIcon, Paperclip, Search, Video, Download, RefreshCw, Play,
-  MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, AudioWaveform,
+  MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, AudioWaveform, EyeOff,
   GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal,
   Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, ChevronRight, LogOut, Copy, Edit3, Square, ArrowRight,
   Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code, Bot, Volume2, VolumeX
@@ -88,6 +88,7 @@ export default function ChatPage() {
   const [streamingSources, setStreamingSources] = useState([]);
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
+  const [isIncognito, setIsIncognito] = useState(false); // Incognito mode — no messages saved
   const [selectedModel, setSelectedModel] = useState('smart');
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showVideoModelPicker, setShowVideoModelPicker] = useState(false);
@@ -1472,6 +1473,7 @@ export default function ChatPage() {
           videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null, // Pass user's video model preference
           imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null, // Pass user's image model preference
           mediaFlow: pendingMediaFlowRef.current || null, // Media confirmation flow payload
+          incognito: isIncognito, // Incognito mode — no messages saved to DB
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -1532,6 +1534,13 @@ export default function ChatPage() {
             if (data.type === 'meta') {
               newConvId = data.conversationId;
               setConversationId(data.conversationId);
+              // In incognito mode, don't set the conversation ID that would trigger history loading
+              if (isIncognito) {
+                // Use a temporary ID that won't be fetched from DB
+                newConvId = `incognito-${Date.now()}`;
+              } else {
+                newConvId = data.conversationId;
+              }
               // Capture Dynamic Intelligence selection info
               if (data.smartMode) {
                 actualModelUsed = data.selectedModel;
@@ -1769,7 +1778,7 @@ export default function ChatPage() {
       // Use setTimeout to ensure focus after all React state updates complete
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [input, loading, compareLoading, token, selectedModel, conversationId, attachments, webSearchEnabled, compareMode, compareModels]);
+  }, [input, loading, compareLoading, token, selectedModel, conversationId, attachments, webSearchEnabled, compareMode, compareModels, isIncognito]);
 
   // Stop ongoing request
   const stopRequest = useCallback(() => {
@@ -2498,6 +2507,9 @@ export default function ChatPage() {
     setStreamingVideoTask(null);
     setStreamingContent('');
     setStreamingSources([]);
+    
+    // Exit incognito mode when starting a new conversation
+    setIsIncognito(false);
     
     setConversationId(null);
     const greet = user?.profile?.display_name || 'there';
@@ -3653,6 +3665,22 @@ export default function ChatPage() {
               <Zap className="w-3 h-3" />
               {quickGenerateEnabled ? 'Quick Gen' : 'Confirm Gen'}
             </button>
+            {/* Incognito toggle */}
+            <button
+              onClick={() => {
+                const goingIncognito = !isIncognito;
+                setIsIncognito(goingIncognito);
+                if (goingIncognito) {
+                  // Start fresh incognito session
+                  setConversationId(null);
+                  setMessages([{ id: 'incognito-greeting', role: 'assistant', content: '🕶️ **Incognito Mode** — This conversation is completely private. No messages, memories, or history will be saved. Everything disappears when you leave or start a new chat.', created_at: new Date().toISOString() }]);
+                }
+              }}
+              title={isIncognito ? 'Incognito ON — no data saved' : 'Incognito OFF — conversations are saved'}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] border transition-all ${isIncognito ? 'bg-gray-500/20 border-gray-400/40 text-gray-300' : 'bg-white/4 border-white/10 text-gray-600'}`}>
+              <EyeOff className="w-3 h-3" />
+              {isIncognito ? 'Incognito' : 'Normal'}
+            </button>
             {/* Feedback button */}
             <button
               onClick={() => setShowFeedbackModal(true)}
@@ -3912,6 +3940,14 @@ export default function ChatPage() {
                   }));
                 }}
               />
+            )}
+
+            {/* Incognito Mode Banner */}
+            {isIncognito && (
+              <div className="flex items-center gap-2 px-4 py-2 mb-3 rounded-lg bg-gray-800/60 border border-gray-600/30 text-gray-400 text-xs">
+                <EyeOff className="w-4 h-4 flex-shrink-0" />
+                <span>Incognito Mode — No messages, memories, or history will be saved. Everything disappears when you leave.</span>
+              </div>
             )}
 
             {(messages || []).map((msg, idx) => {
