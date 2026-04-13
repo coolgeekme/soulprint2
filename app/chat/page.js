@@ -3665,22 +3665,7 @@ export default function ChatPage() {
               <Zap className="w-3 h-3" />
               {quickGenerateEnabled ? 'Quick Gen' : 'Confirm Gen'}
             </button>
-            {/* Incognito toggle */}
-            <button
-              onClick={() => {
-                const goingIncognito = !isIncognito;
-                setIsIncognito(goingIncognito);
-                if (goingIncognito) {
-                  // Start fresh incognito session
-                  setConversationId(null);
-                  setMessages([{ id: 'incognito-greeting', role: 'assistant', content: '🕶️ **Incognito Mode** — This conversation is completely private. No messages, memories, or history will be saved. Everything disappears when you leave or start a new chat.', created_at: new Date().toISOString() }]);
-                }
-              }}
-              title={isIncognito ? 'Incognito ON — no data saved' : 'Incognito OFF — conversations are saved'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] border transition-all ${isIncognito ? 'bg-gray-500/20 border-gray-400/40 text-gray-300' : 'bg-white/4 border-white/10 text-gray-600'}`}>
-              <EyeOff className="w-3 h-3" />
-              {isIncognito ? 'Incognito' : 'Normal'}
-            </button>
+            {/* Incognito toggle - REMOVED FROM TOP TOOLBAR (covered by toasts) */}
             {/* Feedback button */}
             <button
               onClick={() => setShowFeedbackModal(true)}
@@ -4611,7 +4596,7 @@ export default function ChatPage() {
           <div className="max-w-4xl mx-auto">
             {/* Mode Toggle & Model selector */}
             <div className="flex flex-col items-center gap-2 mb-3">
-              {/* Compare Mode Toggle */}
+              {/* Compare Mode Toggle & Incognito Toggle */}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
@@ -4634,6 +4619,29 @@ export default function ChatPage() {
                   <span>{compareMode ? 'Compare Mode' : 'Single Model'}</span>
                   <div className={`w-8 h-4 rounded-full relative transition-colors ${compareMode ? 'bg-orange-500' : 'bg-white/10'}`}>
                     <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${compareMode ? 'left-4' : 'left-0.5'}`} />
+                  </div>
+                </button>
+
+                {/* Incognito Toggle */}
+                <button
+                  onClick={() => {
+                    const goingIncognito = !isIncognito;
+                    setIsIncognito(goingIncognito);
+                    if (goingIncognito) {
+                      setConversationId(null);
+                      setMessages([{ id: 'incognito-greeting', role: 'assistant', content: '🕶️ **Incognito Mode** — This conversation is completely private. No messages, memories, or history will be saved. Everything disappears when you leave or start a new chat.', created_at: new Date().toISOString() }]);
+                    }
+                  }}
+                  className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition-all ${
+                    isIncognito
+                      ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                      : 'bg-white/4 border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20'
+                  }`}
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                  <span>{isIncognito ? '🔒 Incognito' : 'Incognito'}</span>
+                  <div className={`w-8 h-4 rounded-full relative transition-colors ${isIncognito ? 'bg-emerald-500' : 'bg-white/10'}`}>
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${isIncognito ? 'left-4' : 'left-0.5'}`} />
                   </div>
                 </button>
               </div>
