@@ -119,7 +119,7 @@ function BlogPreview() {
   );
 }
 
-const HERO_IMAGE = "https://images.unsplash.com/photo-1453396450673-3fe83d2db2c4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MTN8MHwxfHNlYXJjaHwzfHxkYXJrJTIwcG9ydHJhaXR8ZW58MHx8fGJsYWNrX2FuZF93aGl0ZXwxNzcxOTcxNzQ3fDA&ixlib=rb-4.1.0&q=85";
+const HERO_IMAGE = "https://customer-assets.emergentagent.com/job_04f65d68-fd79-43ef-a03b-b9263d8f6209/artifacts/e37g03vg_Nick_headshot.png";
 const FEATURE_IMAGES = [
   "https://images.unsplash.com/photo-1610715945878-f567a10e6bb4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwzfHxzbWFydHBob25lJTIwbWVzc2FnaW5nfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MjU0NTM2NHww&ixlib=rb-4.1.0&q=85",
   "https://images.unsplash.com/photo-1604525241109-c3b7eecf4add?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwzfHx3b3JraW5nJTIwbGFwdG9wfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MjU0NTM3MHww&ixlib=rb-4.1.0&q=85",
