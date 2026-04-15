@@ -3651,6 +3651,37 @@ export default function ChatPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* 🎨 Create — Media Generation Toggle */}
+            <button
+              onClick={() => setMediaGenMode(!mediaGenMode)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border transition-all ${
+                mediaGenMode
+                  ? 'bg-pink-500/20 border-pink-500/50 text-pink-400'
+                  : 'bg-white/5 border-white/15 text-gray-500 hover:text-gray-300 hover:border-white/25'
+              }`}
+            >
+              <Paintbrush className="w-3 h-3" />
+              {mediaGenMode ? '🎨 Create' : 'Create'}
+            </button>
+            {/* Incognito Toggle */}
+            <button
+              onClick={() => {
+                const goingIncognito = !isIncognito;
+                setIsIncognito(goingIncognito);
+                if (goingIncognito) {
+                  setConversationId(null);
+                  setMessages([{ id: 'incognito-greeting', role: 'assistant', content: '🕶️ **Incognito Mode** — This conversation is completely private. No messages, memories, or history will be saved. Everything disappears when you leave or start a new chat.', created_at: new Date().toISOString() }]);
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border transition-all ${
+                isIncognito
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                  : 'bg-white/5 border-white/15 text-gray-500 hover:text-gray-300 hover:border-white/25'
+              }`}
+            >
+              <EyeOff className="w-3 h-3" />
+              {isIncognito ? '🔒 Incognito' : 'Incognito'}
+            </button>
             {/* Feedback button */}
             <button
               onClick={() => setShowFeedbackModal(true)}
@@ -4579,73 +4610,31 @@ export default function ChatPage() {
             </div>
           )}
           <div className="max-w-4xl mx-auto">
-            {/* Mode Toggle & Model selector */}
-            <div className="flex flex-col items-center gap-2 mb-3">
-              {/* Compare Mode Toggle & Incognito Toggle */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setCompareMode(!compareMode);
-                    if (!compareMode && compareModels.length === 0) {
-                      // Pre-select some popular models when enabling compare mode
-                      setCompareModels([
-                        { model: 'gpt-4o', provider: 'openai' },
-                        { model: 'claude-sonnet-4-5-20250929', provider: 'anthropic' },
-                      ]);
-                    }
-                  }}
-                  className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition-all ${
-                    compareMode 
-                      ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' 
-                      : 'bg-white/4 border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20'
-                  }`}
-                >
-                  <GitCompare className="w-3.5 h-3.5" />
-                  <span>{compareMode ? 'Compare Mode' : 'Single Model'}</span>
-                  <div className={`w-8 h-4 rounded-full relative transition-colors ${compareMode ? 'bg-orange-500' : 'bg-white/10'}`}>
-                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${compareMode ? 'left-4' : 'left-0.5'}`} />
-                  </div>
-                </button>
-
-                {/* 🎨 Create — Media Generation Toggle */}
-                <button
-                  onClick={() => setMediaGenMode(!mediaGenMode)}
-                  className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition-all ${
-                    mediaGenMode
-                      ? 'bg-pink-500/20 border-pink-500/50 text-pink-400'
-                      : 'bg-white/4 border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20'
-                  }`}
-                >
-                  <Paintbrush className="w-3.5 h-3.5" />
-                  <span>{mediaGenMode ? '🎨 Create' : 'Create'}</span>
-                  <div className={`w-8 h-4 rounded-full relative transition-colors ${mediaGenMode ? 'bg-pink-500' : 'bg-white/10'}`}>
-                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${mediaGenMode ? 'left-4' : 'left-0.5'}`} />
-                  </div>
-                </button>
-
-                {/* Incognito Toggle */}
-                <button
-                  onClick={() => {
-                    const goingIncognito = !isIncognito;
-                    setIsIncognito(goingIncognito);
-                    if (goingIncognito) {
-                      setConversationId(null);
-                      setMessages([{ id: 'incognito-greeting', role: 'assistant', content: '🕶️ **Incognito Mode** — This conversation is completely private. No messages, memories, or history will be saved. Everything disappears when you leave or start a new chat.', created_at: new Date().toISOString() }]);
-                    }
-                  }}
-                  className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition-all ${
-                    isIncognito
-                      ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                      : 'bg-white/4 border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20'
-                  }`}
-                >
-                  <EyeOff className="w-3.5 h-3.5" />
-                  <span>{isIncognito ? '🔒 Incognito' : 'Incognito'}</span>
-                  <div className={`w-8 h-4 rounded-full relative transition-colors ${isIncognito ? 'bg-emerald-500' : 'bg-white/10'}`}>
-                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${isIncognito ? 'left-4' : 'left-0.5'}`} />
-                  </div>
-                </button>
-              </div>
+            {/* Mode Toggle & Model selector — inline row */}
+            <div className="flex items-center justify-center gap-3 mb-3">
+              {/* Compare Mode Toggle — inline with Dynamic Intelligence */}
+              <button
+                onClick={() => {
+                  setCompareMode(!compareMode);
+                  if (!compareMode && compareModels.length === 0) {
+                    setCompareModels([
+                      { model: 'gpt-4o', provider: 'openai' },
+                      { model: 'claude-sonnet-4-5-20250929', provider: 'anthropic' },
+                    ]);
+                  }
+                }}
+                className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition-all ${
+                  compareMode 
+                    ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' 
+                    : 'bg-white/4 border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20'
+                }`}
+              >
+                <GitCompare className="w-3.5 h-3.5" />
+                <span>{compareMode ? 'Compare Mode' : 'Single Model'}</span>
+                <div className={`w-8 h-4 rounded-full relative transition-colors ${compareMode ? 'bg-orange-500' : 'bg-white/10'}`}>
+                  <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${compareMode ? 'left-4' : 'left-0.5'}`} />
+                </div>
+              </button>
 
               {/* ── Unified Model Selector (Dynamic Intelligence) ── */}
               {!compareMode && (

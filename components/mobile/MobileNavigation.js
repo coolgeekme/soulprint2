@@ -89,18 +89,7 @@ const ChatHeader = ({ assistantName, model, onModelClick, isOnline, webSearchEna
               <span>{inviteData.invites_remaining}</span>
             </button>
           )}
-          {/* Web Search Toggle */}
-          <button 
-            onClick={onToggleWebSearch}
-            className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors ${
-              webSearchEnabled 
-                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
-                : 'bg-white/5 text-gray-500 border border-white/10'
-            }`}
-          >
-            <Globe className="w-3 h-3" />
-            <span>Web</span>
-          </button>
+          {/* Web Search Toggle - REMOVED (always on) */}
           <button onClick={onMoreClick} className="p-2 text-gray-500 hover:text-white transition-colors">
             <MoreHorizontal className="w-5 h-5" />
           </button>
