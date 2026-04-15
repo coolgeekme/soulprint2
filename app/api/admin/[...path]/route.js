@@ -206,7 +206,7 @@ async function sendFeedbackNotificationEmail(userEmail, feedbackMessage, categor
   // Prepare email payload
   const emailPayload = {
     from: 'SoulPrint Feedback <team@soulprintengine.ai>',
-    to: ['reggie@archeforge.com'],
+    to: ['team@archforge.com'],
     subject: `${categoryEmoji} New Feedback: ${category.charAt(0).toUpperCase() + category.slice(1)} from ${userEmail}`,
     html: htmlContent,
   };
