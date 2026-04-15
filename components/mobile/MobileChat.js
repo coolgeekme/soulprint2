@@ -3073,7 +3073,14 @@ export default function MobileChat({
             <div className="flex items-center justify-center gap-2 mb-2">
               {/* 🎨 Create — Media Generation Toggle */}
               <button
-                onClick={() => setMediaGenMode(!mediaGenMode)}
+                onClick={() => {
+                  const goingCreate = !mediaGenMode;
+                  setMediaGenMode(goingCreate);
+                  const statusMsg = goingCreate
+                    ? { id: `create-on-${Date.now()}`, role: 'assistant', content: '🎨 **Create Mode activated** — I\'ll automatically generate images and videos when I detect creative intent in your messages. Toggle off anytime to go back to confirmation mode.', created_at: new Date().toISOString(), isSystemNotice: true }
+                    : { id: `create-off-${Date.now()}`, role: 'assistant', content: '🎨 **Create Mode deactivated** — I\'ll ask for your confirmation before generating any media.', created_at: new Date().toISOString(), isSystemNotice: true };
+                  setMessages(prev => [...prev, statusMsg]);
+                }}
                 className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-all ${
                   mediaGenMode
                     ? 'bg-pink-500/20 border-pink-500/50 text-pink-400'
