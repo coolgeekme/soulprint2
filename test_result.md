@@ -2037,6 +2037,8 @@ agent_communication:
     message: "ACE SUPPORT BOT ENHANCEMENTS. Three changes: (1) Renamed bot to Ace throughout. (2) Escalations now auto-flow to support tickets with source='ace_escalation' and include user_id and bot conversation summary. (3) Added POST /api/support/tickets/:id/respond endpoint that lets support team send response back to user (creates in-app notification + injects into conversation if available). Frontend updated with 'Respond to User' button in ticket detail modal. Test: Login as test@soulprint.com/Admin123! (passcode field), then create a test escalation ticket, then test responding to it."
   - agent: "testing"
     message: "SUPPORT TICKETING SYSTEM COMPREHENSIVE TESTING COMPLETE: All 11 steps of the AI-Assisted Support Ticketing System tested successfully with proper credentials. ✅ Admin Authentication: test@soulprint.com/Admin123! working (role: superadmin). ✅ Support Agent Management: Creation and listing working correctly. ✅ Support Authentication: support@soulprint.com/Support123! working (role: support). ✅ Ticket Lifecycle: Creation → Listing → AI Diagnosis → Status Updates → Fix Approval all working. ✅ AI Integration: GPT-4o diagnosis completing in ~3.5s with proper field population (diagnosis, fix_type, category, suggested_fix). ✅ Database Integration: User lookup, ticket persistence, agent management all working. ✅ Authorization: Proper role-based access control throughout. The system is fully functional and ready for production use. All backend endpoints verified working with 100% success rate."
+  - agent: "testing"
+    message: "MEDIA CREATE MODE TOGGLE TESTING COMPLETE: All critical functionality working perfectly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ Test Case 1 (mediaGenMode OFF - Image): 'generate an image of a sunset' with mediaGenMode=false correctly triggers media_confirmation event with mediaType='image' and detectedType='image', plus delta event with confirmation message mentioning 'Create toggle'. No generating_visual event found (correct behavior). ✅ Test Case 2 (mediaGenMode ON - Image): 'generate an image of a sunset' with mediaGenMode=true correctly triggers generating_visual event with visualType='image' for auto-generation. No media_confirmation event found (correct behavior). ✅ Test Case 3 (No Media Trigger): 'what is the capital of France?' correctly produces normal text response with delta and done events, no media events triggered. ✅ Test Case 4 (mediaGenMode OFF - Video): 'generate a video of a dog playing' with mediaGenMode=false correctly triggers media_confirmation event with mediaType='video' and detectedType='video'. No generating_visual event found (correct behavior). ✅ NDJSON Stream Format: All responses properly formatted as NDJSON (not SSE). All 4/4 comprehensive tests passed (100% success rate). The Media Create Mode toggle feature is fully functional - when OFF (default), media requests trigger confirmation prompts; when ON, media requests auto-generate immediately."
   test_priority: "high_first"
 
 backend:
@@ -2234,8 +2236,7 @@ backend:
         comment: "VIDEO EXTENSION FEATURE TESTING COMPLETE: All critical functionality working correctly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ Video Extend Intent Detection: All extend patterns ('extend the video', 'continue the video', 'make it longer', 'add more to the video', 'lengthen the clip') correctly do NOT trigger video extend without existing video context - this is the expected behavior as extend requires a source video. ✅ Video Generation Detection: Regular video generation patterns ('Create a new video of a cat', 'Generate a video of a sunset') correctly trigger video generation (not extend) - proper differentiation working. ✅ Media Confirmation Context URLs: All media_confirmation events include required context fields (conversationImageUrl, conversationVideoUrl, conversationVideoTaskId) - media context persistence working correctly. ✅ Video Status Polling (runway-extend): GET /api/media/status/:taskId endpoint working correctly for runway-extend model (returns 404 for non-existent tasks as expected). ✅ Existing Endpoints: All core endpoints (health, models, conversations) continue working correctly - no regressions. ✅ Pattern Recognition: detectVideoExtendIntent() function correctly identifies extend patterns but requires video context to trigger - proper safeguards in place. The video extension feature is fully functional with proper intent detection, context tracking, and API integration. All 19/19 comprehensive tests passed (100% success rate)."
 
 test_plan:
-  current_focus:
-    - "Video Generation Status Communication Fix"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -2334,6 +2335,22 @@ backend:
       - working: true
         agent: "testing"
         comment: "TESTED: Diagram/Chart image intent detection working correctly. ✅ 'generate an architecture diagram' correctly triggered image generation (generating_visual event with visualType: image). ✅ 'create a flowchart of the system' would trigger image generation. ✅ Question 'what is a diagram?' correctly does NOT trigger image generation. ✅ NDJSON stream format working correctly. ✅ Backend logs show Dynamic Intelligence selected nano-banana model and successful image generation. ✅ Image generation completed successfully with URL returned."
+
+
+  - task: "Media Create Mode Toggle + Remove Web On"
+    implemented: true
+    working: true
+    file: "lib/handlers/chat-stream.js, app/chat/page.js, components/mobile/MobileChat.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NEW: (1) Removed Web On toggle — web search always enabled. (2) Added 🎨 Create toggle (mediaGenMode). When OFF (default): media trigger words cause confirmation prompt instead of auto-generation. When ON: auto-generates like before. (3) All three toggles (Single Model, Create, Incognito) lined up side by side above input on both desktop and mobile. Backend uses mediaGenMode flag from request body. Auth: testchat@example.com/Test123456. Test: POST /api/chat/stream with 'generate an image of a sunset' and mediaGenMode:false should return confirmation prompt (media_confirmation event). With mediaGenMode:true should auto-generate."
+      - working: true
+        agent: "testing"
+        comment: "MEDIA CREATE MODE TOGGLE TESTING COMPLETE: All critical functionality working perfectly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ Test Case 1 (mediaGenMode OFF - Image): 'generate an image of a sunset' with mediaGenMode=false correctly triggers media_confirmation event with mediaType='image' and detectedType='image', plus delta event with confirmation message mentioning 'Create toggle'. No generating_visual event found (correct behavior). ✅ Test Case 2 (mediaGenMode ON - Image): 'generate an image of a sunset' with mediaGenMode=true correctly triggers generating_visual event with visualType='image' for auto-generation. No media_confirmation event found (correct behavior). ✅ Test Case 3 (No Media Trigger): 'what is the capital of France?' correctly produces normal text response with delta and done events, no media events triggered. ✅ Test Case 4 (mediaGenMode OFF - Video): 'generate a video of a dog playing' with mediaGenMode=false correctly triggers media_confirmation event with mediaType='video' and detectedType='video'. No generating_visual event found (correct behavior). ✅ NDJSON Stream Format: All responses properly formatted as NDJSON (not SSE). All 4/4 comprehensive tests passed (100% success rate). The Media Create Mode toggle feature is fully functional - when OFF (default), media requests trigger confirmation prompts; when ON, media requests auto-generate immediately."
 
 agent_communication:
   - agent: "main"

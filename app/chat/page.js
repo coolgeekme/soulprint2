@@ -38,7 +38,7 @@ import {
   Plus, Mic, Send, Settings, ChevronLeft, ThumbsUp, ThumbsDown,
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
   Image as ImageIcon, Paperclip, Search, Video, Download, RefreshCw, Play,
-  MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, AudioWaveform, EyeOff,
+  MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, AudioWaveform, EyeOff, Paintbrush,
   GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal,
   Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, ChevronRight, LogOut, Copy, Edit3, Square, ArrowRight,
   Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code, Bot, Volume2, VolumeX
@@ -89,6 +89,7 @@ export default function ChatPage() {
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [isIncognito, setIsIncognito] = useState(false); // Incognito mode — no messages saved
+  const [mediaGenMode, setMediaGenMode] = useState(false); // Media creation mode — when ON, auto-generates
   const [selectedModel, setSelectedModel] = useState('smart');
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showVideoModelPicker, setShowVideoModelPicker] = useState(false);
@@ -1474,6 +1475,7 @@ export default function ChatPage() {
           imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null, // Pass user's image model preference
           mediaFlow: pendingMediaFlowRef.current || null, // Media confirmation flow payload
           incognito: isIncognito, // Incognito mode — no messages saved to DB
+          mediaGenMode: mediaGenMode, // Media creation mode — auto-generate when ON
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -1778,7 +1780,7 @@ export default function ChatPage() {
       // Use setTimeout to ensure focus after all React state updates complete
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [input, loading, compareLoading, token, selectedModel, conversationId, attachments, webSearchEnabled, compareMode, compareModels, isIncognito]);
+  }, [input, loading, compareLoading, token, selectedModel, conversationId, attachments, webSearchEnabled, compareMode, compareModels, isIncognito, mediaGenMode]);
 
   // Stop ongoing request
   const stopRequest = useCallback(() => {
@@ -3649,23 +3651,6 @@ export default function ChatPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Web search toggle */}
-            <button
-              onClick={() => setWebSearchEnabled(v => !v)}
-              title={webSearchEnabled ? 'Web search ON — click to disable' : 'Web search OFF — click to enable'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] border transition-all ${webSearchEnabled ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : 'bg-white/4 border-white/10 text-gray-600'}`}>
-              <Globe className="w-3 h-3" />
-              {webSearchEnabled ? 'Web On' : 'Web Off'}
-            </button>
-            {/* Quick Generate toggle */}
-            <button
-              onClick={toggleQuickGenerate}
-              title={quickGenerateEnabled ? 'Quick Generate ON — skips media confirmation' : 'Quick Generate OFF — shows confirmation before generating'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] border transition-all ${quickGenerateEnabled ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'bg-white/4 border-white/10 text-gray-600'}`}>
-              <Zap className="w-3 h-3" />
-              {quickGenerateEnabled ? 'Quick Gen' : 'Confirm Gen'}
-            </button>
-            {/* Incognito toggle - REMOVED FROM TOP TOOLBAR (covered by toasts) */}
             {/* Feedback button */}
             <button
               onClick={() => setShowFeedbackModal(true)}
@@ -4619,6 +4604,22 @@ export default function ChatPage() {
                   <span>{compareMode ? 'Compare Mode' : 'Single Model'}</span>
                   <div className={`w-8 h-4 rounded-full relative transition-colors ${compareMode ? 'bg-orange-500' : 'bg-white/10'}`}>
                     <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${compareMode ? 'left-4' : 'left-0.5'}`} />
+                  </div>
+                </button>
+
+                {/* 🎨 Create — Media Generation Toggle */}
+                <button
+                  onClick={() => setMediaGenMode(!mediaGenMode)}
+                  className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition-all ${
+                    mediaGenMode
+                      ? 'bg-pink-500/20 border-pink-500/50 text-pink-400'
+                      : 'bg-white/4 border-white/10 text-gray-500 hover:text-gray-300 hover:border-white/20'
+                  }`}
+                >
+                  <Paintbrush className="w-3.5 h-3.5" />
+                  <span>{mediaGenMode ? '🎨 Create' : 'Create'}</span>
+                  <div className={`w-8 h-4 rounded-full relative transition-colors ${mediaGenMode ? 'bg-pink-500' : 'bg-white/10'}`}>
+                    <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${mediaGenMode ? 'left-4' : 'left-0.5'}`} />
                   </div>
                 </button>
 

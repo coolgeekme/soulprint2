@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   MessageSquare, User, ChevronDown, 
-  Plus, Settings, X, Check, Loader2, Globe, Sparkles, EyeOff,
+  Plus, Settings, X, Check, Loader2, Globe, Sparkles, EyeOff, Paintbrush,
   Image as ImageIcon, MoreHorizontal, ArrowLeft,
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
@@ -68,6 +68,7 @@ export default function MobileChat({
   const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
   const [supportNotifications, setSupportNotifications] = useState([]);
   const [isIncognito, setIsIncognito] = useState(false); // Incognito mode — ephemeral, no DB saves
+  const [mediaGenMode, setMediaGenMode] = useState(false); // Media creation mode — auto-generate when ON
   
   // AbortController for stopping requests
   const abortControllerRef = useRef(null);
@@ -1180,6 +1181,7 @@ export default function MobileChat({
           videoModel: selectedVideoModel !== 'smart' ? selectedVideoModel : null,
           imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null,
           incognito: isIncognito,
+          mediaGenMode: mediaGenMode,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -3067,8 +3069,25 @@ export default function MobileChat({
 
             {/* Media generation handled dynamically through chat - no manual controls needed */}
             
-            {/* Incognito Toggle for Mobile */}
-            <div className="flex items-center justify-center mb-2">
+            {/* Toggle Row: Create + Incognito */}
+            <div className="flex items-center justify-center gap-2 mb-2">
+              {/* 🎨 Create — Media Generation Toggle */}
+              <button
+                onClick={() => setMediaGenMode(!mediaGenMode)}
+                className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-all ${
+                  mediaGenMode
+                    ? 'bg-pink-500/20 border-pink-500/50 text-pink-400'
+                    : 'bg-white/4 border-white/10 text-gray-500'
+                }`}
+              >
+                <Paintbrush className="w-3 h-3" />
+                <span>{mediaGenMode ? '🎨 Create' : 'Create'}</span>
+                <div className={`w-7 h-3.5 rounded-full relative transition-colors ${mediaGenMode ? 'bg-pink-500' : 'bg-white/10'}`}>
+                  <div className={`absolute top-0.5 w-2.5 h-2.5 rounded-full bg-white transition-all ${mediaGenMode ? 'left-3.5' : 'left-0.5'}`} />
+                </div>
+              </button>
+
+              {/* Incognito Toggle */}
               <button
                 onClick={() => {
                   const goingIncognito = !isIncognito;
@@ -3078,7 +3097,7 @@ export default function MobileChat({
                     setMessages([{ id: 'incognito-greeting', role: 'assistant', content: '🕶️ **Incognito Mode** — This conversation is completely private. No messages, memories, or history will be saved. Everything disappears when you leave or start a new chat.', created_at: new Date().toISOString() }]);
                   }
                 }}
-                className={`flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-full border transition-all ${
+                className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-all ${
                   isIncognito
                     ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
                     : 'bg-white/4 border-white/10 text-gray-500'

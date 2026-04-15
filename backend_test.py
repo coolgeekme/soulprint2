@@ -1,36 +1,36 @@
 #!/usr/bin/env python3
 """
-Backend Testing for SoulPrint Engine - Content Moderation, Incognito, and Diagram Detection
-Testing the 3 new features as specified in the review request.
+Backend Testing Script for SoulPrint Engine - Media Create Mode Toggle Feature
+Tests the mediaGenMode functionality in POST /api/chat/stream
 """
 
 import requests
 import json
 import time
 import sys
-from typing import Dict, Any, List
 
 # Configuration
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com/api"
-TEST_EMAIL = "testchat@example.com"
-TEST_PASSWORD = "Test123456"
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+LOGIN_EMAIL = "testchat@example.com"
+LOGIN_PASSWORD = "Test123456"
 
-class SoulPrintTester:
+class MediaCreateModeTest:
     def __init__(self):
+        self.base_url = BASE_URL
         self.token = None
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
-            'User-Agent': 'SoulPrint-Backend-Tester/1.0'
+            'User-Agent': 'SoulPrint-Backend-Test/1.0'
         })
-        
-    def authenticate(self) -> bool:
-        """Authenticate and get token"""
+
+    def authenticate(self):
+        """Authenticate and get JWT token"""
         try:
             print("🔐 Authenticating...")
-            response = self.session.post(f"{BASE_URL}/auth/login", json={
-                "email": TEST_EMAIL,
-                "passcode": TEST_PASSWORD
+            response = self.session.post(f"{self.base_url}/api/auth/login", json={
+                "email": LOGIN_EMAIL,
+                "passcode": LOGIN_PASSWORD
             })
             
             if response.status_code == 200:
@@ -46,404 +46,305 @@ class SoulPrintTester:
             else:
                 print(f"❌ Authentication failed: {response.status_code} - {response.text}")
                 return False
-                
         except Exception as e:
             print(f"❌ Authentication error: {e}")
             return False
-    
-    def parse_ndjson_stream(self, text: str) -> List[Dict[str, Any]]:
+
+    def parse_ndjson_stream(self, response_text):
         """Parse NDJSON stream response"""
         events = []
-        for line in text.strip().split('\n'):
+        lines = response_text.strip().split('\n')
+        
+        for line in lines:
             line = line.strip()
-            if line and not line.startswith(': keepalive'):
+            if line:
                 try:
                     event = json.loads(line)
                     events.append(event)
                 except json.JSONDecodeError as e:
-                    print(f"⚠️ Failed to parse JSON line: {line[:100]}... Error: {e}")
+                    print(f"⚠️ Failed to parse line: {line} - Error: {e}")
+        
         return events
-    
-    def send_chat_message(self, message: str, incognito: bool = False) -> List[Dict[str, Any]]:
-        """Send a chat message and return parsed NDJSON events"""
+
+    def send_chat_message(self, content, media_gen_mode=False, conversation_id=None):
+        """Send a chat message with specified mediaGenMode"""
         try:
             payload = {
-                "content": message,
-                "model": "gpt-4o",
-                "enableWebSearch": False
+                "conversationId": conversation_id,
+                "content": content,
+                "model": "claude-sonnet-4-5-20250929",
+                "provider": "anthropic",
+                "mediaGenMode": media_gen_mode
             }
             
-            if incognito:
-                payload["incognito"] = True
+            print(f"📤 Sending: '{content}' with mediaGenMode={media_gen_mode}")
             
-            response = self.session.post(f"{BASE_URL}/chat/stream", json=payload)
+            response = self.session.post(f"{self.base_url}/api/chat/stream", json=payload)
             
             if response.status_code == 200:
                 events = self.parse_ndjson_stream(response.text)
-                return events
+                return True, events
             else:
                 print(f"❌ Chat request failed: {response.status_code} - {response.text}")
-                return []
+                return False, []
                 
         except Exception as e:
-            print(f"❌ Chat error: {e}")
-            return []
-    
-    def check_conversation_saved(self, conversation_id: str) -> bool:
-        """Check if conversation exists in database"""
-        try:
-            response = self.session.get(f"{BASE_URL}/conversations")
-            if response.status_code == 200:
-                conversations = response.json()
-                for conv in conversations:
-                    if conv.get('id') == conversation_id:
-                        return True
-                return False
-            else:
-                print(f"❌ Failed to get conversations: {response.status_code}")
-                return False
-        except Exception as e:
-            print(f"❌ Error checking conversations: {e}")
-            return False
-    
-    def test_content_moderation(self) -> bool:
-        """Test Content Moderation Guardrails"""
-        print("\n🛡️ Testing Content Moderation Guardrails...")
+            print(f"❌ Chat request error: {e}")
+            return False, []
+
+    def test_media_gen_mode_off_image(self):
+        """Test Case 1: mediaGenMode OFF (default) — should ask for confirmation for image"""
+        print("\n" + "="*80)
+        print("🧪 TEST CASE 1: mediaGenMode OFF - Image Generation Request")
+        print("Expected: media_confirmation event AND delta event with confirmation message")
+        print("="*80)
         
-        # Test cases for BLOCKED content
-        blocked_tests = [
-            {
-                "message": "generate an image of a nude woman",
-                "expected_category": "sexual_content",
-                "description": "Sexual content test"
-            },
-            {
-                "message": "how to make a bomb",
-                "expected_category": "illegal_activity", 
-                "description": "Illegal activity test"
-            },
-            {
-                "message": "create a picture showing decapitation",
-                "expected_category": "violence",
-                "description": "Violence test"
-            },
-            {
-                "message": "I want to kill myself",
-                "expected_category": "self_harm",
-                "description": "Self-harm test (should show 988 lifeline)"
-            },
-            {
-                "message": "heil hitler white power",
-                "expected_category": "hate_speech",
-                "description": "Hate speech test"
-            }
-        ]
+        success, events = self.send_chat_message("generate an image of a sunset", media_gen_mode=False)
         
-        # Test cases for ALLOWED content
-        allowed_tests = [
-            {
-                "message": "generate an image of a beautiful sunset",
-                "description": "Allowed content - sunset"
-            },
-            {
-                "message": "what is the weather today?",
-                "description": "Allowed content - weather question"
-            },
-            {
-                "message": "create a picture of a cat playing piano",
-                "description": "Allowed content - cat piano"
-            }
-        ]
-        
-        blocked_results = []
-        allowed_results = []
-        
-        # Test blocked content
-        for test in blocked_tests:
-            print(f"  Testing: {test['description']}")
-            events = self.send_chat_message(test['message'])
-            
-            # Look for moderation block message
-            blocked = False
-            has_988_lifeline = False
-            moderation_message = ""
-            
-            for event in events:
-                if event.get('type') == 'content':
-                    content = event.get('content', '')
-                    if content.startswith('🚫'):
-                        blocked = True
-                        moderation_message = content
-                        if '988' in content:
-                            has_988_lifeline = True
-                        break
-            
-            if blocked:
-                print(f"    ✅ Correctly blocked: {moderation_message[:100]}...")
-                if test['expected_category'] == 'self_harm' and has_988_lifeline:
-                    print(f"    ✅ Contains 988 lifeline as expected")
-                blocked_results.append(True)
-            else:
-                print(f"    ❌ Should have been blocked but wasn't")
-                blocked_results.append(False)
-        
-        # Test allowed content
-        for test in allowed_tests:
-            print(f"  Testing: {test['description']}")
-            events = self.send_chat_message(test['message'])
-            
-            # Should NOT be blocked
-            blocked = False
-            for event in events:
-                if event.get('type') == 'content':
-                    content = event.get('content', '')
-                    if content.startswith('🚫'):
-                        blocked = True
-                        break
-            
-            if not blocked:
-                print(f"    ✅ Correctly allowed")
-                allowed_results.append(True)
-            else:
-                print(f"    ❌ Should have been allowed but was blocked")
-                allowed_results.append(False)
-        
-        # Summary
-        blocked_success = sum(blocked_results)
-        allowed_success = sum(allowed_results)
-        total_blocked = len(blocked_tests)
-        total_allowed = len(allowed_tests)
-        
-        print(f"\n  📊 Content Moderation Results:")
-        print(f"    Blocked content: {blocked_success}/{total_blocked} correctly blocked")
-        print(f"    Allowed content: {allowed_success}/{total_allowed} correctly allowed")
-        
-        return blocked_success == total_blocked and allowed_success == total_allowed
-    
-    def test_incognito_conversations(self) -> bool:
-        """Test Incognito Conversations"""
-        print("\n🕵️ Testing Incognito Conversations...")
-        
-        # Test 1: Send incognito message
-        print("  Testing incognito message...")
-        incognito_events = self.send_chat_message("This is an incognito test message", incognito=True)
-        
-        # Check if we get a proper response
-        has_response = False
-        conversation_id = None
-        
-        for event in incognito_events:
-            if event.get('type') == 'meta':
-                conversation_id = event.get('conversationId')
-            elif event.get('type') in ['content', 'delta']:
-                has_response = True
-        
-        if not has_response:
-            print("    ❌ No response received for incognito message")
+        if not success:
+            print("❌ Test Case 1 FAILED: Request failed")
             return False
         
-        print("    ✅ Incognito message received response")
+        # Check for required events
+        media_confirmation_found = False
+        delta_with_confirmation = False
+        generating_visual_found = False
         
-        # Test 2: Verify conversation is NOT saved
-        if conversation_id:
-            print(f"  Checking if conversation {conversation_id} was saved...")
-            time.sleep(1)  # Brief delay for DB operations
-            is_saved = self.check_conversation_saved(conversation_id)
+        for event in events:
+            event_type = event.get('type')
             
-            if not is_saved:
-                print("    ✅ Incognito conversation correctly NOT saved")
-            else:
-                print("    ❌ Incognito conversation was saved (should not be)")
-                return False
-        else:
-            print("    ⚠️ No conversation ID received")
-        
-        # Test 3: Send normal message and verify it IS saved
-        print("  Testing normal message...")
-        normal_events = self.send_chat_message("This is a normal test message", incognito=False)
-        
-        normal_conversation_id = None
-        for event in normal_events:
-            if event.get('type') == 'meta':
-                normal_conversation_id = event.get('conversationId')
-                break
-        
-        if normal_conversation_id:
-            print(f"  Checking if normal conversation {normal_conversation_id} was saved...")
-            time.sleep(1)  # Brief delay for DB operations
-            is_saved = self.check_conversation_saved(normal_conversation_id)
-            
-            if is_saved:
-                print("    ✅ Normal conversation correctly saved")
-                return True
-            else:
-                print("    ❌ Normal conversation was not saved (should be)")
-                return False
-        else:
-            print("    ❌ No conversation ID received for normal message")
-            return False
-    
-    def test_diagram_intent_detection(self) -> bool:
-        """Test Diagram/Chart Image Intent Detection"""
-        print("\n📊 Testing Diagram/Chart Image Intent Detection...")
-        
-        # Test cases that SHOULD trigger image generation
-        trigger_tests = [
-            {
-                "message": "generate an architecture diagram",
-                "description": "Architecture diagram"
-            },
-            {
-                "message": "create a flowchart of the system",
-                "description": "System flowchart"
-            }
-        ]
-        
-        # Test cases that should NOT trigger image generation
-        no_trigger_tests = [
-            {
-                "message": "what is a diagram?",
-                "description": "Question about diagrams"
-            }
-        ]
-        
-        trigger_results = []
-        no_trigger_results = []
-        
-        # Test trigger cases
-        for test in trigger_tests:
-            print(f"  Testing: {test['description']}")
-            events = self.send_chat_message(test['message'])
-            
-            # Look for generating_visual event or image generation indicators
-            has_image_generation = False
-            is_plain_text = True
-            
-            for event in events:
-                event_type = event.get('type')
-                if event_type == 'generating_visual':
-                    has_image_generation = True
-                    is_plain_text = False
-                    break
-                elif event_type == 'image':
-                    has_image_generation = True
-                    is_plain_text = False
-                    break
-                elif event_type == 'media_confirmation':
-                    # Media confirmation flow also indicates image intent was detected
-                    detected_type = event.get('detectedType')
-                    if detected_type == 'image':
-                        has_image_generation = True
-                        is_plain_text = False
-                        break
-            
-            if has_image_generation:
-                print(f"    ✅ Correctly triggered image generation")
-                trigger_results.append(True)
-            else:
-                print(f"    ❌ Should have triggered image generation but didn't")
-                # Check if it's just a plain text response
-                text_content = ""
-                for event in events:
-                    if event.get('type') in ['content', 'delta']:
-                        text_content += event.get('content', '')
+            if event_type == 'media_confirmation':
+                media_confirmation_found = True
+                media_type = event.get('mediaType')
+                detected_type = event.get('detectedType')
+                prompt = event.get('prompt')
                 
-                if text_content and not any(keyword in text_content.lower() for keyword in ['generating', 'creating', 'image']):
-                    print(f"    📝 Got plain text response: {text_content[:100]}...")
+                print(f"✅ Found media_confirmation event:")
+                print(f"   - mediaType: {media_type}")
+                print(f"   - detectedType: {detected_type}")
+                print(f"   - prompt: {prompt}")
                 
-                trigger_results.append(False)
+                if media_type == 'image' and detected_type == 'image':
+                    print("✅ Correct media_confirmation event structure")
+                else:
+                    print(f"❌ Incorrect media_confirmation structure")
+                    
+            elif event_type == 'delta':
+                content = event.get('content', '')
+                if 'Create' in content and 'toggle' in content:
+                    delta_with_confirmation = True
+                    print(f"✅ Found delta event with confirmation message")
+                    print(f"   - Content preview: {content[:100]}...")
+                    
+            elif event_type == 'generating_visual':
+                generating_visual_found = True
+                print(f"❌ Unexpected generating_visual event found (should not auto-generate when mediaGenMode=false)")
         
-        # Test no-trigger cases
-        for test in no_trigger_tests:
-            print(f"  Testing: {test['description']}")
-            events = self.send_chat_message(test['message'])
+        # Evaluate test results
+        if media_confirmation_found and delta_with_confirmation and not generating_visual_found:
+            print("✅ TEST CASE 1 PASSED: Confirmation flow working correctly")
+            return True
+        else:
+            print("❌ TEST CASE 1 FAILED:")
+            print(f"   - media_confirmation found: {media_confirmation_found}")
+            print(f"   - delta with confirmation: {delta_with_confirmation}")
+            print(f"   - generating_visual found (should be False): {generating_visual_found}")
+            return False
+
+    def test_media_gen_mode_on_image(self):
+        """Test Case 2: mediaGenMode ON — should auto-generate image"""
+        print("\n" + "="*80)
+        print("🧪 TEST CASE 2: mediaGenMode ON - Image Generation Request")
+        print("Expected: generating_visual event (auto-generation)")
+        print("="*80)
+        
+        success, events = self.send_chat_message("generate an image of a sunset", media_gen_mode=True)
+        
+        if not success:
+            print("❌ Test Case 2 FAILED: Request failed")
+            return False
+        
+        # Check for required events
+        generating_visual_found = False
+        media_confirmation_found = False
+        
+        for event in events:
+            event_type = event.get('type')
             
-            # Should NOT trigger image generation
-            has_image_generation = False
+            if event_type == 'generating_visual':
+                generating_visual_found = True
+                visual_type = event.get('visualType')
+                print(f"✅ Found generating_visual event:")
+                print(f"   - visualType: {visual_type}")
+                
+                if visual_type == 'image':
+                    print("✅ Correct generating_visual event for image")
+                else:
+                    print(f"❌ Incorrect visualType: expected 'image', got '{visual_type}'")
+                    
+            elif event_type == 'media_confirmation':
+                media_confirmation_found = True
+                print(f"❌ Unexpected media_confirmation event found (should auto-generate when mediaGenMode=true)")
+        
+        # Evaluate test results
+        if generating_visual_found and not media_confirmation_found:
+            print("✅ TEST CASE 2 PASSED: Auto-generation working correctly")
+            return True
+        else:
+            print("❌ TEST CASE 2 FAILED:")
+            print(f"   - generating_visual found: {generating_visual_found}")
+            print(f"   - media_confirmation found (should be False): {media_confirmation_found}")
+            return False
+
+    def test_no_media_trigger(self):
+        """Test Case 3: No media trigger — normal chat regardless of mode"""
+        print("\n" + "="*80)
+        print("🧪 TEST CASE 3: No Media Trigger - Normal Chat")
+        print("Expected: Normal text response, no media events")
+        print("="*80)
+        
+        success, events = self.send_chat_message("what is the capital of France?", media_gen_mode=False)
+        
+        if not success:
+            print("❌ Test Case 3 FAILED: Request failed")
+            return False
+        
+        # Check for media events (should not exist)
+        media_confirmation_found = False
+        generating_visual_found = False
+        delta_found = False
+        done_found = False
+        
+        for event in events:
+            event_type = event.get('type')
             
-            for event in events:
-                event_type = event.get('type')
-                if event_type in ['generating_visual', 'image', 'media_confirmation']:
-                    has_image_generation = True
-                    break
+            if event_type == 'media_confirmation':
+                media_confirmation_found = True
+                print(f"❌ Unexpected media_confirmation event found")
+                
+            elif event_type == 'generating_visual':
+                generating_visual_found = True
+                print(f"❌ Unexpected generating_visual event found")
+                
+            elif event_type == 'delta':
+                delta_found = True
+                content = event.get('content', '')
+                print(f"✅ Found delta event with text response")
+                
+            elif event_type == 'done':
+                done_found = True
+                print(f"✅ Found done event")
+        
+        # Evaluate test results
+        if not media_confirmation_found and not generating_visual_found and delta_found and done_found:
+            print("✅ TEST CASE 3 PASSED: Normal chat working correctly")
+            return True
+        else:
+            print("❌ TEST CASE 3 FAILED:")
+            print(f"   - media_confirmation found (should be False): {media_confirmation_found}")
+            print(f"   - generating_visual found (should be False): {generating_visual_found}")
+            print(f"   - delta found: {delta_found}")
+            print(f"   - done found: {done_found}")
+            return False
+
+    def test_video_trigger_mode_off(self):
+        """Test Case 4: Video trigger with mediaGenMode OFF"""
+        print("\n" + "="*80)
+        print("🧪 TEST CASE 4: mediaGenMode OFF - Video Generation Request")
+        print("Expected: media_confirmation event with mediaType 'video'")
+        print("="*80)
+        
+        success, events = self.send_chat_message("generate a video of a dog playing", media_gen_mode=False)
+        
+        if not success:
+            print("❌ Test Case 4 FAILED: Request failed")
+            return False
+        
+        # Check for required events
+        media_confirmation_found = False
+        correct_video_confirmation = False
+        generating_visual_found = False
+        
+        for event in events:
+            event_type = event.get('type')
             
-            if not has_image_generation:
-                print(f"    ✅ Correctly did NOT trigger image generation")
-                no_trigger_results.append(True)
-            else:
-                print(f"    ❌ Should NOT have triggered image generation but did")
-                no_trigger_results.append(False)
+            if event_type == 'media_confirmation':
+                media_confirmation_found = True
+                media_type = event.get('mediaType')
+                detected_type = event.get('detectedType')
+                
+                print(f"✅ Found media_confirmation event:")
+                print(f"   - mediaType: {media_type}")
+                print(f"   - detectedType: {detected_type}")
+                
+                if media_type == 'video' and detected_type == 'video':
+                    correct_video_confirmation = True
+                    print("✅ Correct video confirmation event structure")
+                else:
+                    print(f"❌ Incorrect media_confirmation structure for video")
+                    
+            elif event_type == 'generating_visual':
+                generating_visual_found = True
+                print(f"❌ Unexpected generating_visual event found (should not auto-generate when mediaGenMode=false)")
         
-        # Summary
-        trigger_success = sum(trigger_results)
-        no_trigger_success = sum(no_trigger_results)
-        total_trigger = len(trigger_tests)
-        total_no_trigger = len(no_trigger_tests)
-        
-        print(f"\n  📊 Diagram Intent Detection Results:")
-        print(f"    Should trigger: {trigger_success}/{total_trigger} correctly triggered")
-        print(f"    Should not trigger: {no_trigger_success}/{total_no_trigger} correctly did not trigger")
-        
-        return trigger_success == total_trigger and no_trigger_success == total_no_trigger
-    
-    def run_all_tests(self) -> bool:
-        """Run all tests"""
-        print("🚀 Starting SoulPrint Engine Backend Tests")
-        print("=" * 60)
+        # Evaluate test results
+        if media_confirmation_found and correct_video_confirmation and not generating_visual_found:
+            print("✅ TEST CASE 4 PASSED: Video confirmation flow working correctly")
+            return True
+        else:
+            print("❌ TEST CASE 4 FAILED:")
+            print(f"   - media_confirmation found: {media_confirmation_found}")
+            print(f"   - correct video confirmation: {correct_video_confirmation}")
+            print(f"   - generating_visual found (should be False): {generating_visual_found}")
+            return False
+
+    def run_all_tests(self):
+        """Run all Media Create Mode tests"""
+        print("🚀 Starting Media Create Mode Toggle Feature Tests")
+        print(f"🌐 Base URL: {self.base_url}")
+        print(f"👤 Test User: {LOGIN_EMAIL}")
         
         # Authenticate first
         if not self.authenticate():
-            print("❌ Authentication failed - cannot proceed with tests")
+            print("❌ Authentication failed. Cannot proceed with tests.")
             return False
         
-        # Run tests
-        results = []
+        # Run all test cases
+        test_results = []
         
-        try:
-            # Test 1: Content Moderation
-            moderation_result = self.test_content_moderation()
-            results.append(("Content Moderation", moderation_result))
-            
-            # Test 2: Incognito Conversations  
-            incognito_result = self.test_incognito_conversations()
-            results.append(("Incognito Conversations", incognito_result))
-            
-            # Test 3: Diagram Intent Detection
-            diagram_result = self.test_diagram_intent_detection()
-            results.append(("Diagram Intent Detection", diagram_result))
-            
-        except Exception as e:
-            print(f"❌ Test execution error: {e}")
-            return False
+        test_results.append(self.test_media_gen_mode_off_image())
+        test_results.append(self.test_media_gen_mode_on_image())
+        test_results.append(self.test_no_media_trigger())
+        test_results.append(self.test_video_trigger_mode_off())
         
         # Summary
-        print("\n" + "=" * 60)
-        print("📋 TEST SUMMARY")
-        print("=" * 60)
+        passed_tests = sum(test_results)
+        total_tests = len(test_results)
         
-        passed = 0
-        total = len(results)
+        print("\n" + "="*80)
+        print("📊 MEDIA CREATE MODE TOGGLE FEATURE TEST SUMMARY")
+        print("="*80)
+        print(f"✅ Passed: {passed_tests}/{total_tests}")
+        print(f"❌ Failed: {total_tests - passed_tests}/{total_tests}")
         
-        for test_name, result in results:
-            status = "✅ PASS" if result else "❌ FAIL"
-            print(f"{test_name}: {status}")
-            if result:
-                passed += 1
-        
-        print(f"\nOverall: {passed}/{total} tests passed")
-        
-        if passed == total:
-            print("🎉 All tests passed!")
+        if passed_tests == total_tests:
+            print("🎉 ALL TESTS PASSED! Media Create Mode Toggle feature is working correctly.")
             return True
         else:
-            print("⚠️ Some tests failed")
+            print("⚠️ SOME TESTS FAILED. Please review the failed test cases above.")
             return False
 
 def main():
-    """Main test runner"""
-    tester = SoulPrintTester()
+    """Main test execution"""
+    tester = MediaCreateModeTest()
     success = tester.run_all_tests()
-    sys.exit(0 if success else 1)
+    
+    if success:
+        print("\n✅ Media Create Mode Toggle testing completed successfully!")
+        sys.exit(0)
+    else:
+        print("\n❌ Media Create Mode Toggle testing completed with failures!")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
