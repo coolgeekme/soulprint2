@@ -3181,6 +3181,19 @@ function InsightsTab({ token }) {
   const [error, setError] = useState(null);
   const [subTab, setSubTab] = useState('overview');
   const [excludeInternal, setExcludeInternal] = useState(true);
+
+  // Hypothetical calculator state
+  const [hypo, setHypo] = useState({
+    totalUsers: 100,
+    conversionRate: 30,
+    basePrice: 20.01,
+    addOnARPU: 5,
+    videoARPU: 10,
+    cogsPerUser: 11.25,
+    fixedCosts: 25,
+    annualDiscount: 20,
+  });
+  const updateHypo = (key, val) => setHypo(prev => ({ ...prev, [key]: parseFloat(val) || 0 }));
   
   // Pricing Model v2 data from Google Sheets (April 2026)
   const PRICING_V2 = {
@@ -3393,6 +3406,7 @@ function InsightsTab({ token }) {
 
   const SUB_TABS = [
     { id: 'overview', label: 'P&L Overview' },
+    { id: 'calculator', label: '🧮 Calculator' },
     { id: 'liveusage', label: 'Live Usage' },
     { id: 'costs', label: 'Cost Basis' },
     { id: 'tiers', label: 'Pricing Tiers' },
@@ -3466,65 +3480,69 @@ function InsightsTab({ token }) {
             <div className="flex items-center justify-between">
               <h3 className="text-cyan-400 text-xs font-bold tracking-widest uppercase flex items-center gap-2">
                 <Activity className="w-4 h-4" />
-                Actual Production Metrics vs. Pricing Model
+                Actual Production Metrics (Pre-Revenue)
               </h3>
               {insights?.generated_at && (
                 <span className="text-[10px] text-gray-500 bg-black/30 px-2 py-1 rounded">Live: {new Date(insights.generated_at).toLocaleString()}</span>
               )}
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-3">
               <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-                <p className="text-gray-500 text-[10px] uppercase">Total Users (External)</p>
-                <div className="flex items-end gap-2">
-                  <p className="text-white text-xl font-bold">{actualTotalUsers}</p>
-                  <p className="text-gray-600 text-[10px] mb-0.5">model: {PM.assumptions.totalUsers}</p>
-                </div>
+                <p className="text-gray-500 text-[10px] uppercase">Total Users</p>
+                <p className="text-white text-xl font-bold">{actualTotalUsers}</p>
+                <p className="text-gray-600 text-[10px]">all free / beta</p>
               </div>
               <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-                <p className="text-gray-500 text-[10px] uppercase">Active / Paying Users</p>
-                <div className="flex items-end gap-2">
-                  <p className="text-white text-xl font-bold">{actualPayingUsers}</p>
-                  <p className="text-gray-600 text-[10px] mb-0.5">model: {PM.assumptions.activePayingUsers}</p>
-                </div>
+                <p className="text-gray-500 text-[10px] uppercase">Paying Customers</p>
+                <p className="text-red-400 text-xl font-bold">0</p>
+                <p className="text-gray-600 text-[10px]">pre-revenue stage</p>
               </div>
               <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-                <p className="text-gray-500 text-[10px] uppercase">Actual Platform Cost</p>
-                <div className="flex items-end gap-2">
-                  <p className="text-red-400 text-xl font-bold">${actualTotalPlatformCost.toFixed(2)}</p>
-                  <p className="text-gray-600 text-[10px] mb-0.5">invoiced: ${PM.costBasis.total.toFixed(2)}</p>
-                </div>
+                <p className="text-gray-500 text-[10px] uppercase">Actual Revenue</p>
+                <p className="text-red-400 text-xl font-bold">$0.00</p>
+                <p className="text-gray-600 text-[10px]">MRR today</p>
+              </div>
+              <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                <p className="text-gray-500 text-[10px] uppercase">Actual COGS Burn</p>
+                <p className="text-red-400 text-xl font-bold">${actualTotalPlatformCost.toFixed(2)}</p>
+                <p className="text-gray-600 text-[10px]">invoiced: ${PM.costBasis.total.toFixed(2)}</p>
               </div>
               <div className="bg-black/30 border border-white/10 rounded-lg p-3">
                 <p className="text-gray-500 text-[10px] uppercase">Avg Cost / User</p>
-                <div className="flex items-end gap-2">
-                  <p className="text-orange-400 text-xl font-bold">${actualAvgCostPerUser.toFixed(2)}</p>
-                  <p className="text-gray-600 text-[10px] mb-0.5">model: ${(PM.costBasis.total / PM.assumptions.activePayingUsers).toFixed(2)}</p>
-                </div>
+                <p className="text-orange-400 text-xl font-bold">${actualAvgCostPerUser.toFixed(2)}</p>
+                <p className="text-gray-600 text-[10px]">burn rate per user</p>
               </div>
             </div>
           </div>
 
-          {/* Hero KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <div className="bg-gradient-to-br from-green-500/15 to-green-500/5 border border-green-500/30 rounded-xl p-4 text-center">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Total MRR (Model)</p>
-              <p className="text-2xl font-bold text-green-400">${PM.revenue.totalMRR.toLocaleString()}</p>
-            </div>
-            <div className="bg-gradient-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/30 rounded-xl p-4 text-center">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">ARR</p>
-              <p className="text-2xl font-bold text-blue-400">${PM.revenue.arr.toLocaleString()}</p>
-            </div>
-            <div className="bg-gradient-to-br from-red-500/15 to-red-500/5 border border-red-500/30 rounded-xl p-4 text-center">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Total COGS</p>
-              <p className="text-2xl font-bold text-red-400">${PM.pnl.totalCOGS.toFixed(2)}</p>
-            </div>
-            <div className="bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 text-center">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Gross Profit</p>
-              <p className="text-2xl font-bold text-emerald-400">${PM.pnl.grossProfit.toFixed(2)}</p>
-            </div>
-            <div className="bg-gradient-to-br from-purple-500/15 to-purple-500/5 border border-purple-500/30 rounded-xl p-4 text-center">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Gross Margin</p>
-              <p className="text-2xl font-bold text-purple-400">{(PM.pnl.grossMargin * 100).toFixed(1)}%</p>
+          {/* Hero KPI Cards — PROJECTED (from pricing model) */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-4">
+            <p className="text-gray-500 text-[10px] uppercase tracking-widest font-bold mb-3 flex items-center gap-2">
+              <TrendingUp className="w-3 h-3 text-yellow-400" />
+              Projected (Pricing Model v2 — when monetized)
+            </p>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="bg-gradient-to-br from-green-500/15 to-green-500/5 border border-green-500/30 rounded-xl p-4 text-center">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Projected MRR</p>
+                <p className="text-2xl font-bold text-green-400">${PM.revenue.totalMRR.toLocaleString()}</p>
+                <p className="text-gray-600 text-[10px]">{PM.assumptions.activePayingUsers} paying users</p>
+              </div>
+              <div className="bg-gradient-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/30 rounded-xl p-4 text-center">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">ARR</p>
+                <p className="text-2xl font-bold text-blue-400">${PM.revenue.arr.toLocaleString()}</p>
+              </div>
+              <div className="bg-gradient-to-br from-red-500/15 to-red-500/5 border border-red-500/30 rounded-xl p-4 text-center">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Total COGS</p>
+                <p className="text-2xl font-bold text-red-400">${PM.pnl.totalCOGS.toFixed(2)}</p>
+              </div>
+              <div className="bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 text-center">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Gross Profit</p>
+                <p className="text-2xl font-bold text-emerald-400">${PM.pnl.grossProfit.toFixed(2)}</p>
+              </div>
+              <div className="bg-gradient-to-br from-purple-500/15 to-purple-500/5 border border-purple-500/30 rounded-xl p-4 text-center">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Gross Margin</p>
+                <p className="text-2xl font-bold text-purple-400">{(PM.pnl.grossMargin * 100).toFixed(1)}%</p>
+              </div>
             </div>
           </div>
 
@@ -3541,7 +3559,7 @@ function InsightsTab({ token }) {
               </div>
               <div className="pl-4 space-y-1">
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-400">Total MRR ({actualPayingUsers} paying users — actual: {actualPayingUsers}, model: {PM.assumptions.activePayingUsers})</span>
+                  <span className="text-gray-400">Total MRR (0 paying users today — projected: {PM.assumptions.activePayingUsers} @ ${PM.assumptions.basePrice}/mo)</span>
                   <span className="text-white font-medium">${PM.revenue.totalMRR.toLocaleString()}</span>
                 </div>
               </div>
@@ -4057,6 +4075,188 @@ function InsightsTab({ token }) {
           )}
         </div>
       )}
+
+
+      {/* ═══ HYPOTHETICAL CALCULATOR ═══ */}
+      {subTab === 'calculator' && (() => {
+        // Derived calculations from hypo state
+        const hPayingUsers = Math.round(hypo.totalUsers * (hypo.conversionRate / 100));
+        const hFreeUsers = hypo.totalUsers - hPayingUsers;
+        const hSubRevenue = hPayingUsers * hypo.basePrice;
+        const hAddOnRevenue = hPayingUsers * hypo.addOnARPU;
+        const hVideoRevenue = Math.round(hPayingUsers * 0.4) * hypo.videoARPU;  // 40% buy video
+        const hMRR = hSubRevenue + hAddOnRevenue + hVideoRevenue;
+        const hARR = hMRR * 12;
+        const hAnnualMRR = hMRR * (1 - hypo.annualDiscount / 100);
+        const hVariableCOGS = hPayingUsers * hypo.cogsPerUser;
+        const hFreeCOGS = hFreeUsers * 3.00;  // ~$3/mo for free users (chat only)
+        const hTotalCOGS = hVariableCOGS + hFreeCOGS + hypo.fixedCosts;
+        const hGrossProfit = hMRR - hTotalCOGS;
+        const hGrossMargin = hMRR > 0 ? hGrossProfit / hMRR : 0;
+
+        // Scenario presets
+        const presets = [
+          { label: 'Conservative', totalUsers: 50, conversionRate: 20, basePrice: 15.00, addOnARPU: 3, videoARPU: 5, cogsPerUser: 11.25, fixedCosts: 25, annualDiscount: 15 },
+          { label: 'Base Case (v2)', totalUsers: 84, conversionRate: 52, basePrice: 20.01, addOnARPU: 4.77, videoARPU: 10, cogsPerUser: 11.25, fixedCosts: 25, annualDiscount: 20 },
+          { label: 'Aggressive', totalUsers: 250, conversionRate: 35, basePrice: 25.00, addOnARPU: 8, videoARPU: 15, cogsPerUser: 9.50, fixedCosts: 50, annualDiscount: 20 },
+          { label: 'Scale (1k)', totalUsers: 1000, conversionRate: 25, basePrice: 20.00, addOnARPU: 6, videoARPU: 12, cogsPerUser: 7.00, fixedCosts: 100, annualDiscount: 20 },
+        ];
+
+        const InputRow = ({ label, param, unit, min, max, step }) => (
+          <div className="flex items-center gap-3">
+            <label className="text-gray-400 text-xs w-40 shrink-0">{label}</label>
+            <input
+              type="range"
+              min={min}
+              max={max}
+              step={step}
+              value={hypo[param]}
+              onChange={(e) => updateHypo(param, e.target.value)}
+              className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer accent-orange-500"
+              style={{ background: `linear-gradient(to right, rgb(249 115 22 / 0.6) ${((hypo[param] - min) / (max - min)) * 100}%, rgb(255 255 255 / 0.1) ${((hypo[param] - min) / (max - min)) * 100}%)` }}
+            />
+            <div className="flex items-center gap-1 w-28 shrink-0">
+              <input
+                type="number"
+                min={min}
+                max={max}
+                step={step}
+                value={hypo[param]}
+                onChange={(e) => updateHypo(param, e.target.value)}
+                className="w-20 bg-black/50 border border-white/20 rounded-lg px-2 py-1 text-white text-xs text-right focus:border-orange-500/50 focus:outline-none"
+              />
+              <span className="text-gray-600 text-[10px]">{unit}</span>
+            </div>
+          </div>
+        );
+
+        return (
+          <div className="space-y-5">
+            {/* Calculator Header */}
+            <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/5 border border-orange-500/30 rounded-xl p-4">
+              <h3 className="text-orange-400 text-sm font-bold flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                What-If Scenario Calculator
+              </h3>
+              <p className="text-gray-400 text-xs mt-1">Adjust the sliders to model hypothetical pricing scenarios. All calculations are formula-driven from your inputs.</p>
+              <p className="text-gray-500 text-[10px] mt-1">
+                Current reality: <span className="text-red-400 font-bold">0 paying customers</span> • <span className="text-white font-bold">{insights?.user_segments_external?.total_external ?? '?'}</span> beta users • <span className="text-red-400 font-bold">-${PM.costBasis.total.toFixed(2)}/mo</span> burn
+              </p>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="flex flex-wrap gap-2">
+              {presets.map((preset, i) => (
+                <button
+                  key={i}
+                  onClick={() => setHypo(prev => ({ ...prev, ...preset }))}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all hover:bg-white/5 border-white/10 text-gray-400 hover:text-white"
+                >
+                  {preset.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setHypo({
+                  totalUsers: insights?.user_segments_external?.total_external ?? 10,
+                  conversionRate: 30,
+                  basePrice: 20.01,
+                  addOnARPU: 5,
+                  videoARPU: 10,
+                  cogsPerUser: insights?.pricing_recommendations?.avg_cost_per_user ?? 11.25,
+                  fixedCosts: 25,
+                  annualDiscount: 20,
+                })}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium border transition-all bg-cyan-500/10 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20"
+              >
+                Use Actual Users
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* Input Sliders */}
+              <div className="bg-[#111] border border-white/8 rounded-xl p-5 space-y-4">
+                <h4 className="text-white text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2">
+                  <Settings className="w-3 h-3 text-orange-400" />
+                  Scenario Inputs
+                </h4>
+                <InputRow label="Total Users" param="totalUsers" unit="" min={10} max={5000} step={10} />
+                <InputRow label="Conversion Rate" param="conversionRate" unit="%" min={5} max={80} step={1} />
+                <InputRow label="Base Price" param="basePrice" unit="$/mo" min={5} max={100} step={0.5} />
+                <InputRow label="Add-On ARPU" param="addOnARPU" unit="$/mo" min={0} max={50} step={0.5} />
+                <InputRow label="Video Add-On" param="videoARPU" unit="$/mo" min={0} max={50} step={0.5} />
+                <InputRow label="COGS / Paying User" param="cogsPerUser" unit="$/mo" min={1} max={50} step={0.25} />
+                <InputRow label="Fixed Costs" param="fixedCosts" unit="$/mo" min={0} max={500} step={5} />
+                <InputRow label="Annual Discount" param="annualDiscount" unit="%" min={0} max={50} step={1} />
+                <div className="pt-3 border-t border-white/10 text-[10px] text-gray-600">
+                  Assumptions: 40% of paying users buy video add-on • Free users cost ~$3/mo (chat-only COGS)
+                </div>
+              </div>
+
+              {/* Live Results */}
+              <div className="space-y-4">
+                {/* Key Output Cards */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className={`rounded-xl p-4 text-center border ${hGrossProfit >= 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                    <p className="text-gray-400 text-[10px] uppercase tracking-wide">MRR</p>
+                    <p className={`text-3xl font-bold mt-1 ${hMRR > 0 ? 'text-green-400' : 'text-gray-600'}`}>${hMRR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                  <div className={`rounded-xl p-4 text-center border ${hGrossProfit >= 0 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                    <p className="text-gray-400 text-[10px] uppercase tracking-wide">Gross Profit</p>
+                    <p className={`text-3xl font-bold mt-1 ${hGrossProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>${hGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+
+                {/* P&L Breakdown */}
+                <div className="bg-[#111] border border-white/8 rounded-xl p-4">
+                  <h4 className="text-white text-xs font-bold mb-3">Projected P&L</h4>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs"><span className="text-gray-500">Paying Users</span><span className="text-white font-bold">{hPayingUsers}</span></div>
+                    <div className="flex justify-between text-xs"><span className="text-gray-500">Free Users</span><span className="text-gray-400">{hFreeUsers}</span></div>
+                    <div className="border-t border-white/10 my-2" />
+                    <div className="flex justify-between text-xs"><span className="text-gray-400">Subscription Revenue</span><span className="text-green-400">${hSubRevenue.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-xs"><span className="text-gray-400">Add-On Revenue</span><span className="text-green-400">${hAddOnRevenue.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-xs"><span className="text-gray-400">Video Credits</span><span className="text-green-400">${hVideoRevenue.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-xs py-1 border-y border-green-500/20"><span className="text-green-400 font-bold">TOTAL MRR</span><span className="text-green-400 font-bold">${hMRR.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-xs"><span className="text-gray-400">Paying User COGS ({hPayingUsers} × ${hypo.cogsPerUser})</span><span className="text-red-400">-${hVariableCOGS.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-xs"><span className="text-gray-400">Free User COGS ({hFreeUsers} × $3.00)</span><span className="text-red-400">-${hFreeCOGS.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-xs"><span className="text-gray-400">Fixed Costs</span><span className="text-red-400">-${hypo.fixedCosts.toFixed(2)}</span></div>
+                    <div className="flex justify-between text-xs py-1 border-y border-red-500/20"><span className="text-red-400 font-bold">TOTAL COGS</span><span className="text-red-400 font-bold">-${hTotalCOGS.toFixed(2)}</span></div>
+                    <div className={`flex justify-between text-sm py-2 rounded-lg px-2 mt-1 ${hGrossProfit >= 0 ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                      <span className={`font-bold ${hGrossProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>GROSS PROFIT</span>
+                      <span className={`font-bold ${hGrossProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>${hGrossProfit.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary Metrics */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-white/3 border border-white/10 rounded-lg p-3 text-center">
+                    <p className="text-gray-500 text-[10px] uppercase">ARR</p>
+                    <p className="text-blue-400 text-lg font-bold">${hARR.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                  </div>
+                  <div className="bg-white/3 border border-white/10 rounded-lg p-3 text-center">
+                    <p className="text-gray-500 text-[10px] uppercase">Gross Margin</p>
+                    <p className={`text-lg font-bold ${hGrossMargin >= 0.6 ? 'text-green-400' : hGrossMargin >= 0.3 ? 'text-yellow-400' : 'text-red-400'}`}>{(hGrossMargin * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="bg-white/3 border border-white/10 rounded-lg p-3 text-center">
+                    <p className="text-gray-500 text-[10px] uppercase">Annual (discounted)</p>
+                    <p className="text-purple-400 text-lg font-bold">${(hAnnualMRR * 12).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                  </div>
+                </div>
+
+                {/* Break-even hint */}
+                <div className={`rounded-lg p-3 text-xs ${hGrossProfit >= 0 ? 'bg-green-500/5 border border-green-500/20 text-green-400' : 'bg-red-500/5 border border-red-500/20 text-red-400'}`}>
+                  {hGrossProfit >= 0 ? (
+                    <p>✅ <strong>Profitable</strong> at this scenario. You need ≥{Math.ceil(hTotalCOGS / (hypo.basePrice + hypo.addOnARPU))} paying users to break even with current COGS.</p>
+                  ) : (
+                    <p>🚨 <strong>Unprofitable</strong> — need {Math.ceil((hTotalCOGS - hMRR) / (hypo.basePrice + hypo.addOnARPU - hypo.cogsPerUser))} more paying users OR reduce COGS by ${Math.abs(hGrossProfit).toFixed(2)}/mo to break even.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ═══ COST BASIS ═══ */}
       {subTab === 'costs' && (
