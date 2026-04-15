@@ -7,7 +7,7 @@ import {
   UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
   PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar,
-  KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone, LifeBuoy, LogIn
+  KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone, LifeBuoy, LogIn, Activity
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
@@ -3393,6 +3393,7 @@ function InsightsTab({ token }) {
 
   const SUB_TABS = [
     { id: 'overview', label: 'P&L Overview' },
+    { id: 'liveusage', label: 'Live Usage' },
     { id: 'costs', label: 'Cost Basis' },
     { id: 'tiers', label: 'Pricing Tiers' },
     { id: 'addons', label: 'Add-Ons & Credits' },
@@ -3436,12 +3437,77 @@ function InsightsTab({ token }) {
       </div>
 
       {/* ═══ P&L OVERVIEW ═══ */}
-      {subTab === 'overview' && (
+      {subTab === 'overview' && (() => {
+        // Compute live metrics from insights when available
+        const liveUsers = insights?.user_segments;
+        const liveExternal = insights?.user_segments_external;
+        const liveCosts = insights?.external_costs;
+        const actualTotalUsers = liveExternal?.total_external ?? PM.assumptions.totalUsers;
+        const actualActiveUsers = liveCosts?.active_users ?? PM.assumptions.activePayingUsers;
+        const actualLLMCost = liveCosts?.total_llm_cost ?? 0;
+        const actualMediaCost = liveCosts?.total_media_cost ?? 0;
+        const actualTotalPlatformCost = actualLLMCost + actualMediaCost + PM.costBasis.providers[4].cost;
+        const actualAvgCostPerUser = liveCosts?.avg_cost_per_user ?? 0;
+
+        // Build actual segment data from live API
+        const actualSegments = liveExternal ? [
+          { name: 'Free (inactive)', count: liveExternal.inactive?.count ?? 0, pct: liveExternal.inactive?.percentage ?? 0, behavior: 'Inactive' },
+          { name: 'Light (base only)', count: liveExternal.light?.count ?? 0, pct: liveExternal.light?.percentage ?? 0, behavior: '1-20 msgs' },
+          { name: 'Moderate', count: liveExternal.moderate?.count ?? 0, pct: liveExternal.moderate?.percentage ?? 0, behavior: '21-100 msgs' },
+          { name: 'Heavy', count: liveExternal.heavy?.count ?? 0, pct: liveExternal.heavy?.percentage ?? 0, behavior: '101-500 msgs' },
+          { name: 'Power', count: liveExternal.power?.count ?? 0, pct: liveExternal.power?.percentage ?? 0, behavior: '500+ msgs' },
+        ] : PM.assumptions.segments;
+        const actualPayingUsers = liveExternal ? (actualSegments[1].count + actualSegments[2].count + actualSegments[3].count + actualSegments[4].count) : PM.assumptions.activePayingUsers;
+
+        return (
         <div className="space-y-5">
+          {/* Actual vs Modeled Banner */}
+          <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/5 border border-cyan-500/30 rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-cyan-400 text-xs font-bold tracking-widest uppercase flex items-center gap-2">
+                <Activity className="w-4 h-4" />
+                Actual Production Metrics vs. Pricing Model
+              </h3>
+              {insights?.generated_at && (
+                <span className="text-[10px] text-gray-500 bg-black/30 px-2 py-1 rounded">Live: {new Date(insights.generated_at).toLocaleString()}</span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+              <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                <p className="text-gray-500 text-[10px] uppercase">Total Users (External)</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-white text-xl font-bold">{actualTotalUsers}</p>
+                  <p className="text-gray-600 text-[10px] mb-0.5">model: {PM.assumptions.totalUsers}</p>
+                </div>
+              </div>
+              <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                <p className="text-gray-500 text-[10px] uppercase">Active / Paying Users</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-white text-xl font-bold">{actualPayingUsers}</p>
+                  <p className="text-gray-600 text-[10px] mb-0.5">model: {PM.assumptions.activePayingUsers}</p>
+                </div>
+              </div>
+              <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                <p className="text-gray-500 text-[10px] uppercase">Actual Platform Cost</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-red-400 text-xl font-bold">${actualTotalPlatformCost.toFixed(2)}</p>
+                  <p className="text-gray-600 text-[10px] mb-0.5">invoiced: ${PM.costBasis.total.toFixed(2)}</p>
+                </div>
+              </div>
+              <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                <p className="text-gray-500 text-[10px] uppercase">Avg Cost / User</p>
+                <div className="flex items-end gap-2">
+                  <p className="text-orange-400 text-xl font-bold">${actualAvgCostPerUser.toFixed(2)}</p>
+                  <p className="text-gray-600 text-[10px] mb-0.5">model: ${(PM.costBasis.total / PM.assumptions.activePayingUsers).toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Hero KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             <div className="bg-gradient-to-br from-green-500/15 to-green-500/5 border border-green-500/30 rounded-xl p-4 text-center">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Total MRR</p>
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Total MRR (Model)</p>
               <p className="text-2xl font-bold text-green-400">${PM.revenue.totalMRR.toLocaleString()}</p>
             </div>
             <div className="bg-gradient-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/30 rounded-xl p-4 text-center">
@@ -3475,7 +3541,7 @@ function InsightsTab({ token }) {
               </div>
               <div className="pl-4 space-y-1">
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-400">Total MRR (44 paying users)</span>
+                  <span className="text-gray-400">Total MRR ({actualPayingUsers} paying users — actual: {actualPayingUsers}, model: {PM.assumptions.activePayingUsers})</span>
                   <span className="text-white font-medium">${PM.revenue.totalMRR.toLocaleString()}</span>
                 </div>
               </div>
@@ -3501,18 +3567,19 @@ function InsightsTab({ token }) {
             </div>
           </div>
 
-          {/* User Segments - Real data blended */}
+          {/* User Segments - ACTUAL data from production */}
           <div className="bg-[#111] border border-white/8 rounded-xl p-5">
             <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
               <Users className="w-4 h-4 text-purple-400" />
-              User Segments ({PM.assumptions.totalUsers} total)
+              User Segments — Actual ({actualTotalUsers} external users)
+              {liveExternal && <span className="ml-2 text-[9px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-normal">LIVE</span>}
             </h3>
             <div className="grid grid-cols-5 gap-2">
-              {PM.assumptions.segments.map((seg, i) => {
-                const colors = ['red', 'gray', 'blue', 'green', 'orange'];
-                const c = colors[i];
+              {actualSegments.map((seg, i) => {
+                const borderCols = ['border-red-500/30', 'border-gray-500/30', 'border-blue-500/30', 'border-green-500/30', 'border-orange-500/30'];
+                const bgCols = ['bg-red-500/10', 'bg-gray-500/10', 'bg-blue-500/10', 'bg-green-500/10', 'bg-orange-500/10'];
                 return (
-                  <div key={i} className={`p-3 rounded-lg border bg-${c}-500/10 border-${c}-500/30`}>
+                  <div key={i} className={`p-3 rounded-lg border ${borderCols[i]} ${bgCols[i]}`}>
                     <p className="text-white text-lg font-bold">{seg.count}</p>
                     <p className="text-gray-400 text-xs">{seg.name.split('(')[0].trim()}</p>
                     <p className="text-gray-600 text-[10px]">{seg.pct}% | {seg.behavior}</p>
@@ -3521,13 +3588,13 @@ function InsightsTab({ token }) {
               })}
             </div>
             <div className="mt-3 h-4 rounded-full overflow-hidden flex">
-              {PM.assumptions.segments.map((seg, i) => {
+              {actualSegments.map((seg, i) => {
                 const bgColors = ['bg-red-500/50', 'bg-gray-500/50', 'bg-blue-500/50', 'bg-green-500/50', 'bg-orange-500/50'];
-                return <div key={i} style={{width: `${seg.pct}%`}} className={bgColors[i]} title={seg.name} />;
+                return <div key={i} style={{width: `${Math.max(seg.pct, 1)}%`}} className={bgColors[i]} title={seg.name} />;
               })}
             </div>
             <div className="flex items-center justify-between mt-2 text-[10px] text-gray-500">
-              <span>Active Paying: <span className="text-white font-bold">{PM.assumptions.activePayingUsers}</span></span>
+              <span>Active Paying (actual): <span className="text-white font-bold">{actualPayingUsers}</span></span>
               <span>Base Price: <span className="text-green-400 font-bold">${PM.assumptions.basePrice}/mo</span></span>
               <span>Target Margin: <span className="text-blue-400 font-bold">{(PM.assumptions.targetMargin * 100)}%</span></span>
             </div>
@@ -3559,48 +3626,433 @@ function InsightsTab({ token }) {
             </div>
           </div>
 
-          {/* Dogfood Burn from live data */}
-          {insights?.dogfood_burn && (
-            <div className="bg-gradient-to-r from-red-500/5 to-amber-500/5 border border-red-500/20 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-red-400 text-xs font-bold tracking-widest uppercase flex items-center gap-2">
-                  <Zap className="w-4 h-4" />
-                  Dogfood Burn (Internal Team)
-                </h3>
-                <span className="text-red-400 text-xl font-bold">${insights.dogfood_burn.total_cost?.toFixed(2) || '0.00'}</span>
+          {/* ═══ DOGFOOD BURN (INTERNAL TEAM) ═══ */}
+          <div className="bg-gradient-to-r from-red-500/5 to-amber-500/5 border border-red-500/20 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-red-400 text-sm font-bold flex items-center gap-2">
+                <Zap className="w-4 h-4" />
+                Dogfood Burn (Internal Team)
+                {insights?.dogfood_burn && <span className="ml-2 text-[9px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-normal">LIVE</span>}
+              </h3>
+              <span className="text-red-400 text-2xl font-bold">${insights?.dogfood_burn?.total_cost?.toFixed(2) || '0.00'}</span>
+            </div>
+            
+            {/* Top-line Dogfood KPI Cards */}
+            <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
+              {[
+                { label: 'LLM Cost', value: `$${insights?.dogfood_burn?.llm_cost?.toFixed(2) || '0.00'}`, color: 'text-blue-400', bg: 'border-blue-500/20' },
+                { label: 'Media Cost', value: `$${insights?.dogfood_burn?.media_cost?.toFixed(2) || '0.00'}`, color: 'text-purple-400', bg: 'border-purple-500/20' },
+                { label: 'Voice Cost', value: `$${insights?.dogfood_burn?.voice_cost?.toFixed(2) || '0.00'}`, color: 'text-orange-400', bg: 'border-orange-500/20' },
+                { label: 'Messages', value: (insights?.dogfood_burn?.messages || 0).toLocaleString(), color: 'text-white', bg: 'border-white/10' },
+                { label: 'Images Gen', value: insights?.dogfood_burn?.media_generated || 0, color: 'text-pink-400', bg: 'border-pink-500/20' },
+                { label: 'Videos Gen', value: insights?.dogfood_burn?.videos_generated || 0, color: 'text-cyan-400', bg: 'border-cyan-500/20' },
+              ].map((item, i) => (
+                <div key={i} className={`bg-black/30 border ${item.bg} rounded-lg p-3 text-center`}>
+                  <p className="text-gray-500 text-[10px] uppercase tracking-wide">{item.label}</p>
+                  <p className={`${item.color} text-lg font-bold mt-1`}>{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Internal users count */}
+            {insights?.internal_users && (
+              <div className="bg-black/20 border border-white/5 rounded-lg p-3 mb-3">
+                <div className="flex items-center justify-between text-xs mb-2">
+                  <span className="text-gray-400">Internal Team Members</span>
+                  <span className="text-white font-bold">{insights.internal_users.count}</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {insights.internal_users.emails?.map((email, idx) => (
+                    <span key={idx} className="text-[10px] bg-red-500/10 text-red-300 px-2 py-0.5 rounded border border-red-500/20">{email}</span>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
-                {[
-                  { label: 'LLM', value: `$${insights.dogfood_burn.llm_cost?.toFixed(2) || '0.00'}`, color: 'text-blue-400' },
-                  { label: 'Media', value: `$${insights.dogfood_burn.media_cost?.toFixed(2) || '0.00'}`, color: 'text-purple-400' },
-                  { label: 'Voice', value: `$${insights.dogfood_burn.voice_cost?.toFixed(2) || '0.00'}`, color: 'text-orange-400' },
-                  { label: 'Messages', value: insights.dogfood_burn.messages?.toLocaleString() || 0, color: 'text-white' },
-                  { label: 'Media Gen', value: insights.dogfood_burn.media_generated || 0, color: 'text-white' },
-                  { label: 'Videos', value: insights.dogfood_burn.videos_generated || 0, color: 'text-white' },
-                ].map((item, i) => (
-                  <div key={i} className="bg-black/30 border border-white/10 rounded-lg p-2 text-center">
-                    <p className="text-gray-500 text-[10px] uppercase">{item.label}</p>
-                    <p className={`${item.color} font-bold`}>{item.value}</p>
+            )}
+
+            {/* Per-user breakdown table */}
+            {insights?.dogfood_burn?.by_user?.length > 0 && (
+              <div className="bg-black/20 border border-white/5 rounded-lg p-3">
+                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-2">Burn by Team Member</p>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-gray-500 border-b border-white/10">
+                      <th className="text-left py-1.5 px-2">Team Member</th>
+                      <th className="text-right py-1.5 px-2">Messages</th>
+                      <th className="text-right py-1.5 px-2">LLM $</th>
+                      <th className="text-right py-1.5 px-2">Media $</th>
+                      <th className="text-right py-1.5 px-2">Media #</th>
+                      <th className="text-right py-1.5 px-2">Videos</th>
+                      <th className="text-right py-1.5 px-2 text-red-400">Total $</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {insights.dogfood_burn.by_user.map((u, idx) => (
+                      <tr key={idx} className="border-b border-white/5">
+                        <td className="py-1.5 px-2 text-white">{u.email}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-400">{(u.messages || 0).toLocaleString()}</td>
+                        <td className="py-1.5 px-2 text-right text-blue-400">${u.llm_cost?.toFixed(2) || '0.00'}</td>
+                        <td className="py-1.5 px-2 text-right text-purple-400">${u.media_cost?.toFixed(2) || '0.00'}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-400">{u.media_count || u.media || 0}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-400">{u.video_count || 0}</td>
+                        <td className="py-1.5 px-2 text-right text-red-400 font-bold">${u.total_cost?.toFixed(2) || '0.00'}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t-2 border-red-500/30">
+                      <td className="py-2 px-2 text-red-400 font-bold">TOTAL BURN</td>
+                      <td className="py-2 px-2 text-right text-white font-bold">{(insights.dogfood_burn.messages || 0).toLocaleString()}</td>
+                      <td className="py-2 px-2 text-right text-blue-400 font-bold">${insights.dogfood_burn.llm_cost?.toFixed(2) || '0.00'}</td>
+                      <td className="py-2 px-2 text-right text-purple-400 font-bold">${insights.dogfood_burn.media_cost?.toFixed(2) || '0.00'}</td>
+                      <td className="py-2 px-2 text-right text-white font-bold">{insights.dogfood_burn.media_generated || 0}</td>
+                      <td className="py-2 px-2 text-right text-white font-bold">{insights.dogfood_burn.videos_generated || 0}</td>
+                      <td className="py-2 px-2 text-right text-red-400 text-lg font-bold">${insights.dogfood_burn.total_cost?.toFixed(2) || '0.00'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p className="text-[10px] text-gray-600 mt-2 pt-2 border-t border-white/5">
+                  ⚠️ Internal usage is excluded from customer ARPU/MRR calculations. This burn is pure product development cost.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+      })()}
+
+      {/* ═══ LIVE USAGE (ACTUAL PRODUCTION METRICS) ═══ */}
+      {subTab === 'liveusage' && (
+        <div className="space-y-5">
+          {/* Weekly Engagement Trends */}
+          {insights?.weekly_trends?.length > 0 && (
+            <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+              <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-green-400" />
+                Weekly Engagement (Last 4 Weeks)
+                <span className="ml-auto text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-normal">LIVE</span>
+              </h3>
+              <div className="grid grid-cols-4 gap-3 mb-4">
+                {insights.weekly_trends.map((week, i) => (
+                  <div key={i} className={`border rounded-xl p-4 ${i === 3 ? 'bg-blue-500/10 border-blue-500/30' : 'bg-white/3 border-white/10'}`}>
+                    <p className="text-gray-400 text-[10px] uppercase tracking-wide mb-2">{week.week} <span className="text-gray-600">({week.start})</span></p>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 text-xs">Messages</span>
+                        <span className="text-white font-bold text-sm">{week.messages.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 text-xs">Active Users</span>
+                        <span className="text-blue-400 font-bold text-sm">{week.active_users}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 text-xs">New Users</span>
+                        <span className="text-green-400 font-bold text-sm">{week.new_users}</span>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
-              {insights.dogfood_burn.by_user?.length > 0 && (
-                <div className="mt-3 bg-black/20 border border-white/5 rounded-lg p-3">
-                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-2">Burn by Team Member</p>
-                  <div className="space-y-1.5">
-                    {insights.dogfood_burn.by_user.map((u, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-xs">
-                        <span className="text-white">{u.email}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="text-gray-500">{u.messages} msgs</span>
-                          <span className="text-gray-500">{u.media} media</span>
-                          <span className="text-red-400 font-medium">${u.total_cost?.toFixed(2) || '0.00'}</span>
-                        </div>
+              {/* Trend mini chart */}
+              <div className="flex items-end gap-2 h-24">
+                {insights.weekly_trends.map((week, i) => {
+                  const maxMsgs = Math.max(...insights.weekly_trends.map(w => w.messages), 1);
+                  const height = Math.max(5, (week.messages / maxMsgs) * 100);
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center justify-end">
+                      <span className="text-blue-400 text-[10px] font-bold mb-1">{week.messages}</span>
+                      <div className="w-full bg-blue-500/40 rounded-t-lg" style={{ height: `${height}%` }} />
+                      <span className="text-gray-600 text-[10px] mt-1">{week.week}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Model Popularity */}
+          {insights?.model_popularity?.length > 0 && (
+            <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+              <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-purple-400" />
+                AI Model Usage Distribution
+                <span className="ml-auto text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-normal">LIVE</span>
+              </h3>
+              <div className="space-y-2">
+                {insights.model_popularity.slice(0, 12).map((model, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-xs text-gray-300 w-48 truncate font-mono">{model.model}</span>
+                    <div className="flex-1 bg-white/5 rounded-full h-3 overflow-hidden">
+                      <div className="h-full bg-purple-500/60 rounded-full transition-all" style={{ width: `${model.percentage}%` }} />
+                    </div>
+                    <span className="text-xs text-purple-400 w-20 text-right font-bold">{model.count.toLocaleString()}</span>
+                    <span className="text-[10px] text-gray-600 w-12 text-right">{model.percentage}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Feature Adoption Rates */}
+          {insights?.feature_adoption && (
+            <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+              <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-orange-400" />
+                Feature Adoption Rates
+                <span className="ml-auto text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-normal">LIVE</span>
+              </h3>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                {Object.entries(insights.feature_adoption).map(([feature, data]) => {
+                  const names = {
+                    assessment_complete: 'Assessment Complete',
+                    has_imports: 'Data Imports',
+                    has_media: 'Media Generation',
+                    has_memories: 'Memory System',
+                    has_soulprint: 'SoulPrint Generated',
+                    web_search_users: 'Web Search Used',
+                  };
+                  const colors = data.rate > 50 ? 'text-green-400 bg-green-500/20' : data.rate > 25 ? 'text-yellow-400 bg-yellow-500/20' : 'text-orange-400 bg-orange-500/20';
+                  return (
+                    <div key={feature} className="bg-white/3 border border-white/10 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-gray-400 text-xs">{names[feature] || feature}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${colors}`}>{data.rate}%</span>
                       </div>
-                    ))}
+                      <p className="text-white text-lg font-bold">{data.users} <span className="text-gray-500 text-xs font-normal">users</span></p>
+                      <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-orange-500/60 rounded-full" style={{ width: `${data.rate}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Media Generation Insights */}
+          {insights?.media_insights && (
+            <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+              <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+                <Image className="w-4 h-4 text-pink-400" />
+                Media Generation Insights
+                <span className="ml-auto text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-normal">LIVE</span>
+              </h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                <div className="bg-pink-500/10 border border-pink-500/30 rounded-lg p-3 text-center">
+                  <p className="text-gray-500 text-[10px] uppercase">Users w/ Media</p>
+                  <p className="text-pink-400 text-xl font-bold">{insights.media_insights.users_using_media}</p>
+                  <p className="text-gray-600 text-[10px]">{insights.media_insights.media_adoption_rate}% adoption</p>
+                </div>
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
+                  <p className="text-gray-500 text-[10px] uppercase">Avg / User</p>
+                  <p className="text-purple-400 text-xl font-bold">{insights.media_insights.avg_media_per_user}</p>
+                  <p className="text-gray-600 text-[10px]">media generated</p>
+                </div>
+                {insights.media_insights.by_type?.map((mt, i) => (
+                  <div key={i} className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                    <p className="text-gray-500 text-[10px] uppercase">{mt.type || 'Other'}</p>
+                    <p className="text-white text-xl font-bold">{mt.count}</p>
+                    <p className="text-red-400 text-[10px]">${mt.total_cost.toFixed(2)} cost</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Voice Chat Metrics */}
+          {insights?.voice_costs && (
+            <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+              <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+                <Mic className="w-4 h-4 text-cyan-400" />
+                Voice Chat Cost Analysis
+                <span className="ml-auto text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-normal">LIVE</span>
+              </h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  { label: 'Total Sessions', value: insights.voice_costs.total_sessions, color: 'text-cyan-400' },
+                  { label: 'Unique Users', value: insights.voice_costs.unique_users, color: 'text-blue-400' },
+                  { label: 'Total Cost', value: `$${insights.voice_costs.total_cost_usd.toFixed(2)}`, color: 'text-red-400' },
+                  { label: 'Cost / Minute', value: `$${insights.voice_costs.cost_per_minute.toFixed(4)}`, color: 'text-orange-400' },
+                  { label: 'Cost / Session', value: `$${insights.voice_costs.cost_per_session.toFixed(4)}`, color: 'text-yellow-400' },
+                  { label: 'Cost / User', value: `$${insights.voice_costs.cost_per_user.toFixed(4)}`, color: 'text-purple-400' },
+                  { label: 'Avg Duration', value: `${insights.voice_costs.avg_duration_seconds}s`, color: 'text-white' },
+                  { label: 'Total Duration', value: `${Math.round(insights.voice_costs.total_duration_seconds / 60)}m`, color: 'text-white' },
+                ].map((item, i) => (
+                  <div key={i} className="bg-white/5 border border-white/10 rounded-lg p-3 text-center">
+                    <p className="text-gray-500 text-[10px] uppercase">{item.label}</p>
+                    <p className={`${item.color} font-bold text-lg mt-1`}>{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pricing Recommendations from live data */}
+          {insights?.pricing_recommendations && (
+            <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+              <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-green-400" />
+                Live Cost Metrics (for Pricing)
+                <button
+                  onClick={() => setExcludeInternal(!excludeInternal)}
+                  className={`ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-medium transition-all border ${
+                    excludeInternal ? 'bg-orange-500/20 border-orange-500/40 text-orange-400' : 'bg-white/5 border-white/10 text-gray-500'
+                  }`}
+                >
+                  {excludeInternal ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  {excludeInternal ? 'Internal Excluded' : 'Show All'}
+                </button>
+              </h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Cost / Message</p>
+                  <p className="text-green-400 text-lg font-bold">${insights.pricing_recommendations.cost_per_message?.toFixed(4) || '0.00'}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Avg Cost / User</p>
+                  <p className="text-green-400 text-lg font-bold">${insights.pricing_recommendations.avg_cost_per_user?.toFixed(2) || '0.00'}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Total LLM Cost</p>
+                  <p className="text-blue-400 text-lg font-bold">${insights.pricing_recommendations.total_llm_cost?.toFixed(2) || '0.00'}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Total Media Cost</p>
+                  <p className="text-purple-400 text-lg font-bold">${insights.pricing_recommendations.total_media_cost?.toFixed(2) || '0.00'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Avg Messages / User</p>
+                  <p className="text-white text-lg font-bold">{insights.pricing_recommendations.avg_messages_per_user || 0}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Median Messages</p>
+                  <p className="text-white text-lg font-bold">{insights.pricing_recommendations.median_messages || 0}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Total Platform Cost</p>
+                  <p className="text-red-400 text-lg font-bold">${((insights.pricing_recommendations.total_llm_cost || 0) + (insights.pricing_recommendations.total_media_cost || 0)).toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Churn & Retention */}
+          {insights?.churn_indicators && (
+            <div className="bg-gradient-to-r from-red-500/5 to-transparent border border-red-500/20 rounded-xl p-5">
+              <h3 className="text-red-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Churn & Retention Indicators
+                <span className="ml-auto text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-normal">LIVE</span>
+              </h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px] uppercase">Inactive 30+ Days</p>
+                  <p className="text-red-400 text-2xl font-bold">{insights.churn_indicators.inactive_30d}</p>
+                </div>
+                <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px] uppercase">Churn Rate</p>
+                  <p className={`text-2xl font-bold ${insights.churn_indicators.churn_rate > 30 ? 'text-red-400' : 'text-yellow-400'}`}>
+                    {insights.churn_indicators.churn_rate}%
+                  </p>
+                </div>
+                <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px] uppercase">Never Engaged</p>
+                  <p className="text-orange-400 text-2xl font-bold">{insights.churn_indicators.never_engaged}</p>
+                </div>
+                <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px] uppercase">Drop-off Rate</p>
+                  <p className={`text-2xl font-bold ${insights.churn_indicators.drop_off_rate > 30 ? 'text-red-400' : 'text-yellow-400'}`}>
+                    {insights.churn_indicators.drop_off_rate}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Top Power Users */}
+          {insights?.top_users?.length > 0 && (
+            <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+              <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+                <Users className="w-4 h-4 text-orange-400" />
+                Top Power Users
+                <span className="ml-auto text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-normal">LIVE</span>
+              </h3>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-gray-500 border-b border-white/10">
+                    <th className="text-left py-2 px-2">#</th>
+                    <th className="text-left py-2 px-2">User</th>
+                    <th className="text-right py-2 px-2">Messages</th>
+                    <th className="text-right py-2 px-2">Media</th>
+                    <th className="text-right py-2 px-2">Est. Cost</th>
+                    <th className="text-right py-2 px-2">Last Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {insights.top_users.slice(0, 15).map((user, idx) => (
+                    <tr key={idx} className={`border-b border-white/5 ${user.is_internal ? 'opacity-60' : ''}`}>
+                      <td className="py-2 px-2 text-gray-600">{idx + 1}</td>
+                      <td className="py-2 px-2">
+                        <span className="text-white">{user.name}</span>
+                        {user.is_internal && <span className="ml-2 text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">STAFF</span>}
+                      </td>
+                      <td className="py-2 px-2 text-right text-orange-400 font-medium">{user.messages?.toLocaleString()}</td>
+                      <td className="py-2 px-2 text-right text-purple-400">{user.media_generated}</td>
+                      <td className="py-2 px-2 text-right text-green-400">${user.estimated_cost}</td>
+                      <td className="py-2 px-2 text-right text-gray-500">{user.last_active ? new Date(user.last_active).toLocaleDateString() : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Revenue Potential from live data */}
+          {insights?.revenue_potential && (
+            <div className="bg-gradient-to-r from-green-500/10 to-transparent border border-green-500/30 rounded-xl p-5">
+              <h3 className="text-green-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+                <DollarSign className="w-4 h-4" />
+                Revenue Potential (from actual usage)
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-black/30 border border-white/10 rounded-lg p-4">
+                  <p className="text-gray-400 text-xs mb-3">If free tier capped at 20 msgs/mo:</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Paying Users</span>
+                      <span className="text-white font-bold">{insights.revenue_potential.if_free_tier_20_msgs.paying_users}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">@ $10/mo</span>
+                      <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_20_msgs.at_10_per_month}/mo</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">@ $20/mo</span>
+                      <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_20_msgs.at_20_per_month}/mo</span>
+                    </div>
                   </div>
                 </div>
-              )}
+                <div className="bg-black/30 border border-white/10 rounded-lg p-4">
+                  <p className="text-gray-400 text-xs mb-3">If free tier capped at 50 msgs/mo:</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">Paying Users</span>
+                      <span className="text-white font-bold">{insights.revenue_potential.if_free_tier_50_msgs.paying_users}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">@ $10/mo</span>
+                      <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_50_msgs.at_10_per_month}/mo</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">@ $20/mo</span>
+                      <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_50_msgs.at_20_per_month}/mo</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between text-xs bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
+                <span className="text-gray-400">Enterprise Candidates (500+ msgs)</span>
+                <span className="text-orange-400 font-bold">{insights.revenue_potential.enterprise_candidates} users</span>
+              </div>
             </div>
           )}
         </div>
