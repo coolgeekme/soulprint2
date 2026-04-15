@@ -3457,7 +3457,6 @@ function InsightsTab({ token }) {
         const liveExternal = insights?.user_segments_external;
         const liveCosts = insights?.external_costs;
         const actualTotalUsers = liveExternal?.total_external ?? PM.assumptions.totalUsers;
-        const actualActiveUsers = liveCosts?.active_users ?? PM.assumptions.activePayingUsers;
         const actualLLMCost = liveCosts?.total_llm_cost ?? 0;
         const actualMediaCost = liveCosts?.total_media_cost ?? 0;
         const actualTotalPlatformCost = actualLLMCost + actualMediaCost + PM.costBasis.providers[4].cost;
@@ -3471,7 +3470,7 @@ function InsightsTab({ token }) {
           { name: 'Heavy', count: liveExternal.heavy?.count ?? 0, pct: liveExternal.heavy?.percentage ?? 0, behavior: '101-500 msgs' },
           { name: 'Power', count: liveExternal.power?.count ?? 0, pct: liveExternal.power?.percentage ?? 0, behavior: '500+ msgs' },
         ] : PM.assumptions.segments;
-        const actualPayingUsers = liveExternal ? (actualSegments[1].count + actualSegments[2].count + actualSegments[3].count + actualSegments[4].count) : PM.assumptions.activePayingUsers;
+        const actualActiveUsers = liveExternal ? (actualSegments[1].count + actualSegments[2].count + actualSegments[3].count + actualSegments[4].count) : 0;
 
         return (
         <div className="space-y-5">
@@ -3589,7 +3588,7 @@ function InsightsTab({ token }) {
           <div className="bg-[#111] border border-white/8 rounded-xl p-5">
             <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
               <Users className="w-4 h-4 text-purple-400" />
-              User Segments — Actual ({actualTotalUsers} external users)
+              User Segments — Actual ({actualTotalUsers} external users, all free/beta)
               {liveExternal && <span className="ml-2 text-[9px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-normal">LIVE</span>}
             </h3>
             <div className="grid grid-cols-5 gap-2">
@@ -3612,7 +3611,7 @@ function InsightsTab({ token }) {
               })}
             </div>
             <div className="flex items-center justify-between mt-2 text-[10px] text-gray-500">
-              <span>Active Paying (actual): <span className="text-white font-bold">{actualPayingUsers}</span></span>
+              <span>Active Users (actual): <span className="text-white font-bold">{actualActiveUsers}</span> <span className="text-red-400 text-[9px]">(0 paying)</span></span>
               <span>Base Price: <span className="text-green-400 font-bold">${PM.assumptions.basePrice}/mo</span></span>
               <span>Target Margin: <span className="text-blue-400 font-bold">{(PM.assumptions.targetMargin * 100)}%</span></span>
             </div>
