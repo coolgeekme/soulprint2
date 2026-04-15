@@ -13,7 +13,7 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 const TABS = [
   { id: 'metrics', label: 'Metrics', icon: BarChart2 },
-  { id: 'insights', label: 'Insights', icon: TrendingUp },
+  { id: 'insights', label: 'Pricing Model', icon: DollarSign },
   { id: 'waitlist', label: 'Waitlist', icon: ListChecks },
   { id: 'users', label: 'All Users', icon: Users },
   { id: 'conversations', label: 'Conversations', icon: MessageSquare },
@@ -3179,1726 +3179,1022 @@ function InsightsTab({ token }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [subTab, setSubTab] = useState('overview');
   const [excludeInternal, setExcludeInternal] = useState(true);
   
-  // Pricing Calculator State
-  const [customPricing, setCustomPricing] = useState({
-    free: { price: 0, msgLimit: 25 },
-    basic: { price: 10, msgLimit: 100 },
-    pro: { price: 20, msgLimit: 500 },
-    enterprise: { price: 99, msgLimit: 'unlimited' },
-  });
-  
-  // Feature Management State
-  const [pricingFeatures, setPricingFeatures] = useState([]);
-  const [showFeatureModal, setShowFeatureModal] = useState(false);
-  const [editingFeature, setEditingFeature] = useState(null);
-  const [featureForm, setFeatureForm] = useState({
-    name: '',
-    description: '',
-    tier: 'basic',
-    cost_type: 'per_user',
-    cost_value: 0,
-    status: 'planned',
-    category: 'feature',
-  });
-  const [calculatedPricing, setCalculatedPricing] = useState(null);
+  // Pricing Model v2 data from Google Sheets (April 2026)
+  const PRICING_V2 = {
+    costBasis: {
+      providers: [
+        { name: 'Perplexity (sonar-pro)', cost: 17.42, period: 'Last 30 days', notes: '468 requests, ~4M input tokens' },
+        { name: 'OpenAI (Responses + Chat)', cost: 107.54, period: 'Mar 4 – Apr 3', notes: '8,282 requests, 46.3M tokens' },
+        { name: 'Anthropic (Claude)', cost: 20.78, period: 'Mar 1 – Mar 31', notes: '$7.61 Opus + $13.17 Sonnet' },
+        { name: 'Kie.ai (media gen)', cost: 324.50, period: 'Mar 9 – Apr 8', notes: '253 videos, 366 images' },
+        { name: 'Hosting (infrastructure)', cost: 25.00, period: 'Flat monthly', notes: 'Fixed rate regardless of usage' },
+      ],
+      total: 495.24,
+      categories: [
+        { name: 'Chat (OpenAI + Claude + Perplexity)', cost: 145.74, pct: 29.4 },
+        { name: 'Video + Image generation (Kie.ai)', cost: 324.50, pct: 65.5 },
+        { name: 'Fixed infrastructure (Hosting)', cost: 25.00, pct: 5.1 },
+      ],
+      findings: [
+        'Anthropic prompt caching NOT enabled — enabling could cut Claude cost by ~70-90%',
+        'Claude April trending 6x March — investigate before it compounds',
+        'Video generation is 60%+ of COGS — pricing must monetize video or it bleeds money',
+        'Dashboard was over-estimating by ~1.8x — per-user attribution was fabricated',
+      ],
+    },
+    assumptions: {
+      basePrice: 20.01,
+      targetMargin: 0.80,
+      annualDiscount: 0.20,
+      freeImageAllowance: 20,
+      freeVideoLifetime: 1,
+      hosting: 25,
+      segments: [
+        { name: 'Free (never converted)', count: 40, pct: 47.6, behavior: 'Inactive' },
+        { name: 'Light (base only)', count: 33, pct: 39.3, behavior: '1-20 msgs' },
+        { name: 'Moderate', count: 8, pct: 9.5, behavior: '21-100 msgs' },
+        { name: 'Heavy', count: 2, pct: 2.4, behavior: '101-500 msgs' },
+        { name: 'Power', count: 1, pct: 1.2, behavior: '500+ msgs' },
+      ],
+      totalUsers: 84,
+      activePayingUsers: 44,
+    },
+    addOns: [
+      { name: 'Premium Chat Models', unit: 'msg', cost: 0.03, price: 0.15, margin: 0.80, example: 'GPT-4o, Claude Opus/Sonnet w/ long memory' },
+      { name: 'Image Generation (basic)', unit: 'image', cost: 0.04, price: 0.20, margin: 0.80, example: 'nano-banana, seedream basic' },
+      { name: 'Image Generation (premium)', unit: 'image', cost: 0.12, price: 0.60, margin: 0.80, example: 'nano-banana-pro, seedream-v4-edit, imagen4-ultra' },
+      { name: 'Voice Chat (live)', unit: 'minute', cost: 0.08, price: 0.40, margin: 0.80, example: 'OpenAI Realtime API, ElevenLabs' },
+      { name: 'Advanced File Analysis', unit: 'file', cost: 0.03, price: 0.15, margin: 0.80, example: 'PDFs >10 pages, Excel, complex extraction' },
+      { name: 'API / Integrations', unit: 'call', cost: 0.002, price: 0.01, margin: 0.80, example: 'Webhook triggers, 3rd-party integrations' },
+    ],
+    videoCredits: {
+      costPerCredit: 0.02,
+      models: [
+        { name: 'Grok Imagine (i2v)', cost: 0.18, credits: 45, userPrice: 0.90, margin: 0.80 },
+        { name: 'ByteDance Seedance', cost: 0.28, credits: 70, userPrice: 1.40, margin: 0.80 },
+        { name: 'Kling 3.0 video', cost: 0.76, credits: 190, userPrice: 3.80, margin: 0.80 },
+        { name: 'Wan 2-6 image-to-video', cost: 1.05, credits: 263, userPrice: 5.26, margin: 0.80 },
+        { name: 'Veo3', cost: 2.10, credits: 525, userPrice: 10.50, margin: 0.80 },
+      ],
+      packs: [
+        { name: 'Spark', credits: 30, price: 2.99, cogs: 0.60, margin: 0.80 },
+        { name: 'Creator', credits: 150, price: 14.99, cogs: 3.00, margin: 0.80 },
+        { name: 'Studio', credits: 500, price: 49.99, cogs: 10.00, margin: 0.80 },
+        { name: 'Pro', credits: 1500, price: 149.99, cogs: 30.00, margin: 0.80 },
+      ],
+    },
+    revenue: {
+      segments: [
+        { name: 'Light (base only)', users: 33, baseMRR: 660.33, premiumChat: 0, imageGen: 0, videoCredits: 0, arpu: 20.01, segmentMRR: 660.33 },
+        { name: 'Moderate', users: 8, baseMRR: 160.08, premiumChat: 3, imageGen: 0, videoCredits: 0, arpu: 23.01, segmentMRR: 184.08 },
+        { name: 'Heavy', users: 2, baseMRR: 40.02, premiumChat: 15, imageGen: 1, videoCredits: 15, arpu: 51.01, segmentMRR: 102.02 },
+        { name: 'Power', users: 1, baseMRR: 20.01, premiumChat: 60, imageGen: 12, videoCredits: 50, arpu: 142.01, segmentMRR: 142.01 },
+      ],
+      totalMRR: 1088.44,
+      arr: 13061.28,
+      arrDiscounted: 10449.02,
+    },
+    pnl: {
+      revenue: 1088.44,
+      cogs: [
+        { name: 'Chat APIs (OpenAI + Claude + Perplexity)', amount: 145.74, pctRev: 13.4 },
+        { name: 'Media gen (Kie.ai)', amount: 324.50, pctRev: 29.8 },
+        { name: 'Hosting (fixed)', amount: 25.00, pctRev: 2.3 },
+        { name: 'Free tier creative allowance', amount: 3.20, pctRev: 0.3 },
+        { name: 'Paid base image allowance', amount: 10.56, pctRev: 1.0 },
+        { name: 'Paid monthly video allowance', amount: 16.72, pctRev: 1.5 },
+        { name: 'Free video activation (amortized)', amount: 7.60, pctRev: 0.7 },
+      ],
+      totalCOGS: 533.32,
+      grossProfit: 555.12,
+      grossMargin: 0.51,
+    },
+    tiers: [
+      {
+        name: 'FREE', price: 0, color: 'gray', emoji: '🆓',
+        description: 'Building phase / activation',
+        features: {
+          'Standard chat models': 'Unlimited',
+          'Premium chat models': '---',
+          'Memory & SoulPrint': 'Building phase only',
+          'Assessment': 'Included',
+          'Image generation': '20/mo (watermarked)',
+          'Premium image models': '---',
+          'Video generation': '1 lifetime (5s watermarked)',
+          'Voice chat (live)': '---',
+          'Basic file analysis': 'Included',
+          'Advanced file analysis': '---',
+          'API / webhook access': '---',
+          'Customer support': 'Community only',
+          'Data retention': '90 days',
+        },
+        bestFor: 'Trial users',
+        billing: 'Free',
+        cogs: 0.156,
+      },
+      {
+        name: 'BASE', price: 20.01, color: 'blue', emoji: '⭐',
+        description: 'Core product / metered add-ons',
+        features: {
+          'Standard chat models': 'Unlimited',
+          'Premium chat models': 'Metered ($0.15/msg)',
+          'Memory & SoulPrint': 'Full + continued learning',
+          'Assessment': 'Included',
+          'Image generation': '20/mo clean + metered',
+          'Premium image models': 'Metered ($0.60/image)',
+          'Video generation': '1/mo (5s) + credits',
+          'Voice chat (live)': 'Metered ($0.40/min)',
+          'Basic file analysis': 'Included',
+          'Advanced file analysis': 'Metered ($0.15/file)',
+          'API / webhook access': 'Metered ($0.01/call)',
+          'Customer support': 'Email (48hr)',
+          'Data retention': '90 days',
+        },
+        bestFor: 'Typical customer',
+        billing: 'Usage-based (varies)',
+        cogs: 3.86,
+        grossMargin: 0.807,
+      },
+      {
+        name: 'POWER', price: 99, color: 'orange', emoji: '🚀',
+        description: 'All-you-can-eat / flat rate',
+        features: {
+          'Standard chat models': 'Unlimited',
+          'Premium chat models': 'Unlimited',
+          'Memory & SoulPrint': 'Full + priority',
+          'Assessment': 'Included',
+          'Image generation': 'Unlimited (any model)',
+          'Premium image models': 'Unlimited',
+          'Video generation': 'Unlimited (veo3, kling, etc)',
+          'Voice chat (live)': 'Unlimited',
+          'Basic file analysis': 'Included',
+          'Advanced file analysis': 'Unlimited',
+          'API / webhook access': 'Unlimited',
+          'Customer support': 'Priority (24hr)',
+          'Data retention': '180 days',
+        },
+        bestFor: 'Power users / creators',
+        billing: 'Flat $99 (predictable)',
+        cogs: 15.18,
+        grossMargin: 0.847,
+      },
+    ],
+    growthScenarios: [
+      { label: 'Current (84)', users: 84, paying: 27, mrr: 745.27, arr: 8943.24, cogs: 134.04, grossProfit: 611.23, grossMargin: 0.820 },
+      { label: '200 Users', users: 200, paying: 87, mrr: 2987.87, arr: 35854.44, cogs: 472.04, grossProfit: 2515.83, grossMargin: 0.842 },
+      { label: '500 Users', users: 500, paying: 269, mrr: 10279.69, arr: 123356.28, cogs: 1617.28, grossProfit: 8662.41, grossMargin: 0.843 },
+      { label: '1,000 Users', users: 1000, paying: 600, mrr: 24341, arr: 292092, cogs: 3862.60, grossProfit: 20478.40, grossMargin: 0.841 },
+      { label: '2,000 Users', users: 2000, paying: 1340, mrr: 56673.40, arr: 680080.80, cogs: 9044.40, grossProfit: 47629, grossMargin: 0.840 },
+    ],
+    conversionTriggers: [
+      { condition: 'Messages sent', threshold: '50+ messages', weight: 'High' },
+      { condition: 'Memory items stored', threshold: '5+ memories', weight: 'High' },
+      { condition: 'Days active', threshold: '14 days (3 msgs/wk)', weight: 'Medium' },
+      { condition: 'Assessment completed', threshold: '100% complete', weight: 'High' },
+      { condition: 'Manual override', threshold: 'User requests early', weight: 'Low' },
+      { condition: 'Hard cap fallback', threshold: '30 days OR 100 msgs', weight: '---' },
+    ],
+    conversionFunnel: [
+      { segment: 'Inactive', freeUsers: 40, conversionPct: 0, converted: 0 },
+      { segment: 'Light users', freeUsers: 33, conversionPct: 50, converted: 16.5 },
+      { segment: 'Moderate users', freeUsers: 8, conversionPct: 90, converted: 7.2 },
+      { segment: 'Heavy users', freeUsers: 2, conversionPct: 100, converted: 2 },
+      { segment: 'Power users', freeUsers: 1, conversionPct: 100, converted: 1 },
+    ],
+  };
 
   useEffect(() => {
     fetch('/api/admin/insights', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(data => {
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setInsights(data);
-          // Initialize custom pricing with recommended values
-          if (data.pricing_recommendations?.tiers) {
-            setCustomPricing({
-              free: { price: 0, msgLimit: data.pricing_recommendations.tiers.free?.message_limit || 25 },
-              basic: { price: data.pricing_recommendations.tiers.basic?.recommended_price || 10, msgLimit: data.pricing_recommendations.tiers.basic?.message_limit || 100 },
-              pro: { price: data.pricing_recommendations.tiers.pro?.recommended_price || 20, msgLimit: data.pricing_recommendations.tiers.pro?.message_limit || 500 },
-              enterprise: { price: data.pricing_recommendations.tiers.enterprise?.recommended_price || 99, msgLimit: 'unlimited' },
-            });
-          }
-        }
+        if (data.error) setError(data.error);
+        else setInsights(data);
         setLoading(false);
       })
-      .catch(e => {
-        setError(e.message);
-        setLoading(false);
-      });
-    
-    // Load pricing features
-    loadPricingFeatures();
+      .catch(e => { setError(e.message); setLoading(false); });
   }, [token]);
-  
-  // Load pricing features
-  const loadPricingFeatures = async () => {
-    try {
-      const res = await fetch('/api/admin/pricing-features', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        // Endpoint doesn't exist yet, that's okay
-        console.log('Pricing features endpoint not available');
-        return;
-      }
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setPricingFeatures(data);
-      }
-    } catch (e) {
-      console.log('Pricing features not available:', e.message);
-      // Non-critical error, continue without features
-    }
-  };
-  
-  // Calculate pricing with custom features
-  const calculateWithFeatures = async () => {
-    try {
-      const res = await fetch('/api/admin/pricing-features/calculate', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        // Endpoint doesn't exist yet, that's okay
-        console.log('Pricing calculation endpoint not available');
-        return;
-      }
-      const data = await res.json();
-      setCalculatedPricing(data);
-    } catch (e) {
-      console.log('Pricing calculation not available:', e.message);
-      // Non-critical error, continue without calculated pricing
-    }
-  };
-  
-  // Add or update feature
-  const saveFeature = async () => {
-    try {
-      const endpoint = editingFeature 
-        ? '/api/admin/pricing-features/update'
-        : '/api/admin/pricing-features';
-      
-      const body = editingFeature 
-        ? { id: editingFeature.id, ...featureForm }
-        : featureForm;
-      
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
-        },
-        body: JSON.stringify(body),
-      });
-      
-      if (!res.ok) {
-        alert('Feature management not available yet');
-        return;
-      }
-      
-      setShowFeatureModal(false);
-      setEditingFeature(null);
-      setFeatureForm({
-        name: '',
-        description: '',
-        tier: 'basic',
-        cost_type: 'per_user',
-        cost_value: 0,
-        status: 'planned',
-        category: 'feature',
-      });
-      loadPricingFeatures();
-      calculateWithFeatures();
-    } catch (e) {
-      console.log('Failed to save feature:', e.message);
-      alert('Feature management not available yet');
-    }
-  };
-  
-  // Delete feature
-  const deleteFeature = async (id) => {
-    if (!confirm('Delete this feature?')) return;
-    try {
-      const res = await fetch(`/api/admin/pricing-features?id=${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        alert('Feature management not available yet');
-        return;
-      }
-      loadPricingFeatures();
-      calculateWithFeatures();
-    } catch (e) {
-      console.log('Failed to delete feature:', e.message);
-      alert('Feature management not available yet');
-    }
-  };
-  
-  // Open edit modal
-  const openEditFeature = (feature) => {
-    setEditingFeature(feature);
-    setFeatureForm({
-      name: feature.name,
-      description: feature.description || '',
-      tier: feature.tier,
-      cost_type: feature.cost_type,
-      cost_value: feature.cost_value,
-      status: feature.status,
-      category: feature.category,
-    });
-    setShowFeatureModal(true);
-  };
-  
-  // Calculate margin for a given price and cost
-  const calculateMargin = (price, cost) => {
-    if (price <= 0) return 0;
-    return ((price - cost) / price * 100).toFixed(1);
-  };
-  
-  // Get cost for a tier based on message limit
-  const getTierCost = (msgLimit) => {
-    if (!insights?.pricing_recommendations) return 0;
-    const costPerMsg = insights.pricing_recommendations.cost_per_message || 0;
-    if (msgLimit === 'unlimited') {
-      return insights.pricing_recommendations.tiers?.enterprise?.estimated_cost || 0;
-    }
-    return costPerMsg * msgLimit;
-  };
-  
-  // Calculate estimated MRR based on current user segments
-  const calculateEstimatedMRR = () => {
-    if (!insights?.user_segments) return { mrr: 0, breakdown: {} };
-    
-    const segments = excludeInternal && insights.user_segments_external 
-      ? insights.user_segments_external 
-      : insights.user_segments;
-    const pricing = customPricing;
-    
-    // Estimate which users would be on which tier
-    // Free: inactive + light users
-    // Basic: moderate users  
-    // Pro: heavy users
-    // Enterprise: power users
-    
-    const freeTierUsers = (segments.inactive?.count || 0) + (segments.light?.count || 0);
-    const basicTierUsers = segments.moderate?.count || 0;
-    const proTierUsers = segments.heavy?.count || 0;
-    const enterpriseTierUsers = segments.power?.count || 0;
-    
-    const breakdown = {
-      free: { users: freeTierUsers, revenue: 0 },
-      basic: { users: basicTierUsers, revenue: basicTierUsers * pricing.basic.price },
-      pro: { users: proTierUsers, revenue: proTierUsers * pricing.pro.price },
-      enterprise: { users: enterpriseTierUsers, revenue: enterpriseTierUsers * pricing.enterprise.price },
-    };
-    
-    const totalMRR = breakdown.basic.revenue + breakdown.pro.revenue + breakdown.enterprise.revenue;
-    
-    return { mrr: totalMRR, breakdown };
-  };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+    </div>
+  );
 
-  if (error) {
-    return (
-      <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
-        Error loading insights: {error}
-      </div>
-    );
-  }
+  if (error) return (
+    <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
+      Error loading data: {error}
+    </div>
+  );
 
-  if (!insights) return null;
+  const PM = PRICING_V2;
 
-  // Safety check: ensure insights has required structure
-  if (!insights.pricing_recommendations || !insights.user_segments) {
-    return (
-      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 text-yellow-400">
-        <p className="font-medium">Incomplete insights data</p>
-        <p className="text-xs mt-1 text-gray-400">The API returned partial data. Please refresh the page.</p>
-      </div>
-    );
-  }
+  const SUB_TABS = [
+    { id: 'overview', label: 'P&L Overview' },
+    { id: 'costs', label: 'Cost Basis' },
+    { id: 'tiers', label: 'Pricing Tiers' },
+    { id: 'addons', label: 'Add-Ons & Credits' },
+    { id: 'revenue', label: 'Revenue Model' },
+    { id: 'growth', label: 'Growth & Conversion' },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-orange-400" />
-            Business Insights
-          </h2>
-          <p className="text-gray-500 text-xs mt-1">Data-driven insights to help determine pricing tiers</p>
-        </div>
-        <div className="flex items-center gap-4">
-          {/* Exclude Internal Users Toggle */}
-          <button
-            onClick={() => setExcludeInternal(!excludeInternal)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-              excludeInternal
-                ? 'bg-orange-500/20 border-orange-500/40 text-orange-400'
-                : 'bg-white/5 border-white/10 text-gray-500 hover:text-gray-400'
-            }`}
-          >
-            {excludeInternal ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            {excludeInternal ? 'Internal Excluded' : 'Show All Users'}
-          </button>
-          <div className="text-[10px] text-gray-600 bg-white/5 px-2 py-1 rounded">
-            Generated: {new Date(insights.generated_at).toLocaleString()}
+    <div className="space-y-5">
+      {/* Header + Sub-tab Nav */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-orange-400" />
+              Pricing Model v2
+            </h2>
+            <p className="text-gray-500 text-xs mt-1">Based on real invoice data | 80% true margin target | April 2026</p>
           </div>
+          {insights?.generated_at && (
+            <div className="text-[10px] text-gray-600 bg-white/5 px-2 py-1 rounded">
+              Live data: {new Date(insights.generated_at).toLocaleString()}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 overflow-x-auto">
+          {SUB_TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setSubTab(tab.id)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                subTab === tab.id
+                  ? 'bg-orange-500 text-white'
+                  : 'text-gray-500 hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Dogfood Burn — Internal Team Cost */}
-      {insights.dogfood_burn && (
-        <div className="bg-gradient-to-r from-red-500/5 to-amber-500/5 border border-red-500/20 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-red-400 text-xs font-bold tracking-widest uppercase flex items-center gap-2">
-                <Zap className="w-4 h-4" />
-                Dogfood Burn (Internal Team Cost)
-              </h3>
-              <p className="text-gray-500 text-xs mt-1">
-                Cost consumed by {insights.internal_users?.count || 0} internal staff 
-                ({insights.internal_users?.emails?.join(', ') || 'none'})
-              </p>
+      {/* ═══ P&L OVERVIEW ═══ */}
+      {subTab === 'overview' && (
+        <div className="space-y-5">
+          {/* Hero KPI Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="bg-gradient-to-br from-green-500/15 to-green-500/5 border border-green-500/30 rounded-xl p-4 text-center">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Total MRR</p>
+              <p className="text-2xl font-bold text-green-400">${PM.revenue.totalMRR.toLocaleString()}</p>
             </div>
-            <div className="text-right">
-              <p className="text-red-400 text-2xl font-bold">${insights.dogfood_burn.total_cost?.toFixed(2) || '0.00'}</p>
-              <p className="text-gray-600 text-[10px]">total internal burn</p>
+            <div className="bg-gradient-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/30 rounded-xl p-4 text-center">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">ARR</p>
+              <p className="text-2xl font-bold text-blue-400">${PM.revenue.arr.toLocaleString()}</p>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-4">
-            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
-              <p className="text-gray-500 text-[10px] uppercase">LLM Cost</p>
-              <p className="text-blue-400 font-bold">${insights.dogfood_burn.llm_cost?.toFixed(2) || '0.00'}</p>
+            <div className="bg-gradient-to-br from-red-500/15 to-red-500/5 border border-red-500/30 rounded-xl p-4 text-center">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Total COGS</p>
+              <p className="text-2xl font-bold text-red-400">${PM.pnl.totalCOGS.toFixed(2)}</p>
             </div>
-            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
-              <p className="text-gray-500 text-[10px] uppercase">Media Cost</p>
-              <p className="text-purple-400 font-bold">${insights.dogfood_burn.media_cost?.toFixed(2) || '0.00'}</p>
+            <div className="bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 border border-emerald-500/30 rounded-xl p-4 text-center">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Gross Profit</p>
+              <p className="text-2xl font-bold text-emerald-400">${PM.pnl.grossProfit.toFixed(2)}</p>
             </div>
-            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
-              <p className="text-gray-500 text-[10px] uppercase">Voice Cost</p>
-              <p className="text-orange-400 font-bold">${insights.dogfood_burn.voice_cost?.toFixed(2) || '0.00'}</p>
-            </div>
-            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
-              <p className="text-gray-500 text-[10px] uppercase">Messages</p>
-              <p className="text-white font-bold">{insights.dogfood_burn.messages?.toLocaleString() || 0}</p>
-            </div>
-            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
-              <p className="text-gray-500 text-[10px] uppercase">Media Gen.</p>
-              <p className="text-white font-bold">{insights.dogfood_burn.media_generated || 0}</p>
-            </div>
-            <div className="bg-black/30 border border-white/10 rounded-lg p-3 text-center">
-              <p className="text-gray-500 text-[10px] uppercase">Videos</p>
-              <p className="text-white font-bold">{insights.dogfood_burn.videos_generated || 0}</p>
+            <div className="bg-gradient-to-br from-purple-500/15 to-purple-500/5 border border-purple-500/30 rounded-xl p-4 text-center">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Gross Margin</p>
+              <p className="text-2xl font-bold text-purple-400">{(PM.pnl.grossMargin * 100).toFixed(1)}%</p>
             </div>
           </div>
 
-          {/* Per-User Breakdown */}
-          {insights.dogfood_burn.by_user?.length > 0 && (
-            <div className="bg-black/20 border border-white/5 rounded-lg p-3">
-              <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-2">Burn by Team Member</p>
-              <div className="space-y-2">
-                {insights.dogfood_burn.by_user.map((u, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-600">{idx + 1}.</span>
-                      <span className="text-white">{u.email}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-gray-500">{u.messages} msgs</span>
-                      <span className="text-gray-500">{u.media} media</span>
-                      <span className="text-gray-500">{u.videos} videos</span>
-                      <span className="text-red-400 font-medium">${u.total_cost?.toFixed(2) || '0.00'}</span>
+          {/* P&L Waterfall */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+              <BarChart2 className="w-4 h-4 text-orange-400" />
+              Monthly P&L (Steady State)
+            </h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between py-2 border-b border-white/10">
+                <span className="text-green-400 text-sm font-bold">REVENUE</span>
+                <span className="text-green-400 text-sm font-bold">${PM.pnl.revenue.toLocaleString()}</span>
+              </div>
+              <div className="pl-4 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-400">Total MRR (44 paying users)</span>
+                  <span className="text-white font-medium">${PM.revenue.totalMRR.toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-white/10 mt-3">
+                <span className="text-red-400 text-sm font-bold">COGS</span>
+                <span className="text-red-400 text-sm font-bold">-${PM.pnl.totalCOGS.toFixed(2)}</span>
+              </div>
+              <div className="pl-4 space-y-1">
+                {PM.pnl.cogs.map((item, i) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="text-gray-400">{item.name}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-gray-600 text-[10px]">{item.pctRev}%</span>
+                      <span className="text-red-300">-${item.amount.toFixed(2)}</span>
                     </div>
                   </div>
                 ))}
+              </div>
+              <div className="flex items-center justify-between py-3 border-t-2 border-green-500/30 mt-3 bg-green-500/5 rounded-lg px-3">
+                <span className="text-emerald-400 text-sm font-bold">GROSS PROFIT</span>
+                <span className="text-emerald-400 text-lg font-bold">${PM.pnl.grossProfit.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* User Segments - Real data blended */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+              <Users className="w-4 h-4 text-purple-400" />
+              User Segments ({PM.assumptions.totalUsers} total)
+            </h3>
+            <div className="grid grid-cols-5 gap-2">
+              {PM.assumptions.segments.map((seg, i) => {
+                const colors = ['red', 'gray', 'blue', 'green', 'orange'];
+                const c = colors[i];
+                return (
+                  <div key={i} className={`p-3 rounded-lg border bg-${c}-500/10 border-${c}-500/30`}>
+                    <p className="text-white text-lg font-bold">{seg.count}</p>
+                    <p className="text-gray-400 text-xs">{seg.name.split('(')[0].trim()}</p>
+                    <p className="text-gray-600 text-[10px]">{seg.pct}% | {seg.behavior}</p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-3 h-4 rounded-full overflow-hidden flex">
+              {PM.assumptions.segments.map((seg, i) => {
+                const bgColors = ['bg-red-500/50', 'bg-gray-500/50', 'bg-blue-500/50', 'bg-green-500/50', 'bg-orange-500/50'];
+                return <div key={i} style={{width: `${seg.pct}%`}} className={bgColors[i]} title={seg.name} />;
+              })}
+            </div>
+            <div className="flex items-center justify-between mt-2 text-[10px] text-gray-500">
+              <span>Active Paying: <span className="text-white font-bold">{PM.assumptions.activePayingUsers}</span></span>
+              <span>Base Price: <span className="text-green-400 font-bold">${PM.assumptions.basePrice}/mo</span></span>
+              <span>Target Margin: <span className="text-blue-400 font-bold">{(PM.assumptions.targetMargin * 100)}%</span></span>
+            </div>
+          </div>
+
+          {/* Key Changes from v1 */}
+          <div className="bg-gradient-to-r from-orange-500/10 to-transparent border border-orange-500/30 rounded-xl p-4">
+            <h3 className="text-orange-400 text-xs font-bold tracking-widest uppercase mb-3 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Key Changes from v1
+            </h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+              {[
+                'Real COGS basis from actual provider invoices, not dashboard estimates',
+                '80% true margin on add-ons (price = cost / 0.20)',
+                'Hosting added as $25/mo fixed cost — was missing from v1',
+                'Free Creative Allowance: 20 watermarked images/mo for activation',
+                'Free video REMOVED (Sora shutting down April 26, 2026)',
+                'Video credits split into its own wallet — per-video cost varies 35x',
+                'Chat cap REMOVED — real chat COGS per user is ~$3/mo',
+                'Internal users excluded from customer projections',
+                'Revenue Model is formula-driven end-to-end',
+              ].map((change, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className="text-orange-400 mt-0.5 font-bold">{i + 1}.</span>
+                  <span className="text-gray-300">{change}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Dogfood Burn from live data */}
+          {insights?.dogfood_burn && (
+            <div className="bg-gradient-to-r from-red-500/5 to-amber-500/5 border border-red-500/20 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-red-400 text-xs font-bold tracking-widest uppercase flex items-center gap-2">
+                  <Zap className="w-4 h-4" />
+                  Dogfood Burn (Internal Team)
+                </h3>
+                <span className="text-red-400 text-xl font-bold">${insights.dogfood_burn.total_cost?.toFixed(2) || '0.00'}</span>
+              </div>
+              <div className="grid grid-cols-3 lg:grid-cols-6 gap-2">
+                {[
+                  { label: 'LLM', value: `$${insights.dogfood_burn.llm_cost?.toFixed(2) || '0.00'}`, color: 'text-blue-400' },
+                  { label: 'Media', value: `$${insights.dogfood_burn.media_cost?.toFixed(2) || '0.00'}`, color: 'text-purple-400' },
+                  { label: 'Voice', value: `$${insights.dogfood_burn.voice_cost?.toFixed(2) || '0.00'}`, color: 'text-orange-400' },
+                  { label: 'Messages', value: insights.dogfood_burn.messages?.toLocaleString() || 0, color: 'text-white' },
+                  { label: 'Media Gen', value: insights.dogfood_burn.media_generated || 0, color: 'text-white' },
+                  { label: 'Videos', value: insights.dogfood_burn.videos_generated || 0, color: 'text-white' },
+                ].map((item, i) => (
+                  <div key={i} className="bg-black/30 border border-white/10 rounded-lg p-2 text-center">
+                    <p className="text-gray-500 text-[10px] uppercase">{item.label}</p>
+                    <p className={`${item.color} font-bold`}>{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              {insights.dogfood_burn.by_user?.length > 0 && (
+                <div className="mt-3 bg-black/20 border border-white/5 rounded-lg p-3">
+                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-2">Burn by Team Member</p>
+                  <div className="space-y-1.5">
+                    {insights.dogfood_burn.by_user.map((u, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-xs">
+                        <span className="text-white">{u.email}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-gray-500">{u.messages} msgs</span>
+                          <span className="text-gray-500">{u.media} media</span>
+                          <span className="text-red-400 font-medium">${u.total_cost?.toFixed(2) || '0.00'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ COST BASIS ═══ */}
+      {subTab === 'costs' && (
+        <div className="space-y-5">
+          {/* Provider Costs */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <h3 className="text-white text-sm font-bold mb-1 flex items-center gap-2">
+              <Database className="w-4 h-4 text-blue-400" />
+              Real Monthly COGS — From Actual Invoices
+            </h3>
+            <p className="text-gray-500 text-[10px] mb-4">Source: billing screenshots & CSVs from all four providers</p>
+            <div className="space-y-2">
+              {PM.costBasis.providers.map((p, i) => {
+                const pct = (p.cost / PM.costBasis.total * 100);
+                return (
+                  <div key={i} className="flex items-center gap-3 py-2 border-b border-white/5 last:border-0">
+                    <span className="text-xs text-gray-300 w-52 flex-shrink-0">{p.name}</span>
+                    <div className="flex-1 bg-white/5 rounded-full h-2 overflow-hidden">
+                      <div className="h-full bg-blue-500/60 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-xs text-blue-400 w-16 text-right font-bold">${p.cost.toFixed(2)}</span>
+                    <span className="text-[10px] text-gray-600 w-14 text-right">{pct.toFixed(1)}%</span>
+                    <span className="text-[10px] text-gray-600 w-44 truncate hidden lg:block">{p.notes}</span>
+                  </div>
+                );
+              })}
+              <div className="flex items-center justify-between pt-3 border-t-2 border-orange-500/40">
+                <span className="text-orange-400 text-sm font-bold">TOTAL Monthly Run Rate</span>
+                <span className="text-orange-400 text-xl font-bold">${PM.costBasis.total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* COGS by Category */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <h3 className="text-white text-sm font-bold mb-4">COGS Breakdown by Category</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {PM.costBasis.categories.map((cat, i) => {
+                const colors = ['blue', 'purple', 'gray'];
+                return (
+                  <div key={i} className={`bg-${colors[i]}-500/10 border border-${colors[i]}-500/30 rounded-xl p-4`}>
+                    <p className="text-gray-400 text-[10px] uppercase mb-2">{cat.name}</p>
+                    <p className={`text-${colors[i]}-400 text-2xl font-bold`}>${cat.cost.toFixed(2)}</p>
+                    <div className="mt-2 h-2 bg-white/10 rounded-full overflow-hidden">
+                      <div className={`h-full bg-${colors[i]}-500/60 rounded-full`} style={{ width: `${cat.pct}%` }} />
+                    </div>
+                    <p className="text-gray-500 text-[10px] mt-1">{cat.pct}% of total</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Key Findings */}
+          <div className="bg-gradient-to-r from-yellow-500/10 to-transparent border border-yellow-500/30 rounded-xl p-4">
+            <h3 className="text-yellow-400 text-xs font-bold tracking-widest uppercase mb-3 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Key Findings
+            </h3>
+            <div className="space-y-2">
+              {PM.costBasis.findings.map((f, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className="text-yellow-400 mt-0.5">&#x2022;</span>
+                  <span className="text-gray-300">{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Live Cost Data from API */}
+          {insights?.pricing_recommendations && (
+            <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+              <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-green-400" />
+                Live Platform Cost Data
+                {excludeInternal && <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded ml-2 font-normal">External Only</span>}
+              </h3>
+              <button
+                onClick={() => setExcludeInternal(!excludeInternal)}
+                className={`mb-3 flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                  excludeInternal ? 'bg-orange-500/20 border-orange-500/40 text-orange-400' : 'bg-white/5 border-white/10 text-gray-500'
+                }`}
+              >
+                {excludeInternal ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {excludeInternal ? 'Internal Excluded' : 'Show All Users'}
+              </button>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Cost/Message</p>
+                  <p className="text-green-400 font-bold">${insights.pricing_recommendations?.cost_per_message?.toFixed(4) || '0.00'}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Avg Cost/User</p>
+                  <p className="text-green-400 font-bold">${insights.pricing_recommendations?.avg_cost_per_user?.toFixed(2) || '0.00'}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Total LLM Cost</p>
+                  <p className="text-blue-400 font-bold">${insights.pricing_recommendations?.total_llm_cost?.toFixed(2) || '0.00'}</p>
+                </div>
+                <div className="bg-white/5 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px]">Total Platform Cost</p>
+                  <p className="text-white font-bold">${insights.pricing_recommendations?.total_platform_cost?.toFixed(2) || '0.00'}</p>
+                </div>
               </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Feature & Cost Management */}
-      <div className="bg-gradient-to-r from-pink-500/5 to-transparent border border-pink-500/20 rounded-xl p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-pink-400 text-xs font-bold tracking-widest uppercase flex items-center gap-2">
-              <Settings className="w-4 h-4" />
-              Feature & Cost Management
+      {/* ═══ PRICING TIERS ═══ */}
+      {subTab === 'tiers' && (
+        <div className="space-y-5">
+          {/* Tier Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {PM.tiers.map((tier, i) => {
+              const borderColors = ['border-gray-500/30', 'border-blue-500/30', 'border-orange-500/30'];
+              const bgColors = ['from-gray-500/10', 'from-blue-500/10', 'from-orange-500/10'];
+              const priceColors = ['text-gray-400', 'text-blue-400', 'text-orange-400'];
+              return (
+                <div key={i} className={`bg-gradient-to-br ${bgColors[i]} to-transparent border ${borderColors[i]} rounded-xl p-5`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{tier.emoji}</span>
+                      <h3 className="text-white text-lg font-bold">{tier.name}</h3>
+                    </div>
+                    <span className={`${priceColors[i]} text-xl font-bold`}>
+                      {tier.price === 0 ? 'Free' : `$${tier.price}/mo`}
+                    </span>
+                  </div>
+                  <p className="text-gray-400 text-xs mb-4">{tier.description}</p>
+
+                  <div className="space-y-1.5">
+                    {Object.entries(tier.features).map(([feat, val]) => (
+                      <div key={feat} className="flex items-center justify-between text-xs py-1 border-b border-white/5">
+                        <span className="text-gray-400">{feat}</span>
+                        <span className={val === '---' ? 'text-gray-700' : val.includes('Unlimited') || val === 'Included' ? 'text-green-400 font-medium' : val.includes('Metered') ? 'text-yellow-400' : 'text-white'}>
+                          {val === '---' ? '—' : val}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-white/10 space-y-1.5">
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-gray-500">Best for</span>
+                      <span className="text-white">{tier.bestFor}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-gray-500">Billing</span>
+                      <span className="text-white">{tier.billing}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px]">
+                      <span className="text-gray-500">Est. COGS/user</span>
+                      <span className="text-red-400">${tier.cogs.toFixed(2)}</span>
+                    </div>
+                    {tier.grossMargin != null && (
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-gray-500">Gross margin</span>
+                        <span className="text-green-400 font-bold">{(tier.grossMargin * 100).toFixed(1)}%</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Feature Comparison Matrix */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5 overflow-x-auto">
+            <h3 className="text-white text-sm font-bold mb-4">Feature Access Matrix</h3>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-2 px-2 text-gray-500">Feature</th>
+                  <th className="text-center py-2 px-2 text-gray-400">🆓 FREE</th>
+                  <th className="text-center py-2 px-2 text-blue-400">⭐ BASE ($20.01)</th>
+                  <th className="text-center py-2 px-2 text-orange-400">🚀 POWER ($99)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.keys(PM.tiers[0].features).map((feat) => (
+                  <tr key={feat} className="border-b border-white/5">
+                    <td className="py-2 px-2 text-gray-300">{feat}</td>
+                    {PM.tiers.map((tier, i) => {
+                      const val = tier.features[feat];
+                      return (
+                        <td key={i} className="py-2 px-2 text-center">
+                          {val === '---' ? (
+                            <X className="w-3.5 h-3.5 text-gray-700 mx-auto" />
+                          ) : val.includes('Unlimited') || val === 'Included' ? (
+                            <span className="text-green-400">{val}</span>
+                          ) : val.includes('Metered') ? (
+                            <span className="text-yellow-400">{val}</span>
+                          ) : (
+                            <span className="text-white">{val}</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ADD-ONS & CREDITS ═══ */}
+      {subTab === 'addons' && (
+        <div className="space-y-5">
+          {/* Add-On Pricing */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <h3 className="text-white text-sm font-bold mb-1 flex items-center gap-2">
+              <Tag className="w-4 h-4 text-pink-400" />
+              Add-On Pricing — 80% True Gross Margin
             </h3>
-            <p className="text-gray-500 text-xs mt-1">Add current and future features with their costs to improve pricing recommendations</p>
+            <p className="text-gray-500 text-[10px] mb-4">Price = Cost / (1 - 0.80). Every add-on verified at 80% margin.</p>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/10 text-gray-500">
+                  <th className="text-left py-2 px-2">Add-on</th>
+                  <th className="text-center py-2 px-2">Unit</th>
+                  <th className="text-right py-2 px-2">Real Cost</th>
+                  <th className="text-right py-2 px-2">Price (80%)</th>
+                  <th className="text-right py-2 px-2">Margin</th>
+                  <th className="text-left py-2 px-2">Example</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PM.addOns.map((a, i) => (
+                  <tr key={i} className="border-b border-white/5">
+                    <td className="py-2.5 px-2 text-white font-medium">{a.name}</td>
+                    <td className="py-2.5 px-2 text-center text-gray-400">/{a.unit}</td>
+                    <td className="py-2.5 px-2 text-right text-red-400">${a.cost.toFixed(3)}</td>
+                    <td className="py-2.5 px-2 text-right text-green-400 font-bold">${a.price.toFixed(2)}</td>
+                    <td className="py-2.5 px-2 text-right">
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-[10px] font-bold">{(a.margin * 100).toFixed(0)}%</span>
+                    </td>
+                    <td className="py-2.5 px-2 text-gray-500 text-[10px]">{a.example}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-[10px] text-gray-600 mt-3 pt-3 border-t border-white/5">
+              Note: Premium chat ($0.15/msg) is 2-3x ChatGPT Plus per-message equivalent. Differentiation is memory/personality, not raw model access.
+            </p>
           </div>
-          <button
-            onClick={() => {
-              setEditingFeature(null);
-              setFeatureForm({
-                name: '',
-                description: '',
-                tier: 'basic',
-                cost_type: 'per_user',
-                cost_value: 0,
-                status: 'planned',
-                category: 'feature',
-              });
-              setShowFeatureModal(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-xs font-medium transition-colors"
-          >
-            <Plus className="w-3 h-3" /> Add Feature
-          </button>
-        </div>
 
-        {/* Feature List */}
-        {pricingFeatures.length > 0 ? (
-          <div className="space-y-2 mb-4">
-            <div className="grid grid-cols-7 gap-2 text-[10px] text-gray-500 px-2 font-medium uppercase">
-              <span>Feature</span>
-              <span>Tier</span>
-              <span>Category</span>
-              <span>Cost Type</span>
-              <span className="text-right">Cost</span>
-              <span className="text-center">Status</span>
-              <span className="text-right">Actions</span>
+          {/* Video Credit Wallet */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <h3 className="text-white text-sm font-bold mb-1 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              Video Credits Wallet — Per-Model Credit Cost
+            </h3>
+            <p className="text-gray-500 text-[10px] mb-4">Anchor: ${PM.videoCredits.costPerCredit}/credit | 80% margin built into packs</p>
+            <table className="w-full text-xs mb-4">
+              <thead>
+                <tr className="border-b border-white/10 text-gray-500">
+                  <th className="text-left py-2 px-2">Model</th>
+                  <th className="text-right py-2 px-2">Real Cost</th>
+                  <th className="text-right py-2 px-2"># Credits</th>
+                  <th className="text-right py-2 px-2">User $</th>
+                  <th className="text-right py-2 px-2">Margin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PM.videoCredits.models.map((m, i) => (
+                  <tr key={i} className="border-b border-white/5">
+                    <td className="py-2.5 px-2 text-white">{m.name}</td>
+                    <td className="py-2.5 px-2 text-right text-red-400">${m.cost.toFixed(2)}</td>
+                    <td className="py-2.5 px-2 text-right text-purple-400 font-bold">{m.credits}</td>
+                    <td className="py-2.5 px-2 text-right text-green-400 font-bold">${m.userPrice.toFixed(2)}</td>
+                    <td className="py-2.5 px-2 text-right"><span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-[10px]">{(m.margin * 100)}%</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-[10px] text-red-400 mb-4">&#x26a0; SORA EXCLUDED: OpenAI shutting down Sora app 4/26/2026 and API 9/24/2026.</p>
+
+            {/* Credit Packs */}
+            <h4 className="text-white text-xs font-bold uppercase tracking-widest mb-3">Credit Packs (Consumer Pricing)</h4>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {PM.videoCredits.packs.map((pack, i) => {
+                const packColors = ['from-gray-500/10 border-gray-500/30', 'from-blue-500/10 border-blue-500/30', 'from-purple-500/10 border-purple-500/30', 'from-orange-500/10 border-orange-500/30'];
+                return (
+                  <div key={i} className={`bg-gradient-to-br ${packColors[i]} border rounded-xl p-4 text-center`}>
+                    <p className="text-white font-bold text-sm mb-1">{pack.name}</p>
+                    <p className="text-green-400 text-2xl font-bold">${pack.price}</p>
+                    <p className="text-gray-400 text-xs">{pack.credits} credits</p>
+                    <p className="text-gray-600 text-[10px] mt-1">${(pack.price / pack.credits).toFixed(3)}/credit</p>
+                    <div className="mt-2 text-[10px]">
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded">COGS: ${pack.cogs} | {(pack.margin * 100).toFixed(0)}% margin</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {pricingFeatures.map((feature) => (
-              <div key={feature.id} className="grid grid-cols-7 gap-2 items-center bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-xs">
-                <div>
-                  <span className="text-white font-medium">{feature.name}</span>
-                  {feature.description && (
-                    <p className="text-gray-500 text-[10px] truncate">{feature.description}</p>
-                  )}
-                </div>
-                <span className={`capitalize ${
-                  feature.tier === 'enterprise' ? 'text-orange-400' :
-                  feature.tier === 'pro' ? 'text-purple-400' :
-                  feature.tier === 'basic' ? 'text-blue-400' :
-                  feature.tier === 'addon' ? 'text-pink-400' :
-                  'text-gray-400'
-                }`}>
-                  {feature.tier}
-                </span>
-                <span className="text-gray-400 capitalize">{feature.category}</span>
-                <span className="text-gray-400 capitalize">{feature.cost_type.replace('_', ' ')}</span>
-                <span className="text-green-400 text-right">${feature.cost_value}</span>
-                <span className="text-center">
-                  <span className={`px-2 py-0.5 rounded text-[10px] ${
-                    feature.status === 'active' ? 'bg-green-500/20 text-green-400' :
-                    feature.status === 'planned' ? 'bg-blue-500/20 text-blue-400' :
-                    'bg-yellow-500/20 text-yellow-400'
-                  }`}>
-                    {feature.status}
-                  </span>
-                </span>
-                <div className="flex items-center justify-end gap-1">
-                  <button
-                    onClick={() => openEditFeature(feature)}
-                    className="p-1 text-gray-500 hover:text-white transition-colors"
-                  >
-                    <Edit className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={() => deleteFeature(feature.id)}
-                    className="p-1 text-gray-500 hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-6 bg-black/20 rounded-lg mb-4">
-            <p className="text-gray-500 text-sm mb-2">No features added yet</p>
-            <p className="text-gray-600 text-xs">Add features like "WhatsApp Integration", "SMS", "Premium LLMs" with their costs</p>
-          </div>
-        )}
-
-        {/* Quick Add Suggestions */}
-        <div className="mb-4">
-          <p className="text-gray-400 text-xs mb-2">Quick Add Suggestions:</p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { name: 'WhatsApp Integration', cost: 5, tier: 'pro', category: 'integration' },
-              { name: 'SMS Notifications', cost: 3, tier: 'pro', category: 'integration' },
-              { name: 'GPT-4o Access', cost: 2, tier: 'basic', category: 'feature' },
-              { name: 'Claude Sonnet', cost: 2.5, tier: 'pro', category: 'feature' },
-              { name: 'Unlimited Media', cost: 10, tier: 'enterprise', category: 'limit' },
-              { name: 'API Access', cost: 15, tier: 'enterprise', category: 'feature' },
-              { name: 'Priority Support', cost: 5, tier: 'pro', category: 'support' },
-              { name: 'Voice Mode', cost: 8, tier: 'pro', category: 'feature' },
-            ].filter(s => !pricingFeatures.find(f => f.name === s.name)).map((suggestion) => (
-              <button
-                key={suggestion.name}
-                onClick={() => {
-                  setFeatureForm({
-                    name: suggestion.name,
-                    description: '',
-                    tier: suggestion.tier,
-                    cost_type: 'per_user',
-                    cost_value: suggestion.cost,
-                    status: 'planned',
-                    category: suggestion.category,
-                  });
-                  setShowFeatureModal(true);
-                }}
-                className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] text-gray-400 hover:text-white transition-colors"
-              >
-                + {suggestion.name} (${suggestion.cost}/user)
-              </button>
-            ))}
           </div>
         </div>
+      )}
 
-        {/* Calculate with Features Button */}
-        <button
-          onClick={calculateWithFeatures}
-          className="w-full py-2 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/30 text-pink-400 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-        >
-          <Zap className="w-4 h-4" />
-          Calculate Pricing with All Features
-        </button>
+      {/* ═══ REVENUE MODEL ═══ */}
+      {subTab === 'revenue' && (
+        <div className="space-y-5">
+          {/* Revenue by Segment */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-green-400" />
+              Monthly Recurring Revenue by User Segment
+            </h3>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/10 text-gray-500">
+                  <th className="text-left py-2 px-2">Segment</th>
+                  <th className="text-right py-2 px-2"># Users</th>
+                  <th className="text-right py-2 px-2">Base MRR</th>
+                  <th className="text-right py-2 px-2">Premium Chat</th>
+                  <th className="text-right py-2 px-2">Image Gen</th>
+                  <th className="text-right py-2 px-2">Video Credits</th>
+                  <th className="text-right py-2 px-2 text-green-400">ARPU</th>
+                  <th className="text-right py-2 px-2 text-green-400">Segment MRR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PM.revenue.segments.map((seg, i) => (
+                  <tr key={i} className="border-b border-white/5">
+                    <td className="py-2.5 px-2 text-white font-medium">{seg.name}</td>
+                    <td className="py-2.5 px-2 text-right text-gray-400">{seg.users}</td>
+                    <td className="py-2.5 px-2 text-right text-blue-400">${seg.baseMRR.toFixed(2)}</td>
+                    <td className="py-2.5 px-2 text-right text-gray-400">{seg.premiumChat > 0 ? `$${seg.premiumChat}` : '—'}</td>
+                    <td className="py-2.5 px-2 text-right text-gray-400">{seg.imageGen > 0 ? `$${seg.imageGen}` : '—'}</td>
+                    <td className="py-2.5 px-2 text-right text-gray-400">{seg.videoCredits > 0 ? `$${seg.videoCredits}` : '—'}</td>
+                    <td className="py-2.5 px-2 text-right text-green-400 font-bold">${seg.arpu.toFixed(2)}</td>
+                    <td className="py-2.5 px-2 text-right text-green-400 font-bold">${seg.segmentMRR.toFixed(2)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-green-500/40 bg-green-500/5">
+                  <td className="py-3 px-2 text-green-400 font-bold">TOTALS</td>
+                  <td className="py-3 px-2 text-right text-white font-bold">{PM.revenue.segments.reduce((s, r) => s + r.users, 0)}</td>
+                  <td colSpan={4} className="py-3 px-2"></td>
+                  <td className="py-3 px-2 text-right text-white"></td>
+                  <td className="py-3 px-2 text-right text-green-400 text-lg font-bold">${PM.revenue.totalMRR.toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-        {/* Calculated Results */}
-        {calculatedPricing && (
-          <div className="mt-4 bg-black/30 border border-white/10 rounded-lg p-4">
-            <h4 className="text-white text-sm font-medium mb-3">Pricing with Custom Features</h4>
-            <div className="overflow-x-auto">
+          {/* ARR Summary */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="bg-gradient-to-br from-green-500/15 to-green-500/5 border border-green-500/30 rounded-xl p-5 text-center">
+              <p className="text-gray-400 text-xs mb-1">Monthly MRR</p>
+              <p className="text-green-400 text-3xl font-bold">${PM.revenue.totalMRR.toLocaleString()}</p>
+            </div>
+            <div className="bg-gradient-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/30 rounded-xl p-5 text-center">
+              <p className="text-gray-400 text-xs mb-1">Annual Run Rate (ARR)</p>
+              <p className="text-blue-400 text-3xl font-bold">${PM.revenue.arr.toLocaleString()}</p>
+            </div>
+            <div className="bg-gradient-to-br from-purple-500/15 to-purple-500/5 border border-purple-500/30 rounded-xl p-5 text-center">
+              <p className="text-gray-400 text-xs mb-1">ARR w/ 20% Annual Discount</p>
+              <p className="text-purple-400 text-3xl font-bold">${PM.revenue.arrDiscounted.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/20 rounded-xl p-4">
+            <p className="text-blue-400 text-xs font-bold mb-2">How to read this</p>
+            <div className="space-y-1 text-[10px] text-gray-400">
+              <p>&#x2022; Image Gen column shows OVERAGE only — first 20 images/mo are bundled into base (clean, unwatermarked).</p>
+              <p>&#x2022; Free segment (40 users) excluded — they get 20 watermarked images/mo + 1 lifetime video. COGS booked on P&L.</p>
+              <p>&#x2022; This model shows steady-state. Growth scenarios are on the Growth tab.</p>
+            </div>
+          </div>
+
+          {/* Live data: Top Users, Model Popularity, Feature Adoption */}
+          {insights?.top_users?.length > 0 && (
+            <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+              <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+                <Users className="w-4 h-4 text-orange-400" />
+                Top Power Users (Live Data)
+              </h3>
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-gray-500 border-b border-white/10">
-                    <th className="text-left py-2">Tier</th>
-                    <th className="text-right py-2">Base Cost</th>
-                    <th className="text-right py-2">Feature Cost</th>
-                    <th className="text-right py-2">Total Cost</th>
-                    <th className="text-right py-2">@ 70%</th>
-                    <th className="text-right py-2">@ 80%</th>
-                    <th className="text-right py-2">@ 90%</th>
+                    <th className="text-left py-2 px-2">#</th>
+                    <th className="text-left py-2 px-2">User</th>
+                    <th className="text-right py-2 px-2">Messages</th>
+                    <th className="text-right py-2 px-2">Media</th>
+                    <th className="text-right py-2 px-2">Est. Cost</th>
+                    <th className="text-right py-2 px-2">Last Active</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(calculatedPricing.tier_costs || {}).map(([tier, data]) => (
-                    <tr key={tier} className="border-b border-white/5">
-                      <td className="py-2 text-white capitalize font-medium">{tier}</td>
-                      <td className="py-2 text-right text-gray-400">${data.base_cost}</td>
-                      <td className="py-2 text-right text-pink-400">${data.feature_cost}</td>
-                      <td className="py-2 text-right text-red-400 font-medium">${data.total_cost}</td>
-                      <td className="py-2 text-right text-gray-400">${data.prices?.at_70_margin}</td>
-                      <td className="py-2 text-right text-green-400">${data.prices?.at_80_margin}</td>
-                      <td className="py-2 text-right text-gray-400">${data.prices?.at_90_margin}</td>
+                  {insights.top_users.slice(0, 10).map((user, idx) => (
+                    <tr key={idx} className={`border-b border-white/5 ${user.is_internal ? 'opacity-60' : ''}`}>
+                      <td className="py-2 px-2 text-gray-600">{idx + 1}</td>
+                      <td className="py-2 px-2">
+                        <span className="text-white">{user.name}</span>
+                        {user.is_internal && <span className="ml-2 text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">STAFF</span>}
+                      </td>
+                      <td className="py-2 px-2 text-right text-orange-400 font-medium">{user.messages}</td>
+                      <td className="py-2 px-2 text-right text-purple-400">{user.media_generated}</td>
+                      <td className="py-2 px-2 text-right text-green-400">${user.estimated_cost}</td>
+                      <td className="py-2 px-2 text-right text-gray-500">{user.last_active ? new Date(user.last_active).toLocaleDateString() : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            
-            {calculatedPricing.addons?.length > 0 && (
-              <div className="mt-3">
-                <p className="text-gray-400 text-xs mb-2">Add-ons:</p>
-                <div className="flex flex-wrap gap-2">
-                  {calculatedPricing.addons.map((addon) => (
-                    <span key={addon.id} className="px-2 py-1 bg-pink-500/10 border border-pink-500/20 rounded text-[10px]">
-                      <span className="text-white">{addon.name}:</span>
-                      <span className="text-pink-400 ml-1">${addon.recommended_price}/mo</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Feature Modal */}
-      {showFeatureModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#141a21] border border-white/10 rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-white/10">
-              <h3 className="text-white font-semibold">
-                {editingFeature ? 'Edit Feature' : 'Add Feature'}
-              </h3>
-              <button onClick={() => setShowFeatureModal(false)} className="text-gray-500 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-4 space-y-4">
-              <div>
-                <label className="text-gray-400 text-xs mb-1 block">Feature Name *</label>
-                <input
-                  type="text"
-                  value={featureForm.name}
-                  onChange={(e) => setFeatureForm({ ...featureForm, name: e.target.value })}
-                  placeholder="e.g., WhatsApp Integration"
-                  className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
-                />
-              </div>
-              
-              <div>
-                <label className="text-gray-400 text-xs mb-1 block">Description</label>
-                <input
-                  type="text"
-                  value={featureForm.description}
-                  onChange={(e) => setFeatureForm({ ...featureForm, description: e.target.value })}
-                  placeholder="Optional description"
-                  className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-gray-400 text-xs mb-1 block">Tier *</label>
-                  <select
-                    value={featureForm.tier}
-                    onChange={(e) => setFeatureForm({ ...featureForm, tier: e.target.value })}
-                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
-                  >
-                    <option value="free">Free</option>
-                    <option value="basic">Basic</option>
-                    <option value="pro">Pro</option>
-                    <option value="enterprise">Enterprise</option>
-                    <option value="addon">Add-on</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="text-gray-400 text-xs mb-1 block">Category</label>
-                  <select
-                    value={featureForm.category}
-                    onChange={(e) => setFeatureForm({ ...featureForm, category: e.target.value })}
-                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
-                  >
-                    <option value="feature">Feature</option>
-                    <option value="integration">Integration</option>
-                    <option value="limit">Limit/Quota</option>
-                    <option value="support">Support</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-gray-400 text-xs mb-1 block">Cost Type</label>
-                  <select
-                    value={featureForm.cost_type}
-                    onChange={(e) => setFeatureForm({ ...featureForm, cost_type: e.target.value })}
-                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
-                  >
-                    <option value="per_user">Per User/Month</option>
-                    <option value="per_message">Per Message</option>
-                    <option value="per_use">Per Use</option>
-                    <option value="fixed">Fixed/Month</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="text-gray-400 text-xs mb-1 block">Cost ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={featureForm.cost_value}
-                    onChange={(e) => setFeatureForm({ ...featureForm, cost_value: parseFloat(e.target.value) || 0 })}
-                    placeholder="0.00"
-                    className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="text-gray-400 text-xs mb-1 block">Status</label>
-                <select
-                  value={featureForm.status}
-                  onChange={(e) => setFeatureForm({ ...featureForm, status: e.target.value })}
-                  className="w-full bg-black/30 border border-white/10 text-white rounded-lg px-3 py-2 text-sm focus:border-pink-500/40 outline-none"
-                >
-                  <option value="active">Active (Live)</option>
-                  <option value="planned">Planned</option>
-                  <option value="considering">Considering</option>
-                </select>
-              </div>
-            </div>
-            
-            <div className="p-4 border-t border-white/10 flex gap-3">
-              <button
-                onClick={() => setShowFeatureModal(false)}
-                className="flex-1 py-2 bg-white/5 text-gray-400 rounded-lg text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveFeature}
-                disabled={!featureForm.name}
-                className="flex-1 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-              >
-                {editingFeature ? 'Update' : 'Add'} Feature
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
-      {/* User Segmentation */}
-      <div className="bg-gradient-to-r from-purple-500/5 to-transparent border border-purple-500/20 rounded-xl p-4">
-        <h3 className="text-purple-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-          <Users className="w-4 h-4" />
-          User Segmentation by Usage
-          {excludeInternal && <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded ml-2 normal-case font-normal">External Only</span>}
-        </h3>
-        <p className="text-gray-500 text-xs mb-4">
-          {excludeInternal 
-            ? `Showing ${insights.user_segments_external?.total_external || 0} external users (staff excluded)` 
-            : 'Understanding how users consume your product helps set tier limits'}
-        </p>
-        
-        {(() => {
-          const segments = excludeInternal && insights.user_segments_external 
-            ? insights.user_segments_external 
-            : insights.user_segments;
-          return (
-            <>
-              <div className="grid grid-cols-5 gap-2">
-                {segments && Object.entries(segments).filter(([key]) => key !== 'total_external').map(([tier, data]) => (
-                  <div key={tier} className={`p-3 rounded-lg border ${
-                    tier === 'power' ? 'bg-orange-500/10 border-orange-500/30' :
-                    tier === 'heavy' ? 'bg-green-500/10 border-green-500/30' :
-                    tier === 'moderate' ? 'bg-blue-500/10 border-blue-500/30' :
-                    tier === 'light' ? 'bg-gray-500/10 border-gray-500/30' :
-                    'bg-red-500/10 border-red-500/30'
-                  }`}>
-                    <p className="text-white text-lg font-bold">{data.count}</p>
-                    <p className="text-gray-400 text-xs capitalize">{tier}</p>
-                    <p className="text-gray-600 text-[10px]">{data.percentage}%</p>
-                    {data.range && <p className="text-gray-600 text-[10px]">{data.range}</p>}
-                  </div>
-                ))}
-              </div>
-              
-              {/* Visual Bar */}
-              <div className="mt-4 h-4 rounded-full overflow-hidden flex">
-                <div style={{width: `${segments?.inactive?.percentage || 0}%`}} className="bg-red-500/50" title="Inactive" />
-                <div style={{width: `${segments?.light?.percentage || 0}%`}} className="bg-gray-500/50" title="Light" />
-                <div style={{width: `${segments?.moderate?.percentage || 0}%`}} className="bg-blue-500/50" title="Moderate" />
-                <div style={{width: `${segments?.heavy?.percentage || 0}%`}} className="bg-green-500/50" title="Heavy" />
-                <div style={{width: `${segments?.power?.percentage || 0}%`}} className="bg-orange-500/50" title="Power" />
-              </div>
-            </>
-          );
-        })()}
-        <div className="flex justify-between text-[10px] text-gray-600 mt-1">
-          <span>Inactive</span>
-          <span>Light (1-20)</span>
-          <span>Moderate (21-100)</span>
-          <span>Heavy (101-500)</span>
-          <span>Power (500+)</span>
-        </div>
-      </div>
-
-      {/* Pricing Recommendations */}
-      <div className="bg-gradient-to-r from-green-500/5 to-transparent border border-green-500/20 rounded-xl p-4">
-        <h3 className="text-green-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-          <DollarSign className="w-4 h-4" />
-          Pricing Tier Recommendations (70-90% Gross Margin)
-        </h3>
-        <p className="text-gray-500 text-xs mb-4">Based on your actual costs and target margins. Market reference: ChatGPT Plus, Claude Pro, Perplexity Pro all charge $20/mo.</p>
-        
-        {/* Cost Analysis */}
-        <div className="bg-black/30 border border-white/10 rounded-lg p-3 mb-4">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm">💰</span>
-            <span className="text-white text-xs font-medium">
-              {excludeInternal ? 'External User Cost Structure' : 'Your Cost Structure'}
-            </span>
-            {excludeInternal && insights.external_costs && (
-              <span className="text-[10px] bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded">Staff excluded</span>
-            )}
-          </div>
-          {excludeInternal && insights.external_costs ? (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-              <div>
-                <p className="text-gray-500 text-[10px]">Ext. LLM Cost</p>
-                <p className="text-blue-400 font-bold">${insights.external_costs.total_llm_cost?.toFixed(2) || '0.00'}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-[10px]">Ext. Media Cost</p>
-                <p className="text-purple-400 font-bold">${insights.external_costs.total_media_cost?.toFixed(2) || '0.00'}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-[10px]">Avg Cost/Ext User</p>
-                <p className="text-green-400 font-bold">${insights.external_costs.avg_cost_per_user?.toFixed(2) || '0.00'}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-[10px]">Active External Users</p>
-                <p className="text-white font-bold text-lg">{insights.external_costs.active_users || 0}</p>
-              </div>
-            </div>
-          ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
-            <div>
-              <p className="text-gray-500 text-[10px]">Cost/Message</p>
-              <p className="text-green-400 font-bold">${insights.pricing_recommendations.cost_per_message?.toFixed(4) || '0.00'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-[10px]">Avg Cost/User</p>
-              <p className="text-green-400 font-bold">${insights.pricing_recommendations.avg_cost_per_user?.toFixed(2) || '0.00'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-[10px]">Total LLM Cost</p>
-              <p className="text-blue-400 font-bold">${insights.pricing_recommendations.total_llm_cost?.toFixed(2) || '0.00'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-[10px]">Total Voice Cost</p>
-              <p className="text-orange-400 font-bold">${insights.pricing_recommendations.total_voice_cost?.toFixed(2) || '0.00'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-[10px]">Total Media Cost</p>
-              <p className="text-purple-400 font-bold">${insights.pricing_recommendations.total_media_cost?.toFixed(2) || '0.00'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-[10px]">Total Platform Cost</p>
-              <p className="text-white font-bold text-lg">${insights.pricing_recommendations.total_platform_cost?.toFixed(2) || '0.00'}</p>
-            </div>
-          </div>
-          )}
-          <p className="text-gray-600 text-[10px]">
-            {excludeInternal 
-              ? 'Showing external user costs only — internal staff burn tracked separately above' 
-              : 'Tier pricing below includes all costs (LLM + Voice + Media) for accurate margin calculations'}
-          </p>
-        </div>
-
-        {/* Voice Chat Cost Analysis */}
-        {insights.voice_costs && (
-          <div className="bg-black/30 border border-orange-500/20 rounded-lg p-3 mb-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm">🎙️</span>
-              <span className="text-orange-400 text-xs font-medium">Voice Chat Costs (For Pricing Voice Features)</span>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
-              <div>
-                <p className="text-gray-500 text-[10px]">Total Voice Cost</p>
-                <p className="text-orange-400 font-bold">${insights.voice_costs.total_cost_usd?.toFixed(2) || '0.00'}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-[10px]">Cost/Session</p>
-                <p className="text-orange-400 font-bold">${insights.voice_costs.cost_per_session?.toFixed(3) || '0.000'}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-[10px]">Cost/Minute</p>
-                <p className="text-orange-400 font-bold">${insights.voice_costs.cost_per_minute?.toFixed(3) || '0.000'}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-[10px]">Cost/Voice User</p>
-                <p className="text-orange-400 font-bold">${insights.voice_costs.cost_per_user?.toFixed(3) || '0.000'}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-[10px]">Voice Sessions</p>
-                <p className="text-orange-400 font-bold">{insights.voice_costs.total_sessions || 0}</p>
-              </div>
-            </div>
-            
-            {/* Voice Usage Stats */}
-            <div className="grid grid-cols-4 gap-2 mb-3 text-center">
-              <div className="bg-black/30 rounded p-2">
-                <p className="text-white font-bold">{insights.voice_costs.unique_users || 0}</p>
-                <p className="text-gray-600 text-[10px]">Voice Users</p>
-              </div>
-              <div className="bg-black/30 rounded p-2">
-                <p className="text-white font-bold">{Math.round((insights.voice_costs.total_duration_seconds || 0) / 60)}m</p>
-                <p className="text-gray-600 text-[10px]">Total Duration</p>
-              </div>
-              <div className="bg-black/30 rounded p-2">
-                <p className="text-white font-bold">{Math.round((insights.voice_costs.avg_duration_seconds || 0) / 60)}m</p>
-                <p className="text-gray-600 text-[10px]">Avg Session</p>
-              </div>
-              <div className="bg-black/30 rounded p-2">
-                <p className="text-white font-bold">
-                  {((insights.voice_costs.total_audio_input_tokens || 0) + (insights.voice_costs.total_audio_output_tokens || 0)).toLocaleString()}
-                </p>
-                <p className="text-gray-600 text-[10px]">Audio Tokens</p>
-              </div>
-            </div>
-
-            {/* Voice Pricing Suggestions */}
-            <div className="bg-orange-500/10 border border-orange-500/20 rounded p-2">
-              <p className="text-orange-400 text-[10px] font-bold mb-2">💡 Voice Pricing Suggestions</p>
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Per minute (3x markup):</span>
-                  <span className="text-white font-medium">${((insights.voice_costs.cost_per_minute || 0) * 3).toFixed(3)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Per session (5x markup):</span>
-                  <span className="text-white font-medium">${((insights.voice_costs.cost_per_session || 0) * 5).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Monthly voice add-on:</span>
-                  <span className="text-orange-400 font-bold">${Math.max(5, Math.ceil((insights.voice_costs.cost_per_user || 0) * 5))}</span>
-                </div>
-              </div>
-            </div>
-            <p className="text-[10px] text-gray-600 mt-2">
-              Based on OpenAI gpt-4o-realtime: $40/1M input, $80/1M output audio tokens (~50 tokens/second)
-            </p>
-          </div>
-        )}
-
-        {/* Tier Pricing Table */}
-        {insights.pricing_recommendations.tiers && (
-          <div className="overflow-x-auto mb-4">
+      {/* ═══ GROWTH & CONVERSION ═══ */}
+      {subTab === 'growth' && (
+        <div className="space-y-5">
+          {/* Growth Scenarios */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-green-400" />
+              Growth Scenarios — MRR at Scale
+            </h3>
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-gray-500 border-b border-white/10">
-                  <th className="text-left py-2 px-2">Tier</th>
-                  <th className="text-center py-2 px-2">Msg Limit</th>
-                  <th className="text-right py-2 px-2">Est. Cost</th>
-                  <th className="text-right py-2 px-2">@ 70% Margin</th>
-                  <th className="text-right py-2 px-2">@ 80% Margin</th>
-                  <th className="text-right py-2 px-2">@ 90% Margin</th>
-                  <th className="text-right py-2 px-2 text-green-400">Recommended</th>
+                <tr className="border-b border-white/10 text-gray-500">
+                  <th className="text-left py-2 px-2">Scenario</th>
+                  <th className="text-right py-2 px-2">Total Users</th>
+                  <th className="text-right py-2 px-2">Paying</th>
+                  <th className="text-right py-2 px-2 text-green-400">MRR</th>
+                  <th className="text-right py-2 px-2 text-blue-400">ARR</th>
+                  <th className="text-right py-2 px-2 text-red-400">COGS</th>
+                  <th className="text-right py-2 px-2 text-emerald-400">Gross Profit</th>
+                  <th className="text-right py-2 px-2">Margin</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-white/5 bg-gray-500/5">
-                  <td className="py-2 px-2 text-gray-400 font-medium">🆓 Free</td>
-                  <td className="py-2 px-2 text-center text-white">{insights.pricing_recommendations.tiers.free?.message_limit || 25}</td>
-                  <td className="py-2 px-2 text-right text-red-400">${insights.pricing_recommendations.tiers.free?.estimated_cost || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-gray-500">-</td>
-                  <td className="py-2 px-2 text-right text-gray-500">-</td>
-                  <td className="py-2 px-2 text-right text-gray-500">-</td>
-                  <td className="py-2 px-2 text-right text-green-400 font-bold">$0</td>
-                </tr>
-                <tr className="border-b border-white/5">
-                  <td className="py-2 px-2 text-blue-400 font-medium">⭐ Basic</td>
-                  <td className="py-2 px-2 text-center text-white">{insights.pricing_recommendations.tiers.basic?.message_limit || 100}</td>
-                  <td className="py-2 px-2 text-right text-red-400">${insights.pricing_recommendations.tiers.basic?.estimated_cost || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.basic?.price_at_70_margin || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.basic?.price_at_80_margin || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.basic?.price_at_90_margin || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-green-400 font-bold">${insights.pricing_recommendations.tiers.basic?.recommended_price || 10}/mo</td>
-                </tr>
-                <tr className="border-b border-white/5">
-                  <td className="py-2 px-2 text-purple-400 font-medium">🚀 Pro</td>
-                  <td className="py-2 px-2 text-center text-white">{insights.pricing_recommendations.tiers.pro?.message_limit || 500}</td>
-                  <td className="py-2 px-2 text-right text-red-400">${insights.pricing_recommendations.tiers.pro?.estimated_cost || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.pro?.price_at_70_margin || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.pro?.price_at_80_margin || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.pro?.price_at_90_margin || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-green-400 font-bold">${insights.pricing_recommendations.tiers.pro?.recommended_price || 20}/mo</td>
-                </tr>
-                <tr className="border-b border-white/5 bg-orange-500/5">
-                  <td className="py-2 px-2 text-orange-400 font-medium">🏢 Enterprise</td>
-                  <td className="py-2 px-2 text-center text-white">Unlimited</td>
-                  <td className="py-2 px-2 text-right text-red-400">${insights.pricing_recommendations.tiers.enterprise?.estimated_cost || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.enterprise?.price_at_70_margin || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.enterprise?.price_at_80_margin || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-gray-400">${insights.pricing_recommendations.tiers.enterprise?.price_at_90_margin || '0.00'}</td>
-                  <td className="py-2 px-2 text-right text-green-400 font-bold">${insights.pricing_recommendations.tiers.enterprise?.recommended_price || 99}/mo</td>
-                </tr>
+                {PM.growthScenarios.map((s, i) => (
+                  <tr key={i} className={`border-b border-white/5 ${i === 0 ? 'bg-orange-500/5' : ''}`}>
+                    <td className="py-2.5 px-2 text-white font-medium">{s.label} {i === 0 && <span className="text-[10px] text-orange-400 ml-1">(NOW)</span>}</td>
+                    <td className="py-2.5 px-2 text-right text-gray-400">{s.users.toLocaleString()}</td>
+                    <td className="py-2.5 px-2 text-right text-gray-400">{s.paying.toLocaleString()}</td>
+                    <td className="py-2.5 px-2 text-right text-green-400 font-bold">${s.mrr.toLocaleString()}</td>
+                    <td className="py-2.5 px-2 text-right text-blue-400">${s.arr.toLocaleString()}</td>
+                    <td className="py-2.5 px-2 text-right text-red-400">${s.cogs.toLocaleString()}</td>
+                    <td className="py-2.5 px-2 text-right text-emerald-400 font-bold">${s.grossProfit.toLocaleString()}</td>
+                    <td className="py-2.5 px-2 text-right">
+                      <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-[10px]">{(s.grossMargin * 100).toFixed(1)}%</span>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        )}
-      </div>
 
-      {/* Interactive Pricing Calculator */}
-      <div className="bg-gradient-to-r from-cyan-500/5 to-transparent border border-cyan-500/20 rounded-xl p-4">
-        <h3 className="text-cyan-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-          <Zap className="w-4 h-4" />
-          Pricing Calculator / Estimator
-        </h3>
-        <p className="text-gray-500 text-xs mb-4">Enter your desired prices to see real-time margin calculations based on your actual costs</p>
-        
-        {/* Calculator Grid */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-gray-500 border-b border-white/10">
-                <th className="text-left py-2 px-2">Tier</th>
-                <th className="text-center py-2 px-2">Your Price</th>
-                <th className="text-center py-2 px-2">Msg Limit</th>
-                <th className="text-right py-2 px-2">Est. Cost</th>
-                <th className="text-right py-2 px-2">Gross Margin</th>
-                <th className="text-right py-2 px-2">Margin Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Free Tier */}
-              <tr className="border-b border-white/5 bg-gray-500/5">
-                <td className="py-3 px-2 text-gray-400 font-medium">🆓 Free</td>
-                <td className="py-3 px-2 text-center">
-                  <span className="text-gray-500">$0</span>
-                </td>
-                <td className="py-3 px-2 text-center">
-                  <input
-                    type="number"
-                    value={customPricing.free.msgLimit}
-                    onChange={(e) => setCustomPricing({...customPricing, free: {...customPricing.free, msgLimit: parseInt(e.target.value) || 0}})}
-                    className="w-20 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
-                  />
-                </td>
-                <td className="py-3 px-2 text-right text-red-400">
-                  ${getTierCost(customPricing.free.msgLimit).toFixed(2)}
-                </td>
-                <td className="py-3 px-2 text-right text-gray-500">N/A</td>
-                <td className="py-3 px-2 text-right">
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">Acquisition</span>
-                </td>
-              </tr>
-              
-              {/* Basic Tier */}
-              <tr className="border-b border-white/5">
-                <td className="py-3 px-2 text-blue-400 font-medium">⭐ Basic</td>
-                <td className="py-3 px-2 text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <span className="text-gray-500">$</span>
-                    <input
-                      type="number"
-                      value={customPricing.basic.price}
-                      onChange={(e) => setCustomPricing({...customPricing, basic: {...customPricing.basic, price: parseFloat(e.target.value) || 0}})}
-                      className="w-16 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
-                      step="0.01"
-                    />
-                    <span className="text-gray-500">/mo</span>
+          {/* Visual Growth Chart */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <h3 className="text-white text-sm font-bold mb-4">MRR Growth Visualization</h3>
+            <div className="flex items-end gap-4 h-48">
+              {PM.growthScenarios.map((s, i) => {
+                const maxMRR = PM.growthScenarios[PM.growthScenarios.length - 1].mrr;
+                const height = Math.max(5, (s.mrr / maxMRR) * 100);
+                const colors = ['bg-orange-500', 'bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-emerald-500'];
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center justify-end">
+                    <span className="text-green-400 text-[10px] font-bold mb-1">${(s.mrr / 1000).toFixed(1)}k</span>
+                    <div className={`w-full ${colors[i]} rounded-t-lg transition-all`} style={{ height: `${height}%` }} />
+                    <span className="text-gray-500 text-[10px] mt-2 text-center">{s.label}</span>
                   </div>
-                </td>
-                <td className="py-3 px-2 text-center">
-                  <input
-                    type="number"
-                    value={customPricing.basic.msgLimit}
-                    onChange={(e) => setCustomPricing({...customPricing, basic: {...customPricing.basic, msgLimit: parseInt(e.target.value) || 0}})}
-                    className="w-20 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
-                  />
-                </td>
-                <td className="py-3 px-2 text-right text-red-400">
-                  ${getTierCost(customPricing.basic.msgLimit).toFixed(2)}
-                </td>
-                <td className="py-3 px-2 text-right font-bold">
-                  <span className={calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit)) >= 70 ? 'text-green-400' : calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit)) >= 50 ? 'text-yellow-400' : 'text-red-400'}>
-                    {calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit))}%
-                  </span>
-                </td>
-                <td className="py-3 px-2 text-right">
-                  {calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit)) >= 90 ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Excellent</span>
-                  ) : calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit)) >= 70 ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Good</span>
-                  ) : calculateMargin(customPricing.basic.price, getTierCost(customPricing.basic.msgLimit)) >= 50 ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">Low</span>
-                  ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-400">Too Low</span>
-                  )}
-                </td>
-              </tr>
-              
-              {/* Pro Tier */}
-              <tr className="border-b border-white/5">
-                <td className="py-3 px-2 text-purple-400 font-medium">🚀 Pro</td>
-                <td className="py-3 px-2 text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <span className="text-gray-500">$</span>
-                    <input
-                      type="number"
-                      value={customPricing.pro.price}
-                      onChange={(e) => setCustomPricing({...customPricing, pro: {...customPricing.pro, price: parseFloat(e.target.value) || 0}})}
-                      className="w-16 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
-                      step="0.01"
-                    />
-                    <span className="text-gray-500">/mo</span>
-                  </div>
-                </td>
-                <td className="py-3 px-2 text-center">
-                  <input
-                    type="number"
-                    value={customPricing.pro.msgLimit}
-                    onChange={(e) => setCustomPricing({...customPricing, pro: {...customPricing.pro, msgLimit: parseInt(e.target.value) || 0}})}
-                    className="w-20 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
-                  />
-                </td>
-                <td className="py-3 px-2 text-right text-red-400">
-                  ${getTierCost(customPricing.pro.msgLimit).toFixed(2)}
-                </td>
-                <td className="py-3 px-2 text-right font-bold">
-                  <span className={calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit)) >= 70 ? 'text-green-400' : calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit)) >= 50 ? 'text-yellow-400' : 'text-red-400'}>
-                    {calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit))}%
-                  </span>
-                </td>
-                <td className="py-3 px-2 text-right">
-                  {calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit)) >= 90 ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Excellent</span>
-                  ) : calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit)) >= 70 ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Good</span>
-                  ) : calculateMargin(customPricing.pro.price, getTierCost(customPricing.pro.msgLimit)) >= 50 ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">Low</span>
-                  ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-400">Too Low</span>
-                  )}
-                </td>
-              </tr>
-              
-              {/* Enterprise Tier */}
-              <tr className="border-b border-white/5 bg-orange-500/5">
-                <td className="py-3 px-2 text-orange-400 font-medium">🏢 Enterprise</td>
-                <td className="py-3 px-2 text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <span className="text-gray-500">$</span>
-                    <input
-                      type="number"
-                      value={customPricing.enterprise.price}
-                      onChange={(e) => setCustomPricing({...customPricing, enterprise: {...customPricing.enterprise, price: parseFloat(e.target.value) || 0}})}
-                      className="w-16 bg-black/30 border border-white/10 text-white text-center rounded px-2 py-1"
-                      step="0.01"
-                    />
-                    <span className="text-gray-500">/mo</span>
-                  </div>
-                </td>
-                <td className="py-3 px-2 text-center text-gray-500">Unlimited</td>
-                <td className="py-3 px-2 text-right text-red-400">
-                  ${getTierCost('unlimited').toFixed(2)}
-                </td>
-                <td className="py-3 px-2 text-right font-bold">
-                  <span className={calculateMargin(customPricing.enterprise.price, getTierCost('unlimited')) >= 70 ? 'text-green-400' : calculateMargin(customPricing.enterprise.price, getTierCost('unlimited')) >= 50 ? 'text-yellow-400' : 'text-red-400'}>
-                    {calculateMargin(customPricing.enterprise.price, getTierCost('unlimited'))}%
-                  </span>
-                </td>
-                <td className="py-3 px-2 text-right">
-                  {calculateMargin(customPricing.enterprise.price, getTierCost('unlimited')) >= 90 ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Excellent</span>
-                  ) : calculateMargin(customPricing.enterprise.price, getTierCost('unlimited')) >= 70 ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/20 text-green-400">Good</span>
-                  ) : calculateMargin(customPricing.enterprise.price, getTierCost('unlimited')) >= 50 ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400">Low</span>
-                  ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-400">Too Low</span>
-                  )}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        
-        {/* MRR Estimator */}
-        <div className="mt-4 bg-black/30 border border-white/10 rounded-lg p-4">
-          <h4 className="text-white text-sm font-medium mb-3 flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-green-400" />
-            Estimated Monthly Recurring Revenue (MRR)
-          </h4>
-          <p className="text-gray-500 text-xs mb-3">Based on your current user segments and custom pricing</p>
-          
-          {(() => {
-            const mrr = calculateEstimatedMRR();
-            return (
-              <>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                  <div className="bg-white/5 rounded-lg p-3 text-center">
-                    <p className="text-gray-500 text-[10px] mb-1">Free Tier</p>
-                    <p className="text-gray-400 text-lg font-bold">{mrr.breakdown.free?.users || 0}</p>
-                    <p className="text-gray-600 text-xs">$0 MRR</p>
-                  </div>
-                  <div className="bg-blue-500/10 rounded-lg p-3 text-center">
-                    <p className="text-blue-400 text-[10px] mb-1">Basic @ ${customPricing.basic.price}</p>
-                    <p className="text-blue-400 text-lg font-bold">{mrr.breakdown.basic?.users || 0}</p>
-                    <p className="text-blue-300 text-xs">${mrr.breakdown.basic?.revenue || 0} MRR</p>
-                  </div>
-                  <div className="bg-purple-500/10 rounded-lg p-3 text-center">
-                    <p className="text-purple-400 text-[10px] mb-1">Pro @ ${customPricing.pro.price}</p>
-                    <p className="text-purple-400 text-lg font-bold">{mrr.breakdown.pro?.users || 0}</p>
-                    <p className="text-purple-300 text-xs">${mrr.breakdown.pro?.revenue || 0} MRR</p>
-                  </div>
-                  <div className="bg-orange-500/10 rounded-lg p-3 text-center">
-                    <p className="text-orange-400 text-[10px] mb-1">Enterprise @ ${customPricing.enterprise.price}</p>
-                    <p className="text-orange-400 text-lg font-bold">{mrr.breakdown.enterprise?.users || 0}</p>
-                    <p className="text-orange-300 text-xs">${mrr.breakdown.enterprise?.revenue || 0} MRR</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between bg-gradient-to-r from-green-500/20 to-green-500/5 border border-green-500/30 rounded-lg p-4">
-                  <div>
-                    <p className="text-green-400 text-xs font-medium">Total Estimated MRR</p>
-                    <p className="text-gray-500 text-[10px]">If all users convert at their expected tier</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-green-400 text-3xl font-bold">${mrr.mrr.toLocaleString()}</p>
-                    <p className="text-green-300 text-xs">per month</p>
-                  </div>
-                </div>
-                
-                <div className="mt-3 flex items-center gap-2 text-[10px] text-gray-500">
-                  <AlertCircle className="w-3 h-3" />
-                  <span>ARR (Annual): ${(mrr.mrr * 12).toLocaleString()} | Assumes 100% conversion at tier levels</span>
-                </div>
-              </>
-            );
-          })()}
-        </div>
-        
-        {/* Quick Presets */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <span className="text-gray-500 text-xs py-1">Quick Presets:</span>
-          <button
-            onClick={() => setCustomPricing({
-              free: { price: 0, msgLimit: 25 },
-              basic: { price: 9.99, msgLimit: 100 },
-              pro: { price: 19.99, msgLimit: 500 },
-              enterprise: { price: 49.99, msgLimit: 'unlimited' },
-            })}
-            className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs text-gray-400 hover:text-white transition-colors"
-          >
-            Budget ($10/$20/$50)
-          </button>
-          <button
-            onClick={() => setCustomPricing({
-              free: { price: 0, msgLimit: 50 },
-              basic: { price: 14.99, msgLimit: 200 },
-              pro: { price: 29.99, msgLimit: 1000 },
-              enterprise: { price: 99.99, msgLimit: 'unlimited' },
-            })}
-            className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs text-gray-400 hover:text-white transition-colors"
-          >
-            Competitive ($15/$30/$100)
-          </button>
-          <button
-            onClick={() => setCustomPricing({
-              free: { price: 0, msgLimit: 20 },
-              basic: { price: 19.99, msgLimit: 150 },
-              pro: { price: 39.99, msgLimit: 500 },
-              enterprise: { price: 149.99, msgLimit: 'unlimited' },
-            })}
-            className="px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-xs text-gray-400 hover:text-white transition-colors"
-          >
-            Premium ($20/$40/$150)
-          </button>
-          <button
-            onClick={() => setCustomPricing({
-              free: { price: 0, msgLimit: insights?.pricing_recommendations?.tiers?.free?.message_limit || 25 },
-              basic: { price: insights?.pricing_recommendations?.tiers?.basic?.recommended_price || 10, msgLimit: insights?.pricing_recommendations?.tiers?.basic?.message_limit || 100 },
-              pro: { price: insights?.pricing_recommendations?.tiers?.pro?.recommended_price || 20, msgLimit: insights?.pricing_recommendations?.tiers?.pro?.message_limit || 500 },
-              enterprise: { price: insights?.pricing_recommendations?.tiers?.enterprise?.recommended_price || 99, msgLimit: 'unlimited' },
-            })}
-            className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
-          >
-            Reset to Recommended
-          </button>
-        </div>
-      </div>
+                );
+              })}
+            </div>
+          </div>
 
-      {/* Dynamic Tier Recommendations */}
-      {insights.tier_recommendations && (
-        <div className="bg-gradient-to-r from-yellow-500/5 to-transparent border border-yellow-500/20 rounded-xl p-4">
-          <h3 className="text-yellow-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            Dynamic Tier Feature Recommendations
-          </h3>
-          <p className="text-gray-500 text-xs mb-4">Based on actual feature usage patterns across your user segments. Features are recommended for tiers where they show high adoption.</p>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Free Tier */}
-            <div className="bg-gray-500/10 border border-gray-500/30 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg">🆓</span>
-                <h4 className="text-gray-300 text-sm font-bold">Free Tier</h4>
-              </div>
-              <p className="text-gray-500 text-xs mb-3">{insights.tier_recommendations.free?.description}</p>
-              
-              <div className="space-y-2 mb-4">
-                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Included Features:</p>
-                {insights.tier_recommendations.free?.features?.map((feature, idx) => (
-                  <div key={idx} className="flex items-start gap-2 bg-black/20 rounded p-2">
-                    <Check className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <span className="text-white text-xs">{feature.name}</span>
-                      {feature.reason && <p className="text-gray-500 text-[10px]">{feature.reason}</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {insights.tier_recommendations.free?.limits?.length > 0 && (
-                <div className="space-y-1 mb-3">
-                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Suggested Limits:</p>
-                  {insights.tier_recommendations.free.limits.map((limit, idx) => (
-                    <div key={idx} className="flex justify-between text-xs">
-                      <span className="text-gray-500 capitalize">{limit.type}:</span>
-                      <span className="text-yellow-400">{limit.value} {limit.unit || ''}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {insights.tier_recommendations.free?.upsell_triggers?.length > 0 && (
-                <div>
-                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-1">Upsell Triggers:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {insights.tier_recommendations.free.upsell_triggers.map((trigger, idx) => (
-                      <span key={idx} className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] rounded">
-                        {trigger}
+          {/* Conversion Triggers */}
+          <div className="bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/30 rounded-xl p-5">
+            <h3 className="text-blue-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              SoulPrint &ldquo;Ready&rdquo; Trigger — When Free Becomes Paid
+            </h3>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/10 text-gray-500">
+                  <th className="text-left py-2 px-2">Trigger Condition</th>
+                  <th className="text-left py-2 px-2">Threshold</th>
+                  <th className="text-center py-2 px-2">Weight</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PM.conversionTriggers.map((t, i) => (
+                  <tr key={i} className="border-b border-white/5">
+                    <td className="py-2 px-2 text-white">{t.condition}</td>
+                    <td className="py-2 px-2 text-gray-300">{t.threshold}</td>
+                    <td className="py-2 px-2 text-center">
+                      <span className={`px-2 py-0.5 rounded text-[10px] ${
+                        t.weight === 'High' ? 'bg-green-500/20 text-green-400' :
+                        t.weight === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                        t.weight === 'Low' ? 'bg-gray-500/20 text-gray-400' :
+                        'bg-red-500/20 text-red-400'
+                      }`}>
+                        {t.weight}
                       </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Basic Tier */}
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg">⭐</span>
-                <h4 className="text-blue-400 text-sm font-bold">Basic Tier</h4>
-              </div>
-              <p className="text-gray-500 text-xs mb-3">{insights.tier_recommendations.basic?.description}</p>
-              
-              <div className="space-y-2 mb-4">
-                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Recommended Features:</p>
-                {insights.tier_recommendations.basic?.features?.map((feature, idx) => (
-                  <div key={idx} className="flex items-start gap-2 bg-black/20 rounded p-2">
-                    <Check className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <span className="text-white text-xs">{feature.name}</span>
-                      {feature.reason && <p className="text-blue-400/70 text-[10px]">{feature.reason}</p>}
-                    </div>
-                  </div>
+                    </td>
+                  </tr>
                 ))}
-              </div>
-              
-              {insights.tier_recommendations.basic?.limits?.length > 0 && (
-                <div className="space-y-1 mb-3">
-                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Suggested Limits:</p>
-                  {insights.tier_recommendations.basic.limits.map((limit, idx) => (
-                    <div key={idx} className="flex justify-between text-xs">
-                      <span className="text-gray-500 capitalize">{limit.type}:</span>
-                      <span className="text-blue-400">{limit.value} {limit.unit || ''}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {insights.tier_recommendations.basic?.upsell_triggers?.length > 0 && (
-                <div>
-                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-1">Upsell Triggers:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {insights.tier_recommendations.basic.upsell_triggers.map((trigger, idx) => (
-                      <span key={idx} className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] rounded">
-                        {trigger}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Pro Tier */}
-            <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg">🚀</span>
-                <h4 className="text-purple-400 text-sm font-bold">Pro Tier</h4>
-              </div>
-              <p className="text-gray-500 text-xs mb-3">{insights.tier_recommendations.pro?.description}</p>
-              
-              <div className="space-y-2 mb-4">
-                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Recommended Features:</p>
-                {insights.tier_recommendations.pro?.features?.map((feature, idx) => (
-                  <div key={idx} className="flex items-start gap-2 bg-black/20 rounded p-2">
-                    <Check className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <span className="text-white text-xs">{feature.name}</span>
-                      {feature.reason && <p className="text-purple-400/70 text-[10px]">{feature.reason}</p>}
-                      {feature.limit && <p className="text-yellow-400/70 text-[10px]">Limit: {feature.limit}</p>}
-                    </div>
-                  </div>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Conversion Funnel */}
+          <div className="bg-[#111] border border-white/8 rounded-xl p-5">
+            <h3 className="text-white text-sm font-bold mb-4 flex items-center gap-2">
+              <Users className="w-4 h-4 text-purple-400" />
+              Conversion Funnel — Free to Paid
+            </h3>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/10 text-gray-500">
+                  <th className="text-left py-2 px-2">Segment</th>
+                  <th className="text-right py-2 px-2">Free Users</th>
+                  <th className="text-right py-2 px-2">Conversion %</th>
+                  <th className="text-right py-2 px-2 text-green-400">Converted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PM.conversionFunnel.map((f, i) => (
+                  <tr key={i} className="border-b border-white/5">
+                    <td className="py-2 px-2 text-white">{f.segment}</td>
+                    <td className="py-2 px-2 text-right text-gray-400">{f.freeUsers}</td>
+                    <td className="py-2 px-2 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-16 bg-white/10 rounded-full h-1.5 overflow-hidden">
+                          <div className="h-full bg-green-500/60 rounded-full" style={{ width: `${f.conversionPct}%` }} />
+                        </div>
+                        <span className={f.conversionPct > 0 ? 'text-green-400' : 'text-gray-600'}>{f.conversionPct}%</span>
+                      </div>
+                    </td>
+                    <td className="py-2 px-2 text-right text-green-400 font-bold">{f.converted}</td>
+                  </tr>
                 ))}
+                <tr className="border-t-2 border-green-500/40">
+                  <td className="py-3 px-2 text-green-400 font-bold">TOTAL</td>
+                  <td className="py-3 px-2 text-right text-white font-bold">{PM.conversionFunnel.reduce((s, f) => s + f.freeUsers, 0)}</td>
+                  <td className="py-3 px-2"></td>
+                  <td className="py-3 px-2 text-right text-green-400 text-lg font-bold">{PM.conversionFunnel.reduce((s, f) => s + f.converted, 0).toFixed(1)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                <p className="text-gray-400 text-[10px] mb-1">Implied Paid Users</p>
+                <p className="text-green-400 text-xl font-bold">{PM.conversionFunnel.reduce((s, f) => s + f.converted, 0).toFixed(1)}</p>
               </div>
-              
-              {insights.tier_recommendations.pro?.limits?.length > 0 && (
-                <div className="space-y-1 mb-3">
-                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">Suggested Limits:</p>
-                  {insights.tier_recommendations.pro.limits.map((limit, idx) => (
-                    <div key={idx} className="flex justify-between text-xs">
-                      <span className="text-gray-500 capitalize">{limit.type}:</span>
-                      <span className="text-purple-400">{limit.value} {limit.unit || ''}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {insights.tier_recommendations.pro?.upsell_triggers?.length > 0 && (
-                <div>
-                  <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide mb-1">Upsell Triggers:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {insights.tier_recommendations.pro.upsell_triggers.map((trigger, idx) => (
-                      <span key={idx} className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] rounded">
-                        {trigger}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Enterprise Tier */}
-            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-lg">🏢</span>
-                <h4 className="text-orange-400 text-sm font-bold">Enterprise Tier</h4>
-              </div>
-              <p className="text-gray-500 text-xs mb-3">{insights.tier_recommendations.enterprise?.description}</p>
-              
-              <div className="space-y-2 mb-4">
-                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wide">All Features Included:</p>
-                {insights.tier_recommendations.enterprise?.features?.map((feature, idx) => (
-                  <div key={idx} className="flex items-start gap-2 bg-black/20 rounded p-2">
-                    <Check className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <span className="text-white text-xs">{feature.name}</span>
-                      {feature.reason && <p className="text-orange-400/70 text-[10px]">{feature.reason}</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="bg-gradient-to-r from-orange-500/20 to-transparent border border-orange-500/20 rounded p-2">
-                <p className="text-orange-400 text-xs font-medium">💡 No limits - full platform access</p>
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                <p className="text-gray-400 text-[10px] mb-1">Projected MRR at This Funnel</p>
+                <p className="text-blue-400 text-xl font-bold">${(PM.conversionFunnel.reduce((s, f) => s + f.converted, 0) * 24.74).toFixed(2)}</p>
               </div>
             </div>
           </div>
-          
-          {/* Feature Usage by Segment */}
-          {insights.features_by_segment && (
-            <div className="mt-4 bg-black/30 border border-white/10 rounded-lg p-4">
-              <h4 className="text-white text-sm font-medium mb-3">Feature Usage by User Segment</h4>
-              <p className="text-gray-500 text-xs mb-3">Adoption rates that drive these recommendations</p>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full text-[10px]">
-                  <thead>
-                    <tr className="text-gray-500 border-b border-white/10">
-                      <th className="text-left py-2 px-2">Feature</th>
-                      <th className="text-center py-2 px-2">Light (1-20)</th>
-                      <th className="text-center py-2 px-2">Moderate (21-100)</th>
-                      <th className="text-center py-2 px-2">Heavy (101-500)</th>
-                      <th className="text-center py-2 px-2">Power (500+)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {['has_soulprint', 'has_imports', 'has_media', 'has_memories', 'uses_web_search', 'uses_premium_models'].map((feature) => (
-                      <tr key={feature} className="border-b border-white/5">
-                        <td className="py-2 px-2 text-white capitalize">{feature.replace(/_/g, ' ')}</td>
-                        {['light', 'moderate', 'heavy', 'power'].map((segment) => {
-                          const rate = insights.features_by_segment[segment]?.features?.[feature]?.rate || 0;
-                          return (
-                            <td key={segment} className="py-2 px-2 text-center">
-                              <span className={rate > 50 ? 'text-green-400 font-bold' : rate > 25 ? 'text-yellow-400' : 'text-gray-500'}>
-                                {rate}%
-                              </span>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              
-              <div className="mt-3 flex items-center gap-4 text-[10px]">
-                <div className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-green-400"></span>
-                  <span className="text-gray-500">&gt;50% = High adoption</span>
+
+          {/* Live Churn Data */}
+          {insights?.churn_indicators && (
+            <div className="bg-gradient-to-r from-red-500/5 to-transparent border border-red-500/20 rounded-xl p-4">
+              <h3 className="text-red-400 text-xs font-bold tracking-widest uppercase mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Churn & Retention (Live Data)
+              </h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px] uppercase">Inactive 30+ Days</p>
+                  <p className="text-red-400 text-2xl font-bold">{insights.churn_indicators.inactive_30d}</p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
-                  <span className="text-gray-500">25-50% = Medium</span>
+                <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px] uppercase">Churn Rate</p>
+                  <p className={`text-2xl font-bold ${insights.churn_indicators.churn_rate > 30 ? 'text-red-400' : 'text-yellow-400'}`}>
+                    {insights.churn_indicators.churn_rate}%
+                  </p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-gray-500"></span>
-                  <span className="text-gray-500">&lt;25% = Low</span>
+                <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px] uppercase">Never Engaged</p>
+                  <p className="text-orange-400 text-2xl font-bold">{insights.churn_indicators.never_engaged}</p>
+                </div>
+                <div className="bg-black/30 border border-white/10 rounded-lg p-3">
+                  <p className="text-gray-500 text-[10px] uppercase">Drop-off Rate</p>
+                  <p className={`text-2xl font-bold ${insights.churn_indicators.drop_off_rate > 30 ? 'text-red-400' : 'text-yellow-400'}`}>
+                    {insights.churn_indicators.drop_off_rate}%
+                  </p>
                 </div>
               </div>
             </div>
           )}
         </div>
       )}
-
-      {/* Revenue Potential */}
-      <div className="bg-gradient-to-r from-orange-500/5 to-transparent border border-orange-500/20 rounded-xl p-4">
-        <h3 className="text-orange-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4" />
-          Revenue Potential Scenarios
-        </h3>
-        <p className="text-gray-500 text-xs mb-4">Estimated MRR based on different pricing strategies</p>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Scenario 1: Free tier at 20 msgs */}
-          <div className="bg-black/30 border border-white/10 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">📊</span>
-              <h4 className="text-white text-sm font-medium">If Free Tier = 20 messages/mo</h4>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-xs">Paying Users (would exceed limit)</span>
-                <span className="text-white font-medium">{insights.revenue_potential.if_free_tier_20_msgs.paying_users}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-xs">Est. MRR @ $10/mo</span>
-                <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_20_msgs.at_10_per_month}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-xs">Est. MRR @ $20/mo</span>
-                <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_20_msgs.at_20_per_month}</span>
-              </div>
-            </div>
-          </div>
-          
-          {/* Scenario 2: Free tier at 50 msgs */}
-          <div className="bg-black/30 border border-white/10 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">📈</span>
-              <h4 className="text-white text-sm font-medium">If Free Tier = 50 messages/mo</h4>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-xs">Paying Users (would exceed limit)</span>
-                <span className="text-white font-medium">{insights.revenue_potential.if_free_tier_50_msgs.paying_users}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-xs">Est. MRR @ $10/mo</span>
-                <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_50_msgs.at_10_per_month}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-xs">Est. MRR @ $20/mo</span>
-                <span className="text-green-400 font-bold">${insights.revenue_potential.if_free_tier_50_msgs.at_20_per_month}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="mt-4 bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🏢</span>
-            <span className="text-orange-400 font-medium">Enterprise Candidates: {insights.revenue_potential.enterprise_candidates}</span>
-            <span className="text-gray-500 text-xs">(500+ messages)</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Top Users */}
-      <div className="bg-black/30 border border-white/10 rounded-xl p-4">
-        <h3 className="text-white text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-          <Users className="w-4 h-4 text-orange-400" />
-          Top 20 Power Users
-        </h3>
-        <p className="text-gray-500 text-xs mb-4">Your most engaged users - potential enterprise customers or advocates</p>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-gray-500 border-b border-white/10">
-                <th className="text-left py-2 px-2">#</th>
-                <th className="text-left py-2 px-2">User</th>
-                <th className="text-right py-2 px-2">Messages</th>
-                <th className="text-right py-2 px-2">Media</th>
-                <th className="text-right py-2 px-2">Est. Cost</th>
-                <th className="text-right py-2 px-2">Last Active</th>
-              </tr>
-            </thead>
-            <tbody>
-              {insights.top_users?.slice(0, 10).map((user, idx) => (
-                <tr key={idx} className={`border-b border-white/5 hover:bg-white/5 ${user.is_internal ? 'opacity-60' : ''}`}>
-                  <td className="py-2 px-2 text-gray-600">{idx + 1}</td>
-                  <td className="py-2 px-2">
-                    <span className="text-white">{user.name}</span>
-                    <span className="text-gray-600 ml-2">{user.email?.substring(0, 20)}...</span>
-                    {user.is_internal && (
-                      <span className="ml-2 text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">STAFF</span>
-                    )}
-                  </td>
-                  <td className="py-2 px-2 text-right text-orange-400 font-medium">{user.messages}</td>
-                  <td className="py-2 px-2 text-right text-purple-400">{user.media_generated}</td>
-                  <td className="py-2 px-2 text-right text-green-400">${user.estimated_cost}</td>
-                  <td className="py-2 px-2 text-right text-gray-500">
-                    {user.last_active ? new Date(user.last_active).toLocaleDateString() : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Model Popularity */}
-      <div className="bg-black/30 border border-white/10 rounded-xl p-4">
-        <h3 className="text-white text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-          <Cpu className="w-4 h-4 text-blue-400" />
-          Model Usage Distribution
-        </h3>
-        <p className="text-gray-500 text-xs mb-4">Which AI models are users preferring? Consider gating premium models behind paid tiers.</p>
-        
-        <div className="space-y-2">
-          {insights.model_popularity?.slice(0, 8).map((model, idx) => (
-            <div key={idx} className="flex items-center gap-3">
-              <span className="text-gray-500 text-xs w-32 truncate">{model.model}</span>
-              <div className="flex-1 h-4 bg-white/5 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full ${
-                    idx === 0 ? 'bg-orange-500' :
-                    idx === 1 ? 'bg-blue-500' :
-                    idx === 2 ? 'bg-green-500' :
-                    'bg-gray-500'
-                  }`}
-                  style={{width: `${model.percentage}%`}}
-                />
-              </div>
-              <span className="text-gray-400 text-xs w-16 text-right">{model.percentage}%</span>
-              <span className="text-gray-600 text-xs w-16 text-right">({model.count})</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Feature Adoption */}
-      <div className="bg-black/30 border border-white/10 rounded-xl p-4">
-        <h3 className="text-white text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-          <Settings className="w-4 h-4 text-green-400" />
-          Feature Adoption Rates
-        </h3>
-        <p className="text-gray-500 text-xs mb-4">Features with low adoption might need better UX; high adoption features justify premium tiers.</p>
-        
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          {Object.entries(insights.feature_adoption).map(([feature, data]) => (
-            <div key={feature} className="bg-white/5 border border-white/10 rounded-lg p-3">
-              <p className="text-gray-400 text-xs capitalize mb-1">{feature.replace(/_/g, ' ')}</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-white text-lg font-bold">{data.rate}%</span>
-                <span className="text-gray-600 text-xs">({data.users} users)</span>
-              </div>
-              <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full ${
-                    data.rate > 50 ? 'bg-green-500' :
-                    data.rate > 25 ? 'bg-yellow-500' :
-                    'bg-red-500'
-                  }`}
-                  style={{width: `${data.rate}%`}}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Churn Indicators */}
-      <div className="bg-gradient-to-r from-red-500/5 to-transparent border border-red-500/20 rounded-xl p-4">
-        <h3 className="text-red-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4" />
-          Churn & Retention Indicators
-        </h3>
-        
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Inactive 30+ Days</p>
-            <p className="text-red-400 text-2xl font-bold">{insights.churn_indicators.inactive_30d}</p>
-            <p className="text-gray-600 text-xs">users</p>
-          </div>
-          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Churn Rate</p>
-            <p className={`text-2xl font-bold ${insights.churn_indicators.churn_rate > 30 ? 'text-red-400' : 'text-yellow-400'}`}>
-              {insights.churn_indicators.churn_rate}%
-            </p>
-            <p className="text-gray-600 text-xs">30-day inactive</p>
-          </div>
-          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Never Engaged</p>
-            <p className="text-orange-400 text-2xl font-bold">{insights.churn_indicators.never_engaged}</p>
-            <p className="text-gray-600 text-xs">0 messages</p>
-          </div>
-          <div className="bg-black/30 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Drop-off Rate</p>
-            <p className={`text-2xl font-bold ${insights.churn_indicators.drop_off_rate > 30 ? 'text-red-400' : 'text-yellow-400'}`}>
-              {insights.churn_indicators.drop_off_rate}%
-            </p>
-            <p className="text-gray-600 text-xs">signed up, never used</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Weekly Trends */}
-      <div className="bg-black/30 border border-white/10 rounded-xl p-4">
-        <h3 className="text-white text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-          <BarChart2 className="w-4 h-4 text-blue-400" />
-          Weekly Trends (Last 4 Weeks)
-        </h3>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-gray-500 border-b border-white/10">
-                <th className="text-left py-2 px-3">Period</th>
-                <th className="text-right py-2 px-3">Messages</th>
-                <th className="text-right py-2 px-3">Active Users</th>
-                <th className="text-right py-2 px-3">New Users</th>
-              </tr>
-            </thead>
-            <tbody>
-              {insights.weekly_trends?.map((week, idx) => (
-                <tr key={idx} className="border-b border-white/5">
-                  <td className="py-2 px-3 text-white">{week.week} <span className="text-gray-600">({week.start})</span></td>
-                  <td className="py-2 px-3 text-right text-orange-400">{week.messages}</td>
-                  <td className="py-2 px-3 text-right text-blue-400">{week.active_users}</td>
-                  <td className="py-2 px-3 text-right text-green-400">{week.new_users}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Media Insights */}
-      <div className="bg-black/30 border border-white/10 rounded-xl p-4">
-        <h3 className="text-white text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-          <Image className="w-4 h-4 text-purple-400" />
-          Media Generation Insights
-        </h3>
-        <p className="text-gray-500 text-xs mb-4">Media generation is resource-intensive - consider as a premium feature.</p>
-        
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase">Users Using Media</p>
-            <p className="text-purple-400 text-xl font-bold">{insights.media_insights.users_using_media}</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase">Adoption Rate</p>
-            <p className="text-purple-400 text-xl font-bold">{insights.media_insights.media_adoption_rate}%</p>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-lg p-3">
-            <p className="text-gray-500 text-[10px] uppercase">Avg Media/User</p>
-            <p className="text-purple-400 text-xl font-bold">{insights.media_insights.avg_media_per_user}</p>
-          </div>
-        </div>
-        
-        {insights.media_insights.by_type?.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-gray-500 text-xs">By Type:</p>
-            {insights.media_insights.by_type.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
-                <span className="text-white capitalize">{item.type || 'Unknown'}</span>
-                <div className="flex items-center gap-4">
-                  <span className="text-gray-400">{item.count} items</span>
-                  <span className="text-green-400">${item.total_cost}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
