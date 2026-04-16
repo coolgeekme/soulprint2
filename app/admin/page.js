@@ -4006,10 +4006,13 @@ function InsightsTab({ token }) {
                 </thead>
                 <tbody>
                   {insights.top_users.slice(0, 15).map((user, idx) => (
-                    <tr key={idx} className={`border-b border-white/5 ${user.is_internal ? 'opacity-60' : ''}`}>
+                    <tr key={idx} className={`border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer ${user.is_internal ? 'opacity-60' : ''}`}
+                      onClick={() => user.user_id && router.push(`/admin/users/${user.user_id}`)}
+                    >
                       <td className="py-2 px-2 text-gray-600">{idx + 1}</td>
                       <td className="py-2 px-2">
-                        <span className="text-white">{user.name}</span>
+                        <span className="text-white hover:text-orange-400 transition-colors">{user.name}</span>
+                        <span className="ml-1 text-gray-600 text-[10px]">{user.email !== user.name ? user.email : ''}</span>
                         {user.is_internal && <span className="ml-2 text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">STAFF</span>}
                       </td>
                       <td className="py-2 px-2 text-right text-orange-400 font-medium">{user.messages?.toLocaleString()}</td>
@@ -4648,10 +4651,13 @@ function InsightsTab({ token }) {
                 </thead>
                 <tbody>
                   {insights.top_users.slice(0, 10).map((user, idx) => (
-                    <tr key={idx} className={`border-b border-white/5 ${user.is_internal ? 'opacity-60' : ''}`}>
+                    <tr key={idx} className={`border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer ${user.is_internal ? 'opacity-60' : ''}`}
+                      onClick={() => user.user_id && router.push(`/admin/users/${user.user_id}`)}
+                    >
                       <td className="py-2 px-2 text-gray-600">{idx + 1}</td>
                       <td className="py-2 px-2">
-                        <span className="text-white">{user.name}</span>
+                        <span className="text-white hover:text-orange-400 transition-colors">{user.name}</span>
+                        <span className="ml-1 text-gray-600 text-[10px]">{user.email !== user.name ? user.email : ''}</span>
                         {user.is_internal && <span className="ml-2 text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">STAFF</span>}
                       </td>
                       <td className="py-2 px-2 text-right text-orange-400 font-medium">{user.messages}</td>

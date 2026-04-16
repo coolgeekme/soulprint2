@@ -3199,6 +3199,7 @@ async function handleAdminGetBusinessInsights(request) {
     const mediaCount = await db.collection('media_gallery').countDocuments({ user_id: u._id });
 
     enrichedTopUsers.push({
+      user_id: u._id,
       email: user?.email || 'Unknown',
       name: profile?.display_name || user?.email?.split('@')[0] || 'Unknown',
       messages: u.message_count,
