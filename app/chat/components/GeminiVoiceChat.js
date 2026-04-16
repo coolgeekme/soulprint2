@@ -97,6 +97,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
   const audioQueueRef = useRef([]);
   const isPlayingRef = useRef(false);
   const currentSourceRef = useRef(null); // Track current playing AudioBufferSourceNode
+  const nextPlayTimeRef = useRef(0); // For gapless audio scheduling
   const wakeLockRef = useRef(null);
   const setupCompleteRef = useRef(false);
   const processorNodeRef = useRef(null);
@@ -232,26 +233,39 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       currentSourceRef.current = null;
     }
     isPlayingRef.current = false;
+    nextPlayTimeRef.current = 0;
     setIsAISpeaking(false);
   }, []);
 
-  // ── Audio Playback Queue ──
+  // ── Audio Playback Queue — Gapless Scheduled Playback ──
   const playNextChunk = useCallback(() => {
-    if (isPlayingRef.current || audioQueueRef.current.length === 0) return;
-    isPlayingRef.current = true;
+    if (audioQueueRef.current.length === 0) {
+      if (!isPlayingRef.current) setIsAISpeaking(false);
+      return;
+    }
+    
     const audioData = audioQueueRef.current.shift();
     
     try {
       if (!playbackContextRef.current || playbackContextRef.current.state === 'closed') {
-        playbackContextRef.current = new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE });
+        // Let the browser pick its native rate — it will resample our 24kHz buffers correctly
+        playbackContextRef.current = new AudioContext();
       }
       const ctx = playbackContextRef.current;
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => {
+          // Re-trigger after resume completes
+          audioQueueRef.current.unshift(audioData);
+          playNextChunk();
+        });
+        return;
+      }
       
       const rawBuffer = base64ToArrayBuffer(audioData);
       const int16Data = new Int16Array(rawBuffer);
       const float32Data = int16ToFloat32(int16Data);
       
+      // Create buffer at Gemini's output rate (24kHz) — browser auto-resamples to context rate
       const audioBuffer = ctx.createBuffer(1, float32Data.length, OUTPUT_SAMPLE_RATE);
       audioBuffer.getChannelData(0).set(float32Data);
       
@@ -261,6 +275,14 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
       
       // Track current source for interruption
       currentSourceRef.current = source;
+      isPlayingRef.current = true;
+      setIsAISpeaking(true);
+      
+      // Schedule gapless: start exactly when previous chunk ends
+      const now = ctx.currentTime;
+      const startTime = Math.max(now, nextPlayTimeRef.current);
+      const duration = audioBuffer.duration;
+      nextPlayTimeRef.current = startTime + duration;
       
       source.onended = () => {
         currentSourceRef.current = null;
@@ -272,8 +294,12 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
         }
       };
       
-      source.start();
-      setIsAISpeaking(true);
+      source.start(startTime);
+      
+      // Pre-schedule next chunk immediately if available (double-buffering for smoothness)
+      if (audioQueueRef.current.length > 0) {
+        setTimeout(() => playNextChunk(), 0);
+      }
     } catch (err) {
       console.error('[Gemini] Playback error:', err);
       currentSourceRef.current = null;
@@ -493,6 +519,7 @@ export default function GeminiVoiceChat({ token, onClose, onSaveTranscript, syst
                 currentSourceRef.current = null;
               }
               isPlayingRef.current = false;
+              nextPlayTimeRef.current = 0;
               setIsAISpeaking(false);
               return;
             }
