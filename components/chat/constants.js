@@ -55,4 +55,9 @@ const TELEGRAM_MODELS = MODELS;
 const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx,.xlsx,.xls,.mp4,.mov,.webm,.avi,.mkv,.m4v,image/*,video/mp4,video/quicktime,video/webm,video/x-matroska,application/pdf,text/plain,text/csv,text/markdown,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-export { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE };
+// Text input limits — matches backend MAX_SINGLE_MSG_TOKENS (32000 tokens ≈ 128K chars)
+const MAX_INPUT_CHARS = 128000;
+const WARN_INPUT_CHARS = 100000; // Show yellow warning at this threshold
+const SHOW_COUNTER_CHARS = 5000; // Show character counter above this
+
+export { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS };

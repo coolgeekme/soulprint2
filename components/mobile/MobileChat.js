@@ -19,7 +19,7 @@ import { useTheme } from '@/lib/providers/ThemeProvider';
 import { useToast } from '@/hooks/use-toast';
 
 // Extracted components
-import { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, IMAGE_MODELS, VIDEO_MODELS, ASPECT_RATIOS } from './mobileConstants';
+import { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS, IMAGE_MODELS, VIDEO_MODELS, ASPECT_RATIOS } from './mobileConstants';
 import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { MobileImageCard, MobileVideoCard, MobileSavedVideoCard } from './MobileMediaCards';
 import VideoProgressBanner from '@/components/chat/VideoProgressBanner';
@@ -971,7 +971,7 @@ export default function MobileChat({
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
-          resolve({ type: 'document', text: e.target.result?.slice(0, 20000) || '', name: file.name, mimeType: file.type });
+          resolve({ type: 'document', text: e.target.result?.slice(0, 128000) || '', name: file.name, mimeType: file.type });
         };
         reader.onerror = reject;
         reader.readAsText(file);
@@ -1111,6 +1111,16 @@ export default function MobileChat({
     setShowMediaOptions(false);
     setDetectedMediaIntent(null);
     sendMessage();
+  };
+
+  // Convert large pasted text into a .txt file attachment to bypass per-message token limits
+  const convertInputToFile = () => {
+    if (!input.trim()) return;
+    const text = input.trim();
+    const lines = text.split('\n').length;
+    const fileName = `pasted_content_${lines}_lines.txt`;
+    setAttachments(prev => [...prev, { type: 'document', text: text.slice(0, 128000), name: fileName, mimeType: 'text/plain' }]);
+    setInput('');
   };
 
   // Send message
@@ -3152,6 +3162,40 @@ export default function MobileChat({
             {interimText && (
               <div className="text-gray-500 text-sm mb-2 px-2 italic">{interimText}</div>
             )}
+
+            {/* Large text warning banner */}
+            {input.length > SHOW_COUNTER_CHARS && (
+              <div className={`flex items-center justify-between px-3 py-1.5 rounded-xl mb-1.5 mx-1 text-[11px] ${
+                input.length > MAX_INPUT_CHARS 
+                  ? 'bg-red-500/15 border border-red-500/30 text-red-400' 
+                  : input.length > WARN_INPUT_CHARS 
+                    ? 'bg-yellow-500/15 border border-yellow-500/30 text-yellow-400' 
+                    : 'bg-white/5 border border-white/10 text-gray-500'
+              }`}>
+                <span className="truncate mr-2">
+                  {input.length > MAX_INPUT_CHARS 
+                    ? 'Too long — attach as file'
+                    : input.length > WARN_INPUT_CHARS 
+                      ? 'Near limit — use file'
+                      : `${(input.length / 1000).toFixed(1)}K chars`
+                  }
+                </span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <span className="font-mono text-[10px]">
+                    {(input.length / 1000).toFixed(1)}K/{(MAX_INPUT_CHARS / 1000)}K
+                  </span>
+                  {input.length > WARN_INPUT_CHARS && (
+                    <button
+                      onClick={convertInputToFile}
+                      className="px-2 py-0.5 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-400 hover:bg-orange-500/30 transition-colors text-[10px] font-medium whitespace-nowrap"
+                    >
+                      Send as file
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-end gap-2">
               <button 
                 onClick={() => setShowAttachmentSheet(true)}

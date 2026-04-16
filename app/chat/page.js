@@ -67,7 +67,7 @@ import CloudImportModal from '@/components/chat/CloudImportModal';
 import { SettingsModal, FeedbackModal } from '@/components/chat/SettingsModal';
 import AttachmentPill from '@/components/chat/AttachmentPill';
 import { MediaConfirmCard, PromptReviewCard, ModelSelectionCard, VideoExtendConfirmCard, SourceMediaBanner } from '@/components/chat/MediaConfirmation';
-import { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE } from '@/components/chat/constants';
+import { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS } from '@/components/chat/constants';
 import AssessmentNudge from '@/components/AssessmentNudge';
 
 
@@ -844,7 +844,7 @@ export default function ChatPage() {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
-          resolve({ type: 'document', text: e.target.result?.slice(0, 20000) || '', name: file.name, mimeType: file.type });
+          resolve({ type: 'document', text: e.target.result?.slice(0, 128000) || '', name: file.name, mimeType: file.type });
         };
         reader.onerror = reject;
         reader.readAsText(file);
@@ -1360,6 +1360,19 @@ export default function ChatPage() {
     
     return uploaded;
   }, [token]);
+
+  // Convert large pasted text into a .txt file attachment to bypass per-message token limits
+  const convertInputToFile = useCallback(() => {
+    if (!input.trim()) return;
+    const text = input.trim();
+    const lines = text.split('\n').length;
+    const fileName = `pasted_content_${lines}_lines.txt`;
+    setAttachments(prev => [...prev, { type: 'document', text: text.slice(0, 128000), name: fileName, mimeType: 'text/plain' }]);
+    setInput('');
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
+  }, [input]);
 
   const sendMessage = useCallback(async () => {
     if ((!input.trim() && attachments.length === 0 && !pendingMediaAttachment) || loading || compareLoading) return;
@@ -4883,6 +4896,39 @@ export default function ChatPage() {
               </div>
             )}
             {fileError && <p className="text-red-400 text-xs mb-1 px-1">{fileError}</p>}
+
+            {/* Large text warning banner */}
+            {input.length > SHOW_COUNTER_CHARS && (
+              <div className={`flex items-center justify-between px-3 py-1.5 rounded-xl mb-1 text-xs ${
+                input.length > MAX_INPUT_CHARS 
+                  ? 'bg-red-500/15 border border-red-500/30 text-red-400' 
+                  : input.length > WARN_INPUT_CHARS 
+                    ? 'bg-yellow-500/15 border border-yellow-500/30 text-yellow-400' 
+                    : 'bg-white/5 border border-white/10 text-gray-500'
+              }`}>
+                <span>
+                  {input.length > MAX_INPUT_CHARS 
+                    ? `Text too long — will be truncated. Attach as file instead.`
+                    : input.length > WARN_INPUT_CHARS 
+                      ? `Approaching limit — consider attaching as a file`
+                      : `${(input.length / 1000).toFixed(1)}K chars`
+                  }
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`font-mono ${input.length > MAX_INPUT_CHARS ? 'text-red-400' : input.length > WARN_INPUT_CHARS ? 'text-yellow-400' : 'text-gray-600'}`}>
+                    {(input.length / 1000).toFixed(1)}K / {(MAX_INPUT_CHARS / 1000)}K
+                  </span>
+                  {input.length > WARN_INPUT_CHARS && (
+                    <button
+                      onClick={convertInputToFile}
+                      className="px-2 py-0.5 rounded-lg bg-orange-500/20 border border-orange-500/40 text-orange-400 hover:bg-orange-500/30 transition-colors text-[10px] font-medium whitespace-nowrap"
+                    >
+                      Send as file
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Media generation handled dynamically through chat - no manual controls needed */}
 
