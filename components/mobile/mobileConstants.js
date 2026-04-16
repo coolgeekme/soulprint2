@@ -52,6 +52,8 @@ const VIDEO_MODELS = [
   { value: 'smart', label: '🧠 Dynamic Intelligence', description: 'AI picks best model for your prompt', isSmartMode: true },
   { value: 'kling-3.0', label: 'Kling 3.0', description: 'Fast, general purpose, 720p 5s' },
   { value: 'veo3', label: 'Veo 3.1', description: 'Cinematic 1080p, audio sync' },
+  { value: 'seedance-2-0', label: 'Seedance 2.0', description: 'Native audio, lip-sync, dance, multi-shot' },
+  { value: 'seedance-2-0-fast', label: 'Seedance 2.0 Fast', description: 'Fast Seedance with audio & motion' },
   { value: 'runway-aleph', label: 'Runway Aleph', description: 'Video-to-video editing & style' },
 ];
 

@@ -16,6 +16,8 @@ const VIDEO_MODELS = [
   { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', cost: 0, costLabel: 'Auto', description: 'AI picks best model for your prompt', isSmartMode: true },
   { value: 'kling-3.0', label: 'Kling 3.0', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: 'Fast, general purpose, 720p 5s' },
   { value: 'veo3', label: 'Veo 3.1', provider: 'google', cost: 35, costLabel: '$0.18/s', description: 'Cinematic 1080p, audio sync' },
+  { value: 'seedance-2-0', label: 'Seedance 2.0', provider: 'bytedance', cost: 35, costLabel: '$0.18/s', description: 'Native audio, lip-sync, dance, multi-shot' },
+  { value: 'seedance-2-0-fast', label: 'Seedance 2.0 Fast', provider: 'bytedance', cost: 20, costLabel: '$0.10/s', description: 'Fast Seedance with audio & motion' },
   { value: 'runway-aleph', label: 'Runway Aleph', provider: 'runway', cost: 40, costLabel: '$0.20/s', description: 'Video-to-video editing & style' },
 ];
 
