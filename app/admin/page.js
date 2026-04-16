@@ -3176,6 +3176,7 @@ function BetaCodesTab({ token }) {
 
 // Business Insights Tab
 function InsightsTab({ token }) {
+  const router = useRouter();
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
