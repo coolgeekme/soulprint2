@@ -5969,6 +5969,17 @@ function SupportTab({ token, adminRole }) {
                       )}
                     </div>
                   )}
+                  {selectedTicket.source === 'feedback_bug' && (
+                    <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+                      <h4 className="text-xs font-bold text-red-400 tracking-widest uppercase mb-2">🐛 Submitted via Bug Report Form</h4>
+                      {selectedTicket.feedback_id && (
+                        <p className="text-[11px] text-gray-500">Feedback ID: <span className="font-mono text-gray-400">{selectedTicket.feedback_id}</span></p>
+                      )}
+                      {selectedTicket.rating && (
+                        <p className="text-[11px] text-gray-500 mt-1">User Rating: <span className="text-yellow-400">{'⭐'.repeat(selectedTicket.rating)}</span></p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Previous Responses */}
                   {selectedTicket.responses?.length > 0 && (
@@ -6196,6 +6207,9 @@ function SupportTab({ token, adminRole }) {
                         )}
                         {ticket.source === 'ace_escalation' && (
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">🤖 Ace</span>
+                        )}
+                        {ticket.source === 'feedback_bug' && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">🐛 Bug Report</span>
                         )}
                       </div>
                     </div>
