@@ -68,7 +68,12 @@ export default function MobileChat({
   const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
   const [supportNotifications, setSupportNotifications] = useState([]);
   const [isIncognito, setIsIncognito] = useState(false); // Incognito mode — ephemeral, no DB saves
-  const [mediaGenMode, setMediaGenMode] = useState(false); // Media creation mode — auto-generate when ON
+  const [mediaGenMode, setMediaGenMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sp_create_mode') === 'true';
+    }
+    return false;
+  }); // Media creation mode — auto-generate when ON
   
   // AbortController for stopping requests
   const abortControllerRef = useRef(null);
@@ -3076,6 +3081,7 @@ export default function MobileChat({
                 onClick={() => {
                   const goingCreate = !mediaGenMode;
                   setMediaGenMode(goingCreate);
+                  localStorage.setItem('sp_create_mode', goingCreate ? 'true' : 'false');
                   const statusMsg = goingCreate
                     ? { id: `create-on-${Date.now()}`, role: 'assistant', content: '🎨 **Create Mode activated** — I\'ll automatically generate images and videos when I detect creative intent in your messages. Toggle off anytime to go back to confirmation mode.', created_at: new Date().toISOString(), isSystemNotice: true }
                     : { id: `create-off-${Date.now()}`, role: 'assistant', content: '🎨 **Create Mode deactivated** — I\'ll ask for your confirmation before generating any media.', created_at: new Date().toISOString(), isSystemNotice: true };

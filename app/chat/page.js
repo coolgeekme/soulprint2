@@ -89,7 +89,12 @@ export default function ChatPage() {
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [isIncognito, setIsIncognito] = useState(false); // Incognito mode — no messages saved
-  const [mediaGenMode, setMediaGenMode] = useState(false); // Media creation mode — when ON, auto-generates
+  const [mediaGenMode, setMediaGenMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sp_create_mode') === 'true';
+    }
+    return false;
+  }); // Media creation mode — when ON, auto-generates
   const [selectedModel, setSelectedModel] = useState('smart');
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [showVideoModelPicker, setShowVideoModelPicker] = useState(false);
@@ -3656,6 +3661,7 @@ export default function ChatPage() {
               onClick={() => {
                 const goingCreate = !mediaGenMode;
                 setMediaGenMode(goingCreate);
+                localStorage.setItem('sp_create_mode', goingCreate ? 'true' : 'false');
                 // Inject a status message into the current conversation (no reset)
                 const statusMsg = goingCreate
                   ? { id: `create-on-${Date.now()}`, role: 'assistant', content: '🎨 **Create Mode activated** — I\'ll automatically generate images and videos when I detect creative intent in your messages. Toggle off anytime to go back to confirmation mode.', created_at: new Date().toISOString(), isSystemNotice: true }
