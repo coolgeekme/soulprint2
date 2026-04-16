@@ -856,7 +856,7 @@ export default function ChatPage() {
     const files = Array.from(e.target.files || []);
     setFileError('');
     for (const file of files) {
-      const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|avi)$/i);
+      const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i);
       const maxSize = isVideo ? 100 * 1024 * 1024 : MAX_FILE_SIZE; // 100MB for video, 50MB for others
       if (file.size > maxSize) { 
         setFileError(`${file.name} is too large (max ${isVideo ? '100MB' : '50MB'})`); 

@@ -51,7 +51,7 @@ const MODELS = [
 // Telegram model list — same as MODELS, used in Settings modal
 const TELEGRAM_MODELS = MODELS;
 
-const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx,.xlsx,.xls,.mp4,.mov,.webm,.avi,video/mp4,video/quicktime,video/webm';
+const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx,.xlsx,.xls,.mp4,.mov,.webm,.avi,.mkv,.m4v,video/mp4,video/quicktime,video/webm';
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE };

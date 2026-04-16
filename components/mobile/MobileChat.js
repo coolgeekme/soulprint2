@@ -985,8 +985,10 @@ export default function MobileChat({
     
     setIsProcessingFile(true);
     for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
-        alert(`File ${file.name} is too large. Max size is 50MB.`);
+      const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i);
+      const maxSize = isVideo ? 100 * 1024 * 1024 : MAX_FILE_SIZE; // 100MB for video, 50MB for others
+      if (file.size > maxSize) {
+        alert(`File ${file.name} is too large. Max size is ${isVideo ? '100MB' : '50MB'}.`);
         continue;
       }
       try {
