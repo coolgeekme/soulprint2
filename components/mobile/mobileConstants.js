@@ -28,7 +28,8 @@ const MODELS = [
   { value: 'moonshot-v1-8k', label: 'Moonshot 8k (Fast)', provider: 'kimi', group: 'Kimi' },
 ];
 
-const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx,.xlsx,.xls,.mp4,.mov,.webm,.avi,.mkv,.m4v,video/mp4,video/quicktime,video/webm';
+// Include both file extensions AND explicit MIME types so Android PWA shows "Files/Browse" option
+const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx,.xlsx,.xls,.mp4,.mov,.webm,.avi,.mkv,.m4v,image/*,video/mp4,video/quicktime,video/webm,video/x-matroska,application/pdf,text/plain,text/csv,text/markdown,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 const IMAGE_MODELS = [

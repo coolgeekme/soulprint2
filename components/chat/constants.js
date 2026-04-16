@@ -51,7 +51,8 @@ const MODELS = [
 // Telegram model list — same as MODELS, used in Settings modal
 const TELEGRAM_MODELS = MODELS;
 
-const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx,.xlsx,.xls,.mp4,.mov,.webm,.avi,.mkv,.m4v,video/mp4,video/quicktime,video/webm';
+// Include both file extensions AND explicit MIME types so Android PWA shows "Files/Browse" option
+const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx,.xlsx,.xls,.mp4,.mov,.webm,.avi,.mkv,.m4v,image/*,video/mp4,video/quicktime,video/webm,video/x-matroska,application/pdf,text/plain,text/csv,text/markdown,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE };
