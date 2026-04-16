@@ -267,3 +267,213 @@ Você NUNCA:
 - Assume que todo brasileiro gosta de samba e futebol
 - Faz piadas sobre estereótipos
 ```
+
+---
+
+## Clone & Convert Checklist
+
+> **How to use**: Clone the English repo. Go through this checklist file-by-file. Items marked 🔴 are full rewrites (language-dependent). Items marked 🟡 are partial changes. Items marked ✅ carry over as-is.
+
+---
+
+### PHASE 1: Core AI Personality (Do First — Everything Else Depends On This)
+
+#### 🔴 `lib/handlers/chat-stream.js` (~5,840 lines) — THE MOST CRITICAL FILE
+This is the brain of the app. Multiple sections need rewriting:
+
+| Line Range | What | Action |
+|-----------|------|--------|
+| ~493 | Model router system prompt | 🔴 Rewrite in Brazilian Portuguese |
+| ~670-1010 | `getSystemPrompt()` — Claire's personality, instructions, tool descriptions | 🔴 **Full rewrite.** This defines how the AI speaks, thinks, and behaves. Must be native pt-BR. Use the starter prompt from this doc as a base |
+| ~997-1008 | Google integration instructions | 🔴 Rewrite in pt-BR |
+| ~1022-1160 | `detectMediaIntent()` — 20+ regex patterns detecting image/video requests | 🔴 **Full rewrite.** "generate an image" → "gera uma imagem", "make me a picture" → "faz uma foto pra mim", "create a video" → "cria um vídeo". Handle Brazilian word order and informal speech |
+| ~1719-1760 | `editImagePatterns` — 20+ regex for image edit detection | 🔴 **Full rewrite.** "make it cartoon" → "faz em cartoon", "remove the background" → "tira o fundo", "turn into anime" → "transforma em anime". Handle gerund forms ("fazendo", "tirando") |
+| ~1761-1795 | `isLikelyQuestion` — Question detection logic | 🔴 **Full rewrite.** Portuguese questions: "por que", "como", "quando", "onde", "quem", "o que", "qual". No inverted punctuation like Spanish but different sentence structures |
+| ~1797-1820 | Aspect ratio recreation patterns | 🟡 Adapt keywords to pt-BR |
+| ~1698 | `Sorry, compositing failed` and all error messages | 🔴 Rewrite ~15 error strings. "Desculpa, não rolou" is more natural than "Desculpe, a composição falhou" |
+| ~2111-2265 | Image edit error messages | 🔴 Rewrite all "Sorry, I couldn't..." → "Puxa, não consegui..." |
+| ~4742-4760 | `detectPlacesIntent()` — Location search regex | 🔴 **Full rewrite.** "find restaurants near me" → "acha restaurantes perto de mim", "coffee shops in" → "cafeterias em". Handle Brazilian place types: "padaria", "lanchonete", "posto de gasolina" |
+| ~4790-4810 | Place search term extraction regex | 🔴 Rewrite — "perto de/em/ao redor de" instead of "near/in/around" |
+| ~5300-5430 | Support escalation (Ace handoff) | 🔴 Rewrite escalation messages and email subjects |
+
+#### 🔴 `lib/handlers/support-bot.js` (~419 lines)
+| Section | Action |
+|---------|--------|
+| Line 17 | Ace's system prompt (30+ lines) | 🔴 **Full rewrite.** Ace needs a Brazilian personality. Consider renaming to something Brazilians connect with |
+| All response strings | 🔴 Every user-facing message in natural pt-BR |
+
+#### 🔴 `lib/handlers/assessment-data.js` (~605 lines, 63 questions)
+| Section | Action |
+|---------|--------|
+| All 63 SEED_QUESTIONS | 🔴 **Full rewrite.** Must be culturally adapted for Brazil. Questions about communication style should reference Brazilian contexts (WhatsApp groups, family dynamics, "jeitinho"). Some questions won't make cultural sense and need replacement |
+| Answer options (labels) | 🔴 All option labels in natural pt-BR. Use casual tone matching Brazilian digital culture |
+
+#### 🔴 `lib/handlers/gradual-assessment.js` (~1,056 lines)
+| Section | Action |
+|---------|--------|
+| All question prompts | 🔴 Rewrite for Brazilian cultural context |
+| AI analysis prompts | 🔴 Rewrite LLM prompts in pt-BR |
+
+#### 🔴 `lib/handlers/layered-assessment.js` (~328 lines)
+| Section | Action |
+|---------|--------|
+| Assessment layer questions | 🔴 Rewrite for Brazilian context |
+
+---
+
+### PHASE 2: Frontend UI Copy
+
+#### 🔴 `app/page.js` (~458 lines) — Landing Page
+Every heading, paragraph, CTA button, feature description. Full rewrite in native pt-BR. Remember: Brazilian Portuguese is typically 15-25% longer than English — UI elements need breathing room.
+
+#### 🔴 `app/auth/page.js` (~617 lines) — Login/Signup
+- Form labels, placeholders, button text, error messages
+- "Sign In" → "Entrar"
+- "Create Account" → "Criar conta"
+- "Forgot password" → "Esqueci a senha"
+- All validation messages in natural pt-BR
+- Consider CPF field if needed for Brazilian users
+
+#### 🔴 `app/chat/page.js` (~5,996 lines) — Main Chat (Desktop)
+| Section | Action |
+|---------|--------|
+| Sidebar labels | 🔴 "New Chat" → "Nova conversa", "Settings" → "Configurações" |
+| Input placeholders | 🔴 "Type a message..." → "Escreve aqui..." or "Manda sua mensagem..." |
+| Empty state messages | 🔴 "Start a conversation" → "Começa uma conversa" |
+| Settings modal | 🔴 All setting labels, descriptions, toggles |
+| Media cards | 🟡 "Generating image..." → "Gerando imagem...", "View Image" → "Ver imagem" |
+| Error toasts | 🔴 All error/success notifications in natural pt-BR |
+| Create Mode labels | 🔴 "Create Mode activated" → "Modo criativo ativado" |
+
+#### 🔴 `components/mobile/MobileChat.js` (~4,546 lines) — Mobile Chat
+Same changes as desktop. **PRIORITY** — Brazil is overwhelmingly mobile-first. This file may matter more than the desktop version.
+
+#### 🟡 `app/admin/page.js` (~7,545 lines) — Admin Dashboard
+Decision point: Keep in English (team-only) or rewrite for Brazilian admins. If rewriting, all tab labels, metrics, table headers, chart labels need pt-BR.
+
+---
+
+### PHASE 3: Backend Services
+
+#### 🔴 `lib/handlers/content-moderation.js` (~174 lines)
+| Section | Action |
+|---------|--------|
+| All regex patterns | 🔴 **Full rewrite.** English patterns won't catch Portuguese. Build Brazilian-specific patterns. Be careful with common Brazilian exclamations that sound harsh out of context ("caralho", "porra" — extremely common but technically profane) |
+| Moderation response messages | 🔴 Natural pt-BR refusal messages |
+| Categories remain the same | ✅ child_safety, sexual_content, violence, hate_speech, self_harm |
+
+#### 🔴 `lib/handlers/spelling-guard.js` (~461 lines)
+| Section | Action |
+|---------|--------|
+| English spelling corrections | 🔴 Replace with Portuguese spelling patterns |
+| Handle accents | 🔴 ã, õ, ç, é, ê, í, ú, â, ô — common typos: missing accents, "vc" → "você", "tb" → "também", "pq" → "porque" |
+
+#### 🔴 `lib/email.js` (~307 lines)
+| Section | Action |
+|---------|--------|
+| Welcome email template | 🔴 Full rewrite. "Thanks for joining SoulPrint" → "Que bom que você chegou! Bem-vindo(a) ao SoulPrint" |
+| Waitlist accepted email | 🔴 Full rewrite in warm Brazilian tone |
+| All email copy | 🔴 Every string in native pt-BR |
+
+#### 🔴 `lib/handlers/invites-beta.js` — Invite System
+| Section | Action |
+|---------|--------|
+| Invite email templates | 🔴 Rewrite. Brazilians are social — make the invite feel like a friend sharing something cool, not a corporate invite |
+| Verification email | 🔴 "Verify your SoulPrint account" → "Confirma sua conta no SoulPrint" |
+| Success/error messages | 🔴 All user-facing strings |
+
+#### 🔴 `lib/handlers/location-services.js` (~188 lines)
+| Section | Action |
+|---------|--------|
+| `parseLocationQuery()` regex | 🔴 "near/in/around/at" → "perto de/em/ao redor de/no/na" |
+| `extractPlaceType()` keyword map | 🔴 "restaurant" → "restaurante", "pharmacy" → "farmácia", "gas station" → "posto de gasolina", PLUS Brazilian-specific: "padaria", "lanchonete", "açaiteria", "churrascaria" |
+| Place type mappings | 🔴 All keywords to Brazilian Portuguese |
+
+#### 🟡 `lib/handlers/media-intelligence.js` (~1,379 lines)
+| Section | Action |
+|---------|--------|
+| User-facing error messages | 🔴 Rewrite feedback responses |
+| Feedback email templates | 🔴 Adapt to pt-BR |
+
+#### 🔴 `lib/handlers/announcements.js`
+| Section | Action |
+|---------|--------|
+| Release notes generation prompts | 🔴 Rewrite in pt-BR |
+
+---
+
+### PHASE 4: Voice Chat
+
+#### 🟡 `app/chat/components/GeminiVoiceChat.js` (~820 lines)
+| Section | Action |
+|---------|--------|
+| Voice selection defaults | 🟡 Configure pt-BR Gemini voice (Brazilian accent, NOT European Portuguese) |
+| UI labels ("Listening...", "AI Speaking...") | 🔴 "Ouvindo...", "Falando..." |
+| Error messages | 🔴 Translate to natural pt-BR |
+| Language config | 🔴 Ensure `pt-BR` locale is sent to Gemini, not `pt-PT` |
+
+#### 🟡 `app/api/gemini/voice-sample/route.js` (~210 lines)
+| Section | Action |
+|---------|--------|
+| Voice greeting text | 🔴 Change to Brazilian Portuguese greeting |
+| Voice names | 🟡 Select voice that sounds Brazilian, not European Portuguese |
+
+---
+
+### PHASE 5: Brazilian-Specific Additions (NOT in English version)
+
+These are NEW features/changes specific to the Brazilian market:
+
+| Feature | Why | Priority |
+|---------|-----|----------|
+| Number formatting (1.000,00) | Brazilian standard — opposite of US | 🔴 High |
+| Date formatting (DD/MM/AAAA) | Brazilian standard | 🔴 High |
+| Currency (R$) | If any pricing shown | 🟡 Medium |
+| CPF validation | If account verification needed | 🟡 Medium |
+| WhatsApp share buttons | Brazilians share via WhatsApp, not SMS/email | 🟡 Medium |
+| LGPD compliance banner | Legal requirement in Brazil | 🔴 High |
+| Brazilian place types | "padaria", "lanchonete", "açaiteria", "churrascaria" | 🟡 Medium |
+
+---
+
+### PHASE 6: Files That Carry Over AS-IS ✅
+
+These need NO language changes:
+
+| File | Why It's Safe |
+|------|--------------|
+| `lib/mongodb.js` | Database connection — language-independent |
+| `lib/handlers/image-models.js` | Model configs — API parameters only |
+| `lib/handlers/video-models.js` | Model configs — API parameters only |
+| `lib/handlers/image-editing.js` | Image processing — no user-facing text |
+| `lib/handlers/attachment-upload.js` | File upload — no user-facing text |
+| `lib/handlers/chat-cache.js` | Caching logic — no text |
+| `lib/handlers/cloud-import.js` | Import logic — minimal text |
+| `lib/handlers/conversations-crud.js` | CRUD operations — minimal text |
+| `lib/handlers/data-import.js` | Data import — minimal text |
+| `lib/handlers/document-parsing.js` | Document parsing — no text |
+| `lib/handlers/feature-flags.js` | Feature flags — no text |
+| `lib/handlers/memory-system.js` | Memory logic — no user-facing text |
+| `lib/handlers/model-comparison.js` | Model routing — API only |
+| `lib/handlers/privacy.js` | Privacy logic — minimal text |
+| `lib/handlers/projects-tags.js` | Project management — minimal text |
+| `lib/handlers/video-editor.js` | Video processing — no text |
+| `lib/handlers/voice-misc.js` | Voice utilities — no text |
+| `components/ui/*` | shadcn components — no text |
+| All CSS/Tailwind | Styling — language-independent |
+| `package.json` | Dependencies — same |
+| `.env` | Environment variables — same |
+
+---
+
+### Summary: Effort Estimate
+
+| Category | Files | Effort |
+|----------|-------|--------|
+| 🔴 Full Rewrite (language-critical) | ~15 files | 65% of conversion work |
+| 🟡 Partial Changes | ~8 files | 20% of conversion work |
+| 🔴 Brazilian-Specific Additions | ~5 new features | 10% of conversion work |
+| ✅ No Changes Needed | ~20+ files | 0% — just works |
+
+**Total estimated conversion effort**: 35-45% of the original build time (slightly more than Spanish due to Brazilian-specific additions like LGPD, number formatting, and WhatsApp integration).
+
