@@ -160,6 +160,7 @@ export default function MobileChat({
   const hasScrolledToReply = useRef(false); // Track if we've already scrolled to the reply start
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
+  const docFileInputRef = useRef(null); // Separate input with accept="*/*" for Android document browsing
   const inputContainerRef = useRef(null);
 
   // ── Global Media Notification System ──
@@ -978,6 +979,13 @@ export default function MobileChat({
     }
   };
 
+  // Validate file type against supported extensions/mimes
+  const isFileTypeSupported = (file) => {
+    const supportedExtensions = /\.(jpg|jpeg|png|webp|gif|heic|heif|pdf|txt|md|csv|json|docx|xlsx|xls|mp4|mov|webm|avi|mkv|m4v)$/i;
+    const supportedMimes = /^(image\/|video\/|application\/pdf|application\/json|text\/|application\/vnd\.openxmlformats|application\/vnd\.ms-excel)/;
+    return supportedExtensions.test(file.name) || supportedMimes.test(file.type || '');
+  };
+
   // Handle file selection
   const handleFileSelect = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -985,6 +993,11 @@ export default function MobileChat({
     
     setIsProcessingFile(true);
     for (const file of files) {
+      // Validate file type (important when using accept="*/*" on Android)
+      if (!isFileTypeSupported(file)) {
+        alert(`File type not supported: ${file.name}\n\nSupported: Images, Videos, PDF, DOCX, XLSX, TXT, CSV, JSON, MD`);
+        continue;
+      }
       const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i);
       const maxSize = isVideo ? 100 * 1024 * 1024 : MAX_FILE_SIZE; // 100MB for video, 50MB for others
       if (file.size > maxSize) {
@@ -2657,12 +2670,21 @@ export default function MobileChat({
         </div>
       )}
 
-      {/* Hidden file input */}
+      {/* Hidden file input — media-typed for drag/drop & inline use */}
       <input
         type="file"
         ref={fileInputRef}
         onChange={handleFileSelect}
         accept={ACCEPTED_FILE_TYPES}
+        multiple
+        className="hidden"
+      />
+      {/* Hidden file input — broad accept for Android document browsing */}
+      <input
+        type="file"
+        ref={docFileInputRef}
+        onChange={handleFileSelect}
+        accept={"*/*"}
         multiple
         className="hidden"
       />
@@ -3988,7 +4010,7 @@ export default function MobileChat({
       <CreateOptionsSheet 
         isOpen={showAttachmentSheet}
         onClose={() => setShowAttachmentSheet(false)}
-        onFileSelect={() => fileInputRef.current?.click()}
+        onFileSelect={() => docFileInputRef.current?.click()}
         onCameraSelect={() => {
           // Create a camera-specific file input
           const cameraInput = document.createElement('input');
