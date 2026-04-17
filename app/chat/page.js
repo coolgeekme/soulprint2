@@ -2600,11 +2600,13 @@ export default function ChatPage() {
     let newPrompt = actualPrompt;
     
     // For videos, prepend with model instruction
-    if (['kling-3.0', 'veo3', 'runway-aleph'].includes(modelId)) {
+    if (['kling-3.0', 'veo3', 'runway-aleph', 'seedance-2-0', 'seedance-2-0-fast'].includes(modelId)) {
       const modelNames = {
         'kling-3.0': 'Kling 3.0',
         'veo3': 'Veo 3.1',
-        'runway-aleph': 'Runway Aleph'
+        'runway-aleph': 'Runway Aleph',
+        'seedance-2-0': 'Seedance 2.0',
+        'seedance-2-0-fast': 'Seedance 2.0 Fast',
       };
       newPrompt = `Use ${modelNames[modelId]} to generate: ${actualPrompt}`;
     } else {
