@@ -713,7 +713,10 @@ export default function ChatPage() {
     const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|avi)$/i);
     const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     const isDOCX = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
-                   file.name.toLowerCase().endsWith('.docx');
+                   file.type === 'application/msword' ||
+                   file.type === 'application/octet-stream' && file.name.toLowerCase().match(/\.docx?$/) ||
+                   file.name.toLowerCase().endsWith('.docx') ||
+                   file.name.toLowerCase().endsWith('.doc');
     const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
                     file.type === 'application/vnd.ms-excel' ||
                     file.name.toLowerCase().endsWith('.xlsx') ||

@@ -848,7 +848,10 @@ export default function MobileChat({
     const isVideo = file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i);
     const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
     const isDOCX = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || 
-                   file.name.toLowerCase().endsWith('.docx');
+                   file.type === 'application/msword' ||
+                   file.type === 'application/octet-stream' && file.name.toLowerCase().match(/\.docx?$/) ||
+                   file.name.toLowerCase().endsWith('.docx') ||
+                   file.name.toLowerCase().endsWith('.doc');
     const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
                     file.type === 'application/vnd.ms-excel' ||
                     file.name.toLowerCase().endsWith('.xlsx') ||
@@ -981,8 +984,8 @@ export default function MobileChat({
 
   // Validate file type against supported extensions/mimes
   const isFileTypeSupported = (file) => {
-    const supportedExtensions = /\.(jpg|jpeg|png|webp|gif|heic|heif|pdf|txt|md|csv|json|docx|xlsx|xls|mp4|mov|webm|avi|mkv|m4v)$/i;
-    const supportedMimes = /^(image\/|video\/|application\/pdf|application\/json|text\/|application\/vnd\.openxmlformats|application\/vnd\.ms-excel)/;
+    const supportedExtensions = /\.(jpg|jpeg|png|webp|gif|heic|heif|pdf|txt|md|csv|json|doc|docx|xlsx|xls|mp4|mov|webm|avi|mkv|m4v)$/i;
+    const supportedMimes = /^(image\/|video\/|application\/pdf|application\/json|application\/msword|application\/octet-stream|text\/|application\/vnd\.openxmlformats|application\/vnd\.ms-excel)/;
     return supportedExtensions.test(file.name) || supportedMimes.test(file.type || '');
   };
 

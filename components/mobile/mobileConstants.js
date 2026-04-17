@@ -29,7 +29,7 @@ const MODELS = [
 ];
 
 // Include both file extensions AND explicit MIME types so Android PWA shows "Files/Browse" option
-const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.docx,.xlsx,.xls,.mp4,.mov,.webm,.avi,.mkv,.m4v,image/*,video/mp4,video/quicktime,video/webm,video/x-matroska,application/pdf,text/plain,text/csv,text/markdown,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
+const ACCEPTED_FILE_TYPES = '.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.pdf,.txt,.md,.csv,.json,.doc,.docx,.xlsx,.xls,.mp4,.mov,.webm,.avi,.mkv,.m4v,image/*,video/mp4,video/quicktime,video/webm,video/x-matroska,application/pdf,application/msword,text/plain,text/csv,text/markdown,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel';
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 // Text input limits — matches backend MAX_SINGLE_MSG_TOKENS (32000 tokens ≈ 128K chars)
