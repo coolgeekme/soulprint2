@@ -4130,6 +4130,19 @@ export default function ChatPage() {
                               <SourceMediaBanner 
                                 imageUrl={msg.media_confirmation.sourceImageUrl || msg.media_confirmation.conversationImageUrl}
                                 videoUrl={msg.media_confirmation.conversationVideoUrl}
+                                onRemove={() => {
+                                  // Remove reference media from the confirmation
+                                  setMessages(prev => prev.map(m => {
+                                    if (m.id === msg.id && m.media_confirmation) {
+                                      const updated = { ...m, media_confirmation: { ...m.media_confirmation } };
+                                      delete updated.media_confirmation.conversationVideoUrl;
+                                      delete updated.media_confirmation.conversationImageUrl;
+                                      delete updated.media_confirmation.sourceImageUrl;
+                                      return updated;
+                                    }
+                                    return m;
+                                  }));
+                                }}
                               />
                             )}
                             
@@ -4144,6 +4157,18 @@ export default function ChatPage() {
                                   setMediaConfirmStep(-1);
                                   setMediaConfirmation(null);
                                   mediaConfirmRef.current = null;
+                                }}
+                                onRemoveReference={() => {
+                                  setMessages(prev => prev.map(m => {
+                                    if (m.id === msg.id && m.media_confirmation) {
+                                      const updated = { ...m, media_confirmation: { ...m.media_confirmation } };
+                                      delete updated.media_confirmation.sourceVideoUrl;
+                                      delete updated.media_confirmation.conversationVideoUrl;
+                                      delete updated.media_confirmation.seedImageUrl;
+                                      return updated;
+                                    }
+                                    return m;
+                                  }));
                                 }}
                                 disabled={loading}
                               />

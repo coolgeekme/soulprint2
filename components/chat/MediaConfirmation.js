@@ -1,10 +1,10 @@
 'use client';
 import React, { useState } from 'react';
-import { Image, Film, MessageCircle, Check, Pencil, Sparkles, Zap, ChevronRight, Loader2, FastForward, Play } from 'lucide-react';
+import { Image, Film, MessageCircle, Check, Pencil, Sparkles, Zap, ChevronRight, Loader2, FastForward, Play, X } from 'lucide-react';
 
 // ── Video Extension Confirmation Card ─────────────────────────────────
 // Shows a preview of the source video and lets user confirm extension
-export function VideoExtendConfirmCard({ refinedPrompt, sourceVideoUrl, seedImageUrl, onConfirm, onCancel, disabled }) {
+export function VideoExtendConfirmCard({ refinedPrompt, sourceVideoUrl, seedImageUrl, onConfirm, onCancel, onRemoveReference, disabled }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedPrompt, setEditedPrompt] = useState(refinedPrompt);
   const [confirming, setConfirming] = useState(false);
@@ -40,6 +40,15 @@ export function VideoExtendConfirmCard({ refinedPrompt, sourceVideoUrl, seedImag
             <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/60 border border-white/10 text-[10px] text-blue-300 font-medium">
               <Play className="w-3 h-3" fill="currentColor" /> {seedImageUrl && !sourceVideoUrl ? 'Last Frame (Seed)' : 'Source Video'}
             </div>
+            {onRemoveReference && (
+              <button
+                onClick={onRemoveReference}
+                className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 border border-white/10 text-gray-400 hover:text-red-400 hover:bg-red-500/20 transition-colors"
+                title="Remove reference"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         )}
         
@@ -115,11 +124,11 @@ export function VideoExtendConfirmCard({ refinedPrompt, sourceVideoUrl, seedImag
 
 // ── Source Media Context Banner ──────────────────────────────────────
 // Shows the user that the system has context of their media
-export function SourceMediaBanner({ imageUrl, videoUrl }) {
+export function SourceMediaBanner({ imageUrl, videoUrl, onRemove }) {
   if (!imageUrl && !videoUrl) return null;
   
   return (
-    <div className="mt-2 mb-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+    <div className="mt-2 mb-1 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06]">
       {videoUrl && (
         <div className="flex items-center gap-2 text-xs text-blue-400">
           <div className="w-10 h-7 rounded overflow-hidden border border-white/10 bg-black flex-shrink-0">
@@ -135,6 +144,15 @@ export function SourceMediaBanner({ imageUrl, videoUrl }) {
           </div>
           <span className="text-gray-500">Using your image as reference</span>
         </div>
+      )}
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          className="flex-shrink-0 p-1 rounded-md hover:bg-white/10 text-gray-600 hover:text-red-400 transition-colors"
+          title="Remove reference"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       )}
     </div>
   );

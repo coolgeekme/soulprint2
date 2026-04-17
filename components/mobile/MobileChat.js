@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS, IMAGE_MODELS, VIDEO_MODELS, ASPECT_RATIOS } from './mobileConstants';
 import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { MobileImageCard, MobileVideoCard, MobileSavedVideoCard } from './MobileMediaCards';
+import { SourceMediaBanner } from '@/components/chat/MediaConfirmation';
 import VideoProgressBanner from '@/components/chat/VideoProgressBanner';
 import { TabBar, ChatHeader } from './MobileNavigation';
 import MessageBubble from './MobileMessageBubble';
@@ -2925,6 +2926,15 @@ export default function MobileChat({
               {/* ONLY show if no message in the list already has this same taskId (prevents duplicates) */}
               {streamingVideoTask && !messages.some(m => m.video_task?.taskId === streamingVideoTask?.taskId) && (
                 <div className="px-4 mb-4">
+                  {/* Reference media banner with remove button */}
+                  {streamingVideoTask.sourceImage && (
+                    <SourceMediaBanner
+                      imageUrl={streamingVideoTask.sourceImage}
+                      onRemove={() => {
+                        setStreamingVideoTask(prev => prev ? { ...prev, sourceImage: undefined } : null);
+                      }}
+                    />
+                  )}
                   <MobileVideoCard
                     taskId={streamingVideoTask.taskId}
                     prompt={streamingVideoTask.prompt}
