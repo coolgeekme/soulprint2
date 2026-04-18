@@ -1497,6 +1497,7 @@ export default function ChatPage() {
           mediaFlow: pendingMediaFlowRef.current || null, // Media confirmation flow payload
           incognito: isIncognito, // Incognito mode — no messages saved to DB
           mediaGenMode: mediaGenMode, // Media creation mode — auto-generate when ON
+          userLocation: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, address: userLocation.address } : null,
         }),
         signal: abortControllerRef.current.signal,
       });

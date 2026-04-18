@@ -1216,6 +1216,7 @@ export default function MobileChat({
           imageModel: selectedImageModel !== 'smart' ? selectedImageModel : null,
           incognito: isIncognito,
           mediaGenMode: mediaGenMode,
+          userLocation: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, address: userLocation.address } : null,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -2166,6 +2167,7 @@ export default function MobileChat({
               provider: modelInfo.provider,
               enableWebSearch: webSearchEnabled,
               projectId: selectedProject && selectedProject !== 'general' ? selectedProject : null,
+              userLocation: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, address: userLocation.address } : null,
             }),
           });
           
