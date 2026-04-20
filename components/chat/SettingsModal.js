@@ -785,9 +785,9 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
 
   // Fetch GitHub connection status
   const fetchGithubStatus = useCallback(async () => {
-    if (!profile?.id) return;
+    if (!profile?.user_id) return;
     try {
-      const res = await fetch(`/api/github/status?user_id=${profile.id}`, {
+      const res = await fetch(`/api/github/status?user_id=${profile.user_id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -795,21 +795,21 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
     } catch (e) {
       console.error('Failed to fetch GitHub status:', e);
     }
-  }, [token, profile?.id]);
+  }, [token, profile?.user_id]);
 
   // Auto-load GitHub status when integrations tab is opened
   useEffect(() => {
-    if (activeTab === 'integrations' && profile?.id) {
+    if (activeTab === 'integrations' && profile?.user_id) {
       fetchGithubStatus();
     }
-  }, [activeTab, profile?.id, fetchGithubStatus]);
+  }, [activeTab, profile?.user_id, fetchGithubStatus]);
 
   // GitHub connect handler
   const handleGitHubConnect = async () => {
-    if (!profile?.id) return;
+    if (!profile?.user_id) return;
     setGithubLoading(true);
     try {
-      const res = await fetch(`/api/github/connect?user_id=${profile.id}`, {
+      const res = await fetch(`/api/github/connect?user_id=${profile.user_id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -833,7 +833,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
       await fetch('/api/github/disconnect', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: profile?.id }),
+        body: JSON.stringify({ userId: profile?.user_id }),
       });
       setGithubStatus({ connected: false });
     } catch (e) {
