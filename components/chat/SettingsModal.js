@@ -814,24 +814,10 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
       });
       const data = await res.json();
       if (data.authUrl) {
-        window.open(data.authUrl, '_blank', 'width=600,height=700');
-        // Poll for connection status
-        const pollInterval = setInterval(async () => {
-          const statusRes = await fetch(`/api/github/status?user_id=${profile.id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const statusData = await statusRes.json();
-          if (statusData.connected) {
-            setGithubStatus(statusData);
-            setGithubLoading(false);
-            clearInterval(pollInterval);
-          }
-        }, 3000);
-        // Stop polling after 5 minutes
-        setTimeout(() => {
-          clearInterval(pollInterval);
-          setGithubLoading(false);
-        }, 300000);
+        // Use direct navigation instead of window.open to avoid popup blockers
+        window.location.href = data.authUrl;
+      } else {
+        setGithubLoading(false);
       }
     } catch (e) {
       console.error('GitHub connect error:', e);
