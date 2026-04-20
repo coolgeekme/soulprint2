@@ -329,6 +329,29 @@ export default function ChatPage() {
     }
   }, [searchParams, token, router]);
 
+  // Handle GitHub OAuth callback URL params
+  useEffect(() => {
+    const githubConnected = searchParams.get('github_connected');
+    const githubError = searchParams.get('github_error');
+    const githubUser = searchParams.get('github_user');
+    if (githubConnected === 'true') {
+      // Show success notification
+      toast?.({ title: '✅ GitHub Connected', description: `Successfully connected as @${githubUser || 'user'}`, duration: 5000 });
+      router.replace('/chat', { scroll: false });
+    } else if (githubError) {
+      const errorMessages = {
+        missing_params: 'OAuth callback missing required parameters.',
+        invalid_state: 'Security validation failed. Please try again.',
+        state_expired: 'OAuth session expired. Please try again.',
+        token_exchange_failed: 'Failed to authenticate with GitHub.',
+        user_fetch_failed: 'Failed to fetch GitHub user profile.',
+        server_error: 'Server error during GitHub connection.',
+      };
+      toast?.({ title: '❌ GitHub Connection Failed', description: errorMessages[githubError] || githubError, variant: 'destructive', duration: 8000 });
+      router.replace('/chat', { scroll: false });
+    }
+  }, [searchParams, router, toast]);
+
   // Capture the beforeinstallprompt event for PWA install
   useEffect(() => {
     const handleBeforeInstallPrompt = (e) => {
