@@ -379,6 +379,22 @@ import {
   handleSupportEscalate,
 } from '@/lib/handlers/support-bot';
 
+// ── GitHub Integration ──
+import {
+  handleGitHubConnect,
+  handleGitHubCallback,
+  handleGitHubDisconnect,
+  handleGitHubStatus,
+  handleGitHubRepos,
+  handleGitHubContents,
+  handleGitHubFileWrite,
+  handleGitHubPulls,
+  handleGitHubCreatePR,
+  handleGitHubIssues,
+  handleGitHubCreateIssue,
+  handleGitHubCommits,
+} from '@/lib/handlers/github-integration';
+
 // ══════════════════════════════════════════════════════════════════════════════
 
 
