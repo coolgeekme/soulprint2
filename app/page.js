@@ -470,7 +470,7 @@ export default function LandingPage() {
               { label: 'Personality', generic: 'Generic responses', sp: 'Adapts to YOUR style' },
               { label: 'Intelligence', generic: 'Single model', sp: 'Auto-picks best AI for the task' },
               { label: 'Relationship', generic: 'Stranger every time', sp: 'Builds familiarity over time' },
-              { label: 'Actions', generic: 'Just text chat', sp: 'Images, video, web, calendar' },
+              { label: 'Actions', generic: 'Just text chat', sp: 'Images, video, web, code & more' },
               { label: 'Voice', generic: 'Limited', sp: 'Full voice conversations' },
               { label: 'Privacy', generic: 'Trains on your data', sp: 'Your data stays yours' },
             ].map((row, i) => (
@@ -548,7 +548,7 @@ export default function LandingPage() {
               { icon: '🌐', label: 'Browse the Web in Real-Time' },
               { icon: '🎙️', label: 'Voice Conversations' },
               { icon: '📄', label: 'Read & Analyze Documents' },
-              { icon: '📧', label: 'Manage Email & Calendar' },
+              { icon: '📧', label: 'Email & Calendar (Coming Soon)' },
               { icon: '🔍', label: 'Deep Research' },
               { icon: '💻', label: 'Help With Code (GitHub)' },
               { icon: '🔒', label: 'Encrypted & Private' },
