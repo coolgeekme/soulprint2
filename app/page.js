@@ -2,7 +2,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, Twitter, Linkedin, Instagram, Calendar, User, ArrowRight, Facebook, Youtube } from 'lucide-react';
+import { ChevronDown, ChevronRight, Twitter, Linkedin, Instagram, Calendar, User, ArrowRight, Facebook, Youtube, Brain, Zap, Fingerprint, Heart, Sparkles, Shield, Check, Star, Quote, MessageSquare } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 // Blog Preview Component
@@ -25,7 +25,6 @@ function BlogPreview() {
     return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  // Don't show section if no posts
   if (!loading && posts.length === 0) return null;
 
   return (
@@ -62,43 +61,22 @@ function BlogPreview() {
                 href={`/blog/${post.slug}`}
                 className="group bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:border-orange-500/50 hover:shadow-lg transition-all duration-300"
               >
-                {/* Image */}
                 {post.featured_image ? (
                   <div className="aspect-video bg-gray-200 overflow-hidden">
-                    <img 
-                      src={post.featured_image} 
-                      alt={post.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
+                    <img src={post.featured_image} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                   </div>
                 ) : (
                   <div className="aspect-video bg-gradient-to-br from-orange-100 to-pink-100 flex items-center justify-center">
                     <SoulPrintLogo size={40} />
                   </div>
                 )}
-                
-                {/* Content */}
                 <div className="p-6">
-                  {post.category && (
-                    <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">
-                      {post.category}
-                    </span>
-                  )}
-                  <h3 className="font-condensed font-bold text-gray-900 text-lg mt-2 mb-3 group-hover:text-orange-600 transition-colors line-clamp-2 uppercase">
-                    {post.title}
-                  </h3>
-                  <p className="text-gray-600 text-sm line-clamp-2 mb-4">
-                    {post.excerpt}
-                  </p>
+                  {post.category && <span className="text-xs text-orange-500 font-bold uppercase tracking-wider">{post.category}</span>}
+                  <h3 className="font-condensed font-bold text-gray-900 text-lg mt-2 mb-3 group-hover:text-orange-600 transition-colors line-clamp-2 uppercase">{post.title}</h3>
+                  <p className="text-gray-600 text-sm line-clamp-2 mb-4">{post.excerpt}</p>
                   <div className="flex items-center gap-3 text-xs text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      {post.author}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {formatDate(post.published_at)}
-                    </span>
+                    <span className="flex items-center gap-1"><User className="w-3 h-3" />{post.author}</span>
+                    <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDate(post.published_at)}</span>
                   </div>
                 </div>
               </Link>
@@ -107,10 +85,7 @@ function BlogPreview() {
         )}
 
         <div className="mt-8 text-center sm:hidden">
-          <Link 
-            href="/blog" 
-            className="inline-flex items-center gap-2 text-orange-500 hover:text-orange-600 font-medium text-sm transition-colors"
-          >
+          <Link href="/blog" className="inline-flex items-center gap-2 text-orange-500 hover:text-orange-600 font-medium text-sm transition-colors">
             View all posts <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -120,70 +95,157 @@ function BlogPreview() {
 }
 
 const HERO_IMAGE = "/hero-headshot-nobg.png";
-const FEATURE_IMAGES = [
-  "https://images.unsplash.com/photo-1610715945878-f567a10e6bb4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwzfHxzbWFydHBob25lJTIwbWVzc2FnaW5nfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MjU0NTM2NHww&ixlib=rb-4.1.0&q=85",
-  "https://images.unsplash.com/photo-1604525241109-c3b7eecf4add?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwzfHx3b3JraW5nJTIwbGFwdG9wfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MjU0NTM3MHww&ixlib=rb-4.1.0&q=85",
-  "https://images.unsplash.com/photo-1615821430614-3d7d2685e2f2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHwzfHx2b2ljZSUyMHNwZWFraW5nfGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc3MjU0NTM3NHww&ixlib=rb-4.1.0&q=85",
-  "https://images.unsplash.com/photo-1503792243040-7ce7f5f06085?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHw0fHxsb2NrJTIwc2VjdXJpdHl8ZW58MHx8fGJsYWNrX2FuZF93aGl0ZXwxNzcyNTQ1MzgyfDA&ixlib=rb-4.1.0&q=85",
+
+const FIVE_FEATURES = [
+  {
+    icon: Brain,
+    title: 'Persistent Memory',
+    desc: 'Remembers context across every interaction. No more repeating yourself — it knows your history, preferences, and ongoing projects.',
+    color: 'from-orange-500/20 to-orange-600/5',
+    border: 'border-orange-500/30',
+    iconColor: 'text-orange-400',
+  },
+  {
+    icon: Zap,
+    title: 'Dynamic Intelligence',
+    desc: 'Automatically selects the best AI model for each task. Whether it\'s creative writing, research, or analysis — it picks the right brain.',
+    color: 'from-yellow-500/20 to-yellow-600/5',
+    border: 'border-yellow-500/30',
+    iconColor: 'text-yellow-400',
+  },
+  {
+    icon: Fingerprint,
+    title: 'Identity Alignment',
+    desc: 'Not just personalization — it captures how you think and make decisions. Your decision style, communication cadence, and conflict response.',
+    color: 'from-purple-500/20 to-purple-600/5',
+    border: 'border-purple-500/30',
+    iconColor: 'text-purple-400',
+  },
+  {
+    icon: Heart,
+    title: 'Relationship Layer',
+    desc: 'Builds familiarity over time, like a real partner. The more you interact, the more it understands your nuances and patterns.',
+    color: 'from-pink-500/20 to-pink-600/5',
+    border: 'border-pink-500/30',
+    iconColor: 'text-pink-400',
+  },
+  {
+    icon: Sparkles,
+    title: 'Taste Integration',
+    desc: 'Matches your standard of "what good looks like." From writing style to creative output — it learns your taste and delivers accordingly.',
+    color: 'from-emerald-500/20 to-emerald-600/5',
+    border: 'border-emerald-500/30',
+    iconColor: 'text-emerald-400',
+  },
 ];
 
-const FEATURES = [
-  { tag: 'CHANNELS', title: 'Lives in Telegram & SMS (coming soon)', desc: 'No new apps to install. Just message your SoulPrint in Telegram or text via SMS — the same tools you already use every day.', img: FEATURE_IMAGES[0] },
-  { tag: 'ACTIONS', title: 'It can actually do things', desc: 'Browse the web, generate images, look things up — not just chat. It takes action for you. Calendar and email integration coming soon.', img: FEATURE_IMAGES[1] },
-  { tag: 'VOICE', title: 'Talks and listens', desc: 'Send voice messages or talk hands-free. Your SoulPrint can listen and understand photos you send. Voice replies coming soon.', img: FEATURE_IMAGES[2] },
-  { tag: 'PRIVACY', title: 'Your data stays yours', desc: 'Your conversations are private and encrypted. We never use your data to train AI models. What you say stays between you and your SoulPrint.', img: FEATURE_IMAGES[3] },
+const TESTIMONIALS = [
+  {
+    quote: "Let me start with the headline: it's better than ChatGPT. There, I said it. I came skeptical — another AI tool promising to be my creative co-pilot — but SoulPrint surprised me in ways I didn't expect.",
+    author: 'Early Adopter',
+    role: 'Creator',
+  },
+  {
+    quote: "I have been using SoulPrint Engine for my health and well being. So far it has been spot on. I'll begin to use it for my business consulting to see how it answers my day to day questions.",
+    author: 'Rob',
+    role: 'Consultant',
+  },
+  {
+    quote: "SoulPrint Engine is F@$%-ing Awesome!",
+    author: 'Early Adopter',
+    role: 'Power User',
+  },
 ];
 
 const FAQS = [
-  { q: 'What is a SoulPrint?', a: 'A SoulPrint is your persistent AI identity layer. Not a chatbot. Not a prompt wrapper. Not a memory plugin. It\'s a mapped, structured imprint of how you think, decide, react, prioritize, trust, and communicate — embedded into an AI system so the interaction reflects you, not generic model behavior. Most AI resets every session. A SoulPrint doesn\'t. It builds continuity, reference, and resonance across conversations so the system responds with your logic, your tone, your structure — consistently. In short: A SoulPrint is the operating system of you — running on AI.' },
-  { q: 'What can it actually do?', a: 'SoulPrint can research topics, draft messages, answer questions, help with creative projects, and take real actions on your behalf — all through a simple chat interface. Calendar and email integration coming soon.' },
-  { q: 'How is this different from ChatGPT?', a: 'ChatGPT is a general AI that forgets you after every conversation. SoulPrint captures your decision style, conflict response, boundary thresholds, communication cadence, emotional weighting, and pattern recognition over time — so it gets smarter about you, not just about general knowledge.' },
-  { q: 'Does it work with voice?', a: 'Yes. You can send voice messages and SoulPrint will understand and respond. Voice replies are coming soon.' },
+  { q: 'What is a SoulPrint?', a: 'A SoulPrint is your persistent AI identity layer — a structured imprint of how you think, decide, react, prioritize, trust, and communicate. It\'s embedded into an AI system so every interaction reflects you, not generic model behavior. Most AI resets every session. Your SoulPrint builds continuity forever.' },
+  { q: 'What can it actually do?', a: 'Research topics, draft messages, generate images and videos, browse the web, answer deep questions, help with creative projects, manage your calendar and email — all through a simple chat. It takes action, not just responds.' },
+  { q: 'How is this different from ChatGPT?', a: 'ChatGPT forgets you after every conversation. SoulPrint captures your decision style, conflict response, communication cadence, emotional weighting, and pattern recognition — so it gets smarter about you, not just about general knowledge.' },
+  { q: 'Does it work with voice?', a: 'Yes. You can talk hands-free or send voice messages. Your SoulPrint listens, understands, and responds naturally.' },
   { q: 'Is my data private?', a: 'Absolutely. Your conversations are encrypted and never used to train AI models. Your data belongs to you, and you can delete it at any time.' },
-  { q: 'How do I get started?', a: 'Click "Get your SoulPrint" above, complete a short onboarding and our 36-question assessment, and your personal AI will be ready. The whole process takes about 10 minutes.' },
+  { q: 'How do I get started?', a: 'Click "Get Your SoulPrint" above, complete a short onboarding, and your personal AI adapts to you instantly. Takes about 5 minutes.' },
 ];
 
 function FAQItem({ q, a }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="faq-item py-4 cursor-pointer" onClick={() => setOpen(!open)}>
+    <div className="py-4 cursor-pointer border-b border-white/10" onClick={() => setOpen(!open)}>
       <div className="flex items-center justify-between">
         <span className="text-sm text-gray-300 font-medium">{q}</span>
-        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${open ? 'rotate-180' : ''}`} />
       </div>
-      {open && (
-        <p className="mt-3 text-sm text-gray-500 leading-relaxed">{a}</p>
-      )}
+      {open && <p className="mt-3 text-sm text-gray-500 leading-relaxed">{a}</p>}
+    </div>
+  );
+}
+
+// Inline CTA component
+function InlineCTA({ text, subtext }) {
+  return (
+    <div className="text-center py-8">
+      <Link href="/auth" className="btn-orange px-8 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
+        {text || 'Get Your SoulPrint'} <ArrowRight className="w-4 h-4" />
+      </Link>
+      {subtext && <p className="text-gray-500 text-xs mt-3">{subtext}</p>}
     </div>
   );
 }
 
 export default function LandingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  
-  // Check if user is logged in
+  const [showStickyBar, setShowStickyBar] = useState(false);
+
   useEffect(() => {
     const token = localStorage.getItem('sp_token');
     if (token) {
-      // Verify token is still valid
       fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => {
-          if (r.ok) setIsLoggedIn(true);
-        })
+        .then(r => { if (r.ok) setIsLoggedIn(true); })
         .catch(() => {});
     }
   }, []);
 
+  // Show sticky CTA bar after scrolling past hero
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowStickyBar(window.scrollY > 600);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const ctaLink = isLoggedIn ? '/chat' : '/auth';
+  const ctaText = isLoggedIn ? 'Open Chat' : 'Get Your SoulPrint';
+
   return (
     <div className="min-h-screen bg-sp-black">
-      {/* HERO SECTION */}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          STICKY CTA BAR - appears on scroll
+      ═══════════════════════════════════════════════════════════════════ */}
+      <div className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${showStickyBar ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'}`}>
+        <div className="bg-sp-black/95 backdrop-blur-md border-b border-white/10">
+          <div className="max-w-7xl mx-auto px-8 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <SoulPrintLogo size={22} />
+              <span className="font-condensed text-sm font-bold tracking-widest text-white uppercase hidden sm:inline">SoulPrint</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-gray-400 text-xs hidden md:inline">AI that actually knows you</span>
+              <Link href={ctaLink} className="btn-orange px-5 py-2 rounded-lg text-xs">
+                {ctaText} →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          HERO SECTION
+      ═══════════════════════════════════════════════════════════════════ */}
       <section className="relative overflow-hidden" style={{ minHeight: '100vh' }}>
-        {/* Grid background */}
         <div className="absolute inset-0 grid-bg opacity-100" />
-        {/* Orange glow from center top */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(246,64,0,0.15)_0%,transparent_70%)]" />
         
-        {/* Large muted SoulPrint logo in background */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
           <div className="absolute right-[-5%] top-1/2 -translate-y-1/2 opacity-[0.06]">
             <SoulPrintLogo size={900} />
@@ -197,7 +259,8 @@ export default function LandingPage() {
             <span className="font-condensed text-lg font-bold tracking-widest text-white uppercase">SoulPrint</span>
           </div>
           <div className="flex items-center gap-6">
-            <Link href="/features" className="text-sm text-gray-400 hover:text-white transition-colors">Features</Link>
+            <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:inline">Features</a>
+            <a href="#testimonials" className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:inline">Reviews</a>
             {isLoggedIn ? (
               <Link href="/chat" className="btn-orange px-5 py-2 rounded-lg text-sm flex items-center gap-2">
                 Open Chat <ArrowRight className="w-4 h-4" />
@@ -205,7 +268,7 @@ export default function LandingPage() {
             ) : (
               <>
                 <Link href="/auth" className="text-sm text-gray-400 hover:text-white transition-colors">Sign In</Link>
-                <Link href="/auth" className="btn-orange px-5 py-2 rounded-lg text-sm">Get Started</Link>
+                <Link href="/auth" className="btn-orange px-5 py-2 rounded-lg text-sm">Get Started Free</Link>
               </>
             )}
           </div>
@@ -214,191 +277,316 @@ export default function LandingPage() {
         {/* Hero content */}
         <div className="relative z-10 max-w-7xl mx-auto px-8 flex items-center min-h-[calc(100vh-80px)]">
           <div className="flex items-center gap-0 w-full">
-            {/* Left: text */}
             <div className="flex-1 pr-8">
               <h1 className="font-condensed font-black text-white leading-none mb-6"
-                  style={{ fontSize: 'clamp(52px, 8vw, 110px)', letterSpacing: '-1px' }}>
+                  style={{ fontSize: 'clamp(48px, 7.5vw, 100px)', letterSpacing: '-1px' }}>
                 STOP RE-<br />EXPLAINING<br />YOURSELF<br />TO AI
               </h1>
-              <p className="text-gray-400 text-base mb-8 max-w-sm leading-relaxed">
+              <p className="text-gray-400 text-base mb-4 max-w-md leading-relaxed">
                 Chat, organize, reflect, and plan with an AI that remembers your tone, your tempo, and your life.
               </p>
+              {/* Trust indicators */}
+              <div className="flex items-center gap-4 mb-8 flex-wrap">
+                <span className="text-xs text-gray-500 flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-green-500" /> Private & Encrypted
+                </span>
+                <span className="text-xs text-gray-500 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-yellow-500" /> GPT-4o, Gemini & Claude
+                </span>
+                <span className="text-xs text-gray-500 flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-orange-500" /> Free to Start
+                </span>
+              </div>
               <div className="flex items-center gap-4">
                 {isLoggedIn ? (
-                  <Link href="/chat" className="btn-orange px-7 py-3 rounded-xl text-sm inline-flex items-center gap-2">
+                  <Link href="/chat" className="btn-orange px-7 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
                     Go to Chat <ArrowRight className="w-4 h-4" />
                   </Link>
                 ) : (
-                  <Link href="/auth" className="btn-orange px-7 py-3 rounded-xl text-sm inline-flex items-center gap-2">
-                    Get your SoulPrint
+                  <Link href="/auth" className="btn-orange px-7 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
+                    Get Your SoulPrint — It&apos;s Free
                   </Link>
                 )}
-                <Link href="#features" className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors">
-                  Explore <ChevronRight className="w-4 h-4" />
-                </Link>
+                <a href="#features" className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors">
+                  See what it can do <ChevronRight className="w-4 h-4" />
+                </a>
               </div>
             </div>
 
-            {/* Right: portrait — background removed */}
-            <div className="flex-shrink-0 w-[440px] h-[580px] relative">
-              <img 
-                src={HERO_IMAGE} 
-                alt="SoulPrint" 
-                className="w-full h-full object-contain"
-                style={{
-                  filter: 'contrast(1.1) brightness(1.05)',
-                }}
-              />
-              {/* Bottom fade */}
+            <div className="flex-shrink-0 w-[440px] h-[580px] relative hidden lg:block">
+              <img src={HERO_IMAGE} alt="SoulPrint" className="w-full h-full object-contain" style={{ filter: 'contrast(1.1) brightness(1.05)' }} />
               <div className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none" style={{ background: 'linear-gradient(to top, #0a0a0a, transparent)' }} />
             </div>
           </div>
         </div>
       </section>
 
-      {/* FEATURES SECTION */}
-      <section id="features" className="bg-white py-24 px-8">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="font-condensed font-black text-black text-center mb-4 leading-tight"
-              style={{ fontSize: 'clamp(32px, 5vw, 64px)', letterSpacing: '-0.5px' }}>
-            YOUR AI BEST FRIEND, RIGHT IN YOUR CHAT.
-          </h2>
-          <p className="text-gray-600 text-center mb-16 text-sm max-w-lg mx-auto">
-            SoulPrint lives in your Telegram (SMS coming soon) — no new apps to download. Just message it like you'd message a friend.
-          </p>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {FEATURES.map((f, i) => (
-              <div key={i} className="flex flex-col">
-                <div className="h-48 rounded-lg overflow-hidden mb-3">
-                  <img src={f.img} alt={f.tag} className="w-full h-full object-cover grayscale" />
+      {/* ═══════════════════════════════════════════════════════════════════
+          SOCIAL PROOF BAR
+      ═══════════════════════════════════════════════════════════════════ */}
+      <section className="bg-white py-6 px-8 border-b border-gray-200">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2">
+              {[1,2,3,4,5].map(i => (
+                <div key={i} className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-white flex items-center justify-center">
+                  <User className="w-3.5 h-3.5 text-white" />
                 </div>
-                <span className="text-xs font-bold text-orange-500 tracking-widest uppercase mb-1">{f.tag}</span>
-                <h4 className="text-sm font-bold text-black mb-2">{f.title}</h4>
-                <p className="text-xs text-gray-600 leading-relaxed">{f.desc}</p>
+              ))}
+            </div>
+            <div>
+              <p className="text-gray-900 text-sm font-bold">20,000+</p>
+              <p className="text-gray-500 text-[10px]">have discovered SoulPrint</p>
+            </div>
+          </div>
+          <div className="hidden sm:block w-px h-8 bg-gray-200" />
+          <div className="flex items-center gap-1.5">
+            {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 text-orange-500 fill-orange-500" />)}
+            <span className="text-gray-700 text-sm font-medium ml-1">Loved by early adopters</span>
+          </div>
+          <div className="hidden sm:block w-px h-8 bg-gray-200" />
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-green-600" />
+            <span className="text-gray-700 text-sm font-medium">Your data stays yours</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          5 THINGS SOULPRINT CAN DO — from the ad
+      ═══════════════════════════════════════════════════════════════════ */}
+      <section id="features" className="bg-sp-black grid-bg py-24 px-8">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
+              WHAT MAKES IT DIFFERENT
+            </p>
+            <h2 className="font-condensed font-black text-white leading-tight mb-4"
+                style={{ fontSize: 'clamp(28px, 4vw, 52px)' }}>
+              5 THINGS SOULPRINT ENGINE CAN DO<br />
+              <span className="text-orange-400">THAT OTHER AI CAN&apos;T</span>
+            </h2>
+            <p className="text-gray-400 text-sm max-w-xl mx-auto">
+              This isn&apos;t another chatbot. SoulPrint Engine is a fundamentally different kind of AI — one that&apos;s built around you.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {FIVE_FEATURES.map((f, i) => (
+              <div 
+                key={i} 
+                className={`rounded-2xl p-6 bg-gradient-to-br ${f.color} border ${f.border} hover:scale-[1.02] transition-transform duration-200 ${i === 4 ? 'md:col-span-2 lg:col-span-1' : ''}`}
+              >
+                <div className={`w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-4`}>
+                  <f.icon className={`w-6 h-6 ${f.iconColor}`} />
+                </div>
+                <h3 className="text-white font-bold text-lg mb-2">{f.title}</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA after features */}
+          <InlineCTA text={ctaText} subtext="Free to start. No credit card required." />
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          HOW IT WORKS — 3 steps
+      ═══════════════════════════════════════════════════════════════════ */}
+      <section className="bg-white py-24 px-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
+              GETTING STARTED
+            </p>
+            <h2 className="font-condensed font-black text-gray-900 text-3xl md:text-5xl uppercase">
+              Your SoulPrint in 3 Steps
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { num: '01', title: 'Sign Up', desc: 'Create your account in seconds. No credit card needed.', icon: User },
+              { num: '02', title: 'Take the Assessment', desc: 'Answer a short set of questions so your AI understands how you think.', icon: Brain },
+              { num: '03', title: 'Start Chatting', desc: 'Your AI adapts instantly. The more you use it, the smarter it gets about you.', icon: MessageSquare },
+            ].map((step, i) => (
+              <div key={i} className="text-center">
+                <div className="w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mx-auto mb-4">
+                  <step.icon className="w-7 h-7 text-orange-500" />
+                </div>
+                <span className="text-orange-500 font-condensed font-bold text-xs tracking-widest">{step.num}</span>
+                <h3 className="font-condensed font-bold text-gray-900 text-xl uppercase mt-1 mb-2">{step.title}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA after steps */}
+          <div className="text-center pt-10">
+            <Link href={ctaLink} className="btn-orange px-8 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
+              {ctaText} — Takes 5 Minutes <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          VS CHATGPT COMPARISON
+      ═══════════════════════════════════════════════════════════════════ */}
+      <section className="bg-sp-black grid-bg py-24 px-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
+              THE DIFFERENCE
+            </p>
+            <h2 className="font-condensed font-black text-white text-3xl md:text-5xl uppercase tracking-wide">
+              SoulPrint vs. Generic AI
+            </h2>
+          </div>
+
+          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+            <div className="grid grid-cols-3 bg-white/5 p-4">
+              <div className="text-xs text-gray-500 uppercase font-bold tracking-wider"></div>
+              <div className="text-center text-xs text-gray-500 uppercase font-bold tracking-wider">ChatGPT / Others</div>
+              <div className="text-center text-xs text-orange-400 uppercase font-bold tracking-wider">SoulPrint</div>
+            </div>
+            {[
+              { label: 'Memory', generic: 'Resets every session', sp: 'Remembers everything' },
+              { label: 'Personality', generic: 'Generic responses', sp: 'Adapts to YOUR style' },
+              { label: 'Intelligence', generic: 'Single model', sp: 'Auto-picks best AI for the task' },
+              { label: 'Relationship', generic: 'Stranger every time', sp: 'Builds familiarity over time' },
+              { label: 'Actions', generic: 'Just text chat', sp: 'Images, video, web, calendar' },
+              { label: 'Voice', generic: 'Limited', sp: 'Full voice conversations' },
+              { label: 'Privacy', generic: 'Trains on your data', sp: 'Your data stays yours' },
+            ].map((row, i) => (
+              <div key={i} className={`grid grid-cols-3 p-4 ${i % 2 === 0 ? 'bg-white/[0.02]' : ''} border-t border-white/5`}>
+                <div className="text-sm text-white font-medium">{row.label}</div>
+                <div className="text-center text-sm text-gray-500">{row.generic}</div>
+                <div className="text-center text-sm text-orange-300 font-medium flex items-center justify-center gap-1.5">
+                  <Check className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" /> {row.sp}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA after comparison */}
+          <InlineCTA text={ctaText} subtext="See the difference for yourself." />
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          TESTIMONIALS
+      ═══════════════════════════════════════════════════════════════════ */}
+      <section id="testimonials" className="bg-white py-24 px-8">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
+              REAL USERS, REAL WORDS
+            </p>
+            <h2 className="font-condensed font-black text-gray-900 text-3xl md:text-5xl uppercase">
+              What People Are Saying
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {TESTIMONIALS.map((t, i) => (
+              <div key={i} className={`rounded-2xl p-6 border ${i === 0 ? 'bg-gradient-to-br from-orange-50 to-white border-orange-200 md:col-span-2 lg:col-span-1' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex items-center gap-1 mb-4">
+                  {[1,2,3,4,5].map(s => <Star key={s} className="w-4 h-4 text-orange-500 fill-orange-500" />)}
+                </div>
+                <Quote className="w-8 h-8 text-orange-500/20 mb-2" />
+                <p className="text-gray-800 text-sm leading-relaxed mb-6 italic">
+                  &ldquo;{t.quote}&rdquo;
+                </p>
+                <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">{t.author[0]}</span>
+                  </div>
+                  <div>
+                    <p className="text-gray-900 text-sm font-bold">{t.author}</p>
+                    <p className="text-gray-500 text-xs">{t.role}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA after testimonials */}
+          <div className="text-center pt-10">
+            <Link href={ctaLink} className="btn-orange px-8 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
+              Join Them — {ctaText} <ArrowRight className="w-4 h-4" />
+            </Link>
+            <p className="text-gray-400 text-xs mt-3">Free to start. Cancel anytime.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          ALSO DOES — Quick capability highlights
+      ═══════════════════════════════════════════════════════════════════ */}
+      <section className="bg-sp-black py-16 px-8 border-y border-white/10">
+        <div className="max-w-5xl mx-auto">
+          <p className="text-center text-gray-500 text-xs uppercase tracking-widest mb-8 font-condensed font-bold">It also does</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { icon: '🎨', label: 'Generate Images & Video' },
+              { icon: '🌐', label: 'Browse the Web in Real-Time' },
+              { icon: '🎙️', label: 'Voice Conversations' },
+              { icon: '📄', label: 'Read & Analyze Documents' },
+              { icon: '📧', label: 'Manage Email & Calendar' },
+              { icon: '🔍', label: 'Deep Research' },
+              { icon: '💻', label: 'Help With Code (GitHub)' },
+              { icon: '🔒', label: 'Encrypted & Private' },
+            ].map((item, i) => (
+              <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-4 text-center hover:border-orange-500/30 transition-colors">
+                <span className="text-2xl">{item.icon}</span>
+                <p className="text-gray-300 text-xs mt-2 font-medium">{item.label}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* WHAT IS A SOULPRINT SECTION */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          FAQ SECTION
+      ═══════════════════════════════════════════════════════════════════ */}
       <section className="bg-sp-black grid-bg py-24 px-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-2xl mx-auto">
           <div className="text-center mb-12">
             <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
-              THE PHILOSOPHY
+              GOT QUESTIONS?
             </p>
-            <h2 className="font-condensed font-black text-white text-3xl md:text-5xl uppercase tracking-wide mb-6">
-              What Is A SoulPrint?
+            <h2 className="font-condensed font-black text-white text-3xl md:text-4xl uppercase tracking-wide">
+              Frequently Asked
             </h2>
           </div>
-          
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-8 md:p-12">
-            <p className="text-xl md:text-2xl text-white font-light leading-relaxed mb-8">
-              A SoulPrint is your <span className="text-orange-400 font-medium">persistent AI identity layer</span>.
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-white/5 rounded-xl p-4 text-center">
-                <p className="text-gray-500 line-through text-sm">Not a chatbot</p>
-              </div>
-              <div className="bg-white/5 rounded-xl p-4 text-center">
-                <p className="text-gray-500 line-through text-sm">Not a prompt wrapper</p>
-              </div>
-              <div className="bg-white/5 rounded-xl p-4 text-center">
-                <p className="text-gray-500 line-through text-sm">Not a memory plugin</p>
-              </div>
-            </div>
-            
-            <p className="text-gray-300 leading-relaxed mb-8">
-              It's a mapped, structured imprint of how you <span className="text-white">think</span>, <span className="text-white">decide</span>, <span className="text-white">react</span>, <span className="text-white">prioritize</span>, <span className="text-white">trust</span>, and <span className="text-white">communicate</span> — embedded into an AI system so the interaction reflects <em>you</em>, not generic model behavior.
-            </p>
-            
-            <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-6 mb-8">
-              <p className="text-orange-300 font-medium mb-3">It captures:</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {['Decision style', 'Conflict response', 'Boundary thresholds', 'Communication cadence', 'Emotional weighting', 'Pattern recognition'].map((item, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>
-                    <span className="text-gray-300 text-sm">{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div className="flex items-start gap-4 mb-8">
-              <div className="flex-1 bg-white/5 rounded-xl p-4">
-                <p className="text-gray-500 text-sm mb-1">Most AI</p>
-                <p className="text-gray-400">Resets every session</p>
-              </div>
-              <div className="text-gray-600 text-2xl pt-4">→</div>
-              <div className="flex-1 bg-orange-500/10 rounded-xl p-4 border border-orange-500/20">
-                <p className="text-orange-400 text-sm mb-1">Your SoulPrint</p>
-                <p className="text-white">Builds continuity forever</p>
-              </div>
-            </div>
-            
-            <p className="text-gray-300 leading-relaxed mb-8">
-              It builds <span className="text-white">continuity</span>, <span className="text-white">reference</span>, and <span className="text-white">resonance</span> across conversations so the system responds with <em>your</em> logic, <em>your</em> tone, <em>your</em> structure — consistently.
-            </p>
-            
-            <div className="text-center pt-4 border-t border-white/10">
-              <p className="text-xl md:text-2xl text-white font-light">
-                <span className="text-orange-400">In short:</span> A SoulPrint is the <span className="font-bold">operating system of you</span> — running on AI.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ARE YOU BUILT FOR THIS SECTION */}
-      <section className="bg-sp-black grid-bg pt-24 pb-8 px-8">
-        <div className="max-w-2xl mx-auto text-center mb-8">
-          <h2 className="font-condensed font-black text-white text-3xl md:text-4xl uppercase tracking-wide">
-            Are You Built For This?
-          </h2>
-          <p className="text-gray-500 text-sm mt-3">
-            Common questions about SoulPrint
-          </p>
-        </div>
-      </section>
-
-      {/* FAQ SECTION */}
-      <section className="bg-sp-black grid-bg pb-24 px-8">
-        <div className="max-w-2xl mx-auto">
           {FAQS.map((faq, i) => (
             <FAQItem key={i} q={faq.q} a={faq.a} />
           ))}
         </div>
       </section>
 
-      {/* CTA SECTION */}
-      <section className="bg-sp-black py-16 px-8">
-        <div className="max-w-5xl mx-auto">
-          <div className="rounded-2xl p-12 flex items-center justify-between gap-8"
-               style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <div className="flex-1">
-              <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
-                GET STARTED
+      {/* ═══════════════════════════════════════════════════════════════════
+          FINAL CTA SECTION — strong close
+      ═══════════════════════════════════════════════════════════════════ */}
+      <section className="bg-sp-black py-20 px-8">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="rounded-3xl p-10 md:p-16 relative overflow-hidden"
+               style={{ background: 'linear-gradient(135deg, rgba(246,64,0,0.15), rgba(246,64,0,0.05))', border: '1px solid rgba(246,64,0,0.25)' }}>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(246,64,0,0.1)_0%,transparent_70%)]" />
+            <div className="relative z-10">
+              <SoulPrintLogo size={60} className="mx-auto mb-6 opacity-90" />
+              <h2 className="font-condensed font-black text-white text-3xl md:text-5xl uppercase leading-tight mb-4">
+                Ready to Meet<br />Your SoulPrint?
+              </h2>
+              <p className="text-gray-400 text-sm mb-8 max-w-md mx-auto">
+                Join 20,000+ people who&apos;ve discovered what AI feels like when it actually knows you.
               </p>
-              <h3 className="font-condensed font-black text-white text-2xl md:text-4xl leading-tight mb-4 uppercase">
-                TAKE THE SOULPRINT ASSESSMENT
-              </h3>
-              <p className="text-gray-400 text-sm mb-6 max-w-md">
-                Answer a few quick questions and your AI adapts to you instantly.
-              </p>
-              <Link href="/auth" className="btn-orange px-6 py-2.5 rounded-lg text-sm inline-flex items-center gap-2">
-                Start Assessment →
+              <Link href={ctaLink} className="btn-orange px-10 py-4 rounded-xl text-base inline-flex items-center gap-2">
+                {ctaText} — It&apos;s Free <ArrowRight className="w-5 h-5" />
               </Link>
-              <div className="mt-3">
-                <Link href="/auth" className="text-orange-500 text-xs hover:text-orange-400 transition-colors">
-                  Already have an access code?
-                </Link>
-              </div>
-            </div>
-            <div className="flex-shrink-0">
-              <SoulPrintLogo size={140} className="opacity-80" />
+              <p className="text-gray-600 text-xs mt-4">No credit card. No commitment. Just a better AI.</p>
             </div>
           </div>
         </div>
@@ -407,7 +595,9 @@ export default function LandingPage() {
       {/* BLOG SECTION */}
       <BlogPreview />
 
-      {/* FOOTER */}
+      {/* ═══════════════════════════════════════════════════════════════════
+          FOOTER
+      ═══════════════════════════════════════════════════════════════════ */}
       <footer className="bg-[#f0f0f0] py-12 px-8">
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col items-center mb-8">
@@ -416,26 +606,16 @@ export default function LandingPage() {
               <span className="font-condensed font-bold text-gray-800 tracking-widest text-xs uppercase">SoulPrint</span>
             </div>
             <div className="flex items-center gap-4 mb-4">
-              <a href="https://facebook.com/archeforgehq" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="Facebook">
-                <Facebook className="w-4 h-4" />
-              </a>
-              <a href="https://instagram.com/archeforgehq" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="Instagram">
-                <Instagram className="w-4 h-4" />
-              </a>
-              <a href="https://x.com/archeforgehq" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="X (Twitter)">
-                <Twitter className="w-4 h-4" />
-              </a>
+              <a href="https://facebook.com/archeforgehq" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="Facebook"><Facebook className="w-4 h-4" /></a>
+              <a href="https://instagram.com/archeforgehq" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="Instagram"><Instagram className="w-4 h-4" /></a>
+              <a href="https://x.com/archeforgehq" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="X (Twitter)"><Twitter className="w-4 h-4" /></a>
               <a href="https://bsky.app/profile/archeforgehq.bsky.social" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="BlueSky">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8Z"/>
                 </svg>
               </a>
-              <a href="https://www.youtube.com/@ArcheForgeHQ" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="YouTube">
-                <Youtube className="w-4 h-4" />
-              </a>
-              <a href="https://www.linkedin.com/company/arche-forge/" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="LinkedIn">
-                <Linkedin className="w-4 h-4" />
-              </a>
+              <a href="https://www.youtube.com/@ArcheForgeHQ" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="YouTube"><Youtube className="w-4 h-4" /></a>
+              <a href="https://www.linkedin.com/company/arche-forge/" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-800 transition-colors" title="LinkedIn"><Linkedin className="w-4 h-4" /></a>
             </div>
             <div className="flex items-center gap-6">
               <Link href="/" className="text-gray-600 text-xs hover:text-gray-900 transition-colors">Home</Link>
