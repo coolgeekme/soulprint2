@@ -371,11 +371,25 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {FIVE_FEATURES.map((f, i) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {FIVE_FEATURES.slice(0, 3).map((f, i) => (
               <div 
                 key={i} 
-                className={`rounded-2xl p-6 bg-gradient-to-br ${f.color} border ${f.border} hover:scale-[1.02] transition-transform duration-200 ${i === 4 ? 'md:col-span-2 lg:col-span-1' : ''}`}
+                className={`rounded-2xl p-6 bg-gradient-to-br ${f.color} border ${f.border} hover:scale-[1.02] transition-transform duration-200`}
+              >
+                <div className={`w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-4`}>
+                  <f.icon className={`w-6 h-6 ${f.iconColor}`} />
+                </div>
+                <h3 className="text-white font-bold text-lg mb-2">{f.title}</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 max-w-[calc(66.666%+0.75rem)] md:mx-auto">
+            {FIVE_FEATURES.slice(3, 5).map((f, i) => (
+              <div 
+                key={i + 3} 
+                className={`rounded-2xl p-6 bg-gradient-to-br ${f.color} border ${f.border} hover:scale-[1.02] transition-transform duration-200`}
               >
                 <div className={`w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-4`}>
                   <f.icon className={`w-6 h-6 ${f.iconColor}`} />
