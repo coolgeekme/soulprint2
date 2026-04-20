@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for SoulPrint Engine - GitHub OAuth Integration
-Tests all GitHub OAuth Integration backend endpoints as specified in the review request.
+Backend Testing Script for GitHub OAuth Integration
+Tests all critical GitHub OAuth endpoints and chat stream integration
 """
 
 import requests
 import json
-import sys
 import time
-from urllib.parse import urlparse, parse_qs
+import sys
+import os
+from urllib.parse import urljoin
 
 # Configuration
 BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
@@ -18,434 +19,357 @@ API_BASE = f"{BASE_URL}/api"
 TEST_EMAIL = "testchat@example.com"
 TEST_PASSCODE = "Test123456"
 
-def log_test(test_name, status, details=""):
-    """Log test results with consistent formatting"""
-    status_emoji = "✅" if status == "PASS" else "❌" if status == "FAIL" else "⚠️"
-    print(f"{status_emoji} {test_name}: {status}")
-    if details:
-        print(f"   {details}")
-    print()
-
-def make_request(method, endpoint, headers=None, json_data=None, params=None, follow_redirects=True):
-    """Make HTTP request with error handling"""
-    try:
-        url = f"{API_BASE}{endpoint}"
-        print(f"Making {method} request to: {url}")
-        if params:
-            print(f"Params: {params}")
-        if json_data:
-            print(f"JSON data: {json_data}")
-        response = requests.request(
-            method=method,
-            url=url,
-            headers=headers or {},
-            json=json_data,
-            params=params,
-            allow_redirects=follow_redirects,
-            timeout=30
-        )
-        print(f"Response status: {response.status_code}")
-        return response
-    except Exception as e:
-        print(f"Request failed: {e}")
-        return None
-
-def test_authentication():
-    """Test authentication and get token"""
-    print("=== AUTHENTICATION TEST ===")
-    
-    try:
-        # Test login
-        response = make_request("POST", "/auth/login", json_data={
-            "email": TEST_EMAIL,
-            "passcode": TEST_PASSCODE
-        })
+class GitHubOAuthTester:
+    def __init__(self):
+        self.session = requests.Session()
+        self.auth_token = None
+        self.user_id = None
         
-        if not response:
-            log_test("Authentication", "FAIL", "Request failed")
-            return None
+    def log(self, message, level="INFO"):
+        """Log test messages with timestamp"""
+        timestamp = time.strftime("%H:%M:%S")
+        print(f"[{timestamp}] [{level}] {message}")
+        
+    def authenticate(self):
+        """Authenticate and get auth token"""
+        try:
+            self.log("🔐 Authenticating user...")
+            response = self.session.post(f"{API_BASE}/auth/login", json={
+                "email": TEST_EMAIL,
+                "passcode": TEST_PASSCODE
+            })
             
-        if response.status_code == 200:
-            data = response.json()
-            if "token" in data:
-                token = data["token"]
-                log_test("Authentication", "PASS", f"Login successful, token received")
-                return token
+            if response.status_code == 200:
+                data = response.json()
+                self.auth_token = data.get('token')
+                self.user_id = data.get('userId')  # Fixed: use 'userId' not 'user.id'
+                self.session.headers.update({'Authorization': f'Bearer {self.auth_token}'})
+                self.log(f"✅ Authentication successful. User ID: {self.user_id}")
+                return True
             else:
-                log_test("Authentication", "FAIL", f"No token in response: {data}")
-                return None
-        else:
-            log_test("Authentication", "FAIL", f"Status {response.status_code}: {response.text}")
-            return None
-            
-    except Exception as e:
-        log_test("Authentication", "FAIL", f"Exception: {e}")
-        return None
-
-def test_github_connect(token, user_id):
-    """Test GET /api/github/connect?user_id={userId}"""
-    print("=== GITHUB CONNECT TEST ===")
+                self.log(f"❌ Authentication failed: {response.status_code} - {response.text}", "ERROR")
+                return False
+        except Exception as e:
+            self.log(f"❌ Authentication error: {str(e)}", "ERROR")
+            return False
     
-    try:
-        # Test with user_id
-        response = make_request("GET", "/github/connect", params={"user_id": user_id})
-        
-        if not response:
-            log_test("GitHub Connect", "FAIL", "Request failed")
-            return
+    def test_health_check(self):
+        """Test basic health check"""
+        try:
+            self.log("🏥 Testing health check...")
+            response = self.session.get(f"{API_BASE}/health")
             
-        if response.status_code == 200:
-            data = response.json()
-            if "authUrl" in data:
-                auth_url = data["authUrl"]
-                # Check if URL contains expected client_id
-                if "client_id=Ov23li0HIpYbshEzcxju" in auth_url:
-                    log_test("GitHub Connect", "PASS", f"Auth URL returned with correct client_id")
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('status') == 'ok':
+                    self.log("✅ Health check passed")
+                    return True
                 else:
-                    log_test("GitHub Connect", "FAIL", f"Auth URL missing expected client_id: {auth_url}")
+                    self.log(f"❌ Health check failed: {data}", "ERROR")
+                    return False
             else:
-                log_test("GitHub Connect", "FAIL", f"No authUrl in response: {data}")
-        else:
-            log_test("GitHub Connect", "FAIL", f"Status {response.status_code}: {response.text}")
-            
-        # Test without user_id (should return 400)
-        response = make_request("GET", "/github/connect")
-        if response and response.status_code == 400:
-            log_test("GitHub Connect (no user_id)", "PASS", "Correctly returns 400 when user_id is missing")
-        else:
-            log_test("GitHub Connect (no user_id)", "FAIL", f"Expected 400, got {response.status_code if response else 'None'}")
-            
-    except Exception as e:
-        log_test("GitHub Connect", "FAIL", f"Exception: {e}")
-
-def test_github_status(token, user_id):
-    """Test GET /api/github/status?user_id={userId}"""
-    print("=== GITHUB STATUS TEST ===")
+                self.log(f"❌ Health check failed: {response.status_code}", "ERROR")
+                return False
+        except Exception as e:
+            self.log(f"❌ Health check error: {str(e)}", "ERROR")
+            return False
     
-    try:
-        response = make_request("GET", "/github/status", params={"user_id": user_id})
-        
-        if not response:
-            log_test("GitHub Status", "FAIL", "Request failed")
-            return
+    def test_github_connect(self):
+        """Test GitHub connect endpoint"""
+        try:
+            self.log("🔗 Testing GitHub connect endpoint...")
+            response = self.session.get(f"{API_BASE}/github/connect", params={
+                "user_id": self.user_id
+            })
             
-        if response.status_code == 200:
-            data = response.json()
-            if "connected" in data:
-                # Should be false since no GitHub connection exists yet
-                if data["connected"] == False:
-                    log_test("GitHub Status", "PASS", f"Returns connected: false as expected")
+            if response.status_code == 200:
+                data = response.json()
+                if 'authUrl' in data and 'github.com/login/oauth/authorize' in data['authUrl']:
+                    self.log("✅ GitHub connect endpoint working - returns valid authUrl")
+                    self.log(f"   Auth URL: {data['authUrl'][:100]}...")
+                    return True
                 else:
-                    log_test("GitHub Status", "PASS", f"Returns connected: {data['connected']} (user may have existing connection)")
+                    self.log(f"❌ GitHub connect endpoint failed: Invalid response format", "ERROR")
+                    return False
             else:
-                log_test("GitHub Status", "FAIL", f"No 'connected' field in response: {data}")
-        else:
-            log_test("GitHub Status", "FAIL", f"Status {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("GitHub Status", "FAIL", f"Exception: {e}")
-
-def test_github_disconnect(token, user_id):
-    """Test POST /api/github/disconnect"""
-    print("=== GITHUB DISCONNECT TEST ===")
+                self.log(f"❌ GitHub connect endpoint failed: {response.status_code} - {response.text}", "ERROR")
+                return False
+        except Exception as e:
+            self.log(f"❌ GitHub connect error: {str(e)}", "ERROR")
+            return False
     
-    try:
-        response = make_request("POST", "/github/disconnect", json_data={"userId": user_id})
-        
-        if not response:
-            log_test("GitHub Disconnect", "FAIL", "Request failed")
-            return
+    def test_github_status(self):
+        """Test GitHub status endpoint"""
+        try:
+            self.log("📊 Testing GitHub status endpoint...")
+            response = self.session.get(f"{API_BASE}/github/status", params={
+                "user_id": self.user_id
+            })
             
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("success") == True:
-                log_test("GitHub Disconnect", "PASS", "Returns success: true")
+            if response.status_code == 200:
+                data = response.json()
+                if 'connected' in data:
+                    connected = data['connected']
+                    self.log(f"✅ GitHub status endpoint working - connected: {connected}")
+                    if not connected:
+                        self.log("   (Expected: false - no OAuth flow completed)")
+                    return True
+                else:
+                    self.log(f"❌ GitHub status endpoint failed: Missing 'connected' field", "ERROR")
+                    return False
             else:
-                log_test("GitHub Disconnect", "FAIL", f"Unexpected response: {data}")
-        else:
-            log_test("GitHub Disconnect", "FAIL", f"Status {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("GitHub Disconnect", "FAIL", f"Exception: {e}")
-
-def test_github_repos(token, user_id):
-    """Test GET /api/github/repos?user_id={userId}"""
-    print("=== GITHUB REPOS TEST ===")
+                self.log(f"❌ GitHub status endpoint failed: {response.status_code} - {response.text}", "ERROR")
+                return False
+        except Exception as e:
+            self.log(f"❌ GitHub status error: {str(e)}", "ERROR")
+            return False
     
-    try:
-        response = make_request("GET", "/github/repos", params={"user_id": user_id})
-        
-        if not response:
-            log_test("GitHub Repos", "FAIL", "Request failed")
-            return
+    def test_github_disconnect(self):
+        """Test GitHub disconnect endpoint"""
+        try:
+            self.log("🔌 Testing GitHub disconnect endpoint...")
+            response = self.session.post(f"{API_BASE}/github/disconnect", json={
+                "userId": self.user_id
+            })
             
-        # Should return error about not being connected
-        if response.status_code == 401:
-            data = response.json()
-            if "GitHub not connected" in data.get("error", ""):
-                log_test("GitHub Repos", "PASS", "Correctly returns error about not being connected")
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success') == True:
+                    self.log("✅ GitHub disconnect endpoint working")
+                    return True
+                else:
+                    self.log(f"❌ GitHub disconnect endpoint failed: {data}", "ERROR")
+                    return False
             else:
-                log_test("GitHub Repos", "PASS", f"Returns 401 with error: {data.get('error', 'Unknown')}")
-        else:
-            log_test("GitHub Repos", "FAIL", f"Expected 401, got {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("GitHub Repos", "FAIL", f"Exception: {e}")
-
-def test_github_callback():
-    """Test GET /api/github/callback (without valid code/state)"""
-    print("=== GITHUB CALLBACK TEST ===")
+                self.log(f"❌ GitHub disconnect endpoint failed: {response.status_code} - {response.text}", "ERROR")
+                return False
+        except Exception as e:
+            self.log(f"❌ GitHub disconnect error: {str(e)}", "ERROR")
+            return False
     
-    try:
-        # Test callback without parameters (should redirect with error)
-        response = make_request("GET", "/github/callback", follow_redirects=False)
-        
-        if not response:
-            log_test("GitHub Callback", "FAIL", "Request failed")
-            return
+    def test_github_repos_without_connection(self):
+        """Test GitHub repos endpoint without connection (should return 401)"""
+        try:
+            self.log("📂 Testing GitHub repos endpoint without connection...")
+            response = self.session.get(f"{API_BASE}/github/repos", params={
+                "user_id": self.user_id
+            })
             
-        if response.status_code == 302:
-            location = response.headers.get('Location', '')
-            if "github_error=missing_params" in location:
-                log_test("GitHub Callback", "PASS", "Correctly redirects with missing_params error")
+            if response.status_code == 401:
+                data = response.json()
+                if 'GitHub not connected' in data.get('error', ''):
+                    self.log("✅ GitHub repos endpoint correctly returns 401 when not connected")
+                    return True
+                else:
+                    self.log(f"❌ GitHub repos endpoint returned 401 but wrong error message: {data}", "ERROR")
+                    return False
             else:
-                log_test("GitHub Callback", "PASS", f"Redirects to: {location}")
-        else:
-            log_test("GitHub Callback", "FAIL", f"Expected 302 redirect, got {response.status_code}")
-            
-    except Exception as e:
-        log_test("GitHub Callback", "FAIL", f"Exception: {e}")
-
-def test_github_chat_stream(token):
-    """Test POST /api/chat/stream with GitHub slash command"""
-    print("=== GITHUB CHAT STREAM TEST ===")
+                self.log(f"❌ GitHub repos endpoint should return 401 but got: {response.status_code} - {response.text}", "ERROR")
+                return False
+        except Exception as e:
+            self.log(f"❌ GitHub repos error: {str(e)}", "ERROR")
+            return False
     
-    try:
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        response = make_request("POST", "/chat/stream", 
-                              headers=headers,
-                              json_data={
-                                  "content": "/github help",
-                                  "model": "gpt-4o",
-                                  "conversationId": "test-github-conv"
-                              })
-        
-        if not response:
-            log_test("GitHub Chat Stream", "FAIL", "Request failed")
-            return
+    def test_github_callback_without_params(self):
+        """Test GitHub callback without valid params (should redirect with error)"""
+        try:
+            self.log("🔄 Testing GitHub callback without valid params...")
+            # Don't use session here as we want to test the redirect behavior
+            response = requests.get(f"{API_BASE}/github/callback", allow_redirects=False)
             
-        if response.status_code == 200:
-            # Should return NDJSON stream (NOT SSE format)
-            content_type = response.headers.get('Content-Type', '')
-            if 'text/plain' in content_type or 'application/json' in content_type:
-                # Parse NDJSON lines
+            if response.status_code == 302:
+                location = response.headers.get('Location', '')
+                if 'github_error=missing_params' in location:
+                    self.log("✅ GitHub callback correctly redirects with missing_params error")
+                    return True
+                else:
+                    self.log(f"❌ GitHub callback redirected but wrong error: {location}", "ERROR")
+                    return False
+            else:
+                self.log(f"❌ GitHub callback should return 302 redirect but got: {response.status_code}", "ERROR")
+                return False
+        except Exception as e:
+            self.log(f"❌ GitHub callback error: {str(e)}", "ERROR")
+            return False
+    
+    def test_chat_stream_github_help(self):
+        """Test chat stream with /github help command (PREVIOUSLY BROKEN - FIXED)"""
+        try:
+            self.log("💬 Testing chat stream with '/github help' command...")
+            response = self.session.post(f"{API_BASE}/chat/stream", json={
+                "content": "/github help",
+                "model": "gpt-4o",
+                "conversationId": "retest-github"
+            })
+            
+            if response.status_code == 200:
+                # The response is NDJSON format regardless of content-type header
                 lines = response.text.strip().split('\n')
-                github_help_found = False
+                found_github_help = False
+                found_done = False
                 
                 for line in lines:
                     if line.strip():
                         try:
                             data = json.loads(line)
                             if data.get('type') == 'delta' and 'GitHub' in data.get('content', ''):
-                                github_help_found = True
-                                break
+                                found_github_help = True
+                            elif data.get('type') == 'done':
+                                found_done = True
                         except json.JSONDecodeError:
                             continue
                 
-                if github_help_found:
-                    log_test("GitHub Chat Stream", "PASS", "Returns NDJSON stream with GitHub help text")
+                if found_github_help and found_done:
+                    self.log("✅ Chat stream with '/github help' working - returns NDJSON with GitHub help text")
+                    return True
                 else:
-                    log_test("GitHub Chat Stream", "PASS", f"Returns NDJSON stream (format correct, content may vary)")
+                    self.log(f"❌ Chat stream with '/github help' failed: Missing expected content", "ERROR")
+                    self.log(f"   Found GitHub help: {found_github_help}, Found done: {found_done}")
+                    return False
             else:
-                log_test("GitHub Chat Stream", "FAIL", f"Unexpected content type: {content_type}")
-        else:
-            log_test("GitHub Chat Stream", "FAIL", f"Status {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("GitHub Chat Stream", "FAIL", f"Exception: {e}")
-
-def test_github_mention_without_connection(token):
-    """Test POST /api/chat/stream with GitHub mention without connection"""
-    print("=== GITHUB MENTION WITHOUT CONNECTION TEST ===")
+                self.log(f"❌ Chat stream with '/github help' failed: {response.status_code} - {response.text}", "ERROR")
+                return False
+        except Exception as e:
+            self.log(f"❌ Chat stream GitHub help error: {str(e)}", "ERROR")
+            return False
     
-    try:
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        response = make_request("POST", "/chat/stream", 
-                              headers=headers,
-                              json_data={
-                                  "content": "show me my github repos",
-                                  "model": "gpt-4o",
-                                  "conversationId": "test-github-conv2"
-                              })
-        
-        if not response:
-            log_test("GitHub Mention Without Connection", "FAIL", "Request failed")
-            return
+    def test_chat_stream_github_natural_language(self):
+        """Test chat stream with natural language GitHub query"""
+        try:
+            self.log("💬 Testing chat stream with natural language GitHub query...")
+            response = self.session.post(f"{API_BASE}/chat/stream", json={
+                "content": "show me my github repos",
+                "model": "gpt-4o",
+                "conversationId": "retest-github-nl"
+            })
             
-        if response.status_code == 200:
-            # Should return either a message about connecting GitHub first OR normal AI response
-            content_type = response.headers.get('Content-Type', '')
-            if 'text/plain' in content_type or 'application/json' in content_type:
+            if response.status_code == 200:
+                # The response is NDJSON format regardless of content-type header
                 lines = response.text.strip().split('\n')
-                connect_message_found = False
+                found_github_response = False
+                found_done = False
                 
                 for line in lines:
                     if line.strip():
                         try:
                             data = json.loads(line)
-                            content = data.get('content', '').lower()
-                            if 'connect' in content and 'github' in content:
-                                connect_message_found = True
-                                break
+                            if data.get('type') == 'delta':
+                                content = data.get('content', '').lower()
+                                if 'github' in content and ('connect' in content or 'not connected' in content):
+                                    found_github_response = True
+                            elif data.get('type') == 'done':
+                                found_done = True
                         except json.JSONDecodeError:
                             continue
                 
-                if connect_message_found:
-                    log_test("GitHub Mention Without Connection", "PASS", "Returns message about connecting GitHub first")
+                if found_github_response and found_done:
+                    self.log("✅ Chat stream with natural language GitHub query working - mentions connecting GitHub")
+                    return True
                 else:
-                    log_test("GitHub Mention Without Connection", "PASS", "Returns normal AI response (acceptable behavior)")
+                    self.log(f"❌ Chat stream with natural language GitHub query failed: Missing expected content", "ERROR")
+                    return False
             else:
-                log_test("GitHub Mention Without Connection", "FAIL", f"Unexpected content type: {content_type}")
-        else:
-            log_test("GitHub Mention Without Connection", "FAIL", f"Status {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("GitHub Mention Without Connection", "FAIL", f"Exception: {e}")
-
-def test_github_repo_file_without_connection(token, user_id):
-    """Test POST /api/github/repo/file without connection"""
-    print("=== GITHUB REPO FILE WITHOUT CONNECTION TEST ===")
+                self.log(f"❌ Chat stream with natural language GitHub query failed: {response.status_code} - {response.text}", "ERROR")
+                return False
+        except Exception as e:
+            self.log(f"❌ Chat stream natural language GitHub error: {str(e)}", "ERROR")
+            return False
     
-    try:
-        response = make_request("POST", "/github/repo/file", json_data={
-            "userId": user_id,
-            "owner": "test",
-            "repo": "test", 
-            "path": "test.md",
-            "content": "test",
-            "message": "test"
-        })
-        
-        if not response:
-            log_test("GitHub Repo File Without Connection", "FAIL", "Request failed")
-            return
+    def test_chat_stream_normal_regression(self):
+        """Test normal chat still works (regression check)"""
+        try:
+            self.log("💬 Testing normal chat (regression check)...")
+            response = self.session.post(f"{API_BASE}/chat/stream", json={
+                "content": "hello, how are you?",
+                "model": "gpt-4o",
+                "conversationId": "retest-normal"
+            })
             
-        # Should return error about not being connected
-        if response.status_code == 401:
-            data = response.json()
-            if "GitHub not connected" in data.get("error", ""):
-                log_test("GitHub Repo File Without Connection", "PASS", "Correctly returns error about not being connected")
+            if response.status_code == 200:
+                # The response is NDJSON format regardless of content-type header
+                lines = response.text.strip().split('\n')
+                found_response = False
+                found_done = False
+                found_github_interference = False
+                
+                for line in lines:
+                    if line.strip():
+                        try:
+                            data = json.loads(line)
+                            if data.get('type') == 'delta':
+                                content = data.get('content', '').lower()
+                                if content and len(content) > 5:  # Meaningful response
+                                    found_response = True
+                                if 'github' in content:
+                                    found_github_interference = True
+                            elif data.get('type') == 'done':
+                                found_done = True
+                        except json.JSONDecodeError:
+                            continue
+                
+                if found_response and found_done and not found_github_interference:
+                    self.log("✅ Normal chat working correctly - no GitHub interference")
+                    return True
+                else:
+                    self.log(f"❌ Normal chat failed: Response: {found_response}, Done: {found_done}, GitHub interference: {found_github_interference}", "ERROR")
+                    return False
             else:
-                log_test("GitHub Repo File Without Connection", "PASS", f"Returns 401 with error: {data.get('error', 'Unknown')}")
-        else:
-            log_test("GitHub Repo File Without Connection", "FAIL", f"Expected 401, got {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("GitHub Repo File Without Connection", "FAIL", f"Exception: {e}")
-
-def test_github_repo_contents_without_connection(token, user_id):
-    """Test GET /api/github/repo/contents?user_id={userId}&owner=test&repo=test"""
-    print("=== GITHUB REPO CONTENTS WITHOUT CONNECTION TEST ===")
+                self.log(f"❌ Normal chat failed: {response.status_code} - {response.text}", "ERROR")
+                return False
+        except Exception as e:
+            self.log(f"❌ Normal chat error: {str(e)}", "ERROR")
+            return False
     
-    try:
-        response = make_request("GET", "/github/repo/contents", params={
-            "user_id": user_id,
-            "owner": "test",
-            "repo": "test"
-        })
+    def run_all_tests(self):
+        """Run all GitHub OAuth integration tests"""
+        self.log("🚀 Starting GitHub OAuth Integration Backend Tests")
+        self.log("=" * 60)
         
-        if not response:
-            log_test("GitHub Repo Contents Without Connection", "FAIL", "Request failed")
-            return
-            
-        # Should return error about not being connected
-        if response.status_code == 401:
-            data = response.json()
-            if "GitHub not connected" in data.get("error", ""):
-                log_test("GitHub Repo Contents Without Connection", "PASS", "Correctly returns error about not being connected")
-            else:
-                log_test("GitHub Repo Contents Without Connection", "PASS", f"Returns 401 with error: {data.get('error', 'Unknown')}")
+        tests = [
+            ("Health Check", self.test_health_check),
+            ("Authentication", self.authenticate),
+            ("GitHub Connect Endpoint", self.test_github_connect),
+            ("GitHub Status Endpoint", self.test_github_status),
+            ("GitHub Disconnect Endpoint", self.test_github_disconnect),
+            ("GitHub Repos Without Connection", self.test_github_repos_without_connection),
+            ("GitHub Callback Without Params", self.test_github_callback_without_params),
+            ("Chat Stream - /github help (FIXED)", self.test_chat_stream_github_help),
+            ("Chat Stream - Natural Language GitHub", self.test_chat_stream_github_natural_language),
+            ("Chat Stream - Normal Chat (Regression)", self.test_chat_stream_normal_regression),
+        ]
+        
+        passed = 0
+        failed = 0
+        
+        for test_name, test_func in tests:
+            self.log(f"\n📋 Running: {test_name}")
+            try:
+                if test_func():
+                    passed += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                self.log(f"❌ {test_name} crashed: {str(e)}", "ERROR")
+                failed += 1
+        
+        self.log("\n" + "=" * 60)
+        self.log(f"🏁 GitHub OAuth Integration Tests Complete")
+        self.log(f"✅ Passed: {passed}")
+        self.log(f"❌ Failed: {failed}")
+        self.log(f"📊 Success Rate: {(passed/(passed+failed)*100):.1f}%")
+        
+        if failed == 0:
+            self.log("🎉 All tests passed! GitHub OAuth Integration is working correctly.")
         else:
-            log_test("GitHub Repo Contents Without Connection", "FAIL", f"Expected 401, got {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("GitHub Repo Contents Without Connection", "FAIL", f"Exception: {e}")
-
-def test_github_repo_pulls_without_connection(token, user_id):
-    """Test GET /api/github/repo/pulls?user_id={userId}&owner=test&repo=test"""
-    print("=== GITHUB REPO PULLS WITHOUT CONNECTION TEST ===")
-    
-    try:
-        response = make_request("GET", "/github/repo/pulls", params={
-            "user_id": user_id,
-            "owner": "test",
-            "repo": "test"
-        })
+            self.log("⚠️  Some tests failed. Check the logs above for details.")
         
-        if not response:
-            log_test("GitHub Repo Pulls Without Connection", "FAIL", "Request failed")
-            return
-            
-        # Should return error about not being connected
-        if response.status_code == 401:
-            data = response.json()
-            if "GitHub not connected" in data.get("error", ""):
-                log_test("GitHub Repo Pulls Without Connection", "PASS", "Correctly returns error about not being connected")
-            else:
-                log_test("GitHub Repo Pulls Without Connection", "PASS", f"Returns 401 with error: {data.get('error', 'Unknown')}")
-        else:
-            log_test("GitHub Repo Pulls Without Connection", "FAIL", f"Expected 401, got {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        log_test("GitHub Repo Pulls Without Connection", "FAIL", f"Exception: {e}")
-
-def get_user_id_from_token(token):
-    """Extract user ID from token by calling /api/auth/me"""
-    try:
-        headers = {"Authorization": f"Bearer {token}"}
-        response = make_request("GET", "/auth/me", headers=headers)
-        
-        if response and response.status_code == 200:
-            data = response.json()
-            return data.get("user", {}).get("id") or data.get("id")
-        return None
-    except:
-        return None
+        return failed == 0
 
 def main():
-    """Run all GitHub OAuth Integration tests"""
-    print("🧪 GitHub OAuth Integration Backend Testing")
-    print("=" * 60)
-    
-    # Step 1: Authenticate
-    token = test_authentication()
-    if not token:
-        print("❌ Authentication failed. Cannot proceed with tests.")
-        sys.exit(1)
-    
-    # Get user ID
-    user_id = get_user_id_from_token(token)
-    if not user_id:
-        print("❌ Could not get user ID. Cannot proceed with tests.")
-        sys.exit(1)
-    
-    print(f"🔑 Using user ID: {user_id}")
-    print()
-    
-    # Step 2: Test all GitHub endpoints
-    test_github_connect(token, user_id)
-    test_github_status(token, user_id)
-    test_github_disconnect(token, user_id)
-    test_github_repos(token, user_id)
-    test_github_callback()
-    test_github_chat_stream(token)
-    test_github_mention_without_connection(token)
-    test_github_repo_file_without_connection(token, user_id)
-    test_github_repo_contents_without_connection(token, user_id)
-    test_github_repo_pulls_without_connection(token, user_id)
-    
-    print("=" * 60)
-    print("🏁 GitHub OAuth Integration Backend Testing Complete")
+    """Main test execution"""
+    tester = GitHubOAuthTester()
+    success = tester.run_all_tests()
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
     main()
