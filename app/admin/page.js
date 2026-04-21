@@ -7548,6 +7548,10 @@ export default function AdminPage() {
           {activeTab === 'settings' && token && (
             <SettingsTab token={token} />
           )}
+
+          {activeTab === 'subscriptions' && token && (
+            <SubscriptionsTab token={token} />
+          )}
         </div>
       </div>
     </div>
