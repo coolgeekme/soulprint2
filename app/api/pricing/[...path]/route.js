@@ -248,8 +248,15 @@ export async function POST(request, { params }) {
     if (pathStr === 'admin/discounts') {
       await requireAdmin(request);
       const body = await request.json();
-      const code = await createDiscountCode(body);
-      return ok({ success: true, discount: code });
+      try {
+        const code = await createDiscountCode(body);
+        return ok({ success: true, discount: code });
+      } catch (createErr) {
+        if (createErr.message?.includes('already exists')) {
+          return err(createErr.message, 400);
+        }
+        throw createErr;
+      }
     }
 
     // POST /api/pricing/admin/discounts/:id/update — Update discount
