@@ -130,10 +130,15 @@ export async function GET(request, { params }) {
       return ok(overview);
     }
 
-    // GET /api/pricing/admin/plans — All plans including inactive
+    // GET /api/pricing/admin/plans — All plans including inactive (auto-seeds if empty)
     if (pathStr === 'admin/plans') {
       await requireAdmin(request);
-      const plans = await getPlans(true);
+      let plans = await getPlans(true);
+      if (!plans || plans.length === 0) {
+        console.log('[Pricing] No plans found — auto-seeding defaults');
+        await seedPlans();
+        plans = await getPlans(true);
+      }
       return ok({ plans });
     }
 
