@@ -7,13 +7,16 @@ import {
   UserCheck, Clock, FileText, ThumbsUp, AlertCircle, Loader2, Database,
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
   PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar,
-  KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone, LifeBuoy, LogIn, Activity
+  KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone, LifeBuoy, LogIn, Activity,
+  CreditCard, Receipt, Ticket, Play, Pause
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
+import SubscriptionsTab from '@/components/admin/SubscriptionsTab';
 
 const TABS = [
   { id: 'metrics', label: 'Metrics', icon: BarChart2 },
   { id: 'insights', label: 'Pricing Model', icon: DollarSign },
+  { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
   { id: 'waitlist', label: 'Waitlist', icon: ListChecks },
   { id: 'users', label: 'All Users', icon: Users },
   { id: 'conversations', label: 'Conversations', icon: MessageSquare },
