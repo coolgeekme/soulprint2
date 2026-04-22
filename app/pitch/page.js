@@ -781,24 +781,164 @@ const SLIDE_TITLES = [
   'Market', 'Traction', 'Business Model', 'Vision & Expansion', 'Team', 'The Ask'
 ];
 
-export default function PitchDeck() {
+// ═══ ACCESS GATE ════════════════════════════════════════════════════
+
+function PitchAccessGate({ onAccess }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/pitch/access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Access denied');
+        setLoading(false);
+        return;
+      }
+      // Save to sessionStorage so they don't need to re-enter
+      sessionStorage.setItem('pitch_access', JSON.stringify({ email, owner: data.owner }));
+      onAccess();
+    } catch {
+      setError('Connection error. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-[#0a0a0a] flex items-center justify-center px-4" style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}>
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-orange-500/[0.03] rounded-full blur-[120px]" />
+      </div>
+
+      <div className="relative w-full max-w-sm">
+        <div className="flex justify-center mb-6">
+          <SoulPrintLogo size={56} />
+        </div>
+        <h2 className="text-white text-xl font-bold text-center mb-1">Investor Deck</h2>
+        <p className="text-gray-500 text-xs text-center mb-8">This deck is confidential. Please enter your details to continue.</p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-gray-400 text-xs font-medium mb-1.5 block">Email Address</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              required
+              className="w-full bg-white/[0.05] border border-white/[0.1] rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 transition-colors"
+            />
+          </div>
+          <div>
+            <label className="text-gray-400 text-xs font-medium mb-1.5 block">Access Code</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter access code"
+              required
+              className="w-full bg-white/[0.05] border border-white/[0.1] rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 transition-colors"
+            />
+          </div>
+
+          {error && (
+            <p className="text-red-400 text-xs text-center bg-red-500/10 border border-red-500/20 rounded-lg py-2">{error}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white font-semibold py-3 rounded-xl text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {loading ? 'Verifying...' : 'View Deck'}
+          </button>
+        </form>
+
+        <p className="text-gray-700 text-[10px] text-center mt-8">
+          By accessing this deck you agree to maintain its confidentiality.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ═══ MAIN WRAPPER ═══════════════════════════════════════════════════
+
+export default function PitchPage() {
+  const [authorized, setAuthorized] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    // Allow landscape on this page regardless of auth state
+    document.body.classList.add('allow-landscape');
+    return () => { document.body.classList.remove('allow-landscape'); };
+  }, []);
+
+  useEffect(() => {
+    async function checkAccess() {
+      // 1. Check sessionStorage (already entered password this session)
+      const cached = sessionStorage.getItem('pitch_access');
+      if (cached) {
+        setAuthorized(true);
+        setChecking(false);
+        return;
+      }
+
+      // 2. Check if user is admin (already logged into the app)
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        if (token) {
+          const res = await fetch('/api/pitch/check-admin', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (data.isAdmin) {
+            sessionStorage.setItem('pitch_access', JSON.stringify({ email: 'admin', owner: 'admin' }));
+            setAuthorized(true);
+            setChecking(false);
+            return;
+          }
+        }
+      } catch {}
+
+      setChecking(false);
+    }
+    checkAccess();
+  }, []);
+
+  if (checking) {
+    return (
+      <div className="fixed inset-0 bg-[#0a0a0a] flex items-center justify-center">
+        <SoulPrintLogo size={40} />
+      </div>
+    );
+  }
+
+  if (!authorized) {
+    return <PitchAccessGate onAccess={() => setAuthorized(true)} />;
+  }
+
+  return <PitchDeckInner />;
+}
+
+// ═══ PITCH DECK (renamed from PitchDeck) ════════════════════════════
+
+function PitchDeckInner() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showNav, setShowNav] = useState(true);
   const containerRef = useRef(null);
   const navTimeout = useRef(null);
-
-  // Add body class to allow landscape on pitch page + disable orientation lock
-  useEffect(() => {
-    document.body.classList.add('allow-landscape');
-    // Also try to unlock orientation
-    try {
-      if (screen.orientation && screen.orientation.unlock) {
-        screen.orientation.unlock();
-      }
-    } catch (e) {}
-    return () => { document.body.classList.remove('allow-landscape'); };
-  }, []);
 
   const goTo = useCallback((idx) => {
     if (idx >= 0 && idx < TOTAL_SLIDES) setCurrentSlide(idx);

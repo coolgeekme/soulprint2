@@ -12,11 +12,13 @@ import {
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import SubscriptionsTab from '@/components/admin/SubscriptionsTab';
+import PitchAnalyticsTab from '@/components/admin/PitchAnalyticsTab';
 
 const TABS = [
   { id: 'metrics', label: 'Metrics', icon: BarChart2 },
   { id: 'insights', label: 'Pricing Model', icon: DollarSign },
   { id: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
+  { id: 'pitchdeck', label: 'Pitch Deck', icon: Eye },
   { id: 'waitlist', label: 'Waitlist', icon: ListChecks },
   { id: 'users', label: 'All Users', icon: Users },
   { id: 'conversations', label: 'Conversations', icon: MessageSquare },
@@ -7551,6 +7553,10 @@ export default function AdminPage() {
 
           {activeTab === 'subscriptions' && token && (
             <SubscriptionsTab token={token} />
+          )}
+
+          {activeTab === 'pitchdeck' && token && (
+            <PitchAnalyticsTab token={token} />
           )}
         </div>
       </div>
