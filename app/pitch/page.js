@@ -896,7 +896,9 @@ export default function PitchPage() {
 
       // 2. Check if user is admin (already logged into the app)
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const token = typeof window !== 'undefined' 
+          ? (localStorage.getItem('sp_token') || localStorage.getItem('token')) 
+          : null;
         if (token) {
           const res = await fetch('/api/pitch/check-admin', {
             headers: { 'Authorization': `Bearer ${token}` },
