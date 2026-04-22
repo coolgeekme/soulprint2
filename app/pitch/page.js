@@ -650,42 +650,58 @@ function Slide10Vision({ active }) {
 
 function Slide11Team({ active }) {
   const team = [
-    { name: '[Founder Name]', title: 'CEO & Co-Founder', bio: '[Background — e.g., 10+ years building consumer AI products. Previously at X.]', placeholder: true },
-    { name: '[Co-Founder Name]', title: 'CTO & Co-Founder', bio: '[Background — e.g., Engineering lead at Y. ML/infrastructure expert.]', placeholder: true },
-    { name: '[Team Member]', title: '[Role]', bio: '[Background and relevant experience]', placeholder: true },
+    { name: 'Ben Woodard', title: 'Founder', bio: 'Builds revenue systems that don\'t reset. Designs identity and memory layers on top of AI. Turns ideas into infrastructure that scales.', tag: 'OWNER' },
+    { name: 'Layla G.', title: 'Chief Intelligence Officer', bio: 'Designs cognitive architectures and identity-bound reasoning systems. Builds the Deius Table. Establishes governance and integrity standards.', tag: null },
+    { name: 'Nick Hill', title: 'AI Systems Engineer', bio: 'Engineers persistent AI personas that remember, respond, and evolve in real-time. Builds voice + text pipelines. Scales real-time voice delivery.', tag: null },
+    { name: 'Adrian Floyd', title: 'VP of Marketing Strategy', bio: 'Crafts strategies across ArcheForge brands. Manages all marketing activities, brand integrity, and campaign storytelling.', tag: null },
+    { name: 'Lisa Quible', title: 'Creative Strategist & Social Media Director', bio: 'Stitches emotional truth and brand identity into enduring architecture. Ensures every launch is remembered — resonance, not just reach.', tag: null },
+    { name: 'Reggie Alcos', title: 'Lead Architect, VP of Partnerships', bio: 'Builds AI systems that capture unique communication styles. Drives tech innovations and strategic partnerships for growth and deployment.', tag: null },
+    { name: 'David Eydelzon', title: 'AI & Org Systems Engineer', bio: 'Builds core systems for SoulPrint. Turns concepts into practical, usable infrastructure. Keeps solutions simple, scalable, and easy to build on.', tag: null },
   ];
 
   return (
     <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
-      <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <p className={`text-orange-400 text-xs md:text-sm font-bold tracking-[0.3em] uppercase mb-3 md:mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         THE TEAM
       </p>
-      <h2 className={`text-4xl md:text-5xl font-black text-white mb-12 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        Built by operators who&apos;ve been here before.
+      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-2 md:mb-3 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        7 operators. Zero fluff.
       </h2>
+      <p className={`text-gray-400 text-xs md:text-sm mb-4 md:mb-6 transition-all duration-700 delay-150 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        The team behind ArcheForge — building systems that remember.
+      </p>
 
-      <div className="grid md:grid-cols-3 gap-6 mb-12">
-        {team.map((t, i) => (
+      {/* Founder card */}
+      <div className={`flex justify-center mb-3 md:mb-4 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="bg-gradient-to-br from-orange-500/[0.08] to-red-500/[0.04] border border-orange-500/20 rounded-2xl p-3 md:p-4 max-w-sm w-full text-center">
+          <span className="text-[9px] font-bold tracking-widest bg-orange-500 text-white px-2 py-0.5 rounded-full">FOUNDER</span>
+          <h3 className="text-white font-bold text-sm md:text-base mt-2">{team[0].name}</h3>
+          <p className="text-orange-400 text-[10px] font-medium">{team[0].title}</p>
+          <p className="text-gray-400 text-[10px] leading-relaxed mt-1">{team[0].bio}</p>
+        </div>
+      </div>
+
+      {/* Team grid 3+3 */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-4 md:mb-6">
+        {team.slice(1).map((t, i) => (
           <div
             key={i}
-            className={`bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6 text-center transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-            style={{ transitionDelay: `${400 + i * 150}ms` }}
+            className={`bg-white/[0.03] border border-white/[0.06] rounded-xl p-2.5 md:p-3 transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+            style={{ transitionDelay: `${350 + i * 80}ms` }}
           >
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/20 flex items-center justify-center">
-              <span className="text-2xl">👤</span>
-            </div>
-            <h3 className={`font-bold text-lg mb-1 ${t.placeholder ? 'text-orange-400/60' : 'text-white'}`}>{t.name}</h3>
-            <p className="text-orange-400 text-xs font-medium mb-3">{t.title}</p>
-            <p className={`text-xs leading-relaxed ${t.placeholder ? 'text-gray-600 italic' : 'text-gray-400'}`}>{t.bio}</p>
+            <h3 className="text-white font-bold text-[11px] md:text-sm">{t.name}</h3>
+            <p className="text-orange-400 text-[9px] md:text-[10px] font-medium mb-1">{t.title}</p>
+            <p className="text-gray-500 text-[9px] md:text-[10px] leading-relaxed">{t.bio}</p>
           </div>
         ))}
       </div>
 
-      <div className={`bg-white/[0.02] border border-white/[0.06] rounded-xl p-5 text-center transition-all duration-700 delay-900 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        <p className="text-white font-bold text-sm mb-2">🏗️ What We&apos;ve Built So Far</p>
-        <div className="flex flex-wrap justify-center gap-3 text-xs">
-          {['Full-stack Next.js app', 'Multi-provider LLM routing', 'Stripe billing integration', 'Real-time voice (WebRTC)', 'GitHub OAuth + PR automation', 'PWA with offline support', 'Admin dashboard with analytics', 'Viral invite system'].map((item, i) => (
-            <span key={i} className="px-3 py-1.5 bg-orange-500/5 border border-orange-500/10 rounded-full text-gray-400">{item}</span>
+      {/* Built so far */}
+      <div className={`bg-white/[0.02] border border-white/[0.06] rounded-xl p-3 md:p-4 text-center transition-all duration-700 delay-900 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        <p className="text-white font-bold text-xs mb-2">Built So Far</p>
+        <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 text-[9px] md:text-[10px]">
+          {['Full-stack Next.js app', 'Multi-provider LLM routing', 'Stripe billing', 'Real-time voice (WebRTC)', 'GitHub OAuth + PR automation', 'PWA', 'Admin dashboard', 'Viral invite system'].map((item, i) => (
+            <span key={i} className="px-2 py-1 bg-orange-500/5 border border-orange-500/10 rounded-full text-gray-400">{item}</span>
           ))}
         </div>
       </div>
