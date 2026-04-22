@@ -52,7 +52,7 @@ function Slide01Cover({ active }) {
       </div>
 
       <h1 className={`text-6xl md:text-8xl font-black tracking-[0.2em] text-white mb-4 transition-all duration-1000 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        SOULPRINT
+        SOULPRINT ENGINE
       </h1>
       <p className={`text-xl md:text-2xl text-orange-400 font-medium tracking-widest mb-12 transition-all duration-1000 delay-400 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         THE AI THAT KNOWS YOU
@@ -196,7 +196,7 @@ function Slide04Product({ active }) {
 
 function Slide05HowItWorks({ active }) {
   const steps = [
-    { num: '01', title: 'SoulPrint Assessment', desc: 'A layered personality assessment captures communication style, interests, expertise, and preferences.', icon: '📋' },
+    { num: '01', title: 'SoulPrint Assessment', desc: 'A multi-layered personality quiz captures communication style, interests, expertise, and preferences.', icon: '📋' },
     { num: '02', title: 'Memory Engine', desc: 'Every conversation enriches the user\'s SoulPrint. Memories are categorized, indexed, and recalled contextually.', icon: '🧠' },
     { num: '03', title: 'Adaptive AI', desc: 'The AI dynamically adjusts its tone, vocabulary, depth, and approach based on the user\'s unique SoulPrint profile.', icon: '⚡' },
     { num: '04', title: 'Multi-Modal Delivery', desc: 'The personalized experience carries across chat, voice, images, video, and code — seamlessly.', icon: '🌐' },
@@ -207,35 +207,55 @@ function Slide05HowItWorks({ active }) {
       <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         HOW IT WORKS
       </p>
-      <h2 className={`text-4xl md:text-5xl font-black text-white mb-12 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        The SoulPrint Flywheel
+      <h2 className={`text-4xl md:text-5xl font-black text-white mb-8 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        The SoulPrint Engine Flywheel
       </h2>
 
-      <div className="relative">
-        {/* Connecting line */}
-        <div className="absolute top-8 left-8 right-8 h-px bg-gradient-to-r from-orange-500/0 via-orange-500/30 to-orange-500/0 hidden md:block" />
+      {/* Assessment Spotlight */}
+      <div className={`bg-gradient-to-r from-orange-500/[0.08] to-red-500/[0.04] border border-orange-500/20 rounded-2xl p-5 mb-8 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-2xl flex-shrink-0">📋</div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-orange-400 font-bold text-base">The SoulPrint Assessment</h3>
+              <span className="text-[9px] font-bold tracking-widest bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded-full">KEY DIFFERENTIATOR</span>
+            </div>
+            <p className="text-gray-300 text-sm leading-relaxed mb-2">
+              Before a single message is exchanged, users complete a guided personality quiz that teaches the AI <span className="text-white font-semibold">how they think, communicate, and prefer to receive information</span>. This isn&apos;t a generic chatbot — it&apos;s an AI that&apos;s been calibrated to you.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {['Communication style', 'Emotional tone', 'Technical depth', 'Interests & expertise', 'Decision-making patterns', 'Learning preferences'].map((tag, i) => (
+                <span key={i} className="text-[10px] px-2.5 py-1 bg-orange-500/10 border border-orange-500/15 rounded-full text-orange-300/80">{tag}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
 
+      {/* Steps */}
+      <div className="relative">
+        <div className="absolute top-8 left-8 right-8 h-px bg-gradient-to-r from-orange-500/0 via-orange-500/30 to-orange-500/0 hidden md:block" />
         <div className="grid md:grid-cols-4 gap-6">
           {steps.map((s, i) => (
             <div
               key={i}
               className={`relative text-center transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
-              style={{ transitionDelay: `${400 + i * 200}ms` }}
+              style={{ transitionDelay: `${500 + i * 150}ms` }}
             >
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-2xl relative z-10">
+              <div className={`w-14 h-14 mx-auto mb-3 rounded-2xl ${i === 0 ? 'bg-orange-500/20 border-orange-500/30' : 'bg-orange-500/10 border-orange-500/20'} border flex items-center justify-center text-xl relative z-10`}>
                 {s.icon}
               </div>
-              <p className="text-orange-500/50 text-xs font-bold tracking-widest mb-2">{s.num}</p>
-              <h3 className="text-white font-bold text-sm mb-2">{s.title}</h3>
-              <p className="text-gray-500 text-xs leading-relaxed">{s.desc}</p>
+              <p className="text-orange-500/50 text-xs font-bold tracking-widest mb-1">{s.num}</p>
+              <h3 className="text-white font-bold text-sm mb-1">{s.title}</h3>
+              <p className="text-gray-500 text-[11px] leading-relaxed">{s.desc}</p>
             </div>
           ))}
         </div>
       </div>
 
-      <div className={`mt-12 bg-orange-500/5 border border-orange-500/10 rounded-2xl p-6 text-center transition-all duration-700 delay-1200 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`mt-8 bg-orange-500/5 border border-orange-500/10 rounded-2xl p-5 text-center transition-all duration-700 delay-1200 ${active ? 'opacity-100' : 'opacity-0'}`}>
         <p className="text-orange-400 font-bold text-sm mb-1">The Moat</p>
-        <p className="text-gray-400 text-xs">Every interaction deepens the SoulPrint. Users who invest time building their profile have a <span className="text-white font-semibold">near-zero switching cost</span> to competitors — their AI already knows them.</p>
+        <p className="text-gray-400 text-xs">The Assessment + ongoing memory create a <span className="text-white font-semibold">compounding personalization effect</span>. Users who invest time building their SoulPrint have near-zero switching cost to competitors — their AI already knows them.</p>
       </div>
     </div>
   );
@@ -501,7 +521,7 @@ function Slide09Vision({ active }) {
             </div>
           </div>
           <p className="text-gray-400 text-xs leading-relaxed mb-4">
-            The same personalization engine that powers consumer SoulPrint becomes a white-label AI platform for enterprises — with custom knowledge bases, compliance controls, and team-wide memory.
+            The same personalization engine that powers consumer SoulPrint Engine becomes a white-label AI platform for enterprises — with custom knowledge bases, compliance controls, and team-wide memory.
           </p>
           <div className="space-y-2">
             {b2bUseCases.map((u, i) => (
