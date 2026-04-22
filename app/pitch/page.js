@@ -747,7 +747,7 @@ function Slide12Ask({ active }) {
         </p>
         <div className="flex items-center justify-center gap-4">
           <div className="h-px w-16 bg-gradient-to-r from-transparent to-orange-500/30" />
-          <p className="text-orange-400/60 text-xs tracking-[0.3em]">[CONTACT@EMAIL.COM]</p>
+          <p className="text-orange-400/60 text-xs tracking-[0.3em]">INVESTOR@ARCHEFORGE.COM</p>
           <div className="h-px w-16 bg-gradient-to-l from-transparent to-orange-500/30" />
         </div>
       </div>
