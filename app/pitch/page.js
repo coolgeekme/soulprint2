@@ -300,11 +300,11 @@ function Slide06Market({ active }) {
 
 function Slide07Traction({ active }) {
   const metrics = [
-    { value: '1,300+', label: 'Messages Sent', sub: 'Active beta', color: 'text-white' },
-    { value: '108', label: 'Avg Msgs / User', sub: 'Extremely high engagement', color: 'text-orange-400' },
-    { value: '444', label: 'Conversations', sub: 'Organic usage depth', color: 'text-blue-400' },
-    { value: '81', label: 'Videos Generated', sub: 'Multi-modal adoption', color: 'text-purple-400' },
-    { value: '21', label: 'Voice Sessions', sub: 'Real-time AI voice', color: 'text-green-400' },
+    { value: '25K+', label: 'Views Since Apr 1', sub: 'Paid social across 5 DMAs', color: 'text-white' },
+    { value: '1,300+', label: 'Messages Sent', sub: 'Active beta users', color: 'text-orange-400' },
+    { value: '108', label: 'Avg Msgs / User', sub: 'Extremely high engagement', color: 'text-blue-400' },
+    { value: '444', label: 'Conversations', sub: 'Organic usage depth', color: 'text-purple-400' },
+    { value: '81', label: 'Videos Generated', sub: 'Multi-modal adoption', color: 'text-green-400' },
     { value: '18+', label: 'AI Models', sub: 'Multi-provider architecture', color: 'text-yellow-400' },
   ];
 
@@ -316,9 +316,25 @@ function Slide07Traction({ active }) {
       <h2 className={`text-4xl md:text-5xl font-black text-white mb-4 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         Early but engaged.
       </h2>
-      <p className={`text-gray-400 text-lg mb-10 transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        Private beta launched Q1 2026. Invite-only. Zero paid acquisition.
+      <p className={`text-gray-400 text-lg mb-6 transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        Pre-revenue. Launched private beta March 4, public beta April 7. Paid social ads since April 1 across 5 DMAs.
       </p>
+
+      {/* Timeline */}
+      <div className={`flex items-center gap-0 mb-8 transition-all duration-700 delay-250 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        {[
+          { date: 'Mar 4', label: 'Private Beta', color: 'bg-orange-500' },
+          { date: 'Apr 1', label: 'Paid Ads (5 DMAs)', color: 'bg-blue-500' },
+          { date: 'Apr 7', label: 'Public Beta', color: 'bg-green-500' },
+        ].map((t, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center relative">
+            <div className={`w-3 h-3 rounded-full ${t.color} z-10`} />
+            {i < 2 && <div className="absolute top-1.5 left-1/2 w-full h-px bg-white/10" />}
+            <p className="text-white text-xs font-bold mt-2">{t.date}</p>
+            <p className="text-gray-500 text-[10px]">{t.label}</p>
+          </div>
+        ))}
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-10">
         {metrics.map((m, i) => (
@@ -335,17 +351,17 @@ function Slide07Traction({ active }) {
       </div>
 
       <div className={`grid md:grid-cols-3 gap-4 transition-all duration-700 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="bg-green-500/5 border border-green-500/10 rounded-xl p-4 text-center">
-          <p className="text-green-400 text-lg font-black">$0</p>
-          <p className="text-gray-500 text-xs">Customer Acquisition Cost</p>
-        </div>
         <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-4 text-center">
-          <p className="text-orange-400 text-lg font-black">Viral Invites</p>
-          <p className="text-gray-500 text-xs">Organic Growth Engine</p>
+          <p className="text-orange-400 text-lg font-black">Pre-Revenue</p>
+          <p className="text-gray-500 text-xs">Monetization begins May 2026</p>
         </div>
         <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 text-center">
-          <p className="text-blue-400 text-lg font-black">PWA + Web</p>
-          <p className="text-gray-500 text-xs">Cross-Platform from Day 1</p>
+          <p className="text-blue-400 text-lg font-black">5 DMAs</p>
+          <p className="text-gray-500 text-xs">Paid social ads since Apr 1</p>
+        </div>
+        <div className="bg-green-500/5 border border-green-500/10 rounded-xl p-4 text-center">
+          <p className="text-green-400 text-lg font-black">Viral Invites</p>
+          <p className="text-gray-500 text-xs">Organic growth engine active</p>
         </div>
       </div>
     </div>
@@ -355,7 +371,7 @@ function Slide07Traction({ active }) {
 function Slide08BusinessModel({ active }) {
   const plans = [
     { name: 'Free', price: '$0', period: '/mo', features: ['Basic AI chat', '20 images/mo (watermarked)', '1 video (lifetime)', 'Community support'], color: 'border-gray-500/20', badge: 'text-gray-400', highlight: false },
-    { name: 'Base', price: '$20', period: '/mo', features: ['Premium models (GPT-4o, Claude)', '20 images/mo (no watermark)', '1 video/mo', 'Voice chat', 'File analysis', 'Email support'], color: 'border-orange-500/30', badge: 'text-orange-400', highlight: true },
+    { name: 'Base', price: '$20.01', period: '/mo', features: ['Premium models (GPT-4o, Claude)', '20 images/mo (no watermark)', '1 video/mo', 'Voice chat', 'File analysis', 'Email support'], color: 'border-orange-500/30', badge: 'text-orange-400', highlight: true },
     { name: 'Power', price: '$99', period: '/mo', features: ['Unlimited everything', 'All AI models', 'Unlimited images & video', 'API access', 'Priority support', 'GitHub integration'], color: 'border-yellow-500/30', badge: 'text-yellow-400', highlight: false },
   ];
 
