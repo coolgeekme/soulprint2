@@ -672,7 +672,7 @@ html.light body {
 
 /* Landscape mode overlay - shown when device is rotated */
 @media screen and (max-width: 1024px) and (orientation: landscape) {
-  body::before {
+  body:not(.allow-landscape)::before {
     content: '';
     position: fixed;
     top: 0;
@@ -683,7 +683,7 @@ html.light body {
     z-index: 99999;
   }
   
-  body::after {
+  body:not(.allow-landscape)::after {
     content: '📱 Please rotate your device to portrait mode';
     position: fixed;
     top: 50%;

@@ -771,6 +771,18 @@ export default function PitchDeck() {
   const containerRef = useRef(null);
   const navTimeout = useRef(null);
 
+  // Add body class to allow landscape on pitch page + disable orientation lock
+  useEffect(() => {
+    document.body.classList.add('allow-landscape');
+    // Also try to unlock orientation
+    try {
+      if (screen.orientation && screen.orientation.unlock) {
+        screen.orientation.unlock();
+      }
+    } catch (e) {}
+    return () => { document.body.classList.remove('allow-landscape'); };
+  }, []);
+
   const goTo = useCallback((idx) => {
     if (idx >= 0 && idx < TOTAL_SLIDES) setCurrentSlide(idx);
   }, []);
@@ -847,7 +859,7 @@ export default function PitchDeck() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 bg-[#0a0a0a] overflow-hidden select-none"
+      className="fixed inset-0 bg-[#0a0a0a] select-none"
       style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}
     >
       {/* Subtle background gradient */}
@@ -867,7 +879,7 @@ export default function PitchDeck() {
               'opacity-0 translate-x-16 z-0 pointer-events-none'
             }`}
           >
-            <div className="min-h-full flex items-center justify-center py-16 md:py-4">
+            <div className="pitch-slide-inner">
               <SlideComponent active={idx === currentSlide} />
             </div>
           </div>
@@ -949,16 +961,32 @@ export default function PitchDeck() {
           [class*="opacity-0"] { opacity: 1 !important; }
           [class*="translate"] { transform: none !important; }
         }
-        /* Override global landscape lock for pitch deck */
-        @media screen and (max-width: 1024px) and (orientation: landscape) {
-          body::before { display: none !important; }
-          body::after { display: none !important; }
-        }
+        /* Override global landscape lock for pitch deck — handled via body.allow-landscape class */
         /* Enable smooth touch scrolling within slides */
         .pitch-slide-scroll {
           -webkit-overflow-scrolling: touch;
           overflow-y: auto;
           overscroll-behavior: contain;
+        }
+        /* Inner wrapper: centers content on tall screens, scrolls on short ones */
+        .pitch-slide-inner {
+          min-height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 4rem 0;
+        }
+        .pitch-slide-inner > * {
+          flex-shrink: 0;
+          width: 100%;
+        }
+        @media (orientation: landscape) and (max-height: 600px) {
+          .pitch-slide-inner {
+            display: block !important;
+            min-height: auto !important;
+            padding: 1rem 0 4rem !important;
+            align-items: unset !important;
+          }
         }
         /* Landscape mobile optimization */
         @media (orientation: landscape) and (max-height: 500px) {
