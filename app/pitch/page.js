@@ -6,7 +6,7 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 // SOULPRINT ENGINE — INVESTOR PITCH DECK
 // ═══════════════════════════════════════════════════════════════════
 
-const TOTAL_SLIDES = 11;
+const TOTAL_SLIDES = 12;
 
 // Animated counter hook
 function useCounter(target, duration = 2000, startWhenVisible = true) {
@@ -195,7 +195,106 @@ function Slide04Product({ active }) {
   );
 }
 
-function Slide05HowItWorks({ active }) {
+function Slide05DynamicIntelligence({ active }) {
+  const chatModels = [
+    { name: 'GPT-4o', strength: 'Reasoning & Analysis', color: 'text-green-400', bg: 'bg-green-500/10' },
+    { name: 'Claude', strength: 'Writing & Nuance', color: 'text-purple-400', bg: 'bg-purple-500/10' },
+    { name: 'Gemini', strength: 'Multimodal & Research', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+    { name: 'Perplexity', strength: 'Real-Time Web Search', color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+  ];
+
+  const mediaModels = [
+    { name: 'DALL·E / gpt-image', strength: 'Photorealistic Images', color: 'text-emerald-400' },
+    { name: 'Nano Banana', strength: 'Artistic & Stylized', color: 'text-pink-400' },
+    { name: 'Seedream', strength: 'High-Detail Renders', color: 'text-amber-400' },
+    { name: 'Kling 2.1', strength: 'Fast Video Gen', color: 'text-red-400' },
+    { name: 'Veo 3.1', strength: 'Cinematic Video', color: 'text-indigo-400' },
+    { name: 'Wan 2.1', strength: 'Character-Ref Video', color: 'text-yellow-400' },
+  ];
+
+  return (
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
+      <p className={`text-orange-400 text-xs md:text-sm font-bold tracking-[0.3em] uppercase mb-3 md:mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        DYNAMIC INTELLIGENCE
+      </p>
+      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-3 md:mb-4 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        The right model, every time.<br/>
+        <span className="text-gray-500">Automatically.</span>
+      </h2>
+      <p className={`text-gray-400 text-sm md:text-base mb-6 md:mb-8 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        Users never choose a model. Our routing engine analyzes every query — intent, complexity, modality — and selects the optimal AI model in real time.
+      </p>
+
+      {/* Flow diagram */}
+      <div className={`grid md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-6 items-start transition-all duration-700 delay-300 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        {/* Left: User query */}
+        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 md:p-5">
+          <p className="text-white font-bold text-sm mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center text-xs">💬</span>
+            User Sends a Message
+          </p>
+          <div className="space-y-2 text-xs">
+            {[
+              { query: '"Explain quantum computing simply"', route: 'Chat → GPT-4o', color: 'text-green-400' },
+              { query: '"Write me a poem about the ocean"', route: 'Chat → Claude', color: 'text-purple-400' },
+              { query: '"Generate a sunset over mountains"', route: 'Image → Nano Banana', color: 'text-pink-400' },
+              { query: '"Create a 5s video of a cat playing"', route: 'Video → Kling 2.1', color: 'text-red-400' },
+            ].map((ex, i) => (
+              <div key={i} className={`flex items-center gap-2 transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: `${500 + i * 100}ms` }}>
+                <span className="text-gray-500 flex-shrink-0">→</span>
+                <span className="text-gray-400 truncate">{ex.query}</span>
+                <span className={`${ex.color} font-bold whitespace-nowrap ml-auto`}>{ex.route}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Center: Engine */}
+        <div className={`hidden md:flex flex-col items-center justify-center transition-all duration-700 delay-500 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 flex items-center justify-center mb-2">
+            <span className="text-2xl">⚡</span>
+          </div>
+          <p className="text-orange-400 text-[9px] font-bold tracking-widest text-center">ROUTING<br/>ENGINE</p>
+          <div className="w-px h-6 bg-orange-500/20 mt-2" />
+          <span className="text-orange-500/40 text-lg">↓</span>
+        </div>
+
+        {/* Right: Models */}
+        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 md:p-5">
+          <p className="text-white font-bold text-sm mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center text-xs">🧠</span>
+            18+ AI Models
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {chatModels.map((m, i) => (
+              <div key={i} className={`${m.bg} rounded-lg px-2.5 py-1.5 transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: `${600 + i * 80}ms` }}>
+                <p className={`${m.color} text-[10px] font-bold`}>{m.name}</p>
+                <p className="text-gray-500 text-[9px]">{m.strength}</p>
+              </div>
+            ))}
+          </div>
+          <div className="h-px bg-white/5 my-2" />
+          <div className="grid grid-cols-2 gap-1.5">
+            {mediaModels.map((m, i) => (
+              <div key={i} className={`bg-white/[0.03] rounded-lg px-2.5 py-1.5 transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: `${800 + i * 60}ms` }}>
+                <p className={`${m.color} text-[10px] font-bold`}>{m.name}</p>
+                <p className="text-gray-500 text-[9px]">{m.strength}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom insight */}
+      <div className={`mt-6 md:mt-8 bg-orange-500/5 border border-orange-500/10 rounded-2xl p-4 md:p-5 text-center transition-all duration-700 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        <p className="text-orange-400 font-bold text-sm mb-1">Why This Matters</p>
+        <p className="text-gray-400 text-xs">Competitors force users to pick models manually. SoulPrint Engine makes 18+ models feel like <span className="text-white font-semibold">one seamlessly intelligent AI</span> — reducing friction and increasing perceived quality for every interaction.</p>
+      </div>
+    </div>
+  );
+}
+
+function Slide06HowItWorks({ active }) {
   const steps = [
     { num: '01', title: 'SoulPrint Assessment', desc: 'A multi-layered personality quiz captures communication style, interests, expertise, and preferences.', icon: '📋' },
     { num: '02', title: 'Memory Engine', desc: 'Every conversation enriches the user\'s SoulPrint. Memories are categorized, indexed, and recalled contextually.', icon: '🧠' },
@@ -262,7 +361,7 @@ function Slide05HowItWorks({ active }) {
   );
 }
 
-function Slide06Market({ active }) {
+function Slide07Market({ active }) {
   const tam = useCounter(244, 2000, active);
   const sam = useCounter(48, 2000, active);
   const som = useCounter(2.4, 2000, active);
@@ -318,7 +417,7 @@ function Slide06Market({ active }) {
   );
 }
 
-function Slide07Traction({ active }) {
+function Slide08Traction({ active }) {
   const metrics = [
     { value: '25K+', label: 'Views Since Apr 1', sub: 'Paid social across 5 DMAs', color: 'text-white' },
     { value: '1,300+', label: 'Messages Sent', sub: 'Active beta users', color: 'text-orange-400' },
@@ -388,7 +487,7 @@ function Slide07Traction({ active }) {
   );
 }
 
-function Slide08BusinessModel({ active }) {
+function Slide09BusinessModel({ active }) {
   const plans = [
     { name: 'Free', price: '$0', period: '/mo', features: ['Basic AI chat', '20 images/mo (watermarked)', '1 video (lifetime)', 'Community support'], color: 'border-gray-500/20', badge: 'text-gray-400', highlight: false },
     { name: 'Base', price: '$20.01', period: '/mo', features: ['Premium models (GPT-4o, Claude)', '20 images/mo (no watermark)', '1 video/mo', 'Voice chat', 'File analysis', 'Email support'], color: 'border-orange-500/30', badge: 'text-orange-400', highlight: true },
@@ -454,7 +553,7 @@ function Slide08BusinessModel({ active }) {
   );
 }
 
-function Slide09Vision({ active }) {
+function Slide10Vision({ active }) {
   const languages = [
     { lang: 'Spanish', flag: '🇪🇸', market: '580M speakers', status: 'In Development' },
     { lang: 'Portuguese', flag: '🇧🇷', market: '260M speakers', status: 'Planned' },
@@ -549,7 +648,7 @@ function Slide09Vision({ active }) {
   );
 }
 
-function Slide10Team({ active }) {
+function Slide11Team({ active }) {
   const team = [
     { name: '[Founder Name]', title: 'CEO & Co-Founder', bio: '[Background — e.g., 10+ years building consumer AI products. Previously at X.]', placeholder: true },
     { name: '[Co-Founder Name]', title: 'CTO & Co-Founder', bio: '[Background — e.g., Engineering lead at Y. ML/infrastructure expert.]', placeholder: true },
@@ -594,7 +693,7 @@ function Slide10Team({ active }) {
   );
 }
 
-function Slide11Ask({ active }) {
+function Slide12Ask({ active }) {
   return (
     <div className="slide-content flex flex-col items-center justify-center text-center px-8 md:px-20 max-w-4xl mx-auto w-full">
       <div className={`w-20 h-20 mx-auto mb-8 flex items-center justify-center transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
@@ -650,17 +749,18 @@ const SLIDES = [
   Slide02Problem,
   Slide03Solution,
   Slide04Product,
-  Slide05HowItWorks,
-  Slide06Market,
-  Slide07Traction,
-  Slide08BusinessModel,
-  Slide09Vision,
-  Slide10Team,
-  Slide11Ask,
+  Slide05DynamicIntelligence,
+  Slide06HowItWorks,
+  Slide07Market,
+  Slide08Traction,
+  Slide09BusinessModel,
+  Slide10Vision,
+  Slide11Team,
+  Slide12Ask,
 ];
 
 const SLIDE_TITLES = [
-  'Cover', 'Problem', 'Solution', 'Product', 'How It Works',
+  'Cover', 'Problem', 'Solution', 'Product', 'Dynamic Intelligence', 'How It Works',
   'Market', 'Traction', 'Business Model', 'Vision & Expansion', 'Team', 'The Ask'
 ];
 
@@ -830,7 +930,7 @@ export default function PitchDeck() {
         </button>
       )}
 
-      {/* Print styles */}
+      {/* Print styles + landscape support */}
       <style jsx global>{`
         @media print {
           body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -839,6 +939,24 @@ export default function PitchDeck() {
           [class*="fixed"] { position: relative !important; }
           [class*="opacity-0"] { opacity: 1 !important; }
           [class*="translate"] { transform: none !important; }
+        }
+        /* Override global landscape lock for pitch deck */
+        @media screen and (max-width: 1024px) and (orientation: landscape) {
+          body::before { display: none !important; }
+          body::after { display: none !important; }
+        }
+        /* Landscape mobile optimization */
+        @media (orientation: landscape) and (max-height: 500px) {
+          .slide-content { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+          .slide-content h1 { font-size: 1.5rem !important; margin-bottom: 0.25rem !important; }
+          .slide-content h2 { font-size: 1.25rem !important; margin-bottom: 0.5rem !important; }
+          .slide-content h3 { font-size: 0.8rem !important; }
+          .slide-content p { font-size: 0.7rem !important; line-height: 1.3 !important; margin-bottom: 0.25rem !important; }
+          .slide-content .grid { gap: 0.375rem !important; }
+        }
+        @media (orientation: landscape) and (min-height: 501px) and (max-height: 768px) {
+          .slide-content h1 { font-size: 2.5rem !important; }
+          .slide-content h2 { font-size: 1.75rem !important; }
         }
       `}</style>
     </div>
