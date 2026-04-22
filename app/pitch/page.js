@@ -706,19 +706,20 @@ function Slide12Ask({ active }) {
 
       <div className={`bg-orange-500/5 border border-orange-500/20 rounded-2xl p-8 mb-8 w-full transition-all duration-700 delay-400 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <p className="text-orange-400 text-sm font-bold tracking-widest mb-3">RAISING</p>
-        <p className="text-5xl font-black text-white mb-2">[$ Amount]</p>
-        <p className="text-gray-500 text-sm">at [$ Valuation] — [Round Type]</p>
+        <p className="text-4xl md:text-5xl font-black text-white mb-2">$1.5M</p>
+        <p className="text-gray-500 text-sm">Pre-Revenue — Seed Round</p>
       </div>
 
       <div className={`grid md:grid-cols-3 gap-4 w-full mb-10 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
         {[
-          { pct: '[X]%', label: 'Engineering', desc: 'Multi-modal AI, infrastructure scaling' },
-          { pct: '[X]%', label: 'Growth', desc: 'Viral loops, creator partnerships, paid acquisition' },
-          { pct: '[X]%', label: 'Operations', desc: 'GPU compute, API costs, compliance' },
+          { pct: '49%', amount: '$42K', label: 'Payroll / Ops', desc: 'Team growth, operations, legal, compliance' },
+          { pct: '45%', amount: '$38K', label: 'Marketing', desc: 'Paid social, creator partnerships, 5 DMA expansion' },
+          { pct: '6%', amount: '$5K', label: 'Development', desc: 'Infrastructure, GPU compute, API costs' },
         ].map((u, i) => (
           <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
             <p className="text-orange-400 text-2xl font-black">{u.pct}</p>
             <p className="text-white text-sm font-bold">{u.label}</p>
+            <p className="text-gray-400 text-xs font-mono mb-1">{u.amount}/mo</p>
             <p className="text-gray-500 text-xs mt-1">{u.desc}</p>
           </div>
         ))}
