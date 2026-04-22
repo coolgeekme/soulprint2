@@ -43,29 +43,30 @@ function useCounter(target, duration = 2000, startWhenVisible = true) {
 
 function Slide01Cover({ active }) {
   return (
-    <div className="slide-content flex flex-col items-center justify-center text-center px-8">
+    <div className="slide-content flex flex-col items-center justify-center text-center px-4 md:px-8">
       {/* Logo */}
       <div className={`transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
-        <div className="w-24 h-24 mx-auto mb-8 flex items-center justify-center">
-          <SoulPrintLogo size={96} />
+        <div className="w-16 h-16 md:w-24 md:h-24 mx-auto mb-6 md:mb-8 flex items-center justify-center">
+          <SoulPrintLogo size={typeof window !== 'undefined' && window.innerWidth < 768 ? 64 : 96} />
         </div>
       </div>
 
-      <h1 className={`text-6xl md:text-8xl font-black tracking-[0.2em] text-white mb-4 transition-all duration-1000 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h1 className={`text-3xl sm:text-5xl md:text-8xl font-black tracking-[0.08em] sm:tracking-[0.15em] md:tracking-[0.2em] text-white mb-3 md:mb-4 transition-all duration-1000 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         SOULPRINT ENGINE
       </h1>
-      <p className={`text-xl md:text-2xl text-orange-400 font-medium tracking-widest mb-12 transition-all duration-1000 delay-400 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <p className={`text-base sm:text-lg md:text-2xl text-orange-400 font-medium tracking-widest mb-8 md:mb-12 transition-all duration-1000 delay-400 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         THE AI THAT KNOWS YOU
       </p>
 
-      <div className={`flex items-center gap-6 text-sm text-gray-500 transition-all duration-1000 delay-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        <span className="px-4 py-2 border border-white/10 rounded-full">Investor Deck</span>
-        <span className="px-4 py-2 border border-white/10 rounded-full">2026</span>
-        <span className="px-4 py-2 border border-white/10 rounded-full">Confidential</span>
+      <div className={`flex items-center gap-3 md:gap-6 text-xs md:text-sm text-gray-500 transition-all duration-1000 delay-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        <span className="px-3 md:px-4 py-1.5 md:py-2 border border-white/10 rounded-full">Investor Deck</span>
+        <span className="px-3 md:px-4 py-1.5 md:py-2 border border-white/10 rounded-full">2026</span>
+        <span className="px-3 md:px-4 py-1.5 md:py-2 border border-white/10 rounded-full">Confidential</span>
       </div>
 
-      <p className={`absolute bottom-12 text-gray-600 text-xs tracking-wider transition-all duration-1000 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        USE ARROW KEYS OR CLICK TO NAVIGATE →
+      <p className={`mt-8 md:absolute md:bottom-12 text-gray-600 text-xs tracking-wider transition-all duration-1000 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        <span className="hidden md:inline">USE ARROW KEYS OR CLICK TO NAVIGATE →</span>
+        <span className="md:hidden">SWIPE OR TAP EDGES TO NAVIGATE →</span>
       </p>
     </div>
   );
@@ -79,15 +80,15 @@ function Slide02Problem({ active }) {
   ];
 
   return (
-    <div className="slide-content flex flex-col justify-center px-8 md:px-20 max-w-6xl mx-auto w-full">
-      <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
+      <p className={`text-orange-400 text-xs md:text-sm font-bold tracking-[0.3em] uppercase mb-3 md:mb-4 transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         THE PROBLEM
       </p>
-      <h2 className={`text-4xl md:text-6xl font-black text-white mb-4 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-2xl sm:text-3xl md:text-6xl font-black text-white mb-3 md:mb-4 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         AI doesn&apos;t know you.<br/>
         <span className="text-gray-500">And it never remembers.</span>
       </h2>
-      <p className={`text-gray-400 text-lg mb-12 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <p className={`text-gray-400 text-sm md:text-lg mb-6 md:mb-12 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
         The average knowledge worker uses 4.7 different AI tools daily — and starts from zero every single time.
       </p>
 
@@ -118,15 +119,15 @@ function Slide03Solution({ active }) {
   ];
 
   return (
-    <div className="slide-content flex flex-col justify-center px-8 md:px-20 max-w-6xl mx-auto w-full">
-      <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
+      <p className={`text-orange-400 text-xs md:text-sm font-bold tracking-[0.3em] uppercase mb-3 md:mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         THE SOLUTION
       </p>
-      <h2 className={`text-4xl md:text-6xl font-black text-white mb-4 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-2xl sm:text-3xl md:text-6xl font-black text-white mb-3 md:mb-4 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         One AI. All modalities.<br/>
         <span className="text-orange-400">It remembers everything.</span>
       </h2>
-      <p className={`text-gray-400 text-lg mb-12 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <p className={`text-gray-400 text-sm md:text-lg mb-6 md:mb-12 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
         SoulPrint Engine builds a persistent personality model of each user — then delivers that understanding across chat, voice, images, video, and code.
       </p>
 
@@ -169,11 +170,11 @@ function Slide04Product({ active }) {
   ];
 
   return (
-    <div className="slide-content flex flex-col justify-center px-8 md:px-20 max-w-6xl mx-auto w-full">
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
       <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         THE PRODUCT
       </p>
-      <h2 className={`text-4xl md:text-5xl font-black text-white mb-10 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-6 md:mb-10 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         Everything AI, in one place.
       </h2>
 
@@ -203,11 +204,11 @@ function Slide05HowItWorks({ active }) {
   ];
 
   return (
-    <div className="slide-content flex flex-col justify-center px-8 md:px-20 max-w-6xl mx-auto w-full">
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
       <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         HOW IT WORKS
       </p>
-      <h2 className={`text-4xl md:text-5xl font-black text-white mb-8 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-4 md:mb-8 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         The SoulPrint Engine Flywheel
       </h2>
 
@@ -267,7 +268,7 @@ function Slide06Market({ active }) {
   const som = useCounter(2.4, 2000, active);
 
   return (
-    <div className="slide-content flex flex-col justify-center px-8 md:px-20 max-w-6xl mx-auto w-full">
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
       <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         MARKET OPPORTUNITY
       </p>
@@ -328,7 +329,7 @@ function Slide07Traction({ active }) {
   ];
 
   return (
-    <div className="slide-content flex flex-col justify-center px-8 md:px-20 max-w-6xl mx-auto w-full">
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
       <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         TRACTION
       </p>
@@ -395,11 +396,11 @@ function Slide08BusinessModel({ active }) {
   ];
 
   return (
-    <div className="slide-content flex flex-col justify-center px-8 md:px-20 max-w-6xl mx-auto w-full">
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
       <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         BUSINESS MODEL
       </p>
-      <h2 className={`text-4xl md:text-5xl font-black text-white mb-10 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-6 md:mb-10 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         Three tiers. Clear value.
       </h2>
 
@@ -471,11 +472,11 @@ function Slide09Vision({ active }) {
   ];
 
   return (
-    <div className="slide-content flex flex-col justify-center px-8 md:px-20 max-w-6xl mx-auto w-full">
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
       <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         VISION & EXPANSION
       </p>
-      <h2 className={`text-4xl md:text-5xl font-black text-white mb-10 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-6 md:mb-10 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         Two massive growth vectors.
       </h2>
 
@@ -556,7 +557,7 @@ function Slide10Team({ active }) {
   ];
 
   return (
-    <div className="slide-content flex flex-col justify-center px-8 md:px-20 max-w-6xl mx-auto w-full">
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
       <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         THE TEAM
       </p>
@@ -600,7 +601,7 @@ function Slide11Ask({ active }) {
         <SoulPrintLogo size={80} />
       </div>
 
-      <h2 className={`text-4xl md:text-6xl font-black text-white mb-6 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-3xl md:text-6xl font-black text-white mb-4 md:mb-6 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         The Ask
       </h2>
 
@@ -689,6 +690,23 @@ export default function PitchDeck() {
     return () => window.removeEventListener('keydown', handler);
   }, [next, prev]);
 
+  // Touch swipe navigation
+  const touchStart = useRef(null);
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const onTouchStart = (e) => { touchStart.current = e.touches[0].clientX; };
+    const onTouchEnd = (e) => {
+      if (touchStart.current === null) return;
+      const diff = touchStart.current - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 60) { diff > 0 ? next() : prev(); }
+      touchStart.current = null;
+    };
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => { container.removeEventListener('touchstart', onTouchStart); container.removeEventListener('touchend', onTouchEnd); };
+  }, [next, prev]);
+
   // Auto-hide nav
   useEffect(() => {
     const handleMove = () => {
@@ -734,19 +752,21 @@ export default function PitchDeck() {
         {SLIDES.map((SlideComponent, idx) => (
           <div
             key={idx}
-            className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-out ${
+            className={`absolute inset-0 overflow-y-auto transition-all duration-700 ease-out ${
               idx === currentSlide ? 'opacity-100 translate-x-0 z-10' :
-              idx < currentSlide ? 'opacity-0 -translate-x-16 z-0' :
-              'opacity-0 translate-x-16 z-0'
+              idx < currentSlide ? 'opacity-0 -translate-x-16 z-0 pointer-events-none' :
+              'opacity-0 translate-x-16 z-0 pointer-events-none'
             }`}
           >
-            <SlideComponent active={idx === currentSlide} />
+            <div className="min-h-full flex items-center justify-center py-16 md:py-4">
+              <SlideComponent active={idx === currentSlide} />
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Click zones for navigation */}
-      <div className="absolute inset-0 z-20 flex pointer-events-none">
+      {/* Click zones for navigation - hidden on mobile for scroll */}
+      <div className="absolute inset-0 z-20 hidden md:flex pointer-events-none">
         <div className="w-1/3 h-full pointer-events-auto cursor-w-resize" onClick={prev} />
         <div className="w-1/3 h-full" />
         <div className="w-1/3 h-full pointer-events-auto cursor-e-resize" onClick={next} />
@@ -754,17 +774,17 @@ export default function PitchDeck() {
 
       {/* Bottom nav bar */}
       <div className={`absolute bottom-0 left-0 right-0 z-30 transition-all duration-500 ${showNav ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-t from-black/80 to-transparent">
+        <div className="flex items-center justify-between px-3 md:px-6 py-3 md:py-4 bg-gradient-to-t from-black/80 to-transparent">
           {/* Slide dots */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 md:gap-2">
             {SLIDES.map((_, idx) => (
               <button
                 key={idx}
                 onClick={(e) => { e.stopPropagation(); goTo(idx); }}
                 className={`transition-all duration-300 rounded-full pointer-events-auto ${
                   idx === currentSlide
-                    ? 'w-8 h-2 bg-orange-500'
-                    : 'w-2 h-2 bg-white/20 hover:bg-white/40'
+                    ? 'w-6 md:w-8 h-1.5 md:h-2 bg-orange-500'
+                    : 'w-1.5 md:w-2 h-1.5 md:h-2 bg-white/20 hover:bg-white/40'
                 }`}
                 title={SLIDE_TITLES[idx]}
               />
@@ -772,19 +792,19 @@ export default function PitchDeck() {
           </div>
 
           {/* Slide counter */}
-          <div className="flex items-center gap-4 pointer-events-auto">
-            <span className="text-gray-500 text-xs font-mono">
+          <div className="flex items-center gap-2 md:gap-4 pointer-events-auto">
+            <span className="text-gray-500 text-[10px] md:text-xs font-mono">
               {String(currentSlide + 1).padStart(2, '0')} / {String(TOTAL_SLIDES).padStart(2, '0')}
             </span>
             <button
               onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-              className="text-gray-500 hover:text-white text-xs px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+              className="hidden md:block text-gray-500 hover:text-white text-xs px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
             >
               {isFullscreen ? '⊘ Exit' : '⛶ Fullscreen'}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); window.print(); }}
-              className="text-gray-500 hover:text-white text-xs px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+              className="hidden md:block text-gray-500 hover:text-white text-xs px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
             >
               🖨 Print / PDF
             </button>
