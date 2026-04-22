@@ -1,11 +1,12 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 // ═══════════════════════════════════════════════════════════════════
 // SOULPRINT ENGINE — INVESTOR PITCH DECK
 // ═══════════════════════════════════════════════════════════════════
 
-const TOTAL_SLIDES = 10;
+const TOTAL_SLIDES = 11;
 
 // Animated counter hook
 function useCounter(target, duration = 2000, startWhenVisible = true) {
@@ -45,12 +46,8 @@ function Slide01Cover({ active }) {
     <div className="slide-content flex flex-col items-center justify-center text-center px-8">
       {/* Logo */}
       <div className={`transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
-        <div className="w-24 h-24 mx-auto mb-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-2xl shadow-orange-500/30">
-          <svg width="48" height="48" viewBox="0 0 100 100" fill="none">
-            <path d="M50 10C50 10 75 25 75 50C75 75 50 90 50 90C50 90 25 75 25 50C25 25 50 10 50 10Z" stroke="white" strokeWidth="4" fill="none"/>
-            <circle cx="50" cy="50" r="12" fill="white" opacity="0.9"/>
-            <path d="M50 20C60 30 65 40 65 50C65 60 60 70 50 80" stroke="white" strokeWidth="2.5" opacity="0.5"/>
-          </svg>
+        <div className="w-24 h-24 mx-auto mb-8 flex items-center justify-center">
+          <SoulPrintLogo size={96} />
         </div>
       </div>
 
@@ -291,6 +288,8 @@ function Slide06Market({ active }) {
             <li>• Memory-first architecture creates switching costs</li>
             <li>• All-in-one replaces $100+/mo in separate AI subscriptions</li>
             <li>• Viral invite system drives organic growth at zero CAC</li>
+            <li>• <span className="text-orange-400">Native language versions</span> unlock non-English markets (not translations — full native builds)</li>
+            <li>• <span className="text-orange-400">B2B arm</span> brings enterprise ACV alongside consumer revenue</li>
           </ul>
         </div>
       </div>
@@ -434,7 +433,102 @@ function Slide08BusinessModel({ active }) {
   );
 }
 
-function Slide09Team({ active }) {
+function Slide09Vision({ active }) {
+  const languages = [
+    { lang: 'Spanish', flag: '🇪🇸', market: '580M speakers', status: 'In Development' },
+    { lang: 'Portuguese', flag: '🇧🇷', market: '260M speakers', status: 'Planned' },
+    { lang: 'Arabic', flag: '🇸🇦', market: '420M speakers', status: 'Planned' },
+    { lang: 'Hindi', flag: '🇮🇳', market: '600M speakers', status: 'Planned' },
+    { lang: 'Mandarin', flag: '🇨🇳', market: '1.1B speakers', status: 'Planned' },
+    { lang: 'French', flag: '🇫🇷', market: '320M speakers', status: 'Planned' },
+  ];
+
+  const b2bUseCases = [
+    { icon: '🏥', title: 'Healthcare', desc: 'AI assistants trained on medical protocols, patient communication styles, HIPAA-compliant memory' },
+    { icon: '⚖️', title: 'Legal', desc: 'Contract review, case research, and client communication with firm-specific tone and precedent' },
+    { icon: '🏦', title: 'Financial Services', desc: 'Personalized wealth management AI, compliance-aware chat, portfolio reporting' },
+    { icon: '🎓', title: 'Education', desc: 'Adaptive AI tutors that learn each student\'s pace, gaps, and learning style' },
+  ];
+
+  return (
+    <div className="slide-content flex flex-col justify-center px-8 md:px-20 max-w-6xl mx-auto w-full">
+      <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        VISION & EXPANSION
+      </p>
+      <h2 className={`text-4xl md:text-5xl font-black text-white mb-10 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        Two massive growth vectors.
+      </h2>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Native Language Versions */}
+        <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6 transition-all duration-700 delay-300 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-lg">🌍</div>
+            <div>
+              <h3 className="text-white font-bold text-base">Native Language Versions</h3>
+              <p className="text-blue-400 text-[10px] font-bold tracking-widest">NOT TRANSLATIONS — FULL NATIVE BUILDS</p>
+            </div>
+          </div>
+          <p className="text-gray-400 text-xs leading-relaxed mb-4">
+            Each language version is built from the ground up with native cultural context, idioms, and communication patterns — not simply run through a translation layer. The SoulPrint personality model adapts to culturally-specific emotional expression.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {languages.map((l, i) => (
+              <div
+                key={i}
+                className={`bg-white/[0.03] rounded-lg px-2.5 py-2 text-center transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`}
+                style={{ transitionDelay: `${600 + i * 80}ms` }}
+              >
+                <span className="text-lg">{l.flag}</span>
+                <p className="text-white text-[10px] font-bold mt-0.5">{l.lang}</p>
+                <p className="text-gray-600 text-[9px]">{l.market}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 bg-blue-500/5 border border-blue-500/10 rounded-lg p-3">
+            <p className="text-blue-400 text-[10px] font-bold">MARKET MULTIPLIER</p>
+            <p className="text-gray-400 text-[10px]">English-only AI serves ~1.5B people. Native versions unlock <span className="text-white font-semibold">5B+ additional users</span> — a 3x TAM expansion.</p>
+          </div>
+        </div>
+
+        {/* B2B Enterprise Arm */}
+        <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6 transition-all duration-700 delay-500 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-lg">🏢</div>
+            <div>
+              <h3 className="text-white font-bold text-base">B2B Enterprise Solutions</h3>
+              <p className="text-purple-400 text-[10px] font-bold tracking-widest">AI SOLUTIONS FOR BUSINESSES</p>
+            </div>
+          </div>
+          <p className="text-gray-400 text-xs leading-relaxed mb-4">
+            The same personalization engine that powers consumer SoulPrint becomes a white-label AI platform for enterprises — with custom knowledge bases, compliance controls, and team-wide memory.
+          </p>
+          <div className="space-y-2">
+            {b2bUseCases.map((u, i) => (
+              <div
+                key={i}
+                className={`flex items-start gap-3 bg-white/[0.02] rounded-lg px-3 py-2 transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`}
+                style={{ transitionDelay: `${700 + i * 100}ms` }}
+              >
+                <span className="text-base mt-0.5">{u.icon}</span>
+                <div>
+                  <p className="text-white text-xs font-bold">{u.title}</p>
+                  <p className="text-gray-500 text-[10px] leading-relaxed">{u.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 bg-purple-500/5 border border-purple-500/10 rounded-lg p-3">
+            <p className="text-purple-400 text-[10px] font-bold">REVENUE IMPACT</p>
+            <p className="text-gray-400 text-[10px]">Enterprise contracts bring <span className="text-white font-semibold">10-50x higher ACV</span> than consumer subscriptions with lower churn and longer commitments.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Slide10Team({ active }) {
   const team = [
     { name: '[Founder Name]', title: 'CEO & Co-Founder', bio: '[Background — e.g., 10+ years building consumer AI products. Previously at X.]', placeholder: true },
     { name: '[Co-Founder Name]', title: 'CTO & Co-Founder', bio: '[Background — e.g., Engineering lead at Y. ML/infrastructure expert.]', placeholder: true },
@@ -479,14 +573,11 @@ function Slide09Team({ active }) {
   );
 }
 
-function Slide10Ask({ active }) {
+function Slide11Ask({ active }) {
   return (
     <div className="slide-content flex flex-col items-center justify-center text-center px-8 md:px-20 max-w-4xl mx-auto w-full">
-      <div className={`w-20 h-20 mx-auto mb-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-2xl shadow-orange-500/30 transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
-        <svg width="40" height="40" viewBox="0 0 100 100" fill="none">
-          <path d="M50 10C50 10 75 25 75 50C75 75 50 90 50 90C50 90 25 75 25 50C25 25 50 10 50 10Z" stroke="white" strokeWidth="4" fill="none"/>
-          <circle cx="50" cy="50" r="12" fill="white" opacity="0.9"/>
-        </svg>
+      <div className={`w-20 h-20 mx-auto mb-8 flex items-center justify-center transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
+        <SoulPrintLogo size={80} />
       </div>
 
       <h2 className={`text-4xl md:text-6xl font-black text-white mb-6 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -542,13 +633,14 @@ const SLIDES = [
   Slide06Market,
   Slide07Traction,
   Slide08BusinessModel,
-  Slide09Team,
-  Slide10Ask,
+  Slide09Vision,
+  Slide10Team,
+  Slide11Ask,
 ];
 
 const SLIDE_TITLES = [
   'Cover', 'Problem', 'Solution', 'Product', 'How It Works',
-  'Market', 'Traction', 'Business Model', 'Team', 'The Ask'
+  'Market', 'Traction', 'Business Model', 'Vision & Expansion', 'Team', 'The Ask'
 ];
 
 export default function PitchDeck() {
