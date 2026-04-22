@@ -790,17 +790,26 @@ export default function PitchDeck() {
     return () => window.removeEventListener('keydown', handler);
   }, [next, prev]);
 
-  // Touch swipe navigation
+  // Touch swipe navigation (horizontal only — allows vertical scroll)
   const touchStart = useRef(null);
+  const touchStartY = useRef(null);
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const onTouchStart = (e) => { touchStart.current = e.touches[0].clientX; };
+    const onTouchStart = (e) => { 
+      touchStart.current = e.touches[0].clientX; 
+      touchStartY.current = e.touches[0].clientY; 
+    };
     const onTouchEnd = (e) => {
       if (touchStart.current === null) return;
-      const diff = touchStart.current - e.changedTouches[0].clientX;
-      if (Math.abs(diff) > 60) { diff > 0 ? next() : prev(); }
+      const diffX = touchStart.current - e.changedTouches[0].clientX;
+      const diffY = touchStartY.current - e.changedTouches[0].clientY;
+      // Only navigate if horizontal swipe is dominant and significant
+      if (Math.abs(diffX) > 60 && Math.abs(diffX) > Math.abs(diffY) * 2) { 
+        diffX > 0 ? next() : prev(); 
+      }
       touchStart.current = null;
+      touchStartY.current = null;
     };
     container.addEventListener('touchstart', onTouchStart, { passive: true });
     container.addEventListener('touchend', onTouchEnd, { passive: true });
@@ -852,7 +861,7 @@ export default function PitchDeck() {
         {SLIDES.map((SlideComponent, idx) => (
           <div
             key={idx}
-            className={`absolute inset-0 overflow-y-auto transition-all duration-700 ease-out ${
+            className={`absolute inset-0 pitch-slide-scroll transition-all duration-700 ease-out ${
               idx === currentSlide ? 'opacity-100 translate-x-0 z-10' :
               idx < currentSlide ? 'opacity-0 -translate-x-16 z-0 pointer-events-none' :
               'opacity-0 translate-x-16 z-0 pointer-events-none'
@@ -944,6 +953,12 @@ export default function PitchDeck() {
         @media screen and (max-width: 1024px) and (orientation: landscape) {
           body::before { display: none !important; }
           body::after { display: none !important; }
+        }
+        /* Enable smooth touch scrolling within slides */
+        .pitch-slide-scroll {
+          -webkit-overflow-scrolling: touch;
+          overflow-y: auto;
+          overscroll-behavior: contain;
         }
         /* Landscape mobile optimization */
         @media (orientation: landscape) and (max-height: 500px) {
