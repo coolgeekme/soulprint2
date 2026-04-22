@@ -7,7 +7,7 @@ import requests
 import json
 import sys
 
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com/api"
+BASE_URL = "https://perfil-soul.preview.emergentagent.com/api"
 
 def test_github_oauth_integration():
     """Test GitHub OAuth Integration endpoints"""

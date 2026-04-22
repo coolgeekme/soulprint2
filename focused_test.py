@@ -9,7 +9,7 @@ This test focuses on the specific improvements mentioned in the review request:
 4. Vision analysis now looks at up to 4 images (was limited to 2)
 
 Authentication: testchat@example.com / Test123456
-Base URL: https://soulprint-engine.preview.emergentagent.com
+Base URL: https://perfil-soul.preview.emergentagent.com
 """
 
 import asyncio
@@ -19,7 +19,7 @@ import time
 from typing import Dict, List, Optional
 
 # Test configuration
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+BASE_URL = "https://perfil-soul.preview.emergentagent.com"
 TEST_EMAIL = "testchat@example.com"
 TEST_PASSWORD = "Test123456"
 

@@ -8,7 +8,7 @@ import json
 import time
 
 # Test configuration
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+BASE_URL = "https://perfil-soul.preview.emergentagent.com"
 TEST_EMAIL = "testchat@example.com"
 TEST_PASSWORD = "Test123456"
 

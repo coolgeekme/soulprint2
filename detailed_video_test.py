@@ -13,7 +13,7 @@ import os
 import sys
 
 # Get base URL from environment
-BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://soulprint-engine.preview.emergentagent.com')
+BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://perfil-soul.preview.emergentagent.com')
 API_BASE = f"{BASE_URL}/api"
 
 class DetailedVideoStatusTests:

@@ -12,7 +12,7 @@ import zipfile
 import os
 
 # Configuration
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+BASE_URL = "https://perfil-soul.preview.emergentagent.com"
 AUTH_EMAIL = "testchat@example.com"
 AUTH_PASSWORD = "Test123456"
 

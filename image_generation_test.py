@@ -7,7 +7,7 @@ import sys
 from typing import Dict, Any, Optional
 
 # Configuration
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+BASE_URL = "https://perfil-soul.preview.emergentagent.com"
 AUTH_EMAIL = "testchat@example.com"
 AUTH_PASSCODE = "Test123456"
 

@@ -6,7 +6,7 @@ import sys
 from datetime import datetime
 
 # Test Configuration
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com/api"
+BASE_URL = "https://perfil-soul.preview.emergentagent.com/api"
 TEST_EMAIL = "reggie@coolgeek.me"
 
 def try_login(passcode):

@@ -8,7 +8,7 @@ import requests
 import json
 import sys
 
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+BASE_URL = "https://perfil-soul.preview.emergentagent.com"
 
 def test_endpoint_exists(method, endpoint, expected_status_codes, headers=None, data=None):
     """Test that an endpoint exists and returns expected status codes"""

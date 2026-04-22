@@ -12,7 +12,7 @@ import os
 from urllib.parse import urljoin
 
 # Configuration
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+BASE_URL = "https://perfil-soul.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 # Test credentials

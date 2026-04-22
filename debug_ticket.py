@@ -6,7 +6,7 @@ Debug ticket data to see what's actually stored
 import requests
 import json
 
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+BASE_URL = "https://perfil-soul.preview.emergentagent.com"
 
 def test_ticket_data():
     # Login as admin
