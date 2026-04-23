@@ -354,6 +354,7 @@ import {
 // ── Persona DNA (extracted) ──
 import {
   handleGetPersonaProfile,
+  handleSavePersonaOverride,
 } from '@/lib/handlers/persona-dna';
 
 // ── Import upload (extracted) ──
@@ -753,6 +754,13 @@ export async function POST(request, { params }) {
     // Viral invite routes
     if (pathStr === 'invites/validate') return handleValidateInviteCode(request);
     if (pathStr === 'invites/redeem') return handleRedeemInviteCode(request);
+
+    // Persona DNA
+    if (pathStr === 'persona/override') {
+      const result = await handleSavePersonaOverride(request);
+      if (result.error) return err(result.error, result.status || 400);
+      return ok(result);
+    }
 
     // Other connector stubs
     if (pathStr === 'connectors/discord/webhook') return handleConnectorStub('discord');
