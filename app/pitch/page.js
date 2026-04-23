@@ -363,16 +363,16 @@ function Slide06HowItWorks({ active }) {
 
 function Slide07PersonaDNA({ active }) {
   const axes = [
-    { name: 'Directness', left: 'Diplomatic', right: 'Direct', value: 72, color: 'orange' },
-    { name: 'Warmth', left: 'Neutral', right: 'Warm', value: 58, color: 'amber' },
-    { name: 'Humor', left: 'Serious', right: 'Playful', value: 65, color: 'yellow' },
-    { name: 'Challenge', left: 'Supportive', right: 'Challenging', value: 40, color: 'red' },
-    { name: 'Detail', left: 'Concise', right: 'Thorough', value: 80, color: 'emerald' },
-    { name: 'Formality', left: 'Casual', right: 'Formal', value: 35, color: 'blue' },
-    { name: 'Emotion', left: 'Reserved', right: 'Expressive', value: 55, color: 'purple' },
-    { name: 'Pace', left: 'Measured', right: 'Rapid', value: 68, color: 'cyan' },
-    { name: 'Autonomy', left: 'Guided', right: 'Independent', value: 45, color: 'pink' },
-    { name: 'Expression', left: 'Minimal', right: 'Vivid', value: 62, color: 'indigo' },
+    { name: 'Directness', left: 'Diplomatic', right: 'Direct', value: 72, hex: '#f97316' },
+    { name: 'Warmth', left: 'Neutral', right: 'Warm', value: 58, hex: '#f59e0b' },
+    { name: 'Humor', left: 'Serious', right: 'Playful', value: 65, hex: '#eab308' },
+    { name: 'Challenge', left: 'Supportive', right: 'Challenging', value: 40, hex: '#ef4444' },
+    { name: 'Detail', left: 'Concise', right: 'Thorough', value: 80, hex: '#10b981' },
+    { name: 'Formality', left: 'Casual', right: 'Formal', value: 35, hex: '#3b82f6' },
+    { name: 'Emotion', left: 'Reserved', right: 'Expressive', value: 55, hex: '#a855f7' },
+    { name: 'Pace', left: 'Measured', right: 'Rapid', value: 68, hex: '#06b6d4' },
+    { name: 'Autonomy', left: 'Guided', right: 'Independent', value: 45, hex: '#ec4899' },
+    { name: 'Expression', left: 'Minimal', right: 'Vivid', value: 62, hex: '#6366f1' },
   ];
 
   return (
@@ -442,8 +442,8 @@ function Slide07PersonaDNA({ active }) {
                   <span className="text-gray-600 text-[8px] w-12 text-right flex-shrink-0 truncate">{axis.left}</span>
                   <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden relative">
                     <div
-                      className={`h-full rounded-full bg-${axis.color}-500/60 transition-all duration-1000`}
-                      style={{ width: active ? `${axis.value}%` : '0%', transitionDelay: `${700 + i * 80}ms` }}
+                      className="h-full rounded-full transition-all duration-1000"
+                      style={{ width: active ? `${axis.value}%` : '0%', backgroundColor: `${axis.hex}99`, transitionDelay: `${700 + i * 80}ms` }}
                     />
                   </div>
                   <span className="text-gray-600 text-[8px] w-14 flex-shrink-0 truncate">{axis.right}</span>
@@ -668,7 +668,7 @@ function Slide10BusinessModel({ active }) {
   );
 }
 
-function Slide10Vision({ active }) {
+function Slide11Vision({ active }) {
   const languages = [
     { lang: 'Spanish', flag: '🇪🇸', market: '580M speakers', status: 'In Development' },
     { lang: 'Portuguese', flag: '🇧🇷', market: '260M speakers', status: 'Planned' },
@@ -763,7 +763,7 @@ function Slide10Vision({ active }) {
   );
 }
 
-function Slide11Team({ active }) {
+function Slide12Team({ active }) {
   const team = [
     { name: 'Ben Woodard', title: 'Founder', bio: 'Builds revenue systems that don\'t reset. Designs identity and memory layers on top of AI. Turns ideas into infrastructure that scales.', tag: 'OWNER' },
     { name: 'Layla G.', title: 'Chief Intelligence Officer', bio: 'Designs cognitive architectures and identity-bound reasoning systems. Builds the Deius Table. Establishes governance and integrity standards.', tag: null },
@@ -824,7 +824,7 @@ function Slide11Team({ active }) {
   );
 }
 
-function Slide12Ask({ active }) {
+function Slide13Ask({ active }) {
   return (
     <div className="slide-content flex flex-col items-center justify-center text-center px-8 md:px-20 max-w-4xl mx-auto w-full">
       <div className={`w-20 h-20 mx-auto mb-8 flex items-center justify-center transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
@@ -883,17 +883,18 @@ const SLIDES = [
   Slide04Product,
   Slide05DynamicIntelligence,
   Slide06HowItWorks,
-  Slide07Market,
-  Slide08Traction,
-  Slide09BusinessModel,
-  Slide10Vision,
-  Slide11Team,
-  Slide12Ask,
+  Slide07PersonaDNA,
+  Slide08Market,
+  Slide09Traction,
+  Slide10BusinessModel,
+  Slide11Vision,
+  Slide12Team,
+  Slide13Ask,
 ];
 
 const SLIDE_TITLES = [
   'Cover', 'Problem', 'Solution', 'Product', 'Dynamic Intelligence', 'How It Works',
-  'Market', 'Traction', 'Business Model', 'Vision & Expansion', 'Team', 'The Ask'
+  'Persona DNA', 'Market', 'Traction', 'Business Model', 'Vision & Expansion', 'Team', 'The Ask'
 ];
 
 // ═══ ACCESS GATE ════════════════════════════════════════════════════
