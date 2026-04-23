@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Sparkles, RotateCcw, Check, Info } from 'lucide-react';
+import { Loader2, Sparkles, RotateCcw, Check, Info, RefreshCw } from 'lucide-react';
 
 // ═══════════════════════════════════════════════════════════════════
 // PERSONA DNA CARD — "Your AI Personality"
@@ -339,6 +339,45 @@ export default function PersonaDNACard({ token }) {
     }
   };
 
+  // Force refresh profile
+  const forceRefresh = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/persona/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error('Failed to refresh');
+      const data = await res.json();
+      setProfile(data.profile);
+      
+      const axes = data.profile?.axes || {};
+      const existingOverrides = data.profile?.overrides || {};
+      const computedDials = {};
+      
+      DIALS.forEach(dial => {
+        if (existingOverrides[dial.id] !== undefined) {
+          computedDials[dial.id] = existingOverrides[dial.id];
+        } else {
+          computedDials[dial.id] = dial.compute(axes);
+        }
+      });
+      
+      setDialValues(computedDials);
+      setOverrides(existingOverrides);
+      setHasChanges(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -376,6 +415,14 @@ export default function PersonaDNACard({ token }) {
           <h3 className="text-white text-sm font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-orange-500" />
             Your AI Personality
+            <button
+              onClick={forceRefresh}
+              disabled={loading}
+              className="text-gray-600 hover:text-orange-400 transition-colors ml-1"
+              title="Re-analyze and refresh personality profile"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
           </h3>
           <p className="text-gray-500 text-[10px] mt-1">
             {source === 'assessment' 

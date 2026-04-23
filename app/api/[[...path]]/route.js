@@ -357,6 +357,7 @@ import {
   handleSavePersonaOverride,
   handleGetPersonaNotification,
   handleMarkPersonaSeen,
+  handleForceRefreshPersona,
 } from '@/lib/handlers/persona-dna';
 
 // ── Import upload (extracted) ──
@@ -770,6 +771,11 @@ export async function POST(request, { params }) {
     }
     if (pathStr === 'persona/mark-seen') {
       const result = await handleMarkPersonaSeen(request);
+      if (result.error) return err(result.error, result.status || 400);
+      return ok(result);
+    }
+    if (pathStr === 'persona/refresh') {
+      const result = await handleForceRefreshPersona(request);
       if (result.error) return err(result.error, result.status || 400);
       return ok(result);
     }
