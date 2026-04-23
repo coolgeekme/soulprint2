@@ -1,5 +1,7 @@
 const nextConfig = {
   output: 'standalone',
+  compress: true,
+  poweredByHeader: false,
   images: {
     unoptimized: true,
   },
@@ -7,7 +9,7 @@ const nextConfig = {
     // Remove if not using Server Components
     serverComponentsExternalPackages: ['mongodb'],
   },
-  webpack(config, { dev }) {
+  webpack(config, { dev, isServer }) {
     if (dev) {
       // Disable persistent filesystem cache to prevent corruption 
       // with large API route files (26k+ lines)
@@ -17,9 +19,33 @@ const nextConfig = {
       config.watchOptions = {
         poll: 2000, // check every 2 seconds
         aggregateTimeout: 300, // wait before rebuilding
-        ignored: ['**/node_modules'],
+        ignored: ['**/node_modules', '**/.git', '**/.next'],
       };
     }
+    
+    // Optimization for production builds
+    if (!dev && !isServer) {
+      config.optimization.splitChunks = {
+        chunks: 'all',
+        cacheGroups: {
+          default: false,
+          vendors: false,
+          framework: {
+            name: 'framework',
+            chunks: 'all',
+            test: /[\\/]node_modules[\\/](react|react-dom|scheduler|prop-types)[\\/]/,
+            priority: 40,
+            enforce: true,
+          },
+          commons: {
+            name: 'commons',
+            minChunks: 2,
+            priority: 20,
+          },
+        },
+      };
+    }
+    
     return config;
   },
   onDemandEntries: {
