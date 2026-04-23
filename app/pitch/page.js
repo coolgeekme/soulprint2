@@ -6,7 +6,7 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 // SOULPRINT ENGINE — INVESTOR PITCH DECK
 // ═══════════════════════════════════════════════════════════════════
 
-const TOTAL_SLIDES = 12;
+const TOTAL_SLIDES = 13;
 
 // Animated counter hook
 function useCounter(target, duration = 2000, startWhenVisible = true) {
@@ -361,7 +361,122 @@ function Slide06HowItWorks({ active }) {
   );
 }
 
-function Slide07Market({ active }) {
+function Slide07PersonaDNA({ active }) {
+  const axes = [
+    { name: 'Directness', left: 'Diplomatic', right: 'Direct', value: 72, color: 'orange' },
+    { name: 'Warmth', left: 'Neutral', right: 'Warm', value: 58, color: 'amber' },
+    { name: 'Humor', left: 'Serious', right: 'Playful', value: 65, color: 'yellow' },
+    { name: 'Challenge', left: 'Supportive', right: 'Challenging', value: 40, color: 'red' },
+    { name: 'Detail', left: 'Concise', right: 'Thorough', value: 80, color: 'emerald' },
+    { name: 'Formality', left: 'Casual', right: 'Formal', value: 35, color: 'blue' },
+    { name: 'Emotion', left: 'Reserved', right: 'Expressive', value: 55, color: 'purple' },
+    { name: 'Pace', left: 'Measured', right: 'Rapid', value: 68, color: 'cyan' },
+    { name: 'Autonomy', left: 'Guided', right: 'Independent', value: 45, color: 'pink' },
+    { name: 'Expression', left: 'Minimal', right: 'Vivid', value: 62, color: 'indigo' },
+  ];
+
+  return (
+    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
+      <p className={`text-orange-400 text-xs md:text-sm font-bold tracking-[0.3em] uppercase mb-3 md:mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        PERSONA DNA
+      </p>
+      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-2 md:mb-3 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        AI that adapts <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-400">how</span> it talks to you.
+      </h2>
+      <p className={`text-gray-400 text-sm md:text-base mb-6 md:mb-8 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        Memory tells the AI <span className="text-white">what you&apos;ve discussed</span>. Persona DNA tells the AI <span className="text-white">how to communicate with you</span>. A 10-axis personality engine unique to each user.
+      </p>
+
+      <div className={`grid md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-6 items-start transition-all duration-700 delay-300 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        {/* Left: Data Sources */}
+        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 md:p-5">
+          <p className="text-white font-bold text-sm mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center text-xs">📡</span>
+            Three Intelligence Sources
+          </p>
+          <div className="space-y-3">
+            {[
+              { icon: '📋', label: 'Assessment', desc: '36-question personality quiz across 6 pillars', color: 'text-orange-400', pct: '40%' },
+              { icon: '💬', label: 'Chat Analysis', desc: 'Writing style, emoji, tone, message patterns', color: 'text-blue-400', pct: '35%' },
+              { icon: '🎚️', label: 'Manual Tuning', desc: '4 intuitive dials users can adjust anytime', color: 'text-purple-400', pct: '25%' },
+            ].map((s, i) => (
+              <div key={i} className={`flex items-start gap-3 transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: `${500 + i * 150}ms` }}>
+                <div className="w-8 h-8 rounded-lg bg-white/[0.05] flex items-center justify-center text-base flex-shrink-0">{s.icon}</div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className={`${s.color} text-xs font-bold`}>{s.label}</p>
+                    <span className="text-gray-600 text-[9px] font-mono">{s.pct} weight</span>
+                  </div>
+                  <p className="text-gray-500 text-[10px] leading-relaxed">{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 pt-3 border-t border-white/5">
+            <p className="text-gray-600 text-[10px]">
+              <span className="text-orange-400 font-bold">Zero cold-start</span> — Chat history is mined for existing users who haven&apos;t taken the assessment
+            </p>
+          </div>
+        </div>
+
+        {/* Center: Engine */}
+        <div className={`hidden md:flex flex-col items-center justify-center transition-all duration-700 delay-500 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500/20 to-purple-500/20 border border-orange-500/30 flex items-center justify-center mb-2">
+            <span className="text-2xl">🧬</span>
+          </div>
+          <p className="text-orange-400 text-[9px] font-bold tracking-widest text-center">PERSONA<br/>DNA</p>
+          <div className="w-px h-6 bg-orange-500/20 mt-2" />
+          <span className="text-orange-500/40 text-lg">↓</span>
+        </div>
+
+        {/* Right: 10-Axis Visualization */}
+        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 md:p-5">
+          <p className="text-white font-bold text-sm mb-3 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center text-xs">🧬</span>
+            10 Personality Axes
+          </p>
+          <div className="space-y-1.5">
+            {axes.map((axis, i) => (
+              <div key={i} className={`transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: `${600 + i * 80}ms` }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-600 text-[8px] w-12 text-right flex-shrink-0 truncate">{axis.left}</span>
+                  <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden relative">
+                    <div
+                      className={`h-full rounded-full bg-${axis.color}-500/60 transition-all duration-1000`}
+                      style={{ width: active ? `${axis.value}%` : '0%', transitionDelay: `${700 + i * 80}ms` }}
+                    />
+                  </div>
+                  <span className="text-gray-600 text-[8px] w-14 flex-shrink-0 truncate">{axis.right}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-gray-600 text-[9px] mt-3 text-center italic">
+            Example profile — every user generates a unique fingerprint
+          </p>
+        </div>
+      </div>
+
+      {/* Bottom: 3-pillar value props */}
+      <div className={`mt-6 md:mt-8 grid md:grid-cols-3 gap-3 transition-all duration-700 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-3 text-center">
+          <p className="text-orange-400 font-bold text-xs mb-1">🔒 Technical Moat</p>
+          <p className="text-gray-500 text-[10px]">10-axis engine is impossible to replicate without the underlying data. Each user&apos;s profile is unique.</p>
+        </div>
+        <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-3 text-center">
+          <p className="text-orange-400 font-bold text-xs mb-1">📈 Retention Driver</p>
+          <p className="text-gray-500 text-[10px]">Users who personalize their AI have <span className="text-white font-semibold">near-zero reason to switch</span> — competitors can&apos;t replicate their profile.</p>
+        </div>
+        <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-3 text-center">
+          <p className="text-orange-400 font-bold text-xs mb-1">🔄 Data Flywheel</p>
+          <p className="text-gray-500 text-[10px]">Every conversation refines the persona. More usage = better personalization = more usage. <span className="text-white font-semibold">Compounding advantage.</span></p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Slide08Market({ active }) {
   const tam = useCounter(244, 2000, active);
   const sam = useCounter(48, 2000, active);
   const som = useCounter(2.4, 2000, active);
@@ -417,7 +532,7 @@ function Slide07Market({ active }) {
   );
 }
 
-function Slide08Traction({ active }) {
+function Slide09Traction({ active }) {
   const metrics = [
     { value: '25K+', label: 'Views Since Apr 1', sub: 'Paid social across 5 DMAs', color: 'text-white' },
     { value: '1,300+', label: 'Messages Sent', sub: 'Active beta users', color: 'text-orange-400' },
@@ -487,7 +602,7 @@ function Slide08Traction({ active }) {
   );
 }
 
-function Slide09BusinessModel({ active }) {
+function Slide10BusinessModel({ active }) {
   const plans = [
     { name: 'Free', price: '$0', period: '/mo', features: ['Basic AI chat', '20 images/mo (watermarked)', '1 video (lifetime)', 'Community support'], color: 'border-gray-500/20', badge: 'text-gray-400', highlight: false },
     { name: 'Base', price: '$20.01', period: '/mo', features: ['Premium models (GPT-4o, Claude)', '20 images/mo (no watermark)', '1 video/mo', 'Voice chat', 'File analysis', 'Email support'], color: 'border-orange-500/30', badge: 'text-orange-400', highlight: true },
