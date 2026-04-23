@@ -171,8 +171,9 @@ async function handleTelegramWebhook(request) {
       { $set: { telegram_user_id: telegramUserId, telegram_chat_id: chatId.toString(), link_code: linkCode, linked: false, expires_at: expiresAt, created_at: new Date() } },
       { upsert: true }
     );
+    const appUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://soulprintengine.ai';
     await sendTelegramMessage(chatId, TELEGRAM_BOT_TOKEN,
-      `👋 Welcome to SoulPrint, ${fromName}!\n\nTo link your account:\n1️⃣ Go to: https://soulprintengine.ai\n2️⃣ Open Settings (⚙️) → Telegram tab\n3️⃣ Enter your link code:\n\n\`${linkCode}\`\n\n⏳ This code expires in 24 hours.\n\nOnce linked, I'll be your personal AI — right here in Telegram.`
+      `👋 Welcome to SoulPrint, ${fromName}!\n\nTo link your account:\n1️⃣ Go to: ${appUrl}\n2️⃣ Open Settings (⚙️) → Telegram tab\n3️⃣ Enter your link code:\n\n\`${linkCode}\`\n\n⏳ This code expires in 24 hours.\n\nOnce linked, I'll be your personal AI — right here in Telegram.`
     );
     return ok({ ok: true });
   }
@@ -1444,9 +1445,9 @@ async function handleTelegramSetup(request) {
   if (!TELEGRAM_BOT_TOKEN) return ok({ configured: false, message: 'Add TELEGRAM_BOT_TOKEN to .env to enable Telegram.' });
 
   const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
-  // Use permanent domain for webhook so it doesn't change between deployments
-  const PERMANENT_DOMAIN = 'https://soulprintengine.ai';
-  const webhookUrl = `${PERMANENT_DOMAIN}/api/telegram/webhook`;
+  // Use environment-based domain for webhook to support all deployment environments
+  const webhookDomain = process.env.TELEGRAM_WEBHOOK_DOMAIN || process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
+  const webhookUrl = `${webhookDomain}/api/telegram/webhook`;
 
   // Set the webhook with optional secret
   const payload = { url: webhookUrl, drop_pending_updates: true, allowed_updates: ['message', 'edited_message'] };

@@ -215,8 +215,8 @@ async function handleGoogleAuthStart(request) {
     const user = await authenticate(request);
     if (!user) return err('Unauthorized', 401);
     
-    // Use the production domain for OAuth redirect (must match Google Cloud Console registration)
-    const origin = 'https://soulprintengine.ai';
+    // Use request-based origin for cross-environment OAuth compatibility
+    const origin = new URL(request.url).origin;
     const redirectUri = `${origin}/api/google/auth/callback`;
     const state = Buffer.from(JSON.stringify({ userId: user.id, timestamp: Date.now() })).toString('base64');
     const authUrl = getGoogleAuthUrl(redirectUri, state);
@@ -235,8 +235,8 @@ async function handleGoogleAuthCallback(request) {
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     
-    // Use the production domain for OAuth redirect (must match Google Cloud Console registration)
-    const origin = 'https://soulprintengine.ai';
+    // Use request-based origin for cross-environment OAuth compatibility
+    const origin = new URL(request.url).origin;
     
     if (error) {
       return NextResponse.redirect(new URL('/integrations?google=error&message=' + encodeURIComponent(error), origin));
@@ -309,7 +309,7 @@ async function handleGoogleAuthCallback(request) {
     return NextResponse.redirect(new URL('/integrations?google=success', origin));
   } catch (err) {
     console.error('Google callback error:', err);
-    const fallbackOrigin = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
+    const fallbackOrigin = new URL(request.url).origin;
     return NextResponse.redirect(new URL('/integrations?google=error&message=' + encodeURIComponent(err.message), fallbackOrigin));
   }
 }
