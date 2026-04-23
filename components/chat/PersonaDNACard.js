@@ -11,10 +11,10 @@ const DIALS = [
   {
     id: 'directness',
     label: 'Communication',
-    leftLabel: 'Direct',
-    rightLabel: 'Diplomatic',
-    leftEmoji: '🎯',
-    rightEmoji: '🤝',
+    leftLabel: 'Diplomatic',
+    rightLabel: 'Direct',
+    leftEmoji: '🤝',
+    rightEmoji: '🎯',
     description: 'How your AI delivers information and feedback',
     axes: ['directness', 'formality'],
     // directness(high=direct), formality(high=formal/diplomatic)
@@ -28,10 +28,10 @@ const DIALS = [
   {
     id: 'warmth',
     label: 'Tone',
-    leftLabel: 'Warm',
-    rightLabel: 'Neutral',
-    leftEmoji: '☀️',
-    rightEmoji: '🌙',
+    leftLabel: 'Neutral',
+    rightLabel: 'Warm',
+    leftEmoji: '🌙',
+    rightEmoji: '☀️',
     description: 'Emotional warmth and expressiveness in responses',
     axes: ['warmth', 'emotionalDepth', 'expressiveness'],
     compute: (axes) => {
@@ -44,10 +44,10 @@ const DIALS = [
   {
     id: 'playfulness',
     label: 'Energy',
-    leftLabel: 'Playful',
-    rightLabel: 'Serious',
-    leftEmoji: '✨',
-    rightEmoji: '📐',
+    leftLabel: 'Serious',
+    rightLabel: 'Playful',
+    leftEmoji: '📐',
+    rightEmoji: '✨',
     description: 'Humor, wit, and lightness in conversation',
     axes: ['humor', 'pace'],
     compute: (axes) => {
@@ -59,10 +59,10 @@ const DIALS = [
   {
     id: 'challenge',
     label: 'Approach',
-    leftLabel: 'Challenging',
-    rightLabel: 'Supportive',
-    leftEmoji: '⚡',
-    rightEmoji: '🛡️',
+    leftLabel: 'Supportive',
+    rightLabel: 'Challenging',
+    leftEmoji: '🛡️',
+    rightEmoji: '⚡',
     description: 'Whether your AI pushes you or affirms you',
     axes: ['challenge', 'autonomy'],
     compute: (axes) => {
@@ -109,48 +109,64 @@ function getDialDescription(dial, value) {
 function DialSlider({ dial, value, onChange, disabled, hasOverride }) {
   const description = getDialDescription(dial, value);
   
-  // Map value (0-100) to position percentage
-  const position = value;
-  
-  // Color based on position — left = orange, center = gray, right = blue
-  const getTrackColor = (val) => {
-    if (val >= 60) return 'from-orange-500 to-orange-400';
-    if (val <= 40) return 'from-blue-400 to-blue-500';
-    return 'from-gray-500 to-gray-400';
-  };
+  // Determine which side is "active" — the side the thumb is closer to
+  const leftActive = value < 40;
+  const rightActive = value > 60;
+  const centered = !leftActive && !rightActive;
 
   return (
     <div className="group">
       {/* Labels */}
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm">{dial.leftEmoji}</span>
-          <span className={`text-xs font-medium ${value >= 55 ? 'text-orange-400' : 'text-gray-500'}`}>
+      <div className="flex items-center justify-between mb-2">
+        {/* Left label — glows when slider is pulled left */}
+        <div 
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all duration-300 ${
+            leftActive 
+              ? 'bg-white/[0.08] shadow-[0_0_12px_rgba(255,255,255,0.06)]' 
+              : 'bg-transparent'
+          }`}
+        >
+          <span className={`text-sm transition-transform duration-300 ${leftActive ? 'scale-110' : 'scale-100'}`}>{dial.leftEmoji}</span>
+          <span className={`text-xs font-semibold transition-all duration-300 ${
+            leftActive ? 'text-white' : 'text-gray-600'
+          }`}>
             {dial.leftLabel}
           </span>
         </div>
+
+        {/* Center label */}
         <span className="text-[10px] text-gray-600 uppercase tracking-wider font-medium">
           {dial.label}
           {hasOverride && (
             <span className="ml-1.5 text-orange-400" title="You've customized this">✎</span>
           )}
         </span>
-        <div className="flex items-center gap-1.5">
-          <span className={`text-xs font-medium ${value <= 45 ? 'text-blue-400' : 'text-gray-500'}`}>
+
+        {/* Right label — glows when slider is pulled right */}
+        <div 
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all duration-300 ${
+            rightActive 
+              ? 'bg-white/[0.08] shadow-[0_0_12px_rgba(255,255,255,0.06)]' 
+              : 'bg-transparent'
+          }`}
+        >
+          <span className={`text-xs font-semibold transition-all duration-300 ${
+            rightActive ? 'text-white' : 'text-gray-600'
+          }`}>
             {dial.rightLabel}
           </span>
-          <span className="text-sm">{dial.rightEmoji}</span>
+          <span className={`text-sm transition-transform duration-300 ${rightActive ? 'scale-110' : 'scale-100'}`}>{dial.rightEmoji}</span>
         </div>
       </div>
 
       {/* Slider Track */}
       <div className="relative h-8 flex items-center">
-        <div className="absolute inset-x-0 h-1.5 bg-white/5 rounded-full overflow-hidden">
-          <div 
-            className={`h-full bg-gradient-to-r ${getTrackColor(value)} rounded-full transition-all duration-300`}
-            style={{ width: `${value}%` }}
-          />
-        </div>
+        {/* Track background — simple neutral line */}
+        <div className="absolute inset-x-0 h-1 bg-white/[0.08] rounded-full" />
+        
+        {/* Center marker */}
+        <div className="absolute left-1/2 -translate-x-1/2 w-px h-3 bg-white/[0.1] rounded-full" />
+
         <input
           type="range"
           min={0}
@@ -161,9 +177,13 @@ function DialSlider({ dial, value, onChange, disabled, hasOverride }) {
           className="absolute inset-x-0 w-full h-8 opacity-0 cursor-pointer disabled:cursor-default z-10"
           aria-label={`${dial.label}: ${dial.leftLabel} to ${dial.rightLabel}`}
         />
-        {/* Thumb indicator */}
+        {/* Thumb */}
         <div 
-          className="absolute w-4 h-4 rounded-full bg-white shadow-lg shadow-black/30 border-2 border-orange-500/50 pointer-events-none transition-all duration-150"
+          className={`absolute w-4 h-4 rounded-full pointer-events-none transition-all duration-150 ${
+            centered 
+              ? 'bg-gray-400 shadow-lg shadow-black/20 border-2 border-gray-500/50' 
+              : 'bg-white shadow-lg shadow-black/30 border-2 border-white/50'
+          }`}
           style={{ left: `calc(${value}% - 8px)` }}
         />
       </div>
@@ -547,7 +567,7 @@ export default function PersonaDNACard({ token }) {
             </li>
           </ul>
           <p>
-            Drag any slider to manually override the auto-detected setting. Your AI's tone, humor, directness, and support style will adapt immediately on your next message.
+            Drag any slider to manually adjust. The label that lights up shows which side your AI leans toward. Your AI's tone, humor, directness, and support style will adapt immediately on your next message.
           </p>
         </div>
       </details>
