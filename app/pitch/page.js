@@ -1055,8 +1055,12 @@ function PitchDeckInner() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showNav, setShowNav] = useState(true);
+  const [theme, setTheme] = useState('dark');
   const containerRef = useRef(null);
   const navTimeout = useRef(null);
+
+  const isDark = theme === 'dark';
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
 
   const goTo = useCallback((idx) => {
     if (idx >= 0 && idx < TOTAL_SLIDES) setCurrentSlide(idx);
@@ -1071,6 +1075,7 @@ function PitchDeckInner() {
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); next(); }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); prev(); }
       if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+      if (e.key === 't' || e.key === 'T') toggleTheme();
       if (e.key === 'Escape') exitFullscreen();
     };
     window.addEventListener('keydown', handler);
@@ -1134,13 +1139,14 @@ function PitchDeckInner() {
   return (
     <div
       ref={containerRef}
-      className="pitch-deck-container fixed inset-0 bg-[#0a0a0a] select-none"
+      data-theme={theme}
+      className={`pitch-deck-container fixed inset-0 select-none transition-colors duration-500 ${isDark ? 'bg-[#0a0a0a]' : 'bg-[#f8f7f4]'}`}
       style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}
     >
       {/* Subtle background gradient */}
       <div className="pitch-bg-gradient absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-orange-500/[0.03] rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 right-0 w-[600px] h-[300px] bg-red-500/[0.02] rounded-full blur-[100px]" />
+        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full blur-[120px] ${isDark ? 'bg-orange-500/[0.03]' : 'bg-orange-500/[0.06]'}`} />
+        <div className={`absolute bottom-0 right-0 w-[600px] h-[300px] rounded-full blur-[100px] ${isDark ? 'bg-red-500/[0.02]' : 'bg-orange-400/[0.04]'}`} />
       </div>
 
       {/* Slides */}
@@ -1170,7 +1176,7 @@ function PitchDeckInner() {
 
       {/* Bottom nav bar */}
       <div className={`pitch-nav-bar absolute bottom-0 left-0 right-0 z-30 transition-all duration-500 ${showNav ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <div className="flex items-center justify-between px-3 md:px-6 py-3 md:py-4 bg-gradient-to-t from-black/80 to-transparent">
+        <div className={`flex items-center justify-between px-3 md:px-6 py-3 md:py-4 bg-gradient-to-t ${isDark ? 'from-black/80' : 'from-white/80'} to-transparent`}>
           {/* Slide dots */}
           <div className="flex items-center gap-1.5 md:gap-2">
             {SLIDES.map((_, idx) => (
@@ -1180,27 +1186,34 @@ function PitchDeckInner() {
                 className={`transition-all duration-300 rounded-full pointer-events-auto ${
                   idx === currentSlide
                     ? 'w-6 md:w-8 h-1.5 md:h-2 bg-orange-500'
-                    : 'w-1.5 md:w-2 h-1.5 md:h-2 bg-white/20 hover:bg-white/40'
+                    : `w-1.5 md:w-2 h-1.5 md:h-2 ${isDark ? 'bg-white/20 hover:bg-white/40' : 'bg-gray-400/40 hover:bg-gray-400/60'}`
                 }`}
                 title={SLIDE_TITLES[idx]}
               />
             ))}
           </div>
 
-          {/* Slide counter */}
+          {/* Slide counter + controls */}
           <div className="flex items-center gap-2 md:gap-4 pointer-events-auto">
-            <span className="text-gray-500 text-[10px] md:text-xs font-mono">
+            <span className={`text-[10px] md:text-xs font-mono ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
               {String(currentSlide + 1).padStart(2, '0')} / {String(TOTAL_SLIDES).padStart(2, '0')}
             </span>
             <button
+              onClick={(e) => { e.stopPropagation(); toggleTheme(); }}
+              className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/5' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-900/5'}`}
+              title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+            >
+              {isDark ? '☀️ Light' : '🌙 Dark'}
+            </button>
+            <button
               onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-              className="hidden md:block text-gray-500 hover:text-white text-xs px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+              className={`hidden md:block text-xs px-3 py-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/5' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-900/5'}`}
             >
               {isFullscreen ? '⊘ Exit' : '⛶ Fullscreen'}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); window.print(); }}
-              className="hidden md:block text-gray-500 hover:text-white text-xs px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+              className={`hidden md:block text-xs px-3 py-1.5 rounded-lg transition-colors ${isDark ? 'text-gray-500 hover:text-white hover:bg-white/5' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-900/5'}`}
             >
               🖨 Print / PDF
             </button>
@@ -1212,7 +1225,7 @@ function PitchDeckInner() {
       {currentSlide > 0 && (
         <button
           onClick={(e) => { e.stopPropagation(); prev(); }}
-          className={`pitch-nav-arrow absolute left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all pointer-events-auto ${showNav ? 'opacity-100' : 'opacity-0'}`}
+          className={`pitch-nav-arrow absolute left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full flex items-center justify-center transition-all pointer-events-auto ${showNav ? 'opacity-100' : 'opacity-0'} ${isDark ? 'bg-white/5 hover:bg-white/10 text-white/40 hover:text-white' : 'bg-gray-900/5 hover:bg-gray-900/10 text-gray-400 hover:text-gray-900'}`}
         >
           ‹
         </button>
@@ -1220,25 +1233,56 @@ function PitchDeckInner() {
       {currentSlide < TOTAL_SLIDES - 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); next(); }}
-          className={`pitch-nav-arrow absolute right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all pointer-events-auto ${showNav ? 'opacity-100' : 'opacity-0'}`}
+          className={`pitch-nav-arrow absolute right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full flex items-center justify-center transition-all pointer-events-auto ${showNav ? 'opacity-100' : 'opacity-0'} ${isDark ? 'bg-white/5 hover:bg-white/10 text-white/40 hover:text-white' : 'bg-gray-900/5 hover:bg-gray-900/10 text-gray-400 hover:text-gray-900'}`}
         >
           ›
         </button>
       )}
 
-      {/* Print styles + landscape support */}
+      {/* Print styles + landscape support + THEME OVERRIDES */}
       <style jsx global>{`
+        /* ═══ LIGHT THEME OVERRIDES ═══ */
+        /* These selectors override Tailwind inline classes when data-theme="light" is set */
+        [data-theme="light"] .text-white { color: #1a1a2e !important; }
+        [data-theme="light"] .text-gray-400 { color: #6b7280 !important; }
+        [data-theme="light"] .text-gray-500 { color: #4b5563 !important; }
+        [data-theme="light"] .text-gray-600 { color: #374151 !important; }
+        
+        /* Card backgrounds */
+        [data-theme="light"] .slide-content [class*="bg-white\\/"] { background-color: rgba(0,0,0,0.03) !important; }
+        [data-theme="light"] .slide-content [class*="border-white\\/"] { border-color: rgba(0,0,0,0.08) !important; }
+        
+        /* Orange accents stay — they look great on both themes */
+        [data-theme="light"] .text-orange-400 { color: #ea580c !important; }
+        [data-theme="light"] .text-orange-500 { color: #c2410c !important; }
+        
+        /* Progress bars and subtle backgrounds */
+        [data-theme="light"] .slide-content [class*="bg-orange-500\\/"] { background-color: rgba(234, 88, 12, 0.12) !important; }
+        [data-theme="light"] .slide-content [class*="bg-green-500\\/"],
+        [data-theme="light"] .slide-content [class*="bg-emerald-500\\/"] { background-color: rgba(16, 185, 129, 0.12) !important; }
+        [data-theme="light"] .slide-content [class*="bg-blue-500\\/"] { background-color: rgba(59, 130, 246, 0.12) !important; }
+        [data-theme="light"] .slide-content [class*="bg-purple-500\\/"] { background-color: rgba(168, 85, 247, 0.12) !important; }
+        
+        /* Softer red tones */
+        [data-theme="light"] .text-red-400 { color: #dc2626 !important; }
+        [data-theme="light"] .text-emerald-400,
+        [data-theme="light"] .text-green-400 { color: #059669 !important; }
+        
+        /* Table and grid borders */
+        [data-theme="light"] .divide-white\\/5 > * + * { border-color: rgba(0,0,0,0.06) !important; }
+        [data-theme="light"] .border-white\\/5,
+        [data-theme="light"] .border-white\\/10 { border-color: rgba(0,0,0,0.08) !important; }
+
         @media print {
-          /* Force exact colors in print */
+          /* Force exact colors in print — use CURRENT theme */
           body { 
             -webkit-print-color-adjust: exact !important; 
             print-color-adjust: exact !important;
-            background: #0a0a0a !important;
             margin: 0 !important;
             padding: 0 !important;
           }
 
-          /* Main container: fixed → static flow */
+          /* Background inherits from current theme */
           .pitch-deck-container {
             position: static !important;
             height: auto !important;
