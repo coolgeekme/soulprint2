@@ -64,7 +64,7 @@ function Slide01Cover({ active }) {
         <span className="px-3 md:px-4 py-1.5 md:py-2 border border-white/10 rounded-full">Confidential</span>
       </div>
 
-      <p className={`mt-8 md:absolute md:bottom-12 text-gray-600 text-xs tracking-wider transition-all duration-1000 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <p className={`pitch-nav-hint mt-8 md:absolute md:bottom-12 text-gray-600 text-xs tracking-wider transition-all duration-1000 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
         <span className="hidden md:inline">USE ARROW KEYS OR CLICK TO NAVIGATE →</span>
         <span className="md:hidden">SWIPE OR TAP EDGES TO NAVIGATE →</span>
       </p>
@@ -1018,21 +1018,21 @@ function PitchDeckInner() {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 bg-[#0a0a0a] select-none"
+      className="pitch-deck-container fixed inset-0 bg-[#0a0a0a] select-none"
       style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}
     >
       {/* Subtle background gradient */}
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="pitch-bg-gradient absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-orange-500/[0.03] rounded-full blur-[120px]" />
         <div className="absolute bottom-0 right-0 w-[600px] h-[300px] bg-red-500/[0.02] rounded-full blur-[100px]" />
       </div>
 
       {/* Slides */}
-      <div className="relative w-full h-full">
+      <div className="pitch-slides-wrapper relative w-full h-full">
         {SLIDES.map((SlideComponent, idx) => (
           <div
             key={idx}
-            className={`absolute inset-0 pitch-slide-scroll transition-all duration-700 ease-out ${
+            className={`pitch-slide absolute inset-0 pitch-slide-scroll transition-all duration-700 ease-out ${
               idx === currentSlide ? 'opacity-100 translate-x-0 z-10' :
               idx < currentSlide ? 'opacity-0 -translate-x-16 z-0 pointer-events-none' :
               'opacity-0 translate-x-16 z-0 pointer-events-none'
@@ -1046,14 +1046,14 @@ function PitchDeckInner() {
       </div>
 
       {/* Click zones for navigation - hidden on mobile for scroll */}
-      <div className="absolute inset-0 z-20 hidden md:flex pointer-events-none">
+      <div className="pitch-nav-zones absolute inset-0 z-20 hidden md:flex pointer-events-none">
         <div className="w-1/3 h-full pointer-events-auto cursor-w-resize" onClick={prev} />
         <div className="w-1/3 h-full" />
         <div className="w-1/3 h-full pointer-events-auto cursor-e-resize" onClick={next} />
       </div>
 
       {/* Bottom nav bar */}
-      <div className={`absolute bottom-0 left-0 right-0 z-30 transition-all duration-500 ${showNav ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+      <div className={`pitch-nav-bar absolute bottom-0 left-0 right-0 z-30 transition-all duration-500 ${showNav ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div className="flex items-center justify-between px-3 md:px-6 py-3 md:py-4 bg-gradient-to-t from-black/80 to-transparent">
           {/* Slide dots */}
           <div className="flex items-center gap-1.5 md:gap-2">
@@ -1096,7 +1096,7 @@ function PitchDeckInner() {
       {currentSlide > 0 && (
         <button
           onClick={(e) => { e.stopPropagation(); prev(); }}
-          className={`absolute left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all pointer-events-auto ${showNav ? 'opacity-100' : 'opacity-0'}`}
+          className={`pitch-nav-arrow absolute left-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all pointer-events-auto ${showNav ? 'opacity-100' : 'opacity-0'}`}
         >
           ‹
         </button>
@@ -1104,7 +1104,7 @@ function PitchDeckInner() {
       {currentSlide < TOTAL_SLIDES - 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); next(); }}
-          className={`absolute right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all pointer-events-auto ${showNav ? 'opacity-100' : 'opacity-0'}`}
+          className={`pitch-nav-arrow absolute right-4 top-1/2 -translate-y-1/2 z-30 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all pointer-events-auto ${showNav ? 'opacity-100' : 'opacity-0'}`}
         >
           ›
         </button>
@@ -1113,13 +1113,97 @@ function PitchDeckInner() {
       {/* Print styles + landscape support */}
       <style jsx global>{`
         @media print {
-          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          .slide-content { page-break-after: always; page-break-inside: avoid; min-height: 100vh; }
-          [class*="absolute"] { position: relative !important; }
-          [class*="fixed"] { position: relative !important; }
-          [class*="opacity-0"] { opacity: 1 !important; }
-          [class*="translate"] { transform: none !important; }
+          /* Force exact colors in print */
+          body { 
+            -webkit-print-color-adjust: exact !important; 
+            print-color-adjust: exact !important;
+            background: #0a0a0a !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          /* Main container: fixed → static flow */
+          .pitch-deck-container {
+            position: static !important;
+            height: auto !important;
+            overflow: visible !important;
+            width: 100% !important;
+          }
+
+          /* Slides wrapper: flow layout */
+          .pitch-slides-wrapper {
+            position: static !important;
+            height: auto !important;
+            width: 100% !important;
+          }
+
+          /* Each slide: absolute → block flow, one per printed page */
+          .pitch-slide {
+            position: static !important;
+            inset: auto !important;
+            top: auto !important;
+            right: auto !important;
+            bottom: auto !important;
+            left: auto !important;
+            opacity: 1 !important;
+            transform: none !important;
+            pointer-events: auto !important;
+            z-index: auto !important;
+            overflow: visible !important;
+            width: 100% !important;
+            height: 100vh !important;
+            box-sizing: border-box !important;
+            display: block !important;
+            page-break-after: always;
+            page-break-inside: avoid;
+            break-after: page;
+            break-inside: avoid;
+          }
+
+          /* Remove the last slide's trailing page break */
+          .pitch-slide:last-child {
+            page-break-after: auto;
+            break-after: auto;
+          }
+
+          /* Inner content centering for each page */
+          .pitch-slide-inner {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 100vh !important;
+            min-height: 0 !important;
+            padding: 2rem 0 !important;
+            overflow: visible !important;
+          }
+
+          .slide-content {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          /* Make all slide content visible */
+          .pitch-slide [class*="opacity-0"],
+          .slide-content [class*="opacity-0"] { 
+            opacity: 1 !important; 
+          }
+          .pitch-slide [class*="translate"],
+          .slide-content [class*="translate"] { 
+            transform: none !important; 
+          }
+          .pitch-slide [class*="scale-"],
+          .slide-content [class*="scale-"] { 
+            transform: none !important; 
+          }
+
+          /* Hide navigation chrome */
+          .pitch-nav-zones { display: none !important; }
+          .pitch-bg-gradient { display: none !important; }
+          .pitch-nav-bar { display: none !important; }
+          .pitch-nav-arrow { display: none !important; }
+          .pitch-nav-hint { display: none !important; }
         }
+
         /* Override global landscape lock for pitch deck — handled via body.allow-landscape class */
         /* Enable smooth touch scrolling within slides */
         .pitch-slide-scroll {
