@@ -355,6 +355,8 @@ import {
 import {
   handleGetPersonaProfile,
   handleSavePersonaOverride,
+  handleGetPersonaNotification,
+  handleMarkPersonaSeen,
 } from '@/lib/handlers/persona-dna';
 
 // ── Import upload (extracted) ──
@@ -442,6 +444,11 @@ export async function GET(request, { params }) {
     if (pathStr === 'profile/soulprint') return handleGetSoulPrint(request);
     if (pathStr === 'persona/profile') {
       const result = await handleGetPersonaProfile(request);
+      if (result.error) return err(result.error, result.status || 400);
+      return ok(result);
+    }
+    if (pathStr === 'persona/notification') {
+      const result = await handleGetPersonaNotification(request);
       if (result.error) return err(result.error, result.status || 400);
       return ok(result);
     }
@@ -758,6 +765,11 @@ export async function POST(request, { params }) {
     // Persona DNA
     if (pathStr === 'persona/override') {
       const result = await handleSavePersonaOverride(request);
+      if (result.error) return err(result.error, result.status || 400);
+      return ok(result);
+    }
+    if (pathStr === 'persona/mark-seen') {
+      const result = await handleMarkPersonaSeen(request);
       if (result.error) return err(result.error, result.status || 400);
       return ok(result);
     }

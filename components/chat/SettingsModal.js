@@ -747,6 +747,32 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubDisconnecting, setGithubDisconnecting] = useState(false);
 
+  // Persona DNA notification state
+  const [personaNotification, setPersonaNotification] = useState(false);
+
+  // Fetch persona notification status on mount
+  useEffect(() => {
+    fetch('/api/persona/notification', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.hasNotification) setPersonaNotification(true);
+      })
+      .catch(() => {});
+  }, [token]);
+
+  // When user clicks the personality tab, mark as seen
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'personality' && personaNotification) {
+      setPersonaNotification(false);
+      fetch('/api/persona/mark-seen', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).catch(() => {});
+    }
+  };
+
   useEffect(() => {
     fetch('/api/imports', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(d => setImports(Array.isArray(d) ? d : [])).catch(() => {});
@@ -1547,10 +1573,13 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
         <div className="border-b border-white/10 px-2 py-2">
           <div className="grid grid-cols-4 gap-1">
             {tabs.map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`px-2 py-2 text-[9px] sm:text-[10px] font-semibold tracking-wide uppercase transition-colors rounded-lg text-center ${activeTab === tab ? 'text-orange-500 bg-orange-500/10 border border-orange-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent'}`}>
+              <button key={tab} onClick={() => handleTabClick(tab)}
+                className={`relative px-2 py-2 text-[9px] sm:text-[10px] font-semibold tracking-wide uppercase transition-colors rounded-lg text-center ${activeTab === tab ? 'text-orange-500 bg-orange-500/10 border border-orange-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent'}`}>
                 <span className="block text-sm mb-0.5">{tab === 'soulprint' ? '🪪' : tab === 'personality' ? '✨' : tab === 'imports' ? '📥' : tab === 'integrations' ? '🔗' : tab === 'telegram' ? '💬' : tab === 'voice' ? '🎙️' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'invites' ? '🎁' : tab === 'announcements' ? '📢' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : tab === 'appearance' ? '🎨' : '📝'}</span>
                 {tab}
+                {tab === 'personality' && personaNotification && (
+                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse border border-[#1a1a1a]" />
+                )}
               </button>
             ))}
           </div>
@@ -1929,7 +1958,18 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
 
           {/* PERSONALITY TAB */}
           {activeTab === 'personality' && (
-            <PersonaDNACard token={token} />
+            <div className="space-y-4">
+              {/* NEW feature banner — shown only if user hasn't seen the tab before */}
+              {!personaNotification ? null : (
+                <div className="p-3 bg-gradient-to-r from-orange-500/10 to-purple-500/10 border border-orange-500/30 rounded-xl animate-pulse-once">
+                  <p className="text-orange-300 text-xs font-medium flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-orange-400" />
+                    NEW: Your AI personality has been shaped by your conversations. Explore and customize below.
+                  </p>
+                </div>
+              )}
+              <PersonaDNACard token={token} />
+            </div>
           )}
 
 
