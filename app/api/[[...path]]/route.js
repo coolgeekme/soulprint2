@@ -351,6 +351,11 @@ import {
   handleChatStream,
 } from '@/lib/handlers/chat-stream';
 
+// ── Persona DNA (extracted) ──
+import {
+  handleGetPersonaProfile,
+} from '@/lib/handlers/persona-dna';
+
 // ── Import upload (extracted) ──
 import {
   handleImportUpload,
@@ -434,6 +439,11 @@ export async function GET(request, { params }) {
     if (pathStr === 'assessment/nudge') return handleGetAssessmentNudge(request);
     if (pathStr === 'profile/communication') return handleGetCommunicationProfile(request);
     if (pathStr === 'profile/soulprint') return handleGetSoulPrint(request);
+    if (pathStr === 'persona/profile') {
+      const result = await handleGetPersonaProfile(request);
+      if (result.error) return err(result.error, result.status || 400);
+      return ok(result);
+    }
     if (pathStr === 'privacy/settings') return handleGetPrivacySettings(request);
     if (pathStr === 'privacy/export') return handleExportUserData(request);
     if (pathStr === 'privacy/data-usage') return handleGetDataUsageSummary(request);
