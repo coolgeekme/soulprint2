@@ -607,7 +607,7 @@ function Slide10Forecast({ active }) {
   // Real data: 40 registered users by Apr 24, 100 active chat users, 31K visitors
   // Paid ads ($10K/mo Meta) started Apr 1. Pricing: Free/$20.01/$99
   const quarters = [
-    { label: 'Now',     date: 'Apr 26',  users: 100,    mrr: 0,      bar: 1,   revenue: '$0' },
+    { label: 'Now',     date: 'Apr 26',  users: 101,    mrr: 0,      bar: 1,   revenue: '$0' },
     { label: 'Q3 \'26', date: 'Sep 26',  users: 1500,   mrr: 10500,  bar: 15,  revenue: '$10.5K' },
     { label: 'Q4 \'26', date: 'Dec 26',  users: 3500,   mrr: 30600,  bar: 35,  revenue: '$31K' },
     { label: 'Q2 \'27', date: 'Jun 27',  users: 5500,   mrr: 57750,  bar: 55,  revenue: '$58K' },
@@ -628,10 +628,10 @@ function Slide10Forecast({ active }) {
         GROWTH FORECAST
       </p>
       <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-2 md:mb-3 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        From 100 users to <span className="text-orange-400">$1M+ ARR.</span>
+        From 101 users to <span className="text-orange-400">$1M+ ARR.</span>
       </h2>
       <p className={`text-gray-400 text-xs md:text-sm mb-5 md:mb-8 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        Data-driven projection based on current traction: 31K visitors, 100 active users, 15m 58s avg session, $10K/mo paid acquisition.
+        Data-driven projection based on current traction: 101 registered users, 58 active (57% activation), 15m 58s avg session, $10K/mo paid acquisition.
       </p>
 
       <div className="grid md:grid-cols-5 gap-5 md:gap-6">
@@ -695,6 +695,7 @@ function Slide10Forecast({ active }) {
           <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 md:p-5 transition-all duration-700 delay-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <p className="text-white font-bold text-sm mb-2">Model Assumptions</p>
             <ul className="space-y-1.5 text-gray-400 text-[10px] md:text-xs leading-relaxed">
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 57% activation rate (58 of 101 registered)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 25% free → paid conversion (Base + Power)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Blended ARPU: ~$35/mo across paid tiers</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> $10K→$30K/mo ad spend scaling with revenue</li>
