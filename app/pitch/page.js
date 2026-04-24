@@ -998,47 +998,65 @@ function Slide13Team({ active }) {
 function Slide14Ask({ active }) {
   return (
     <div className="slide-content flex flex-col items-center justify-center text-center px-8 md:px-20 max-w-4xl mx-auto w-full">
-      <div className={`w-20 h-20 mx-auto mb-8 flex items-center justify-center transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
-        <SoulPrintLogo size={80} />
+      <div className={`w-14 h-14 mx-auto mb-4 flex items-center justify-center transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
+        <SoulPrintLogo size={56} />
       </div>
 
-      <h2 className={`text-3xl md:text-6xl font-black text-white mb-4 md:mb-6 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-3xl md:text-5xl font-black text-white mb-3 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         The Ask
       </h2>
 
-      <div className={`bg-orange-500/5 border border-orange-500/20 rounded-2xl p-8 mb-8 w-full transition-all duration-700 delay-400 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        <p className="text-orange-400 text-sm font-bold tracking-widest mb-3">RAISING</p>
-        <p className="text-4xl md:text-5xl font-black text-white mb-2">$1.5M</p>
+      <div className={`bg-orange-500/5 border border-orange-500/20 rounded-2xl p-5 mb-5 w-full transition-all duration-700 delay-400 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <p className="text-orange-400 text-xs font-bold tracking-widest mb-2">RAISING</p>
+        <p className="text-4xl md:text-5xl font-black text-white mb-1">$1.5M</p>
         <p className="text-gray-500 text-sm">Pre-Revenue — Seed Round</p>
       </div>
 
-      <div className={`grid md:grid-cols-3 gap-4 w-full mb-10 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`grid md:grid-cols-3 gap-3 w-full mb-5 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
         {[
           { pct: '49%', amount: '$42K', label: 'Payroll / Ops', desc: 'Team growth, operations, legal, compliance' },
           { pct: '45%', amount: '$38K', label: 'Marketing', desc: 'Paid social, creator partnerships, 5 DMA expansion' },
           { pct: '6%', amount: '$5K', label: 'Development', desc: 'Infrastructure, GPU compute, API costs' },
         ].map((u, i) => (
-          <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-            <p className="text-orange-400 text-2xl font-black">{u.pct}</p>
+          <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3">
+            <p className="text-orange-400 text-xl font-black">{u.pct}</p>
             <p className="text-white text-sm font-bold">{u.label}</p>
-            <p className="text-gray-400 text-xs font-mono mb-1">{u.amount}/mo</p>
-            <p className="text-gray-500 text-xs mt-1">{u.desc}</p>
+            <p className="text-gray-400 text-xs font-mono mb-0.5">{u.amount}/mo</p>
+            <p className="text-gray-500 text-[10px]">{u.desc}</p>
           </div>
         ))}
       </div>
 
       <div className={`transition-all duration-700 delay-800 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        <p className="text-gray-500 text-sm mb-6">
+        <p className="text-gray-500 text-sm mb-3">
           We&apos;re building the AI that people don&apos;t just use — they <span className="text-white font-semibold">rely on</span>.
         </p>
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex items-center justify-center gap-4 mb-4">
           <div className="h-px w-16 bg-gradient-to-r from-transparent to-orange-500/30" />
           <p className="text-orange-400/60 text-xs tracking-[0.3em]">INVESTOR@ARCHEFORGE.COM</p>
           <div className="h-px w-16 bg-gradient-to-l from-transparent to-orange-500/30" />
         </div>
       </div>
 
-      <p className={`absolute bottom-12 text-gray-700 text-xs transition-all duration-700 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      {/* Live CTA */}
+      <div className={`bg-gradient-to-r from-orange-500/[0.08] via-orange-500/[0.04] to-orange-500/[0.08] border border-orange-500/20 rounded-2xl p-4 w-full transition-all duration-700 delay-1000 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className="flex items-center justify-center gap-2 mb-1.5">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <p className="text-emerald-400 text-xs font-bold tracking-widest uppercase">Live Now</p>
+        </div>
+        <p className="text-white text-sm font-semibold">
+          Don&apos;t just take our word for it — <span className="text-orange-400">try it yourself.</span>
+        </p>
+        <p className="text-gray-400 text-[10px]">
+          SoulPrint Engine is live with real users today. Register and experience the AI that learns how you communicate.
+        </p>
+        <p className="text-orange-400 font-bold text-sm tracking-wide mt-1.5">soulprintengine.com</p>
+      </div>
+
+      <p className={`mt-3 text-gray-700 text-[10px] transition-all duration-700 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
         This deck is confidential and intended for potential investors only.
       </p>
     </div>
