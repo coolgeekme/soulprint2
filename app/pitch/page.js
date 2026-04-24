@@ -609,11 +609,11 @@ function Slide10Forecast({ active }) {
   // Segments: 43 Free/Inactive, 43 Light (1-20 msgs), 12 Moderate (21-100), 2 Heavy (101-500), 1 Power (500+)
   const quarters = [
     { label: 'Now',     date: 'Apr 26',  users: 101,    mrr: 0,      bar: 1,   revenue: '$0' },
-    { label: 'Q3 \'26', date: 'Sep 26',  users: 1500,   mrr: 16875,  bar: 15,  revenue: '$17K' },
-    { label: 'Q4 \'26', date: 'Dec 26',  users: 3500,   mrr: 39375,  bar: 35,  revenue: '$39K' },
-    { label: 'Q2 \'27', date: 'Jun 27',  users: 5500,   mrr: 61875,  bar: 55,  revenue: '$62K' },
-    { label: 'Q4 \'27', date: 'Dec 27',  users: 8000,   mrr: 90000,  bar: 80,  revenue: '$90K' },
-    { label: 'Q2 \'28', date: 'Jun 28',  users: 11000,  mrr: 123750, bar: 100, revenue: '$124K' },
+    { label: 'Q3 \'26', date: 'Sep 26',  users: 1500,   mrr: 31250,  bar: 15,  revenue: '$31K' },
+    { label: 'Q4 \'26', date: 'Dec 26',  users: 3500,   mrr: 73000,  bar: 35,  revenue: '$73K' },
+    { label: 'Q2 \'27', date: 'Jun 27',  users: 5500,   mrr: 115000, bar: 55,  revenue: '$115K' },
+    { label: 'Q4 \'27', date: 'Dec 27',  users: 8000,   mrr: 167000, bar: 80,  revenue: '$167K' },
+    { label: 'Q2 \'28', date: 'Jun 28',  users: 11000,  mrr: 229000, bar: 100, revenue: '$229K' },
   ];
 
   return (
@@ -622,7 +622,7 @@ function Slide10Forecast({ active }) {
         GROWTH FORECAST
       </p>
       <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-2 md:mb-3 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        Pre-revenue to <span className="text-orange-400">$1M+ ARR.</span>
+        Pre-revenue to <span className="text-orange-400">$2M+ ARR.</span>
       </h2>
       <p className={`text-gray-400 text-xs md:text-sm mb-5 md:mb-8 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
         Currently pre-revenue with 101 registered users and 33 WAU (33% weekly activation). 329% Day-7 retention. 15m 58s avg session. Growth: 52 new users in March (organic) + 41 in April.
@@ -674,9 +674,9 @@ function Slide10Forecast({ active }) {
             <div className="space-y-2.5">
               {[
                 { target: '1,000 users', when: 'Jul 2026', icon: '🎯' },
-                { target: '$500K ARR', when: 'Dec 2026', icon: '💰' },
+                { target: '$1M ARR', when: 'Jun 2027', icon: '💰' },
                 { target: '8,000 users', when: 'Dec 2027', icon: '🚀' },
-                { target: '$1M+ ARR', when: 'Q2 2028', icon: '👑' },
+                { target: '$2M+ ARR', when: 'Dec 2027', icon: '👑' },
               ].map((m, i) => (
                 <div key={i} className="flex items-center gap-3" style={{ opacity: active ? 1 : 0, transition: `opacity 0.5s ease ${700 + i * 100}ms` }}>
                   <span className="text-lg">{m.icon}</span>
@@ -695,7 +695,7 @@ function Slide10Forecast({ active }) {
             <ul className="space-y-1.5 text-gray-400 text-[10px] md:text-xs leading-relaxed">
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 33% weekly activation (33 WAU / 101 users)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 25% projected free → paid conversion</li>
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Blended ARPU: ~$45/mo (70% Base + 30% Power)</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Blended ARPU: ~$83/mo (subscriptions + video credits)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> $10K/mo current ad spend, scaling with revenue</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Viral coefficient: 0.4 (invite system + organic)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 4% monthly churn (sticky: 16 min avg sessions)</li>
@@ -1380,6 +1380,13 @@ function PitchDeckInner() {
         [data-theme="light"] .border-white\\/5,
         [data-theme="light"] .border-white\\/10 { border-color: rgba(0,0,0,0.08) !important; }
 
+        /* ═══ FONT SCALING — desktop only ═══ */
+        @media (min-width: 768px) {
+          .pitch-slide-inner {
+            zoom: 1.15;
+          }
+        }
+
         @media print {
           /* Force exact colors in print — use CURRENT theme */
           body { 
@@ -1442,6 +1449,7 @@ function PitchDeckInner() {
             min-height: 0 !important;
             padding: 2rem 0 !important;
             overflow: visible !important;
+            zoom: 1 !important;
           }
 
           .slide-content {
