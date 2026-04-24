@@ -608,7 +608,7 @@ function Slide10Forecast({ active }) {
   // 101 registered (all free/beta), 58 active, 0 paying
   // Segments: 43 Free/Inactive, 43 Light (1-20 msgs), 12 Moderate (21-100), 2 Heavy (101-500), 1 Power (500+)
   const quarters = [
-    { label: 'Now',     date: 'Apr 26',  users: 115,    mrr: 0,      bar: 1,   revenue: '$0' },
+    { label: 'Now',     date: 'Apr 26',  users: 101,    mrr: 0,      bar: 1,   revenue: '$0' },
     { label: 'Q3 \'26', date: 'Sep 26',  users: 1500,   mrr: 16875,  bar: 15,  revenue: '$17K' },
     { label: 'Q4 \'26', date: 'Dec 26',  users: 3500,   mrr: 39375,  bar: 35,  revenue: '$39K' },
     { label: 'Q2 \'27', date: 'Jun 27',  users: 5500,   mrr: 61875,  bar: 55,  revenue: '$62K' },
@@ -625,7 +625,7 @@ function Slide10Forecast({ active }) {
         Pre-revenue to <span className="text-orange-400">$1M+ ARR.</span>
       </h2>
       <p className={`text-gray-400 text-xs md:text-sm mb-5 md:mb-8 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        Currently pre-revenue with 115 registered users and 33 WAU (29% weekly activation). 329% Day-7 retention. 15m 58s avg session. Growth: 52 users organic (Mar) + 41 with $10K paid ads (Apr).
+        Currently pre-revenue with 101 registered users and 33 WAU (33% weekly activation). 329% Day-7 retention. 15m 58s avg session. Growth: 52 new users in March (organic) + 41 in April.
       </p>
 
       <div className="grid md:grid-cols-5 gap-5 md:gap-6">
@@ -693,7 +693,7 @@ function Slide10Forecast({ active }) {
           <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 md:p-5 transition-all duration-700 delay-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <p className="text-white font-bold text-sm mb-2">Model Assumptions</p>
             <ul className="space-y-1.5 text-gray-400 text-[10px] md:text-xs leading-relaxed">
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 29% weekly activation (33 WAU / 115 total)</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 33% weekly activation (33 WAU / 101 users)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 25% projected free → paid conversion</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Blended ARPU: ~$45/mo (70% Base + 30% Power)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> $10K/mo current ad spend, scaling with revenue</li>
