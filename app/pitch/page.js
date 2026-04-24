@@ -831,11 +831,15 @@ function Slide12Vision({ active }) {
     { lang: 'French', flag: '🇫🇷', market: '320M speakers', status: 'Planned' },
   ];
 
-  const b2bUseCases = [
-    { icon: '🏥', title: 'Healthcare', desc: 'AI assistants trained on medical protocols, patient communication styles, HIPAA-compliant memory' },
-    { icon: '⚖️', title: 'Legal', desc: 'Contract review, case research, and client communication with firm-specific tone and precedent' },
-    { icon: '🏦', title: 'Financial Services', desc: 'Personalized wealth management AI, compliance-aware chat, portfolio reporting' },
-    { icon: '🎓', title: 'Education', desc: 'Adaptive AI tutors that learn each student\'s pace, gaps, and learning style' },
+  const b2bTiers = [
+    { icon: '🏪', title: 'SMB Self-Serve Platform', desc: 'Business-focused AI assistant with custom knowledge bases, team memory, and brand-specific tone — ready to deploy in minutes, not months.', tag: 'HIGH VOLUME' },
+    { icon: '🏗️', title: 'Enterprise Custom Builds', desc: 'White-label AI platforms built to spec for large organizations — compliance controls, proprietary data integration, and dedicated support.', tag: 'HIGH ACV' },
+  ];
+
+  const smbStats = [
+    { stat: '33M+', label: 'SMBs in the US alone' },
+    { stat: '92%', label: 'now using AI (up from 20% in 2023)' },
+    { stat: '91%', label: 'of AI adopters report revenue growth' },
   ];
 
   return (
@@ -879,36 +883,50 @@ function Slide12Vision({ active }) {
           </div>
         </div>
 
-        {/* B2B Enterprise Arm */}
+        {/* B2B: SMB + Enterprise */}
         <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6 transition-all duration-700 delay-500 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-lg">🏢</div>
             <div>
-              <h3 className="text-white font-bold text-base">B2B Enterprise Solutions</h3>
-              <p className="text-purple-400 text-[10px] font-bold tracking-widest">AI SOLUTIONS FOR BUSINESSES</p>
+              <h3 className="text-white font-bold text-base">B2B: SMB + Enterprise</h3>
+              <p className="text-purple-400 text-[10px] font-bold tracking-widest">TWO-TIER BUSINESS STRATEGY</p>
             </div>
           </div>
-          <p className="text-gray-400 text-xs leading-relaxed mb-4">
-            The same personalization engine that powers consumer SoulPrint Engine becomes a white-label AI platform for enterprises — with custom knowledge bases, compliance controls, and team-wide memory.
-          </p>
-          <div className="space-y-2">
-            {b2bUseCases.map((u, i) => (
+
+          {/* SMB Stats Bar */}
+          <div className={`grid grid-cols-3 gap-2 mb-4 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
+            {smbStats.map((s, i) => (
+              <div key={i} className="bg-purple-500/[0.06] border border-purple-500/10 rounded-lg p-2 text-center"
+                style={{ transitionDelay: `${700 + i * 80}ms` }}>
+                <p className="text-white font-black text-lg md:text-xl">{s.stat}</p>
+                <p className="text-gray-400 text-[9px] leading-tight">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Two tiers */}
+          <div className="space-y-2.5">
+            {b2bTiers.map((t, i) => (
               <div
                 key={i}
-                className={`flex items-start gap-3 bg-white/[0.02] rounded-lg px-3 py-2 transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`}
-                style={{ transitionDelay: `${700 + i * 100}ms` }}
+                className={`flex items-start gap-3 bg-white/[0.02] rounded-lg px-3 py-2.5 transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`}
+                style={{ transitionDelay: `${900 + i * 100}ms` }}
               >
-                <span className="text-base mt-0.5">{u.icon}</span>
-                <div>
-                  <p className="text-white text-xs font-bold">{u.title}</p>
-                  <p className="text-gray-500 text-[10px] leading-relaxed">{u.desc}</p>
+                <span className="text-base mt-0.5">{t.icon}</span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-white text-xs font-bold">{t.title}</p>
+                    <span className="text-[8px] font-bold tracking-wider text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">{t.tag}</span>
+                  </div>
+                  <p className="text-gray-500 text-[10px] leading-relaxed">{t.desc}</p>
                 </div>
               </div>
             ))}
           </div>
+
           <div className="mt-4 bg-purple-500/5 border border-purple-500/10 rounded-lg p-3">
-            <p className="text-purple-400 text-[10px] font-bold">REVENUE IMPACT</p>
-            <p className="text-gray-400 text-[10px]">Enterprise contracts bring <span className="text-white font-semibold">10-50x higher ACV</span> than consumer subscriptions with lower churn and longer commitments.</p>
+            <p className="text-purple-400 text-[10px] font-bold">MASSIVE UNDERSERVED MARKET</p>
+            <p className="text-gray-400 text-[10px]">33M+ US SMBs are adopting AI at record pace but lack personalized solutions. Self-serve captures volume; Enterprise builds capture <span className="text-white font-semibold">10-50x higher ACV</span> with longer commitments.</p>
           </div>
         </div>
       </div>
