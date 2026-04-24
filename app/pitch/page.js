@@ -637,30 +637,86 @@ function Slide10Forecast({ active }) {
           </div>
 
           {/* Bar chart */}
-          <div className="flex items-end gap-2 md:gap-3 h-36 md:h-44 mb-3">
-            {quarters.map((q, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <span className={`text-[9px] md:text-[10px] font-bold transition-all duration-500 ${i === 0 ? 'text-orange-400' : 'text-white'}`}
-                  style={{ transitionDelay: active ? `${600 + i * 100}ms` : '0ms', opacity: active ? 1 : 0 }}>
-                  {q.users >= 1000 ? `${(q.users/1000).toFixed(q.users >= 10000 ? 0 : 1)}K` : q.users}
-                </span>
-                <div className="w-full relative rounded-t-lg overflow-hidden" style={{ height: `${active ? q.bar : 0}%`, transition: `height 1s ease-out ${500 + i * 100}ms`, minHeight: active ? '4px' : '0px' }}>
-                  <div className="absolute inset-0 rounded-t-lg" style={{ background: i === 0 ? '#f97316' : `linear-gradient(to top, rgba(249,115,22,${0.3 + i * 0.12}), rgba(249,115,22,${0.15 + i * 0.08}))` }} />
+          <div className="relative h-44 md:h-52 mb-3">
+            {/* SVG area chart — hockey stick curve */}
+            <svg viewBox="0 0 500 200" className="w-full h-full" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f97316" stopOpacity="0.5" />
+                  <stop offset="100%" stopColor="#f97316" stopOpacity="0.02" />
+                </linearGradient>
+                <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#fb923c" />
+                  <stop offset="100%" stopColor="#f97316" />
+                </linearGradient>
+              </defs>
+              {/* Grid lines */}
+              {[0.25, 0.5, 0.75].map((y, i) => (
+                <line key={i} x1="0" y1={y * 180} x2="500" y2={y * 180} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+              ))}
+              {/* Area fill */}
+              <path
+                d={active 
+                  ? "M 0,178 C 40,176 80,170 100,165 C 140,155 200,130 250,110 C 300,85 350,50 400,25 C 430,12 470,4 500,0 L 500,180 L 0,180 Z"
+                  : "M 0,180 L 100,180 L 200,180 L 300,180 L 400,180 L 500,180 L 500,180 L 0,180 Z"
+                }
+                fill="url(#areaGrad)"
+                style={{ transition: 'all 1.5s cubic-bezier(0.16, 1, 0.3, 1)' }}
+              />
+              {/* Line */}
+              <path
+                d={active
+                  ? "M 0,178 C 40,176 80,170 100,165 C 140,155 200,130 250,110 C 300,85 350,50 400,25 C 430,12 470,4 500,0"
+                  : "M 0,180 L 100,180 L 200,180 L 300,180 L 400,180 L 500,180"
+                }
+                fill="none"
+                stroke="url(#lineGrad)"
+                strokeWidth="2.5"
+                style={{ transition: 'all 1.5s cubic-bezier(0.16, 1, 0.3, 1)' }}
+              />
+              {/* Data points */}
+              {[
+                { x: 0, cy: active ? 178 : 180 },
+                { x: 100, cy: active ? 165 : 180 },
+                { x: 200, cy: active ? 130 : 180 },
+                { x: 300, cy: active ? 85 : 180 },
+                { x: 400, cy: active ? 25 : 180 },
+                { x: 500, cy: active ? 0 : 180 },
+              ].map((pt, i) => (
+                <circle
+                  key={i}
+                  cx={pt.x}
+                  cy={pt.cy}
+                  r="4"
+                  fill="#f97316"
+                  stroke="#0a0a0a"
+                  strokeWidth="2"
+                  style={{ transition: `all 1.5s cubic-bezier(0.16, 1, 0.3, 1) ${i * 0.1}s` }}
+                />
+              ))}
+            </svg>
+
+            {/* User count labels overlaid on chart */}
+            <div className="absolute inset-x-0 top-0 bottom-6 flex items-start">
+              {quarters.map((q, i) => (
+                <div key={i} className="flex-1 text-center pt-1" style={{ opacity: active ? 1 : 0, transition: `opacity 0.6s ease ${0.8 + i * 0.15}s` }}>
+                  <span className={`text-[10px] md:text-xs font-bold ${i === 0 ? 'text-orange-400' : 'text-white'}`}>
+                    {q.users >= 1000 ? `${(q.users/1000).toFixed(q.users >= 10000 ? 0 : 1)}K` : q.users}
+                  </span>
                 </div>
-                <span className="text-[8px] md:text-[9px] text-gray-600 mt-0.5">{q.label}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
-          {/* Revenue line underneath */}
-          <div className="flex items-center gap-2 md:gap-3">
+          {/* X-axis labels + MRR */}
+          <div className="flex items-center">
             {quarters.map((q, i) => (
               <div key={i} className="flex-1 text-center">
-                <span className={`text-[8px] md:text-[10px] font-mono transition-all duration-700 ${q.mrr === 0 ? 'text-gray-600' : 'text-emerald-400'}`}
-                  style={{ transitionDelay: active ? `${900 + i * 100}ms` : '0ms', opacity: active ? 1 : 0 }}>
-                  {q.revenue}
+                <span className="text-[9px] md:text-[11px] text-gray-500 font-medium block">{q.label}</span>
+                <span className={`text-[8px] md:text-[10px] font-mono block mt-0.5 ${q.mrr === 0 ? 'text-gray-700' : 'text-emerald-400'}`}
+                  style={{ opacity: active ? 1 : 0, transition: `opacity 0.5s ease ${1 + i * 0.12}s` }}>
+                  {q.revenue} <span className="text-gray-700">MRR</span>
                 </span>
-                <p className="text-[7px] text-gray-700">MRR</p>
               </div>
             ))}
           </div>
