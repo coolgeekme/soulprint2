@@ -998,27 +998,27 @@ function Slide13Team({ active }) {
 function Slide14Ask({ active }) {
   return (
     <div className="slide-content flex flex-col items-center justify-center text-center px-8 md:px-20 max-w-4xl mx-auto w-full">
-      <div className={`w-14 h-14 mx-auto mb-4 flex items-center justify-center transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
-        <SoulPrintLogo size={56} />
+      <div className={`w-12 h-12 mx-auto mb-2 flex items-center justify-center transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
+        <SoulPrintLogo size={48} />
       </div>
 
-      <h2 className={`text-3xl md:text-5xl font-black text-white mb-3 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-3xl md:text-5xl font-black text-white mb-2 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         The Ask
       </h2>
 
-      <div className={`bg-orange-500/5 border border-orange-500/20 rounded-2xl p-5 mb-5 w-full transition-all duration-700 delay-400 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        <p className="text-orange-400 text-xs font-bold tracking-widest mb-2">RAISING</p>
-        <p className="text-4xl md:text-5xl font-black text-white mb-1">$1.5M</p>
+      <div className={`bg-orange-500/5 border border-orange-500/20 rounded-2xl p-4 mb-3 w-full transition-all duration-700 delay-400 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <p className="text-orange-400 text-xs font-bold tracking-widest mb-1">RAISING</p>
+        <p className="text-4xl md:text-5xl font-black text-white mb-0.5">$1.5M</p>
         <p className="text-gray-500 text-sm">Pre-Revenue — Seed Round</p>
       </div>
 
-      <div className={`grid md:grid-cols-3 gap-3 w-full mb-5 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`grid md:grid-cols-3 gap-2.5 w-full mb-3 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
         {[
           { pct: '49%', amount: '$42K', label: 'Payroll / Ops', desc: 'Team growth, operations, legal, compliance' },
           { pct: '45%', amount: '$38K', label: 'Marketing', desc: 'Paid social, creator partnerships, 5 DMA expansion' },
           { pct: '6%', amount: '$5K', label: 'Development', desc: 'Infrastructure, GPU compute, API costs' },
         ].map((u, i) => (
-          <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3">
+          <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-2.5">
             <p className="text-orange-400 text-xl font-black">{u.pct}</p>
             <p className="text-white text-sm font-bold">{u.label}</p>
             <p className="text-gray-400 text-xs font-mono mb-0.5">{u.amount}/mo</p>
@@ -1028,10 +1028,10 @@ function Slide14Ask({ active }) {
       </div>
 
       <div className={`transition-all duration-700 delay-800 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        <p className="text-gray-500 text-sm mb-3">
+        <p className="text-gray-500 text-sm mb-2">
           We&apos;re building the AI that people don&apos;t just use — they <span className="text-white font-semibold">rely on</span>.
         </p>
-        <div className="flex items-center justify-center gap-4 mb-4">
+        <div className="flex items-center justify-center gap-4 mb-2.5">
           <div className="h-px w-16 bg-gradient-to-r from-transparent to-orange-500/30" />
           <p className="text-orange-400/60 text-xs tracking-[0.3em]">INVESTOR@ARCHEFORGE.COM</p>
           <div className="h-px w-16 bg-gradient-to-l from-transparent to-orange-500/30" />
@@ -1039,8 +1039,8 @@ function Slide14Ask({ active }) {
       </div>
 
       {/* Live CTA */}
-      <a href="https://soulprintengine.ai/?utm_source=pitch%20deck&utm_medium=site&utm_campaign=pitch" target="_blank" rel="noopener noreferrer" className={`block bg-gradient-to-r from-orange-500/[0.08] via-orange-500/[0.04] to-orange-500/[0.08] border border-orange-500/20 rounded-2xl p-4 w-full transition-all duration-700 delay-1000 hover:border-orange-500/50 hover:from-orange-500/[0.14] hover:via-orange-500/[0.08] hover:to-orange-500/[0.14] cursor-pointer ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <div className="flex items-center justify-center gap-2 mb-1.5">
+      <a href="https://soulprintengine.ai/?utm_source=pitch%20deck&utm_medium=site&utm_campaign=pitch" target="_blank" rel="noopener noreferrer" className={`block bg-gradient-to-r from-orange-500/[0.08] via-orange-500/[0.04] to-orange-500/[0.08] border border-orange-500/20 rounded-2xl p-3 w-full transition-all duration-700 delay-1000 hover:border-orange-500/50 hover:from-orange-500/[0.14] hover:via-orange-500/[0.08] hover:to-orange-500/[0.14] cursor-pointer ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+        <div className="flex items-center justify-center gap-2 mb-1">
           <span className="relative flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
@@ -1053,10 +1053,10 @@ function Slide14Ask({ active }) {
         <p className="text-gray-400 text-[10px]">
           SoulPrint Engine is live with real users today. Register and experience the AI that learns how you communicate.
         </p>
-        <p className="text-orange-400 font-bold text-sm tracking-wide mt-1.5">soulprintengine.ai</p>
+        <p className="text-orange-400 font-bold text-sm tracking-wide mt-1">soulprintengine.ai</p>
       </a>
 
-      <p className={`mt-3 text-gray-700 text-[10px] transition-all duration-700 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <p className={`mt-2 text-gray-700 text-[10px] transition-all duration-700 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
         This deck is confidential and intended for potential investors only.
       </p>
     </div>
@@ -1466,7 +1466,7 @@ function PitchDeckInner() {
         /* ═══ FONT SCALING — desktop only ═══ */
         @media (min-width: 768px) {
           .pitch-slide-inner {
-            zoom: 1.15;
+            zoom: 1.27;
           }
         }
 
