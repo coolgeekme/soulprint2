@@ -946,48 +946,50 @@ function Slide13Team({ active }) {
   ];
 
   return (
-    <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
-      <p className={`text-orange-400 text-xs md:text-sm font-bold tracking-[0.3em] uppercase mb-3 md:mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        THE TEAM
-      </p>
-      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-2 md:mb-3 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+    <div className="slide-content flex flex-col justify-center px-4 md:px-16 max-w-6xl mx-auto w-full">
+      <div className="flex items-baseline gap-4 mb-1.5">
+        <p className={`text-orange-400 text-xs font-bold tracking-[0.3em] uppercase transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
+          THE TEAM
+        </p>
+      </div>
+      <h2 className={`text-2xl sm:text-3xl md:text-4xl font-black text-white mb-1 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         7 operators. Zero fluff.
       </h2>
-      <p className={`text-gray-400 text-xs md:text-sm mb-4 md:mb-6 transition-all duration-700 delay-150 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <p className={`text-gray-400 text-xs mb-3 transition-all duration-700 delay-150 ${active ? 'opacity-100' : 'opacity-0'}`}>
         The team behind ArcheForge — building systems that remember.
       </p>
 
-      {/* Founder card */}
-      <div className={`flex justify-center mb-3 md:mb-4 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        <div className="bg-gradient-to-br from-orange-500/[0.08] to-red-500/[0.04] border border-orange-500/20 rounded-2xl p-3 md:p-5 max-w-md w-full text-center">
-          <span className="text-[10px] font-bold tracking-widest bg-orange-500 text-white px-2.5 py-0.5 rounded-full">FOUNDER</span>
-          <h3 className="text-white font-bold text-base md:text-lg mt-2">{team[0].name}</h3>
-          <p className="text-orange-400 text-xs font-medium">{team[0].title}</p>
-          <p className="text-gray-400 text-xs leading-relaxed mt-1">{team[0].bio}</p>
+      {/* Founder card - inline compact */}
+      <div className={`flex justify-center mb-2.5 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="bg-gradient-to-br from-orange-500/[0.08] to-red-500/[0.04] border border-orange-500/20 rounded-xl p-3 max-w-lg w-full text-center">
+          <span className="text-[9px] font-bold tracking-widest bg-orange-500 text-white px-2 py-0.5 rounded-full">FOUNDER</span>
+          <h3 className="text-white font-bold text-sm md:text-base mt-1.5">{team[0].name}</h3>
+          <p className="text-orange-400 text-[10px] font-medium">{team[0].title}</p>
+          <p className="text-gray-400 text-[10px] leading-snug mt-0.5">{team[0].bio}</p>
         </div>
       </div>
 
       {/* Team grid 3+3 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-4 md:mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 md:gap-2 mb-2.5">
         {team.slice(1).map((t, i) => (
           <div
             key={i}
-            className={`bg-white/[0.03] border border-white/[0.06] rounded-xl p-2.5 md:p-4 transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+            className={`bg-white/[0.03] border border-white/[0.06] rounded-lg p-2 md:p-2.5 transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
             style={{ transitionDelay: `${350 + i * 80}ms` }}
           >
-            <h3 className="text-white font-bold text-xs md:text-base">{t.name}</h3>
-            <p className="text-orange-400 text-[10px] md:text-xs font-medium mb-1">{t.title}</p>
-            <p className="text-gray-500 text-[10px] md:text-xs leading-relaxed">{t.bio}</p>
+            <h3 className="text-white font-bold text-xs md:text-sm">{t.name}</h3>
+            <p className="text-orange-400 text-[9px] md:text-[10px] font-medium">{t.title}</p>
+            <p className="text-gray-500 text-[9px] md:text-[10px] leading-snug mt-0.5">{t.bio}</p>
           </div>
         ))}
       </div>
 
       {/* Built so far */}
-      <div className={`bg-white/[0.02] border border-white/[0.06] rounded-xl p-3 md:p-4 text-center transition-all duration-700 delay-900 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        <p className="text-white font-bold text-xs md:text-sm mb-2">Built So Far</p>
-        <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 text-[10px] md:text-xs">
+      <div className={`bg-white/[0.02] border border-white/[0.06] rounded-lg p-2.5 text-center transition-all duration-700 delay-900 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        <p className="text-white font-bold text-xs mb-1.5">Built So Far</p>
+        <div className="flex flex-wrap justify-center gap-1 md:gap-1.5 text-[10px]">
           {['Full-stack Next.js app', 'Multi-provider LLM routing', 'Stripe billing', 'Real-time voice (WebRTC)', 'GitHub OAuth + PR automation', 'PWA', 'Admin dashboard', 'Viral invite system'].map((item, i) => (
-            <span key={i} className="px-2.5 py-1 bg-orange-500/5 border border-orange-500/10 rounded-full text-gray-400">{item}</span>
+            <span key={i} className="px-2 py-0.5 bg-orange-500/5 border border-orange-500/10 rounded-full text-gray-400">{item}</span>
           ))}
         </div>
       </div>
