@@ -631,7 +631,7 @@ function Slide10Forecast({ active }) {
         Pre-revenue to <span className="text-orange-400">$1M+ ARR.</span>
       </h2>
       <p className={`text-gray-400 text-xs md:text-sm mb-5 md:mb-8 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        Currently pre-revenue with 101 registered users and 58 weekly active (57% activation). Monetization begins with Stripe billing launch. 15m 58s avg session signals strong product-market fit.
+        Currently pre-revenue with 101 registered users and 58 weekly active (57% activation). Funnel: 24K visitors → 367 signups → 101 registered. 15m 58s avg session signals strong product-market fit.
       </p>
 
       <div className="grid md:grid-cols-5 gap-5 md:gap-6">
