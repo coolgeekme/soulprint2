@@ -616,14 +616,6 @@ function Slide10Forecast({ active }) {
     { label: 'Q2 \'28', date: 'Jun 28',  users: 11000,  mrr: 123750, bar: 100, revenue: '$124K' },
   ];
 
-  const segments = [
-    { label: 'Inactive', count: 43, pct: '42.6%', color: '#ef4444' },
-    { label: 'Light', count: 43, pct: '42.6%', color: '#f59e0b' },
-    { label: 'Moderate', count: 12, pct: '11.8%', color: '#3b82f6' },
-    { label: 'Heavy', count: 2, pct: '2%', color: '#10b981' },
-    { label: 'Power', count: 1, pct: '1%', color: '#a855f7' },
-  ];
-
   return (
     <div className="slide-content flex flex-col justify-center px-4 md:px-16 max-w-7xl mx-auto w-full">
       <p className={`text-orange-400 text-xs md:text-sm font-bold tracking-[0.3em] uppercase mb-3 md:mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
@@ -676,23 +668,25 @@ function Slide10Forecast({ active }) {
 
         {/* Right side — milestones + assumptions */}
         <div className="md:col-span-2 flex flex-col gap-4">
-          {/* User Segments — real data */}
+          {/* Key Milestones */}
           <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 md:p-5 transition-all duration-700 delay-500 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-            <p className="text-white font-bold text-sm mb-1">User Segments</p>
-            <p className="text-gray-600 text-[10px] mb-3">101 users • all free/beta • 0 paying</p>
-            <div className="space-y-2">
-              {segments.map((s, i) => (
-                <div key={i} className="flex items-center gap-2" style={{ opacity: active ? 1 : 0, transition: `opacity 0.5s ease ${700 + i * 80}ms` }}>
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-                  <span className="text-white text-xs font-medium w-20">{s.label}</span>
-                  <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-1000" style={{ width: active ? s.pct : '0%', backgroundColor: s.color, transitionDelay: `${800 + i * 100}ms` }} />
+            <p className="text-white font-bold text-sm mb-3">Key Milestones</p>
+            <div className="space-y-2.5">
+              {[
+                { target: '1,000 users', when: 'Jul 2026', icon: '🎯' },
+                { target: '$500K ARR', when: 'Dec 2026', icon: '💰' },
+                { target: '8,000 users', when: 'Dec 2027', icon: '🚀' },
+                { target: '$1M+ ARR', when: 'Q2 2028', icon: '👑' },
+              ].map((m, i) => (
+                <div key={i} className="flex items-center gap-3" style={{ opacity: active ? 1 : 0, transition: `opacity 0.5s ease ${700 + i * 100}ms` }}>
+                  <span className="text-lg">{m.icon}</span>
+                  <div className="flex-1">
+                    <p className="text-white text-xs font-semibold">{m.target}</p>
+                    <p className="text-gray-500 text-[10px]">{m.when}</p>
                   </div>
-                  <span className="text-gray-400 text-[10px] font-mono w-6 text-right">{s.count}</span>
                 </div>
               ))}
             </div>
-            <p className="text-emerald-400/80 text-[10px] mt-3 font-medium">15 users (26% of active) are Moderate–Power → highest conversion potential</p>
           </div>
 
           {/* Assumptions */}
