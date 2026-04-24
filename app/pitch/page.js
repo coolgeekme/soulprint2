@@ -6,7 +6,7 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 // SOULPRINT ENGINE — INVESTOR PITCH DECK
 // ═══════════════════════════════════════════════════════════════════
 
-const TOTAL_SLIDES = 13;
+const TOTAL_SLIDES = 14;
 
 // Animated counter hook
 function useCounter(target, duration = 2000, startWhenVisible = true) {
@@ -602,7 +602,114 @@ function Slide09Traction({ active }) {
   );
 }
 
-function Slide10BusinessModel({ active }) {
+
+function Slide10Forecast({ active }) {
+  // Real data: 40 registered users by Apr 24, 100 active chat users, 31K visitors
+  // Paid ads ($10K/mo Meta) started Apr 1. Pricing: Free/$20.01/$99
+  const quarters = [
+    { label: 'Now',     date: 'Apr 26',  users: 100,    mrr: 0,      bar: 1,   revenue: '$0' },
+    { label: 'Q3 \'26', date: 'Sep 26',  users: 1500,   mrr: 10500,  bar: 15,  revenue: '$10.5K' },
+    { label: 'Q4 \'26', date: 'Dec 26',  users: 3500,   mrr: 30600,  bar: 35,  revenue: '$31K' },
+    { label: 'Q2 \'27', date: 'Jun 27',  users: 5500,   mrr: 57750,  bar: 55,  revenue: '$58K' },
+    { label: 'Q4 \'27', date: 'Dec 27',  users: 8000,   mrr: 84000,  bar: 80,  revenue: '$84K' },
+    { label: 'Q2 \'28', date: 'Jun 28',  users: 11000,  mrr: 127050, bar: 100, revenue: '$127K' },
+  ];
+
+  const milestones = [
+    { target: '1,000 users', when: 'Jul 2026', icon: '🎯' },
+    { target: '$500K ARR', when: 'Dec 2026', icon: '💰' },
+    { target: '8,000 users', when: 'Dec 2027', icon: '🚀' },
+    { target: '$1M+ ARR', when: 'Q2 2028', icon: '👑' },
+  ];
+
+  return (
+    <div className="slide-content flex flex-col justify-center px-4 md:px-16 max-w-7xl mx-auto w-full">
+      <p className={`text-orange-400 text-xs md:text-sm font-bold tracking-[0.3em] uppercase mb-3 md:mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        GROWTH FORECAST
+      </p>
+      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-2 md:mb-3 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        From 100 users to <span className="text-orange-400">$1M+ ARR.</span>
+      </h2>
+      <p className={`text-gray-400 text-xs md:text-sm mb-5 md:mb-8 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        Data-driven projection based on current traction: 31K visitors, 100 active users, 15m 58s avg session, $10K/mo paid acquisition.
+      </p>
+
+      <div className="grid md:grid-cols-5 gap-5 md:gap-6">
+        {/* Chart — takes 3 columns */}
+        <div className={`md:col-span-3 bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 md:p-6 transition-all duration-700 delay-300 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-white font-bold text-sm">Users & MRR Projection</p>
+            <span className="text-[10px] text-gray-600 bg-white/[0.04] px-2 py-0.5 rounded-full">24-month outlook</span>
+          </div>
+
+          {/* Bar chart */}
+          <div className="flex items-end gap-2 md:gap-3 h-36 md:h-44 mb-3">
+            {quarters.map((q, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                <span className={`text-[9px] md:text-[10px] font-bold transition-all duration-500 ${i === 0 ? 'text-orange-400' : 'text-white'}`}
+                  style={{ transitionDelay: active ? `${600 + i * 100}ms` : '0ms', opacity: active ? 1 : 0 }}>
+                  {q.users >= 1000 ? `${(q.users/1000).toFixed(q.users >= 10000 ? 0 : 1)}K` : q.users}
+                </span>
+                <div className="w-full relative rounded-t-lg overflow-hidden" style={{ height: `${active ? q.bar : 0}%`, transition: `height 1s ease-out ${500 + i * 100}ms`, minHeight: active ? '4px' : '0px' }}>
+                  <div className="absolute inset-0 rounded-t-lg" style={{ background: i === 0 ? '#f97316' : `linear-gradient(to top, rgba(249,115,22,${0.3 + i * 0.12}), rgba(249,115,22,${0.15 + i * 0.08}))` }} />
+                </div>
+                <span className="text-[8px] md:text-[9px] text-gray-600 mt-0.5">{q.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Revenue line underneath */}
+          <div className="flex items-center gap-2 md:gap-3">
+            {quarters.map((q, i) => (
+              <div key={i} className="flex-1 text-center">
+                <span className={`text-[8px] md:text-[10px] font-mono transition-all duration-700 ${q.mrr === 0 ? 'text-gray-600' : 'text-emerald-400'}`}
+                  style={{ transitionDelay: active ? `${900 + i * 100}ms` : '0ms', opacity: active ? 1 : 0 }}>
+                  {q.revenue}
+                </span>
+                <p className="text-[7px] text-gray-700">MRR</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right side — milestones + assumptions */}
+        <div className="md:col-span-2 flex flex-col gap-4">
+          {/* Milestones */}
+          <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 md:p-5 transition-all duration-700 delay-500 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            <p className="text-white font-bold text-sm mb-3">Key Milestones</p>
+            <div className="space-y-2.5">
+              {milestones.map((m, i) => (
+                <div key={i} className="flex items-center gap-3" style={{ transitionDelay: `${700 + i * 100}ms` }}>
+                  <span className="text-lg">{m.icon}</span>
+                  <div className="flex-1">
+                    <p className="text-white text-xs font-semibold">{m.target}</p>
+                    <p className="text-gray-500 text-[10px]">{m.when}</p>
+                  </div>
+                  {i < milestones.length - 1 && <div className="w-px h-6 bg-white/[0.06] absolute right-0" />}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Assumptions */}
+          <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 md:p-5 transition-all duration-700 delay-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            <p className="text-white font-bold text-sm mb-2">Model Assumptions</p>
+            <ul className="space-y-1.5 text-gray-400 text-[10px] md:text-xs leading-relaxed">
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 25% free → paid conversion (Base + Power)</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Blended ARPU: ~$35/mo across paid tiers</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> $10K→$30K/mo ad spend scaling with revenue</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Viral coefficient: 0.4 (invite system + organic)</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 4% monthly churn (sticky: 16 min avg sessions)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function Slide11BusinessModel({ active }) {
   const plans = [
     { name: 'Free', price: '$0', period: '/mo', features: ['Basic AI chat', '20 images/mo (watermarked)', '1 video (lifetime)', 'Community support'], color: 'border-gray-500/20', badge: 'text-gray-400', highlight: false },
     { name: 'Base', price: '$20.01', period: '/mo', features: ['Premium models (GPT-4o, Claude)', '20 images/mo (no watermark)', '1 video/mo', 'Voice chat', 'File analysis', 'Email support'], color: 'border-orange-500/30', badge: 'text-orange-400', highlight: true },
@@ -668,7 +775,7 @@ function Slide10BusinessModel({ active }) {
   );
 }
 
-function Slide11Vision({ active }) {
+function Slide12Vision({ active }) {
   const languages = [
     { lang: 'Spanish', flag: '🇪🇸', market: '580M speakers', status: 'In Development' },
     { lang: 'Portuguese', flag: '🇧🇷', market: '260M speakers', status: 'Planned' },
@@ -763,7 +870,7 @@ function Slide11Vision({ active }) {
   );
 }
 
-function Slide12Team({ active }) {
+function Slide13Team({ active }) {
   const team = [
     { name: 'Ben Woodard', title: 'Founder', bio: 'Builds revenue systems that don\'t reset. Designs identity and memory layers on top of AI. Turns ideas into infrastructure that scales.', tag: 'OWNER' },
     { name: 'Layla G.', title: 'Chief Intelligence Officer', bio: 'Designs cognitive architectures and identity-bound reasoning systems. Builds the Deius Table. Establishes governance and integrity standards.', tag: null },
@@ -824,7 +931,7 @@ function Slide12Team({ active }) {
   );
 }
 
-function Slide13Ask({ active }) {
+function Slide14Ask({ active }) {
   return (
     <div className="slide-content flex flex-col items-center justify-center text-center px-8 md:px-20 max-w-4xl mx-auto w-full">
       <div className={`w-20 h-20 mx-auto mb-8 flex items-center justify-center transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
@@ -886,15 +993,16 @@ const SLIDES = [
   Slide07PersonaDNA,
   Slide08Market,
   Slide09Traction,
-  Slide10BusinessModel,
-  Slide11Vision,
-  Slide12Team,
-  Slide13Ask,
+  Slide10Forecast,
+  Slide11BusinessModel,
+  Slide12Vision,
+  Slide13Team,
+  Slide14Ask,
 ];
 
 const SLIDE_TITLES = [
   'Cover', 'Problem', 'Solution', 'Product', 'Dynamic Intelligence', 'How It Works',
-  'Persona DNA', 'Market', 'Traction', 'Business Model', 'Vision & Expansion', 'Team', 'The Ask'
+  'Persona DNA', 'Market', 'Traction', 'Growth Forecast', 'Business Model', 'Vision & Expansion', 'Team', 'The Ask'
 ];
 
 // ═══ ACCESS GATE ════════════════════════════════════════════════════
