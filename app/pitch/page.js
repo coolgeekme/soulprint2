@@ -604,14 +604,13 @@ function Slide09Traction({ active }) {
 
 
 function Slide10Forecast({ active }) {
-  // Conservative model: 30% conversion, $33 blended ARPU
-  // Growth: $20K+ ads, conversion improvements, YouTube funnel (1M views), viral invites
+  // Conservative model: 30% conversion, $33 blended ARPU, 10K user goal in 18 months
+  // With $1.5M investment: scaled ads ($40K+/mo), conversion optimization, team
   const quarters = [
     { label: 'Now',     date: 'Apr 26',  users: 101,    mrr: 0,      revenue: '$0' },
     { label: 'Q4 \'26', date: 'Dec 26',  users: 1500,   mrr: 14850,  revenue: '$15K' },
-    { label: 'Q2 \'27', date: 'Jun 27',  users: 4500,   mrr: 44550,  revenue: '$45K' },
-    { label: 'Q4 \'27', date: 'Dec 27',  users: 10000,  mrr: 99000,  revenue: '$99K' },
-    { label: 'Q3 \'28', date: 'Sep 28',  users: 17000,  mrr: 168300, revenue: '$168K' },
+    { label: 'Q2 \'27', date: 'Jun 27',  users: 5000,   mrr: 49500,  revenue: '$50K' },
+    { label: 'Q4 \'27', date: 'Oct 27',  users: 10000,  mrr: 99000,  revenue: '$99K' },
   ];
 
   return (
@@ -620,23 +619,22 @@ function Slide10Forecast({ active }) {
         GROWTH FORECAST
       </p>
       <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-2 md:mb-3 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        Pre-revenue to <span className="text-orange-400">$2M+ ARR.</span>
+        10K users. <span className="text-orange-400">$1.2M+ ARR.</span> 18 months.
       </h2>
       <p className={`text-gray-400 text-xs md:text-sm mb-5 md:mb-8 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        Currently pre-revenue with 101 registered users and 33 WAU (33% weekly activation). 329% Day-7 retention. 15m 58s avg session. Growth: 52 new users in March (organic) + 41 in April.
+        101 registered users today. 33 WAU. 16-min avg sessions. Pre-revenue — monetization launches with Stripe billing. $1.5M accelerates growth through scaled acquisition, conversion optimization, and team.
       </p>
 
       <div className="grid md:grid-cols-5 gap-5 md:gap-6">
         {/* Chart — takes 3 columns */}
         <div className={`md:col-span-3 bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 md:p-6 transition-all duration-700 delay-300 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-white font-bold text-sm">Users & MRR Projection</p>
-            <span className="text-[10px] text-gray-600 bg-white/[0.04] px-2 py-0.5 rounded-full">24-month outlook</span>
+            <p className="text-white font-bold text-sm">Path to 10K Users</p>
+            <span className="text-[10px] text-gray-600 bg-white/[0.04] px-2 py-0.5 rounded-full">18-month plan</span>
           </div>
 
-          {/* Bar chart */}
+          {/* SVG area chart */}
           <div className="relative h-44 md:h-52 mb-3">
-            {/* SVG area chart — hockey stick curve */}
             <svg viewBox="0 0 500 200" className="w-full h-full" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
@@ -648,43 +646,38 @@ function Slide10Forecast({ active }) {
                   <stop offset="100%" stopColor="#f97316" />
                 </linearGradient>
               </defs>
-              {/* Grid lines */}
               {[0.25, 0.5, 0.75].map((y, i) => (
                 <line key={i} x1="0" y1={y * 180} x2="500" y2={y * 180} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
               ))}
-              {/* Area fill */}
               <path
-                d={active 
-                  ? "M 0,178 C 50,176 100,168 125,160 C 175,140 225,110 250,90 C 300,55 375,20 500,0 L 500,180 L 0,180 Z"
-                  : "M 0,180 L 125,180 L 250,180 L 375,180 L 500,180 L 500,180 L 0,180 Z"
+                d={active
+                  ? "M 0,178 C 60,175 120,165 167,148 C 230,120 300,65 500,0 L 500,180 L 0,180 Z"
+                  : "M 0,180 L 167,180 L 333,180 L 500,180 L 500,180 L 0,180 Z"
                 }
                 fill="url(#areaGrad)"
                 style={{ transition: 'all 1.5s cubic-bezier(0.16, 1, 0.3, 1)' }}
               />
-              {/* Line */}
               <path
                 d={active
-                  ? "M 0,178 C 50,176 100,168 125,160 C 175,140 225,110 250,90 C 300,55 375,20 500,0"
-                  : "M 0,180 L 125,180 L 250,180 L 375,180 L 500,180"
+                  ? "M 0,178 C 60,175 120,165 167,148 C 230,120 300,65 500,0"
+                  : "M 0,180 L 167,180 L 333,180 L 500,180"
                 }
                 fill="none"
                 stroke="url(#lineGrad)"
                 strokeWidth="2.5"
                 style={{ transition: 'all 1.5s cubic-bezier(0.16, 1, 0.3, 1)' }}
               />
-              {/* Data points */}
               {[
                 { x: 0, cy: active ? 178 : 180 },
-                { x: 125, cy: active ? 160 : 180 },
-                { x: 250, cy: active ? 90 : 180 },
-                { x: 375, cy: active ? 30 : 180 },
+                { x: 167, cy: active ? 148 : 180 },
+                { x: 333, cy: active ? 85 : 180 },
                 { x: 500, cy: active ? 0 : 180 },
               ].map((pt, i) => (
                 <circle
                   key={i}
                   cx={pt.x}
                   cy={pt.cy}
-                  r="4"
+                  r="5"
                   fill="#f97316"
                   stroke="#0a0a0a"
                   strokeWidth="2"
@@ -693,11 +686,11 @@ function Slide10Forecast({ active }) {
               ))}
             </svg>
 
-            {/* User count labels overlaid on chart */}
+            {/* User count labels */}
             <div className="absolute inset-x-0 top-0 bottom-6 flex items-start">
               {quarters.map((q, i) => (
                 <div key={i} className="flex-1 text-center pt-1" style={{ opacity: active ? 1 : 0, transition: `opacity 0.6s ease ${0.8 + i * 0.15}s` }}>
-                  <span className={`text-[10px] md:text-xs font-bold ${i === 0 ? 'text-orange-400' : 'text-white'}`}>
+                  <span className={`text-xs md:text-sm font-bold ${i === 0 ? 'text-orange-400' : 'text-white'}`}>
                     {q.users >= 1000 ? `${(q.users/1000).toFixed(q.users >= 10000 ? 0 : 1)}K` : q.users}
                   </span>
                 </div>
@@ -709,8 +702,8 @@ function Slide10Forecast({ active }) {
           <div className="flex items-center">
             {quarters.map((q, i) => (
               <div key={i} className="flex-1 text-center">
-                <span className="text-[9px] md:text-[11px] text-gray-500 font-medium block">{q.label}</span>
-                <span className={`text-[8px] md:text-[10px] font-mono block mt-0.5 ${q.mrr === 0 ? 'text-gray-700' : 'text-emerald-400'}`}
+                <span className="text-[10px] md:text-xs text-gray-500 font-medium block">{q.label}</span>
+                <span className={`text-[9px] md:text-[11px] font-mono block mt-0.5 ${q.mrr === 0 ? 'text-gray-700' : 'text-emerald-400'}`}
                   style={{ opacity: active ? 1 : 0, transition: `opacity 0.5s ease ${1 + i * 0.12}s` }}>
                   {q.revenue} <span className="text-gray-700">MRR</span>
                 </span>
@@ -719,39 +712,40 @@ function Slide10Forecast({ active }) {
           </div>
         </div>
 
-        {/* Right side — milestones + assumptions */}
+        {/* Right side — conversion upside + assumptions */}
         <div className="md:col-span-2 flex flex-col gap-4">
-          {/* Key Milestones */}
-          <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 md:p-5 transition-all duration-700 delay-500 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-            <p className="text-white font-bold text-sm mb-3">Key Milestones</p>
+          {/* Conversion upside scenarios */}
+          <div className={`bg-gradient-to-br from-orange-500/[0.06] to-transparent border border-orange-500/20 rounded-2xl p-4 md:p-5 transition-all duration-700 delay-500 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            <p className="text-white font-bold text-sm mb-1">At 10K Users</p>
+            <p className="text-gray-500 text-[10px] mb-3">Conservative → Upside scenarios</p>
             <div className="space-y-2.5">
               {[
-                { target: '1,500 users', when: 'Dec 2026', icon: '🎯' },
-                { target: '10,000 users', when: 'Dec 2027', icon: '🚀' },
-                { target: '$1.2M ARR', when: 'Dec 2027', icon: '💰' },
-                { target: '$2M ARR', when: 'Q3 2028', icon: '👑' },
-              ].map((m, i) => (
+                { rate: '30%', paying: '3,000', arr: '$1.2M', highlight: false },
+                { rate: '40%', paying: '4,000', arr: '$1.6M', highlight: false },
+                { rate: '50%', paying: '5,000', arr: '$2.0M', highlight: true },
+              ].map((s, i) => (
                 <div key={i} className="flex items-center gap-3" style={{ opacity: active ? 1 : 0, transition: `opacity 0.5s ease ${700 + i * 100}ms` }}>
-                  <span className="text-lg">{m.icon}</span>
-                  <div className="flex-1">
-                    <p className="text-white text-xs font-semibold">{m.target}</p>
-                    <p className="text-gray-500 text-[10px]">{m.when}</p>
+                  <span className={`text-xs font-bold w-10 ${s.highlight ? 'text-orange-400' : 'text-white'}`}>{s.rate}</span>
+                  <div className="flex-1 h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-1000"
+                      style={{ width: active ? `${parseInt(s.rate)}%` : '0%', backgroundColor: s.highlight ? '#f97316' : 'rgba(249,115,22,0.4)', transitionDelay: `${800 + i * 100}ms` }} />
                   </div>
+                  <span className={`text-xs font-bold w-16 text-right ${s.highlight ? 'text-orange-400' : 'text-white'}`}>{s.arr}</span>
                 </div>
               ))}
             </div>
+            <p className="text-gray-500 text-[10px] mt-3">Series A at 10-15x revenue = <span className="text-white font-semibold">$12-20M+ valuation</span></p>
           </div>
 
-          {/* Assumptions */}
+          {/* Model assumptions */}
           <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-4 md:p-5 transition-all duration-700 delay-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <p className="text-white font-bold text-sm mb-2">Model Assumptions</p>
             <ul className="space-y-1.5 text-gray-400 text-[10px] md:text-xs leading-relaxed">
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 33% weekly activation (33 WAU / 101 users)</li>
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 30% projected free → paid conversion</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 30% conservative free → paid conversion</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Blended ARPU: ~$33/mo (subscriptions + credits)</li>
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> $20K/mo ad spend (Meta, CTV, Display), scaling</li>
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Viral coefficient: 0.4 (invite system + organic)</li>
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 4% monthly churn (sticky: 16 min avg sessions)</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Ad spend scaling: $20K → $40K+/mo (Meta, CTV, Display)</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> YouTube channel (1M+ views) → product funnel</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Viral invite system + organic compounding</li>
             </ul>
           </div>
         </div>
