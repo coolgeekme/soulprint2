@@ -788,11 +788,11 @@ function Slide12Team({ active }) {
 
       {/* Founder card */}
       <div className={`flex justify-center mb-3 md:mb-4 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        <div className="bg-gradient-to-br from-orange-500/[0.08] to-red-500/[0.04] border border-orange-500/20 rounded-2xl p-3 md:p-4 max-w-sm w-full text-center">
-          <span className="text-[9px] font-bold tracking-widest bg-orange-500 text-white px-2 py-0.5 rounded-full">FOUNDER</span>
-          <h3 className="text-white font-bold text-sm md:text-base mt-2">{team[0].name}</h3>
-          <p className="text-orange-400 text-[10px] font-medium">{team[0].title}</p>
-          <p className="text-gray-400 text-[10px] leading-relaxed mt-1">{team[0].bio}</p>
+        <div className="bg-gradient-to-br from-orange-500/[0.08] to-red-500/[0.04] border border-orange-500/20 rounded-2xl p-3 md:p-5 max-w-md w-full text-center">
+          <span className="text-[10px] font-bold tracking-widest bg-orange-500 text-white px-2.5 py-0.5 rounded-full">FOUNDER</span>
+          <h3 className="text-white font-bold text-base md:text-lg mt-2">{team[0].name}</h3>
+          <p className="text-orange-400 text-xs font-medium">{team[0].title}</p>
+          <p className="text-gray-400 text-xs leading-relaxed mt-1">{team[0].bio}</p>
         </div>
       </div>
 
@@ -801,22 +801,22 @@ function Slide12Team({ active }) {
         {team.slice(1).map((t, i) => (
           <div
             key={i}
-            className={`bg-white/[0.03] border border-white/[0.06] rounded-xl p-2.5 md:p-3 transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+            className={`bg-white/[0.03] border border-white/[0.06] rounded-xl p-2.5 md:p-4 transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
             style={{ transitionDelay: `${350 + i * 80}ms` }}
           >
-            <h3 className="text-white font-bold text-[11px] md:text-sm">{t.name}</h3>
-            <p className="text-orange-400 text-[9px] md:text-[10px] font-medium mb-1">{t.title}</p>
-            <p className="text-gray-500 text-[9px] md:text-[10px] leading-relaxed">{t.bio}</p>
+            <h3 className="text-white font-bold text-xs md:text-base">{t.name}</h3>
+            <p className="text-orange-400 text-[10px] md:text-xs font-medium mb-1">{t.title}</p>
+            <p className="text-gray-500 text-[10px] md:text-xs leading-relaxed">{t.bio}</p>
           </div>
         ))}
       </div>
 
       {/* Built so far */}
       <div className={`bg-white/[0.02] border border-white/[0.06] rounded-xl p-3 md:p-4 text-center transition-all duration-700 delay-900 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        <p className="text-white font-bold text-xs mb-2">Built So Far</p>
-        <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 text-[9px] md:text-[10px]">
+        <p className="text-white font-bold text-xs md:text-sm mb-2">Built So Far</p>
+        <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 text-[10px] md:text-xs">
           {['Full-stack Next.js app', 'Multi-provider LLM routing', 'Stripe billing', 'Real-time voice (WebRTC)', 'GitHub OAuth + PR automation', 'PWA', 'Admin dashboard', 'Viral invite system'].map((item, i) => (
-            <span key={i} className="px-2 py-1 bg-orange-500/5 border border-orange-500/10 rounded-full text-gray-400">{item}</span>
+            <span key={i} className="px-2.5 py-1 bg-orange-500/5 border border-orange-500/10 rounded-full text-gray-400">{item}</span>
           ))}
         </div>
       </div>
