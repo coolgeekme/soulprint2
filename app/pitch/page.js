@@ -1039,7 +1039,7 @@ function Slide14Ask({ active }) {
       </div>
 
       {/* Live CTA */}
-      <div className={`bg-gradient-to-r from-orange-500/[0.08] via-orange-500/[0.04] to-orange-500/[0.08] border border-orange-500/20 rounded-2xl p-4 w-full transition-all duration-700 delay-1000 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+      <a href="https://soulprintengine.ai" target="_blank" rel="noopener noreferrer" className={`block bg-gradient-to-r from-orange-500/[0.08] via-orange-500/[0.04] to-orange-500/[0.08] border border-orange-500/20 rounded-2xl p-4 w-full transition-all duration-700 delay-1000 hover:border-orange-500/50 hover:from-orange-500/[0.14] hover:via-orange-500/[0.08] hover:to-orange-500/[0.14] cursor-pointer ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
         <div className="flex items-center justify-center gap-2 mb-1.5">
           <span className="relative flex h-2.5 w-2.5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -1053,8 +1053,8 @@ function Slide14Ask({ active }) {
         <p className="text-gray-400 text-[10px]">
           SoulPrint Engine is live with real users today. Register and experience the AI that learns how you communicate.
         </p>
-        <p className="text-orange-400 font-bold text-sm tracking-wide mt-1.5">soulprintengine.com</p>
-      </div>
+        <p className="text-orange-400 font-bold text-sm tracking-wide mt-1.5">soulprintengine.ai</p>
+      </a>
 
       <p className={`mt-3 text-gray-700 text-[10px] transition-all duration-700 delay-1000 ${active ? 'opacity-100' : 'opacity-0'}`}>
         This deck is confidential and intended for potential investors only.
