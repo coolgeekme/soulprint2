@@ -604,16 +604,14 @@ function Slide09Traction({ active }) {
 
 
 function Slide10Forecast({ active }) {
-  // Real data from admin dashboard (Apr 2026)
-  // 101 registered (all free/beta), 58 active, 0 paying
-  // Segments: 43 Free/Inactive, 43 Light (1-20 msgs), 12 Moderate (21-100), 2 Heavy (101-500), 1 Power (500+)
+  // Conservative model: 30% conversion, $33 blended ARPU
+  // Growth: $20K+ ads, conversion improvements, YouTube funnel (1M views), viral invites
   const quarters = [
-    { label: 'Now',     date: 'Apr 26',  users: 101,    mrr: 0,      bar: 1,   revenue: '$0' },
-    { label: 'Q3 \'26', date: 'Sep 26',  users: 1500,   mrr: 31250,  bar: 15,  revenue: '$31K' },
-    { label: 'Q4 \'26', date: 'Dec 26',  users: 3500,   mrr: 73000,  bar: 35,  revenue: '$73K' },
-    { label: 'Q2 \'27', date: 'Jun 27',  users: 5500,   mrr: 115000, bar: 55,  revenue: '$115K' },
-    { label: 'Q4 \'27', date: 'Dec 27',  users: 8000,   mrr: 167000, bar: 80,  revenue: '$167K' },
-    { label: 'Q2 \'28', date: 'Jun 28',  users: 11000,  mrr: 229000, bar: 100, revenue: '$229K' },
+    { label: 'Now',     date: 'Apr 26',  users: 101,    mrr: 0,      revenue: '$0' },
+    { label: 'Q4 \'26', date: 'Dec 26',  users: 1500,   mrr: 14850,  revenue: '$15K' },
+    { label: 'Q2 \'27', date: 'Jun 27',  users: 4500,   mrr: 44550,  revenue: '$45K' },
+    { label: 'Q4 \'27', date: 'Dec 27',  users: 10000,  mrr: 99000,  revenue: '$99K' },
+    { label: 'Q3 \'28', date: 'Sep 28',  users: 17000,  mrr: 168300, revenue: '$168K' },
   ];
 
   return (
@@ -657,8 +655,8 @@ function Slide10Forecast({ active }) {
               {/* Area fill */}
               <path
                 d={active 
-                  ? "M 0,178 C 40,176 80,170 100,165 C 140,155 200,130 250,110 C 300,85 350,50 400,25 C 430,12 470,4 500,0 L 500,180 L 0,180 Z"
-                  : "M 0,180 L 100,180 L 200,180 L 300,180 L 400,180 L 500,180 L 500,180 L 0,180 Z"
+                  ? "M 0,178 C 50,176 100,168 125,160 C 175,140 225,110 250,90 C 300,55 375,20 500,0 L 500,180 L 0,180 Z"
+                  : "M 0,180 L 125,180 L 250,180 L 375,180 L 500,180 L 500,180 L 0,180 Z"
                 }
                 fill="url(#areaGrad)"
                 style={{ transition: 'all 1.5s cubic-bezier(0.16, 1, 0.3, 1)' }}
@@ -666,8 +664,8 @@ function Slide10Forecast({ active }) {
               {/* Line */}
               <path
                 d={active
-                  ? "M 0,178 C 40,176 80,170 100,165 C 140,155 200,130 250,110 C 300,85 350,50 400,25 C 430,12 470,4 500,0"
-                  : "M 0,180 L 100,180 L 200,180 L 300,180 L 400,180 L 500,180"
+                  ? "M 0,178 C 50,176 100,168 125,160 C 175,140 225,110 250,90 C 300,55 375,20 500,0"
+                  : "M 0,180 L 125,180 L 250,180 L 375,180 L 500,180"
                 }
                 fill="none"
                 stroke="url(#lineGrad)"
@@ -677,10 +675,9 @@ function Slide10Forecast({ active }) {
               {/* Data points */}
               {[
                 { x: 0, cy: active ? 178 : 180 },
-                { x: 100, cy: active ? 165 : 180 },
-                { x: 200, cy: active ? 130 : 180 },
-                { x: 300, cy: active ? 85 : 180 },
-                { x: 400, cy: active ? 25 : 180 },
+                { x: 125, cy: active ? 160 : 180 },
+                { x: 250, cy: active ? 90 : 180 },
+                { x: 375, cy: active ? 30 : 180 },
                 { x: 500, cy: active ? 0 : 180 },
               ].map((pt, i) => (
                 <circle
@@ -729,10 +726,10 @@ function Slide10Forecast({ active }) {
             <p className="text-white font-bold text-sm mb-3">Key Milestones</p>
             <div className="space-y-2.5">
               {[
-                { target: '1,000 users', when: 'Jul 2026', icon: '🎯' },
-                { target: '$1M ARR', when: 'Jun 2027', icon: '💰' },
-                { target: '8,000 users', when: 'Dec 2027', icon: '🚀' },
-                { target: '$2M+ ARR', when: 'Dec 2027', icon: '👑' },
+                { target: '1,500 users', when: 'Dec 2026', icon: '🎯' },
+                { target: '10,000 users', when: 'Dec 2027', icon: '🚀' },
+                { target: '$1.2M ARR', when: 'Dec 2027', icon: '💰' },
+                { target: '$2M ARR', when: 'Q3 2028', icon: '👑' },
               ].map((m, i) => (
                 <div key={i} className="flex items-center gap-3" style={{ opacity: active ? 1 : 0, transition: `opacity 0.5s ease ${700 + i * 100}ms` }}>
                   <span className="text-lg">{m.icon}</span>
@@ -750,9 +747,9 @@ function Slide10Forecast({ active }) {
             <p className="text-white font-bold text-sm mb-2">Model Assumptions</p>
             <ul className="space-y-1.5 text-gray-400 text-[10px] md:text-xs leading-relaxed">
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 33% weekly activation (33 WAU / 101 users)</li>
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 25% projected free → paid conversion</li>
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Blended ARPU: ~$83/mo (subscriptions + video credits)</li>
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> $10K/mo current ad spend, scaling with revenue</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 30% projected free → paid conversion</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Blended ARPU: ~$33/mo (subscriptions + credits)</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> $20K/mo ad spend (Meta, CTV, Display), scaling</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Viral coefficient: 0.4 (invite system + organic)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 4% monthly churn (sticky: 16 min avg sessions)</li>
             </ul>
