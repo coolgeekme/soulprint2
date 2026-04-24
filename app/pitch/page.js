@@ -609,11 +609,11 @@ function Slide10Forecast({ active }) {
   // Segments: 43 Free/Inactive, 43 Light (1-20 msgs), 12 Moderate (21-100), 2 Heavy (101-500), 1 Power (500+)
   const quarters = [
     { label: 'Now',     date: 'Apr 26',  users: 101,    mrr: 0,      bar: 1,   revenue: '$0' },
-    { label: 'Q3 \'26', date: 'Sep 26',  users: 1500,   mrr: 10500,  bar: 15,  revenue: '$10.5K' },
-    { label: 'Q4 \'26', date: 'Dec 26',  users: 3500,   mrr: 30600,  bar: 35,  revenue: '$31K' },
-    { label: 'Q2 \'27', date: 'Jun 27',  users: 5500,   mrr: 57750,  bar: 55,  revenue: '$58K' },
-    { label: 'Q4 \'27', date: 'Dec 27',  users: 8000,   mrr: 84000,  bar: 80,  revenue: '$84K' },
-    { label: 'Q2 \'28', date: 'Jun 28',  users: 11000,  mrr: 127050, bar: 100, revenue: '$127K' },
+    { label: 'Q3 \'26', date: 'Sep 26',  users: 1500,   mrr: 16875,  bar: 15,  revenue: '$17K' },
+    { label: 'Q4 \'26', date: 'Dec 26',  users: 3500,   mrr: 39375,  bar: 35,  revenue: '$39K' },
+    { label: 'Q2 \'27', date: 'Jun 27',  users: 5500,   mrr: 61875,  bar: 55,  revenue: '$62K' },
+    { label: 'Q4 \'27', date: 'Dec 27',  users: 8000,   mrr: 90000,  bar: 80,  revenue: '$90K' },
+    { label: 'Q2 \'28', date: 'Jun 28',  users: 11000,  mrr: 123750, bar: 100, revenue: '$124K' },
   ];
 
   const segments = [
@@ -701,7 +701,7 @@ function Slide10Forecast({ active }) {
             <ul className="space-y-1.5 text-gray-400 text-[10px] md:text-xs leading-relaxed">
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 57% activation rate (58 of 101 registered)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 25% projected free → paid conversion</li>
-              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Blended ARPU: ~$35/mo across paid tiers</li>
+              <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Blended ARPU: ~$45/mo (70% Base + 30% Power)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> $10K/mo current ad spend, scaling with revenue</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> Viral coefficient: 0.4 (invite system + organic)</li>
               <li className="flex items-start gap-1.5"><span className="text-orange-500 mt-0.5 text-[10px]">▸</span> 4% monthly churn (sticky: 16 min avg sessions)</li>
