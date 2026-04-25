@@ -17,6 +17,10 @@ module.exports = {
                 }
         },
         extend: {
+                fontFamily: {
+                        'condensed': ['"Barlow Condensed"', 'Impact', 'sans-serif'],
+                        'sans': ['Inter', 'system-ui', 'sans-serif'],
+                },
                 colors: {
                         // SoulPrint Brand Colors
                         'sp-orange': '#F64000',
