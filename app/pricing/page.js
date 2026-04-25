@@ -28,9 +28,8 @@ const PLAN_FEATURES = [
   ]},
   { category: 'Platform', features: [
     { name: 'Web + Telegram', free: true, base: true, power: true },
-    { name: 'API Access', free: false, base: false, power: true },
     { name: 'Data Retention', free: '30 days', base: '90 days', power: '180 days' },
-    { name: 'Support', free: 'Community', base: 'Email (48hr)', power: 'Priority (24hr)' },
+    { name: 'Support', free: 'Ace AI Agent 24/7 + Email', base: 'Ace AI Agent 24/7 + Email', power: 'Ace AI Agent 24/7 + Priority Email' },
   ]},
 ];
 
@@ -224,13 +223,13 @@ export default function PricingPage() {
               <span className="text-gray-500 text-sm">/forever</span>
             </div>
             <ul className="space-y-2.5 mb-8 flex-1">
-              {['Standard AI models — unlimited', '20 images/mo (watermarked)', '1 lifetime video', 'SoulPrint memory & persona', 'Web + Telegram', '10-page file analysis'].map((f, i) => (
+              {['Standard AI models — unlimited', '20 images/mo (watermarked)', '1 lifetime video', 'SoulPrint memory & persona', 'Web + Telegram', '10-page file analysis', 'Ace AI Support Agent 24/7'].map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-400">
                   <Check className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
                   <span>{f}</span>
                 </li>
               ))}
-              {['Premium AI models', 'Voice chat', 'API access'].map((f, i) => (
+              {['Premium AI models', 'Voice chat'].map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
                   <X className="w-4 h-4 text-gray-700 mt-0.5 shrink-0" />
                   <span>{f}</span>
@@ -274,6 +273,7 @@ export default function PricingPage() {
                 'Conversation search',
                 '90-day data retention',
                 'Pay-as-you-go overages',
+                'Ace AI Agent + Email support',
               ].map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
                   <Check className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
@@ -312,7 +312,6 @@ export default function PricingPage() {
                 'Unlimited video generation',
                 'No watermarks anywhere',
                 'Unlimited voice chat',
-                'API access',
                 'Priority support (24hr)',
                 '180-day data retention',
               ].map((f, i) => (
