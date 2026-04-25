@@ -8,20 +8,22 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 // ── Plan Feature Comparison Data ──
 const PLAN_FEATURES = [
   { category: 'Chat', features: [
-    { name: 'Standard AI Models', free: 'GPT-4o Mini, Haiku, Gemini Flash', base: 'GPT-4o Mini, Haiku, Gemini Flash', power: 'GPT-4o Mini, Haiku, Gemini Flash' },
-    { name: 'Premium AI Models', free: false, base: 'GPT-4o, Claude Opus, Sonnet (pay-per-use)', power: 'Unlimited' },
+    { name: 'Standard AI Models', free: 'Unlimited', base: 'Unlimited', power: 'Unlimited' },
+    { name: 'Premium AI Models', free: false, base: '50 messages/mo included', power: 'Unlimited' },
+    { name: 'Premium Overage', free: '—', base: '$0.15/message', power: 'N/A' },
     { name: 'Persona & Memory', free: true, base: true, power: true },
     { name: 'Conversation Search', free: false, base: true, power: true },
   ]},
   { category: 'Media', features: [
-    { name: 'Images / Month', free: '20', base: '20 (+ pay-per-use)', power: 'Unlimited' },
-    { name: 'Image Watermark', free: true, base: false, power: false },
+    { name: 'Images / Month', free: '20 (watermarked)', base: '50 (no watermark)', power: 'Unlimited' },
+    { name: 'Image Overage', free: '—', base: '$0.20/gen', power: 'N/A' },
     { name: 'Premium Image Models', free: false, base: true, power: true },
-    { name: 'Video Generation', free: '1 lifetime', base: '1/mo (+ credits)', power: 'Unlimited' },
+    { name: 'Video Generation', free: '1 lifetime', base: '1/mo + credit packs', power: 'Unlimited' },
     { name: 'Video Watermark', free: true, base: true, power: false },
   ]},
   { category: 'Voice & Files', features: [
-    { name: 'Voice Chat', free: false, base: true, power: 'Unlimited' },
+    { name: 'Voice Chat', free: false, base: '30 min/mo included', power: 'Unlimited' },
+    { name: 'Voice Overage', free: '—', base: '$0.40/min', power: 'N/A' },
     { name: 'File Analysis', free: 'Basic (10 pages)', base: 'Advanced (unlimited)', power: 'Advanced (unlimited)' },
   ]},
   { category: 'Platform', features: [
@@ -222,7 +224,7 @@ export default function PricingPage() {
               <span className="text-gray-500 text-sm">/forever</span>
             </div>
             <ul className="space-y-2.5 mb-8 flex-1">
-              {['GPT-4o Mini, Haiku, Gemini Flash', '20 images/mo (watermarked)', '1 lifetime video', 'SoulPrint memory & persona', 'Web + Telegram', '10-page file analysis'].map((f, i) => (
+              {['Standard AI models — unlimited', '20 images/mo (watermarked)', '1 lifetime video', 'SoulPrint memory & persona', 'Web + Telegram', '10-page file analysis'].map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-400">
                   <Check className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
                   <span>{f}</span>
@@ -263,14 +265,15 @@ export default function PricingPage() {
             <ul className="space-y-2.5 mb-8 flex-1">
               {[
                 'Everything in Free',
-                'GPT-4o, Claude Opus, Sonnet',
-                '20 images/mo (no watermark)',
+                'Premium AI models — 50 msgs/mo',
+                '50 images/mo (no watermark)',
                 'Premium image models',
                 '1 video/mo + credit packs',
-                'Voice chat included',
+                'Voice chat — 30 min/mo',
                 'Advanced file analysis',
                 'Conversation search',
                 '90-day data retention',
+                'Pay-as-you-go overages',
               ].map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
                   <Check className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
@@ -304,7 +307,7 @@ export default function PricingPage() {
             <ul className="space-y-2.5 mb-8 flex-1">
               {[
                 'Everything in Base',
-                'Unlimited premium chat',
+                'Unlimited premium AI models',
                 'Unlimited images (all models)',
                 'Unlimited video generation',
                 'No watermarks anywhere',
