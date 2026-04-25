@@ -61,6 +61,21 @@ export async function GET(request, { params }) {
   try {
     // ── Public Routes ──────────────────────────────────────────────────
 
+    // GET /api/pricing/gate — Check if pricing UI is visible for this user
+    if (pathStr === 'gate') {
+      const PRICING_LAUNCH_DATE = new Date('2026-05-01T00:00:00Z');
+      const user = await getAuthUser(request);
+      let role = null;
+      if (user) {
+        const db = await getDb();
+        const dbUser = await db.collection('users').findOne({ id: user.userId || user.id });
+        role = dbUser?.role || (dbUser?.is_admin ? 'admin' : 'user');
+      }
+      const isAdmin = role === 'admin' || role === 'superadmin';
+      const isLive = new Date() >= PRICING_LAUNCH_DATE;
+      return ok({ visible: isAdmin || isLive, launch_date: '2026-05-01T00:00:00Z', role });
+    }
+
     // GET /api/pricing/plans — List all active plans
     if (pathStr === 'plans') {
       const plans = await getPlans();

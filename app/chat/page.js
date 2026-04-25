@@ -41,7 +41,7 @@ import {
   MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, AudioWaveform, EyeOff, Paintbrush,
   GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal,
   Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, ChevronRight, LogOut, Copy, Edit3, Square, ArrowRight,
-  Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code, Bot, Volume2, VolumeX
+  Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code, Bot, Volume2, VolumeX, CreditCard
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { CloudUploadIcon, RobotIcon, FeedbackIcon, MicrophoneIcon, SendIcon, SparklesIcon, ImagePlusIcon, VideoIcon, LocationIcon, StopIcon, AttachIcon, PlusIcon } from '@/components/icons/SoulPrintIcons';
@@ -3646,6 +3646,14 @@ export default function ChatPage() {
           )}
           {/* Admin Dashboard link - only for admins */}
           {(user?.role === 'admin' || user?.role === 'superadmin') && (
+            <>
+            <a 
+              href="/pricing"
+              className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-1.5'} w-full py-2 px-3 bg-gradient-to-r from-orange-500/10 to-purple-500/10 hover:from-orange-500/20 hover:to-purple-500/20 border border-orange-500/20 rounded-lg text-orange-400 hover:text-orange-300 text-xs transition-colors`}
+              title="Plans & Pricing"
+            >
+              <CreditCard className="w-3.5 h-3.5" /> {!sidebarCollapsed && 'Plans & Pricing'}
+            </a>
             <a 
               href="/admin"
               className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-1.5'} w-full py-2 px-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-lg text-orange-400 hover:text-orange-300 text-xs transition-colors`}
@@ -3653,6 +3661,7 @@ export default function ChatPage() {
             >
               <Shield className="w-3.5 h-3.5" /> {!sidebarCollapsed && 'Admin Dashboard'}
             </a>
+            </>
           )}
           <button 
             onClick={() => setShowFeedbackModal(true)}
