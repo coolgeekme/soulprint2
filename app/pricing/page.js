@@ -28,7 +28,6 @@ const PLAN_FEATURES = [
   ]},
   { category: 'Platform', features: [
     { name: 'Web + Telegram', free: true, base: true, power: true },
-    { name: 'Data Retention', free: '30 days', base: '90 days', power: '180 days' },
     { name: 'Support', free: 'Ace AI Agent 24/7 + Email', base: 'Ace AI Agent 24/7 + Email', power: 'Ace AI Agent 24/7 + Priority Email' },
   ]},
 ];
@@ -271,7 +270,6 @@ export default function PricingPage() {
                 'Voice chat — 30 min/mo',
                 'Advanced file analysis',
                 'Conversation search',
-                '90-day data retention',
                 'Pay-as-you-go overages',
                 'Ace AI Agent + Email support',
               ].map((f, i) => (
@@ -312,8 +310,7 @@ export default function PricingPage() {
                 'Unlimited video generation',
                 'No watermarks anywhere',
                 'Unlimited voice chat',
-                'Priority support (24hr)',
-                '180-day data retention',
+                'Ace AI Agent + Priority Email',
               ].map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
                   <Check className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" />
