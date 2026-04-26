@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { 
   Settings, ChevronRight, ExternalLink, Share2, Users, Link2, UserPlus, Upload,
   X, Loader2, Film, Download, Trash2, RefreshCw, Image as ImageIcon, Search,
-  Edit3, Home, MessageSquare, Video
+  Edit3, Home, MessageSquare, Video, CreditCard
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { CloudUploadIcon } from '@/components/icons/SoulPrintIcons';
@@ -156,6 +156,19 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClic
 
     {/* Admin Dashboard Button - only shown to admins */}
     {isAdmin && (
+      <>
+      <button 
+        onClick={() => window.location.href = '/pricing'}
+        className="w-full bg-gradient-to-r from-orange-500/10 to-purple-500/10 hover:from-orange-500/20 hover:to-purple-500/20 border border-orange-500/20 rounded-2xl p-4 flex items-center justify-between transition-colors mb-3"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+            <CreditCard className="w-4 h-4 text-orange-400" />
+          </div>
+          <span className="text-orange-400 text-sm font-medium">Plans & Pricing</span>
+        </div>
+        <ChevronRight className="w-5 h-5 text-orange-400" />
+      </button>
       <button 
         onClick={onAdminClick}
         className="w-full bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-2xl p-4 flex items-center justify-between transition-colors"
@@ -168,6 +181,7 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClic
         </div>
         <ChevronRight className="w-5 h-5 text-orange-400" />
       </button>
+      </>
     )}
   </div>
 );
