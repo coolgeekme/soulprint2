@@ -2131,6 +2131,8 @@ backend:
 
 agent_communication:
   - agent: "testing"
+    message: "PRICING & SUBSCRIPTION DB SCHEMA MIGRATION VERIFICATION COMPLETE: All critical endpoints working perfectly with 100% success rate (10/10 tests passed). ✅ GET /api/health returns {status: 'ok'}. ✅ Authentication working with both admin (test@soulprint.com/test123) and user (testchat@example.com/Test123456) credentials. ✅ GET /api/pricing/plans (PUBLIC) - returns 3 plans (Free, Base, Power) with NEW schema: each plan's features contains chat_model_tier ('standard' for Free, 'all' for Base/Power), NO deprecated fields (chat_models, premium_chat_models, api_access, data_retention_days), Base plan has premium_chat_msgs_per_month: 50, Stripe IDs preserved for Base (price_1TOh9KPK7jhQlR2axgGNTIqA) and Power (price_1TOh9KPK7jhQlR2amByc1nzr) plans. ✅ GET /api/pricing/gate (NO AUTH) - returns {visible: false, launch_date: '2026-05-01T00:00:00Z', role: null}. ✅ GET /api/pricing/gate (ADMIN AUTH) - returns {visible: true, role: 'superadmin'}. ✅ GET /api/pricing/subscription (AUTH) - returns subscription (plan_id: free, status: grace_period) with plan details. ✅ GET /api/pricing/usage (AUTH) - returns usage summary (plan: free, period: 2026-04). ✅ Authentication enforcement working correctly - both subscription and usage endpoints return 401 without auth token. The DB schema migration is complete and working correctly - all plans have the new chat_model_tier field structure and deprecated fields have been removed as specified in the review request."
+  - agent: "testing"
     message: "VIDEO EXTENSION FEATURE TESTING COMPLETE: All critical functionality working correctly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ Video Extend Intent Detection: All extend patterns ('extend the video', 'continue the video', 'make it longer', 'add more to the video', 'lengthen the clip') correctly do NOT trigger video extend without existing video context - this is the expected behavior as extend requires a source video. ✅ Video Generation Detection: Regular video generation patterns ('Create a new video of a cat', 'Generate a video of a sunset') correctly trigger video generation (not extend) - proper differentiation working. ✅ Media Confirmation Context URLs: All media_confirmation events include required context fields (conversationImageUrl, conversationVideoUrl, conversationVideoTaskId) - media context persistence working correctly. ✅ Video Status Polling (runway-extend): GET /api/media/status/:taskId endpoint working correctly for runway-extend model (returns 404 for non-existent tasks as expected). ✅ Existing Endpoints: All core endpoints (health, models, conversations) continue working correctly - no regressions. ✅ Pattern Recognition: detectVideoExtendIntent() function correctly identifies extend patterns but requires video context to trigger - proper safeguards in place. The video extension feature is fully functional with proper intent detection, context tracking, and API integration. All 19/19 comprehensive tests passed (100% success rate)."
   - agent: "testing"
     message: "AI SUPPORT BOT BACKEND TESTING COMPLETE: All critical endpoints working perfectly according to the detailed test sequence. ✅ Step 1: Authentication with testchat@example.com/Test123456 working (token received). ✅ Step 2: POST /api/support/bot-chat with 'How do I generate an image with text in it?' returns proper response format (reply + sessionId), mentions GPT-4o Image and GPT Image 1.5 models as expected, GPT-4o integration working with 30s timeout. ✅ Step 3: Follow-up message with chat history and sessionId maintains conversation context, provides appropriate video generation guidance. ✅ Step 4: Conversation context feature working - accepts conversationContext parameter with conversationId and recentMessages, provides contextual help about image issues. ✅ Step 5: POST /api/support/escalate creates support ticket successfully (returns success: true, ticketId, message), stores in support_tickets collection with source: 'support_bot_escalation'. ✅ Step 6: GET /api/support/tickets properly enforces access control - regular users receive 401 Unauthorized (expected behavior), only support agents/admins can access ticket lists. All 6/6 comprehensive tests passed (100% success rate). The AI Support Bot system is fully functional with proper GPT-4o integration, session management, escalation workflow, and security controls."
@@ -2261,6 +2263,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "PRICING PHASE 1 & PHASE 2 BACKEND API TESTING COMPLETE: Comprehensive testing of all critical pricing endpoints with 92.3% success rate (24/26 tests passed). ✅ PUBLIC ENDPOINTS: GET /api/pricing/plans returns 3 plans (Free $0, Base $20.01, Power $99). GET /api/pricing/credit-packs returns 4 packs (Spark 30 credits $2.99, Creator 150 credits $14.99, Pro 500 credits $49.99, Studio 1500 credits $149.99). POST /api/pricing/discounts/validate correctly validates LAUNCH20 (20% off) and rejects invalid codes. ✅ AUTHENTICATED ENDPOINTS: GET /api/pricing/subscription returns user subscription (plan: free, status: grace_period). GET /api/pricing/usage returns usage summary with limits. GET /api/pricing/credits returns credit balance. GET /api/pricing/history returns payment transactions. POST /api/pricing/checkout creates real Stripe sessions for Base monthly and Power annual plans. POST /api/pricing/checkout/credits creates Stripe checkout for credit packs. ✅ ADMIN ENDPOINTS: GET /api/pricing/admin/overview returns subscription stats (Free: 0, Base: 0, Power: 1, Grace: 11, Total: 12). GET /api/pricing/admin/plans returns plans with Stripe price IDs. GET /api/pricing/admin/discounts returns discount codes (TEST20, LIFETIME2026, LAUNCH20). GET /api/pricing/admin/subscriptions returns 12 user subscriptions. POST /api/pricing/admin/seed successfully seeds plans. POST /api/pricing/admin/discounts creates/deletes test discount codes. POST /api/pricing/admin/user-plan successfully overrides user plans. POST /api/pricing/admin/grace-period affects 12 users. ✅ AUTHENTICATION: All endpoints properly enforce auth requirements (401 without token, admin endpoints require is_admin: true). ✅ STRIPE INTEGRATION: Real Stripe test objects created with valid session IDs starting with 'cs_test_'. Minor: 2 edge case tests failed (duplicate discount error handling returns 500 instead of 400, invalid plan ID validation). Authentication working with test@soulprint.com/test123 (admin user). The complete Pricing & Subscription System is fully functional with proper Stripe integration and MongoDB persistence."
+      - working: true
+        agent: "testing"
+        comment: "PRICING & SUBSCRIPTION DB SCHEMA MIGRATION VERIFICATION COMPLETE: All critical endpoints working perfectly with 100% success rate (10/10 tests passed). ✅ GET /api/health returns {status: 'ok'}. ✅ Authentication working with both admin (test@soulprint.com/test123) and user (testchat@example.com/Test123456) credentials. ✅ GET /api/pricing/plans (PUBLIC) - returns 3 plans (Free, Base, Power) with NEW schema: each plan's features contains chat_model_tier ('standard' for Free, 'all' for Base/Power), NO deprecated fields (chat_models, premium_chat_models, api_access, data_retention_days), Base plan has premium_chat_msgs_per_month: 50, Stripe IDs preserved for Base (price_1TOh9KPK7jhQlR2axgGNTIqA) and Power (price_1TOh9KPK7jhQlR2amByc1nzr) plans. ✅ GET /api/pricing/gate (NO AUTH) - returns {visible: false, launch_date: '2026-05-01T00:00:00Z', role: null}. ✅ GET /api/pricing/gate (ADMIN AUTH) - returns {visible: true, role: 'superadmin'}. ✅ GET /api/pricing/subscription (AUTH) - returns subscription (plan_id: free, status: grace_period) with plan details. ✅ GET /api/pricing/usage (AUTH) - returns usage summary (plan: free, period: 2026-04). ✅ Authentication enforcement working correctly - both subscription and usage endpoints return 401 without auth token. The DB schema migration is complete and working correctly - all plans have the new chat_model_tier field structure and deprecated fields have been removed as specified in the review request."
 
   - task: "Video Edit Auto-Execution Fix"
     implemented: true
@@ -2482,8 +2487,37 @@ agent_communication:
         agent: "testing"
         comment: "COMPREHENSIVE PERSONA DNA SYSTEM TEST COMPLETE: All 7 test scenarios passed (100% success rate). ✅ GET /api/persona/profile: Returns proper JSON with profile (10 personality axes 0-100 range, source=blended, answeredCount=1, messagesMined=200) and generatedPrompt (1342 chars with 'YOUR PERSONA' header). ✅ Authentication: 401 without token, 200 with valid token. ✅ POST /api/chat/stream: Returns streaming response with meta/done events, persona injection confirmed in logs '[PersonaDNA] Injected persona prompt'. ✅ POST /api/assessment/gradual/answer: Accepts text answers, returns success with progress data, profile invalidation confirmed in logs '[PersonaDNA] Invalidated cached profile', timestamp updated from 2026-04-23T15:56:39.637Z to 2026-04-23T16:01:39.837Z. ✅ Regression check: All existing endpoints (health, auth, assessment progress) working correctly. Fixed minor issue: gradual-assessment.js was using undefined _systemPromptCache.delete() instead of invalidatePersonaProfile() function - corrected to use proper persona invalidation. System is fully functional with proper persona generation, injection, and cache invalidation."
 
+  - task: "Dynamic Model Tier Migration - DB Seed Fix"
+    implemented: true
+    working: true
+    file: "lib/handlers/pricing.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Fixed DB schema migration. Executed replaceOne seed - all 3 plans now use chat_model_tier. Deprecated fields removed. Stripe IDs preserved. GET /api/pricing/plans returns clean data."
+
+  - task: "Production CSS Fix Verification"
+    implemented: true
+    working: true
+    file: "tailwind.config.js, app/globals.css"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Landing page CSS verified working via screenshots. All sections render correctly."
+
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Dynamic Model Tier Migration - DB Seed Fix"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "DB SEED MIGRATION COMPLETE + CSS VERIFIED: (1) Ran seedPlans with replaceOne - all 3 plans now use chat_model_tier. Deprecated fields removed. Stripe IDs preserved. (2) Landing page CSS verified working. Auth: test@soulprint.com/test123 (admin), testchat@example.com/Test123456 (user). Test: GET /api/pricing/plans should return plans with chat_model_tier field and NO chat_models/premium_chat_models fields. GET /api/pricing/gate should return visible:false for unauthenticated, visible:true for admin."
