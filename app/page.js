@@ -1,8 +1,8 @@
 // LANDING PAGE - Route: /
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, Twitter, Linkedin, Instagram, Calendar, User, ArrowRight, Facebook, Youtube, Brain, Zap, Fingerprint, Heart, Sparkles, Shield, Check, Star, Quote, MessageSquare } from 'lucide-react';
+import { ChevronDown, ChevronRight, Twitter, Linkedin, Instagram, Calendar, User, ArrowRight, Facebook, Youtube, Brain, Zap, Fingerprint, Heart, Sparkles, Shield, Check, Star, Quote, MessageSquare, Volume2, VolumeX } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 // Blog Preview Component
@@ -95,6 +95,121 @@ function BlogPreview() {
 }
 
 const HERO_IMAGE = "/hero-headshot-nobg.png";
+const YT_PLAYLIST_ID = 'PLC-ghIgOfdtCo63EqzQZ-fXkESrnEXkR1';
+
+// ── YouTube Background Component ───────────────────────────────────────────
+function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
+  const containerRef = useRef(null);
+  const playerRef = useRef(null);
+  const apiLoadedRef = useRef(false);
+  const [videoReady, setVideoReady] = useState(false);
+
+  useEffect(() => {
+    // Guard against double-init in strict mode
+    if (apiLoadedRef.current) return;
+    apiLoadedRef.current = true;
+
+    const initPlayer = () => {
+      if (!window.YT?.Player) return;
+      playerRef.current = new window.YT.Player('yt-hero-player', {
+        width: '100%',
+        height: '100%',
+        playerVars: {
+          listType: 'playlist',
+          list: YT_PLAYLIST_ID,
+          autoplay: 1,
+          mute: 1,
+          controls: 0,
+          showinfo: 0,
+          modestbranding: 1,
+          rel: 0,
+          iv_load_policy: 3,
+          disablekb: 1,
+          fs: 0,
+          playsinline: 1,
+          loop: 1,
+          origin: typeof window !== 'undefined' ? window.location.origin : '',
+        },
+        events: {
+          onReady: (e) => {
+            e.target.setPlaybackQuality('hd720');
+            e.target.playVideo();
+            if (onPlayerReady) onPlayerReady(e.target);
+          },
+          onStateChange: (e) => {
+            if (e.data === window.YT.PlayerState.PLAYING) {
+              setVideoReady(true);
+            }
+            // When the playlist ends, restart from first video
+            if (e.data === window.YT.PlayerState.ENDED) {
+              e.target.playVideoAt(0);
+            }
+          },
+        },
+      });
+    };
+
+    if (window.YT?.Player) {
+      initPlayer();
+    } else {
+      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        tag.async = true;
+        document.head.appendChild(tag);
+      }
+      const prevCallback = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (prevCallback) prevCallback();
+        initPlayer();
+      };
+    }
+
+    return () => {
+      try { playerRef.current?.destroy(); } catch {}
+    };
+  }, [onPlayerReady]);
+
+  // Mute/unmute sync
+  useEffect(() => {
+    try {
+      if (playerRef.current?.isMuted && playerRef.current?.getPlayerState) {
+        if (isMuted) {
+          playerRef.current.mute();
+        } else {
+          playerRef.current.unMute();
+          playerRef.current.setVolume(30);
+        }
+      }
+    } catch {}
+  }, [isMuted]);
+
+  return (
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden">
+      {/* The YouTube iframe — scaled up to cover the full section, with visual muting */}
+      <div
+        className="absolute top-1/2 left-1/2 pointer-events-none"
+        style={{
+          width: '300vw',
+          height: '170vh',
+          transform: 'translate(-50%, -50%)',
+          filter: 'brightness(0.3) saturate(0.4) contrast(1.15)',
+          opacity: videoReady ? 1 : 0,
+          transition: 'opacity 1.5s ease-in-out',
+        }}
+      >
+        <div id="yt-hero-player" style={{ width: '100%', height: '100%' }} />
+      </div>
+
+      {/* Dark gradient overlays for text readability */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-black/50" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-black/40" />
+      
+      {/* Subtle film-grain texture */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\' opacity=\'0.5\'/%3E%3C/svg%3E")', backgroundRepeat: 'repeat' }} />
+    </div>
+  );
+}
 
 const FIVE_FEATURES = [
   {
@@ -194,6 +309,29 @@ function InlineCTA({ text, subtext }) {
 export default function LandingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showStickyBar, setShowStickyBar] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const ytPlayerRef = useRef(null);
+
+  const handlePlayerReady = useCallback((player) => {
+    ytPlayerRef.current = player;
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted(prev => {
+      const next = !prev;
+      try {
+        if (ytPlayerRef.current) {
+          if (next) {
+            ytPlayerRef.current.mute();
+          } else {
+            ytPlayerRef.current.unMute();
+            ytPlayerRef.current.setVolume(30);
+          }
+        }
+      } catch {}
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('sp_token');
@@ -240,85 +378,81 @@ export default function LandingPage() {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          HERO SECTION
+          HERO SECTION — YouTube Playlist Background
       ═══════════════════════════════════════════════════════════════════ */}
       <section className="relative overflow-hidden" style={{ minHeight: '100vh' }}>
-        <div className="absolute inset-0 grid-bg opacity-100" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(246,64,0,0.15)_0%,transparent_70%)]" />
-        
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-          <div className="absolute right-[-5%] top-1/2 -translate-y-1/2 opacity-[0.06]">
-            <SoulPrintLogo size={900} />
-          </div>
-        </div>
+        {/* YouTube Video Background */}
+        <YouTubeHeroBackground isMuted={isMuted} onPlayerReady={handlePlayerReady} />
 
         {/* Nav */}
-        <nav className="relative z-10 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
+        <nav className="relative z-20 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
           <div className="flex items-center gap-2">
             <SoulPrintLogo size={28} />
             <span className="font-condensed text-lg font-bold tracking-widest text-white uppercase">SoulPrint</span>
           </div>
           <div className="flex items-center gap-6">
-            <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:inline">Features</a>
-            <a href="#testimonials" className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:inline">Reviews</a>
+            <a href="#features" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">Features</a>
+            <a href="#testimonials" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">Reviews</a>
             {isLoggedIn ? (
               <Link href="/chat" className="btn-orange px-5 py-2 rounded-lg text-sm flex items-center gap-2">
                 Open Chat <ArrowRight className="w-4 h-4" />
               </Link>
             ) : (
               <>
-                <Link href="/auth" className="text-sm text-gray-400 hover:text-white transition-colors">Sign In</Link>
+                <Link href="/auth" className="text-sm text-gray-300 hover:text-white transition-colors">Sign In</Link>
                 <Link href="/auth" className="btn-orange px-5 py-2 rounded-lg text-sm">Get Started Free</Link>
               </>
             )}
           </div>
         </nav>
 
-        {/* Hero content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-8 flex items-center min-h-[calc(100vh-80px)]">
-          <div className="flex items-center gap-0 w-full">
-            <div className="flex-1 pr-8">
-              <h1 className="font-condensed font-black text-white leading-none mb-6"
-                  style={{ fontSize: 'clamp(48px, 7.5vw, 100px)', letterSpacing: '-1px' }}>
-                STOP RE-<br />EXPLAINING<br />YOURSELF<br />TO AI
-              </h1>
-              <p className="text-gray-400 text-base mb-4 max-w-md leading-relaxed">
-                Chat, organize, reflect, and plan with an AI that remembers your tone, your tempo, and your life.
-              </p>
-              {/* Trust indicators */}
-              <div className="flex items-center gap-4 mb-8 flex-wrap">
-                <span className="text-xs text-gray-500 flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5 text-green-500" /> Private & Encrypted
-                </span>
-                <span className="text-xs text-gray-500 flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-yellow-500" /> GPT-4o, Gemini & Claude
-                </span>
-                <span className="text-xs text-gray-500 flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5 text-orange-500" /> Free to Start
-                </span>
-              </div>
-              <div className="flex items-center gap-4">
-                {isLoggedIn ? (
-                  <Link href="/chat" className="btn-orange px-7 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
-                    Go to Chat <ArrowRight className="w-4 h-4" />
-                  </Link>
-                ) : (
-                  <Link href="/auth" className="btn-orange px-7 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
-                    Get Your SoulPrint — It&apos;s Free
-                  </Link>
-                )}
-                <a href="#features" className="text-gray-400 hover:text-white text-sm flex items-center gap-1 transition-colors">
-                  See what it can do <ChevronRight className="w-4 h-4" />
-                </a>
-              </div>
+        {/* Hero content — centered over video */}
+        <div className="relative z-20 max-w-7xl mx-auto px-8 flex items-center min-h-[calc(100vh-80px)]">
+          <div className="max-w-2xl">
+            <h1 className="font-condensed font-black text-white leading-none mb-6"
+                style={{ fontSize: 'clamp(48px, 7.5vw, 100px)', letterSpacing: '-1px', textShadow: '0 2px 40px rgba(0,0,0,0.5)' }}>
+              STOP RE-<br />EXPLAINING<br />YOURSELF<br />TO AI
+            </h1>
+            <p className="text-gray-200 text-base mb-4 max-w-md leading-relaxed" style={{ textShadow: '0 1px 8px rgba(0,0,0,0.6)' }}>
+              Chat, organize, reflect, and plan with an AI that remembers your tone, your tempo, and your life.
+            </p>
+            {/* Trust indicators */}
+            <div className="flex items-center gap-4 mb-8 flex-wrap">
+              <span className="text-xs text-gray-300 flex items-center gap-1.5" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+                <Shield className="w-3.5 h-3.5 text-green-400" /> Private & Encrypted
+              </span>
+              <span className="text-xs text-gray-300 flex items-center gap-1.5" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+                <Zap className="w-3.5 h-3.5 text-yellow-400" /> GPT-4o, Gemini & Claude
+              </span>
+              <span className="text-xs text-gray-300 flex items-center gap-1.5" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+                <Check className="w-3.5 h-3.5 text-orange-400" /> Free to Start
+              </span>
             </div>
-
-            <div className="flex-shrink-0 w-[440px] h-[580px] relative hidden lg:block">
-              <img src={HERO_IMAGE} alt="SoulPrint" className="w-full h-full object-contain" style={{ filter: 'contrast(1.1) brightness(1.05)' }} />
-              <div className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none" style={{ background: 'linear-gradient(to top, #0a0a0a, transparent)' }} />
+            <div className="flex items-center gap-4">
+              {isLoggedIn ? (
+                <Link href="/chat" className="btn-orange px-7 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
+                  Go to Chat <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <Link href="/auth" className="btn-orange px-7 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
+                  Get Your SoulPrint — It&apos;s Free
+                </Link>
+              )}
+              <a href="#features" className="text-gray-300 hover:text-white text-sm flex items-center gap-1 transition-colors" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+                See what it can do <ChevronRight className="w-4 h-4" />
+              </a>
             </div>
           </div>
         </div>
+
+        {/* Mute/Unmute toggle — bottom right */}
+        <button
+          onClick={toggleMute}
+          className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
+          aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+        >
+          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+        </button>
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════════

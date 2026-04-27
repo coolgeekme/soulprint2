@@ -755,3 +755,12 @@ input[type="search"] {
 [data-theme="dark"] input {
   color-scheme: dark;
 }
+
+
+/* YouTube Background Video — ensure iframe fills its container */
+#yt-hero-player,
+#yt-hero-player iframe {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+}
