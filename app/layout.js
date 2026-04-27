@@ -84,12 +84,13 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         <script dangerouslySetInnerHTML={{__html:'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);'}} />
         <script dangerouslySetInnerHTML={{__html: themeScript}} />
         <script dangerouslySetInnerHTML={{__html: orientationLockScript}} />
-        {/* YouTube IFrame API — preconnect for faster hero video */}
+        {/* YouTube IFrame API — preconnect + preload for faster hero video */}
         <link rel="preconnect" href="https://www.youtube.com" />
         <link rel="preconnect" href="https://i.ytimg.com" />
         <link rel="preconnect" href="https://s.ytimg.com" />
         <link rel="dns-prefetch" href="https://www.youtube.com" />
         <link rel="dns-prefetch" href="https://i.ytimg.com" />
+        <link rel="preload" href="https://www.youtube.com/iframe_api" as="script" />
       </head>
       <body className="bg-[#0a0a0a] text-white antialiased" suppressHydrationWarning>
         {/* Google Tag Manager (noscript) */}

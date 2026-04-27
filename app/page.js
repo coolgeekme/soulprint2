@@ -132,8 +132,22 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
         events: {
           onReady: (e) => {
             const p = e.target;
-            p.setShuffle(true);
-            p.setLoop(true);
+            // Get the full playlist, pick a random starting video
+            try {
+              const playlist = p.getPlaylist();
+              if (playlist && playlist.length > 1) {
+                const randIdx = Math.floor(Math.random() * playlist.length);
+                p.setShuffle(true);
+                p.setLoop(true);
+                p.playVideoAt(randIdx);
+              } else {
+                p.setShuffle(true);
+                p.setLoop(true);
+              }
+            } catch {
+              p.setShuffle(true);
+              p.setLoop(true);
+            }
             if (onPlayerReady) onPlayerReady(p);
           },
           onStateChange: (e) => {
