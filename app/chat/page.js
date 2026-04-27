@@ -113,6 +113,8 @@ export default function ChatPage() {
   const [user, setUser] = useState(null);
   const [assistantName, setAssistantName] = useState('SoulPrint');
   const [token, setToken] = useState('');
+  // Phase 4: Grace Period — fetch plan limits & usage for upgrade nudges
+  const subscription = useSubscription(token);
   const [attachments, setAttachments] = useState([]); // [{type, base64/text, name, mimeType}]
   const [pendingMediaAttachment, setPendingMediaAttachment] = useState(null); // For regeneration with source image
   const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
@@ -1774,6 +1776,10 @@ export default function ChatPage() {
               streamingSourcesRef.current = [];
               fetch('/api/user/conversations', { headers: { Authorization: `Bearer ${token}` } })
                 .then(r => r.json()).then(d => setConversations(Array.isArray(d) ? d : []));
+              // Phase 4: Refresh subscription usage after media generation
+              if (streamingImageUrlRef.current || streamingVideoTaskRef.current) {
+                subscription.refresh();
+              }
             } else if (data.type === 'error') {
               setStreamingStalled(false);
               setLastChunkTime(null);
@@ -4793,14 +4799,22 @@ export default function ChatPage() {
                                 : selectedModel === m.value ? 'bg-orange-500/15 text-orange-400' 
                                 : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
                             }`}>
-                            <span>
+                            <span className="flex items-center gap-1.5">
                               {m.label}
+                              {subscription.isModelPremium(m.value) && <PremiumBadge small />}
                               {m.comingSoon && <span className="ml-1 text-[8px] text-orange-500/50">soon</span>}
                               {defaultModelSaved === m.value && <span className="ml-1.5 text-[8px] text-green-400/80">★ default</span>}
                             </span>
                             {selectedModel === m.value && !m.comingSoon && <Check className="w-3 h-3 text-orange-400" />}
                           </button>
                         ))}
+                        {/* Phase 4: Upgrade nudge when Free user selects premium model */}
+                        {subscription.plan && subscription.isModelPremium(selectedModel) && (
+                          <ModelUpgradeNudge 
+                            modelLabel={MODELS.find(m => m.value === selectedModel)?.label || selectedModel}
+                            planName={subscription.plan?.plan_name || 'Free'}
+                          />
+                        )}
                         {selectedModel !== 'smart' && selectedModel !== defaultModelSaved && (
                           <button onClick={async (e) => {
                             e.stopPropagation();
@@ -4996,6 +5010,28 @@ export default function ChatPage() {
             )}
 
             {/* Media generation handled dynamically through chat - no manual controls needed */}
+
+            {/* Phase 4: Grace Period Upgrade Banners — contextual warnings above input */}
+            {subscription.warnings.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {subscription.warnings.map(w => (
+                  <ChatUpgradeBanner
+                    key={w.id}
+                    type={w.type}
+                    message={w.message}
+                    planName={subscription.plan?.plan_name}
+                  />
+                ))}
+              </div>
+            )}
+            {/* Premium model nudge — shows when Free user has premium text model selected outside picker */}
+            {subscription.plan && subscription.isModelPremium(selectedModel) && !showModelPicker && subscription.plan?.plan_name === 'Free' && (
+              <ChatUpgradeBanner
+                type="premium_model"
+                message={`${currentModel.label} is a premium model. You're on the Free plan.`}
+                planName="Free"
+              />
+            )}
 
             {/* Input bar */}
             <div className={`flex items-center gap-1.5 sm:gap-2 bg-[#141a21] border rounded-2xl px-2 sm:px-3 py-2 transition-colors ${speech.isListening ? 'border-orange-500/60 shadow-[0_0_20px_rgba(249,115,22,0.15)]' : 'border-white/10 focus-within:border-orange-500/30'}`}>

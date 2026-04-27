@@ -2518,6 +2518,57 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+backend:
+  - task: "Phase 4 Grace Period - Access Check API (GET /api/pricing/access-check)"
+    implemented: true
+    working: "NA"
+    file: "lib/handlers/access-check.js, app/api/pricing/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented Phase 4 access-check endpoint. Returns user plan limits, usage, warnings, and premium model IDs. For non-admin users before May 2026 launch date, returns {gated: true}. For admins, returns full plan data with warnings array."
+
+  - task: "Phase 4 Grace Period - Chat UI Integration (UpgradeBanner + PremiumBadge)"
+    implemented: true
+    working: "NA"
+    file: "app/chat/page.js, hooks/useSubscription.js, components/chat/UpgradeBanner.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Integrated useSubscription hook into ChatPage. Added PremiumBadge next to premium models in model picker. Added ModelUpgradeNudge at bottom of model picker when Free user selects premium model. Added ChatUpgradeBanner above input bar for usage warnings (image limits, voice unavailable). Added subscription.refresh() after image/video generation events."
+
 agent_communication:
+  - agent: "testing"
+    message: "PHASE 4 GRACE PERIOD ACCESS CHECK API TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (4/4 tests passed). ✅ Test 1: Unauthenticated Access - GET /api/pricing/access-check without auth token correctly returns 401 Unauthorized (requires authentication). ✅ Test 2: Regular User (Pricing Gated) - Login with testchat@example.com/Test123456 (role: user) correctly returns {gated: true, message: 'Pricing not yet active'} because pricing is gated until May 2026 and this user is not admin. ✅ Test 3: Admin User (Bypasses Gate) - Login with test@soulprint.com/test123 (role: superadmin) correctly returns full plan data with all required fields: plan_id (free), plan_name (Free), status (grace_period), features (chat_model_tier: standard, premium_chat: false, images_per_month: 20, voice_chat: false), usage (images: 0, premium_chats: 0, voice_minutes: 0, videos: 0), premium_model_ids (12 models including gpt-5.2, claude-opus-4-5, gemini-2.5-pro), standard_model_ids (6 models including o3-mini, gpt-4o-mini), warnings array (voice_unavailable warning for Free plan). ✅ Test 4: Existing Endpoints - GET /api/pricing/plans returns 3 plans, POST /api/auth/login working correctly. FIXED: MongoDB connection issue in access-check.js - changed from getClientPromise() to getDb() for consistency with other handlers. The Phase 4 Grace Period Access Check API is fully functional with proper feature gating, authentication, and complete plan data structure."
   - agent: "main"
     message: "DB SEED MIGRATION COMPLETE + CSS VERIFIED: (1) Ran seedPlans with replaceOne - all 3 plans now use chat_model_tier. Deprecated fields removed. Stripe IDs preserved. (2) Landing page CSS verified working. Auth: test@soulprint.com/test123 (admin), testchat@example.com/Test123456 (user). Test: GET /api/pricing/plans should return plans with chat_model_tier field and NO chat_models/premium_chat_models fields. GET /api/pricing/gate should return visible:false for unauthenticated, visible:true for admin."
+  - agent: "main"
+    message: "PHASE 4 GRACE PERIOD INTEGRATION COMPLETE: Integrated useSubscription hook + UpgradeBanner components into chat/page.js. (1) useSubscription(token) hook called at component level — fetches /api/pricing/access-check. (2) PremiumBadge added to text model list items for premium models. (3) ModelUpgradeNudge shows at bottom of model picker when Free plan user selects premium model. (4) ChatUpgradeBanner shows above input bar for usage limit warnings and premium model nudges. (5) subscription.refresh() called after image/video generation to update usage counts. Auth: test@soulprint.com/test123 (superadmin — sees banners), testchat@example.com/Test123456 (user — gated until May 2026). Test: GET /api/pricing/access-check with admin token should return plan data with warnings array. With regular user token should return {gated: true}."
+
+backend:
+  - task: "Phase 4 Grace Period - Access Check API (GET /api/pricing/access-check)"
+    implemented: true
+    working: true
+    file: "lib/handlers/access-check.js, app/api/pricing/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "PHASE 4 GRACE PERIOD INTEGRATION COMPLETE: Integrated useSubscription hook + UpgradeBanner components into chat/page.js. (1) useSubscription(token) hook called at component level — fetches /api/pricing/access-check. (2) PremiumBadge added to text model list items for premium models. (3) ModelUpgradeNudge shows at bottom of model picker when Free plan user selects premium model. (4) ChatUpgradeBanner shows above input bar for usage limit warnings and premium model nudges. (5) subscription.refresh() called after image/video generation to update usage counts. Auth: test@soulprint.com/test123 (superadmin — sees banners), testchat@example.com/Test123456 (user — gated until May 2026). Test: GET /api/pricing/access-check with admin token should return plan data with warnings array. With regular user token should return {gated: true}."
+      - working: true
+        agent: "testing"
+        comment: "PHASE 4 GRACE PERIOD ACCESS CHECK API TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (4/4 tests passed). ✅ Test 1: Unauthenticated Access - GET /api/pricing/access-check without auth token correctly returns 401 Unauthorized (requires authentication). ✅ Test 2: Regular User (Pricing Gated) - Login with testchat@example.com/Test123456 (role: user) correctly returns {gated: true, message: 'Pricing not yet active'} because pricing is gated until May 2026 and this user is not admin. ✅ Test 3: Admin User (Bypasses Gate) - Login with test@soulprint.com/test123 (role: superadmin) correctly returns full plan data with all required fields: plan_id (free), plan_name (Free), status (grace_period), features (chat_model_tier: standard, premium_chat: false, images_per_month: 20, voice_chat: false), usage (images: 0, premium_chats: 0, voice_minutes: 0, videos: 0), premium_model_ids (12 models including gpt-5.2, claude-opus-4-5, gemini-2.5-pro), standard_model_ids (6 models including o3-mini, gpt-4o-mini), warnings array (voice_unavailable warning for Free plan). ✅ Test 4: Existing Endpoints - GET /api/pricing/plans returns 3 plans, POST /api/auth/login working correctly. FIXED: MongoDB connection issue in access-check.js - changed from getClientPromise() to getDb() for consistency with other handlers. The Phase 4 Grace Period Access Check API is fully functional with proper feature gating, authentication, and complete plan data structure."
+
+test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
