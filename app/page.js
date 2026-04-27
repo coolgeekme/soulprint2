@@ -145,22 +145,22 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
       });
     };
 
-    // The API script is loaded from layout.js <head>.
-    // Use BOTH the callback AND polling to handle all timing scenarios.
     if (window.YT?.Player) {
+      // API already loaded (e.g. from cache or preconnect)
       initPlayer();
     } else {
-      // Register the global callback (fires when API finishes loading)
+      // Inject the script dynamically and register the callback
+      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        tag.async = true;
+        document.head.appendChild(tag);
+      }
       const prevCb = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => {
         if (prevCb) prevCb();
         initPlayer();
       };
-      // Also poll as a safety net (in case callback already fired before this ran)
-      const poll = setInterval(() => {
-        if (window.YT?.Player) { clearInterval(poll); initPlayer(); }
-      }, 150);
-      setTimeout(() => clearInterval(poll), 20000);
     }
 
     return () => {
