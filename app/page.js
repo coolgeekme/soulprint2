@@ -500,6 +500,33 @@ export default function LandingPage() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [popupVideoId, setPopupVideoId] = useState(null);
   const ytPlayerRef = useRef(null);
+  const heroRef = useRef(null);
+  const userUnmutedRef = useRef(false); // tracks if user explicitly unmuted
+
+  // Auto-mute when hero scrolls out of view, restore when back in view
+  useEffect(() => {
+    const heroEl = heroRef.current;
+    if (!heroEl) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting && userUnmutedRef.current) {
+          // Hero left viewport — auto-mute
+          try { ytPlayerRef.current?.mute(); } catch {}
+          setIsMuted(true);
+        } else if (entry.isIntersecting && userUnmutedRef.current) {
+          // Hero came back into view — restore unmuted state
+          try {
+            ytPlayerRef.current?.unMute();
+            ytPlayerRef.current?.setVolume(30);
+          } catch {}
+          setIsMuted(false);
+        }
+      },
+      { threshold: 0.15 } // trigger when <15% visible
+    );
+    observer.observe(heroEl);
+    return () => observer.disconnect();
+  }, []);
 
   const handlePlayerReady = useCallback((player) => {
     ytPlayerRef.current = player;
@@ -508,6 +535,7 @@ export default function LandingPage() {
   const toggleMute = useCallback(() => {
     setIsMuted(prev => {
       const next = !prev;
+      userUnmutedRef.current = !next; // track: user explicitly unmuted
       try {
         if (ytPlayerRef.current) {
           if (next) {
@@ -622,7 +650,7 @@ export default function LandingPage() {
       {/* ═══════════════════════════════════════════════════════════════════
           HERO SECTION — YouTube Playlist Background
       ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative overflow-hidden" style={{ minHeight: '100vh' }}>
+      <section ref={heroRef} className="relative overflow-hidden" style={{ minHeight: '100vh' }}>
         {/* YouTube Video Background */}
         <YouTubeHeroBackground isMuted={isMuted} onPlayerReady={handlePlayerReady} />
 
