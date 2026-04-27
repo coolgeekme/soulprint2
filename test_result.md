@@ -2287,6 +2287,18 @@ test_plan:
   test_priority: "high_first"
 
 backend:
+  - task: "Context Awareness Feature in Chat Stream (POST /api/chat/stream with context_info NDJSON event)"
+    implemented: true
+    working: true
+    file: "lib/handlers/chat-stream.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "CONTEXT AWARENESS FEATURE TESTING COMPLETE: All critical functionality working perfectly. ✅ Basic Chat Stream: POST /api/chat/stream returns proper NDJSON format with meta, delta, and done events. Stream parsing working correctly. ✅ No Context Info for Short Conversations: New conversations with <20 total messages correctly do NOT emit context_info events. ✅ Staff Unlimited Access: GET /api/pricing/access-check returns is_staff=true with Power (Staff) plan for admin users (test@soulprint.com/test123). ✅ Context Info Event Triggering: Successfully triggered context_info event after 11 user messages (21 total messages including AI responses). Event contains all required fields: total_messages=21, context_messages=21, trimmed=false. ✅ Authentication working with both admin (test@soulprint.com/test123) and regular user (testchat@example.com/Test123456) credentials. ✅ NDJSON Stream Format: Backend returns proper NDJSON format (JSON objects separated by newlines) with content-type text/event-stream. All 4/4 comprehensive tests passed (100% success rate). The Context Awareness feature is fully functional - emits context_info NDJSON event when conversations exceed 20 total messages, providing frontend with total_messages count, active context_messages count, and trimmed boolean indicating if older messages were dropped from context window."
+
   - task: "Pricing & Subscription System - All Critical Endpoints"
     implemented: true
     working: true

@@ -23,6 +23,7 @@ import { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT
 import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { MobileImageCard, MobileVideoCard, MobileSavedVideoCard } from './MobileMediaCards';
 import { SourceMediaBanner } from '@/components/chat/MediaConfirmation';
+import { ContextAwarenessBanner } from '@/components/chat/ContextBanner';
 import VideoProgressBanner from '@/components/chat/VideoProgressBanner';
 import { TabBar, ChatHeader } from './MobileNavigation';
 import MessageBubble from './MobileMessageBubble';
@@ -69,6 +70,8 @@ export default function MobileChat({
   const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
   const [supportNotifications, setSupportNotifications] = useState([]);
   const [isIncognito, setIsIncognito] = useState(false); // Incognito mode — ephemeral, no DB saves
+  const [contextInfo, setContextInfo] = useState(null);
+  const [contextBannerDismissed, setContextBannerDismissed] = useState(false);
   const [mediaGenMode, setMediaGenMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('sp_create_mode') === 'true';
@@ -1263,6 +1266,8 @@ export default function MobileChat({
                 dynamicIntelligenceReason = data.modelReason;
                 setLastSmartSelection({ model: data.selectedModel, reason: data.modelReason });
               }
+            } else if (data.type === 'context_info') {
+              setContextInfo(data);
             } else if (data.type === 'delta') {
               fullContent += data.content;
               setStreamingContent(fullContent);
@@ -3052,6 +3057,22 @@ export default function MobileChat({
             zIndex: 60,
           }}
         >
+            {/* Context Awareness Banner — mobile */}
+            <ContextAwarenessBanner
+              contextInfo={contextInfo}
+              dismissed={contextBannerDismissed}
+              onDismiss={() => setContextBannerDismissed(true)}
+              onSummarize={() => {
+                setContextBannerDismissed(true);
+                const summaryPrompt = 'Please provide a comprehensive summary of our entire conversation so far, highlighting the key topics, decisions, and important details.';
+                sendMessage(summaryPrompt);
+              }}
+              onNewChat={() => {
+                setContextBannerDismissed(true);
+                setContextInfo(null);
+                newConversation();
+              }}
+            />
             {/* Attachment Preview - show uploaded files */}
             {(attachments.length > 0 || isProcessingFile) && (
               <div className="mb-3 px-1 animate-in slide-in-from-bottom-2 duration-200">

@@ -61,6 +61,7 @@ import VideoEditor from '@/components/chat/VideoEditor';
 import { MockupGenerator } from '@/components/chat/MockupGenerator';
 import ImageCard from '@/components/chat/ImageCard';
 import { ChatUpgradeBanner, PremiumBadge, ModelUpgradeNudge } from '@/components/chat/UpgradeBanner';
+import { ContextAwarenessBanner } from '@/components/chat/ContextBanner';
 import { useSubscription } from '@/hooks/useSubscription';
 import { CompareResponseCard, CompareModePicker } from '@/components/chat/CompareMode';
 import CreateMenu from '@/components/chat/CreateMenu';
@@ -115,6 +116,9 @@ export default function ChatPage() {
   const [token, setToken] = useState('');
   // Phase 4: Grace Period — fetch plan limits & usage for upgrade nudges
   const subscription = useSubscription(token);
+  // Context awareness — long conversation banners
+  const [contextInfo, setContextInfo] = useState(null);
+  const [contextBannerDismissed, setContextBannerDismissed] = useState(false);
   const [attachments, setAttachments] = useState([]); // [{type, base64/text, name, mimeType}]
   const [pendingMediaAttachment, setPendingMediaAttachment] = useState(null); // For regeneration with source image
   const [lastSmartSelection, setLastSmartSelection] = useState(null); // Track which model Dynamic Intelligence selected
@@ -1674,6 +1678,9 @@ export default function ChatPage() {
               // Dismiss the generating_visual animation — the VideoCard takes over
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
+            } else if (data.type === 'context_info') {
+              // Context awareness — update banner state when AI's context window is trimmed
+              setContextInfo(data);
             } else if (data.type === 'delta') {
               setSearchingWeb(false);
               setLastChunkTime(Date.now()); // Track when we last received content
@@ -2562,6 +2569,10 @@ export default function ChatPage() {
     setStreamingVideoTask(null);
     setStreamingContent('');
     setStreamingSources([]);
+    
+    // Reset context awareness banner on new conversation
+    setContextInfo(null);
+    setContextBannerDismissed(false);
     
     // Exit incognito mode when starting a new conversation
     setIsIncognito(false);
@@ -5010,6 +5021,29 @@ export default function ChatPage() {
             )}
 
             {/* Media generation handled dynamically through chat - no manual controls needed */}
+
+            {/* Context Awareness Banner — shows when conversation is long and AI context is trimmed */}
+            <ContextAwarenessBanner
+              contextInfo={contextInfo}
+              dismissed={contextBannerDismissed}
+              onDismiss={() => setContextBannerDismissed(true)}
+              onSummarize={() => {
+                setContextBannerDismissed(true);
+                // Send a summarize request as a user message
+                const summaryPrompt = 'Please provide a comprehensive summary of our entire conversation so far, highlighting the key topics, decisions, and important details. This will help maintain context as we continue.';
+                if (inputRef.current) {
+                  inputRef.current.value = summaryPrompt;
+                  inputRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                // Auto-send the summary request
+                sendMessage(summaryPrompt);
+              }}
+              onNewChat={() => {
+                setContextBannerDismissed(true);
+                setContextInfo(null);
+                newConversation();
+              }}
+            />
 
             {/* Phase 4: Grace Period Upgrade Banners — contextual warnings above input */}
             {subscription.warnings.length > 0 && (
