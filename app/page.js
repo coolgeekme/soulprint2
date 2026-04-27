@@ -105,6 +105,19 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
   const apiLoadedRef = useRef(false);
   const [videoReady, setVideoReady] = useState(false);
 
+  // Preconnect to YouTube CDN for faster loading
+  useEffect(() => {
+    const origins = ['https://www.youtube.com', 'https://i.ytimg.com', 'https://s.ytimg.com', 'https://www.google.com'];
+    origins.forEach(href => {
+      if (!document.querySelector(`link[href="${href}"]`)) {
+        const link = document.createElement('link');
+        link.rel = 'preconnect';
+        link.href = href;
+        document.head.appendChild(link);
+      }
+    });
+  }, []);
+
   useEffect(() => {
     if (apiLoadedRef.current) return;
     apiLoadedRef.current = true;
@@ -131,32 +144,24 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
         },
         events: {
           onReady: (e) => {
-            e.target.setPlaybackQuality('hd720');
-            e.target.playVideo();
-            if (onPlayerReady) onPlayerReady(e.target);
+            const p = e.target;
+            // Shuffle first, then enable loop — order matters per API docs
+            p.setShuffle(true);
+            p.setLoop(true);
+            // autoplay: 1 handles playback start — no manual playVideo() to avoid double-trigger
+            if (onPlayerReady) onPlayerReady(p);
           },
           onStateChange: (e) => {
             if (e.data === window.YT.PlayerState.PLAYING) {
               setVideoReady(true);
             }
-            // Only restart playlist when the LAST video ends
-            if (e.data === window.YT.PlayerState.ENDED) {
-              try {
-                const playlist = e.target.getPlaylist();
-                const idx = e.target.getPlaylistIndex();
-                if (playlist && idx >= playlist.length - 1) {
-                  e.target.playVideoAt(0);
-                }
-              } catch {
-                // Fallback — just restart
-                e.target.playVideoAt(0);
-              }
-            }
+            // No manual ENDED handler — setLoop(true) handles continuous playback
           },
         },
       });
     };
 
+    // Load YT API script early
     if (window.YT?.Player) {
       initPlayer();
     } else {
