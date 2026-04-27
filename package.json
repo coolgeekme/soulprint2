@@ -66,6 +66,7 @@
         "pdf-parse": "^2.4.5",
         "pdf-parse-new": "^2.0.0",
         "pdfkit": "^0.18.0",
+        "puppeteer-core": "^24.42.0",
         "react": "^18",
         "react-day-picker": "^9.7.0",
         "react-dom": "^18",
