@@ -8,31 +8,65 @@
 
 ## 1. Text Chat Models
 
+> **Pricing source**: Official provider API docs, April 2026. All costs per 1M tokens.  
+> **Average conversation cost estimate**: ~500 input tokens + ~1,000 output tokens per message exchange.
+
 ### Standard Tier (Free plan access)
-| Model | Provider | API Model ID | Notes |
-|-------|----------|-------------|-------|
-| GPT-4o Mini | OpenAI | `gpt-4o-mini` | Fast, cheap general purpose |
-| o3 Mini | OpenAI | `o3-mini` | Lightweight reasoning |
-| Claude Haiku 3.5 | Anthropic | `claude-3-5-haiku-20241022` | Fast, affordable |
-| Gemini 2.0 Flash | Google | `gemini-2.0-flash` | Low latency |
-| Sonar (Online) | Perplexity | `sonar` | Built-in web search |
-| Moonshot 8k (Fast) | Kimi | `moonshot-v1-8k` | Compact context |
+| Model | Provider | API Model ID | Input $/1M | Output $/1M | Est. $/msg | Context | Notes |
+|-------|----------|-------------|-----------|------------|-----------|---------|-------|
+| GPT-4o Mini | OpenAI | `gpt-4o-mini` | $0.15 | $0.60 | ~$0.0007 | 128K | Cheapest OpenAI, great value |
+| o3 Mini | OpenAI | `o3-mini` | $1.10 | $4.40 | ~$0.005 | 200K | Budget reasoning |
+| Claude Haiku 3.5 | Anthropic | `claude-3-5-haiku-20241022` | $1.00 | $5.00 | ~$0.006 | 200K | Fast, affordable |
+| Gemini 2.0 Flash | Google | `gemini-2.0-flash` | $0.10 | $0.40 | ~$0.0005 | 1M | Cheapest overall (sunsetting Jun 2026) |
+| Sonar (Online) | Perplexity | `sonar` | $1.00 | $1.00 | ~$0.002 | — | Built-in web search (+$5/1K requests) |
+| Moonshot 8k (Fast) | Kimi | `moonshot-v1-8k` | $0.55 | $2.20 | ~$0.003 | 8K | Compact context, fast |
+
+**Standard tier cost range: ~$0.0005–$0.006 per message**
 
 ### Premium Tier (Base plan: 50 msgs/mo, Power plan: unlimited)
-| Model | Provider | API Model ID | Notes |
-|-------|----------|-------------|-------|
-| GPT-5.2 (Latest) | OpenAI | `gpt-5.2` | Flagship, coming soon |
-| GPT-5 | OpenAI | `gpt-5` | Next-gen, coming soon |
-| o3 (Reasoning) | OpenAI | `o3` | Deep reasoning, coming soon |
-| GPT-4.1 | OpenAI | `gpt-4.1` | Strong general purpose |
-| GPT-4o | OpenAI | `gpt-4o` | Multimodal flagship |
-| Claude Opus 4.5 | Anthropic | `claude-opus-4-5-20251101` | Most capable Claude |
-| Claude Sonnet 4.5 | Anthropic | `claude-sonnet-4-5-20250929` | Best quality/speed balance |
-| Gemini 2.5 Pro | Google | `gemini-2.5-pro` | Google flagship |
-| Sonar Pro (Online) | Perplexity | `sonar-pro` | Premium web search |
-| Sonar Reasoning | Perplexity | `sonar-reasoning` | Reasoning + web search |
-| Kimi K2 (Flagship) | Kimi | `kimi-k2-0711-preview` | MoonShot flagship |
-| Moonshot 32k | Kimi | `moonshot-v1-32k` | Extended context |
+| Model | Provider | API Model ID | Input $/1M | Output $/1M | Est. $/msg | Context | Notes |
+|-------|----------|-------------|-----------|------------|-----------|---------|-------|
+| GPT-5.2 (Latest) | OpenAI | `gpt-5.2` | $1.75 | $14.00 | ~$0.015 | 200K | Flagship, highest output cost |
+| GPT-5 | OpenAI | `gpt-5` | $1.25 | $10.00 | ~$0.011 | 400K | Next-gen flagship |
+| o3 (Reasoning) | OpenAI | `o3` | $2.00 | $8.00 | ~$0.009 | 200K | Deep reasoning |
+| GPT-4.1 | OpenAI | `gpt-4.1` | $2.00 | $8.00 | ~$0.009 | 1M | Production workhorse, huge context |
+| GPT-4o | OpenAI | `gpt-4o` | $2.50 | $10.00 | ~$0.011 | 128K | Multimodal flagship |
+| Claude Opus 4.5 | Anthropic | `claude-opus-4-5-20251101` | $5.00 | $25.00 | ~$0.028 | 200K | **Most expensive** — most capable Claude |
+| Claude Sonnet 4.5 | Anthropic | `claude-sonnet-4-5-20250929` | $3.00 | $15.00 | ~$0.017 | 200K | Best quality/speed balance |
+| Gemini 2.5 Pro | Google | `gemini-2.5-pro` | $1.25 | $10.00 | ~$0.011 | 1M | Google flagship (>200K: $2.50/$15) |
+| Sonar Pro (Online) | Perplexity | `sonar-pro` | $3.00 | $15.00 | ~$0.017 | — | Premium web search (+$6-14/1K req) |
+| Sonar Reasoning | Perplexity | `sonar-reasoning` | $1.00 | $5.00 | ~$0.006 | — | Reasoning + web (+$6-14/1K req) |
+| Kimi K2 (Flagship) | Kimi | `kimi-k2-0711-preview` | $0.55 | $2.20 | ~$0.003 | 131K | Cheapest premium — MoonShot flagship |
+| Moonshot 32k | Kimi | `moonshot-v1-32k` | $0.55 | $2.20 | ~$0.003 | 32K | Extended context |
+
+**Premium tier cost range: ~$0.003–$0.028 per message**
+
+### Cost Ranking (cheapest → most expensive per message)
+| Rank | Model | Est. $/msg | Tier |
+|------|-------|-----------|------|
+| 1 | Gemini 2.0 Flash | $0.0005 | Standard |
+| 2 | GPT-4o Mini | $0.0007 | Standard |
+| 3 | Sonar (Online) | $0.002 | Standard |
+| 4 | Moonshot 8k | $0.003 | Standard |
+| 5 | Kimi K2 / Moonshot 32k | $0.003 | Premium |
+| 6 | o3 Mini | $0.005 | Standard |
+| 7 | Claude Haiku 3.5 | $0.006 | Standard |
+| 8 | Sonar Reasoning | $0.006 | Premium |
+| 9 | o3 (Reasoning) | $0.009 | Premium |
+| 10 | GPT-4.1 | $0.009 | Premium |
+| 11 | GPT-5 / GPT-4o / Gemini 2.5 Pro | $0.011 | Premium |
+| 12 | GPT-5.2 | $0.015 | Premium |
+| 13 | Claude Sonnet 4.5 / Sonar Pro | $0.017 | Premium |
+| 14 | **Claude Opus 4.5** | **$0.028** | Premium |
+
+### Monthly Cost Projection (per active user)
+| Usage Pattern | Standard Only | Mixed (50 premium) | Heavy Premium |
+|---------------|--------------|--------------------|--------------| 
+| 50 msgs/day | ~$0.75–$9/mo | ~$2–$25/mo | ~$4.5–$42/mo |
+| 100 msgs/day | ~$1.50–$18/mo | ~$5–$50/mo | ~$9–$84/mo |
+| 200 msgs/day | ~$3–$36/mo | ~$10–$100/mo | ~$18–$168/mo |
+
+> ⚠️ **Margin note**: At Base plan ($20.01/mo) with 50 premium msgs + unlimited standard, our cost per user could range from $2–$25/mo depending on model mix. Claude Opus 4.5 heavy users are the most expensive at ~$0.028/msg.
 
 **Default behavior:** Unknown models default to `premium` tier (safe — prevents unmetered usage of expensive models).
 
