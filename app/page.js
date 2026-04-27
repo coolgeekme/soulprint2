@@ -105,19 +105,6 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
   const apiLoadedRef = useRef(false);
   const [videoReady, setVideoReady] = useState(false);
 
-  // Preconnect to YouTube CDN for faster loading
-  useEffect(() => {
-    const origins = ['https://www.youtube.com', 'https://i.ytimg.com', 'https://s.ytimg.com', 'https://www.google.com'];
-    origins.forEach(href => {
-      if (!document.querySelector(`link[href="${href}"]`)) {
-        const link = document.createElement('link');
-        link.rel = 'preconnect';
-        link.href = href;
-        document.head.appendChild(link);
-      }
-    });
-  }, []);
-
   useEffect(() => {
     if (apiLoadedRef.current) return;
     apiLoadedRef.current = true;
@@ -145,37 +132,27 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
         events: {
           onReady: (e) => {
             const p = e.target;
-            // Shuffle first, then enable loop — order matters per API docs
             p.setShuffle(true);
             p.setLoop(true);
-            // autoplay: 1 handles playback start — no manual playVideo() to avoid double-trigger
             if (onPlayerReady) onPlayerReady(p);
           },
           onStateChange: (e) => {
             if (e.data === window.YT.PlayerState.PLAYING) {
               setVideoReady(true);
             }
-            // No manual ENDED handler — setLoop(true) handles continuous playback
           },
         },
       });
     };
 
-    // Load YT API script early
+    // YT API script is loaded from layout.js <head> — just poll for readiness
     if (window.YT?.Player) {
       initPlayer();
     } else {
-      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
-        const tag = document.createElement('script');
-        tag.src = 'https://www.youtube.com/iframe_api';
-        tag.async = true;
-        document.head.appendChild(tag);
-      }
-      const prevCallback = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => {
-        if (prevCallback) prevCallback();
-        initPlayer();
-      };
+      const poll = setInterval(() => {
+        if (window.YT?.Player) { clearInterval(poll); initPlayer(); }
+      }, 80);
+      setTimeout(() => clearInterval(poll), 15000);
     }
 
     return () => {
@@ -253,9 +230,8 @@ function VideoPopupModal({ videoId, playlistIndex, onClose }) {
           rel: 0,
           iv_load_policy: 3,
           playsinline: 1,
-          controls: 0,
-          showinfo: 0,
-          fs: 0,
+          controls: 1,
+          fs: 1,
         },
         events: {
           onReady: (e) => {
@@ -328,8 +304,8 @@ function VideoPopupModal({ videoId, playlistIndex, onClose }) {
           Close <X className="w-5 h-5" />
         </button>
 
-        {/* YouTube player */}
-        <div className="relative w-full rounded-xl overflow-hidden shadow-2xl bg-black" style={{ paddingBottom: '56.25%' }}>
+        {/* YouTube player — proper aspect ratio container */}
+        <div className="relative w-full rounded-xl overflow-hidden shadow-2xl bg-black" style={{ aspectRatio: '16/9' }}>
           <div id="yt-popup-player" className="absolute inset-0 w-full h-full" />
         </div>
 
