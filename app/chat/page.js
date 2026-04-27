@@ -62,6 +62,7 @@ import { MockupGenerator } from '@/components/chat/MockupGenerator';
 import ImageCard from '@/components/chat/ImageCard';
 import { ChatUpgradeBanner, PremiumBadge, ModelUpgradeNudge } from '@/components/chat/UpgradeBanner';
 import { ContextAwarenessBanner } from '@/components/chat/ContextBanner';
+import { PdfCard } from '@/components/chat/PdfCard';
 import { useSubscription } from '@/hooks/useSubscription';
 import { CompareResponseCard, CompareModePicker } from '@/components/chat/CompareMode';
 import CreateMenu from '@/components/chat/CreateMenu';
@@ -1681,6 +1682,19 @@ export default function ChatPage() {
             } else if (data.type === 'context_info') {
               // Context awareness — update banner state when AI's context window is trimmed
               setContextInfo(data);
+            } else if (data.type === 'file') {
+              // PDF or document file generated — attach to the most recent assistant message
+              setMessages(prev => {
+                const updated = [...prev];
+                // Find the last assistant message (the one being streamed)
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].role === 'assistant') {
+                    updated[i] = { ...updated[i], file_url: data.url, file_name: data.fileName, file_type: data.contentType || 'application/pdf' };
+                    break;
+                  }
+                }
+                return updated;
+              });
             } else if (data.type === 'delta') {
               setSearchingWeb(false);
               setLastChunkTime(Date.now()); // Track when we last received content
@@ -4123,6 +4137,14 @@ export default function ChatPage() {
                               setShowImageEditor(true);
                             }}
                             onRegenerateWith={handleRegenerateWithModel}
+                          />
+                        )}
+                        {/* PDF card - inline viewer for generated documents */}
+                        {(msg.file_url || msg.file_type === 'application/pdf') && (
+                          <PdfCard 
+                            url={msg.file_url} 
+                            fileName={msg.file_name}
+                            title={msg.content?.match(/\[(.+?)\]/)?.[1] || msg.file_name || 'Document'}
                           />
                         )}
                         {/* Video card - for polling state (only if no video_url yet) */}

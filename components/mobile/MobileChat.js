@@ -24,6 +24,7 @@ import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { MobileImageCard, MobileVideoCard, MobileSavedVideoCard } from './MobileMediaCards';
 import { SourceMediaBanner } from '@/components/chat/MediaConfirmation';
 import { ContextAwarenessBanner } from '@/components/chat/ContextBanner';
+import { PdfCard } from '@/components/chat/PdfCard';
 import VideoProgressBanner from '@/components/chat/VideoProgressBanner';
 import { TabBar, ChatHeader } from './MobileNavigation';
 import MessageBubble from './MobileMessageBubble';
@@ -1268,6 +1269,13 @@ export default function MobileChat({
               }
             } else if (data.type === 'context_info') {
               setContextInfo(data);
+            } else if (data.type === 'file') {
+              // PDF or document file — attach to current streaming message
+              setMessages(prev => prev.map(m =>
+                m.id === currentMsgId
+                  ? { ...m, file_url: data.url, file_name: data.fileName, file_type: data.contentType || 'application/pdf' }
+                  : m
+              ));
             } else if (data.type === 'delta') {
               fullContent += data.content;
               setStreamingContent(fullContent);

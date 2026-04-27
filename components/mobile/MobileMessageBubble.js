@@ -4,6 +4,7 @@ import SafeMarkdown from '@/components/SafeMarkdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
 import { Copy, Edit3, ThumbsUp, ThumbsDown, MoreVertical, Loader2, Globe, Sparkles, Film, Check, Volume2, VolumeX, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MobileVideoCard, MobileSavedVideoCard, MobileImageCard } from './MobileMediaCards';
+import { PdfCard } from '@/components/chat/PdfCard';
 
 const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId, onToggleVariant, onExtendVideo }) => {
   const [showActions, setShowActions] = useState(false);
@@ -122,6 +123,15 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               }}
               onRegenerateWith={onRegenerateWith}
               sourceImageUrl={message.source_image || message.video_task?.sourceImage}
+            />
+          )}
+          
+          {/* Show generated PDF document */}
+          {message.file_url && (
+            <PdfCard
+              url={message.file_url}
+              fileName={message.file_name}
+              title={message.content?.match(/\[(.+?)\]/)?.[1] || message.file_name || 'Document'}
             />
           )}
           
