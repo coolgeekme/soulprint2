@@ -503,26 +503,20 @@ export default function LandingPage() {
   const heroRef = useRef(null);
   const userUnmutedRef = useRef(false); // tracks if user explicitly unmuted
 
-  // Auto-mute when hero scrolls out of view, restore when back in view
+  // Auto-mute when hero scrolls out of view — stays muted until user manually unmutes again
   useEffect(() => {
     const heroEl = heroRef.current;
     if (!heroEl) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting && userUnmutedRef.current) {
-          // Hero left viewport — auto-mute
+          // Hero left viewport — auto-mute and clear the user's unmuted intent
           try { ytPlayerRef.current?.mute(); } catch {}
           setIsMuted(true);
-        } else if (entry.isIntersecting && userUnmutedRef.current) {
-          // Hero came back into view — restore unmuted state
-          try {
-            ytPlayerRef.current?.unMute();
-            ytPlayerRef.current?.setVolume(30);
-          } catch {}
-          setIsMuted(false);
+          userUnmutedRef.current = false;
         }
       },
-      { threshold: 0.15 } // trigger when <15% visible
+      { threshold: 0.15 }
     );
     observer.observe(heroEl);
     return () => observer.disconnect();
