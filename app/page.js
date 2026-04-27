@@ -110,7 +110,7 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
     apiLoadedRef.current = true;
 
     const initPlayer = () => {
-      if (!window.YT?.Player) return;
+      if (!window.YT?.Player || document.getElementById('yt-hero-player')?.tagName === 'IFRAME') return;
       playerRef.current = new window.YT.Player('yt-hero-player', {
         width: '100%',
         height: '100%',
@@ -145,14 +145,22 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
       });
     };
 
-    // YT API script is loaded from layout.js <head> — just poll for readiness
+    // The API script is loaded from layout.js <head>.
+    // Use BOTH the callback AND polling to handle all timing scenarios.
     if (window.YT?.Player) {
       initPlayer();
     } else {
+      // Register the global callback (fires when API finishes loading)
+      const prevCb = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (prevCb) prevCb();
+        initPlayer();
+      };
+      // Also poll as a safety net (in case callback already fired before this ran)
       const poll = setInterval(() => {
         if (window.YT?.Player) { clearInterval(poll); initPlayer(); }
-      }, 80);
-      setTimeout(() => clearInterval(poll), 15000);
+      }, 150);
+      setTimeout(() => clearInterval(poll), 20000);
     }
 
     return () => {
@@ -176,12 +184,15 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden">
-      {/* YouTube iframe — scaled to cover, visually subdued */}
+      {/* YouTube iframe — scaled to cover viewport, visually subdued */}
       <div
-        className="absolute top-1/2 left-1/2 pointer-events-none"
+        className="absolute pointer-events-none"
         style={{
-          width: '300vw',
-          height: '170vh',
+          /* Use min(vw,vh) approach so both landscape & portrait videos fill the section */
+          top: '50%',
+          left: '50%',
+          width: 'max(177.78vh, 100vw)',   /* 16:9 width = 177.78% of height */
+          height: 'max(56.25vw, 100vh)',    /* 16:9 height = 56.25% of width */
           transform: 'translate(-50%, -50%)',
           filter: 'brightness(0.3) saturate(0.4) contrast(1.15)',
           opacity: videoReady ? 1 : 0,
