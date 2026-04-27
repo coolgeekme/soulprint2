@@ -10,6 +10,7 @@ import {
   handleStripeWebhook,
   getAdminSubscriptionOverview, adminSetUserPlan, getPaymentHistory,
 } from '@/lib/handlers/pricing';
+import { checkUserAccess } from '@/lib/handlers/access-check';
 import jwt from 'jsonwebtoken';
 import { getDb } from '@/lib/mongodb';
 
@@ -90,6 +91,19 @@ export async function GET(request, { params }) {
     }
 
     // ── Authenticated Routes ───────────────────────────────────────────
+
+    // GET /api/pricing/access-check — User's plan limits vs usage for upgrade banners
+    if (pathStr === 'access-check') {
+      const user = await requireAuth(request);
+      const db = await getDb();
+      const dbUser = await db.collection('users').findOne({ id: user.userId || user.id });
+      const role = dbUser?.role || (dbUser?.is_admin ? 'admin' : 'user');
+      const accessData = await checkUserAccess(user.userId || user.id, role);
+      if (!accessData) {
+        return ok({ gated: true, message: 'Pricing not yet active' });
+      }
+      return ok(accessData);
+    }
 
     // GET /api/pricing/subscription — Get current user's subscription
     if (pathStr === 'subscription') {

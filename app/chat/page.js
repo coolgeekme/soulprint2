@@ -60,6 +60,8 @@ import ImageEditor from '@/components/chat/ImageEditor';
 import VideoEditor from '@/components/chat/VideoEditor';
 import { MockupGenerator } from '@/components/chat/MockupGenerator';
 import ImageCard from '@/components/chat/ImageCard';
+import { ChatUpgradeBanner, PremiumBadge, ModelUpgradeNudge } from '@/components/chat/UpgradeBanner';
+import { useSubscription } from '@/hooks/useSubscription';
 import { CompareResponseCard, CompareModePicker } from '@/components/chat/CompareMode';
 import CreateMenu from '@/components/chat/CreateMenu';
 import { GalleryItem, GalleryModal } from '@/components/chat/Gallery';
