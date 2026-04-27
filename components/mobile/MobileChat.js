@@ -1270,12 +1270,17 @@ export default function MobileChat({
             } else if (data.type === 'context_info') {
               setContextInfo(data);
             } else if (data.type === 'file') {
-              // PDF or document file — attach to current streaming message
-              setMessages(prev => prev.map(m =>
-                m.id === currentMsgId
-                  ? { ...m, file_url: data.url, file_name: data.fileName, file_type: data.contentType || 'application/pdf' }
-                  : m
-              ));
+              // PDF or document file generated — attach to the most recent assistant message
+              setMessages(prev => {
+                const updated = [...prev];
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].role === 'assistant') {
+                    updated[i] = { ...updated[i], file_url: data.url, file_name: data.fileName, file_type: data.contentType || 'application/pdf' };
+                    break;
+                  }
+                }
+                return updated;
+              });
             } else if (data.type === 'delta') {
               fullContent += data.content;
               setStreamingContent(fullContent);

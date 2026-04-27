@@ -1,390 +1,292 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for SoulPrint Engine Context Awareness Feature
-Tests the chat stream context_info NDJSON event functionality
+Backend Testing Script for SoulPrint Engine PDF Generation and Serve Endpoints
+Tests the PDF generation and serve endpoints as specified in the review request.
 """
 
 import requests
 import json
 import time
 import sys
-from typing import Dict, Any, List, Optional
+import os
+from urllib.parse import urlparse, parse_qs
 
-# Configuration
+# Base URL from environment
 BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
-API_BASE = f"{BASE_URL}/api"
 
-# Test credentials from /app/memory/test_credentials.md
-ADMIN_CREDENTIALS = {
-    "email": "test@soulprint.com",
-    "passcode": "test123"
+# Test credentials from review request
+TEST_CREDENTIALS = {
+    "regular_user": {
+        "email": "testchat@example.com",
+        "passcode": "Test123456"
+    },
+    "superadmin": {
+        "email": "test@soulprint.com", 
+        "passcode": "test123"
+    }
 }
 
-USER_CREDENTIALS = {
-    "email": "testchat@example.com", 
-    "passcode": "Test123456"
-}
+def log_test_result(test_name, success, details=""):
+    """Log test results with clear formatting"""
+    status = "✅ PASS" if success else "❌ FAIL"
+    print(f"{status} {test_name}")
+    if details:
+        print(f"    {details}")
+    print()
 
-class ContextAwarenessTest:
-    def __init__(self):
-        self.admin_token = None
-        self.user_token = None
-        self.test_conversation_id = None
+def test_auth_login():
+    """Test authentication endpoints (regression check)"""
+    print("=== Testing Authentication (Regression Check) ===")
+    
+    try:
+        # Test regular user login
+        response = requests.post(f"{BASE_URL}/api/auth/login", 
+                               json=TEST_CREDENTIALS["regular_user"],
+                               timeout=30)
         
-    def authenticate(self, credentials: Dict[str, str]) -> Optional[str]:
-        """Authenticate and return JWT token"""
-        try:
-            response = requests.post(
-                f"{API_BASE}/auth/login",
-                json=credentials,
-                headers={"Content-Type": "application/json"},
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                token = data.get('token')
-                user_info = data.get('user', {})
-                print(f"✅ Authentication successful for {credentials['email']} (role: {user_info.get('role', 'unknown')})")
-                return token
+        if response.status_code == 200:
+            data = response.json()
+            if "token" in data:
+                log_test_result("Regular User Login", True, f"Token received: {data['token'][:20]}...")
+                return data["token"]
             else:
-                print(f"❌ Authentication failed for {credentials['email']}: {response.status_code} - {response.text}")
+                log_test_result("Regular User Login", False, "No token in response")
                 return None
-                
-        except Exception as e:
-            print(f"❌ Authentication error for {credentials['email']}: {str(e)}")
+        else:
+            log_test_result("Regular User Login", False, f"Status: {response.status_code}, Response: {response.text}")
             return None
+            
+    except Exception as e:
+        log_test_result("Regular User Login", False, f"Exception: {str(e)}")
+        return None
+
+def test_superadmin_login():
+    """Test superadmin login"""
+    try:
+        # Test superadmin login
+        response = requests.post(f"{BASE_URL}/api/auth/login", 
+                               json=TEST_CREDENTIALS["superadmin"],
+                               timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if "token" in data:
+                log_test_result("Superadmin Login", True, f"Token received: {data['token'][:20]}...")
+                return data["token"]
+            else:
+                log_test_result("Superadmin Login", False, "No token in response")
+                return None
+        else:
+            log_test_result("Superadmin Login", False, f"Status: {response.status_code}, Response: {response.text}")
+            return None
+            
+    except Exception as e:
+        log_test_result("Superadmin Login", False, f"Exception: {str(e)}")
+        return None
+
+def test_pdf_serve_endpoint():
+    """Test GET /api/pdf/serve endpoint"""
+    print("=== Testing PDF Serve Endpoint (GET /api/pdf/serve) ===")
     
-    def send_chat_message(self, token: str, message: str, conversation_id: Optional[str] = None, model: str = "gpt-4o-mini") -> Dict[str, Any]:
-        """Send a chat message and parse NDJSON response"""
-        try:
-            payload = {
-                "content": message,
-                "model": model
-            }
+    try:
+        # Test 1: Missing file parameter (should return 400)
+        response = requests.get(f"{BASE_URL}/api/pdf/serve", timeout=30)
+        if response.status_code == 400:
+            log_test_result("PDF Serve - Missing file parameter", True, "Returns 400 as expected")
+        else:
+            log_test_result("PDF Serve - Missing file parameter", False, f"Expected 400, got {response.status_code}")
+        
+        # Test 2: File path outside /tmp/ (should return 403)
+        response = requests.get(f"{BASE_URL}/api/pdf/serve?file=/etc/passwd", timeout=30)
+        if response.status_code == 403:
+            log_test_result("PDF Serve - Path outside /tmp/", True, "Returns 403 as expected")
+        else:
+            log_test_result("PDF Serve - Path outside /tmp/", False, f"Expected 403, got {response.status_code}")
+        
+        # Test 3: Non-existent file (should return 404)
+        response = requests.get(f"{BASE_URL}/api/pdf/serve?file=/tmp/nonexistent.pdf", timeout=30)
+        if response.status_code == 404:
+            log_test_result("PDF Serve - Non-existent file", True, "Returns 404 as expected")
+        else:
+            log_test_result("PDF Serve - Non-existent file", False, f"Expected 404, got {response.status_code}")
             
-            if conversation_id:
-                payload["conversationId"] = conversation_id
-            
-            response = requests.post(
-                f"{API_BASE}/chat/stream",
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json"
-                },
-                timeout=60,
-                stream=True
-            )
-            
-            if response.status_code != 200:
-                return {
-                    "success": False,
-                    "error": f"HTTP {response.status_code}: {response.text}",
-                    "events": []
-                }
-            
-            # Verify content type - accept both NDJSON and SSE formats
-            content_type = response.headers.get('content-type', '')
-            is_ndjson = 'application/x-ndjson' in content_type
-            is_sse = 'text/event-stream' in content_type
-            
-            if not (is_ndjson or is_sse):
-                return {
-                    "success": False,
-                    "error": f"Expected application/x-ndjson or text/event-stream, got: {content_type}",
-                    "events": []
-                }
-            
-            # Parse stream based on format
-            events = []
-            for line in response.iter_lines(decode_unicode=True):
-                if line.strip():
-                    try:
-                        # The backend returns NDJSON format regardless of content-type header
-                        event = json.loads(line)
-                        events.append(event)
-                        # Skip empty lines or SSE comments
-                    except json.JSONDecodeError as e:
-                        return {
-                            "success": False,
-                            "error": f"JSON parse error: {str(e)} for line: {line}",
-                            "events": events
-                        }
-            
-            return {
-                "success": True,
-                "events": events,
-                "conversation_id": self.extract_conversation_id(events)
-            }
-            
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Request error: {str(e)}",
-                "events": []
-            }
+    except Exception as e:
+        log_test_result("PDF Serve Endpoint Tests", False, f"Exception: {str(e)}")
+
+def parse_ndjson_stream(text):
+    """Parse NDJSON stream response"""
+    events = []
+    lines = text.strip().split('\n')
     
-    def extract_conversation_id(self, events: List[Dict[str, Any]]) -> Optional[str]:
-        """Extract conversation ID from events"""
-        for event in events:
-            if event.get('type') == 'done' and 'conversationId' in event:
-                return event['conversationId']
+    for line in lines:
+        line = line.strip()
+        if line:
+            try:
+                # Handle both NDJSON and SSE formats
+                if line.startswith('data: '):
+                    line = line[6:]  # Remove 'data: ' prefix
+                
+                if line and line != '[DONE]':
+                    event = json.loads(line)
+                    events.append(event)
+            except json.JSONDecodeError:
+                continue
+    
+    return events
+
+def test_pdf_generation_via_chat_stream(token):
+    """Test PDF generation via POST /api/chat/stream"""
+    print("=== Testing PDF Generation via Chat Stream ===")
+    
+    if not token:
+        log_test_result("PDF Generation via Chat Stream", False, "No auth token available")
         return None
     
-    def check_access_control(self, token: str) -> Dict[str, Any]:
-        """Check pricing access control for staff unlimited access"""
-        try:
-            response = requests.get(
-                f"{API_BASE}/pricing/access-check",
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                return {"success": True, "data": response.json()}
-            else:
-                return {"success": False, "error": f"HTTP {response.status_code}: {response.text}"}
+    try:
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        }
+        
+        # Test PDF generation request
+        pdf_request = {
+            "content": "Create a PDF report on AI trends",
+            "model": "gpt-4o-mini"
+        }
+        
+        print(f"Sending PDF generation request: {pdf_request['content']}")
+        
+        response = requests.post(f"{BASE_URL}/api/chat/stream", 
+                               json=pdf_request,
+                               headers=headers,
+                               timeout=60,  # Increased timeout for PDF generation
+                               stream=True)
+        
+        if response.status_code != 200:
+            log_test_result("PDF Generation Request", False, f"Status: {response.status_code}, Response: {response.text}")
+            return None
+        
+        # Check content type
+        content_type = response.headers.get('content-type', '')
+        if 'text/event-stream' not in content_type:
+            log_test_result("PDF Generation Content-Type", False, f"Expected text/event-stream, got {content_type}")
+        else:
+            log_test_result("PDF Generation Content-Type", True, "Correct content-type: text/event-stream")
+        
+        # Collect stream data
+        stream_data = ""
+        events = []
+        
+        print("Reading NDJSON stream...")
+        for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
+            if chunk:
+                stream_data += chunk
                 
-        except Exception as e:
-            return {"success": False, "error": f"Request error: {str(e)}"}
-    
-    def test_1_basic_chat_stream(self):
-        """Test 1: Chat stream still works and returns valid NDJSON"""
-        print("\n" + "="*60)
-        print("TEST 1: Basic Chat Stream Functionality")
-        print("="*60)
+                # Try to parse events as we receive them
+                lines = stream_data.split('\n')
+                for line in lines[:-1]:  # Process all complete lines
+                    line = line.strip()
+                    if line:
+                        try:
+                            if line.startswith('data: '):
+                                line = line[6:]
+                            if line and line != '[DONE]':
+                                event = json.loads(line)
+                                events.append(event)
+                                print(f"Event: {event.get('type', 'unknown')} - {str(event)[:100]}...")
+                        except json.JSONDecodeError:
+                            continue
+                
+                # Keep the last incomplete line
+                stream_data = lines[-1]
+                
+                # Check if we have a done event
+                if any(event.get('type') == 'done' for event in events):
+                    break
         
-        # Test with admin user
-        result = self.send_chat_message(self.admin_token, "Hello", model="gpt-4o-mini")
-        
-        if not result["success"]:
-            print(f"❌ Chat stream failed: {result['error']}")
-            return False
-        
-        events = result["events"]
-        print(f"✅ Chat stream successful - received {len(events)} events")
-        
-        if len(events) == 0:
-            print("⚠️  No events received - this might indicate a streaming issue")
-            print("📝 The chat stream is working but events may be getting lost due to connection timing")
-            # For now, we'll consider this a pass since the HTTP request succeeded
-            # and we got a proper response format
-            return True
-        
-        # Verify required event types
+        # Analyze events
         event_types = [event.get('type') for event in events]
-        required_types = ['meta', 'done']
         
+        # Check for required event types
         has_meta = 'meta' in event_types
+        has_delta = 'delta' in event_types
+        has_file = 'file' in event_types
         has_done = 'done' in event_types
         
-        print(f"✅ Event types found: {set(event_types)}")
-        print(f"✅ Has 'meta' event: {has_meta}")
-        print(f"✅ Has 'done' event: {has_done}")
+        log_test_result("PDF Stream - Meta Event", has_meta, f"Meta events found: {event_types.count('meta')}")
+        log_test_result("PDF Stream - Delta Events", has_delta, f"Delta events found: {event_types.count('delta')}")
+        log_test_result("PDF Stream - File Event", has_file, f"File events found: {event_types.count('file')}")
+        log_test_result("PDF Stream - Done Event", has_done, f"Done events found: {event_types.count('done')}")
         
-        # Verify all events are valid JSON (already verified in parsing)
-        print("✅ All stream lines parsed successfully")
-        
-        # Store conversation ID for later tests
-        self.test_conversation_id = result.get("conversation_id")
-        if self.test_conversation_id:
-            print(f"✅ Conversation ID extracted: {self.test_conversation_id}")
-        
-        return has_meta and has_done
-    
-    def test_2_no_context_info_short_conversation(self):
-        """Test 2: Context info not emitted for new/short conversations"""
-        print("\n" + "="*60)
-        print("TEST 2: No Context Info for Short Conversations")
-        print("="*60)
-        
-        # Start a new conversation (don't pass conversationId)
-        result = self.send_chat_message(self.user_token, "Hello", model="gpt-4o-mini")
-        
-        if not result["success"]:
-            print(f"❌ Chat stream failed: {result['error']}")
-            return False
-        
-        events = result["events"]
-        print(f"✅ Chat stream successful - received {len(events)} events")
-        
-        # Check for context_info event
-        context_info_events = [event for event in events if event.get('type') == 'context_info']
-        
-        if len(context_info_events) == 0:
-            print("✅ No context_info event found (expected for short conversation)")
-            return True
+        # Check file event details
+        file_events = [event for event in events if event.get('type') == 'file']
+        if file_events:
+            file_event = file_events[0]
+            has_url = 'url' in file_event
+            has_filename = 'fileName' in file_event
+            has_content_type = 'contentType' in file_event
+            
+            log_test_result("PDF File Event - URL field", has_url, f"URL: {file_event.get('url', 'missing')}")
+            log_test_result("PDF File Event - fileName field", has_filename, f"fileName: {file_event.get('fileName', 'missing')}")
+            log_test_result("PDF File Event - contentType field", has_content_type, f"contentType: {file_event.get('contentType', 'missing')}")
+            
+            # Test the PDF URL if it's a local serve URL
+            pdf_url = file_event.get('url')
+            if pdf_url and '/api/pdf/serve' in pdf_url:
+                print(f"Testing generated PDF URL: {pdf_url}")
+                try:
+                    pdf_response = requests.get(f"{BASE_URL}{pdf_url}", timeout=30)
+                    if pdf_response.status_code == 200:
+                        content_type = pdf_response.headers.get('content-type', '')
+                        if content_type == 'application/pdf':
+                            log_test_result("Generated PDF Serve", True, f"PDF served successfully, size: {len(pdf_response.content)} bytes")
+                        else:
+                            log_test_result("Generated PDF Serve", False, f"Wrong content-type: {content_type}")
+                    else:
+                        log_test_result("Generated PDF Serve", False, f"Status: {pdf_response.status_code}")
+                except Exception as e:
+                    log_test_result("Generated PDF Serve", False, f"Exception: {str(e)}")
+            
+            return file_event.get('url')
         else:
-            print(f"❌ Found {len(context_info_events)} context_info events (should be 0 for short conversation)")
-            for event in context_info_events:
-                print(f"   Context info: {event}")
-            return False
+            log_test_result("PDF Generation Overall", False, "No file event found in stream")
+            return None
+            
+    except Exception as e:
+        log_test_result("PDF Generation via Chat Stream", False, f"Exception: {str(e)}")
+        return None
+
+def main():
+    """Main test execution"""
+    print("🧪 SoulPrint Engine PDF Generation and Serve Endpoints Testing")
+    print("=" * 70)
+    print(f"Base URL: {BASE_URL}")
+    print(f"Test Credentials: {TEST_CREDENTIALS['regular_user']['email']}, {TEST_CREDENTIALS['superadmin']['email']}")
+    print()
     
-    def test_3_staff_unlimited_access(self):
-        """Test 3: Staff unlimited access still works"""
-        print("\n" + "="*60)
-        print("TEST 3: Staff Unlimited Access")
-        print("="*60)
+    # Test 1: Authentication (regression check)
+    regular_token = test_auth_login()
+    superadmin_token = test_superadmin_login()
+    
+    # Test 2: PDF Serve Endpoint
+    test_pdf_serve_endpoint()
+    
+    # Test 3: PDF Generation via Chat Stream
+    if regular_token:
+        pdf_url = test_pdf_generation_via_chat_stream(regular_token)
         
-        # Test admin access
-        result = self.check_access_control(self.admin_token)
-        
-        if not result["success"]:
-            print(f"❌ Access check failed: {result['error']}")
-            return False
-        
-        data = result["data"]
-        print(f"✅ Access check successful")
-        
-        # Verify staff access
-        is_staff = data.get('is_staff', False)
-        plan_name = data.get('plan_name', '')
-        
-        print(f"✅ is_staff: {is_staff}")
-        print(f"✅ plan_name: {plan_name}")
-        
-        if is_staff and 'Power' in plan_name:
-            print("✅ Staff unlimited access confirmed")
-            return True
+        if pdf_url:
+            print(f"✅ PDF Generation completed successfully!")
+            print(f"   Generated PDF URL: {pdf_url}")
         else:
-            print(f"❌ Staff access not working - is_staff: {is_staff}, plan: {plan_name}")
-            return False
+            print("❌ PDF Generation failed or incomplete")
+    else:
+        print("❌ Cannot test PDF generation - authentication failed")
     
-    def test_5_create_long_conversation_for_context_info(self):
-        """Test 5: Create a long conversation to trigger context_info event"""
-        print("\n" + "="*60)
-        print("TEST 5: Create Long Conversation for Context Info")
-        print("="*60)
-        
-        print("📝 Creating a conversation with 22 messages to trigger context_info...")
-        
-        conversation_id = None
-        messages_sent = 0
-        target_messages = 22
-        
-        for i in range(target_messages):
-            message = f"Message {i+1}: This is a test message to build conversation history for context awareness testing."
-            result = self.send_chat_message(self.user_token, message, conversation_id, model="gpt-4o-mini")
-            
-            if not result["success"]:
-                print(f"❌ Message {i+1} failed: {result['error']}")
-                return False
-            
-            if not conversation_id:
-                conversation_id = result.get("conversation_id")
-                if conversation_id:
-                    print(f"✅ Started conversation: {conversation_id}")
-            
-            messages_sent += 1
-            
-            # Check for context_info event in this response
-            events = result.get("events", [])
-            context_info_events = [event for event in events if event.get('type') == 'context_info']
-            
-            if context_info_events:
-                print(f"🎉 Found context_info event after {messages_sent} messages!")
-                context_info = context_info_events[0]
-                
-                # Verify required fields
-                required_fields = ['total_messages', 'context_messages', 'trimmed']
-                missing_fields = [field for field in required_fields if field not in context_info]
-                
-                if missing_fields:
-                    print(f"❌ Missing required fields in context_info: {missing_fields}")
-                    return False
-                
-                print(f"✅ context_info fields:")
-                print(f"   - total_messages: {context_info.get('total_messages')}")
-                print(f"   - context_messages: {context_info.get('context_messages')}")
-                print(f"   - trimmed: {context_info.get('trimmed')}")
-                
-                # Verify values make sense
-                total_msgs = context_info.get('total_messages', 0)
-                context_msgs = context_info.get('context_messages', 0)
-                trimmed = context_info.get('trimmed', False)
-                
-                if total_msgs > 20:
-                    print("✅ total_messages > 20 (context_info correctly triggered)")
-                else:
-                    print(f"❌ total_messages should be > 20, got: {total_msgs}")
-                    return False
-                
-                if context_msgs > 0:
-                    print("✅ context_messages > 0 (has active context)")
-                else:
-                    print(f"❌ context_messages should be > 0, got: {context_msgs}")
-                    return False
-                
-                print(f"✅ trimmed: {trimmed} (indicates if older messages were dropped)")
-                
-                return True
-            
-            if i % 5 == 0:
-                print(f"📝 Sent {messages_sent}/{target_messages} messages...")
-        
-        print(f"❌ No context_info event found after {messages_sent} messages")
-        return False
-    
-    def run_all_tests(self):
-        """Run all context awareness tests"""
-        print("🚀 Starting Context Awareness Feature Testing")
-        print(f"🌐 Base URL: {BASE_URL}")
-        
-        # Authenticate users
-        print("\n📋 Authenticating test users...")
-        self.admin_token = self.authenticate(ADMIN_CREDENTIALS)
-        self.user_token = self.authenticate(USER_CREDENTIALS)
-        
-        if not self.admin_token:
-            print("❌ Admin authentication failed - cannot continue")
-            return False
-        
-        if not self.user_token:
-            print("❌ User authentication failed - cannot continue")
-            return False
-        
-        # Run tests
-        tests = [
-            ("Basic Chat Stream", self.test_1_basic_chat_stream),
-            ("No Context Info (Short)", self.test_2_no_context_info_short_conversation),
-            ("Staff Unlimited Access", self.test_3_staff_unlimited_access),
-            ("Long Conversation Context Info", self.test_5_create_long_conversation_for_context_info),
-        ]
-        
-        results = []
-        for test_name, test_func in tests:
-            try:
-                result = test_func()
-                results.append((test_name, result))
-                status = "✅ PASS" if result else "❌ FAIL"
-                print(f"\n{status}: {test_name}")
-            except Exception as e:
-                results.append((test_name, False))
-                print(f"\n❌ ERROR in {test_name}: {str(e)}")
-        
-        # Summary
-        print("\n" + "="*60)
-        print("CONTEXT AWARENESS TESTING SUMMARY")
-        print("="*60)
-        
-        passed = sum(1 for _, result in results if result)
-        total = len(results)
-        
-        for test_name, result in results:
-            status = "✅ PASS" if result else "❌ FAIL"
-            print(f"{status}: {test_name}")
-        
-        print(f"\n📊 Results: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
-        
-        if passed == total:
-            print("🎉 All Context Awareness tests PASSED!")
-            return True
-        else:
-            print("⚠️  Some Context Awareness tests FAILED!")
-            return False
+    print("\n" + "=" * 70)
+    print("🏁 PDF Generation and Serve Endpoints Testing Complete")
+    print("\nNote: PDF generation may take 20-30 seconds due to Puppeteer PDF generation")
+    print("The chat stream uses NDJSON format (JSON separated by \\n), NOT SSE 'data:' prefix")
 
 if __name__ == "__main__":
-    tester = ContextAwarenessTest()
-    success = tester.run_all_tests()
-    sys.exit(0 if success else 1)
+    main()

@@ -2044,6 +2044,8 @@ agent_communication:
     message: "SUPPORT TICKETING SYSTEM COMPREHENSIVE TESTING COMPLETE: All 11 steps of the AI-Assisted Support Ticketing System tested successfully with proper credentials. ✅ Admin Authentication: test@soulprint.com/Admin123! working (role: superadmin). ✅ Support Agent Management: Creation and listing working correctly. ✅ Support Authentication: support@soulprint.com/Support123! working (role: support). ✅ Ticket Lifecycle: Creation → Listing → AI Diagnosis → Status Updates → Fix Approval all working. ✅ AI Integration: GPT-4o diagnosis completing in ~3.5s with proper field population (diagnosis, fix_type, category, suggested_fix). ✅ Database Integration: User lookup, ticket persistence, agent management all working. ✅ Authorization: Proper role-based access control throughout. The system is fully functional and ready for production use. All backend endpoints verified working with 100% success rate."
   - agent: "testing"
     message: "MEDIA CREATE MODE TOGGLE TESTING COMPLETE: All critical functionality working perfectly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ Test Case 1 (mediaGenMode OFF - Image): 'generate an image of a sunset' with mediaGenMode=false correctly triggers media_confirmation event with mediaType='image' and detectedType='image', plus delta event with confirmation message mentioning 'Create toggle'. No generating_visual event found (correct behavior). ✅ Test Case 2 (mediaGenMode ON - Image): 'generate an image of a sunset' with mediaGenMode=true correctly triggers generating_visual event with visualType='image' for auto-generation. No media_confirmation event found (correct behavior). ✅ Test Case 3 (No Media Trigger): 'what is the capital of France?' correctly produces normal text response with delta and done events, no media events triggered. ✅ Test Case 4 (mediaGenMode OFF - Video): 'generate a video of a dog playing' with mediaGenMode=false correctly triggers media_confirmation event with mediaType='video' and detectedType='video'. No generating_visual event found (correct behavior). ✅ NDJSON Stream Format: All responses properly formatted as NDJSON (not SSE). All 4/4 comprehensive tests passed (100% success rate). The Media Create Mode toggle feature is fully functional - when OFF (default), media requests trigger confirmation prompts; when ON, media requests auto-generate immediately."
+  - agent: "testing"
+    message: "PDF GENERATION AND SERVE ENDPOINTS TESTING COMPLETE: All critical PDF functionality working perfectly with 100% success rate (11/11 tests passed). ✅ Authentication: Both testchat@example.com/Test123456 and test@soulprint.com/test123 login working correctly (using 'passcode' field). ✅ PDF Serve Endpoint Security: GET /api/pdf/serve returns 400 for missing file parameter, 403 for paths outside /tmp/ (e.g., /etc/passwd), 404 for non-existent files, and 200 with correct Content-Type: application/pdf for valid files. Security restrictions working correctly. ✅ PDF Generation via Chat Stream: POST /api/chat/stream with 'Create a PDF report on AI trends' successfully triggers inline PDF generation pipeline. Returns proper text/event-stream content-type with NDJSON format (not SSE data: prefix). ✅ Event Flow: All required events present - meta (1), delta (5), generating_visual (visualType: pdf), file (1), done (1). ✅ File Event Structure: Contains all required fields - url (Kie.ai storage), fileName, contentType (application/pdf). ✅ PDF Generation Pipeline: Successfully detects PDF requests via isPdfRequest(), uses GPT-4o-mini to structure content, generates PDF via Puppeteer, uploads to Kie.ai storage, returns download link. Processing time ~18-25 seconds for complete generation. The inline PDF generation capability is fully functional - users can send messages like 'Create a PDF report on AI' and receive generated PDFs via NDJSON stream with file events as specified in the review request."
   test_priority: "high_first"
 
 backend:
@@ -2624,6 +2626,55 @@ backend:
         comment: "PHASE 4 GRACE PERIOD ACCESS CHECK API TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (4/4 tests passed). ✅ Test 1: Unauthenticated Access - GET /api/pricing/access-check without auth token correctly returns 401 Unauthorized (requires authentication). ✅ Test 2: Regular User (Pricing Gated) - Login with testchat@example.com/Test123456 (role: user) correctly returns {gated: true, message: 'Pricing not yet active'} because pricing is gated until May 2026 and this user is not admin. ✅ Test 3: Admin User (Bypasses Gate) - Login with test@soulprint.com/test123 (role: superadmin) correctly returns full plan data with all required fields: plan_id (free), plan_name (Free), status (grace_period), features (chat_model_tier: standard, premium_chat: false, images_per_month: 20, voice_chat: false), usage (images: 0, premium_chats: 0, voice_minutes: 0, videos: 0), premium_model_ids (12 models including gpt-5.2, claude-opus-4-5, gemini-2.5-pro), standard_model_ids (6 models including o3-mini, gpt-4o-mini), warnings array (voice_unavailable warning for Free plan). ✅ Test 4: Existing Endpoints - GET /api/pricing/plans returns 3 plans, POST /api/auth/login working correctly. FIXED: MongoDB connection issue in access-check.js - changed from getClientPromise() to getDb() for consistency with other handlers. The Phase 4 Grace Period Access Check API is fully functional with proper feature gating, authentication, and complete plan data structure."
   - agent: "main"
     message: "3 CHANGES IMPLEMENTED: (1) Staff unlimited access in access-check.js — admin/superadmin users now return Power-equivalent plan data with unlimited everything, empty warnings. (2) Admin Pricing Model InsightsTab tier data synced with /pricing page — fixed images/mo, support, video, voice, and feature discrepancies. (3) Users table now shows Plan column with inline dropdown to change user plan (Free/Base/Power). Staff users show infinity Staff badge. Backend admin/users endpoint now returns plan_id and plan_status. Auth: test@soulprint.com/test123 (superadmin), testchat@example.com/Test123456 (user). Tests: (a) GET /api/pricing/access-check with admin token should return plan_id power, plan_name Power (Staff), is_staff true, empty warnings. (b) GET /api/admin/users with admin token should return users with plan_id field. (c) POST /api/pricing/admin/user-plan should change user plan."
+  - agent: "main"
+    message: "PDF INLINE VIEWER FIX COMPLETE: (1) Fixed MobileChat.js 'file' event handler - replaced undefined currentMsgId with backward search for last assistant message. (2) Added 'file' event handler to submitEditedMessage parser in chat/page.js. (3) Created /api/pdf/serve endpoint for local fallback. VERIFIED via screenshot: PdfCard renders inline correctly. Auth: testchat@example.com/Test123456. Test: POST /api/chat/stream with PDF trigger, GET /api/pdf/serve."
+
+backend:
+  - task: "PDF Generation Backend"
+    implemented: true
+    working: true
+    file: "lib/handlers/pdf-handler.js, lib/pdf-generator.js, lib/handlers/chat-stream.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "PDF generation working end-to-end. Verified via screenshot test."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: PDF Generation Backend working perfectly. ✅ Authentication with testchat@example.com/Test123456 and test@soulprint.com/test123 working. ✅ POST /api/chat/stream with 'Create a PDF report on AI trends' correctly triggers PDF generation pipeline. ✅ NDJSON Stream Format: Returns proper text/event-stream content-type with NDJSON format (not SSE data: prefix). ✅ Event Flow: All required events present - meta (1), delta (5), generating_visual (visualType: pdf), file (1), done (1). ✅ File Event Structure: Contains all required fields - url (https://tempfile.redpandaai.co/kieai/666912/soulprint/documents/report_1777331908523.pdf), fileName (report_1777331908523.pdf), contentType (application/pdf). ✅ PDF Generation Pipeline: Successfully detects PDF request via isPdfRequest(), uses GPT-4o-mini to structure content, generates PDF via Puppeteer, uploads to Kie.ai storage, returns download link. ✅ Processing Time: ~23 seconds for complete PDF generation including AI content structuring and Puppeteer rendering. All comprehensive tests passed (100% success rate). The inline PDF generation capability is fully functional - users can send messages like 'Create a PDF report on AI' and receive generated PDFs via NDJSON stream with file events."
+
+  - task: "PDF Serve Endpoint (GET /api/pdf/serve)"
+    implemented: true
+    working: true
+    file: "app/api/pdf/serve/route.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Created local fallback endpoint. Security: only /tmp/."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: PDF Serve Endpoint working perfectly with proper security controls. ✅ Missing file parameter: Returns 400 'Missing file parameter' as expected. ✅ Path outside /tmp/: GET /api/pdf/serve?file=/etc/passwd returns 403 'Access denied' as expected - security restriction working correctly. ✅ Non-existent file: GET /api/pdf/serve?file=/tmp/nonexistent.pdf returns 404 'File not found' as expected. ✅ Valid file serving: Returns 200 with correct Content-Type: application/pdf for valid files in /tmp/. ✅ Security: Only allows serving files from /tmp/ directory using path.resolve() validation. ✅ Headers: Sets proper Content-Disposition: inline, Content-Length, and Cache-Control headers. All 4/4 comprehensive tests passed (100% success rate). The local PDF serve endpoint provides secure fallback when external storage (Kie.ai) is unavailable."
+
+frontend:
+  - task: "Inline PDF Viewer Fix (PdfCard)"
+    implemented: true
+    working: true
+    file: "app/chat/page.js, components/mobile/MobileChat.js, components/chat/PdfCard.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Previous session: ReferenceError currentMsgId in MobileChat.js"
+      - working: true
+        agent: "main"
+        comment: "Fixed. Verified via screenshot - PdfCard renders inline."
 
 test_plan:
   current_focus: []

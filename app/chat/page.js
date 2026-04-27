@@ -3174,6 +3174,15 @@ export default function ChatPage() {
                     m.id === originalAssistantMsg.id ? { ...m, content: fullContent, image_url: parsed.url } : m
                   ));
                 }
+              } else if (parsed.type === 'file') {
+                // PDF or document file generated — attach to the assistant message
+                if (originalAssistantMsg) {
+                  setMessages(prev => prev.map(m =>
+                    m.id === originalAssistantMsg.id
+                      ? { ...m, file_url: parsed.url, file_name: parsed.fileName, file_type: parsed.contentType || 'application/pdf' }
+                      : m
+                  ));
+                }
               } else if (parsed.type === 'done') {
                 if (parsed.messageId) newAssistantId = parsed.messageId;
               }
