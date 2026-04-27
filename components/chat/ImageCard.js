@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { Loader2, Check, Download, RefreshCw, GalleryHorizontal, Pencil, Copy, Code, Image as ImageIcon } from 'lucide-react';
 
 // ── ImageCard: renders a generated image with download option ─────────────────
-function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, onRegenerateWith }) {
+function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, onRegenerateWith, onRegenerate }) {
   const [loaded, setLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [imgSrc, setImgSrc] = useState(url);
+  const [retryCount, setRetryCount] = useState(0);
   const [showJson, setShowJson] = useState(false);
   const [jsonCopied, setJsonCopied] = useState(false);
   const [savedToGallery, setSavedToGallery] = useState(false);
@@ -125,16 +127,35 @@ function ImageCard({ url, revisedPrompt, modelLabel, generationParams, onEdit, o
           <div className="w-full h-48 flex flex-col items-center justify-center bg-white/3 gap-2">
             <ImageIcon className="w-8 h-8 text-gray-500" />
             <p className="text-gray-500 text-xs">Image unavailable or link expired</p>
-            <button 
-              onClick={() => { setImgError(false); setLoaded(false); }}
-              className="text-orange-400 hover:text-orange-300 text-xs underline cursor-pointer"
-            >
-              Try again
-            </button>
+            <div className="flex items-center gap-3">
+              {retryCount < 3 && (
+                <button 
+                  onClick={() => { 
+                    // Cache-bust: append timestamp to URL to bypass browser cache
+                    const sep = url.includes('?') ? '&' : '?';
+                    setImgSrc(`${url}${sep}_t=${Date.now()}`);
+                    setRetryCount(prev => prev + 1);
+                    setImgError(false); 
+                    setLoaded(false); 
+                  }}
+                  className="text-orange-400 hover:text-orange-300 text-xs underline cursor-pointer"
+                >
+                  Try again
+                </button>
+              )}
+              {onRegenerate && revisedPrompt && (
+                <button 
+                  onClick={() => onRegenerate(revisedPrompt)}
+                  className="text-blue-400 hover:text-blue-300 text-xs underline cursor-pointer flex items-center gap-1"
+                >
+                  <RefreshCw className="w-3 h-3" /> Regenerate
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <img
-            src={url}
+            src={imgSrc}
             alt={revisedPrompt || 'Generated image'}
             className={`w-full max-h-96 object-contain transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0 absolute inset-0'}`}
             onLoad={() => setLoaded(true)}

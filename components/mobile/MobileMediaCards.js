@@ -49,6 +49,8 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
   const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [imgSrc, setImgSrc] = useState(url);
+  const [retryCount, setRetryCount] = useState(0);
   const { downloading, handleDownload } = useMobileDownload();
   
   // Available image models for regeneration
@@ -93,15 +95,32 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
         <div className="w-full h-48 flex flex-col items-center justify-center bg-white/3 gap-2">
           <ImageIcon className="w-8 h-8 text-gray-500" />
           <p className="text-gray-500 text-xs">Image unavailable or link expired</p>
-          <button 
-            onClick={() => setImgError(false)}
-            className="text-orange-400 hover:text-orange-300 text-xs underline"
-          >
-            Try again
-          </button>
+          <div className="flex items-center gap-3">
+            {retryCount < 3 && (
+              <button 
+                onClick={() => {
+                  const sep = url.includes('?') ? '&' : '?';
+                  setImgSrc(`${url}${sep}_t=${Date.now()}`);
+                  setRetryCount(prev => prev + 1);
+                  setImgError(false);
+                }}
+                className="text-orange-400 hover:text-orange-300 text-xs underline"
+              >
+                Try again
+              </button>
+            )}
+            {onRegenerateWith && prompt && (
+              <button 
+                onClick={() => onRegenerateWith(prompt, 'nano-banana', { type: 'image', imageUrl: url })}
+                className="text-blue-400 hover:text-blue-300 text-xs underline"
+              >
+                Regenerate
+              </button>
+            )}
+          </div>
         </div>
       ) : (
-        <img src={url} alt="Generated" className="w-full h-auto max-h-80 object-contain bg-black/20" onError={() => setImgError(true)} />
+        <img src={imgSrc} alt="Generated" className="w-full h-auto max-h-80 object-contain bg-black/20" onError={() => setImgError(true)} />
       )}
       <div className="px-3 py-2 space-y-2">
         <div className="flex items-center justify-between">
