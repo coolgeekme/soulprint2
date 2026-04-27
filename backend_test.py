@@ -1,239 +1,336 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for Phase 4 Grace Period Access Check API
-Tests the /api/pricing/access-check endpoint with different authentication scenarios
+Backend Testing for SoulPrint Engine Admin/Billing System
+Testing 3 new features:
+1. Staff (admin/superadmin) get unlimited access via access-check endpoint
+2. Admin users list endpoint returns subscription plan data per user  
+3. Plan change via POST /api/pricing/admin/user-plan
 """
 
 import requests
 import json
-import sys
-from datetime import datetime
+import os
+from typing import Dict, Any, Optional
 
-# Base URL from environment
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+# Get base URL from environment
+BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://soulprint-engine.preview.emergentagent.com')
+API_BASE = f"{BASE_URL}/api"
 
-def log_test(test_name, success, details=""):
-    """Log test results with consistent formatting"""
-    status = "✅ PASS" if success else "❌ FAIL"
-    print(f"{status} {test_name}")
-    if details:
-        print(f"    {details}")
-    return success
-
-def make_request(method, endpoint, headers=None, json_data=None):
-    """Make HTTP request with error handling"""
-    try:
-        url = f"{BASE_URL}{endpoint}"
-        response = requests.request(method, url, headers=headers, json=json_data, timeout=30)
-        return response
-    except Exception as e:
-        print(f"    Request failed: {str(e)}")
-        return None
-
-def test_unauthenticated_access():
-    """Test 1: GET /api/pricing/access-check without authentication should return 401"""
-    print("\n=== Test 1: Unauthenticated Access ===")
-    
-    response = make_request("GET", "/api/pricing/access-check")
-    if not response:
-        return log_test("Unauthenticated request", False, "Request failed")
-    
-    if response.status_code == 401:
-        return log_test("Unauthenticated request returns 401", True, f"Status: {response.status_code}")
-    else:
-        return log_test("Unauthenticated request returns 401", False, f"Expected 401, got {response.status_code}")
-
-def login_user(email, password):
-    """Helper function to login and get auth token"""
-    login_data = {"email": email, "password": password}
-    response = make_request("POST", "/api/auth/login", json_data=login_data)
-    
-    if not response or response.status_code != 200:
-        print(f"    Login failed: {response.status_code if response else 'No response'}")
-        return None
-    
-    try:
-        data = response.json()
-        return data.get("token")
-    except:
-        print("    Failed to parse login response")
-        return None
-
-def test_regular_user_gated():
-    """Test 2: Regular user should get gated response since pricing is not active until May 2026"""
-    print("\n=== Test 2: Regular User (Pricing Gated) ===")
-    
-    # Login as regular user
-    token = login_user("testchat@example.com", "Test123456")
-    if not token:
-        return log_test("Regular user login", False, "Failed to get auth token")
-    
-    log_test("Regular user login", True, "Token received")
-    
-    # Test access-check endpoint
-    headers = {"Authorization": f"Bearer {token}"}
-    response = make_request("GET", "/api/pricing/access-check", headers=headers)
-    
-    if not response:
-        return log_test("Regular user access-check request", False, "Request failed")
-    
-    if response.status_code != 200:
-        return log_test("Regular user access-check status", False, f"Expected 200, got {response.status_code}")
-    
-    try:
-        data = response.json()
-        print(f"    Response: {json.dumps(data, indent=2)}")
+class SoulPrintTester:
+    def __init__(self):
+        self.admin_token = None
+        self.user_token = None
+        self.test_results = []
         
-        # Should return gated response for regular users
-        if data.get("gated") == True and "Pricing not yet active" in data.get("message", ""):
-            return log_test("Regular user gets gated response", True, "Pricing correctly gated for non-admin users")
-        else:
-            return log_test("Regular user gets gated response", False, f"Expected gated response, got: {data}")
-    
-    except Exception as e:
-        return log_test("Regular user response parsing", False, f"Failed to parse response: {str(e)}")
-
-def test_admin_user_bypass():
-    """Test 3: Admin user should bypass gate and get full plan data"""
-    print("\n=== Test 3: Admin User (Bypasses Gate) ===")
-    
-    # Login as admin user
-    token = login_user("test@soulprint.com", "test123")
-    if not token:
-        return log_test("Admin user login", False, "Failed to get auth token")
-    
-    log_test("Admin user login", True, "Token received")
-    
-    # Test access-check endpoint
-    headers = {"Authorization": f"Bearer {token}"}
-    response = make_request("GET", "/api/pricing/access-check", headers=headers)
-    
-    if not response:
-        return log_test("Admin user access-check request", False, "Request failed")
-    
-    if response.status_code != 200:
-        return log_test("Admin user access-check status", False, f"Expected 200, got {response.status_code}")
-    
-    try:
-        data = response.json()
-        print(f"    Response: {json.dumps(data, indent=2)}")
+    def log_test(self, test_name: str, success: bool, details: str = ""):
+        """Log test result"""
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status}: {test_name}")
+        if details:
+            print(f"   Details: {details}")
+        self.test_results.append({
+            'test': test_name,
+            'success': success,
+            'details': details
+        })
         
-        # Should NOT be gated for admin users
-        if data.get("gated") == True:
-            return log_test("Admin user bypasses gate", False, "Admin user should not be gated")
-        
-        # Should have full plan data structure
-        required_fields = ["plan_id", "plan_name", "status", "features", "usage", "premium_model_ids", "standard_model_ids", "warnings"]
-        missing_fields = [field for field in required_fields if field not in data]
-        
-        if missing_fields:
-            return log_test("Admin user gets full plan data", False, f"Missing fields: {missing_fields}")
-        
-        # Check features structure
-        features = data.get("features", {})
-        required_feature_fields = ["chat_model_tier", "premium_chat", "images_per_month", "voice_chat"]
-        missing_feature_fields = [field for field in required_feature_fields if field not in features]
-        
-        if missing_feature_fields:
-            return log_test("Admin user features structure", False, f"Missing feature fields: {missing_feature_fields}")
-        
-        # Check usage structure
-        usage = data.get("usage", {})
-        required_usage_fields = ["images", "premium_chats", "voice_minutes", "videos"]
-        missing_usage_fields = [field for field in required_usage_fields if field not in usage]
-        
-        if missing_usage_fields:
-            return log_test("Admin user usage structure", False, f"Missing usage fields: {missing_usage_fields}")
-        
-        # Check model arrays
-        premium_models = data.get("premium_model_ids", [])
-        standard_models = data.get("standard_model_ids", [])
-        
-        if not isinstance(premium_models, list) or not isinstance(standard_models, list):
-            return log_test("Admin user model arrays", False, "premium_model_ids and standard_model_ids should be arrays")
-        
-        warnings = data.get("warnings", [])
-        if not isinstance(warnings, list):
-            return log_test("Admin user warnings array", False, "warnings should be an array")
-        
-        return log_test("Admin user gets full plan data", True, "All required fields present with correct structure")
-    
-    except Exception as e:
-        return log_test("Admin user response parsing", False, f"Failed to parse response: {str(e)}")
-
-def test_existing_endpoints():
-    """Test 4: Verify existing endpoints still work"""
-    print("\n=== Test 4: Existing Endpoints Still Working ===")
-    
-    # Test pricing plans endpoint (public)
-    response = make_request("GET", "/api/pricing/plans")
-    if not response or response.status_code != 200:
-        log_test("GET /api/pricing/plans", False, f"Status: {response.status_code if response else 'No response'}")
-    else:
+    def login_admin(self) -> bool:
+        """Login as admin user"""
         try:
-            data = response.json()
-            if "plans" in data and isinstance(data["plans"], list):
-                log_test("GET /api/pricing/plans", True, f"Returns {len(data['plans'])} plans")
+            response = requests.post(f"{API_BASE}/auth/login", json={
+                "email": "test@soulprint.com",
+                "passcode": "test123"
+            })
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.admin_token = data.get('token')
+                self.log_test("Admin Login", True, f"Token received: {self.admin_token[:20]}...")
+                return True
             else:
-                log_test("GET /api/pricing/plans", False, "Invalid response structure")
-        except:
-            log_test("GET /api/pricing/plans", False, "Failed to parse response")
-    
-    # Test auth login endpoint
-    login_data = {"email": "testchat@example.com", "password": "Test123456"}
-    response = make_request("POST", "/api/auth/login", json_data=login_data)
-    if not response or response.status_code != 200:
-        log_test("POST /api/auth/login", False, f"Status: {response.status_code if response else 'No response'}")
-    else:
+                self.log_test("Admin Login", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Admin Login", False, f"Exception: {str(e)}")
+            return False
+            
+    def login_user(self) -> bool:
+        """Login as regular user"""
         try:
-            data = response.json()
-            if "token" in data:
-                log_test("POST /api/auth/login", True, "Token returned successfully")
+            response = requests.post(f"{API_BASE}/auth/login", json={
+                "email": "testchat@example.com",
+                "passcode": "Test123456"
+            })
+            
+            if response.status_code == 200:
+                data = response.json()
+                self.user_token = data.get('token')
+                self.log_test("User Login", True, f"Token received: {self.user_token[:20]}...")
+                return True
             else:
-                log_test("POST /api/auth/login", False, "No token in response")
-        except:
-            log_test("POST /api/auth/login", False, "Failed to parse response")
-
-def main():
-    """Run all tests"""
-    print("🧪 PHASE 4 GRACE PERIOD ACCESS CHECK API TESTING")
-    print("=" * 60)
-    print(f"Base URL: {BASE_URL}")
-    print(f"Test Time: {datetime.now().isoformat()}")
-    
-    results = []
-    
-    try:
-        # Run all test scenarios
-        results.append(test_unauthenticated_access())
-        results.append(test_regular_user_gated())
-        results.append(test_admin_user_bypass())
-        results.append(test_existing_endpoints())
-        
-        # Summary
-        print("\n" + "=" * 60)
-        print("📊 TEST SUMMARY")
+                self.log_test("User Login", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("User Login", False, f"Exception: {str(e)}")
+            return False
+            
+    def test_staff_unlimited_access(self) -> bool:
+        """Test 1: Staff unlimited access via access-check endpoint"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = requests.get(f"{API_BASE}/pricing/access-check", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Check expected fields for staff unlimited access
+                expected_fields = {
+                    'plan_id': 'power',
+                    'plan_name': 'Power (Staff)',
+                    'is_staff': True,
+                    'warnings': []
+                }
+                
+                success = True
+                details = []
+                
+                for field, expected_value in expected_fields.items():
+                    if field not in data:
+                        success = False
+                        details.append(f"Missing field: {field}")
+                    elif data[field] != expected_value:
+                        success = False
+                        details.append(f"{field}: expected {expected_value}, got {data[field]}")
+                
+                # Check unlimited features
+                features = data.get('features', {})
+                unlimited_checks = {
+                    'premium_chat_unlimited': True,
+                    'voice_unlimited': True,
+                    'images_per_month': None
+                }
+                
+                for field, expected_value in unlimited_checks.items():
+                    if field not in features:
+                        success = False
+                        details.append(f"Missing feature: {field}")
+                    elif features[field] != expected_value:
+                        success = False
+                        details.append(f"features.{field}: expected {expected_value}, got {features[field]}")
+                
+                self.log_test("Staff Unlimited Access", success, "; ".join(details) if details else "All fields correct")
+                return success
+                
+            else:
+                self.log_test("Staff Unlimited Access", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Staff Unlimited Access", False, f"Exception: {str(e)}")
+            return False
+            
+    def test_users_list_includes_plan_data(self) -> bool:
+        """Test 2: Admin users list includes subscription plan data"""
+        try:
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            response = requests.get(f"{API_BASE}/admin/users", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                users = data.get('users', [])
+                
+                if not users:
+                    self.log_test("Users List Plan Data", False, "No users returned")
+                    return False
+                
+                success = True
+                details = []
+                
+                # Check first few users for plan_id and plan_status fields
+                for i, user in enumerate(users[:3]):  # Check first 3 users
+                    if 'plan_id' not in user:
+                        success = False
+                        details.append(f"User {i+1} missing plan_id")
+                    if 'plan_status' not in user:
+                        success = False
+                        details.append(f"User {i+1} missing plan_status")
+                    
+                    # Log the plan data for verification
+                    if 'plan_id' in user and 'plan_status' in user:
+                        details.append(f"User {i+1}: plan_id={user['plan_id']}, plan_status={user['plan_status']}")
+                
+                self.log_test("Users List Plan Data", success, "; ".join(details))
+                return success
+                
+            else:
+                self.log_test("Users List Plan Data", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Users List Plan Data", False, f"Exception: {str(e)}")
+            return False
+            
+    def test_change_user_plan(self) -> bool:
+        """Test 3: Change user plan via POST /api/pricing/admin/user-plan"""
+        try:
+            # First get a user ID from the users list
+            headers = {"Authorization": f"Bearer {self.admin_token}"}
+            users_response = requests.get(f"{API_BASE}/admin/users", headers=headers)
+            
+            if users_response.status_code != 200:
+                self.log_test("Change User Plan - Get Users", False, f"Failed to get users: {users_response.status_code}")
+                return False
+                
+            users_data = users_response.json()
+            users = users_data.get('users', [])
+            
+            if not users:
+                self.log_test("Change User Plan", False, "No users available for testing")
+                return False
+                
+            # Find a regular user (not admin)
+            test_user = None
+            for user in users:
+                if user.get('role') == 'user':
+                    test_user = user
+                    break
+                    
+            if not test_user:
+                self.log_test("Change User Plan", False, "No regular users found for testing")
+                return False
+                
+            user_id = test_user['id']
+            original_plan = test_user.get('plan_id', 'free')
+            
+            # Test changing plan to 'base'
+            change_response = requests.post(f"{API_BASE}/pricing/admin/user-plan", 
+                headers=headers,
+                json={
+                    "userId": user_id,
+                    "planId": "base",
+                    "reason": "test_override"
+                }
+            )
+            
+            if change_response.status_code == 200:
+                change_data = change_response.json()
+                
+                if change_data.get('success'):
+                    # Verify the change by getting users list again
+                    verify_response = requests.get(f"{API_BASE}/admin/users", headers=headers)
+                    
+                    if verify_response.status_code == 200:
+                        verify_data = verify_response.json()
+                        verify_users = verify_data.get('users', [])
+                        
+                        # Find the same user and check plan_id
+                        updated_user = None
+                        for user in verify_users:
+                            if user['id'] == user_id:
+                                updated_user = user
+                                break
+                                
+                        if updated_user and updated_user.get('plan_id') == 'base':
+                            # Success! Now cleanup - change back to original plan
+                            cleanup_response = requests.post(f"{API_BASE}/pricing/admin/user-plan", 
+                                headers=headers,
+                                json={
+                                    "userId": user_id,
+                                    "planId": original_plan,
+                                    "reason": "test_cleanup"
+                                }
+                            )
+                            
+                            cleanup_success = cleanup_response.status_code == 200
+                            self.log_test("Change User Plan", True, 
+                                f"Changed user {user_id} from {original_plan} to base and back. Cleanup: {'✅' if cleanup_success else '❌'}")
+                            return True
+                        else:
+                            self.log_test("Change User Plan", False, 
+                                f"Plan change not reflected. Expected: base, Got: {updated_user.get('plan_id') if updated_user else 'user not found'}")
+                            return False
+                    else:
+                        self.log_test("Change User Plan", False, f"Failed to verify change: {verify_response.status_code}")
+                        return False
+                else:
+                    self.log_test("Change User Plan", False, f"Change request failed: {change_data}")
+                    return False
+            else:
+                self.log_test("Change User Plan", False, f"Status: {change_response.status_code}, Response: {change_response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Change User Plan", False, f"Exception: {str(e)}")
+            return False
+            
+    def test_regular_user_still_gated(self) -> bool:
+        """Test 4: Regular user still gated"""
+        try:
+            headers = {"Authorization": f"Bearer {self.user_token}"}
+            response = requests.get(f"{API_BASE}/pricing/access-check", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Check if user is gated
+                if data.get('gated') == True and 'Pricing not yet active' in data.get('message', ''):
+                    self.log_test("Regular User Still Gated", True, "User correctly gated with expected message")
+                    return True
+                else:
+                    self.log_test("Regular User Still Gated", False, f"User not gated as expected. Response: {data}")
+                    return False
+                    
+            else:
+                self.log_test("Regular User Still Gated", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Regular User Still Gated", False, f"Exception: {str(e)}")
+            return False
+            
+    def run_all_tests(self):
+        """Run all tests"""
+        print("🧪 Starting SoulPrint Engine Admin/Billing System Tests")
         print("=" * 60)
         
-        passed = sum(1 for r in results if r)
-        total = len(results)
-        success_rate = (passed / total * 100) if total > 0 else 0
+        # Login tests
+        if not self.login_admin():
+            print("❌ Cannot proceed without admin login")
+            return
+            
+        if not self.login_user():
+            print("❌ Cannot proceed without user login")
+            return
+            
+        print("\n🔍 Testing 3 New Features:")
+        print("-" * 40)
         
-        print(f"Tests Passed: {passed}/{total} ({success_rate:.1f}%)")
+        # Test the 3 new features
+        self.test_staff_unlimited_access()
+        self.test_users_list_includes_plan_data()
+        self.test_change_user_plan()
+        self.test_regular_user_still_gated()
+        
+        # Summary
+        print("\n📊 Test Summary:")
+        print("=" * 60)
+        
+        passed = sum(1 for result in self.test_results if result['success'])
+        total = len(self.test_results)
+        
+        for result in self.test_results:
+            status = "✅" if result['success'] else "❌"
+            print(f"{status} {result['test']}")
+            
+        print(f"\n🎯 Results: {passed}/{total} tests passed ({passed/total*100:.1f}%)")
         
         if passed == total:
-            print("🎉 ALL TESTS PASSED - Phase 4 Grace Period Access Check API is working correctly!")
-            return 0
+            print("🎉 All tests passed! The 3 new admin/billing features are working correctly.")
         else:
-            print("⚠️  SOME TESTS FAILED - See details above")
-            return 1
-            
-    except KeyboardInterrupt:
-        print("\n\n⚠️  Testing interrupted by user")
-        return 1
-    except Exception as e:
-        print(f"\n\n❌ Testing failed with error: {str(e)}")
-        return 1
+            print("⚠️  Some tests failed. Please check the details above.")
 
 if __name__ == "__main__":
-    sys.exit(main())
+    tester = SoulPrintTester()
+    tester.run_all_tests()

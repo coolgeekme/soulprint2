@@ -2036,6 +2036,8 @@ test_plan:
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "testing"
+    message: "SOULPRINT ENGINE ADMIN/BILLING SYSTEM TESTING COMPLETE: All 3 new features working perfectly with 100% success rate (6/6 tests passed). ✅ Staff Unlimited Access: Admin users (test@soulprint.com/test123) correctly receive unlimited access via GET /api/pricing/access-check with plan_id='power', plan_name='Power (Staff)', is_staff=true, empty warnings array, and unlimited features (premium_chat_unlimited: true, voice_unlimited: true, images_per_month: null). ✅ Users List Plan Data: GET /api/admin/users correctly returns subscription plan data per user - all users have plan_id and plan_status fields populated (e.g., plan_id='free', plan_status='grace_period'). ✅ Plan Change Functionality: POST /api/pricing/admin/user-plan successfully changes user plans from 'free' to 'base' and back with proper validation and persistence. Changes are immediately reflected in the users list endpoint. ✅ Regular User Gating: Regular users (testchat@example.com/Test123456) still correctly gated with {gated: true, message: 'Pricing not yet active'} response. All authentication working correctly with proper credentials from /app/memory/test_credentials.md. The 3 new admin/billing features are fully functional and ready for production use."
   - agent: "main"
     message: "ACE SUPPORT BOT ENHANCEMENTS. Three changes: (1) Renamed bot to Ace throughout. (2) Escalations now auto-flow to support tickets with source='ace_escalation' and include user_id and bot conversation summary. (3) Added POST /api/support/tickets/:id/respond endpoint that lets support team send response back to user (creates in-app notification + injects into conversation if available). Frontend updated with 'Respond to User' button in ticket detail modal. Test: Login as test@soulprint.com/Admin123! (passcode field), then create a test escalation ticket, then test responding to it."
   - agent: "testing"
@@ -2045,6 +2047,42 @@ agent_communication:
   test_priority: "high_first"
 
 backend:
+  - task: "Staff Unlimited Access via Access-Check Endpoint"
+    implemented: true
+    working: true
+    file: "lib/handlers/access-check.js, app/api/pricing/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Staff unlimited access working perfectly. ✅ Admin users (test@soulprint.com/test123) correctly receive unlimited access via GET /api/pricing/access-check with plan_id='power', plan_name='Power (Staff)', is_staff=true, empty warnings array, and unlimited features (premium_chat_unlimited: true, voice_unlimited: true, images_per_month: null). Staff override logic in access-check.js correctly detects admin/superadmin roles and returns Power-equivalent unlimited access."
+
+  - task: "Admin Users List with Subscription Plan Data"
+    implemented: true
+    working: true
+    file: "app/api/admin/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Admin users list includes subscription plan data perfectly. ✅ GET /api/admin/users correctly returns subscription plan data per user - all users have plan_id and plan_status fields populated (e.g., plan_id='free', plan_status='grace_period'). The handleAdminGetUsers function properly joins user data with subscription data from user_subscriptions collection."
+
+  - task: "Admin Plan Change Functionality"
+    implemented: true
+    working: true
+    file: "app/api/pricing/[...path]/route.js, lib/handlers/pricing.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Plan change functionality working perfectly. ✅ POST /api/pricing/admin/user-plan successfully changes user plans from 'free' to 'base' and back with proper validation and persistence. Changes are immediately reflected in the users list endpoint. The adminSetUserPlan function correctly updates user_subscriptions collection with admin_override flag and reason tracking."
+
   - task: "AI Support Bot Chat Endpoint (POST /api/support/bot-chat)"
     implemented: true
     working: true
@@ -2572,6 +2610,8 @@ backend:
       - working: true
         agent: "testing"
         comment: "PHASE 4 GRACE PERIOD ACCESS CHECK API TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (4/4 tests passed). ✅ Test 1: Unauthenticated Access - GET /api/pricing/access-check without auth token correctly returns 401 Unauthorized (requires authentication). ✅ Test 2: Regular User (Pricing Gated) - Login with testchat@example.com/Test123456 (role: user) correctly returns {gated: true, message: 'Pricing not yet active'} because pricing is gated until May 2026 and this user is not admin. ✅ Test 3: Admin User (Bypasses Gate) - Login with test@soulprint.com/test123 (role: superadmin) correctly returns full plan data with all required fields: plan_id (free), plan_name (Free), status (grace_period), features (chat_model_tier: standard, premium_chat: false, images_per_month: 20, voice_chat: false), usage (images: 0, premium_chats: 0, voice_minutes: 0, videos: 0), premium_model_ids (12 models including gpt-5.2, claude-opus-4-5, gemini-2.5-pro), standard_model_ids (6 models including o3-mini, gpt-4o-mini), warnings array (voice_unavailable warning for Free plan). ✅ Test 4: Existing Endpoints - GET /api/pricing/plans returns 3 plans, POST /api/auth/login working correctly. FIXED: MongoDB connection issue in access-check.js - changed from getClientPromise() to getDb() for consistency with other handlers. The Phase 4 Grace Period Access Check API is fully functional with proper feature gating, authentication, and complete plan data structure."
+  - agent: "main"
+    message: "3 CHANGES IMPLEMENTED: (1) Staff unlimited access in access-check.js — admin/superadmin users now return Power-equivalent plan data with unlimited everything, empty warnings. (2) Admin Pricing Model InsightsTab tier data synced with /pricing page — fixed images/mo, support, video, voice, and feature discrepancies. (3) Users table now shows Plan column with inline dropdown to change user plan (Free/Base/Power). Staff users show infinity Staff badge. Backend admin/users endpoint now returns plan_id and plan_status. Auth: test@soulprint.com/test123 (superadmin), testchat@example.com/Test123456 (user). Tests: (a) GET /api/pricing/access-check with admin token should return plan_id power, plan_name Power (Staff), is_staff true, empty warnings. (b) GET /api/admin/users with admin token should return users with plan_id field. (c) POST /api/pricing/admin/user-plan should change user plan."
 
 test_plan:
   current_focus: []

@@ -979,10 +979,17 @@ async function handleAdminGetUsers(request) {
   const total = users.length;
   const paginatedUsers = users.slice((page - 1) * limit, page * limit);
 
+  // Get subscription plans for paginated users
+  const subscriptions = await db.collection('user_subscriptions')
+    .find({ user_id: { $in: paginatedUsers.map(u => u.id) } })
+    .toArray();
+  const subMap = Object.fromEntries(subscriptions.map(s => [s.user_id, s]));
+
   return ok({
     users: paginatedUsers.map(u => {
       const answerCount = assessmentCountMap[u.id] || 0;
       const assessmentType = getAssessmentType(u.id);
+      const sub = subMap[u.id];
       return {
         id: u.id,
         email: u.email,
@@ -995,6 +1002,8 @@ async function handleAdminGetUsers(request) {
         assessment_answer_count: answerCount,
         assessment_type: assessmentType,
         onboarding_complete: profileMap[u.id]?.onboarding_complete || false,
+        plan_id: sub?.plan_id || 'free',
+        plan_status: sub?.status || 'active',
       };
     }),
     total,

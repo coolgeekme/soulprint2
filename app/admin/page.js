@@ -342,6 +342,7 @@ function UsersTab({ token, adminRole }) {
   const [inviteEmail, setInviteEmail] = useState('');
   const [resetUserId, setResetUserId] = useState(null);
   const [newPasscode, setNewPasscode] = useState('');
+  const [planChanging, setPlanChanging] = useState(null); // userId being changed
   
   // Date filters
   const [registrationDateFilter, setRegistrationDateFilter] = useState({ preset: 'all' });
@@ -416,6 +417,26 @@ function UsersTab({ token, adminRole }) {
       body: JSON.stringify({ role }),
     });
     load();
+  }
+
+  async function changePlan(userId, planId) {
+    setPlanChanging(userId);
+    try {
+      const res = await fetch('/api/pricing/admin/user-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId, planId, reason: 'admin_dashboard_override' }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert(`Error: ${data.error || 'Failed to change plan'}`);
+      }
+      load();
+    } catch (e) {
+      alert('Failed: ' + e.message);
+    } finally {
+      setPlanChanging(null);
+    }
   }
 
   async function resetPasscode(userId) {
@@ -992,14 +1013,14 @@ function UsersTab({ token, adminRole }) {
         <table className="w-full admin-table">
           <thead>
             <tr className="border-b border-white/5">
-              {['Email', 'Role', 'Accepted', 'Onboarding', 'Assessment', 'Last Active', 'Actions'].map(h => (
+              {['Email', 'Role', 'Plan', 'Accepted', 'Onboarding', 'Assessment', 'Last Active', 'Actions'].map(h => (
                 <th key={h} className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              <tr><td colSpan={8} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
             ) : users.map(u => (
               <tr key={u.id} className="border-b border-white/3 hover:bg-white/5 transition-colors">
                 <td className="py-3 pr-4">
@@ -1019,6 +1040,36 @@ function UsersTab({ token, adminRole }) {
                   }`}>
                     {u.role}
                   </span>
+                </td>
+                <td className="py-3 pr-4">
+                  {(u.role === 'admin' || u.role === 'superadmin') ? (
+                    <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-purple-500/20 text-purple-400" title="Staff get unlimited access">
+                      ∞ Staff
+                    </span>
+                  ) : adminRole === 'superadmin' ? (
+                    <select
+                      value={u.plan_id || 'free'}
+                      onChange={e => changePlan(u.id, e.target.value)}
+                      disabled={planChanging === u.id}
+                      className={`text-[10px] font-bold rounded-full px-2 py-1 border-0 cursor-pointer transition-colors ${
+                        u.plan_id === 'power' ? 'bg-yellow-500/20 text-yellow-400' :
+                        u.plan_id === 'base' ? 'bg-orange-500/20 text-orange-400' :
+                        'bg-gray-500/20 text-gray-400'
+                      } ${planChanging === u.id ? 'opacity-50 cursor-wait' : ''}`}
+                    >
+                      <option value="free">Free</option>
+                      <option value="base">Base</option>
+                      <option value="power">Power</option>
+                    </select>
+                  ) : (
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                      u.plan_id === 'power' ? 'bg-yellow-500/20 text-yellow-400' :
+                      u.plan_id === 'base' ? 'bg-orange-500/20 text-orange-400' :
+                      'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      {(u.plan_id || 'free').toUpperCase()}
+                    </span>
+                  )}
                 </td>
                 <td className="py-3 pr-4">
                   <button onClick={() => toggleAccepted(u.id, u.accepted)}
@@ -3294,69 +3345,66 @@ function InsightsTab({ token }) {
     tiers: [
       {
         name: 'FREE', price: 0, color: 'gray', emoji: '🆓',
-        description: 'Building phase / activation',
+        description: 'Get started with AI that knows you.',
         features: {
           'Standard chat models': 'Unlimited',
           'Premium chat models': '---',
-          'Memory & SoulPrint': 'Building phase only',
+          'Memory & SoulPrint': 'Full (persona + memory)',
           'Assessment': 'Included',
-          'Image generation': '20/mo (watermarked)',
-          'Premium image models': '---',
-          'Video generation': '1 lifetime (5s watermarked)',
-          'Voice chat (live)': '---',
-          'Basic file analysis': 'Included',
-          'Advanced file analysis': '---',
-          'API / webhook access': '---',
-          'Customer support': 'Community only',
-          'Data retention': '90 days',
+          'Image generation': '20/mo (watermarked, 5/hr limit)',
+          'Image models': 'nano-banana, seedream, qwen-edit',
+          'Video generation': '1 lifetime (5s, 720p, watermarked)',
+          'Voice chat': '---',
+          'File analysis': 'Basic (10 pages max)',
+          'Conversation search': '---',
+          'Platforms': 'Web + Telegram',
+          'Support': 'Ace AI Agent 24/7 + Email',
         },
-        bestFor: 'Trial users',
-        billing: 'Free',
+        bestFor: 'Trial & casual users',
+        billing: 'Free forever',
         cogs: 0.156,
       },
       {
         name: 'BASE', price: 20.01, color: 'blue', emoji: '⭐',
-        description: 'Core product / metered add-ons',
+        description: 'For daily users who want premium AI and clean media.',
         features: {
           'Standard chat models': 'Unlimited',
-          'Premium chat models': 'Metered ($0.15/msg)',
-          'Memory & SoulPrint': 'Full + continued learning',
+          'Premium chat models': '50 msgs/mo included ($0.15/msg overage)',
+          'Memory & SoulPrint': 'Full (persona + memory)',
           'Assessment': 'Included',
-          'Image generation': '20/mo clean + metered',
-          'Premium image models': 'Metered ($0.60/image)',
-          'Video generation': '1/mo (5s) + credits',
-          'Voice chat (live)': 'Metered ($0.40/min)',
-          'Basic file analysis': 'Included',
-          'Advanced file analysis': 'Metered ($0.15/file)',
-          'API / webhook access': 'Metered ($0.01/call)',
-          'Customer support': 'Email (48hr)',
-          'Data retention': '90 days',
+          'Image generation': '50/mo (no watermark, $0.20/gen overage)',
+          'Image models': 'All standard + pro, seedream-v4-edit, imagen4-ultra',
+          'Video generation': '1/mo (5s, 720p, watermarked) + credit packs',
+          'Voice chat': '30 min/mo ($0.40/min overage)',
+          'File analysis': 'Advanced (unlimited pages, $0.15/file overage)',
+          'Conversation search': 'Included',
+          'Platforms': 'Web + Telegram',
+          'Support': 'Ace AI Agent 24/7 + Email',
         },
-        bestFor: 'Typical customer',
-        billing: 'Usage-based (varies)',
+        bestFor: 'Typical paying customer',
+        billing: '$20.01/mo or $192.10/yr (20% off)',
         cogs: 3.86,
         grossMargin: 0.807,
       },
       {
         name: 'POWER', price: 99, color: 'orange', emoji: '🚀',
-        description: 'All-you-can-eat / flat rate',
+        description: 'Unlimited everything. Predictable flat rate.',
         features: {
           'Standard chat models': 'Unlimited',
           'Premium chat models': 'Unlimited',
-          'Memory & SoulPrint': 'Full + priority',
+          'Memory & SoulPrint': 'Full (persona + memory)',
           'Assessment': 'Included',
-          'Image generation': 'Unlimited (any model)',
-          'Premium image models': 'Unlimited',
-          'Video generation': 'Unlimited (veo3, kling, etc)',
-          'Voice chat (live)': 'Unlimited',
-          'Basic file analysis': 'Included',
-          'Advanced file analysis': 'Unlimited',
-          'API / webhook access': 'Unlimited',
-          'Customer support': 'Priority (24hr)',
-          'Data retention': '180 days',
+          'Image generation': 'Unlimited (all models, no watermark)',
+          'Image models': 'All models',
+          'Video generation': 'Unlimited (all durations, all resolutions, no watermark)',
+          'Voice chat': 'Unlimited',
+          'File analysis': 'Advanced (unlimited)',
+          'Conversation search': 'Included',
+          'Platforms': 'Web + Telegram',
+          'Support': 'Ace AI Agent 24/7 + Priority Email',
         },
         bestFor: 'Power users / creators',
-        billing: 'Flat $99 (predictable)',
+        billing: '$99/mo or $950.40/yr (20% off)',
         cogs: 15.18,
         grossMargin: 0.847,
       },
