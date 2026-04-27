@@ -194,7 +194,7 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
           width: 'max(177.78vh, 100vw)',   /* 16:9 width = 177.78% of height */
           height: 'max(56.25vw, 100vh)',    /* 16:9 height = 56.25% of width */
           transform: 'translate(-50%, -50%)',
-          filter: 'brightness(0.3) saturate(0.4) contrast(1.15)',
+          filter: 'brightness(0.5) saturate(0.5) contrast(1.1)',
           opacity: videoReady ? 1 : 0,
           transition: 'opacity 1.5s ease-in-out',
         }}
@@ -213,10 +213,11 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
 }
 
 // ── Video Popup Modal ──────────────────────────────────────────────────────
-function VideoPopupModal({ videoId, playlistIndex, onClose }) {
+function VideoPopupModal({ videoId, heroPlayerRef, onClose }) {
   const popupPlayerRef = useRef(null);
   const [popupPlaying, setPopupPlaying] = useState(true);
   const [popupTitle, setPopupTitle] = useState('');
+  const [currentVideoId, setCurrentVideoId] = useState(videoId);
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
@@ -224,18 +225,19 @@ function VideoPopupModal({ videoId, playlistIndex, onClose }) {
     return () => document.removeEventListener('keydown', handleEsc);
   }, [onClose]);
 
-  // Initialize popup player with YT API
+  // Initialize popup player — loads the EXACT video by ID (not the playlist)
   useEffect(() => {
-    if (!videoId) return;
+    if (!currentVideoId) return;
     const initPopup = () => {
       if (!window.YT?.Player) return;
+      // Destroy previous instance if re-creating for a new video
+      try { popupPlayerRef.current?.destroy(); } catch {}
+
       popupPlayerRef.current = new window.YT.Player('yt-popup-player', {
         width: '100%',
         height: '100%',
+        videoId: currentVideoId,
         playerVars: {
-          listType: 'playlist',
-          list: YT_PLAYLIST_ID,
-          index: playlistIndex || 0,
           autoplay: 1,
           modestbranding: 1,
           rel: 0,
@@ -246,10 +248,6 @@ function VideoPopupModal({ videoId, playlistIndex, onClose }) {
         },
         events: {
           onReady: (e) => {
-            // Jump to the correct video if needed
-            if (playlistIndex != null) {
-              e.target.playVideoAt(playlistIndex);
-            }
             try {
               const data = e.target.getVideoData();
               if (data?.title) setPopupTitle(data.title);
@@ -271,7 +269,6 @@ function VideoPopupModal({ videoId, playlistIndex, onClose }) {
     if (window.YT?.Player) {
       initPopup();
     } else {
-      // API should already be loaded from hero, but just in case
       const check = setInterval(() => {
         if (window.YT?.Player) { clearInterval(check); initPopup(); }
       }, 200);
@@ -279,7 +276,7 @@ function VideoPopupModal({ videoId, playlistIndex, onClose }) {
     }
 
     return () => { try { popupPlayerRef.current?.destroy(); } catch {} };
-  }, [videoId, playlistIndex]);
+  }, [currentVideoId]);
 
   const popupTogglePlay = useCallback(() => {
     try {
@@ -290,13 +287,39 @@ function VideoPopupModal({ videoId, playlistIndex, onClose }) {
     } catch {}
   }, []);
 
+  // Navigate hero playlist and load that video into the popup
   const popupNext = useCallback(() => {
-    try { popupPlayerRef.current?.nextVideo(); } catch {}
-  }, []);
+    try {
+      if (!heroPlayerRef?.current) return;
+      heroPlayerRef.current.nextVideo();
+      // Small delay for the hero player to advance, then grab the new video ID
+      setTimeout(() => {
+        try {
+          const url = heroPlayerRef.current.getVideoUrl();
+          const match = url?.match(/[?&]v=([^&]+)/);
+          if (match?.[1] && match[1] !== currentVideoId) {
+            setCurrentVideoId(match[1]);
+          }
+        } catch {}
+      }, 500);
+    } catch {}
+  }, [heroPlayerRef, currentVideoId]);
 
   const popupPrev = useCallback(() => {
-    try { popupPlayerRef.current?.previousVideo(); } catch {}
-  }, []);
+    try {
+      if (!heroPlayerRef?.current) return;
+      heroPlayerRef.current.previousVideo();
+      setTimeout(() => {
+        try {
+          const url = heroPlayerRef.current.getVideoUrl();
+          const match = url?.match(/[?&]v=([^&]+)/);
+          if (match?.[1] && match[1] !== currentVideoId) {
+            setCurrentVideoId(match[1]);
+          }
+        } catch {}
+      }, 500);
+    } catch {}
+  }, [heroPlayerRef, currentVideoId]);
 
   if (!videoId) return null;
 
@@ -462,7 +485,6 @@ export default function LandingPage() {
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
   const [popupVideoId, setPopupVideoId] = useState(null);
-  const [popupIndex, setPopupIndex] = useState(0);
   const ytPlayerRef = useRef(null);
 
   const handlePlayerReady = useCallback((player) => {
@@ -520,13 +542,11 @@ export default function LandingPage() {
     try {
       if (!ytPlayerRef.current) return;
       const url = ytPlayerRef.current.getVideoUrl();
-      const idx = ytPlayerRef.current.getPlaylistIndex();
       const match = url?.match(/[?&]v=([^&]+)/);
       if (match?.[1]) {
         ytPlayerRef.current.pauseVideo();
         setIsPlaying(false);
         setPopupVideoId(match[1]);
-        setPopupIndex(idx ?? 0);
       }
     } catch {}
   }, []);
@@ -705,7 +725,7 @@ export default function LandingPage() {
       </section>
 
       {/* Video Popup Modal */}
-      {popupVideoId && <VideoPopupModal videoId={popupVideoId} playlistIndex={popupIndex} onClose={closeVideoPopup} />}
+      {popupVideoId && <VideoPopupModal videoId={popupVideoId} heroPlayerRef={ytPlayerRef} onClose={closeVideoPopup} />}
 
       {/* ═══════════════════════════════════════════════════════════════════
           SOCIAL PROOF BAR
