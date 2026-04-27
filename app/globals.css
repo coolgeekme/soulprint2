@@ -759,7 +759,9 @@ input[type="search"] {
 
 /* YouTube Background Video — ensure iframe fills its container */
 #yt-hero-player,
-#yt-hero-player iframe {
+#yt-hero-player iframe,
+#yt-popup-player,
+#yt-popup-player iframe {
   width: 100% !important;
   height: 100% !important;
   border: 0;
