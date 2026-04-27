@@ -2,7 +2,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, Twitter, Linkedin, Instagram, Calendar, User, ArrowRight, Facebook, Youtube, Brain, Zap, Fingerprint, Heart, Sparkles, Shield, Check, Star, Quote, MessageSquare, Volume2, VolumeX } from 'lucide-react';
+import { ChevronDown, ChevronRight, Twitter, Linkedin, Instagram, Calendar, User, ArrowRight, Facebook, Youtube, Brain, Zap, Fingerprint, Heart, Sparkles, Shield, Check, Star, Quote, MessageSquare, Volume2, VolumeX, Play, Pause, SkipBack, SkipForward, X, ExternalLink } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 // Blog Preview Component
@@ -96,6 +96,7 @@ function BlogPreview() {
 
 const HERO_IMAGE = "/hero-headshot-nobg.png";
 const YT_PLAYLIST_ID = 'PLC-ghIgOfdtCo63EqzQZ-fXkESrnEXkR1';
+const YT_CHANNEL_URL = 'https://www.youtube.com/@ArcheForgeHQ';
 
 // ── YouTube Background Component ───────────────────────────────────────────
 function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
@@ -105,7 +106,6 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
   const [videoReady, setVideoReady] = useState(false);
 
   useEffect(() => {
-    // Guard against double-init in strict mode
     if (apiLoadedRef.current) return;
     apiLoadedRef.current = true;
 
@@ -127,7 +127,6 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
           disablekb: 1,
           fs: 0,
           playsinline: 1,
-          loop: 1,
           origin: typeof window !== 'undefined' ? window.location.origin : '',
         },
         events: {
@@ -140,9 +139,18 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
             if (e.data === window.YT.PlayerState.PLAYING) {
               setVideoReady(true);
             }
-            // When the playlist ends, restart from first video
+            // Only restart playlist when the LAST video ends
             if (e.data === window.YT.PlayerState.ENDED) {
-              e.target.playVideoAt(0);
+              try {
+                const playlist = e.target.getPlaylist();
+                const idx = e.target.getPlaylistIndex();
+                if (playlist && idx >= playlist.length - 1) {
+                  e.target.playVideoAt(0);
+                }
+              } catch {
+                // Fallback — just restart
+                e.target.playVideoAt(0);
+              }
             }
           },
         },
@@ -186,7 +194,7 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden">
-      {/* The YouTube iframe — scaled up to cover the full section, with visual muting */}
+      {/* YouTube iframe — scaled to cover, visually subdued */}
       <div
         className="absolute top-1/2 left-1/2 pointer-events-none"
         style={{
@@ -201,12 +209,74 @@ function YouTubeHeroBackground({ isMuted, onPlayerReady }) {
         <div id="yt-hero-player" style={{ width: '100%', height: '100%' }} />
       </div>
 
-      {/* Dark gradient overlays for text readability */}
+      {/* Dark gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-black/50" />
       <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-transparent to-black/40" />
       
-      {/* Subtle film-grain texture */}
+      {/* Film-grain texture */}
       <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\' opacity=\'0.5\'/%3E%3C/svg%3E")', backgroundRepeat: 'repeat' }} />
+    </div>
+  );
+}
+
+// ── Video Popup Modal ──────────────────────────────────────────────────────
+function VideoPopupModal({ videoId, onClose }) {
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
+  if (!videoId) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={onClose}>
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+      
+      {/* Modal content */}
+      <div className="relative z-10 w-full max-w-4xl mx-4" onClick={(e) => e.stopPropagation()}>
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute -top-12 right-0 text-white/70 hover:text-white transition-colors flex items-center gap-2 text-sm"
+        >
+          Close <X className="w-5 h-5" />
+        </button>
+
+        {/* YouTube player */}
+        <div className="relative w-full rounded-xl overflow-hidden shadow-2xl" style={{ paddingBottom: '56.25%' }}>
+          <iframe
+            className="absolute inset-0 w-full h-full"
+            src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`}
+            title="SoulPrint Engine Video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            frameBorder="0"
+          />
+        </div>
+
+        {/* Visit Channel CTA */}
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-red-600 flex items-center justify-center">
+              <Youtube className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-white text-sm font-semibold">SoulPrint Engine</p>
+              <p className="text-gray-400 text-xs">Watch more on YouTube</p>
+            </div>
+          </div>
+          <a
+            href={YT_CHANNEL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors"
+          >
+            Visit Channel <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      </div>
     </div>
   );
 }
@@ -310,6 +380,8 @@ export default function LandingPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showStickyBar, setShowStickyBar] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [popupVideoId, setPopupVideoId] = useState(null);
   const ytPlayerRef = useRef(null);
 
   const handlePlayerReady = useCallback((player) => {
@@ -331,6 +403,60 @@ export default function LandingPage() {
       } catch {}
       return next;
     });
+  }, []);
+
+  const togglePlayPause = useCallback(() => {
+    try {
+      if (!ytPlayerRef.current) return;
+      const state = ytPlayerRef.current.getPlayerState();
+      if (state === 1) { // PLAYING
+        ytPlayerRef.current.pauseVideo();
+        setIsPlaying(false);
+      } else {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
+    } catch {}
+  }, []);
+
+  const skipNext = useCallback(() => {
+    try {
+      if (!ytPlayerRef.current) return;
+      ytPlayerRef.current.nextVideo();
+      setIsPlaying(true);
+    } catch {}
+  }, []);
+
+  const skipPrev = useCallback(() => {
+    try {
+      if (!ytPlayerRef.current) return;
+      ytPlayerRef.current.previousVideo();
+      setIsPlaying(true);
+    } catch {}
+  }, []);
+
+  const openVideoPopup = useCallback(() => {
+    try {
+      if (!ytPlayerRef.current) return;
+      const url = ytPlayerRef.current.getVideoUrl();
+      // Extract video ID from youtube URL
+      const match = url?.match(/[?&]v=([^&]+)/);
+      if (match?.[1]) {
+        ytPlayerRef.current.pauseVideo();
+        setIsPlaying(false);
+        setPopupVideoId(match[1]);
+      }
+    } catch {}
+  }, []);
+
+  const closeVideoPopup = useCallback(() => {
+    setPopupVideoId(null);
+    try {
+      if (ytPlayerRef.current) {
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -445,15 +571,59 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Mute/Unmute toggle — bottom right */}
-        <button
-          onClick={toggleMute}
-          className="absolute bottom-6 right-6 z-30 w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
-          aria-label={isMuted ? 'Unmute video' : 'Mute video'}
-        >
-          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-        </button>
+        {/* Player controls — bottom right */}
+        <div className="absolute bottom-6 right-6 z-30 flex items-center gap-2">
+          {/* Watch this video button */}
+          <button
+            onClick={openVideoPopup}
+            className="h-9 px-3.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center gap-2 text-white/70 hover:text-white hover:bg-white/20 transition-all text-xs font-medium"
+            aria-label="Watch this video"
+          >
+            <Youtube className="w-3.5 h-3.5" /> Watch
+          </button>
+
+          {/* Divider */}
+          <div className="w-px h-5 bg-white/20" />
+
+          {/* Transport controls */}
+          <button
+            onClick={skipPrev}
+            className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
+            aria-label="Previous video"
+          >
+            <SkipBack className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={togglePlayPause}
+            className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+          </button>
+          <button
+            onClick={skipNext}
+            className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
+            aria-label="Next video"
+          >
+            <SkipForward className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Divider */}
+          <div className="w-px h-5 bg-white/20" />
+
+          {/* Mute */}
+          <button
+            onClick={toggleMute}
+            className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
+            aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+          >
+            {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+          </button>
+        </div>
       </section>
+
+      {/* Video Popup Modal */}
+      {popupVideoId && <VideoPopupModal videoId={popupVideoId} onClose={closeVideoPopup} />}
 
       {/* ═══════════════════════════════════════════════════════════════════
           SOCIAL PROOF BAR
