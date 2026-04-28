@@ -366,7 +366,7 @@ function VideoPopupModal({ videoId, heroPlayerRef, onClose }) {
             </div>
             <div className="min-w-0">
               <p className="text-white text-sm font-semibold truncate">{popupTitle || 'SoulPrint Engine'}</p>
-              <p className="text-gray-400 text-xs">Watch more on YouTube</p>
+              <p className="text-gray-400 text-xs">✨ Created with SoulPrint Engine</p>
             </div>
           </div>
 
@@ -706,6 +706,13 @@ export default function LandingPage() {
                 See what it can do <ChevronRight className="w-4 h-4" />
               </a>
             </div>
+          </div>
+        </div>
+
+        {/* "Created with" badge — bottom left */}
+        <div className="absolute bottom-6 left-6 z-30">
+          <div className="h-9 px-3.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center gap-2 text-white/50 text-xs font-medium">
+            <Sparkles className="w-3.5 h-3.5 text-orange-400" /> All visuals created with SoulPrint Engine
           </div>
         </div>
 
