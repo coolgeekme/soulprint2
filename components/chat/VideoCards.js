@@ -324,6 +324,7 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
   }
 
   if (status === 'failed') {
+    const isExpiredRef = error?.toLowerCase().includes('expired') || error?.toLowerCase().includes('inaccessible');
     return (
       <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
         <div className="flex items-center gap-3">
@@ -332,7 +333,10 @@ function VideoCard({ taskId, prompt, token, initialStatus = 'generating', modelL
           </div>
           <div>
             <p className="text-xs font-semibold text-red-400">Video generation failed</p>
-            <p className="text-[10px] text-gray-500 mt-0.5">{error}</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">{error || 'The video provider could not complete this generation. Try again or use a different prompt.'}</p>
+            {isExpiredRef && (
+              <p className="text-[10px] text-amber-400/80 mt-1">💡 Tip: Re-upload your image or generate a fresh one before retrying.</p>
+            )}
           </div>
         </div>
       </div>
