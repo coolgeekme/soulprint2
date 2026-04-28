@@ -8,9 +8,10 @@ const ORANGE_DARK = '#DC2F02';
 const YT_PLAYLIST_ID = 'PLC-ghIgOfdtCo63EqzQZ-fXkESrnEXkR1';
 
 // ── YouTube Contained Player Hook ──────────────────────────────────────────
-function useYouTubePlayer({ isMuted, onPlayerReady, onVideoReady }) {
+function useYouTubePlayer({ isMuted, onPlayerReady }) {
   const playerRef = useRef(null);
   const initRef = useRef(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     if (initRef.current) return;
@@ -46,7 +47,11 @@ function useYouTubePlayer({ isMuted, onPlayerReady, onVideoReady }) {
             } catch { p.setShuffle(true); p.setLoop(true); }
             if (onPlayerReady) onPlayerReady(p);
           },
-          onStateChange: (e) => { if (e.data === window.YT.PlayerState.PLAYING && onVideoReady) onVideoReady(); },
+          onStateChange: (e) => {
+            if (e.data === window.YT.PlayerState.PLAYING) {
+              setIsPlaying(true);
+            }
+          },
         },
       });
     };
@@ -62,17 +67,18 @@ function useYouTubePlayer({ isMuted, onPlayerReady, onVideoReady }) {
       const prev = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => { if (prev) prev(); create(); };
     }
-    return () => { try { playerRef.current?.destroy(); } catch {} };
-  }, [onPlayerReady, onVideoReady]);
+  }, []); // empty deps — only run once
 
   useEffect(() => {
     try {
-      if (playerRef.current?.isMuted) {
+      if (playerRef.current?.getPlayerState) {
         if (isMuted) playerRef.current.mute();
         else { playerRef.current.unMute(); playerRef.current.setVolume(40); }
       }
     } catch {}
   }, [isMuted]);
+
+  return isPlaying;
 }
 
 // ── Video Popup Modal ──────────────────────────────────────────────────────
@@ -149,9 +155,7 @@ export default function SocialLandingPage() {
   const userUnmutedRef = useRef(false);
 
   const handlePlayerReady = useCallback((player) => { ytPlayerRef.current = player; }, []);
-  const [videoReady, setVideoReady] = useState(false);
-  const handleVideoReady = useCallback(() => { setVideoReady(true); }, []);
-  useYouTubePlayer({ isMuted, onPlayerReady: handlePlayerReady, onVideoReady: handleVideoReady });
+  const videoReady = useYouTubePlayer({ isMuted, onPlayerReady: handlePlayerReady });
 
   useEffect(() => {
     const h = () => setScrollY(window.scrollY);
@@ -292,22 +296,20 @@ export default function SocialLandingPage() {
             {/* Video card */}
             <div className="relative rounded-2xl overflow-hidden border border-white/[0.08] shadow-2xl shadow-black/50 bg-[#0a0a0a]">
               {/* Video frame */}
-              <div className="relative aspect-video">
-                {/* Loading placeholder */}
-                {!videoReady && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10 bg-[#0a0a0a]">
-                    <div className="w-14 h-14 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center animate-pulse">
-                      <Play className="w-6 h-6 text-orange-400 ml-0.5" />
-                    </div>
-                    <p className="text-gray-600 text-xs">Loading playlist...</p>
-                  </div>
-                )}
-                
+              <div className="relative aspect-video bg-[#0a0a0a]">
+                {/* YouTube player — always visible */}
+                <div id="yt-social-player" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+
+                {/* Loading overlay — sits on top, fades out when playing */}
                 <div 
-                  id="yt-social-player"
-                  className="absolute inset-0"
-                  style={{ opacity: videoReady ? 1 : 0, transition: 'opacity 1s ease' }}
-                />
+                  className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0a0a0a] transition-opacity duration-1000 pointer-events-none"
+                  style={{ opacity: videoReady ? 0 : 1, zIndex: videoReady ? -1 : 10 }}
+                >
+                  <div className="w-14 h-14 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center animate-pulse">
+                    <Play className="w-6 h-6 text-orange-400 ml-0.5" />
+                  </div>
+                  <p className="text-gray-600 text-xs">Loading playlist...</p>
+                </div>
               </div>
 
               {/* Controls bar */}
