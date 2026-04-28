@@ -7,11 +7,10 @@ const ORANGE_LIGHT = '#F48C06';
 const ORANGE_DARK = '#DC2F02';
 const YT_PLAYLIST_ID = 'PLC-ghIgOfdtCo63EqzQZ-fXkESrnEXkR1';
 
-// ── YouTube Contained Player ───────────────────────────────────────────────
-function YouTubeContainedPlayer({ isMuted, onPlayerReady }) {
+// ── YouTube Contained Player Hook ──────────────────────────────────────────
+function useYouTubePlayer({ isMuted, onPlayerReady, onVideoReady }) {
   const playerRef = useRef(null);
   const initRef = useRef(false);
-  const [videoReady, setVideoReady] = useState(false);
 
   useEffect(() => {
     if (initRef.current) return;
@@ -47,7 +46,7 @@ function YouTubeContainedPlayer({ isMuted, onPlayerReady }) {
             } catch { p.setShuffle(true); p.setLoop(true); }
             if (onPlayerReady) onPlayerReady(p);
           },
-          onStateChange: (e) => { if (e.data === window.YT.PlayerState.PLAYING) setVideoReady(true); },
+          onStateChange: (e) => { if (e.data === window.YT.PlayerState.PLAYING && onVideoReady) onVideoReady(); },
         },
       });
     };
@@ -64,7 +63,7 @@ function YouTubeContainedPlayer({ isMuted, onPlayerReady }) {
       window.onYouTubeIframeAPIReady = () => { if (prev) prev(); create(); };
     }
     return () => { try { playerRef.current?.destroy(); } catch {} };
-  }, [onPlayerReady]);
+  }, [onPlayerReady, onVideoReady]);
 
   useEffect(() => {
     try {
@@ -74,8 +73,6 @@ function YouTubeContainedPlayer({ isMuted, onPlayerReady }) {
       }
     } catch {}
   }, [isMuted]);
-
-  return videoReady;
 }
 
 // ── Video Popup Modal ──────────────────────────────────────────────────────
@@ -152,7 +149,9 @@ export default function SocialLandingPage() {
   const userUnmutedRef = useRef(false);
 
   const handlePlayerReady = useCallback((player) => { ytPlayerRef.current = player; }, []);
-  const videoReady = YouTubeContainedPlayer({ isMuted, onPlayerReady: handlePlayerReady });
+  const [videoReady, setVideoReady] = useState(false);
+  const handleVideoReady = useCallback(() => { setVideoReady(true); }, []);
+  useYouTubePlayer({ isMuted, onPlayerReady: handlePlayerReady, onVideoReady: handleVideoReady });
 
   useEffect(() => {
     const h = () => setScrollY(window.scrollY);
