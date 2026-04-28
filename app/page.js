@@ -444,7 +444,7 @@ const FIVE_FEATURES = [
 const TESTIMONIALS = [
   {
     quote: "Let me start with the headline: it's better than ChatGPT. There, I said it. I came skeptical — another AI tool promising to be my creative co-pilot — but SoulPrint surprised me in ways I didn't expect.",
-    author: 'Early Adopter',
+    author: 'Nick',
     role: 'Creator',
   },
   {
@@ -454,7 +454,7 @@ const TESTIMONIALS = [
   },
   {
     quote: "SoulPrint Engine is F@$%-ing Awesome!",
-    author: 'Early Adopter',
+    author: 'Jason',
     role: 'Power User',
   },
 ];
