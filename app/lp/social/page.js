@@ -334,7 +334,7 @@ export default function SocialLandingPage() {
 
             {/* Attribution */}
             <p className="text-center text-gray-700 text-[10px] mt-3">
-              ▶ From the <a href="https://www.youtube.com/@ArcheForgeHQ" target="_blank" rel="noopener noreferrer" className="text-orange-500/50 hover:text-orange-400 transition-colors">ArcheForge</a> channel
+              ✨ All clips created with SoulPrint Engine &middot; <a href="https://www.youtube.com/@ArcheForgeHQ" target="_blank" rel="noopener noreferrer" className="text-orange-500/50 hover:text-orange-400 transition-colors">ArcheForge</a> channel
             </p>
           </div>
         </div>
