@@ -366,7 +366,7 @@ function VideoPopupModal({ videoId, heroPlayerRef, onClose }) {
             </div>
             <div className="min-w-0">
               <p className="text-white text-sm font-semibold truncate">{popupTitle || 'SoulPrint Engine'}</p>
-              <p className="text-orange-400 text-xs font-medium">🎬 Generated with SoulPrint Engine — No editing software used</p>
+              <p className="text-orange-400 text-xs font-medium">🎬 Clips generated with SoulPrint Engine</p>
             </div>
           </div>
 
@@ -716,7 +716,7 @@ export default function LandingPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
             </span>
-            <span className="attribution-shimmer-text">Generated with SoulPrint Engine</span>
+            <span className="attribution-shimmer-text">Clips generated with SoulPrint Engine</span>
           </div>
         </div>
 
@@ -786,12 +786,12 @@ export default function LandingPage() {
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-orange-400 flex-shrink-0" />
             <p className="text-white font-bold text-sm sm:text-base">
-              Every clip you see was generated using SoulPrint Engine
+              All clips generated using SoulPrint Engine
             </p>
           </div>
           <div className="hidden sm:block w-px h-5 bg-orange-500/40" />
           <p className="text-orange-200/80 text-xs sm:text-sm">
-            No stock footage. No editing software. Pure AI.
+            No stock footage. All clips AI-generated.
           </p>
         </div>
       </section>
