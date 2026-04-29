@@ -61,6 +61,8 @@ import VideoEditor from '@/components/chat/VideoEditor';
 import { MockupGenerator } from '@/components/chat/MockupGenerator';
 import ImageCard from '@/components/chat/ImageCard';
 import { ChatUpgradeBanner, PremiumBadge, ModelUpgradeNudge } from '@/components/chat/UpgradeBanner';
+import { GraceCountdownBanner, EnforcementBlockMessage, ModelLockBadge, ModelFallbackNotice, TrialEndPrompt } from '@/components/chat/EnforcementUI';
+import { useEnforcement } from '@/hooks/useEnforcement';
 import { ContextAwarenessBanner } from '@/components/chat/ContextBanner';
 import { PdfCard } from '@/components/chat/PdfCard';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -117,6 +119,7 @@ export default function ChatPage() {
   const [token, setToken] = useState('');
   // Phase 4: Grace Period — fetch plan limits & usage for upgrade nudges
   const subscription = useSubscription(token);
+  const enforcement = useEnforcement(token);
   // Context awareness — long conversation banners
   const [contextInfo, setContextInfo] = useState(null);
   const [contextBannerDismissed, setContextBannerDismissed] = useState(false);
@@ -1695,6 +1698,21 @@ export default function ChatPage() {
                 }
                 return updated;
               });
+            } else if (data.type === 'enforcement_block') {
+              // Handle enforcement block events — store the block data for inline rendering
+              console.log('[Enforcement] Block received:', data.action, data.reason);
+              setMessages(prev => {
+                const updated = [...prev];
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].role === 'assistant') {
+                    updated[i] = { ...updated[i], enforcement_block: data };
+                    break;
+                  }
+                }
+                return updated;
+              });
+              // Refresh enforcement status after a block
+              enforcement.refresh();
             } else if (data.type === 'delta') {
               setSearchingWeb(false);
               setLastChunkTime(Date.now()); // Track when we last received content
@@ -4239,6 +4257,11 @@ export default function ChatPage() {
                           </button>
                         )}
                         
+                        {/* Enforcement block inline message */}
+                        {msg.enforcement_block && (
+                          <EnforcementBlockMessage data={msg.enforcement_block} />
+                        )}
+                        
                         {/* Media Confirmation Flow — inline cards */}
                         {msg.media_confirmation && (
                           <div className="mt-3 space-y-3">
@@ -4865,25 +4888,32 @@ export default function ChatPage() {
                           <MessageSquare className="w-3 h-3" /> Text
                           {selectedModel === 'smart' && <span className="text-cyan-400/60 ml-1 normal-case font-normal">Auto</span>}
                         </div>
-                        {MODELS.filter(m => !m.isSmartMode).map(m => (
+                        {MODELS.filter(m => !m.isSmartMode).map(m => {
+                          const isModelLocked = enforcement.isEnforcementActive && m.tier === 'premium' && !enforcement.status?.effective_features?.premium_chat;
+                          return (
                           <button 
                             key={m.value} 
-                            onClick={() => { if (!m.comingSoon) setSelectedModel(m.value); }}
-                            disabled={m.comingSoon}
+                            onClick={() => { 
+                              if (!m.comingSoon && !isModelLocked) setSelectedModel(m.value); 
+                            }}
+                            disabled={m.comingSoon || isModelLocked}
                             className={`w-full text-left px-3 py-1.5 rounded-lg text-[11px] transition-colors flex items-center justify-between ${
-                              m.comingSoon ? 'text-gray-700 cursor-not-allowed' 
+                              isModelLocked ? 'text-gray-600 cursor-not-allowed opacity-60'
+                                : m.comingSoon ? 'text-gray-700 cursor-not-allowed' 
                                 : selectedModel === m.value ? 'bg-orange-500/15 text-orange-400' 
                                 : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
                             }`}>
                             <span className="flex items-center gap-1.5">
                               {m.label}
                               {subscription.isModelPremium(m.value) && <PremiumBadge small />}
+                              <ModelLockBadge isLocked={isModelLocked} />
                               {m.comingSoon && <span className="ml-1 text-[8px] text-orange-500/50">soon</span>}
                               {defaultModelSaved === m.value && <span className="ml-1.5 text-[8px] text-green-400/80">★ default</span>}
                             </span>
-                            {selectedModel === m.value && !m.comingSoon && <Check className="w-3 h-3 text-orange-400" />}
+                            {selectedModel === m.value && !m.comingSoon && !isModelLocked && <Check className="w-3 h-3 text-orange-400" />}
                           </button>
-                        ))}
+                          );
+                        })}
                         {/* Phase 4: Upgrade nudge when Free user selects premium model */}
                         {subscription.plan && subscription.isModelPremium(selectedModel) && (
                           <ModelUpgradeNudge 
@@ -5111,6 +5141,16 @@ export default function ChatPage() {
             />
 
             {/* Phase 4: Grace Period Upgrade Banners — contextual warnings above input */}
+            {/* Grace Period Countdown Banner — only visible when enforcement is approaching */}
+            {enforcement.showCountdown && (
+              <GraceCountdownBanner status={enforcement.status} />
+            )}
+            
+            {/* Trial End Prompt — shown when new user's trial is over */}
+            {enforcement.choosePlanPrompt && (
+              <TrialEndPrompt reason={enforcement.status?.assessment_complete ? 'assessment_complete' : 'limit_hit'} />
+            )}
+            
             {subscription.warnings.length > 0 && (
               <div className="space-y-1.5 mb-2">
                 {subscription.warnings.map(w => (
