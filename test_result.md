@@ -2191,6 +2191,8 @@ backend:
 
 agent_communication:
   - agent: "testing"
+    message: "ADMIN DISCOUNT CODES CRUD & USER BILLING ENDPOINTS TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (3/3 test suites passed). ✅ Admin Discount Codes CRUD: All CRUD operations working correctly - GET /api/pricing/admin/discounts returns discount list, POST creates new discount codes with Stripe coupon integration, POST update/delete operations working, proper admin authentication enforcement. ✅ Non-Admin Access Restriction: Admin endpoints properly protected - fresh non-admin users receive 403 Forbidden when attempting to access admin discount endpoints, authorization working correctly. ✅ User Billing Endpoints: All user billing functionality working - GET /api/pricing/subscription returns subscription data (plan_id: free, status: grace_period), GET /api/pricing/history returns transaction history (5 transactions), GET /api/pricing/portal returns Stripe customer portal URL without 500 crashes. ✅ Authentication: Both admin (test@soulprint.com/test123) and user (testchat@example.com/Test123456) credentials working with 'passcode' field as specified. ✅ Stripe Integration: Discount code creation properly creates Stripe coupons, portal access working correctly. All endpoints tested as specified in review request - Admin CRUD operations, non-admin access restrictions, and user billing endpoints all fully functional."
+  - agent: "testing"
     message: "PHASE 5 PART 4 ADD-ON PURCHASE ENDPOINTS TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (9/9 tests passed). ✅ GET /api/pricing/message-packs (PUBLIC) - returns 3 packs with correct IDs (msg-25, msg-50, msg-100) and all required fields (id, name, messages, price). ✅ POST /api/pricing/checkout/message-pack (AUTH REQUIRED) - properly enforces authentication (401 without token), creates valid Stripe checkout sessions with URLs starting with 'https://checkout.stripe.com' and session IDs starting with 'cs_test_', handles invalid pack IDs with appropriate errors. ✅ GET /api/pricing/enforcement/usage (AUTH REQUIRED) - properly enforces authentication (401 without token), returns all required fields (premium_messages_balance: 0, media_credits_balance: 0, usage object with standard_messages, premium_messages, images, videos, pdfs sub-objects). ✅ Existing endpoints verified working: GET /api/pricing/plans (3 plans), GET /api/pricing/credit-packs (0 packs). ✅ Authentication working with both admin (test@soulprint.com/test123) and user (testchat@example.com/Test123456) credentials using 'passcode' field. FIXED: Stripe API error with product_data description field - removed unsupported description parameter from price creation. The complete Phase 5 Part 4 add-on purchase system is fully functional with proper Stripe integration and authentication enforcement."
   - agent: "testing"
     message: "PRICING & SUBSCRIPTION DB SCHEMA MIGRATION VERIFICATION COMPLETE: All critical endpoints working perfectly with 100% success rate (10/10 tests passed). ✅ GET /api/health returns {status: 'ok'}. ✅ Authentication working with both admin (test@soulprint.com/test123) and user (testchat@example.com/Test123456) credentials. ✅ GET /api/pricing/plans (PUBLIC) - returns 3 plans (Free, Base, Power) with NEW schema: each plan's features contains chat_model_tier ('standard' for Free, 'all' for Base/Power), NO deprecated fields (chat_models, premium_chat_models, api_access, data_retention_days), Base plan has premium_chat_msgs_per_month: 50, Stripe IDs preserved for Base (price_1TOh9KPK7jhQlR2axgGNTIqA) and Power (price_1TOh9KPK7jhQlR2amByc1nzr) plans. ✅ GET /api/pricing/gate (NO AUTH) - returns {visible: false, launch_date: '2026-05-01T00:00:00Z', role: null}. ✅ GET /api/pricing/gate (ADMIN AUTH) - returns {visible: true, role: 'superadmin'}. ✅ GET /api/pricing/subscription (AUTH) - returns subscription (plan_id: free, status: grace_period) with plan details. ✅ GET /api/pricing/usage (AUTH) - returns usage summary (plan: free, period: 2026-04). ✅ Authentication enforcement working correctly - both subscription and usage endpoints return 401 without auth token. The DB schema migration is complete and working correctly - all plans have the new chat_model_tier field structure and deprecated fields have been removed as specified in the review request."
@@ -2313,6 +2315,30 @@ test_plan:
   test_priority: "high_first"
 
 backend:
+  - task: "Admin Discount Codes CRUD Endpoints"
+    implemented: true
+    working: true
+    file: "app/api/pricing/[...path]/route.js, lib/handlers/pricing.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "ADMIN DISCOUNT CODES CRUD TESTING COMPLETE: All critical CRUD operations working perfectly with 100% success rate. ✅ Admin Authentication: test@soulprint.com/test123 login working correctly. ✅ GET /api/pricing/admin/discounts returns {discounts: [...]} with 5 existing discount codes. ✅ POST /api/pricing/admin/discounts creates discount code successfully with {code: 'TEST20OFF', type: 'percent_off', value: 20, max_uses: 100, description: 'Test discount'} - returns {success: true, discount: {...}} with generated UUID. ✅ GET /api/pricing/admin/discounts verification shows TEST20OFF in discount list. ✅ POST /api/pricing/admin/discounts/{id}/update successfully updates discount description to 'Updated desc'. ✅ POST /api/pricing/admin/discounts/{id}/delete successfully marks discount as inactive. ✅ GET /api/pricing/admin/discounts verification confirms TEST20OFF no longer active. ✅ Non-admin access restriction working correctly - fresh non-admin user (nonadmin1777496069@test.com) receives 403 Forbidden when attempting to access admin discount endpoints. ✅ Stripe integration working - discount codes create corresponding Stripe coupons. All admin discount CRUD operations fully functional with proper authentication and authorization controls."
+
+  - task: "User Billing Endpoints"
+    implemented: true
+    working: true
+    file: "app/api/pricing/[...path]/route.js, lib/handlers/pricing.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "USER BILLING ENDPOINTS TESTING COMPLETE: All critical user billing functionality working perfectly with 100% success rate. ✅ User Authentication: testchat@example.com/Test123456 login working correctly. ✅ GET /api/pricing/subscription returns subscription data with {subscription: {plan_id: 'free', status: 'grace_period'}, plan: {name: 'Free', price_monthly: 0}} - properly structured response even for free plan users. ✅ GET /api/pricing/history returns {transactions: [...]} with 5 payment transactions - proper transaction history retrieval. ✅ GET /api/pricing/portal?return_url=BASE_URL returns Stripe customer portal URL (https://billing.stripe.com/p/session/test_...) - portal access working correctly without 500 crashes. ✅ Authentication enforcement working - all billing endpoints require valid Bearer token. ✅ Graceful handling of users without Stripe customers - portal endpoint returns valid response rather than crashing. All user billing endpoints fully functional and ready for production use."
+
   - task: "Phase 5 Part 4 Add-on Purchase Endpoints (Message Packs)"
     implemented: true
     working: true

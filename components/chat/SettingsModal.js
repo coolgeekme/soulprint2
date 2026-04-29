@@ -13,6 +13,7 @@ import { FeedbackIcon, RobotIcon } from '@/components/icons/SoulPrintIcons';
 import { MODELS, TELEGRAM_MODELS, VIDEO_MODELS, IMAGE_MODELS } from './constants';
 import { useTheme } from '@/lib/providers/ThemeProvider';
 import UsageTab from '@/components/chat/UsageTab';
+import BillingTab from '@/components/chat/BillingTab';
 
 const SCHEDULE_TEMPLATES = [
   { id: 'ai_news',    name: '🤖 AI News Digest',     prompt: 'Summarize the top 5 most important AI and machine learning stories from the last 24 hours. For each story include: what happened, why it matters, and a source if available. Format it clearly.' },
@@ -1265,7 +1266,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
     } catch (e) {}
   };
 
-  const tabs = ['soulprint', 'personality', 'imports', 'integrations', 'telegram', 'voice', 'schedules', 'memories', 'invites', 'announcements', 'profile', 'usage', 'privacy', 'appearance', 'feedback'];
+  const tabs = ['soulprint', 'personality', 'imports', 'integrations', 'telegram', 'voice', 'schedules', 'memories', 'invites', 'announcements', 'profile', 'billing', 'usage', 'privacy', 'appearance', 'feedback'];
 
   // Voice Chat Settings
   const [voiceSettings, setVoiceSettings] = useState({ default_voice: 'alloy', default_gemini_voice: 'Puck', voice_engine: 'openai', web_search_enabled: true });
@@ -3728,6 +3729,11 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
           {/* USAGE TAB */}
           {activeTab === 'usage' && (
             <UsageTab token={token} />
+          )}
+
+          {/* BILLING TAB */}
+          {activeTab === 'billing' && (
+            <BillingTab token={token} />
           )}
 
           {/* PRIVACY TAB */}
