@@ -12,6 +12,7 @@ import PersonaDNACard from '@/components/chat/PersonaDNACard';
 import { FeedbackIcon, RobotIcon } from '@/components/icons/SoulPrintIcons';
 import { MODELS, TELEGRAM_MODELS, VIDEO_MODELS, IMAGE_MODELS } from './constants';
 import { useTheme } from '@/lib/providers/ThemeProvider';
+import UsageTab from '@/components/chat/UsageTab';
 
 const SCHEDULE_TEMPLATES = [
   { id: 'ai_news',    name: '🤖 AI News Digest',     prompt: 'Summarize the top 5 most important AI and machine learning stories from the last 24 hours. For each story include: what happened, why it matters, and a source if available. Format it clearly.' },
@@ -1264,7 +1265,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
     } catch (e) {}
   };
 
-  const tabs = ['soulprint', 'personality', 'imports', 'integrations', 'telegram', 'voice', 'schedules', 'memories', 'invites', 'announcements', 'profile', 'privacy', 'appearance', 'feedback'];
+  const tabs = ['soulprint', 'personality', 'imports', 'integrations', 'telegram', 'voice', 'schedules', 'memories', 'invites', 'announcements', 'profile', 'usage', 'privacy', 'appearance', 'feedback'];
 
   // Voice Chat Settings
   const [voiceSettings, setVoiceSettings] = useState({ default_voice: 'alloy', default_gemini_voice: 'Puck', voice_engine: 'openai', web_search_enabled: true });
@@ -1575,7 +1576,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
             {tabs.map(tab => (
               <button key={tab} onClick={() => handleTabClick(tab)}
                 className={`relative px-2 py-2 text-[9px] sm:text-[10px] font-semibold tracking-wide uppercase transition-colors rounded-lg text-center ${activeTab === tab ? 'text-orange-500 bg-orange-500/10 border border-orange-500/30' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5 border border-transparent'}`}>
-                <span className="block text-sm mb-0.5">{tab === 'soulprint' ? '🪪' : tab === 'personality' ? '✨' : tab === 'imports' ? '📥' : tab === 'integrations' ? '🔗' : tab === 'telegram' ? '💬' : tab === 'voice' ? '🎙️' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'invites' ? '🎁' : tab === 'announcements' ? '📢' : tab === 'profile' ? '👤' : tab === 'privacy' ? '🔒' : tab === 'appearance' ? '🎨' : '📝'}</span>
+                <span className="block text-sm mb-0.5">{tab === 'soulprint' ? '🪪' : tab === 'personality' ? '✨' : tab === 'imports' ? '📥' : tab === 'integrations' ? '🔗' : tab === 'telegram' ? '💬' : tab === 'voice' ? '🎙️' : tab === 'schedules' ? '📅' : tab === 'memories' ? '🧠' : tab === 'invites' ? '🎁' : tab === 'announcements' ? '📢' : tab === 'profile' ? '👤' : tab === 'usage' ? '📊' : tab === 'privacy' ? '🔒' : tab === 'appearance' ? '🎨' : '📝'}</span>
                 {tab}
                 {tab === 'personality' && personaNotification && (
                   <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse border border-[#1a1a1a]" />
@@ -3722,6 +3723,11 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                 </div>
               </div>
             </div>
+          )}
+
+          {/* USAGE TAB */}
+          {activeTab === 'usage' && (
+            <UsageTab token={token} />
           )}
 
           {/* PRIVACY TAB */}
