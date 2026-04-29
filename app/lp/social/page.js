@@ -332,10 +332,18 @@ export default function SocialLandingPage() {
               </div>
             </div>
 
-            {/* Attribution */}
-            <p className="text-center text-gray-700 text-[10px] mt-3">
-              ✨ All clips created with SoulPrint Engine &middot; <a href="https://www.youtube.com/@ArcheForgeHQ" target="_blank" rel="noopener noreferrer" className="text-orange-500/50 hover:text-orange-400 transition-colors">ArcheForge</a> channel
-            </p>
+            {/* Attribution — glowing badge */}
+            <div className="flex justify-center mt-4">
+              <div className="attribution-badge-glow h-9 px-4 rounded-full bg-black/60 backdrop-blur-md border border-orange-500/40 flex items-center gap-2.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                </span>
+                <span className="attribution-shimmer-text text-xs font-semibold">Generated with SoulPrint Engine</span>
+                <span className="text-white/30 text-xs">·</span>
+                <a href="https://www.youtube.com/@ArcheForgeHQ" target="_blank" rel="noopener noreferrer" className="text-orange-500/60 hover:text-orange-400 transition-colors text-xs">ArcheForge</a>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -347,6 +355,25 @@ export default function SocialLandingPage() {
 
       {/* Popup */}
       {popupVideoId && <VideoPopupModal videoId={popupVideoId} heroPlayerRef={ytPlayerRef} onClose={closePopup} />}
+
+      {/* ════════════ ATTRIBUTION BANNER ════════════ */}
+      <section className="relative bg-gradient-to-r from-orange-950 via-orange-900 to-orange-950 border-y border-orange-500/30 overflow-hidden">
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-orange-500/20 to-transparent animate-pulse" />
+        </div>
+        <div className="relative max-w-5xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 text-center sm:text-left">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-orange-400 flex-shrink-0" />
+            <p className="text-white font-bold text-sm sm:text-base">
+              Every clip you see was generated using SoulPrint Engine
+            </p>
+          </div>
+          <div className="hidden sm:block w-px h-5 bg-orange-500/40" />
+          <p className="text-orange-200/80 text-xs sm:text-sm">
+            No stock footage. No editing software. Pure AI.
+          </p>
+        </div>
+      </section>
 
       {/* ════════════ PROBLEM / HOOK ════════════ */}
       <section className="relative py-20 sm:py-28 px-4 sm:px-6">

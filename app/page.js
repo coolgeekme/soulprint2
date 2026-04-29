@@ -366,7 +366,7 @@ function VideoPopupModal({ videoId, heroPlayerRef, onClose }) {
             </div>
             <div className="min-w-0">
               <p className="text-white text-sm font-semibold truncate">{popupTitle || 'SoulPrint Engine'}</p>
-              <p className="text-gray-400 text-xs">✨ Created with SoulPrint Engine</p>
+              <p className="text-orange-400 text-xs font-medium">🎬 Generated with SoulPrint Engine — No editing software used</p>
             </div>
           </div>
 
@@ -709,10 +709,14 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* "Created with" badge — bottom left */}
+        {/* "Created with" badge — animated glowing pill overlaid on video */}
         <div className="absolute bottom-6 left-6 z-30">
-          <div className="h-9 px-3.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center gap-2 text-white/50 text-xs font-medium">
-            <Sparkles className="w-3.5 h-3.5 text-orange-400" /> All visuals created with SoulPrint Engine
+          <div className="attribution-badge-glow h-10 px-4 rounded-full bg-black/60 backdrop-blur-md border border-orange-500/40 flex items-center gap-2.5 text-white text-sm font-semibold">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+            </span>
+            <span className="attribution-shimmer-text">Generated with SoulPrint Engine</span>
           </div>
         </div>
 
@@ -769,6 +773,28 @@ export default function LandingPage() {
 
       {/* Video Popup Modal */}
       {popupVideoId && <VideoPopupModal videoId={popupVideoId} heroPlayerRef={ytPlayerRef} onClose={closeVideoPopup} />}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          ATTRIBUTION BANNER — "No stock footage" callout
+      ═══════════════════════════════════════════════════════════════════ */}
+      <section className="relative bg-gradient-to-r from-orange-950 via-orange-900 to-orange-950 border-y border-orange-500/30 overflow-hidden">
+        {/* Subtle animated background glow */}
+        <div className="absolute inset-0 opacity-20">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-orange-500/20 to-transparent animate-pulse" />
+        </div>
+        <div className="relative max-w-5xl mx-auto px-8 py-4 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 text-center sm:text-left">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-orange-400 flex-shrink-0" />
+            <p className="text-white font-bold text-sm sm:text-base">
+              Every clip you see was generated using SoulPrint Engine
+            </p>
+          </div>
+          <div className="hidden sm:block w-px h-5 bg-orange-500/40" />
+          <p className="text-orange-200/80 text-xs sm:text-sm">
+            No stock footage. No editing software. Pure AI.
+          </p>
+        </div>
+      </section>
 
       {/* ═══════════════════════════════════════════════════════════════════
           SOCIAL PROOF BAR
