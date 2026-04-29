@@ -222,7 +222,7 @@ export default function PricingPage() {
               <span className="text-gray-500 text-sm">/forever</span>
             </div>
             <ul className="space-y-2.5 mb-8 flex-1">
-              {['Standard AI models — unlimited', '10 images/mo (watermarked)', 'No video generation', '5 PDFs/mo', 'SoulPrint memory & persona', 'Web + Telegram', '10-page file analysis', 'Ace AI Support Agent 24/7'].map((f, i) => (
+              {['Standard AI models — 50 msgs/day', '10 images/mo (watermarked)', 'No video generation', '5 PDFs/mo', 'SoulPrint memory & persona', 'Web + Telegram', '10-page file analysis', 'Ace AI Support Agent 24/7'].map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-400">
                   <Check className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
                   <span>{f}</span>

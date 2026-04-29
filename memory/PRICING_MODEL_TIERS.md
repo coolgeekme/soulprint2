@@ -155,7 +155,7 @@ All image models are accessed via Kie.ai API. Sorted by internal cost (credits).
 
 | Feature | Free ($0) | Base ($20.01/mo) | Power ($99/mo) |
 |---------|-----------|-----------------|----------------|
-| **Text Models** | Standard only | Standard + Premium (50 msgs/mo) | All unlimited |
+| **Text Models** | Standard only, 50 msgs/day | Standard + Premium (50 msgs/mo) | All unlimited |
 | **Images** | 10/mo, watermark, 5/hr | 50/mo, no watermark | Unlimited |
 | **Videos** | None | 1/mo, 720p | Unlimited, all res |
 | **PDFs/Docs** | 5/mo | 25/mo | Unlimited |
