@@ -11,6 +11,7 @@ import {
   getAdminSubscriptionOverview, adminSetUserPlan, getPaymentHistory,
 } from '@/lib/handlers/pricing';
 import { checkUserAccess } from '@/lib/handlers/access-check';
+import { getUserEnforcementStatus, checkActionAllowed, getUserUsageSummary as getEnforcementUsage } from '@/lib/handlers/access-enforcement';
 import jwt from 'jsonwebtoken';
 import { getDb } from '@/lib/mongodb';
 
@@ -103,6 +104,30 @@ export async function GET(request, { params }) {
         return ok({ gated: true, message: 'Pricing not yet active' });
       }
       return ok(accessData);
+    }
+
+    // GET /api/pricing/enforcement — User's enforcement status (grace period, cohort, effective plan)
+    if (pathStr === 'enforcement') {
+      const user = await requireAuth(request);
+      const status = await getUserEnforcementStatus(user.userId || user.id);
+      return ok(status);
+    }
+
+    // GET /api/pricing/enforcement/usage — Full usage summary with limits
+    if (pathStr === 'enforcement/usage') {
+      const user = await requireAuth(request);
+      const summary = await getEnforcementUsage(user.userId || user.id);
+      return ok(summary);
+    }
+
+    // GET /api/pricing/enforcement/check?action=premium_model — Check if specific action is allowed
+    if (pathStr === 'enforcement/check') {
+      const user = await requireAuth(request);
+      const action = url.searchParams.get('action');
+      const model = url.searchParams.get('model');
+      if (!action) return err('action query param required');
+      const result = await checkActionAllowed(user.userId || user.id, action, { model });
+      return ok(result);
     }
 
     // GET /api/pricing/subscription — Get current user's subscription
