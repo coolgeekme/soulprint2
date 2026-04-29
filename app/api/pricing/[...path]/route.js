@@ -83,10 +83,10 @@ export async function GET(request, { params }) {
       return ok({ plans });
     }
 
-    // GET /api/pricing/credit-packs — List video credit packs
+    // GET /api/pricing/credit-packs — List media credit packs
     if (pathStr === 'credit-packs') {
       const db = await getDb();
-      const packs = await db.collection('video_credit_packs').find({ is_active: true }).toArray();
+      const packs = await db.collection('media_credit_packs').find({ is_active: true }).toArray();
       return ok({ packs });
     }
 

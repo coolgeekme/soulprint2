@@ -32,7 +32,7 @@ const PLAN_FEATURES = [
   ]},
 ];
 
-const VIDEO_CREDIT_PACKS = [
+const MEDIA_CREDIT_PACKS = [
   { id: 'spark', name: 'Spark', credits: 30, price: 2.99, popular: false },
   { id: 'creator', name: 'Creator', credits: 150, price: 14.99, popular: true },
   { id: 'pro', name: 'Pro', credits: 500, price: 49.99, popular: false },
@@ -222,7 +222,7 @@ export default function PricingPage() {
               <span className="text-gray-500 text-sm">/forever</span>
             </div>
             <ul className="space-y-2.5 mb-8 flex-1">
-              {['Standard AI models — unlimited', '20 images/mo (watermarked)', '1 lifetime video', 'SoulPrint memory & persona', 'Web + Telegram', '10-page file analysis', 'Ace AI Support Agent 24/7'].map((f, i) => (
+              {['Standard AI models — unlimited', '10 images/mo (watermarked)', 'No video generation', '5 PDFs/mo', 'SoulPrint memory & persona', 'Web + Telegram', '10-page file analysis', 'Ace AI Support Agent 24/7'].map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-400">
                   <Check className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
                   <span>{f}</span>
@@ -266,7 +266,8 @@ export default function PricingPage() {
                 'Premium AI models — 50 msgs/mo',
                 '50 images/mo (no watermark)',
                 'Premium image models',
-                '1 video/mo + credit packs',
+                '1 video/mo + media credit packs',
+                '25 PDFs/mo',
                 'Voice chat — 30 min/mo',
                 'Advanced file analysis',
                 'Conversation search',
@@ -359,18 +360,18 @@ export default function PricingPage() {
         </div>
       </div>
 
-      {/* Video Credit Packs */}
+      {/* Media Credit Packs */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 rounded-full px-4 py-1.5 mb-4">
             <Film className="w-3.5 h-3.5 text-purple-400" />
-            <span className="text-xs font-medium text-purple-400">Video Credits</span>
+            <span className="text-xs font-medium text-purple-400">Media Credits</span>
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Need more video generation?</h2>
           <p className="text-gray-500 text-sm">Buy credit packs — use with any video model.</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto">
-          {VIDEO_CREDIT_PACKS.map(pack => (
+          {MEDIA_CREDIT_PACKS.map(pack => (
             <button
               key={pack.id}
               onClick={() => handleCreditPack(pack.id)}
