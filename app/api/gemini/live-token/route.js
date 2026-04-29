@@ -25,6 +25,18 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // ── Phase 5: Enforce voice chat access ──
+    const { checkActionAllowed } = await import('@/lib/handlers/access-enforcement');
+    const voiceCheck = await checkActionAllowed(user.id, 'voice_chat');
+    if (!voiceCheck.allowed) {
+      return NextResponse.json({ 
+        error: voiceCheck.reason,
+        enforcement_block: true,
+        upgrade_url: '/pricing',
+        soft_block: true,
+      }, { status: 403 });
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'Gemini API key not configured' }, { status: 500 });
