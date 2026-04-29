@@ -1,6 +1,6 @@
 # SoulPrint Engine — Internal Cost & Pricing Model Tiers
 
-> **Last updated:** April 27, 2026  
+> **Last updated:** April 29, 2026  
 > **Source of truth:** `lib/llm/providers.js` (text models), `components/chat/constants.js` (image/video models), `lib/handlers/pricing.js` (plans)  
 > **Pricing gate:** Non-admin users see pricing **after May 1, 2026**. Admins see it now.
 
@@ -88,9 +88,19 @@ All image models are accessed via Kie.ai API. Sorted by internal cost (credits).
 ### Image Limits by Plan
 | Plan | Images/Month | Watermark | Rate Limit | Available Models |
 |------|-------------|-----------|------------|-----------------|
-| **Free** | 20 | Yes | 5/hour | nano-banana, seedream, qwen-image-edit |
+| **Free** | 10 | Yes | 5/hour | nano-banana, seedream, qwen-image-edit |
 | **Base** | 50 | No | Unlimited | + nano-banana-pro, seedream-v4-edit, imagen4-ultra |
 | **Power** | Unlimited | No | Unlimited | All models |
+
+### Image Credit Cost (80% margin, $0.10/credit)
+| Model | Our Cost | Credits | User Pays |
+|-------|----------|---------|-----------|
+| Seedream 5.0 Lite | $0.03 | 2 | $0.20 |
+| Nano Banana | $0.05 | 3 | $0.30 |
+| GPT-4o Image | $0.10 | 5 | $0.50 |
+| Flux Pro | $0.13 | 7 | $0.70 |
+| Midjourney V7 | $0.20 | 10 | $1.00 |
+| GPT Image 1.5 | $0.25 | 13 | $1.30 |
 
 ---
 
@@ -107,17 +117,26 @@ All image models are accessed via Kie.ai API. Sorted by internal cost (credits).
 ### Video Limits by Plan
 | Plan | Videos | Duration | Resolution | Watermark | Available Models |
 |------|--------|----------|------------|-----------|-----------------|
-| **Free** | 1 lifetime | 5s | 720p | Yes | Kling 3.0 only |
+| **Free** | None | — | — | — | — |
 | **Base** | 1/month | 5s | 720p | Yes | Kling 3.0 |
 | **Power** | Unlimited | All | All | No | All models |
 
-### Video Credit Packs (Add-On)
+### Media Credit Packs (Add-On — covers both Images + Videos)
 | Pack | Credits | Price | Cost/Credit |
 |------|---------|-------|-------------|
 | Spark Creator Studio | 30 | $2.99 | $0.10 |
 | Creator Pack | 150 | $14.99 | $0.10 |
 | Pro Pack | 500 | $49.99 | $0.10 |
 | Studio Pack | 1,500 | $149.99 | $0.10 |
+
+### Video Credit Costs (per generation)
+| Model | Credits |
+|-------|---------|
+| Seedance 2.0 Fast | 10 |
+| Seedance 2.0 | 10 |
+| Kling 3.0 (5s) | 38 |
+| Wan 2.6 i2v | 53 |
+| Veo 3.1 | 105 |
 
 ---
 
@@ -137,12 +156,33 @@ All image models are accessed via Kie.ai API. Sorted by internal cost (credits).
 | Feature | Free ($0) | Base ($20.01/mo) | Power ($99/mo) |
 |---------|-----------|-----------------|----------------|
 | **Text Models** | Standard only | Standard + Premium (50 msgs/mo) | All unlimited |
-| **Images** | 20/mo, watermark, 5/hr | 50/mo, no watermark | Unlimited |
-| **Videos** | 1 lifetime, 720p | 1/mo, 720p | Unlimited, all res |
+| **Images** | 10/mo, watermark, 5/hr | 50/mo, no watermark | Unlimited |
+| **Videos** | None | 1/mo, 720p | Unlimited, all res |
+| **PDFs/Docs** | 5/mo | 25/mo | Unlimited |
 | **Voice** | No | 30 min/mo | Unlimited |
 | **File Analysis** | Basic (10 pages) | Advanced (unlimited) | Advanced (unlimited) |
 | **Conversation Search** | No | Yes | Yes |
 | **Annual Pricing** | $0 | $192.10/yr (20% off) | $950.40/yr (20% off) |
+
+### Grace Period Rules (Phase 5)
+| User Cohort | Grace Period | Full Access Until |
+|-------------|-------------|-------------------|
+| Registered before April 1, 2026 | Extended | May 31, 2026 |
+| Registered April 1 – May 1, 2026 | 14 days from May 1 | May 15, 2026 |
+| Registered after May 1, 2026 | Base Plan Trial | Until assessment_complete OR limit hit |
+
+### Post-May-1 New User Trial
+- New users get **Base-plan-equivalent access** (true trial)
+- Trial ends when `assessment_complete === true` OR any plan limit is hit
+- At that point: choose Free, Base, or Power
+- **Soft block** after grace: Premium models visible but greyed with "Upgrade to unlock"
+
+### Premium Message Add-On Packs
+| Pack | Messages | Price |
+|------|----------|-------|
+| 25 messages | 25 | $3.75 ($0.15/msg) |
+| 50 messages | 50 | $7.50 |
+| 100 messages | 100 | $14.00 |
 
 ### Base Plan Add-On Rates
 | Feature | Rate |

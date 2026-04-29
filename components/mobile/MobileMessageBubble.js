@@ -6,7 +6,7 @@ import { Copy, Edit3, ThumbsUp, ThumbsDown, MoreVertical, Loader2, Globe, Sparkl
 import { MobileVideoCard, MobileSavedVideoCard, MobileImageCard } from './MobileMediaCards';
 import { PdfCard } from '@/components/chat/PdfCard';
 
-const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId, onToggleVariant, onExtendVideo }) => {
+const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId, onToggleVariant, onExtendVideo, onRetryGeneration }) => {
   const [showActions, setShowActions] = useState(false);
   const [feedback, setFeedback] = useState(message.feedback || null);
 
@@ -175,6 +175,19 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
             {(message.video_task && !message.video_url) || message.image_url ? null : (
             <>
             <SafeMarkdown content={typeof message.content === 'string' ? message.content : String(message.content || '')} />
+            
+            {/* Retry button for failed/timed-out generations */}
+            {message.generation_failed && onRetryGeneration && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRetryGeneration(); }}
+                className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium transition-colors shadow-lg"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Retry Generation
+              </button>
+            )}
             
             {/* Sources Section */}
             {message.sources && message.sources.length > 0 && (

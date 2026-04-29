@@ -2108,7 +2108,27 @@ export default function MobileChat({
 
   // Poll for video task completion
   const pollMediaTask = async (taskId, msgId, type, prompt, model) => {
+    let polls = 0;
+    const maxPolls = 200; // 10 minutes max (200 polls × 3s)
+    
     const pollInterval = setInterval(async () => {
+      polls++;
+      if (polls >= maxPolls) {
+        clearInterval(pollInterval);
+        setMessages(prev => prev.map(m => 
+          m.id === msgId 
+            ? { 
+                ...m, 
+                content: `⏱️ Video generation timed out after 10 minutes.\n\n**Prompt:** ${prompt}`,
+                is_generating: false,
+                generation_failed: true,
+                retry_params: { type, prompt, model, taskId },
+              }
+            : m
+        ));
+        return;
+      }
+      
       try {
         const res = await fetch(`/api/media/status/${taskId}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -2123,6 +2143,7 @@ export default function MobileChat({
                   ...m,
                   content: `✨ ${type === 'image' ? 'Image' : 'Video'} generated!\n\n**Prompt:** ${prompt}`,
                   is_generating: false,
+                  generation_failed: false,
                   video_url: data.url,
                   model_used: model,
                 }
@@ -2133,17 +2154,30 @@ export default function MobileChat({
           clearInterval(pollInterval);
           setMessages(prev => prev.map(m => 
             m.id === msgId 
-              ? { ...m, content: `❌ Generation failed: ${data.error || 'Unknown error'}`, is_generating: false }
+              ? { 
+                  ...m, 
+                  content: `❌ Generation failed: ${data.error || 'Unknown error'}\n\n**Prompt:** ${prompt}`, 
+                  is_generating: false,
+                  generation_failed: true,
+                  retry_params: { type, prompt, model },
+                }
+              : m
+          ));
+        } else {
+          // Update progress
+          const elapsed = Math.floor((polls * 3) / 60);
+          const secs = (polls * 3) % 60;
+          const timeStr = elapsed > 0 ? `${elapsed}m ${secs}s` : `${secs}s`;
+          setMessages(prev => prev.map(m => 
+            m.id === msgId && m.is_generating
+              ? { ...m, content: `🎬 Generating video... (${data.progress || 'processing'} · ${timeStr})\n\n**Prompt:** ${prompt}` }
               : m
           ));
         }
       } catch (err) {
-        clearInterval(pollInterval);
+        // Don't clear on network errors, keep trying
       }
     }, 3000);
-    
-    // Stop polling after 5 minutes
-    setTimeout(() => clearInterval(pollInterval), 300000);
   };
 
   // Load gallery items
@@ -2912,6 +2946,11 @@ export default function MobileChat({
                   readingAloudId={readingAloudId}
                   onEdit={msg.role === 'user' ? (m) => { setEditingMessage(m); } : undefined}
                   onToggleVariant={toggleVariant}
+                  onRetryGeneration={msg.generation_failed && msg.retry_params ? () => {
+                    const { type, prompt, model } = msg.retry_params;
+                    setMessages(prev => prev.filter(m => m.id !== msg.id));
+                    generateMedia(type, prompt, model);
+                  } : undefined}
                   onVideoReady={(messageId, videoUrl) => {
                     setMessages(prev => prev.map(m => 
                       m.id === messageId ? { ...m, video_url: videoUrl } : m

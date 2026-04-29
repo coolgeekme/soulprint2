@@ -2414,14 +2414,20 @@ export default function ChatPage() {
 
   // Poll for async media tasks (videos)
   const pollMediaTask = useCallback(async (taskId, messageId, type, prompt, model) => {
-    const maxPolls = 60; // 5 minutes max
+    const maxPolls = 120; // 10 minutes max (120 polls × 5s)
     let polls = 0;
     
     const poll = async () => {
       if (polls >= maxPolls) {
         setMessages(prev => prev.map(m => 
           m.id === messageId 
-            ? { ...m, content: `⏱️ Generation timed out. Please try again.`, is_generating: false }
+            ? { 
+                ...m, 
+                content: `⏱️ Video generation timed out after 10 minutes.\n\n**Prompt:** ${prompt}`,
+                is_generating: false,
+                generation_failed: true,
+                retry_params: { type, prompt, model, taskId },
+              }
             : m
         ));
         return;
@@ -2440,6 +2446,7 @@ export default function ChatPage() {
                   ...m,
                   content: `✨ Video generated!\n\n**Prompt:** ${prompt}`,
                   is_generating: false,
+                  generation_failed: false,
                   video_url: data.url,
                   thumbnail_url: data.thumbnail_url,
                   model_used: model,
@@ -2451,16 +2458,25 @@ export default function ChatPage() {
         } else if (data.status === 'failed') {
           setMessages(prev => prev.map(m => 
             m.id === messageId 
-              ? { ...m, content: `❌ Generation failed: ${data.error || 'Unknown error'}`, is_generating: false }
+              ? { 
+                  ...m, 
+                  content: `❌ Generation failed: ${data.error || 'Unknown error'}\n\n**Prompt:** ${prompt}`, 
+                  is_generating: false,
+                  generation_failed: true,
+                  retry_params: { type, prompt, model },
+                }
               : m
           ));
           return;
         }
         
         // Still processing, update status and continue polling
+        const elapsed = Math.floor((polls * 5) / 60);
+        const secs = (polls * 5) % 60;
+        const timeStr = elapsed > 0 ? `${elapsed}m ${secs}s` : `${secs}s`;
         setMessages(prev => prev.map(m => 
           m.id === messageId && m.is_generating
-            ? { ...m, content: `🎬 Generating video... (${data.progress || 'processing'})\n\n**Prompt:** ${prompt}` }
+            ? { ...m, content: `🎬 Generating video... (${data.progress || 'processing'} · ${timeStr})\n\n**Prompt:** ${prompt}` }
             : m
         ));
         
@@ -4203,6 +4219,24 @@ export default function ChatPage() {
                         {/* Regular text (skip for pure image/video messages and active video tasks) */}
                         {!msg.image_url && !msg.video_url && !(msg.video_task && !msg.video_url) && (
                           <SafeMarkdown content={typeof msg.content === 'string' ? msg.content : String(msg.content || '')} />
+                        )}
+                        
+                        {/* Retry button for failed/timed-out generations */}
+                        {msg.generation_failed && msg.retry_params && (
+                          <button
+                            onClick={() => {
+                              const { type, prompt, model } = msg.retry_params;
+                              // Remove the failed message and retry
+                              setMessages(prev => prev.filter(m => m.id !== msg.id));
+                              generateMedia(type, prompt, model);
+                            }}
+                            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium transition-colors shadow-lg shadow-orange-900/20"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Retry Generation
+                          </button>
                         )}
                         
                         {/* Media Confirmation Flow — inline cards */}
