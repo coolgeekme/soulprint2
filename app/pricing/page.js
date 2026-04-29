@@ -134,6 +134,24 @@ export default function PricingPage() {
     setCheckoutLoading(null);
   };
 
+  const handleMessagePack = async (packId) => {
+    const token = localStorage.getItem('sp_token');
+    if (!token) { router.push('/chat'); return; }
+    setCheckoutLoading(packId);
+    try {
+      const origin = window.location.origin;
+      const res = await fetch('/api/pricing/checkout/message-pack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ packId, originUrl: origin }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert(data.error || 'Failed to create checkout');
+    } catch (e) { alert('Error: ' + e.message); }
+    setCheckoutLoading(null);
+  };
+
   const handleValidateDiscount = async () => {
     if (!discountCode.trim()) return;
     try {
@@ -411,7 +429,7 @@ export default function PricingPage() {
           ].map(pack => (
             <button
               key={pack.id}
-              onClick={() => handleCreditPack(pack.id)}
+              onClick={() => handleMessagePack(pack.id)}
               disabled={checkoutLoading === pack.id}
               className={`relative bg-white/[0.02] border rounded-xl p-4 text-center transition-all hover:bg-white/[0.04] ${pack.popular ? 'border-orange-500/30' : 'border-white/[0.06]'}`}
             >

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   seedPlans, getPlans, getPlan, updatePlan, syncPlansToStripe,
-  getUserSubscription, createCheckoutSession, createCreditPackCheckout,
+  getUserSubscription, createCheckoutSession, createCreditPackCheckout, createMessagePackCheckout,
   getCheckoutStatus, cancelSubscription, getCustomerPortalUrl,
   trackUsage, getUsage, getUserUsageSummary,
   getVideoCredits, addVideoCredits,
@@ -9,6 +9,7 @@ import {
   startGracePeriod, startGracePeriodForAllUsers,
   handleStripeWebhook,
   getAdminSubscriptionOverview, adminSetUserPlan, getPaymentHistory,
+  PREMIUM_MESSAGE_PACKS,
 } from '@/lib/handlers/pricing';
 import { checkUserAccess } from '@/lib/handlers/access-check';
 import { getUserEnforcementStatus, checkActionAllowed, getUserUsageSummary as getEnforcementUsage } from '@/lib/handlers/access-enforcement';
@@ -89,6 +90,11 @@ export async function GET(request, { params }) {
       const db = await getDb();
       const packs = await db.collection('media_credit_packs').find({ is_active: true }).toArray();
       return ok({ packs });
+    }
+
+    // GET /api/pricing/message-packs — List available premium message packs
+    if (pathStr === 'message-packs') {
+      return ok({ packs: PREMIUM_MESSAGE_PACKS });
     }
 
     // ── Authenticated Routes ───────────────────────────────────────────
@@ -262,12 +268,21 @@ export async function POST(request, { params }) {
       return ok(session);
     }
 
-    // POST /api/pricing/checkout/credits — Buy video credit pack
+    // POST /api/pricing/checkout/credits — Buy media credit pack
     if (pathStr === 'checkout/credits') {
       const user = await requireAuth(request);
       const { packId, originUrl } = await request.json();
       if (!packId || !originUrl) return err('packId and originUrl are required');
       const session = await createCreditPackCheckout(user.userId || user.id, packId, originUrl);
+      return ok(session);
+    }
+
+    // POST /api/pricing/checkout/message-pack — Buy premium message pack
+    if (pathStr === 'checkout/message-pack') {
+      const user = await requireAuth(request);
+      const { packId, originUrl } = await request.json();
+      if (!packId || !originUrl) return err('packId and originUrl are required');
+      const session = await createMessagePackCheckout(user.userId || user.id, packId, originUrl);
       return ok(session);
     }
 

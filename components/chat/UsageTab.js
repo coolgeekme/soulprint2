@@ -122,6 +122,26 @@ export default function UsageTab({ token }) {
         </div>
       </div>
 
+      {/* Premium Messages Balance */}
+      {(u.premium_messages?.limit !== 0 || u.premium_messages?.used > 0 || usage.premium_messages_balance > 0) && (
+        <div className="bg-gradient-to-r from-orange-950/40 to-orange-900/20 border border-orange-500/20 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-orange-500/20">
+                <Zap className="w-4 h-4 text-orange-400" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Premium Message Credits</p>
+                <p className="text-white font-bold text-lg">{usage.premium_messages_balance || 0}</p>
+              </div>
+            </div>
+            <a href="/pricing#addons" className="px-3 py-1.5 rounded-md text-xs font-medium bg-orange-600/30 hover:bg-orange-600/50 text-orange-300 transition-colors border border-orange-500/20">
+              Buy More
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Usage Stats */}
       <div className="space-y-1">
         <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">This Period</h4>

@@ -2191,6 +2191,8 @@ backend:
 
 agent_communication:
   - agent: "testing"
+    message: "PHASE 5 PART 4 ADD-ON PURCHASE ENDPOINTS TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (9/9 tests passed). ✅ GET /api/pricing/message-packs (PUBLIC) - returns 3 packs with correct IDs (msg-25, msg-50, msg-100) and all required fields (id, name, messages, price). ✅ POST /api/pricing/checkout/message-pack (AUTH REQUIRED) - properly enforces authentication (401 without token), creates valid Stripe checkout sessions with URLs starting with 'https://checkout.stripe.com' and session IDs starting with 'cs_test_', handles invalid pack IDs with appropriate errors. ✅ GET /api/pricing/enforcement/usage (AUTH REQUIRED) - properly enforces authentication (401 without token), returns all required fields (premium_messages_balance: 0, media_credits_balance: 0, usage object with standard_messages, premium_messages, images, videos, pdfs sub-objects). ✅ Existing endpoints verified working: GET /api/pricing/plans (3 plans), GET /api/pricing/credit-packs (0 packs). ✅ Authentication working with both admin (test@soulprint.com/test123) and user (testchat@example.com/Test123456) credentials using 'passcode' field. FIXED: Stripe API error with product_data description field - removed unsupported description parameter from price creation. The complete Phase 5 Part 4 add-on purchase system is fully functional with proper Stripe integration and authentication enforcement."
+  - agent: "testing"
     message: "PRICING & SUBSCRIPTION DB SCHEMA MIGRATION VERIFICATION COMPLETE: All critical endpoints working perfectly with 100% success rate (10/10 tests passed). ✅ GET /api/health returns {status: 'ok'}. ✅ Authentication working with both admin (test@soulprint.com/test123) and user (testchat@example.com/Test123456) credentials. ✅ GET /api/pricing/plans (PUBLIC) - returns 3 plans (Free, Base, Power) with NEW schema: each plan's features contains chat_model_tier ('standard' for Free, 'all' for Base/Power), NO deprecated fields (chat_models, premium_chat_models, api_access, data_retention_days), Base plan has premium_chat_msgs_per_month: 50, Stripe IDs preserved for Base (price_1TOh9KPK7jhQlR2axgGNTIqA) and Power (price_1TOh9KPK7jhQlR2amByc1nzr) plans. ✅ GET /api/pricing/gate (NO AUTH) - returns {visible: false, launch_date: '2026-05-01T00:00:00Z', role: null}. ✅ GET /api/pricing/gate (ADMIN AUTH) - returns {visible: true, role: 'superadmin'}. ✅ GET /api/pricing/subscription (AUTH) - returns subscription (plan_id: free, status: grace_period) with plan details. ✅ GET /api/pricing/usage (AUTH) - returns usage summary (plan: free, period: 2026-04). ✅ Authentication enforcement working correctly - both subscription and usage endpoints return 401 without auth token. The DB schema migration is complete and working correctly - all plans have the new chat_model_tier field structure and deprecated fields have been removed as specified in the review request."
   - agent: "testing"
     message: "VIDEO EXTENSION FEATURE TESTING COMPLETE: All critical functionality working correctly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ Video Extend Intent Detection: All extend patterns ('extend the video', 'continue the video', 'make it longer', 'add more to the video', 'lengthen the clip') correctly do NOT trigger video extend without existing video context - this is the expected behavior as extend requires a source video. ✅ Video Generation Detection: Regular video generation patterns ('Create a new video of a cat', 'Generate a video of a sunset') correctly trigger video generation (not extend) - proper differentiation working. ✅ Media Confirmation Context URLs: All media_confirmation events include required context fields (conversationImageUrl, conversationVideoUrl, conversationVideoTaskId) - media context persistence working correctly. ✅ Video Status Polling (runway-extend): GET /api/media/status/:taskId endpoint working correctly for runway-extend model (returns 404 for non-existent tasks as expected). ✅ Existing Endpoints: All core endpoints (health, models, conversations) continue working correctly - no regressions. ✅ Pattern Recognition: detectVideoExtendIntent() function correctly identifies extend patterns but requires video context to trigger - proper safeguards in place. The video extension feature is fully functional with proper intent detection, context tracking, and API integration. All 19/19 comprehensive tests passed (100% success rate)."
@@ -2311,6 +2313,21 @@ test_plan:
   test_priority: "high_first"
 
 backend:
+  - task: "Phase 5 Part 4 Add-on Purchase Endpoints (Message Packs)"
+    implemented: true
+    working: true
+    file: "app/api/pricing/[...path]/route.js, lib/handlers/pricing.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "PHASE 5 PART 4 ADD-ON PURCHASE ENDPOINTS: Implemented premium message pack purchase system. (1) GET /api/pricing/message-packs (NO AUTH) - returns 3 packs (msg-25, msg-50, msg-100) with id, name, messages, price fields. (2) POST /api/pricing/checkout/message-pack (AUTH REQUIRED) - creates Stripe checkout sessions for message pack purchases with proper validation and error handling. (3) GET /api/pricing/enforcement/usage (AUTH REQUIRED) - returns usage summary with premium_messages_balance and media_credits_balance fields plus detailed usage breakdown. (4) All existing endpoints (GET /api/pricing/plans, GET /api/pricing/credit-packs) continue working correctly. Stripe integration configured with test keys (sk_test_...) for real checkout session creation. Auth: testchat@example.com/Test123456, test@soulprint.com/test123."
+      - working: true
+        agent: "testing"
+        comment: "PHASE 5 PART 4 ADD-ON PURCHASE ENDPOINTS TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (9/9 tests passed). ✅ GET /api/pricing/message-packs (PUBLIC) - returns 3 packs with correct IDs (msg-25, msg-50, msg-100) and all required fields (id, name, messages, price). ✅ POST /api/pricing/checkout/message-pack (AUTH REQUIRED) - properly enforces authentication (401 without token), creates valid Stripe checkout sessions with URLs starting with 'https://checkout.stripe.com' and session IDs starting with 'cs_test_', handles invalid pack IDs with appropriate errors. ✅ GET /api/pricing/enforcement/usage (AUTH REQUIRED) - properly enforces authentication (401 without token), returns all required fields (premium_messages_balance: 0, media_credits_balance: 0, usage object with standard_messages, premium_messages, images, videos, pdfs sub-objects). ✅ Existing endpoints verified working: GET /api/pricing/plans (3 plans), GET /api/pricing/credit-packs (0 packs). ✅ Authentication working with both admin (test@soulprint.com/test123) and user (testchat@example.com/Test123456) credentials using 'passcode' field. FIXED: Stripe API error with product_data description field - removed unsupported description parameter from price creation. The complete Phase 5 Part 4 add-on purchase system is fully functional with proper Stripe integration and authentication enforcement."
+
   - task: "Context Awareness Feature in Chat Stream (POST /api/chat/stream with context_info NDJSON event)"
     implemented: true
     working: true
@@ -2699,7 +2716,50 @@ frontend:
         comment: "Fixed. Verified via screenshot - PdfCard renders inline."
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Message Pack Checkout API (POST /api/pricing/checkout/message-pack)"
+    - "Message Packs List API (GET /api/pricing/message-packs)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "PHASE 5 PART 4 - ADD-ON PURCHASE FLOWS WIRED: (1) Added createMessagePackCheckout import + PREMIUM_MESSAGE_PACKS import to /api/pricing/[...path]/route.js. (2) Added POST /api/pricing/checkout/message-pack endpoint (requires auth, accepts packId and originUrl, creates Stripe checkout session for premium message packs). (3) Added GET /api/pricing/message-packs endpoint (public, returns available message packs list). (4) Fixed frontend pricing page - message pack buttons now call handleMessagePack() which POSTs to /api/pricing/checkout/message-pack instead of incorrectly calling /api/pricing/checkout/credits. (5) Added premium_messages_balance to enforcement/usage response from access-enforcement.js. (6) Added Premium Message Credits Buy More card in UsageTab.js. Auth: test@soulprint.com/test123 (admin), testchat@example.com/Test123456 (user). Test: (a) GET /api/pricing/message-packs should return 3 packs (msg-25, msg-50, msg-100). (b) POST /api/pricing/checkout/message-pack with valid auth and {packId:msg-50, originUrl:http://localhost:3000} should either return Stripe checkout URL or fail gracefully if STRIPE_SECRET_KEY not configured. (c) GET /api/pricing/enforcement/usage should now include premium_messages_balance field."
+
+backend:
+  - task: "Message Pack Checkout API (POST /api/pricing/checkout/message-pack)"
+    implemented: true
+    working: "NA"
+    file: "app/api/pricing/[...path]/route.js, lib/handlers/pricing.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Wired createMessagePackCheckout into pricing API route. Accepts POST with packId and originUrl, authenticates user, creates Stripe checkout session for premium message packs."
+
+  - task: "Message Packs List API (GET /api/pricing/message-packs)"
+    implemented: true
+    working: "NA"
+    file: "app/api/pricing/[...path]/route.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Public endpoint returning PREMIUM_MESSAGE_PACKS constant (3 packs). No auth required."
+
+  - task: "Enforcement Usage returns premium_messages_balance"
+    implemented: true
+    working: "NA"
+    file: "lib/handlers/access-enforcement.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added premium_messages_balance field to getUserUsageSummary response. Reads from user_credits collection."
