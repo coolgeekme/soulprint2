@@ -3347,13 +3347,14 @@ function InsightsTab({ token }) {
         name: 'FREE', price: 0, color: 'gray', emoji: '🆓',
         description: 'Get started with AI that knows you.',
         features: {
-          'Standard chat models': 'Unlimited',
+          'Standard chat models': '50 msgs/day',
           'Premium chat models': '---',
           'Memory & SoulPrint': 'Full (persona + memory)',
           'Assessment': 'Included',
-          'Image generation': '20/mo (watermarked, 5/hr limit)',
+          'Image generation': '10/mo (watermarked, 5/hr limit)',
           'Image models': 'nano-banana, seedream, qwen-edit',
-          'Video generation': '1 lifetime (5s, 720p, watermarked)',
+          'Video generation': 'None',
+          'PDF generation': '5/mo',
           'Voice chat': '---',
           'File analysis': 'Basic (10 pages max)',
           'Conversation search': '---',
@@ -3372,11 +3373,12 @@ function InsightsTab({ token }) {
           'Premium chat models': '50 msgs/mo included ($0.15/msg overage)',
           'Memory & SoulPrint': 'Full (persona + memory)',
           'Assessment': 'Included',
-          'Image generation': '50/mo (no watermark, $0.20/gen overage)',
+          'Image generation': '50/mo (no watermark)',
           'Image models': 'All standard + pro, seedream-v4-edit, imagen4-ultra',
-          'Video generation': '1/mo (5s, 720p, watermarked) + credit packs',
+          'Video generation': '1/mo (5s, 720p, watermarked) + media credit packs',
+          'PDF generation': '25/mo',
           'Voice chat': '30 min/mo ($0.40/min overage)',
-          'File analysis': 'Advanced (unlimited pages, $0.15/file overage)',
+          'File analysis': 'Advanced (unlimited pages)',
           'Conversation search': 'Included',
           'Platforms': 'Web + Telegram',
           'Support': 'Ace AI Agent 24/7 + Email',
@@ -3397,6 +3399,7 @@ function InsightsTab({ token }) {
           'Image generation': 'Unlimited (all models, no watermark)',
           'Image models': 'All models',
           'Video generation': 'Unlimited (all durations, all resolutions, no watermark)',
+          'PDF generation': 'Unlimited',
           'Voice chat': 'Unlimited',
           'File analysis': 'Advanced (unlimited)',
           'Conversation search': 'Included',
@@ -3682,7 +3685,7 @@ function InsightsTab({ token }) {
                 'Real COGS basis from actual provider invoices, not dashboard estimates',
                 '80% true margin on add-ons (price = cost / 0.20)',
                 'Hosting added as $25/mo fixed cost — was missing from v1',
-                'Free Creative Allowance: 20 watermarked images/mo for activation',
+                'Free Creative Allowance: 10 watermarked images/mo for activation',
                 'Free video REMOVED (Sora shutting down April 26, 2026)',
                 'Video credits split into its own wallet — per-video cost varies 35x',
                 'Chat cap REMOVED — real chat COGS per user is ~$3/mo',
@@ -4679,8 +4682,8 @@ function InsightsTab({ token }) {
           <div className="bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/20 rounded-xl p-4">
             <p className="text-blue-400 text-xs font-bold mb-2">How to read this</p>
             <div className="space-y-1 text-[10px] text-gray-400">
-              <p>&#x2022; Image Gen column shows OVERAGE only — first 20 images/mo are bundled into base (clean, unwatermarked).</p>
-              <p>&#x2022; Free segment (40 users) excluded — they get 20 watermarked images/mo + 1 lifetime video. COGS booked on P&L.</p>
+              <p>&#x2022; Image Gen column shows OVERAGE only — first 50 images/mo are bundled into base (clean, unwatermarked).</p>
+              <p>&#x2022; Free segment (40 users) excluded — they get 10 watermarked images/mo + 0 videos. COGS booked on P&L.</p>
               <p>&#x2022; This model shows steady-state. Growth scenarios are on the Growth tab.</p>
             </div>
           </div>

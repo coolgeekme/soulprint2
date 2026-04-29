@@ -2,31 +2,32 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, X, Zap, Crown, Rocket, ArrowLeft, Sparkles, Film, Shield, Loader2, Tag, CreditCard } from 'lucide-react';
+import { Check, X, Zap, Crown, Rocket, ArrowLeft, Sparkles, Film, Shield, Loader2, Tag, CreditCard, MessageSquare } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 // ── Plan Feature Comparison Data ──
 const PLAN_FEATURES = [
   { category: 'Chat', features: [
-    { name: 'Standard AI Models', free: 'Unlimited', base: 'Unlimited', power: 'Unlimited' },
+    { name: 'Standard AI Models', free: '50 msgs/day', base: 'Unlimited', power: 'Unlimited' },
     { name: 'Premium AI Models', free: false, base: '50 messages/mo included', power: 'Unlimited' },
-    { name: 'Premium Overage', free: '—', base: '$0.15/message', power: 'N/A' },
+    { name: 'Premium Overage', free: '—', base: '$0.15/message (add-on packs)', power: 'N/A' },
     { name: 'Persona & Memory', free: true, base: true, power: true },
     { name: 'Conversation Search', free: false, base: true, power: true },
   ]},
   { category: 'Media', features: [
-    { name: 'Images / Month', free: '20 (watermarked)', base: '50 (no watermark)', power: 'Unlimited' },
-    { name: 'Image Overage', free: '—', base: '$0.20/gen', power: 'N/A' },
+    { name: 'Images / Month', free: '10 (watermarked)', base: '50 (no watermark)', power: 'Unlimited' },
+    { name: 'Image Rate Limit', free: '5/hour', base: 'None', power: 'None' },
     { name: 'Premium Image Models', free: false, base: true, power: true },
-    { name: 'Video Generation', free: '1 lifetime', base: '1/mo + credit packs', power: 'Unlimited' },
-    { name: 'Video Watermark', free: true, base: true, power: false },
+    { name: 'Video Generation', free: 'None', base: '1/mo + media credit packs', power: 'Unlimited' },
+    { name: 'Media Credits (Add-on)', free: 'Available', base: 'Available', power: 'Available' },
   ]},
-  { category: 'Voice & Files', features: [
-    { name: 'Voice Chat', free: false, base: '30 min/mo included', power: 'Unlimited' },
-    { name: 'Voice Overage', free: '—', base: '$0.40/min', power: 'N/A' },
+  { category: 'Documents', features: [
+    { name: 'PDF Generation', free: '5/mo', base: '25/mo', power: 'Unlimited' },
     { name: 'File Analysis', free: 'Basic (10 pages)', base: 'Advanced (unlimited)', power: 'Advanced (unlimited)' },
   ]},
-  { category: 'Platform', features: [
+  { category: 'Voice & Platform', features: [
+    { name: 'Voice Chat', free: false, base: '30 min/mo included', power: 'Unlimited' },
+    { name: 'Voice Overage', free: '—', base: '$0.40/min', power: 'N/A' },
     { name: 'Web + Telegram', free: true, base: true, power: true },
     { name: 'Support', free: 'Ace AI Agent 24/7 + Email', base: 'Ace AI Agent 24/7 + Email', power: 'Ace AI Agent 24/7 + Priority Email' },
   ]},
@@ -361,14 +362,14 @@ export default function PricingPage() {
       </div>
 
       {/* Media Credit Packs */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+      <div id="addons" className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 rounded-full px-4 py-1.5 mb-4">
             <Film className="w-3.5 h-3.5 text-purple-400" />
             <span className="text-xs font-medium text-purple-400">Media Credits</span>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Need more video generation?</h2>
-          <p className="text-gray-500 text-sm">Buy credit packs — use with any video model.</p>
+          <h2 className="text-2xl font-bold text-white mb-2">Need more media generation?</h2>
+          <p className="text-gray-500 text-sm">Buy credit packs — use for images and video with any model.</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto">
           {MEDIA_CREDIT_PACKS.map(pack => (
@@ -386,6 +387,42 @@ export default function PricingPage() {
               <p className="text-purple-400 font-bold text-sm mt-2">${pack.price}</p>
               <p className="text-gray-600 text-[10px]">${(pack.price / pack.credits).toFixed(2)}/credit</p>
               {checkoutLoading === pack.id && <Loader2 className="w-4 h-4 animate-spin mx-auto mt-2 text-purple-400" />}
+            </button>
+          ))}
+        </div>
+        <p className="text-center text-gray-600 text-[10px] mt-4">Images: 2–13 credits per generation · Videos: 10–105 credits per generation</p>
+      </div>
+
+      {/* Premium Message Packs */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-full px-4 py-1.5 mb-4">
+            <MessageSquare className="w-3.5 h-3.5 text-orange-400" />
+            <span className="text-xs font-medium text-orange-400">Message Packs</span>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Need more premium messages?</h2>
+          <p className="text-gray-500 text-sm">Continue using GPT-5.2, Claude Opus, and other premium models beyond your monthly limit.</p>
+        </div>
+        <div className="grid grid-cols-3 gap-3 max-w-2xl mx-auto">
+          {[
+            { id: 'msg-25', messages: 25, price: 3.75, perMsg: '$0.15' },
+            { id: 'msg-50', messages: 50, price: 7.50, perMsg: '$0.15', popular: true },
+            { id: 'msg-100', messages: 100, price: 14.00, perMsg: '$0.14' },
+          ].map(pack => (
+            <button
+              key={pack.id}
+              onClick={() => handleCreditPack(pack.id)}
+              disabled={checkoutLoading === pack.id}
+              className={`relative bg-white/[0.02] border rounded-xl p-4 text-center transition-all hover:bg-white/[0.04] ${pack.popular ? 'border-orange-500/30' : 'border-white/[0.06]'}`}
+            >
+              {pack.popular && (
+                <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">POPULAR</span>
+              )}
+              <p className="text-white font-bold text-lg">{pack.messages}</p>
+              <p className="text-gray-500 text-[10px]">messages</p>
+              <p className="text-orange-400 font-bold text-sm mt-2">${pack.price.toFixed(2)}</p>
+              <p className="text-gray-600 text-[10px]">{pack.perMsg}/msg</p>
+              {checkoutLoading === pack.id && <Loader2 className="w-4 h-4 animate-spin mx-auto mt-2 text-orange-400" />}
             </button>
           ))}
         </div>
