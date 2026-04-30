@@ -757,9 +757,9 @@ function Slide10Forecast({ active }) {
 
 function Slide11BusinessModel({ active }) {
   const plans = [
-    { name: 'Free', price: '$0', period: '/mo', features: ['Basic AI chat', '20 images/mo (watermarked)', '1 video (lifetime)', 'Community support'], color: 'border-gray-500/20', badge: 'text-gray-400', highlight: false },
-    { name: 'Base', price: '$20.01', period: '/mo', features: ['Premium models (GPT-4o, Claude)', '20 images/mo (no watermark)', '1 video/mo', 'Voice chat', 'File analysis', 'Email support'], color: 'border-orange-500/30', badge: 'text-orange-400', highlight: true },
-    { name: 'Power', price: '$99', period: '/mo', features: ['Unlimited everything', 'All AI models', 'Unlimited images & video', 'API access', 'Priority support', 'GitHub integration'], color: 'border-yellow-500/30', badge: 'text-yellow-400', highlight: false },
+    { name: 'Free', price: '$0', period: '/mo', features: ['Standard AI models only', '50 messages/day', '10 images/mo (watermarked)', 'No video generation', '5 PDFs/mo', 'Basic file analysis (10 pages)'], color: 'border-gray-500/20', badge: 'text-gray-400', highlight: false },
+    { name: 'Base', price: '$20.01', period: '/mo', features: ['All AI models (GPT-4o, Claude, etc.)', '50 premium messages/mo', '50 images/mo (no watermark)', '1 video/mo (720p)', '25 PDFs/mo', 'Voice chat (30 min/mo)', 'Advanced file analysis', 'Conversation search'], color: 'border-orange-500/30', badge: 'text-orange-400', highlight: true },
+    { name: 'Power', price: '$99', period: '/mo', features: ['All AI models — unlimited', 'Unlimited messages', 'Unlimited images & video', 'All resolutions', 'Unlimited PDFs', 'Unlimited voice chat', 'Priority support', 'API access'], color: 'border-yellow-500/30', badge: 'text-yellow-400', highlight: false },
   ];
 
   return (
@@ -803,9 +803,10 @@ function Slide11BusinessModel({ active }) {
         <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
           <p className="text-white font-bold text-sm mb-2">💰 Revenue Expansion</p>
           <ul className="text-gray-400 text-xs space-y-1">
-            <li>• Video credit packs ($2.99 – $149.99) for pay-as-you-go</li>
+            <li>• Media credit packs for pay-as-you-go image/video gen</li>
+            <li>• Premium message packs ($3.75 – $14.00)</li>
             <li>• Annual billing at 20% discount locks in retention</li>
-            <li>• Lifetime deals for early adopters drive urgency</li>
+            <li>• Promo codes for early adopters drive conversion</li>
           </ul>
         </div>
         <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
@@ -814,6 +815,7 @@ function Slide11BusinessModel({ active }) {
             <li>• Viral invite system — each user gets 5 invites</li>
             <li>• Auto-replenish: hit 0 invites → get 5 more</li>
             <li>• Free tier drives top-of-funnel → converts to paid</li>
+            <li>• Usage alerts at 80% nudge toward upgrades</li>
           </ul>
         </div>
       </div>
@@ -866,9 +868,8 @@ function Slide12Vision({ active }) {
           </p>
           <div className="grid grid-cols-3 gap-2">
             {languages.map((l, i) => {
-              const inner = (
+              const cardContent = (
                 <div
-                  key={i}
                   className={`bg-white/[0.03] rounded-lg px-2.5 py-2 text-center transition-all duration-500 ${l.highlight ? 'border border-green-500/30 bg-green-500/[0.05]' : ''} ${l.url ? 'hover:bg-white/[0.06] cursor-pointer' : ''} ${active ? 'opacity-100' : 'opacity-0'}`}
                   style={{ transitionDelay: `${600 + i * 80}ms` }}
                 >
@@ -888,9 +889,11 @@ function Slide12Vision({ active }) {
                 </div>
               );
               return l.url ? (
-                <a key={i} href={l.url} target="_blank" rel="noopener noreferrer">{inner}</a>
+                <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
+                  {cardContent}
+                </a>
               ) : (
-                <div key={i}>{inner}</div>
+                <div key={i}>{cardContent}</div>
               );
             })}
           </div>
