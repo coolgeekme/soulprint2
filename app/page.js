@@ -1085,6 +1085,83 @@ export default function LandingPage() {
       <BlogPreview />
 
       {/* ═══════════════════════════════════════════════════════════════════
+          LANGUAGE EXPANSION — COMING SOON
+      ═══════════════════════════════════════════════════════════════════ */}
+      <section className="bg-sp-black py-20 px-8 border-t border-white/5">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10">
+            <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
+              🌎 Going Global
+            </p>
+            <h2 className="font-condensed font-black text-white text-3xl md:text-4xl uppercase tracking-wide">
+              Native Language Versions
+            </h2>
+            <p className="text-gray-400 text-sm mt-3 max-w-lg mx-auto">
+              SoulPrint was built to understand you — not just translate for you. We&apos;re launching fully native experiences in new languages.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-5">
+            {/* Spanish */}
+            <div className="relative group bg-gradient-to-br from-red-950/40 via-yellow-950/20 to-red-950/40 border border-red-500/20 rounded-2xl p-6 hover:border-red-500/40 transition-all overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-red-500/10 to-transparent rounded-bl-full" />
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-3xl">🇪🇸</span>
+                  <div>
+                    <h3 className="text-white font-bold text-lg">Español</h3>
+                    <p className="text-red-300/70 text-xs font-medium">Versión Nativa en Español</p>
+                  </div>
+                </div>
+                <p className="text-gray-400 text-sm mb-5">
+                  La primera IA que te entiende como un amigo — no como un traductor. Lanzamiento próximo.
+                </p>
+                <div className="flex items-center gap-3">
+                  <a
+                    href="https://esp.soulprintengine.ai/lista-espera"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition-colors"
+                  >
+                    Únete a la Lista de Espera
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </a>
+                  <span className="px-2.5 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-green-400 text-[10px] font-semibold uppercase tracking-wider animate-pulse">
+                    Launching Soon
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Portuguese */}
+            <div className="relative group bg-gradient-to-br from-green-950/40 via-yellow-950/20 to-green-950/40 border border-green-500/20 rounded-2xl p-6 hover:border-green-500/40 transition-all overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-green-500/10 to-transparent rounded-bl-full" />
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-3xl">🇧🇷</span>
+                  <div>
+                    <h3 className="text-white font-bold text-lg">Português</h3>
+                    <p className="text-green-300/70 text-xs font-medium">Versão Nativa em Português</p>
+                  </div>
+                </div>
+                <p className="text-gray-400 text-sm mb-5">
+                  A primeira IA que te entende de verdade — como se fosse um amigo de longa data. Em breve.
+                </p>
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-white/10 text-gray-300 text-xs font-bold rounded-lg">
+                    🔔 Coming Soon
+                  </span>
+                  <span className="px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded-full text-yellow-400 text-[10px] font-semibold uppercase tracking-wider">
+                    In Development
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════
           FOOTER
       ═══════════════════════════════════════════════════════════════════ */}
       <footer className="bg-[#f0f0f0] py-12 px-8">
