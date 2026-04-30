@@ -214,26 +214,25 @@ function Slide05DynamicIntelligence({ active }) {
 
   return (
     <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
-      <p className={`text-orange-400 text-xs md:text-sm font-bold tracking-[0.3em] uppercase mb-3 md:mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <p className={`text-orange-400 text-xs md:text-sm font-bold tracking-[0.3em] uppercase mb-2 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         DYNAMIC INTELLIGENCE
       </p>
-      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-3 md:mb-4 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        The right model, every time.<br/>
-        <span className="text-gray-500">Automatically.</span>
+      <h2 className={`text-2xl sm:text-3xl md:text-4xl font-black text-white mb-2 leading-tight transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        The right model, every time. <span className="text-gray-500">Automatically.</span>
       </h2>
-      <p className={`text-gray-400 text-sm md:text-base mb-6 md:mb-8 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <p className={`text-gray-400 text-xs md:text-sm mb-4 max-w-2xl transition-all duration-700 delay-200 ${active ? 'opacity-100' : 'opacity-0'}`}>
         Users never choose a model. Our routing engine analyzes every query — intent, complexity, modality — and selects the optimal AI model in real time.
       </p>
 
       {/* Flow diagram */}
-      <div className={`grid md:grid-cols-[1fr_auto_1fr] gap-4 md:gap-6 items-start transition-all duration-700 delay-300 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <div className={`grid md:grid-cols-[1fr_auto_1fr] gap-3 md:gap-4 items-start transition-all duration-700 delay-300 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         {/* Left: User query */}
-        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-4 md:p-5">
-          <p className="text-white font-bold text-sm mb-3 flex items-center gap-2">
-            <span className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center text-xs">💬</span>
+        <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-3 md:p-4">
+          <p className="text-white font-bold text-xs mb-2 flex items-center gap-2">
+            <span className="w-5 h-5 rounded-full bg-orange-500/20 flex items-center justify-center text-[10px]">💬</span>
             User Sends a Message
           </p>
-          <div className="space-y-2 text-xs">
+          <div className="space-y-1.5 text-xs">
             {[
               { query: '"Explain quantum computing simply"', route: 'Chat → GPT-4o', color: 'text-green-400' },
               { query: '"Write me a poem about the ocean"', route: 'Chat → Claude', color: 'text-purple-400' },
@@ -1284,6 +1283,7 @@ function PitchDeckInner() {
   const [theme, setTheme] = useState('dark');
   const containerRef = useRef(null);
   const navTimeout = useRef(null);
+  const slideRefs = useRef([]);
 
   const isDark = theme === 'dark';
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
@@ -1345,6 +1345,38 @@ function PitchDeckInner() {
     return () => { window.removeEventListener('mousemove', handleMove); clearTimeout(navTimeout.current); };
   }, []);
 
+  // Auto-scale slides to fit viewport (desktop only)
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.innerWidth < 768) return;
+    const scaleSlides = () => {
+      slideRefs.current.forEach((innerEl) => {
+        if (!innerEl) return;
+        const contentEl = innerEl.firstElementChild;
+        if (!contentEl) return;
+        // Reset zoom to measure natural height
+        innerEl.style.zoom = '1';
+        const viewportH = window.innerHeight;
+        const padding = 56; // buffer for nav bar
+        const availableH = viewportH - padding;
+        // Force layout recalc
+        void contentEl.offsetHeight;
+        const contentH = contentEl.scrollHeight;
+        if (contentH > availableH) {
+          const zoomVal = availableH / contentH;
+          // Don't go below 0.6 to keep readability
+          const clampedZoom = Math.max(0.6, Math.min(1, zoomVal));
+          innerEl.style.zoom = String(clampedZoom);
+        } else {
+          innerEl.style.zoom = '1';
+        }
+      });
+    };
+    // Run after brief delay to let content render
+    const timer = setTimeout(scaleSlides, 150);
+    window.addEventListener('resize', scaleSlides);
+    return () => { clearTimeout(timer); window.removeEventListener('resize', scaleSlides); };
+  }, [currentSlide]);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       containerRef.current?.requestFullscreen();
@@ -1386,7 +1418,7 @@ function PitchDeckInner() {
               'opacity-0 translate-x-16 z-0 pointer-events-none'
             }`}
           >
-            <div className="pitch-slide-inner">
+            <div className="pitch-slide-inner" ref={el => slideRefs.current[idx] = el}>
               <SlideComponent active={idx === currentSlide} />
             </div>
           </div>
@@ -1502,7 +1534,7 @@ function PitchDeckInner() {
         /* ═══ FONT SCALING — desktop only ═══ */
         @media (min-width: 768px) {
           .pitch-slide-inner {
-            zoom: 1.27;
+            zoom: 1;
           }
         }
 
@@ -1611,7 +1643,7 @@ function PitchDeckInner() {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 4rem 0;
+          padding: 2rem 0;
         }
         .pitch-slide-inner > * {
           flex-shrink: 0;
