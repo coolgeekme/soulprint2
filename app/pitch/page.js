@@ -823,7 +823,7 @@ function Slide11BusinessModel({ active }) {
 
 function Slide12Vision({ active }) {
   const languages = [
-    { lang: 'Spanish', flag: '🇪🇸', market: '580M speakers', status: 'Waitlist Open', url: 'https://esp.soulprintengine.ai/lista-espera', highlight: true },
+    { lang: 'Spanish', flag: '🇪🇸', market: '580M speakers', status: 'Waitlist Open', url: 'https://esp.soulprintengine.ai/lista-espera?utm_source=pitchdeck&utm_medium=deck&utm_campaign=pitch', highlight: true },
     { lang: 'Portuguese', flag: '🇧🇷', market: '260M speakers', status: 'Coming Soon', url: null, highlight: false },
     { lang: 'Arabic', flag: '🇸🇦', market: '420M speakers', status: 'Planned', url: null, highlight: false },
     { lang: 'Hindi', flag: '🇮🇳', market: '600M speakers', status: 'Planned', url: null, highlight: false },
