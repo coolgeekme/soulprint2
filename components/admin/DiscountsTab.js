@@ -19,6 +19,8 @@ export default function DiscountsTab({ token }) {
     max_uses: '',
     expires_at: '',
     description: '',
+    duration: 'forever',
+    duration_in_months: '',
     is_lifetime_deal: false,
     lifetime_plan_id: '',
     lifetime_price: '',
@@ -57,6 +59,8 @@ export default function DiscountsTab({ token }) {
         max_uses: form.max_uses ? parseInt(form.max_uses) : null,
         expires_at: form.expires_at || null,
         description: form.description,
+        duration: form.duration || 'forever',
+        duration_in_months: form.duration === 'repeating' && form.duration_in_months ? parseInt(form.duration_in_months) : null,
         is_lifetime_deal: form.is_lifetime_deal,
         lifetime_plan_id: form.is_lifetime_deal ? form.lifetime_plan_id : null,
         lifetime_price: form.is_lifetime_deal && form.lifetime_price ? parseFloat(form.lifetime_price) : null,
@@ -118,6 +122,8 @@ export default function DiscountsTab({ token }) {
       max_uses: discount.max_uses || '',
       expires_at: discount.expires_at ? new Date(discount.expires_at).toISOString().slice(0, 10) : '',
       description: discount.description || '',
+      duration: discount.duration || 'once',
+      duration_in_months: discount.duration_in_months || '',
       is_lifetime_deal: discount.is_lifetime_deal || false,
       lifetime_plan_id: discount.lifetime_plan_id || '',
       lifetime_price: discount.lifetime_price || '',
@@ -228,6 +234,36 @@ export default function DiscountsTab({ token }) {
                 className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 focus:outline-none"
               />
             </div>
+
+            {/* Duration */}
+            <div>
+              <label className="text-gray-400 text-xs block mb-1">Discount Duration</label>
+              <select
+                value={form.duration}
+                onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 focus:outline-none"
+              >
+                <option value="once">First payment only</option>
+                <option value="repeating">Multiple months</option>
+                <option value="forever">Forever (every payment)</option>
+              </select>
+            </div>
+
+            {/* Duration in months (only for repeating) */}
+            {form.duration === 'repeating' && (
+              <div>
+                <label className="text-gray-400 text-xs block mb-1">Number of Months</label>
+                <input
+                  type="number"
+                  value={form.duration_in_months}
+                  onChange={(e) => setForm({ ...form, duration_in_months: e.target.value })}
+                  min="1"
+                  max="36"
+                  placeholder="3"
+                  className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 focus:outline-none"
+                />
+              </div>
+            )}
 
             {/* Expiry Date */}
             <div>
