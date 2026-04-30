@@ -278,6 +278,12 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               </span>
             )}
             <span className="text-[10px] text-gray-600">{message.model_used}</span>
+            {message.created_at && <span className="text-[9px] text-gray-700/60 ml-auto">{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+          </div>
+        )}
+        {!message.model_used && message.created_at && (
+          <div className={`mt-1 ${isUser ? 'mr-2 text-right' : 'ml-2'}`}>
+            <span className="text-[9px] text-gray-700/60">{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
         )}
       </div>

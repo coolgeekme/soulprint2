@@ -4428,6 +4428,11 @@ export default function ChatPage() {
                       </div>
                     )}
                   </div>
+                  {msg.role === 'user' && msg.created_at && (
+                    <div className="flex justify-end mt-1 mr-1">
+                      <span className="text-[9px] text-gray-700/60">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  )}
                   {msg.role === 'assistant' && msg.id !== 'greeting' && (
                     <div className="flex items-center gap-2 mt-1.5 ml-1">
                       {/* Variant toggle for assistant messages */}
@@ -4498,6 +4503,7 @@ export default function ChatPage() {
                         </button>
                       )}
                       {msg.model_used && <span className="text-[9px] sm:text-[10px] text-gray-700 truncate max-w-[80px] sm:max-w-none">{msg.model_used}</span>}
+                      {msg.created_at && <span className="text-[9px] text-gray-700/60 ml-auto">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
                     </div>
                   )}
                 </div>
