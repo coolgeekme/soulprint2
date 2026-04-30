@@ -213,7 +213,14 @@ export default function SocialLandingPage() {
 
       {/* ════════════ LANGUAGE EXPANSION TICKER ════════════ */}
       <div className="relative z-40 bg-[#0a0a0a] border-b border-white/5 py-2 px-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-center gap-4 sm:gap-8 text-xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-center gap-4 sm:gap-6 text-xs flex-wrap">
+          <div className="flex items-center gap-2 text-gray-200 group">
+            <span className="text-sm">🏢</span>
+            <span className="font-semibold text-white">SoulPrint Engine Pro</span>
+            <span className="text-gray-400">(for Business)</span>
+            <span className="px-1.5 py-0.5 bg-orange-500/15 border border-orange-500/30 rounded text-orange-400 text-[9px] font-bold uppercase tracking-wider animate-pulse">Coming Soon</span>
+          </div>
+          <div className="w-px h-3.5 bg-white/10 hidden sm:block" />
           <a href="https://esp.soulprintengine.ai/lista-espera" target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors group">
             <span className="text-sm">🇪🇸</span>
