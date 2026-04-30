@@ -823,12 +823,12 @@ function Slide11BusinessModel({ active }) {
 
 function Slide12Vision({ active }) {
   const languages = [
-    { lang: 'Spanish', flag: '🇪🇸', market: '580M speakers', status: 'In Development' },
-    { lang: 'Portuguese', flag: '🇧🇷', market: '260M speakers', status: 'Planned' },
-    { lang: 'Arabic', flag: '🇸🇦', market: '420M speakers', status: 'Planned' },
-    { lang: 'Hindi', flag: '🇮🇳', market: '600M speakers', status: 'Planned' },
-    { lang: 'Mandarin', flag: '🇨🇳', market: '1.1B speakers', status: 'Planned' },
-    { lang: 'French', flag: '🇫🇷', market: '320M speakers', status: 'Planned' },
+    { lang: 'Spanish', flag: '🇪🇸', market: '580M speakers', status: 'Waitlist Open', url: 'https://esp.soulprintengine.ai/lista-espera', highlight: true },
+    { lang: 'Portuguese', flag: '🇧🇷', market: '260M speakers', status: 'Coming Soon', url: null, highlight: false },
+    { lang: 'Arabic', flag: '🇸🇦', market: '420M speakers', status: 'Planned', url: null, highlight: false },
+    { lang: 'Hindi', flag: '🇮🇳', market: '600M speakers', status: 'Planned', url: null, highlight: false },
+    { lang: 'Mandarin', flag: '🇨🇳', market: '1.1B speakers', status: 'Planned', url: null, highlight: false },
+    { lang: 'French', flag: '🇫🇷', market: '320M speakers', status: 'Planned', url: null, highlight: false },
   ];
 
   const b2bTiers = [
@@ -865,17 +865,34 @@ function Slide12Vision({ active }) {
             Each language version is built from the ground up with native cultural context, idioms, and communication patterns — not simply run through a translation layer. The SoulPrint personality model adapts to culturally-specific emotional expression.
           </p>
           <div className="grid grid-cols-3 gap-2">
-            {languages.map((l, i) => (
-              <div
-                key={i}
-                className={`bg-white/[0.03] rounded-lg px-2.5 py-2 text-center transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`}
-                style={{ transitionDelay: `${600 + i * 80}ms` }}
-              >
-                <span className="text-lg">{l.flag}</span>
-                <p className="text-white text-[10px] font-bold mt-0.5">{l.lang}</p>
-                <p className="text-gray-600 text-[9px]">{l.market}</p>
-              </div>
-            ))}
+            {languages.map((l, i) => {
+              const inner = (
+                <div
+                  key={i}
+                  className={`bg-white/[0.03] rounded-lg px-2.5 py-2 text-center transition-all duration-500 ${l.highlight ? 'border border-green-500/30 bg-green-500/[0.05]' : ''} ${l.url ? 'hover:bg-white/[0.06] cursor-pointer' : ''} ${active ? 'opacity-100' : 'opacity-0'}`}
+                  style={{ transitionDelay: `${600 + i * 80}ms` }}
+                >
+                  <span className="text-lg">{l.flag}</span>
+                  <p className="text-white text-[10px] font-bold mt-0.5">{l.lang}</p>
+                  <p className="text-gray-600 text-[9px]">{l.market}</p>
+                  {l.highlight && (
+                    <span className="inline-block mt-1 px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[8px] font-bold uppercase tracking-wider">
+                      {l.status}
+                    </span>
+                  )}
+                  {!l.highlight && l.status === 'Coming Soon' && (
+                    <span className="inline-block mt-1 px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/20 rounded text-yellow-400/70 text-[8px] font-bold uppercase tracking-wider">
+                      {l.status}
+                    </span>
+                  )}
+                </div>
+              );
+              return l.url ? (
+                <a key={i} href={l.url} target="_blank" rel="noopener noreferrer">{inner}</a>
+              ) : (
+                <div key={i}>{inner}</div>
+              );
+            })}
           </div>
           <div className="mt-4 bg-blue-500/5 border border-blue-500/10 rounded-lg p-3">
             <p className="text-blue-400 text-[10px] font-bold">MARKET MULTIPLIER</p>
@@ -892,6 +909,25 @@ function Slide12Vision({ active }) {
               <p className="text-purple-400 text-[10px] font-bold tracking-widest">TWO-TIER BUSINESS STRATEGY</p>
             </div>
           </div>
+
+          {/* SoulPrint Engine Pro Preview */}
+          <a href="https://pro.soulprintengine.ai" target="_blank" rel="noopener noreferrer" className={`block mb-4 rounded-xl overflow-hidden border border-purple-500/20 hover:border-purple-500/40 transition-all group ${active ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: '600ms' }}>
+            <div className="relative bg-[#f5f0eb] p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center">
+                  <span className="text-white text-[8px] font-bold">SP</span>
+                </div>
+                <span className="text-gray-800 text-[10px] font-bold">SoulPrint Engine Pro</span>
+                <span className="ml-auto text-[8px] font-bold tracking-wider text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">LIVE</span>
+              </div>
+              <p className="text-gray-700 text-xs font-bold leading-tight">"Your company has a soul. <em>Teach it to your AI.</em>"</p>
+              <p className="text-gray-500 text-[9px] mt-1 leading-relaxed">Specialized AI agents that know your mission, tone, and people. Private workspaces, group + direct chats, tuned to your brand.</p>
+            </div>
+            <div className="bg-purple-500/5 px-3 py-1.5 flex items-center justify-between">
+              <span className="text-purple-400 text-[9px] font-bold">pro.soulprintengine.ai</span>
+              <span className="text-purple-400 text-[9px] group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+          </a>
 
           {/* SMB Stats Bar */}
           <div className={`grid grid-cols-3 gap-2 mb-4 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
