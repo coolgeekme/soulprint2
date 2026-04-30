@@ -757,41 +757,41 @@ function Slide10Forecast({ active }) {
 
 function Slide11BusinessModel({ active }) {
   const plans = [
-    { name: 'Free', price: '$0', period: '/mo', features: ['Standard AI models only', '50 messages/day', '10 images/mo (watermarked)', 'No video generation', '5 PDFs/mo', 'Basic file analysis (10 pages)'], color: 'border-gray-500/20', badge: 'text-gray-400', highlight: false },
-    { name: 'Base', price: '$20.01', period: '/mo', features: ['All AI models (GPT-4o, Claude, etc.)', '50 premium messages/mo', '50 images/mo (no watermark)', '1 video/mo (720p)', '25 PDFs/mo', 'Voice chat (30 min/mo)', 'Advanced file analysis', 'Conversation search'], color: 'border-orange-500/30', badge: 'text-orange-400', highlight: true },
-    { name: 'Power', price: '$99', period: '/mo', features: ['All AI models — unlimited', 'Unlimited messages', 'Unlimited images & video', 'All resolutions', 'Unlimited PDFs', 'Unlimited voice chat', 'Priority support', 'API access'], color: 'border-yellow-500/30', badge: 'text-yellow-400', highlight: false },
+    { name: 'Free', price: '$0', period: '/mo', features: ['Standard AI models only', '50 messages/day', '10 images/mo (watermarked)', 'No video generation', '5 PDFs/mo'], color: 'border-gray-500/20', badge: 'text-gray-400', highlight: false },
+    { name: 'Base', price: '$20.01', period: '/mo', features: ['All AI models (GPT-4o, Claude, etc.)', '50 premium messages/mo', '50 images/mo (no watermark)', '1 video/mo (720p)', '25 PDFs/mo', 'Voice chat (30 min/mo)'], color: 'border-orange-500/30', badge: 'text-orange-400', highlight: true },
+    { name: 'Power', price: '$99', period: '/mo', features: ['All AI models — unlimited', 'Unlimited messages', 'Unlimited images & video', 'Unlimited PDFs & voice', 'Priority support + API access'], color: 'border-yellow-500/30', badge: 'text-yellow-400', highlight: false },
   ];
 
   return (
     <div className="slide-content flex flex-col justify-center px-4 md:px-20 max-w-6xl mx-auto w-full">
-      <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
+      <p className={`text-orange-400 text-xs font-bold tracking-[0.3em] uppercase mb-2 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         BUSINESS MODEL
       </p>
-      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-6 md:mb-10 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-2xl sm:text-3xl md:text-4xl font-black text-white mb-4 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         Three tiers. Clear value.
       </h2>
 
-      <div className="grid md:grid-cols-3 gap-5 mb-10">
+      <div className="grid md:grid-cols-3 gap-4 mb-4">
         {plans.map((p, i) => (
           <div
             key={i}
-            className={`relative bg-white/[0.02] border ${p.color} rounded-2xl p-6 transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} ${p.highlight ? 'ring-1 ring-orange-500/30 bg-orange-500/[0.03]' : ''}`}
+            className={`relative bg-white/[0.02] border ${p.color} rounded-xl p-4 transition-all duration-700 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'} ${p.highlight ? 'ring-1 ring-orange-500/30 bg-orange-500/[0.03]' : ''}`}
             style={{ transitionDelay: `${400 + i * 150}ms` }}
           >
             {p.highlight && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[10px] font-bold px-3 py-1 rounded-full tracking-wider">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full tracking-wider">
                 MOST POPULAR
               </div>
             )}
-            <p className={`${p.badge} font-bold text-sm tracking-wider mb-3`}>{p.name}</p>
-            <div className="flex items-baseline gap-1 mb-4">
-              <span className="text-white text-4xl font-black">{p.price}</span>
-              <span className="text-gray-500 text-sm">{p.period}</span>
+            <p className={`${p.badge} font-bold text-xs tracking-wider mb-1.5`}>{p.name}</p>
+            <div className="flex items-baseline gap-1 mb-3">
+              <span className="text-white text-3xl font-black">{p.price}</span>
+              <span className="text-gray-500 text-xs">{p.period}</span>
             </div>
-            <ul className="space-y-2">
+            <ul className="space-y-1.5">
               {p.features.map((f, fi) => (
-                <li key={fi} className="text-gray-400 text-xs flex items-start gap-2">
-                  <span className="text-orange-500 mt-0.5">✓</span> {f}
+                <li key={fi} className="text-gray-400 text-[11px] flex items-start gap-1.5">
+                  <span className="text-orange-500 mt-0.5 text-[10px]">✓</span> {f}
                 </li>
               ))}
             </ul>
@@ -799,19 +799,19 @@ function Slide11BusinessModel({ active }) {
         ))}
       </div>
 
-      <div className={`grid md:grid-cols-2 gap-5 transition-all duration-700 delay-900 ${active ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
-          <p className="text-white font-bold text-sm mb-2">💰 Revenue Expansion</p>
-          <ul className="text-gray-400 text-xs space-y-1">
+      <div className={`grid md:grid-cols-2 gap-3 transition-all duration-700 delay-900 ${active ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-3">
+          <p className="text-white font-bold text-xs mb-1.5">💰 Revenue Expansion</p>
+          <ul className="text-gray-400 text-[10px] space-y-0.5">
             <li>• Media credit packs for pay-as-you-go image/video gen</li>
             <li>• Premium message packs ($3.75 – $14.00)</li>
             <li>• Annual billing at 20% discount locks in retention</li>
             <li>• Promo codes for early adopters drive conversion</li>
           </ul>
         </div>
-        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
-          <p className="text-white font-bold text-sm mb-2">🔁 Growth Engine</p>
-          <ul className="text-gray-400 text-xs space-y-1">
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-3">
+          <p className="text-white font-bold text-xs mb-1.5">🔁 Growth Engine</p>
+          <ul className="text-gray-400 text-[10px] space-y-0.5">
             <li>• Viral invite system — each user gets 5 invites</li>
             <li>• Auto-replenish: hit 0 invites → get 5 more</li>
             <li>• Free tier drives top-of-funnel → converts to paid</li>
