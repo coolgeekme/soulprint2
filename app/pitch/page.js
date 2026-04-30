@@ -847,7 +847,7 @@ function Slide12Vision({ active }) {
       <p className={`text-orange-400 text-sm font-bold tracking-[0.3em] uppercase mb-4 transition-all duration-700 ${active ? 'opacity-100' : 'opacity-0'}`}>
         VISION & EXPANSION
       </p>
-      <h2 className={`text-2xl sm:text-3xl md:text-5xl font-black text-white mb-6 md:mb-10 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      <h2 className={`text-2xl sm:text-3xl md:text-4xl font-black text-white mb-4 md:mb-6 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         Two massive growth vectors.
       </h2>
 
@@ -901,8 +901,8 @@ function Slide12Vision({ active }) {
         </div>
 
         {/* B2B: SMB + Enterprise */}
-        <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6 transition-all duration-700 delay-500 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <div className="flex items-center gap-3 mb-4">
+        <div className={`bg-white/[0.02] border border-white/[0.06] rounded-2xl p-5 transition-all duration-700 delay-500 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+          <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-lg">🏢</div>
             <div>
               <h3 className="text-white font-bold text-base">B2B: SMB + Enterprise</h3>
@@ -911,13 +911,13 @@ function Slide12Vision({ active }) {
           </div>
 
           {/* SoulPrint Engine Pro Screenshot */}
-          <div className={`mb-4 rounded-xl overflow-hidden border border-purple-500/20 ${active ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: '600ms' }}>
+          <div className={`mb-3 rounded-xl overflow-hidden border border-purple-500/20 ${active ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: '600ms' }}>
             <div className="relative">
               <img 
                 src="https://customer-assets.emergentagent.com/job_04f65d68-fd79-43ef-a03b-b9263d8f6209/artifacts/25fdoo4t_image.png" 
                 alt="SoulPrint Engine Pro — For Business" 
                 className="w-full h-auto rounded-xl"
-                style={{ maxHeight: '180px', objectFit: 'cover', objectPosition: 'top' }}
+                style={{ maxHeight: '130px', objectFit: 'cover', objectPosition: 'top' }}
               />
               <div className="absolute top-2 right-2">
                 <span className="text-[8px] font-bold tracking-wider text-purple-300 bg-purple-900/80 backdrop-blur px-2 py-1 rounded-full border border-purple-500/30">SOULPRINT ENGINE PRO</span>
@@ -925,40 +925,39 @@ function Slide12Vision({ active }) {
             </div>
           </div>
 
+          {/* 150+ Agents Highlight */}
+          <div className={`flex items-center gap-3 mb-3 bg-purple-500/[0.08] border border-purple-500/15 rounded-lg px-3 py-2 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
+            <span className="text-xl">🤖</span>
+            <div>
+              <p className="text-white text-xs font-bold">150+ Specialized AI Agents</p>
+              <p className="text-gray-400 text-[10px]">Pre-built for sales, support, HR, ops, marketing, and more — ready to deploy out of the box.</p>
+            </div>
+          </div>
+
           {/* SMB Stats Bar */}
-          <div className={`grid grid-cols-3 gap-2 mb-4 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
+          <div className={`grid grid-cols-3 gap-2 mb-3 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
             {smbStats.map((s, i) => (
-              <div key={i} className="bg-purple-500/[0.06] border border-purple-500/10 rounded-lg p-2 text-center"
+              <div key={i} className="bg-purple-500/[0.06] border border-purple-500/10 rounded-lg p-1.5 text-center"
                 style={{ transitionDelay: `${700 + i * 80}ms` }}>
-                <p className="text-white font-black text-lg md:text-xl">{s.stat}</p>
-                <p className="text-gray-400 text-[9px] leading-tight">{s.label}</p>
+                <p className="text-white font-black text-base md:text-lg">{s.stat}</p>
+                <p className="text-gray-400 text-[8px] leading-tight">{s.label}</p>
               </div>
             ))}
           </div>
 
-          {/* Two tiers */}
-          <div className="space-y-2.5">
+          {/* Two tiers - compact */}
+          <div className="space-y-1.5">
             {b2bTiers.map((t, i) => (
               <div
                 key={i}
-                className={`flex items-start gap-3 bg-white/[0.02] rounded-lg px-3 py-2.5 transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`}
+                className={`flex items-center gap-2 bg-white/[0.02] rounded-lg px-3 py-2 transition-all duration-500 ${active ? 'opacity-100' : 'opacity-0'}`}
                 style={{ transitionDelay: `${900 + i * 100}ms` }}
               >
-                <span className="text-base mt-0.5">{t.icon}</span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-white text-xs font-bold">{t.title}</p>
-                    <span className="text-[8px] font-bold tracking-wider text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">{t.tag}</span>
-                  </div>
-                  <p className="text-gray-500 text-[10px] leading-relaxed">{t.desc}</p>
-                </div>
+                <span className="text-sm">{t.icon}</span>
+                <p className="text-white text-[11px] font-bold flex-1">{t.title}</p>
+                <span className="text-[8px] font-bold tracking-wider text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">{t.tag}</span>
               </div>
             ))}
-          </div>
-
-          <div className="mt-4 bg-purple-500/5 border border-purple-500/10 rounded-lg p-3">
-            <p className="text-purple-400 text-[10px] font-bold">MASSIVE UNDERSERVED MARKET</p>
-            <p className="text-gray-400 text-[10px]">33M+ US SMBs are adopting AI at record pace but lack personalized solutions. Self-serve captures volume; Enterprise builds capture <span className="text-white font-semibold">10-50x higher ACV</span> with longer commitments.</p>
           </div>
         </div>
       </div>
