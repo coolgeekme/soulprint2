@@ -910,24 +910,20 @@ function Slide12Vision({ active }) {
             </div>
           </div>
 
-          {/* SoulPrint Engine Pro Preview */}
-          <a href="https://pro.soulprintengine.ai" target="_blank" rel="noopener noreferrer" className={`block mb-4 rounded-xl overflow-hidden border border-purple-500/20 hover:border-purple-500/40 transition-all group ${active ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: '600ms' }}>
-            <div className="relative bg-[#f5f0eb] p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center">
-                  <span className="text-white text-[8px] font-bold">SP</span>
-                </div>
-                <span className="text-gray-800 text-[10px] font-bold">SoulPrint Engine Pro</span>
-                <span className="ml-auto text-[8px] font-bold tracking-wider text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">LIVE</span>
+          {/* SoulPrint Engine Pro Screenshot */}
+          <div className={`mb-4 rounded-xl overflow-hidden border border-purple-500/20 ${active ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: '600ms' }}>
+            <div className="relative">
+              <img 
+                src="https://customer-assets.emergentagent.com/job_04f65d68-fd79-43ef-a03b-b9263d8f6209/artifacts/25fdoo4t_image.png" 
+                alt="SoulPrint Engine Pro — For Business" 
+                className="w-full h-auto rounded-xl"
+                style={{ maxHeight: '180px', objectFit: 'cover', objectPosition: 'top' }}
+              />
+              <div className="absolute top-2 right-2">
+                <span className="text-[8px] font-bold tracking-wider text-purple-300 bg-purple-900/80 backdrop-blur px-2 py-1 rounded-full border border-purple-500/30">SOULPRINT ENGINE PRO</span>
               </div>
-              <p className="text-gray-700 text-xs font-bold leading-tight">"Your company has a soul. <em>Teach it to your AI.</em>"</p>
-              <p className="text-gray-500 text-[9px] mt-1 leading-relaxed">Specialized AI agents that know your mission, tone, and people. Private workspaces, group + direct chats, tuned to your brand.</p>
             </div>
-            <div className="bg-purple-500/5 px-3 py-1.5 flex items-center justify-between">
-              <span className="text-purple-400 text-[9px] font-bold">pro.soulprintengine.ai</span>
-              <span className="text-purple-400 text-[9px] group-hover:translate-x-1 transition-transform">→</span>
-            </div>
-          </a>
+          </div>
 
           {/* SMB Stats Bar */}
           <div className={`grid grid-cols-3 gap-2 mb-4 transition-all duration-700 delay-600 ${active ? 'opacity-100' : 'opacity-0'}`}>
