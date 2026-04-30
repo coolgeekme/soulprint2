@@ -642,6 +642,26 @@ export default function LandingPage() {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
+          LANGUAGE EXPANSION TICKER — top announcement bar
+      ═══════════════════════════════════════════════════════════════════ */}
+      <div className="relative z-40 bg-[#0a0a0a] border-b border-white/5 py-2 px-4">
+        <div className="max-w-5xl mx-auto flex items-center justify-center gap-4 sm:gap-8 text-xs">
+          <a href="https://esp.soulprintengine.ai/lista-espera" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors group">
+            <span className="text-sm">🇪🇸</span>
+            <span className="font-medium">Versión en Español</span>
+            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[9px] font-bold uppercase tracking-wider group-hover:bg-green-500/25 transition-colors">Waitlist Open</span>
+          </a>
+          <div className="w-px h-3.5 bg-white/10 hidden sm:block" />
+          <div className="flex items-center gap-2 text-gray-500">
+            <span className="text-sm">🇧🇷</span>
+            <span className="font-medium">Versão em Português</span>
+            <span className="px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/20 rounded text-yellow-400/70 text-[9px] font-bold uppercase tracking-wider">Soon</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════
           HERO SECTION — YouTube Playlist Background
       ═══════════════════════════════════════════════════════════════════ */}
       <section ref={heroRef} className="relative overflow-hidden" style={{ minHeight: '100vh' }}>
@@ -795,26 +815,6 @@ export default function LandingPage() {
           </p>
         </div>
       </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
-          LANGUAGE EXPANSION TICKER — below hero
-      ═══════════════════════════════════════════════════════════════════ */}
-      <div className="bg-[#0a0a0a] border-b border-white/5 py-2.5 px-4 overflow-hidden">
-        <div className="max-w-5xl mx-auto flex items-center justify-center gap-4 sm:gap-8 text-xs">
-          <a href="https://esp.soulprintengine.ai/lista-espera" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors group">
-            <span className="text-base">🇪🇸</span>
-            <span className="font-medium">Versión en Español</span>
-            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[9px] font-bold uppercase tracking-wider group-hover:bg-green-500/25 transition-colors">Waitlist Open</span>
-          </a>
-          <div className="w-px h-4 bg-white/10 hidden sm:block" />
-          <div className="flex items-center gap-2 text-gray-500">
-            <span className="text-base">🇧🇷</span>
-            <span className="font-medium">Versão em Português</span>
-            <span className="px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/20 rounded text-yellow-400/70 text-[9px] font-bold uppercase tracking-wider">Soon</span>
-          </div>
-        </div>
-      </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
           SOCIAL PROOF BAR
