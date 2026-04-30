@@ -48,7 +48,8 @@ async function requireAdmin(request) {
   const user = await requireAuth(request);
   const db = await getDb();
   const dbUser = await db.collection('users').findOne({ id: user.userId || user.id });
-  if (!dbUser?.is_admin) throw new Error('Admin access required');
+  const isAdmin = dbUser?.is_admin || dbUser?.role === 'admin' || dbUser?.role === 'superadmin';
+  if (!isAdmin) throw new Error('Admin access required');
   return user;
 }
 
