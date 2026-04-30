@@ -211,6 +211,24 @@ export default function SocialLandingPage() {
   return (
     <div className="min-h-screen bg-black text-white overflow-x-hidden">
 
+      {/* ════════════ LANGUAGE EXPANSION TICKER ════════════ */}
+      <div className="relative z-40 bg-[#0a0a0a] border-b border-white/5 py-2 px-4">
+        <div className="max-w-5xl mx-auto flex items-center justify-center gap-4 sm:gap-8 text-xs">
+          <a href="https://esp.soulprintengine.ai/lista-espera" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors group">
+            <span className="text-sm">🇪🇸</span>
+            <span className="font-medium">Versión en Español</span>
+            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[9px] font-bold uppercase tracking-wider group-hover:bg-green-500/25 transition-colors">Waitlist Open</span>
+          </a>
+          <div className="w-px h-3.5 bg-white/10 hidden sm:block" />
+          <div className="flex items-center gap-2 text-gray-500">
+            <span className="text-sm">🇧🇷</span>
+            <span className="font-medium">Versão em Português</span>
+            <span className="px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/20 rounded text-yellow-400/70 text-[9px] font-bold uppercase tracking-wider">Soon</span>
+          </div>
+        </div>
+      </div>
+
       {/* ════════════ HERO — Split Layout ════════════ */}
       <section ref={heroRef} className="relative min-h-screen flex items-center px-4 sm:px-6 lg:px-12 xl:px-20 overflow-hidden">
         {/* Background effects */}
