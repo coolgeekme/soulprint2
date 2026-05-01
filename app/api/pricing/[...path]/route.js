@@ -334,10 +334,16 @@ export async function POST(request, { params }) {
     }
 
     // POST /api/pricing/admin/sync-stripe — Sync plans to Stripe
+    // Body: { force_resync_plan_ids: ['power'] } to force re-create prices
     if (pathStr === 'admin/sync-stripe') {
       await requireAdmin(request);
-      await syncPlansToStripe();
-      return ok({ success: true, message: 'Plans synced to Stripe' });
+      const body = await request.json().catch(() => ({}));
+      const forceResyncPlanIds = body.force_resync_plan_ids || [];
+      await syncPlansToStripe(forceResyncPlanIds);
+      return ok({ success: true, message: forceResyncPlanIds.length > 0
+        ? `Plans synced to Stripe. Force re-synced: ${forceResyncPlanIds.join(', ')}`
+        : 'Plans synced to Stripe'
+      });
     }
 
     // POST /api/pricing/admin/plans/:planId — Update a plan
