@@ -153,7 +153,7 @@ All image models are accessed via Kie.ai API. Sorted by internal cost (credits).
 
 ## 5. Plan Summary
 
-| Feature | Free ($0) | Base ($20.01/mo) | Power ($99/mo) |
+| Feature | Free ($0) | Base ($20.01/mo) | Power ($99.01/mo) |
 |---------|-----------|-----------------|----------------|
 | **Text Models** | Standard only, 50 msgs/day | Standard + Premium (50 msgs/mo) | All unlimited |
 | **Images** | 10/mo, watermark, 5/hr | 50/mo, no watermark | Unlimited |
@@ -213,6 +213,6 @@ All image models are accessed via Kie.ai API. Sorted by internal cost (credits).
 ## 7. Tier Classification Rules
 
 1. **Standard models** = fast, cheap, suitable for casual users. Available on Free plan.
-2. **Premium models** = flagship, expensive, high-quality. Require Base ($20.01/mo) or Power ($99/mo).
+2. **Premium models** = flagship, expensive, high-quality. Require Base ($20.01/mo) or Power ($99.01/mo).
 3. **Unknown models** default to `premium` tier to prevent unmetered cost leaks.
 4. To add a new model: add it to `AVAILABLE_MODELS` in `lib/llm/providers.js` with `tier: 'standard'` or `tier: 'premium'`.

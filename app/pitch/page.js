@@ -533,11 +533,11 @@ function Slide08Market({ active }) {
 
 function Slide09Traction({ active }) {
   const metrics = [
-    { value: '25K+', label: 'Views Since Apr 1', sub: 'Paid social across 5 DMAs', color: 'text-white' },
-    { value: '1,300+', label: 'Messages Sent', sub: 'Active beta users', color: 'text-orange-400' },
-    { value: '108', label: 'Avg Msgs / User', sub: 'Extremely high engagement', color: 'text-blue-400' },
-    { value: '444', label: 'Conversations', sub: 'Organic usage depth', color: 'text-purple-400' },
-    { value: '81', label: 'Videos Generated', sub: 'Multi-modal adoption', color: 'text-green-400' },
+    { value: '51K+', label: 'Views Since Apr 1', sub: 'Paid social across 5 DMAs', color: 'text-white' },
+    { value: '17.5K+', label: 'Messages Sent', sub: 'Active beta users', color: 'text-orange-400' },
+    { value: '142', label: 'Avg Msgs / User', sub: 'Extremely high engagement', color: 'text-blue-400' },
+    { value: '124+', label: 'Active Users', sub: 'Organic + paid acquisition', color: 'text-purple-400' },
+    { value: '95', label: 'Videos Generated', sub: 'Multi-modal adoption', color: 'text-green-400' },
     { value: '18+', label: 'AI Models', sub: 'Multi-provider architecture', color: 'text-yellow-400' },
   ];
 
@@ -758,7 +758,7 @@ function Slide11BusinessModel({ active }) {
   const plans = [
     { name: 'Free', price: '$0', period: '/mo', features: ['Standard AI models only', '50 messages/day', '10 images/mo (watermarked)', 'No video generation', '5 PDFs/mo'], color: 'border-gray-500/20', badge: 'text-gray-400', highlight: false },
     { name: 'Base', price: '$20.01', period: '/mo', features: ['All AI models (GPT-4o, Claude, etc.)', '50 premium messages/mo', '50 images/mo (no watermark)', '1 video/mo (720p)', '25 PDFs/mo', 'Voice chat (30 min/mo)'], color: 'border-orange-500/30', badge: 'text-orange-400', highlight: true },
-    { name: 'Power', price: '$99', period: '/mo', features: ['All AI models — unlimited', 'Unlimited messages', 'Unlimited images & video', 'Unlimited PDFs & voice', 'Priority support + API access'], color: 'border-yellow-500/30', badge: 'text-yellow-400', highlight: false },
+    { name: 'Power', price: '$99.01', period: '/mo', features: ['All AI models — unlimited', 'Unlimited messages', 'Unlimited images & video', 'Unlimited PDFs & voice', 'Priority support + API access'], color: 'border-yellow-500/30', badge: 'text-yellow-400', highlight: false },
   ];
 
   return (
