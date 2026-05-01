@@ -165,7 +165,7 @@ function Slide04Product({ active }) {
     { title: 'AI Image Studio', desc: 'Generate, edit, composite, and remix images inline. Supports DALL·E, Nano Banana, Seedream, and more.', icon: '🎨', color: 'from-purple-500/20 to-pink-500/20', border: 'border-purple-500/20' },
     { title: 'AI Video Generation', desc: 'Text-to-video and image-to-video with Kling 3.0, Veo 3.1, and Runway. Real-time progress tracking.', icon: '🎬', color: 'from-red-500/20 to-orange-500/20', border: 'border-red-500/20' },
     { title: 'Real-Time Voice', desc: 'WebRTC-powered voice chat with GPT-4o Realtime and Gemini Live. Natural conversations, not dictation.', icon: '🎙️', color: 'from-green-500/20 to-emerald-500/20', border: 'border-green-500/20' },
-    { title: 'GitHub Integration', desc: 'Read repos, review code, and auto-generate Pull Requests with fixes — all from the chat interface.', icon: '💻', color: 'from-gray-500/20 to-slate-500/20', border: 'border-gray-500/20' },
+    { title: 'AI Persona System', desc: 'A 10-axis personality engine that adapts how your AI communicates — tone, formality, humor, depth — unique to each user.', icon: '🎭', color: 'from-amber-500/20 to-orange-500/20', border: 'border-amber-500/20' },
     { title: 'SoulPrint Memory', desc: 'Persistent personality model built from conversations and assessments. AI adapts tone, style, and depth.', icon: '🧠', color: 'from-orange-500/20 to-yellow-500/20', border: 'border-orange-500/20' },
   ];
 
