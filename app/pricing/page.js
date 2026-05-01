@@ -318,9 +318,9 @@ export default function PricingPage() {
               <p className="text-gray-500 text-xs mt-1">Unlimited everything. Flat rate.</p>
             </div>
             <div className="mb-6">
-              <span className="text-4xl font-black text-white">${annual ? '79.20' : '99'}</span>
+              <span className="text-4xl font-black text-white">${annual ? '79.21' : '99.01'}</span>
               <span className="text-gray-500 text-sm">/{annual ? 'mo (billed yearly)' : 'mo'}</span>
-              {annual && <p className="text-purple-400 text-xs mt-1">${(950.40).toFixed(2)}/year — save $238</p>}
+              {annual && <p className="text-purple-400 text-xs mt-1">${(950.50).toFixed(2)}/year — save $238</p>}
             </div>
             <ul className="space-y-2.5 mb-8 flex-1">
               {[
