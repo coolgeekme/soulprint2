@@ -174,6 +174,36 @@ export async function GET(request, { params }) {
       return ok(status);
     }
 
+    // GET /api/pricing/checkout/verify?session_id=xxx — Verify checkout and return purchase details
+    if (pathStr === 'checkout/verify') {
+      const sessionId = url.searchParams.get('session_id');
+      if (!sessionId) return err('Missing session_id parameter');
+      try {
+        const { getCollection } = await import('@/lib/mongodb');
+        const txnCol = await getCollection('payment_transactions');
+        const txn = await txnCol.findOne({ session_id: sessionId });
+        if (!txn) return ok({ success: false, error: 'Transaction not found' });
+        return ok({
+          success: true,
+          purchase: {
+            type: txn.type,
+            plan_id: txn.plan_id || null,
+            billing_period: txn.billing_period || null,
+            amount: txn.amount,
+            currency: txn.currency || 'usd',
+            credits: txn.credits || null,
+            messages: txn.messages || null,
+            pack_id: txn.pack_id || null,
+            discount_code: txn.discount_code || null,
+            status: txn.status,
+            created_at: txn.created_at,
+          }
+        });
+      } catch (e) {
+        return ok({ success: false, error: 'Could not verify session' });
+      }
+    }
+
     // GET /api/pricing/portal — Get Stripe customer portal URL
     if (pathStr === 'portal') {
       const user = await requireAuth(request);
