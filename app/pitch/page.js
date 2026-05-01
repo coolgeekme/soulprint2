@@ -1348,27 +1348,27 @@ function PitchDeckInner() {
   // Auto-scale slides to fit viewport (desktop only)
   useEffect(() => {
     if (typeof window === 'undefined' || window.innerWidth < 768) return;
+    const TARGET_ZOOM = 1.32;
     const scaleSlides = () => {
       slideRefs.current.forEach((innerEl) => {
         if (!innerEl) return;
         const contentEl = innerEl.firstElementChild;
         if (!contentEl) return;
-        // Reset zoom to measure natural height
+        // Reset zoom to 1 to measure natural (unzoomed) content height
         innerEl.style.zoom = '1';
+        // Force layout recalc
+        void contentEl.offsetHeight;
         const viewportH = window.innerHeight;
         const padding = 56; // buffer for nav bar
         const availableH = viewportH - padding;
-        // Force layout recalc
-        void contentEl.offsetHeight;
         const contentH = contentEl.scrollHeight;
-        if (contentH > availableH) {
-          const zoomVal = availableH / contentH;
-          // Don't go below 0.6 to keep readability
-          const clampedZoom = Math.max(0.6, Math.min(1, zoomVal));
-          innerEl.style.zoom = String(clampedZoom);
-        } else {
-          innerEl.style.zoom = '1';
-        }
+        // Calculate max zoom that keeps content within viewport
+        const maxZoom = availableH / contentH;
+        // Use target zoom if it fits, otherwise scale down to fit
+        const finalZoom = Math.min(TARGET_ZOOM, maxZoom);
+        // Don't go below 0.7 to keep readability
+        const clampedZoom = Math.max(0.7, finalZoom);
+        innerEl.style.zoom = String(clampedZoom);
       });
     };
     // Run after brief delay to let content render
@@ -1534,7 +1534,7 @@ function PitchDeckInner() {
         /* ═══ FONT SCALING — desktop only ═══ */
         @media (min-width: 768px) {
           .pitch-slide-inner {
-            zoom: 1.15;
+            zoom: 1.32;
           }
         }
 
