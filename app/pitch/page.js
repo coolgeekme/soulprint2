@@ -973,9 +973,7 @@ function Slide13Team({ active }) {
     { name: 'Layla G.', title: 'Chief Intelligence Officer', bio: 'Designs cognitive architectures and identity-bound reasoning systems. Builds the Deius Table. Establishes governance and integrity standards.', tag: null },
     { name: 'Nick Hill', title: 'AI Systems Engineer', bio: 'Engineers persistent AI personas that remember, respond, and evolve in real-time. Builds voice + text pipelines. Scales real-time voice delivery.', tag: null },
     { name: 'Adrian Floyd', title: 'VP of Marketing Strategy', bio: 'Crafts strategies across ArcheForge brands. Manages all marketing activities, brand integrity, and campaign storytelling.', tag: null },
-    { name: 'Lisa Quible', title: 'Creative Strategist & Social Media Director', bio: 'Stitches emotional truth and brand identity into enduring architecture. Ensures every launch is remembered — resonance, not just reach.', tag: null },
     { name: 'Reggie Alcos', title: 'Lead Architect, VP of Partnerships', bio: 'Builds AI systems that capture unique communication styles. Drives tech innovations and strategic partnerships for growth and deployment.', tag: null },
-    { name: 'David Eydelzon', title: 'AI & Org Systems Engineer', bio: 'Builds core systems for SoulPrint. Turns concepts into practical, usable infrastructure. Keeps solutions simple, scalable, and easy to build on.', tag: null },
   ];
 
   return (
@@ -986,7 +984,7 @@ function Slide13Team({ active }) {
         </p>
       </div>
       <h2 className={`text-2xl sm:text-3xl md:text-4xl font-black text-white mb-1 transition-all duration-700 delay-100 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        7 operators. Zero fluff.
+        5 operators. Zero fluff.
       </h2>
       <p className={`text-gray-400 text-xs mb-3 transition-all duration-700 delay-150 ${active ? 'opacity-100' : 'opacity-0'}`}>
         The team behind ArcheForge — building systems that remember.
