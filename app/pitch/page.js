@@ -1534,7 +1534,7 @@ function PitchDeckInner() {
         /* ═══ FONT SCALING — desktop only ═══ */
         @media (min-width: 768px) {
           .pitch-slide-inner {
-            zoom: 1;
+            zoom: 1.15;
           }
         }
 
