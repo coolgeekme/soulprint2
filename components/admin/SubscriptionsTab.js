@@ -152,7 +152,7 @@ export default function SubscriptionsTab({ token }) {
   const filteredSubs = subscriptions.filter(s => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
-    return s.user_id?.toLowerCase().includes(q) || s.plan_id?.toLowerCase().includes(q) || s.status?.toLowerCase().includes(q);
+    return s.user_id?.toLowerCase().includes(q) || s.plan_id?.toLowerCase().includes(q) || s.status?.toLowerCase().includes(q) || s.user_name?.toLowerCase().includes(q) || s.user_email?.toLowerCase().includes(q);
   });
 
   const SUB_TABS = [
@@ -223,11 +223,11 @@ export default function SubscriptionsTab({ token }) {
               </div>
               <div>
                 <p className="text-gray-500 text-xs">Power ({overview?.power || 0} users)</p>
-                <p className="text-green-400 font-bold">${((overview?.power || 0) * 99).toFixed(2)}/mo</p>
+                <p className="text-green-400 font-bold">${((overview?.power || 0) * 99.01).toFixed(2)}/mo</p>
               </div>
               <div>
                 <p className="text-gray-500 text-xs">Total MRR</p>
-                <p className="text-white font-bold text-lg">${(((overview?.base || 0) * 20.01) + ((overview?.power || 0) * 99)).toFixed(2)}</p>
+                <p className="text-white font-bold text-lg">${(((overview?.base || 0) * 20.01) + ((overview?.power || 0) * 99.01)).toFixed(2)}</p>
               </div>
             </div>
           </div>
@@ -429,7 +429,7 @@ export default function SubscriptionsTab({ token }) {
               <input
                 value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-white text-sm"
-                placeholder="Search by user ID, plan, or status..."
+                placeholder="Search by name, email, user ID, plan, or status..."
               />
             </div>
           </div>
@@ -465,7 +465,9 @@ export default function SubscriptionsTab({ token }) {
 
           {/* Subscriptions table */}
           <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-            <div className="grid grid-cols-5 bg-white/5 px-4 py-2 text-xs text-gray-500 font-bold uppercase tracking-wider">
+            <div className="grid grid-cols-7 bg-white/5 px-4 py-2 text-xs text-gray-500 font-bold uppercase tracking-wider">
+              <span>Name</span>
+              <span>Email</span>
               <span>User ID</span>
               <span>Plan</span>
               <span>Status</span>
@@ -476,8 +478,10 @@ export default function SubscriptionsTab({ token }) {
               <p className="text-gray-500 text-sm text-center py-8">No subscriptions found</p>
             ) : (
               filteredSubs.slice(0, 50).map(s => (
-                <div key={s.id || s.user_id} className="grid grid-cols-5 px-4 py-3 border-t border-white/5 text-sm items-center hover:bg-white/[0.02]">
-                  <span className="text-gray-300 font-mono text-xs truncate pr-2" title={s.user_id}>{s.user_id?.substring(0, 12)}...</span>
+                <div key={s.id || s.user_id} className="grid grid-cols-7 px-4 py-3 border-t border-white/5 text-sm items-center hover:bg-white/[0.02]">
+                  <span className="text-white text-xs font-medium truncate pr-2" title={s.user_name}>{s.user_name || '—'}</span>
+                  <span className="text-gray-300 text-xs truncate pr-2" title={s.user_email}>{s.user_email || '—'}</span>
+                  <span className="text-gray-500 font-mono text-[10px] truncate pr-2" title={s.user_id}>{s.user_id?.substring(0, 10)}...</span>
                   <span className={`text-xs font-bold ${s.plan_id === 'power' ? 'text-yellow-400' : s.plan_id === 'base' ? 'text-orange-400' : 'text-gray-400'}`}>
                     {s.plan_id?.toUpperCase()}
                   </span>

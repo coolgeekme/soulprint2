@@ -240,12 +240,29 @@ export async function GET(request, { params }) {
       return ok({ discounts: codes });
     }
 
-    // GET /api/pricing/admin/subscriptions — All user subscriptions
+    // GET /api/pricing/admin/subscriptions — All user subscriptions with user info
     if (pathStr === 'admin/subscriptions') {
       await requireAdmin(request);
       const db = await getDb();
       const subs = await db.collection('user_subscriptions').find({}).sort({ updated_at: -1 }).toArray();
-      return ok({ subscriptions: subs });
+      
+      // Enrich with user name and email
+      const userIds = subs.map(s => s.user_id).filter(Boolean);
+      const users = userIds.length > 0
+        ? await db.collection('users').find({ $or: [{ id: { $in: userIds } }, { user_id: { $in: userIds } }] }).toArray()
+        : [];
+      const userMap = {};
+      users.forEach(u => {
+        userMap[u.id || u.user_id] = { name: u.name || u.display_name || '', email: u.email || '' };
+      });
+      
+      const enriched = subs.map(s => ({
+        ...s,
+        user_name: userMap[s.user_id]?.name || '',
+        user_email: userMap[s.user_id]?.email || '',
+      }));
+      
+      return ok({ subscriptions: enriched });
     }
 
     return err('Not found', 404);
