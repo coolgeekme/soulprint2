@@ -60,6 +60,7 @@ import ImageEditor from '@/components/chat/ImageEditor';
 import VideoEditor from '@/components/chat/VideoEditor';
 import { MockupGenerator } from '@/components/chat/MockupGenerator';
 import ImageCard from '@/components/chat/ImageCard';
+import MusicCard from '@/components/chat/MusicCard';
 import { ChatUpgradeBanner, PremiumBadge, ModelUpgradeNudge } from '@/components/chat/UpgradeBanner';
 import { GraceCountdownBanner, EnforcementBlockMessage, ModelLockBadge, ModelFallbackNotice, TrialEndPrompt } from '@/components/chat/EnforcementUI';
 import { useEnforcement } from '@/hooks/useEnforcement';
@@ -228,6 +229,7 @@ export default function ChatPage() {
   const [isGeneratingMockup, setIsGeneratingMockup] = useState(false);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
+  const streamingMusicTaskRef = useRef(null);
   const streamingSourcesRef = useRef([]);
   const messagesEndRef = useRef(null);
   const streamingBubbleRef = useRef(null);  // Ref for the top of the assistant's streaming reply
@@ -1682,6 +1684,27 @@ export default function ChatPage() {
               // Dismiss the generating_visual animation — the VideoCard takes over
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
+            } else if (data.type === 'music_task') {
+              // Music job started — store info for MusicCard rendering
+              setMessages(prev => {
+                const updated = [...prev];
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].role === 'assistant') {
+                    updated[i] = { ...updated[i], music_task: {
+                      jobId: data.jobId,
+                      taskId: data.taskId,
+                      title: data.title,
+                      style: data.style,
+                      instrumental: data.instrumental,
+                      status: data.status || 'generating',
+                    }};
+                    break;
+                  }
+                }
+                return updated;
+              });
+              setIsGeneratingVisual(false);
+              setVisualGenerationType('');
             } else if (data.type === 'context_info') {
               // Context awareness — update banner state when AI's context window is trimmed
               setContextInfo(data);
@@ -1798,6 +1821,7 @@ export default function ChatPage() {
                 smart_reason: dynamicIntelligenceReason,
                 image_url: streamingImageUrlRef.current || undefined,
                 video_task: streamingVideoTaskRef.current || undefined,
+                music_task: streamingMusicTaskRef.current || undefined,
                 model_label: streamingVideoTaskRef.current ? (streamingVideoTaskRef.current.videoModelLabel || 'AI Video') : undefined,
                 video_model_reason: streamingVideoTaskRef.current?.videoModelReason || undefined,
                 sources: streamingSourcesRef.current?.length > 0 ? streamingSourcesRef.current : undefined,
@@ -1806,9 +1830,9 @@ export default function ChatPage() {
               setMessages(prev => [...prev, finalMsg]);
               setStreamingContent('');
               setStreamingImageUrl(null);
-              // Clear streaming video task immediately — the message list now has the VideoCard
-              // Using a synchronous ref clear + state clear to prevent any overlap window
+              // Clear streaming video/music task immediately — the message list now owns the cards
               streamingVideoTaskRef.current = null;
+              streamingMusicTaskRef.current = null;
               setStreamingVideoTask(null);
               setSearchQueries([]);
               setStreamingSources([]);
@@ -2013,6 +2037,18 @@ export default function ChatPage() {
               // Dismiss the generating_visual animation — VideoCard takes over
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
+            } else if (data.type === 'music_task') {
+              // Music job started
+              streamingMusicTaskRef.current = {
+                jobId: data.jobId,
+                taskId: data.taskId,
+                title: data.title,
+                style: data.style,
+                instrumental: data.instrumental,
+                status: data.status || 'generating',
+              };
+              setIsGeneratingVisual(false);
+              setVisualGenerationType('');
             } else if (data.type === 'generating_visual') {
               setIsGeneratingVisual(true);
               setVisualGenerationType(data.visualType || 'image');
@@ -2025,14 +2061,16 @@ export default function ChatPage() {
                 model_used: data.model_used || selectedModel,
                 image_url: streamingImageUrlRef.current || undefined,
                 video_task: streamingVideoTaskRef.current || undefined,
+                music_task: streamingMusicTaskRef.current || undefined,
                 model_label: streamingVideoTaskRef.current?.videoModelLabel || undefined,
                 video_model_reason: streamingVideoTaskRef.current?.videoModelReason || undefined,
               };
               setMessages(prev => [...prev, finalMsg]);
               setStreamingContent('');
               streamingImageUrlRef.current = null;
-              // Clear streaming video task immediately — the message list now owns the VideoCard
+              // Clear streaming video/music task immediately — the message list now owns the cards
               streamingVideoTaskRef.current = null;
+              streamingMusicTaskRef.current = null;
               setStreamingVideoTask(null);
             }
           } catch (e) { /* skip malformed lines */ }
@@ -4237,6 +4275,21 @@ export default function ChatPage() {
                         {/* Regular text (skip for pure image/video messages and active video tasks) */}
                         {!msg.image_url && !msg.video_url && !(msg.video_task && !msg.video_url) && (
                           <SafeMarkdown content={typeof msg.content === 'string' ? msg.content : String(msg.content || '')} />
+                        )}
+                        
+                        {/* Music card — inline audio player with polling */}
+                        {msg.music_task && (
+                          <MusicCard
+                            jobId={msg.music_task.jobId}
+                            initialData={{
+                              status: msg.music_task.status || 'generating',
+                              title: msg.music_task.title,
+                              style: msg.music_task.style,
+                              instrumental: msg.music_task.instrumental,
+                              tracks: msg.music_task.tracks || [],
+                            }}
+                            token={localStorage.getItem('token')}
+                          />
                         )}
                         
                         {/* Retry button for failed/timed-out generations */}

@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS, IMAGE_MODELS, VIDEO_MODELS, ASPECT_RATIOS } from './mobileConstants';
 import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { MobileImageCard, MobileVideoCard, MobileSavedVideoCard } from './MobileMediaCards';
+import MusicCard from '@/components/chat/MusicCard';
 import { SourceMediaBanner } from '@/components/chat/MediaConfirmation';
 import { ContextAwarenessBanner } from '@/components/chat/ContextBanner';
 import { PdfCard } from '@/components/chat/PdfCard';

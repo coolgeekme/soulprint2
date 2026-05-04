@@ -5,6 +5,7 @@ import MessageErrorBoundary from '@/components/MessageErrorBoundary';
 import { Copy, Edit3, ThumbsUp, ThumbsDown, MoreVertical, Loader2, Globe, Sparkles, Film, Check, Volume2, VolumeX, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MobileVideoCard, MobileSavedVideoCard, MobileImageCard } from './MobileMediaCards';
 import { PdfCard } from '@/components/chat/PdfCard';
+import MusicCard from '@/components/chat/MusicCard';
 
 const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId, onToggleVariant, onExtendVideo, onRetryGeneration }) => {
   const [showActions, setShowActions] = useState(false);
@@ -132,6 +133,21 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               url={message.file_url}
               fileName={message.file_name}
               title={message.content?.match(/\[(.+?)\]/)?.[1] || message.file_name || 'Document'}
+            />
+          )}
+          
+          {/* Music card — inline audio player with polling */}
+          {message.music_task && (
+            <MusicCard
+              jobId={message.music_task.jobId}
+              initialData={{
+                status: message.music_task.status || 'generating',
+                title: message.music_task.title,
+                style: message.music_task.style,
+                instrumental: message.music_task.instrumental,
+                tracks: message.music_task.tracks || [],
+              }}
+              token={token}
             />
           )}
           

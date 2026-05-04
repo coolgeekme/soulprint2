@@ -182,6 +182,16 @@ import {
 import { KIE_IMAGE_MODELS, KIE_CREDIT_TO_USD } from '@/lib/handlers/image-models';
 
 import {
+  generateMusic,
+  checkMusicStatus,
+  getUserMusicJobs,
+  isMusicRequest,
+  parseMusicPrompt,
+  SUNO_MODELS,
+  MUSIC_GENERATION_UX,
+} from '@/lib/handlers/music-models';
+
+import {
   handleChatCompare,
   handleCompareSelect,
   handleGenerateImage,
@@ -575,6 +585,30 @@ export async function GET(request, { params }) {
       }
     }
     if (pathStr === 'media/recommend') return handleMediaRecommend(request);
+    
+    // ── Music API routes ────────────────────────────────────────────────
+    if (pathStr === 'music/models') {
+      return NextResponse.json({
+        models: Object.entries(SUNO_MODELS).map(([id, m]) => ({ id, ...m })),
+        ux: MUSIC_GENERATION_UX,
+      });
+    }
+    if (pathStr.startsWith('music/status/') && pathArr.length === 3) {
+      const jobId = pathArr[2];
+      try {
+        const result = await checkMusicStatus(jobId);
+        return NextResponse.json(result);
+      } catch (e) {
+        return NextResponse.json({ error: e.message }, { status: 404 });
+      }
+    }
+    if (pathStr === 'music/jobs') {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      const jobs = await getUserMusicJobs(user.id);
+      return NextResponse.json({ jobs });
+    }
+    
     if (pathStr === 'imports/status') return handleImportStatus(request);
     if (pathStr === 'pwa/install-status') return handleGetInstallPromptStatus(request);
     
@@ -687,6 +721,63 @@ export async function POST(request, { params }) {
     if (pathStr === 'generate/video') return handleGenerateVideo(request);
     if (pathStr === 'media/generate') return handleMediaGenerate(request);
     if (pathStr === 'media/save-to-gallery') return handleSaveToGallery(request);
+    
+    // ── Music generation POST ───────────────────────────────────────────
+    if (pathStr === 'music/generate') {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      try {
+        const body = await request.json();
+        const { prompt, title, style, lyrics, instrumental, model } = body;
+        if (!prompt) return err('prompt is required', 400);
+        const kieApiKey = process.env.KIE_API_KEY;
+        if (!kieApiKey) return err('Music generation is not configured (KIE_API_KEY missing)', 503);
+        
+        // If no title/style provided, use LLM to parse the prompt
+        let musicParams = { prompt, title, style, lyrics, instrumental, model };
+        if (!title || !style) {
+          const openaiKey = process.env.OPENAI_API_KEY;
+          if (openaiKey) {
+            const parsed = await parseMusicPrompt(prompt, openaiKey);
+            musicParams = {
+              prompt,
+              title: title || parsed.title,
+              style: style || parsed.style,
+              lyrics: lyrics || parsed.lyrics,
+              instrumental: instrumental ?? parsed.instrumental,
+              model: model || 'V4_5PLUS',
+            };
+          }
+        }
+        
+        const result = await generateMusic(musicParams, kieApiKey, user.id);
+        return NextResponse.json({
+          ...result,
+          title: musicParams.title,
+          style: musicParams.style,
+          instrumental: musicParams.instrumental,
+          ux: MUSIC_GENERATION_UX,
+        });
+      } catch (e) {
+        console.error('[Music] Generate error:', e.message);
+        return err(e.message, 500);
+      }
+    }
+    if (pathStr === 'music/callback') {
+      // Handle Suno callback (fire-and-forget, non-critical)
+      try {
+        const body = await request.json();
+        console.log('[Music] Callback received:', JSON.stringify(body).slice(0, 200));
+        // We primarily use polling, but if a callback comes in, update the job
+        if (body.taskId) {
+          const db = await getDb();
+          const job = await db.collection('music_jobs').findOne({ task_id: body.taskId });
+          if (job) await checkMusicStatus(job.id);
+        }
+      } catch {}
+      return NextResponse.json({ ok: true });
+    }
+    
     if (pathStr === 'media/convert-to-pdf') return handleConvertToPdf(request);
     if (pathStr === 'parse/document') return handleParseDocument(request);
     if (pathStr === 'analyze/image-to-json') return handleImageToJson(request);
