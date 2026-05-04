@@ -1694,8 +1694,10 @@ export default function ChatPage() {
                 instrumental: data.instrumental,
                 status: data.status || 'generating',
               };
-              setIsGeneratingVisual(false);
-              setVisualGenerationType('');
+              // NOTE: Do NOT dismiss isGeneratingVisual here.
+              // Unlike video (where VideoCard polls inline), the MusicCard only renders
+              // on the finalized message. Keep the music loader animation visible until
+              // the 'done' event fires (which already clears it).
             } else if (data.type === 'context_info') {
               // Context awareness — update banner state when AI's context window is trimmed
               setContextInfo(data);
@@ -2029,7 +2031,7 @@ export default function ChatPage() {
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
             } else if (data.type === 'music_task') {
-              // Music job started
+              // Music job started — keep loader visible until 'done'
               streamingMusicTaskRef.current = {
                 jobId: data.jobId,
                 taskId: data.taskId,
@@ -2038,8 +2040,8 @@ export default function ChatPage() {
                 instrumental: data.instrumental,
                 status: data.status || 'generating',
               };
-              setIsGeneratingVisual(false);
-              setVisualGenerationType('');
+              // NOTE: Do NOT dismiss isGeneratingVisual here — MusicCard only renders
+              // on the finalized message, so the loader must stay visible until 'done'.
             } else if (data.type === 'generating_visual') {
               setIsGeneratingVisual(true);
               setVisualGenerationType(data.visualType || 'image');

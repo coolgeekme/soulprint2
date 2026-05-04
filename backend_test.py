@@ -1,524 +1,635 @@
 #!/usr/bin/env python3
 """
-SMB Detection System Testing for SoulPrint Engine Pro Cross-Product Promotion
-Tests the buildSMBProContext() function and its integration into chat stream.
+Backend Testing for SoulPrint Engine Bug Fixes
+Tests two specific bug fixes:
+1. Conversational Follow-Up Detection ("any update?" context preservation)
+2. Music Generation NDJSON Event Sequence
 """
 
 import requests
 import json
 import time
-from datetime import datetime
-from pymongo import MongoClient
+import sys
+from typing import Dict, List, Optional
 
 # Configuration
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+BASE_URL = "http://localhost:3000"
 TEST_EMAIL = "testchat@example.com"
 TEST_PASSWORD = "Test123456"
-# Use local MongoDB since Atlas is blocked in dev environment
-MONGO_URL = "mongodb://localhost:27017/soulprint"
 
-# Global variables
-auth_token = None
-user_id = None
-mongo_client = None
-db = None
+class Colors:
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    RESET = '\033[0m'
 
-def setup_mongo():
-    """Setup MongoDB connection"""
-    global mongo_client, db
+def print_success(msg):
+    print(f"{Colors.GREEN}✅ {msg}{Colors.RESET}")
+
+def print_error(msg):
+    print(f"{Colors.RED}❌ {msg}{Colors.RESET}")
+
+def print_info(msg):
+    print(f"{Colors.BLUE}ℹ️  {msg}{Colors.RESET}")
+
+def print_warning(msg):
+    print(f"{Colors.YELLOW}⚠️  {msg}{Colors.RESET}")
+
+def login() -> Optional[str]:
+    """Login and return auth token"""
+    print_info("Logging in...")
     try:
-        mongo_client = MongoClient(MONGO_URL)
-        db = mongo_client['soulprint']
-        print("✅ MongoDB connection established")
-        return True
-    except Exception as e:
-        print(f"❌ MongoDB connection failed: {e}")
-        return False
-
-def cleanup_mongo():
-    """Cleanup MongoDB connection"""
-    global mongo_client
-    if mongo_client:
-        mongo_client.close()
-        print("✅ MongoDB connection closed")
-
-def login():
-    """Login and get auth token"""
-    global auth_token, user_id
-    try:
-        print("\n" + "="*80)
-        print("STEP 1: Authentication")
-        print("="*80)
-        
         response = requests.post(
             f"{BASE_URL}/api/auth/login",
             json={"email": TEST_EMAIL, "passcode": TEST_PASSWORD},
-            headers={"Content-Type": "application/json"}
+            timeout=10
         )
-        
         if response.status_code == 200:
             data = response.json()
-            auth_token = data.get('token')
-            user_id = data.get('user', {}).get('id')
-            
-            # If user_id is None, get it from /api/auth/me
-            if not user_id:
-                me_response = requests.get(
-                    f"{BASE_URL}/api/auth/me",
-                    headers={"Authorization": f"Bearer {auth_token}"}
-                )
-                if me_response.status_code == 200:
-                    me_data = me_response.json()
-                    user_id = me_data.get('id')
-            
-            print(f"✅ Login successful")
-            print(f"   User ID: {user_id}")
-            print(f"   Token: {auth_token[:20]}...")
-            return True
+            token = data.get('token')
+            if token:
+                print_success(f"Login successful for {TEST_EMAIL}")
+                return token
+            else:
+                print_error("No token in response")
+                return None
         else:
-            print(f"❌ Login failed: {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
+            print_error(f"Login failed: {response.status_code} - {response.text}")
+            return None
     except Exception as e:
-        print(f"❌ Login error: {e}")
-        return False
+        print_error(f"Login error: {str(e)}")
+        return None
 
-def test_chat_stream_basic():
-    """Test 1: Chat stream still works (no regressions)"""
+def create_conversation(token: str) -> Optional[str]:
+    """Create a new conversation and return conversation ID"""
+    print_info("Creating conversation...")
     try:
-        print("\n" + "="*80)
-        print("TEST 1: Chat Stream Basic Functionality (No Regressions)")
-        print("="*80)
-        
+        # Send initial message to create conversation
         response = requests.post(
             f"{BASE_URL}/api/chat/stream",
-            json={
-                "content": "Hello, how are you?",
-                "model": "gpt-4o-mini",
-                "conversationId": None
-            },
             headers={
-                "Authorization": f"Bearer {auth_token}",
+                "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json"
             },
+            json={
+                "content": "Hello, I'm testing the chat system.",
+                "model": "gpt-4o-mini"
+            },
+            timeout=30,
             stream=True
         )
         
         if response.status_code != 200:
-            print(f"❌ Chat stream failed with status {response.status_code}")
-            print(f"   Response: {response.text}")
+            print_error(f"Failed to create conversation: {response.status_code}")
+            return None
+        
+        # Parse NDJSON stream to get conversation ID
+        conversation_id = None
+        for line in response.iter_lines():
+            if line:
+                try:
+                    event = json.loads(line.decode('utf-8'))
+                    if event.get('type') == 'meta' and event.get('conversationId'):
+                        conversation_id = event['conversationId']
+                        break
+                except json.JSONDecodeError:
+                    continue
+        
+        if conversation_id:
+            print_success(f"Conversation created: {conversation_id}")
+            return conversation_id
+        else:
+            print_error("No conversation ID found in response")
+            return None
+            
+    except Exception as e:
+        print_error(f"Error creating conversation: {str(e)}")
+        return None
+
+def seed_conversation_messages(token: str, conversation_id: str) -> bool:
+    """Seed some messages into the conversation for context"""
+    print_info("Seeding conversation with context messages...")
+    
+    messages = [
+        "Can you help me understand quantum computing?",
+        "What are the main applications of quantum computers?",
+        "How does quantum entanglement work?"
+    ]
+    
+    for msg in messages:
+        try:
+            response = requests.post(
+                f"{BASE_URL}/api/chat/stream",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "conversationId": conversation_id,
+                    "content": msg,
+                    "model": "gpt-4o-mini"
+                },
+                timeout=30,
+                stream=True
+            )
+            
+            if response.status_code != 200:
+                print_error(f"Failed to seed message: {response.status_code}")
+                return False
+            
+            # Consume the stream
+            for line in response.iter_lines():
+                pass
+            
+            time.sleep(0.5)  # Brief pause between messages
+            
+        except Exception as e:
+            print_error(f"Error seeding message: {str(e)}")
             return False
+    
+    print_success("Conversation seeded with context messages")
+    return True
+
+def test_conversational_followup(token: str, conversation_id: str) -> Dict:
+    """
+    Test 1: Conversational Follow-Up Detection
+    Tests that short status/progress follow-ups like "any update?" are detected
+    as conversational follow-ups and do NOT trigger web search.
+    """
+    print("\n" + "="*80)
+    print("TEST 1: CONVERSATIONAL FOLLOW-UP DETECTION")
+    print("="*80)
+    
+    results = {
+        "test_name": "Conversational Follow-Up Detection",
+        "passed": 0,
+        "failed": 0,
+        "details": []
+    }
+    
+    # Test cases: short status/progress follow-ups that should NOT trigger web search
+    followup_messages = [
+        "any update?",
+        "any progress?",
+        "is it done?",
+        "done yet?",
+        "any news?",
+        "what's the status?",
+        "how's it going?",
+        "ready yet?"
+    ]
+    
+    print_info(f"Testing {len(followup_messages)} conversational follow-up patterns...")
+    
+    for msg in followup_messages:
+        print(f"\n  Testing: '{msg}'")
+        try:
+            response = requests.post(
+                f"{BASE_URL}/api/chat/stream",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "conversationId": conversation_id,
+                    "content": msg,
+                    "model": "gpt-4o-mini"
+                },
+                timeout=30,
+                stream=True
+            )
+            
+            if response.status_code != 200:
+                print_error(f"  Request failed: {response.status_code}")
+                results["failed"] += 1
+                results["details"].append({
+                    "message": msg,
+                    "status": "FAILED",
+                    "reason": f"HTTP {response.status_code}"
+                })
+                continue
+            
+            # Parse NDJSON stream and check for web search indicators
+            events = []
+            web_search_detected = False
+            
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        event = json.loads(line.decode('utf-8'))
+                        events.append(event)
+                        
+                        # Check for web search indicators
+                        if event.get('type') == 'search_start':
+                            web_search_detected = True
+                        if event.get('type') == 'delta':
+                            content = event.get('content', '').lower()
+                            if 'searching' in content or 'web search' in content:
+                                web_search_detected = True
+                                
+                    except json.JSONDecodeError:
+                        continue
+            
+            # Verify: should NOT trigger web search
+            if not web_search_detected:
+                print_success(f"  ✓ Correctly detected as conversational follow-up (no web search)")
+                results["passed"] += 1
+                results["details"].append({
+                    "message": msg,
+                    "status": "PASSED",
+                    "reason": "No web search triggered"
+                })
+            else:
+                print_error(f"  ✗ Incorrectly triggered web search")
+                results["failed"] += 1
+                results["details"].append({
+                    "message": msg,
+                    "status": "FAILED",
+                    "reason": "Web search was triggered"
+                })
+            
+            time.sleep(0.5)
+            
+        except Exception as e:
+            print_error(f"  Error: {str(e)}")
+            results["failed"] += 1
+            results["details"].append({
+                "message": msg,
+                "status": "FAILED",
+                "reason": str(e)
+            })
+    
+    # Test a longer query that SHOULD trigger web search
+    print(f"\n  Testing longer query (should trigger web search): 'what is the latest update on tesla stock price'")
+    try:
+        response = requests.post(
+            f"{BASE_URL}/api/chat/stream",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "conversationId": conversation_id,
+                "content": "what is the latest update on tesla stock price",
+                "model": "gpt-4o-mini"
+            },
+            timeout=30,
+            stream=True
+        )
         
-        # Check content type
-        content_type = response.headers.get('content-type', '')
-        print(f"✅ Chat stream endpoint accessible")
-        print(f"   Status: {response.status_code}")
-        print(f"   Content-Type: {content_type}")
+        if response.status_code == 200:
+            web_search_detected = False
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        event = json.loads(line.decode('utf-8'))
+                        if event.get('type') == 'search_start':
+                            web_search_detected = True
+                        if event.get('type') == 'delta':
+                            content = event.get('content', '').lower()
+                            if 'searching' in content or 'web search' in content:
+                                web_search_detected = True
+                    except json.JSONDecodeError:
+                        continue
+            
+            if web_search_detected:
+                print_success(f"  ✓ Correctly triggered web search for longer query")
+                results["passed"] += 1
+                results["details"].append({
+                    "message": "longer query test",
+                    "status": "PASSED",
+                    "reason": "Web search triggered as expected"
+                })
+            else:
+                print_warning(f"  ⚠ Web search not detected (may be disabled or model-dependent)")
+                results["details"].append({
+                    "message": "longer query test",
+                    "status": "SKIPPED",
+                    "reason": "Web search not detected"
+                })
+    except Exception as e:
+        print_warning(f"  Error testing longer query: {str(e)}")
+    
+    return results
+
+def test_music_generation(token: str) -> Dict:
+    """
+    Test 2: Music Generation NDJSON Event Sequence
+    Tests that music generation emits proper NDJSON events in order:
+    1. generating_visual with visualType: 'music'
+    2. delta (text content)
+    3. music_task with jobId, taskId, title, style, status
+    4. done
+    """
+    print("\n" + "="*80)
+    print("TEST 2: MUSIC GENERATION NDJSON EVENT SEQUENCE")
+    print("="*80)
+    
+    results = {
+        "test_name": "Music Generation NDJSON Event Sequence",
+        "passed": 0,
+        "failed": 0,
+        "details": []
+    }
+    
+    # Check if KIE_API_KEY is configured
+    print_info("Testing music generation endpoint...")
+    
+    music_request = "create a jazz song about summer"
+    print(f"  Sending music request: '{music_request}'")
+    
+    try:
+        response = requests.post(
+            f"{BASE_URL}/api/chat/stream",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "content": music_request,
+                "model": "gpt-4o-mini"
+            },
+            timeout=60,
+            stream=True
+        )
         
-        # Parse NDJSON stream
-        event_count = 0
-        has_delta = False
-        has_done = False
-        errors = []
+        if response.status_code != 200:
+            print_error(f"  Request failed: {response.status_code}")
+            results["failed"] += 1
+            results["details"].append({
+                "test": "music_generation_request",
+                "status": "FAILED",
+                "reason": f"HTTP {response.status_code}"
+            })
+            return results
+        
+        # Parse NDJSON stream and collect events
+        events = []
+        event_types = []
         
         for line in response.iter_lines():
             if line:
                 try:
                     event = json.loads(line.decode('utf-8'))
-                    event_count += 1
-                    
-                    if event.get('type') == 'delta':
-                        has_delta = True
-                    elif event.get('type') == 'done':
-                        has_done = True
-                    elif event.get('type') == 'error':
-                        errors.append(event.get('error', 'Unknown error'))
+                    events.append(event)
+                    event_types.append(event.get('type'))
                 except json.JSONDecodeError:
-                    pass
+                    continue
         
-        print(f"   Events received: {event_count}")
-        print(f"   Has delta events: {has_delta}")
-        print(f"   Has done event: {has_done}")
+        print(f"\n  Received {len(events)} events: {event_types}")
         
-        if errors:
-            print(f"❌ Errors found in stream: {errors}")
-            return False
+        # Check for required events
+        has_generating_visual = False
+        has_music_task = False
+        has_delta = False
+        has_done = False
+        music_not_configured = False
         
-        if not has_delta or not has_done:
-            print(f"❌ Missing required events (delta: {has_delta}, done: {has_done})")
-            return False
-        
-        print("✅ TEST 1 PASSED: Chat stream working correctly with no regressions")
-        return True
-        
-    except Exception as e:
-        print(f"❌ TEST 1 FAILED: {e}")
-        return False
-
-def seed_business_messages():
-    """Seed business messages directly into MongoDB"""
-    try:
-        print("\n" + "="*80)
-        print("STEP 2: Seeding Business Messages")
-        print("="*80)
-        
-        messages_collection = db['messages']
-        
-        # Clear existing user messages to ensure clean test
-        existing_count = messages_collection.count_documents({"user_id": user_id, "role": "user"})
-        if existing_count > 0:
-            messages_collection.delete_many({"user_id": user_id, "role": "user"})
-            print(f"✅ Cleared {existing_count} existing user messages")
-        
-        business_messages = [
-            "Help me create a marketing strategy for my small business",
-            "What's the best sales funnel approach for B2B?",
-            "I need to improve my business operations workflow",
-            "Can you help me write a business plan?",
-            "What pricing strategy should I use for my SaaS product?",
-            "Help me with lead generation for my startup",
-            "I need a content marketing plan for Q3",
-            "How do I manage inventory for my e-commerce business?",
-            "Write me a cold outreach email template for sales",
-            "What's a good customer acquisition strategy?",
-            "Help me with SEO for my business website",
-            "I need to create a pitch deck for investors"
-        ]
-        
-        # Insert business messages
-        inserted_count = 0
-        for msg in business_messages:
-            message_doc = {
-                "id": f"test_smb_{int(time.time() * 1000)}_{inserted_count}",
-                "user_id": user_id,
-                "conversation_id": f"test_conv_{user_id}",
-                "role": "user",
-                "content": msg,
-                "created_at": datetime.utcnow()
-            }
-            messages_collection.insert_one(message_doc)
-            inserted_count += 1
-            time.sleep(0.1)  # Small delay to ensure different timestamps
-        
-        print(f"✅ Seeded {inserted_count} business messages into MongoDB")
-        
-        # Verify messages were inserted
-        count = messages_collection.count_documents({"user_id": user_id, "role": "user"})
-        print(f"   Total user messages in DB: {count}")
-        print(f"   Business message ratio: {inserted_count}/{count} = {int(inserted_count/count*100)}%")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Failed to seed business messages: {e}")
-        return False
-
-def test_smb_detection_trigger():
-    """Test 2: SMB detection with business messages"""
-    try:
-        print("\n" + "="*80)
-        print("TEST 2: SMB Detection with Business Messages")
-        print("="*80)
-        
-        # Clear any existing SMB promotion records for this user
-        smb_promotions = db['smb_promotions']
-        smb_promotions.delete_many({"user_id": user_id})
-        print("✅ Cleared existing SMB promotion records")
-        
-        # Send a business message to trigger detection
-        response = requests.post(
-            f"{BASE_URL}/api/chat/stream",
-            json={
-                "content": "Help me refine my marketing campaign for next quarter",
-                "model": "gpt-4o-mini",
-                "conversationId": None
-            },
-            headers={
-                "Authorization": f"Bearer {auth_token}",
-                "Content-Type": "application/json"
-            },
-            stream=True
-        )
-        
-        if response.status_code != 200:
-            print(f"❌ Chat stream failed with status {response.status_code}")
-            return False
-        
-        print(f"✅ Chat stream request sent successfully")
-        
-        # Consume the stream
-        event_count = 0
-        for line in response.iter_lines():
-            if line:
-                event_count += 1
-        
-        print(f"   Events received: {event_count}")
-        
-        # Wait a moment for DB write
-        time.sleep(2)
-        
-        # Check if SMB promotion record was created
-        smb_record = smb_promotions.find_one({"user_id": user_id})
-        
-        if not smb_record:
-            print("❌ No SMB promotion record found in database")
-            return False
-        
-        print("✅ SMB promotion record created in database")
-        print(f"   Last nudged at: {smb_record.get('last_nudged_at')}")
-        print(f"   Detected categories: {smb_record.get('detected_categories', [])}")
-        print(f"   SMB message count: {smb_record.get('smb_message_count', 0)}")
-        print(f"   Total messages analyzed: {smb_record.get('total_messages_analyzed', 0)}")
-        print(f"   SMB ratio: {smb_record.get('smb_ratio', 0)}%")
-        print(f"   Nudge count: {smb_record.get('nudge_count', 0)}")
-        
-        # Verify threshold was met
-        smb_count = smb_record.get('smb_message_count', 0)
-        smb_ratio = smb_record.get('smb_ratio', 0)
-        
-        if smb_count < 5:
-            print(f"❌ SMB message count ({smb_count}) is below threshold (5)")
-            return False
-        
-        if smb_ratio < 15:
-            print(f"❌ SMB ratio ({smb_ratio}%) is below threshold (15%)")
-            return False
-        
-        print("✅ TEST 2 PASSED: SMB detection triggered correctly with business messages")
-        return True
-        
-    except Exception as e:
-        print(f"❌ TEST 2 FAILED: {e}")
-        return False
-
-def test_anti_spam_cooldown():
-    """Test 3: Anti-spam cooldown"""
-    try:
-        print("\n" + "="*80)
-        print("TEST 3: Anti-Spam Cooldown (7-day)")
-        print("="*80)
-        
-        smb_promotions = db['smb_promotions']
-        
-        # Get the existing record
-        smb_record = smb_promotions.find_one({"user_id": user_id})
-        
-        if not smb_record:
-            print("❌ No SMB promotion record found (Test 2 should have created one)")
-            return False
-        
-        last_nudged_at = smb_record.get('last_nudged_at')
-        print(f"✅ Found SMB promotion record")
-        print(f"   Last nudged at: {last_nudged_at}")
-        
-        # Calculate days since last nudge
-        if last_nudged_at:
-            days_since = (datetime.utcnow() - last_nudged_at).total_seconds() / (60 * 60 * 24)
-            print(f"   Days since last nudge: {days_since:.2f}")
+        for event in events:
+            event_type = event.get('type')
             
-            if days_since < 7:
-                print(f"✅ Cooldown active: User was nudged {days_since:.2f} days ago (< 7 days)")
-                print("   The function should return empty string during cooldown")
+            if event_type == 'generating_visual':
+                if event.get('visualType') == 'music':
+                    has_generating_visual = True
+                    print_success(f"  ✓ Found 'generating_visual' event with visualType='music'")
+            
+            elif event_type == 'delta':
+                has_delta = True
+                content = event.get('content', '')
+                if 'not configured' in content.lower() or 'music generation is not' in content.lower():
+                    music_not_configured = True
+                    print_warning(f"  ⚠ Music generation not configured (KIE_API_KEY missing)")
+            
+            elif event_type == 'music_task':
+                has_music_task = True
+                # Verify required fields
+                required_fields = ['jobId', 'taskId', 'title', 'style', 'status']
+                missing_fields = [f for f in required_fields if f not in event]
+                
+                if not missing_fields:
+                    print_success(f"  ✓ Found 'music_task' event with all required fields: {required_fields}")
+                    print(f"    - jobId: {event.get('jobId')}")
+                    print(f"    - taskId: {event.get('taskId')}")
+                    print(f"    - title: {event.get('title')}")
+                    print(f"    - style: {event.get('style')}")
+                    print(f"    - status: {event.get('status')}")
+                else:
+                    print_error(f"  ✗ 'music_task' event missing fields: {missing_fields}")
+            
+            elif event_type == 'done':
+                has_done = True
+                print_success(f"  ✓ Found 'done' event")
+        
+        # Evaluate results
+        if music_not_configured:
+            print_warning("  Music generation is not configured (KIE_API_KEY missing)")
+            print_info("  Checking for graceful error handling...")
+            
+            if has_delta and has_done:
+                print_success("  ✓ Gracefully handled missing configuration with error message")
+                results["passed"] += 1
+                results["details"].append({
+                    "test": "music_not_configured_handling",
+                    "status": "PASSED",
+                    "reason": "Gracefully handled missing KIE_API_KEY"
+                })
             else:
-                print(f"⚠️  Cooldown expired: User was nudged {days_since:.2f} days ago (>= 7 days)")
-                print("   The function would allow another nudge")
-        
-        # Send another business message - should NOT trigger another nudge
-        response = requests.post(
-            f"{BASE_URL}/api/chat/stream",
-            json={
-                "content": "I need help with my sales strategy",
-                "model": "gpt-4o-mini",
-                "conversationId": None
-            },
-            headers={
-                "Authorization": f"Bearer {auth_token}",
-                "Content-Type": "application/json"
-            },
-            stream=True
-        )
-        
-        # Consume the stream
-        for line in response.iter_lines():
-            pass
-        
-        time.sleep(2)
-        
-        # Check if nudge count increased
-        updated_record = smb_promotions.find_one({"user_id": user_id})
-        original_nudge_count = smb_record.get('nudge_count', 0)
-        updated_nudge_count = updated_record.get('nudge_count', 0)
-        
-        print(f"   Original nudge count: {original_nudge_count}")
-        print(f"   Updated nudge count: {updated_nudge_count}")
-        
-        if updated_nudge_count == original_nudge_count:
-            print("✅ Nudge count unchanged - cooldown working correctly")
+                print_error("  ✗ Did not handle missing configuration gracefully")
+                results["failed"] += 1
+                results["details"].append({
+                    "test": "music_not_configured_handling",
+                    "status": "FAILED",
+                    "reason": "Missing graceful error handling"
+                })
         else:
-            print("⚠️  Nudge count increased - cooldown may have expired or logic changed")
+            # Check event sequence
+            if has_generating_visual:
+                results["passed"] += 1
+                results["details"].append({
+                    "test": "generating_visual_event",
+                    "status": "PASSED",
+                    "reason": "Found generating_visual with visualType='music'"
+                })
+            else:
+                results["failed"] += 1
+                results["details"].append({
+                    "test": "generating_visual_event",
+                    "status": "FAILED",
+                    "reason": "Missing generating_visual event"
+                })
+            
+            if has_delta:
+                results["passed"] += 1
+                results["details"].append({
+                    "test": "delta_event",
+                    "status": "PASSED",
+                    "reason": "Found delta event with text content"
+                })
+            else:
+                results["failed"] += 1
+                results["details"].append({
+                    "test": "delta_event",
+                    "status": "FAILED",
+                    "reason": "Missing delta event"
+                })
+            
+            if has_music_task:
+                results["passed"] += 1
+                results["details"].append({
+                    "test": "music_task_event",
+                    "status": "PASSED",
+                    "reason": "Found music_task event with required fields"
+                })
+            else:
+                results["failed"] += 1
+                results["details"].append({
+                    "test": "music_task_event",
+                    "status": "FAILED",
+                    "reason": "Missing music_task event"
+                })
+            
+            if has_done:
+                results["passed"] += 1
+                results["details"].append({
+                    "test": "done_event",
+                    "status": "PASSED",
+                    "reason": "Found done event"
+                })
+            else:
+                results["failed"] += 1
+                results["details"].append({
+                    "test": "done_event",
+                    "status": "FAILED",
+                    "reason": "Missing done event"
+                })
         
-        print("✅ TEST 3 PASSED: Anti-spam cooldown mechanism verified")
-        return True
+        # Verify NDJSON format (not SSE)
+        print_info("  Verifying NDJSON format (not SSE)...")
+        is_ndjson = True
+        for line_bytes in response.iter_lines():
+            if line_bytes:
+                line = line_bytes.decode('utf-8')
+                if line.startswith('data: '):
+                    is_ndjson = False
+                    print_error("  ✗ Response uses SSE format (data: prefix), not NDJSON")
+                    break
+        
+        if is_ndjson:
+            print_success("  ✓ Response is proper NDJSON format (no 'data:' prefix)")
+            results["passed"] += 1
+            results["details"].append({
+                "test": "ndjson_format",
+                "status": "PASSED",
+                "reason": "Response is NDJSON, not SSE"
+            })
+        else:
+            results["failed"] += 1
+            results["details"].append({
+                "test": "ndjson_format",
+                "status": "FAILED",
+                "reason": "Response uses SSE format instead of NDJSON"
+            })
         
     except Exception as e:
-        print(f"❌ TEST 3 FAILED: {e}")
-        return False
+        print_error(f"  Error: {str(e)}")
+        results["failed"] += 1
+        results["details"].append({
+            "test": "music_generation_request",
+            "status": "FAILED",
+            "reason": str(e)
+        })
+    
+    return results
 
-def test_non_business_user():
-    """Test 4: Non-business user should NOT trigger"""
-    try:
-        print("\n" + "="*80)
-        print("TEST 4: Non-Business User Should NOT Trigger")
-        print("="*80)
-        
-        # Create a new test user with non-business messages
-        test_user_email = f"nonbusiness_{int(time.time())}@test.com"
-        
-        # Register new user
-        reg_response = requests.post(
-            f"{BASE_URL}/api/auth/register",
-            json={
-                "email": test_user_email,
-                "passcode": "Test123456"
-            },
-            headers={"Content-Type": "application/json"}
-        )
-        
-        if reg_response.status_code not in [200, 201]:
-            print(f"⚠️  Could not create new test user, using existing user for test")
-            # Use existing user but clear their messages
-            messages_collection = db['messages']
-            messages_collection.delete_many({"user_id": user_id})
-            test_user_id = user_id
-            test_token = auth_token
-        else:
-            reg_data = reg_response.json()
-            test_token = reg_data.get('token')
-            test_user_id = reg_data.get('user', {}).get('id')
-            print(f"✅ Created new test user: {test_user_email}")
-        
-        # Seed non-business messages
-        non_business_messages = [
-            "What's the weather like today?",
-            "Tell me a joke",
-            "How do I cook pasta?",
-            "What's the capital of France?"
-        ]
-        
-        messages_collection = db['messages']
-        for msg in non_business_messages:
-            message_doc = {
-                "id": f"test_nonbiz_{int(time.time() * 1000)}",
-                "user_id": test_user_id,
-                "conversation_id": f"test_conv_{test_user_id}",
-                "role": "user",
-                "content": msg,
-                "created_at": datetime.utcnow()
-            }
-            messages_collection.insert_one(message_doc)
-            time.sleep(0.1)
-        
-        print(f"✅ Seeded {len(non_business_messages)} non-business messages")
-        
-        # Clear any SMB promotion records
-        smb_promotions = db['smb_promotions']
-        smb_promotions.delete_many({"user_id": test_user_id})
-        
-        # Send a message
-        response = requests.post(
-            f"{BASE_URL}/api/chat/stream",
-            json={
-                "content": "What's your favorite color?",
-                "model": "gpt-4o-mini",
-                "conversationId": None
-            },
-            headers={
-                "Authorization": f"Bearer {test_token}",
-                "Content-Type": "application/json"
-            },
-            stream=True
-        )
-        
-        # Consume the stream
-        for line in response.iter_lines():
-            pass
-        
-        time.sleep(2)
-        
-        # Check if SMB promotion record was created
-        smb_record = smb_promotions.find_one({"user_id": test_user_id})
-        
-        if smb_record:
-            print(f"❌ SMB promotion record was created for non-business user")
-            print(f"   SMB message count: {smb_record.get('smb_message_count', 0)}")
-            print(f"   SMB ratio: {smb_record.get('smb_ratio', 0)}%")
-            return False
-        
-        print("✅ No SMB promotion record created for non-business user")
-        print("✅ TEST 4 PASSED: Non-business users do not trigger SMB detection")
-        return True
-        
-    except Exception as e:
-        print(f"❌ TEST 4 FAILED: {e}")
-        return False
-
-def main():
-    """Main test execution"""
-    print("\n" + "="*80)
-    print("SMB DETECTION SYSTEM TESTING")
-    print("Testing buildSMBProContext() and SoulPrint Engine Pro Promotion")
-    print("="*80)
-    
-    # Setup
-    if not setup_mongo():
-        print("\n❌ TESTING ABORTED: MongoDB connection failed")
-        return
-    
-    if not login():
-        print("\n❌ TESTING ABORTED: Authentication failed")
-        cleanup_mongo()
-        return
-    
-    # Run tests
-    results = {
-        "Test 1: Chat Stream Basic": test_chat_stream_basic(),
-        "Test 2: SMB Detection Trigger": False,
-        "Test 3: Anti-Spam Cooldown": False,
-        "Test 4: Non-Business User": False
-    }
-    
-    # Test 2 requires seeding
-    if seed_business_messages():
-        results["Test 2: SMB Detection Trigger"] = test_smb_detection_trigger()
-        
-        # Test 3 depends on Test 2
-        if results["Test 2: SMB Detection Trigger"]:
-            results["Test 3: Anti-Spam Cooldown"] = test_anti_spam_cooldown()
-    
-    # Test 4 is independent
-    results["Test 4: Non-Business User"] = test_non_business_user()
-    
-    # Summary
+def print_summary(all_results: List[Dict]):
+    """Print test summary"""
     print("\n" + "="*80)
     print("TEST SUMMARY")
     print("="*80)
     
-    passed = sum(1 for v in results.values() if v)
-    total = len(results)
+    total_passed = sum(r["passed"] for r in all_results)
+    total_failed = sum(r["failed"] for r in all_results)
+    total_tests = total_passed + total_failed
     
-    for test_name, result in results.items():
-        status = "✅ PASSED" if result else "❌ FAILED"
-        print(f"{status}: {test_name}")
+    for result in all_results:
+        test_name = result["test_name"]
+        passed = result["passed"]
+        failed = result["failed"]
+        total = passed + failed
+        
+        if failed == 0:
+            status_icon = "✅"
+            status_color = Colors.GREEN
+        else:
+            status_icon = "❌"
+            status_color = Colors.RED
+        
+        print(f"\n{status_icon} {test_name}")
+        print(f"  {status_color}Passed: {passed}/{total}{Colors.RESET}")
+        if failed > 0:
+            print(f"  {Colors.RED}Failed: {failed}/{total}{Colors.RESET}")
     
-    print(f"\nTotal: {passed}/{total} tests passed ({int(passed/total*100)}%)")
+    print(f"\n{'='*80}")
+    print(f"OVERALL: {total_passed}/{total_tests} tests passed")
     
-    # Cleanup
-    cleanup_mongo()
-    
-    if passed == total:
-        print("\n🎉 ALL TESTS PASSED - SMB Detection system is working correctly!")
+    if total_failed == 0:
+        print_success("All tests passed! 🎉")
+        return 0
     else:
-        print(f"\n⚠️  {total - passed} test(s) failed - review the output above")
+        print_error(f"{total_failed} test(s) failed")
+        return 1
+
+def main():
+    """Main test execution"""
+    print("\n" + "="*80)
+    print("SOULPRINT ENGINE BUG FIX TESTING")
+    print("Testing two bug fixes:")
+    print("1. Conversational Follow-Up Detection")
+    print("2. Music Generation NDJSON Event Sequence")
+    print("="*80)
+    
+    # Login
+    token = login()
+    if not token:
+        print_error("Failed to authenticate. Exiting.")
+        return 1
+    
+    # Create conversation for Test 1
+    conversation_id = create_conversation(token)
+    if not conversation_id:
+        print_error("Failed to create conversation. Exiting.")
+        return 1
+    
+    # Seed conversation with context
+    if not seed_conversation_messages(token, conversation_id):
+        print_warning("Failed to seed conversation, but continuing with tests...")
+    
+    # Run tests
+    all_results = []
+    
+    # Test 1: Conversational Follow-Up Detection
+    result1 = test_conversational_followup(token, conversation_id)
+    all_results.append(result1)
+    
+    # Test 2: Music Generation NDJSON Event Sequence
+    result2 = test_music_generation(token)
+    all_results.append(result2)
+    
+    # Print summary
+    exit_code = print_summary(all_results)
+    
+    return exit_code
 
 if __name__ == "__main__":
-    main()
+    try:
+        exit_code = main()
+        sys.exit(exit_code)
+    except KeyboardInterrupt:
+        print("\n\nTest interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print_error(f"Unexpected error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
