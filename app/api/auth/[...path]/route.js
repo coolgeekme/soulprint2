@@ -1,9 +1,18 @@
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '@/lib/mongodb';
+import { getDb, ensureCriticalIndexes } from '@/lib/mongodb';
 import { generateToken, hashPassword, comparePassword, getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { sendWelcomeEmail, sendBetaCodeEmail } from '@/lib/email';
 import { ok, err, authenticate, requireAdmin, checkRateLimit } from '@/lib/api-utils';
+
+// Ensure critical indexes on first load (non-blocking)
+let indexesEnsured = false;
+async function maybeEnsureIndexes() {
+  if (!indexesEnsured) {
+    indexesEnsured = true;
+    ensureCriticalIndexes().catch(() => {}); // fire-and-forget
+  }
+}
 
 // ============================================================
 // EMAIL NOTIFICATION HELPERS
@@ -245,6 +254,18 @@ async function handleFirebaseAuth(request) {
   
   console.log('[Firebase Auth] Looking up user:', email.toLowerCase());
   let user = await db.collection('users').findOne({ email: email.toLowerCase() });
+  
+  // SAFETY: If user not found on first try, retry once after a brief delay.
+  // This guards against transient Atlas connection issues returning null.
+  if (!user) {
+    console.warn('[Firebase Auth] User NOT found on first lookup. Retrying in 500ms...');
+    await new Promise(r => setTimeout(r, 500));
+    user = await db.collection('users').findOne({ email: email.toLowerCase() });
+    if (user) {
+      console.log('[Firebase Auth] User found on RETRY (transient issue detected):', user.id);
+    }
+  }
+  
   console.log('[Firebase Auth] User found:', !!user, user ? { id: user.id, role: user.role, accepted: user.accepted } : null);
   
   if (user) {
@@ -590,6 +611,9 @@ async function handleVerifyEmail(request) {
 export async function POST(request, { params }) {
   const pathArr = params?.path || [];
   const endpoint = pathArr[0]; // First segment after /api/auth/
+  
+  // Ensure critical DB indexes on first auth request (non-blocking)
+  maybeEnsureIndexes();
 
   try {
     switch (endpoint) {
