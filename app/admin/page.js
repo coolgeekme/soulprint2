@@ -2326,16 +2326,106 @@ function BlogTab({ token }) {
               </div>
 
               <div>
-                <label className="text-gray-500 text-xs uppercase tracking-wider mb-1 block">Featured Image URL</label>
+                <label className="text-gray-500 text-xs uppercase tracking-wider mb-1 block">Featured Image</label>
+                
+                {/* Image Action Buttons */}
+                <div className="flex gap-2 mb-2">
+                  <label className="flex-1 cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setForm(f => ({ ...f, _imageUploading: true, _imageError: '' }));
+                        try {
+                          const fd = new FormData();
+                          fd.append('image', file);
+                          const res = await fetch('/api/admin/blog/upload-image', {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${token}` },
+                            body: fd,
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            setForm(f => ({ ...f, featured_image: data.url, _imageUploading: false }));
+                          } else {
+                            setForm(f => ({ ...f, _imageError: data.error || 'Upload failed', _imageUploading: false }));
+                          }
+                        } catch (err) {
+                          setForm(f => ({ ...f, _imageError: err.message, _imageUploading: false }));
+                        }
+                      }}
+                    />
+                    <div className="flex items-center justify-center gap-2 px-3 py-2 bg-black border border-white/10 rounded-lg text-sm text-gray-300 hover:border-orange-500/50 transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                      Upload
+                    </div>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const prompt = window.prompt('Describe the image you want to generate:');
+                      if (!prompt) return;
+                      setForm(f => ({ ...f, _imageGenerating: true, _imageError: '' }));
+                      try {
+                        const res = await fetch('/api/admin/blog/generate-image', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                          body: JSON.stringify({ prompt }),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setForm(f => ({ ...f, featured_image: data.url, _imageGenerating: false, _revisedPrompt: data.revised_prompt }));
+                        } else {
+                          setForm(f => ({ ...f, _imageError: data.error || 'Generation failed', _imageGenerating: false }));
+                        }
+                      } catch (err) {
+                        setForm(f => ({ ...f, _imageError: err.message, _imageGenerating: false }));
+                      }
+                    }}
+                    disabled={form._imageGenerating}
+                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-black border border-white/10 rounded-lg text-sm text-gray-300 hover:border-purple-500/50 transition-colors disabled:opacity-50"
+                  >
+                    {form._imageGenerating ? (
+                      <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Generating...</>
+                    ) : (
+                      <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> AI Generate</>
+                    )}
+                  </button>
+                </div>
+
+                {/* URL Input (manual) */}
                 <input
                   type="text"
-                  placeholder="https://..."
+                  placeholder="Or paste image URL..."
                   value={form.featured_image}
                   onChange={e => setForm(f => ({ ...f, featured_image: e.target.value }))}
                   className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-orange-500/50 outline-none"
                 />
+
+                {/* Upload/Generate status */}
+                {form._imageUploading && (
+                  <p className="text-orange-400 text-xs mt-1 animate-pulse">Uploading...</p>
+                )}
+                {form._imageError && (
+                  <p className="text-red-400 text-xs mt-1">{form._imageError}</p>
+                )}
+                {form._revisedPrompt && !form._imageError && (
+                  <p className="text-purple-400 text-xs mt-1 italic">AI: {form._revisedPrompt}</p>
+                )}
+
+                {/* Image Preview */}
                 {form.featured_image && (
-                  <img src={form.featured_image} alt="Preview" className="mt-2 rounded-lg w-full aspect-video object-cover" />
+                  <div className="mt-2 relative group">
+                    <img src={form.featured_image} alt="Preview" className="rounded-lg w-full aspect-video object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, featured_image: '', _revisedPrompt: '' }))}
+                      className="absolute top-2 right-2 bg-black/70 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                    >✕</button>
+                  </div>
                 )}
               </div>
 

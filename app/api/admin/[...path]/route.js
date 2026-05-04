@@ -4752,6 +4752,113 @@ async function handleAdminDeleteBlogPost(request, postId) {
   return ok({ success: true });
 }
 
+// Admin: Upload blog image
+async function handleAdminUploadBlogImage(request) {
+  const user = await authenticate(request);
+  if (!user || user.role !== 'superadmin') return err('Unauthorized', 401);
+
+  try {
+    const formData = await request.formData();
+    const file = formData.get('image');
+    if (!file || typeof file === 'string') return err('No image file provided');
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
+    if (!allowedTypes.includes(file.type)) {
+      return err('Invalid file type. Allowed: JPEG, PNG, WebP, GIF, SVG');
+    }
+
+    // Max 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      return err('File too large. Maximum 10MB.');
+    }
+
+    // Create uploads directory
+    const uploadsDir = '/tmp/soulprint_uploads/blog';
+    await mkdir(uploadsDir, { recursive: true });
+
+    // Generate unique filename
+    const ext = file.name?.split('.').pop() || 'jpg';
+    const fileName = `blog_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const filePath = `${uploadsDir}/${fileName}`;
+
+    // Write file
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await writeFile(filePath, buffer);
+
+    // Return the serve URL
+    const imageUrl = `/api/blog/image/${fileName}`;
+
+    return ok({ success: true, url: imageUrl, fileName });
+  } catch (e) {
+    console.error('[Blog Upload] Error:', e);
+    return err('Upload failed: ' + e.message, 500);
+  }
+}
+
+// Admin: Generate blog image with AI
+async function handleAdminGenerateBlogImage(request) {
+  const user = await authenticate(request);
+  if (!user || user.role !== 'superadmin') return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { prompt } = body;
+  if (!prompt) return err('Prompt is required');
+
+  try {
+    // Try OpenAI DALL-E 3 first
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return err('OpenAI API key not configured', 500);
+
+    console.log('[Blog Image Gen] Generating with prompt:', prompt.substring(0, 100));
+
+    const res = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: `Professional blog featured image: ${prompt}. High quality, editorial style, suitable as a blog header.`,
+        n: 1,
+        size: '1792x1024',
+        quality: 'hd',
+        style: 'natural',
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      console.error('[Blog Image Gen] OpenAI error:', data.error);
+      return err(data.error?.message || 'Image generation failed', 400);
+    }
+
+    const imageUrl = data.data?.[0]?.url;
+    const revisedPrompt = data.data?.[0]?.revised_prompt || prompt;
+
+    if (!imageUrl) return err('No image URL returned', 500);
+
+    // Download and save locally so it persists (OpenAI URLs expire after 1 hour)
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) return ok({ success: true, url: imageUrl, revised_prompt: revisedPrompt, persisted: false });
+
+    const uploadsDir = '/tmp/soulprint_uploads/blog';
+    await mkdir(uploadsDir, { recursive: true });
+    const fileName = `blog_gen_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.png`;
+    const filePath = `${uploadsDir}/${fileName}`;
+    const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+    await writeFile(filePath, imgBuffer);
+
+    const persistedUrl = `/api/blog/image/${fileName}`;
+
+    console.log('[Blog Image Gen] Success, saved as:', fileName);
+
+    return ok({ success: true, url: persistedUrl, revised_prompt: revisedPrompt, persisted: true });
+  } catch (e) {
+    console.error('[Blog Image Gen] Error:', e);
+    return err('Image generation failed: ' + e.message, 500);
+  }
+}
+
 // ============================================================
 
 // ============================================================
@@ -5334,6 +5441,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'app-updates') return handleAdminCreateAppUpdate(request);
     if (pathStr === 'app-updates/generate') return handleAdminGenerateReleaseNotes(request);
     if (pathStr === 'blog/posts') return handleAdminCreateBlogPost(request);
+    if (pathStr === 'blog/upload-image') return handleAdminUploadBlogImage(request);
+    if (pathStr === 'blog/generate-image') return handleAdminGenerateBlogImage(request);
     if (pathStr === 'feature-flags') return handleAdminCreateFeatureFlag(request);
     if (pathStr === 'beta-code') return handleAdminCreateBetaCode(request);
     if (pathStr === 'beta-code/send') return handleAdminSendBetaCode(request);
