@@ -143,6 +143,8 @@ agent_communication:
     message: "FEEDBACK & SUPPORT SYSTEM VERIFICATION COMPLETE: All feedback and support endpoints verified working correctly end-to-end. ✅ POST /api/user-feedback returns {success: true}. ✅ POST /api/feedback (message thumbs up/down) returns {success: true}. ✅ POST /api/contact returns {success: true, message: 'Message sent successfully!'}. ✅ Email to team@archforge.com confirmed sent (Resend ID: 758e967a-0ec9-4712-9109-b07d00dca3f4). ✅ GET /api/admin/feedback returns 2 feedback items with stats {total: 2, new: 2}. ✅ Admin Dashboard Feedback tab displays all items with Chat Feedback badges, ratings, status management (New/Reviewed/Resolved). ✅ Admin Dashboard Support tab loads all tickets with AI diagnosis, status filters, and New Ticket button. ✅ POST /api/support/tickets creates tickets successfully. Previous agent's fix to email addresses (team@archforge.com) and missing function imports verified working. No code changes needed."
   - agent: "main"
     message: "PHASE 5 ACCESS ENFORCEMENT ENGINE (Part 1): Created lib/handlers/access-enforcement.js — the Grace Period Engine. Key functions: getUserEnforcementStatus() (cohort classification, grace period logic, trial status), checkActionAllowed() (enforcement gate for all actions: premium_model, standard_message, image_generation, video_generation, voice_chat, pdf_generation), recordUsage() (tracks usage per action with daily/monthly/hourly counters), getUserUsageSummary() (billing dashboard data). Also updated pricing.js (Free plan: 10 images, 0 videos, 5 PDFs, 50 msgs/day), renamed Video Credits to Media Credits, added IMAGE_MODEL_CREDITS with 80% margin pricing per model, added PREMIUM_MESSAGE_PACKS. Added API endpoints: GET /api/pricing/enforcement, GET /api/pricing/enforcement/usage, GET /api/pricing/enforcement/check?action=X. Auth: testchat@example.com/Test123456."
+  - agent: "main"
+    message: "SMB DETECTION SYSTEM: Created lib/handlers/smb-detection.js — Smart cross-product promotion for SoulPrint Engine Pro. buildSMBProContext(userId) analyzes last 60 user messages for business topic keywords across 7 categories (marketing, sales, operations, product, business_strategy, finance_accounting, customer_service). Threshold: 5+ business messages AND 15% ratio. Anti-spam: 7-day cooldown via smb_promotions collection in MongoDB. Integrated into memory-system.js buildSystemPrompt() as non-blocking append. When threshold met, injects system prompt directive for AI to naturally suggest SoulPrint Engine Pro (https://pro.soulprintengine.ai/?utm_source=spe&utm_medium=site&utm_campaign=smb) as a SEPARATE product (not an upgrade). Max 1 mention per conversation. Auth: testchat@example.com/Test123456."
 
 
 
@@ -2309,10 +2311,27 @@ backend:
         comment: "VIDEO EXTENSION FEATURE TESTING COMPLETE: All critical functionality working correctly. ✅ Authentication with testchat@example.com/Test123456 working. ✅ Video Extend Intent Detection: All extend patterns ('extend the video', 'continue the video', 'make it longer', 'add more to the video', 'lengthen the clip') correctly do NOT trigger video extend without existing video context - this is the expected behavior as extend requires a source video. ✅ Video Generation Detection: Regular video generation patterns ('Create a new video of a cat', 'Generate a video of a sunset') correctly trigger video generation (not extend) - proper differentiation working. ✅ Media Confirmation Context URLs: All media_confirmation events include required context fields (conversationImageUrl, conversationVideoUrl, conversationVideoTaskId) - media context persistence working correctly. ✅ Video Status Polling (runway-extend): GET /api/media/status/:taskId endpoint working correctly for runway-extend model (returns 404 for non-existent tasks as expected). ✅ Existing Endpoints: All core endpoints (health, models, conversations) continue working correctly - no regressions. ✅ Pattern Recognition: detectVideoExtendIntent() function correctly identifies extend patterns but requires video context to trigger - proper safeguards in place. The video extension feature is fully functional with proper intent detection, context tracking, and API integration. All 19/19 comprehensive tests passed (100% success rate)."
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "SMB Detection System for SoulPrint Engine Pro"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+backend:
+  - task: "SMB Detection System for SoulPrint Engine Pro"
+    implemented: true
+    working: false
+    file: "lib/handlers/smb-detection.js, lib/handlers/memory-system.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented SMB Detection system in lib/handlers/smb-detection.js with buildSMBProContext(userId) function. Checks 7-day cooldown in smb_promotions collection, fetches last 60 user messages, classifies against 7 SMB categories, threshold: 5+ business messages AND 15%+ ratio. Integrated into memory-system.js buildSystemPrompt() as non-blocking append. Auth: testchat@example.com/Test123456."
+      - working: false
+        agent: "testing"
+        comment: "TESTED: SMB Detection system partially working. ✅ Test 1 PASSED: Chat stream works with no regressions (POST /api/chat/stream returns 200, proper NDJSON format with delta and done events). ✅ Test 4 PASSED: Non-business users do not trigger SMB detection (users with <5 business messages or <15% ratio correctly do not create smb_promotions records). ❌ Test 2 FAILED: SMB detection NOT triggering despite meeting all thresholds. Seeded 12 business messages (100% business ratio), verified in MongoDB: 13 total messages, 12 business-related (92% ratio), meets both thresholds (12 >= 5 messages AND 92% >= 15% ratio). However, NO smb_promotions record created after multiple chat requests. No [SMB Detection] logs found in server logs, suggesting buildSMBProContext() either not being called, returning early, or errors being silently caught by .catch(() => '') in memory-system.js line 746. ❌ Test 3 FAILED: Cannot test cooldown since Test 2 failed. ISSUE: The buildSMBProContext function is not creating records in smb_promotions collection even when all conditions are met (sufficient messages, high business ratio, no existing cooldown). Possible causes: (1) Function not being invoked during system prompt build, (2) Silent error in classification logic, (3) System prompt cache preventing fresh detection, (4) MongoDB query/write issue. Recommend: Add explicit logging at function entry point, verify function is actually called during chat stream, check for any silent errors in classifyMessage() or MongoDB operations."
 
 backend:
   - task: "Admin Discount Codes CRUD Endpoints"
@@ -2856,8 +2875,21 @@ backend:
         agent: "testing"
         comment: "TESTED: Stripe checkout regression test passed - no regressions found. ✅ POST /api/pricing/checkout/message-pack with packId: 'msg-25' creates valid Stripe checkout session. ✅ Session ID format correct (cs_test_b16caR1bCHgxnUhwJk4JfOLgeaOCJScfMfCDuVgAf8l2BvZQUdWn7Ts4VL). ✅ Checkout URL valid (https://checkout.stripe.com/c/pay/...). ✅ Both msg-25 and msg-50 packs tested successfully. ✅ Authentication required (401 without token). ✅ Stripe integration working with test keys (sk_test_...). The createMessagePackCheckout function properly creates Stripe prices on-the-fly, handles customer creation/lookup, and returns valid checkout sessions with success/cancel URLs."
 
+  - task: "SMB Detection — SoulPrint Engine Pro Cross-Product Promotion"
+    implemented: true
+    working: "NA"
+    file: "lib/handlers/smb-detection.js, lib/handlers/memory-system.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented SMB Detection system. New file lib/handlers/smb-detection.js with buildSMBProContext(userId). Analyzes last 60 user messages for business topic keywords across 7 categories. Threshold 5+ business messages AND 15%+ ratio. Anti-spam 7-day cooldown via smb_promotions collection. Integrated into memory-system.js buildSystemPrompt as non-blocking append. When triggered injects system prompt for AI to naturally suggest SoulPrint Engine Pro as separate product. Auth testchat@example.com/Test123456. Test: Send 5+ business messages then verify SMB context activates."
+
 test_plan:
-  current_focus: []
+  current_focus:
+    - "SMB Detection — SoulPrint Engine Pro Cross-Product Promotion"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
