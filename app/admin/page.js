@@ -2335,6 +2335,44 @@ function BlogTab({ token }) {
               <div>
                 <label className="text-gray-500 text-xs uppercase tracking-wider mb-1 block">Featured Image</label>
                 
+                {/* Image Prompt Field (auto-generated from content, editable) */}
+                <div className="mb-2">
+                  <div className="flex items-center gap-1 mb-1">
+                    <span className="text-gray-600 text-xs">Image prompt</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!form.title && !form.content) { alert('Write some content first'); return; }
+                        setForm(f => ({ ...f, _promptGenerating: true }));
+                        try {
+                          const res = await fetch('/api/admin/blog/auto-generate', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                            body: JSON.stringify({ title: form.title, content: form.content, type: 'image_prompt' }),
+                          });
+                          const data = await res.json();
+                          if (data.success && data.image_prompt) {
+                            setForm(f => ({ ...f, _imagePrompt: data.image_prompt, _promptGenerating: false }));
+                          } else {
+                            setForm(f => ({ ...f, _promptGenerating: false }));
+                          }
+                        } catch { setForm(f => ({ ...f, _promptGenerating: false })); }
+                      }}
+                      disabled={form._promptGenerating}
+                      className="text-purple-400 hover:text-purple-300 text-xs underline disabled:opacity-50"
+                    >
+                      {form._promptGenerating ? 'analyzing...' : 'auto-generate from content'}
+                    </button>
+                  </div>
+                  <textarea
+                    placeholder="Describe the featured image... (click 'auto-generate' to create from your content)"
+                    value={form._imagePrompt || ''}
+                    onChange={e => setForm(f => ({ ...f, _imagePrompt: e.target.value }))}
+                    rows={2}
+                    className="w-full bg-black border border-white/10 rounded-lg px-3 py-2 text-white text-xs focus:border-purple-500/50 outline-none resize-none"
+                  />
+                </div>
+
                 {/* Image Action Buttons */}
                 <div className="flex gap-2 mb-2">
                   <label className="flex-1 cursor-pointer">
@@ -2373,8 +2411,29 @@ function BlogTab({ token }) {
                   <button
                     type="button"
                     onClick={async () => {
-                      const prompt = window.prompt('Describe the image you want to generate:');
-                      if (!prompt) return;
+                      let prompt = form._imagePrompt;
+                      if (!prompt) {
+                        // Auto-generate prompt from content first
+                        if (form.title || form.content) {
+                          setForm(f => ({ ...f, _imageGenerating: true, _imageError: '' }));
+                          try {
+                            const autoRes = await fetch('/api/admin/blog/auto-generate', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                              body: JSON.stringify({ title: form.title, content: form.content, type: 'image_prompt' }),
+                            });
+                            const autoData = await autoRes.json();
+                            if (autoData.success && autoData.image_prompt) {
+                              prompt = autoData.image_prompt;
+                              setForm(f => ({ ...f, _imagePrompt: prompt }));
+                            }
+                          } catch {}
+                        }
+                        if (!prompt) {
+                          prompt = window.prompt('Describe the image you want to generate:');
+                        }
+                      }
+                      if (!prompt) { setForm(f => ({ ...f, _imageGenerating: false })); return; }
                       setForm(f => ({ ...f, _imageGenerating: true, _imageError: '' }));
                       try {
                         const res = await fetch('/api/admin/blog/generate-image', {
@@ -2437,7 +2496,33 @@ function BlogTab({ token }) {
               </div>
 
               <div>
-                <label className="text-gray-500 text-xs uppercase tracking-wider mb-1 block">Excerpt (SEO)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-gray-500 text-xs uppercase tracking-wider">Excerpt (SEO)</label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!form.title && !form.content) { alert('Write some content first'); return; }
+                      setForm(f => ({ ...f, _excerptGenerating: true }));
+                      try {
+                        const res = await fetch('/api/admin/blog/auto-generate', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                          body: JSON.stringify({ title: form.title, content: form.content, type: 'excerpt' }),
+                        });
+                        const data = await res.json();
+                        if (data.success && data.excerpt) {
+                          setForm(f => ({ ...f, excerpt: data.excerpt, _excerptGenerating: false }));
+                        } else {
+                          setForm(f => ({ ...f, _excerptGenerating: false }));
+                        }
+                      } catch { setForm(f => ({ ...f, _excerptGenerating: false })); }
+                    }}
+                    disabled={form._excerptGenerating}
+                    className="text-purple-400 hover:text-purple-300 text-xs underline disabled:opacity-50"
+                  >
+                    {form._excerptGenerating ? 'generating...' : '✨ auto-generate'}
+                  </button>
+                </div>
                 <textarea
                   placeholder="Brief description for search results..."
                   value={form.excerpt}

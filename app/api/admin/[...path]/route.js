@@ -4859,6 +4859,66 @@ async function handleAdminGenerateBlogImage(request) {
   }
 }
 
+// Admin: Auto-generate image prompt and/or SEO excerpt from blog content
+async function handleAdminBlogAutoGenerate(request) {
+  const user = await authenticate(request);
+  if (!user || user.role !== 'superadmin') return err('Unauthorized', 401);
+
+  const body = await request.json();
+  const { title, content, type } = body; // type: 'image_prompt' | 'excerpt' | 'both'
+
+  if (!title && !content) return err('Title or content is required');
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return err('OpenAI API key not configured', 500);
+
+  const contentPreview = (content || '').substring(0, 2000);
+  const result = {};
+
+  try {
+    if (type === 'image_prompt' || type === 'both') {
+      const imgRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: 'You are an expert at creating image generation prompts. Given a blog post title and content, generate a single concise DALL-E prompt for a professional, editorial-style featured image. The prompt should be visual, specific, and capture the essence of the article. Return ONLY the prompt text, nothing else. Max 200 characters.' },
+            { role: 'user', content: `Blog Title: ${title}\n\nBlog Content Preview:\n${contentPreview}` },
+          ],
+          max_tokens: 100,
+          temperature: 0.7,
+        }),
+      });
+      const imgData = await imgRes.json();
+      result.image_prompt = imgData.choices?.[0]?.message?.content?.trim() || `Professional illustration for: ${title}`;
+    }
+
+    if (type === 'excerpt' || type === 'both') {
+      const exRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: 'You are an SEO expert. Given a blog post title and content, write a compelling meta description / excerpt for search engines. It should be 140-155 characters, include relevant keywords naturally, and entice readers to click. Return ONLY the excerpt text, nothing else.' },
+            { role: 'user', content: `Blog Title: ${title}\n\nBlog Content Preview:\n${contentPreview}` },
+          ],
+          max_tokens: 80,
+          temperature: 0.5,
+        }),
+      });
+      const exData = await exRes.json();
+      result.excerpt = exData.choices?.[0]?.message?.content?.trim() || '';
+    }
+
+    return ok({ success: true, ...result });
+  } catch (e) {
+    console.error('[Blog Auto-Generate] Error:', e);
+    return err('Auto-generation failed: ' + e.message, 500);
+  }
+}
+
 // ============================================================
 
 // ============================================================
@@ -5443,6 +5503,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'blog/posts') return handleAdminCreateBlogPost(request);
     if (pathStr === 'blog/upload-image') return handleAdminUploadBlogImage(request);
     if (pathStr === 'blog/generate-image') return handleAdminGenerateBlogImage(request);
+    if (pathStr === 'blog/auto-generate') return handleAdminBlogAutoGenerate(request);
     if (pathStr === 'feature-flags') return handleAdminCreateFeatureFlag(request);
     if (pathStr === 'beta-code') return handleAdminCreateBetaCode(request);
     if (pathStr === 'beta-code/send') return handleAdminSendBetaCode(request);
