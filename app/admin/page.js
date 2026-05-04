@@ -2141,8 +2141,15 @@ function BlogTab({ token }) {
     setSaving(true);
     try {
       const payload = {
-        ...form,
-        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        title: form.title,
+        content: form.content,
+        excerpt: form.excerpt,
+        featured_image: form.featured_image || '',
+        category: form.category,
+        tags: typeof form.tags === 'string' 
+          ? form.tags.split(',').map(t => t.trim()).filter(Boolean) 
+          : (form.tags || []),
+        author: form.author,
         status: publishNow ? 'published' : form.status
       };
 
