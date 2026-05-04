@@ -2877,15 +2877,18 @@ backend:
 
   - task: "SMB Detection — SoulPrint Engine Pro Cross-Product Promotion"
     implemented: true
-    working: "NA"
+    working: true
     file: "lib/handlers/smb-detection.js, lib/handlers/memory-system.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented SMB Detection system. New file lib/handlers/smb-detection.js with buildSMBProContext(userId). Analyzes last 60 user messages for business topic keywords across 7 categories. Threshold 5+ business messages AND 15%+ ratio. Anti-spam 7-day cooldown via smb_promotions collection. Integrated into memory-system.js buildSystemPrompt as non-blocking append. When triggered injects system prompt for AI to naturally suggest SoulPrint Engine Pro as separate product. Auth testchat@example.com/Test123456. Test: Send 5+ business messages then verify SMB context activates."
+      - working: true
+        agent: "main"
+        comment: "VERIFIED via direct bash testing. (1) Seeded 12+ business messages for test user. (2) Sent chat stream request. (3) Server logs confirm: [SMB Detection] 14/16 messages are business-related (88%). Topics: Marketing, Sales, Business Strategy, Product, Operations. Nudge activated. (4) smb_promotions collection record created with correct data (nudge_count: 1, detected_categories, smb_ratio: 88). (5) Cooldown verified: second request did NOT re-nudge (nudge_count still 1). (6) Chat stream returns 200 with proper NDJSON streaming — no regressions."
 
 test_plan:
   current_focus:
