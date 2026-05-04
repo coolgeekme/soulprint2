@@ -124,26 +124,48 @@ export default function MusicCard({ jobId, initialData, token }) {
   // ── Generating/Pending state ──────────────────────────────────────────
   if (status === 'pending' || status === 'generating' || status === 'lyrics_ready') {
     return (
-      <div className="my-3 rounded-xl bg-gradient-to-br from-purple-900/40 to-indigo-900/40 border border-purple-500/30 p-4 max-w-md">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center animate-pulse">
-            <span className="text-xl">🎵</span>
+      <div className="my-3 rounded-xl bg-gradient-to-br from-purple-900/40 via-pink-900/30 to-indigo-900/40 border-2 border-purple-500/30 p-5 max-w-md relative overflow-hidden shadow-lg shadow-purple-500/5">
+        {/* Animated background shimmer */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+        {/* Pulsing border glow */}
+        <div className="absolute inset-0 rounded-xl border-2 border-purple-400/20 animate-pulse" />
+        
+        <div className="relative flex items-center gap-4 mb-4">
+          <div className="relative flex-shrink-0">
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+              <span className="text-2xl animate-pulse">🎵</span>
+            </div>
+            <div className="absolute inset-0 rounded-xl border-2 border-transparent border-t-purple-500/60 animate-spin" style={{ animationDuration: '2s' }} />
+            <div className="absolute -inset-1 rounded-xl border border-purple-500/10 animate-ping" style={{ animationDuration: '3s' }} />
           </div>
-          <div>
-            <p className="text-sm font-medium text-purple-200">{title}</p>
-            <p className="text-xs text-purple-400">{style}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white">{title}</p>
+            {style && <p className="text-xs text-purple-300 mt-0.5">Style: {style}</p>}
           </div>
         </div>
-        <div className="mb-2">
-          <div className="w-full bg-purple-900/40 rounded-full h-2">
+        
+        {/* Animated progress bar */}
+        <div className="relative mb-3">
+          <div className="w-full bg-purple-900/40 rounded-full h-2.5 overflow-hidden">
             <div
-              className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-1000"
+              className="bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 h-2.5 rounded-full transition-all duration-1000 relative"
               style={{ width: `${progress}%` }}
-            />
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+            </div>
           </div>
         </div>
-        <p className="text-xs text-purple-300">{progressMessage}</p>
-        <p className="text-xs text-purple-500 mt-1">Usually takes 1-3 minutes</p>
+        
+        <p className="relative text-sm text-purple-200 font-medium">{progressMessage}</p>
+        
+        {/* Bouncing dots */}
+        <div className="relative flex justify-center gap-2 mt-3">
+          <div className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+          <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+        </div>
+        
+        <p className="relative text-[11px] text-purple-400/70 mt-3 text-center">Usually takes 1-3 minutes • You can keep chatting</p>
       </div>
     );
   }
