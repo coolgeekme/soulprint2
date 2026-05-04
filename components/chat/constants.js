@@ -3,22 +3,36 @@
 // Image Generation Models (sorted by cost - cheapest first)
 const IMAGE_MODELS = [
   { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', cost: 0, costLabel: 'Auto', description: 'AI picks best model', isSmartMode: true },
-  { value: 'seedream-5-lite', label: 'Seedream 5.0 Lite', provider: 'kie', cost: 5.5, costLabel: '$0.03', description: 'Fast & affordable' },
-  { value: 'nano-banana', label: 'Nano Banana', provider: 'kie', cost: 10, costLabel: '$0.05', description: 'Gemini-powered' },
-  { value: 'gpt4o-image', label: 'GPT-4o Image', provider: 'kie', cost: 20, costLabel: '$0.10', description: 'High quality text' },
-  { value: 'flux-pro', label: 'Flux Pro', provider: 'kie', cost: 25, costLabel: '$0.13', description: 'Artistic styles' },
-  { value: 'midjourney-v7', label: 'Midjourney V7', provider: 'kie', cost: 40, costLabel: '$0.20', description: 'Premium quality' },
-  { value: 'gpt-image-1-5', label: 'GPT Image 1.5', provider: 'kie', cost: 50, costLabel: '$0.25', description: 'OpenAI flagship' },
+  // Budget tier
+  { value: 'seedream-5-lite', label: 'Seedream 5 Lite', provider: 'kie', cost: 5.5, costLabel: '$0.03', description: 'Fast, text-heavy images' },
+  { value: 'nano-banana', label: 'Nano Banana', provider: 'kie', cost: 10, costLabel: '$0.05', description: 'Gemini-powered, versatile' },
+  { value: 'qwen-image-2', label: 'Qwen Image 2.0', provider: 'kie', cost: 12, costLabel: '$0.06', description: 'Text rendering, 2K output' },
+  { value: 'nano-banana-2', label: 'Nano Banana 2', provider: 'kie', cost: 12, costLabel: '$0.06', description: 'Improved consistency' },
+  // Mid tier
+  { value: 'flux-2-flex', label: 'Flux-2 Flex', provider: 'kie', cost: 15, costLabel: '$0.08', description: 'Fast & versatile iteration' },
+  { value: 'imagen-4-fast', label: 'Imagen 4 Fast', provider: 'kie', cost: 15, costLabel: '$0.08', description: 'Google quality, fast' },
+  { value: 'wan-2-7-image', label: 'Wan 2.7 Image', provider: 'kie', cost: 15, costLabel: '$0.08', description: 'Multi-image, 2K output' },
+  { value: 'gpt4o-image', label: '4o Image', provider: 'kie', cost: 20, costLabel: '$0.10', description: 'GPT-4o powered' },
+  { value: 'grok-imagine', label: 'Grok Imagine', provider: 'kie', cost: 20, costLabel: '$0.10', description: 'xAI photorealistic' },
+  // Premium tier
+  { value: 'flux-2-pro', label: 'Flux-2 Pro', provider: 'kie', cost: 25, costLabel: '$0.13', description: 'Professional photorealism' },
+  { value: 'imagen-4-ultra', label: 'Imagen 4 Ultra', provider: 'kie', cost: 30, costLabel: '$0.15', description: 'Google flagship, stunning' },
+  { value: 'gpt-image-1-5', label: 'GPT Image 1.5', provider: 'kie', cost: 50, costLabel: '$0.25', description: 'OpenAI text-to-image' },
+  { value: 'gpt-image-2', label: 'GPT Image 2', provider: 'kie', cost: 55, costLabel: '$0.28', description: 'OpenAI next-gen flagship' },
 ];
 
 // Video Generation Models (sorted by cost - cheapest first)
 const VIDEO_MODELS = [
   { value: 'smart', label: '🧠 Dynamic Intelligence', provider: 'auto', cost: 0, costLabel: 'Auto', description: 'AI picks best model for your prompt', isSmartMode: true },
-  { value: 'kling-3.0', label: 'Kling 3.0', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: 'Fast, general purpose, 720p 5s' },
-  { value: 'veo3', label: 'Veo 3.1', provider: 'google', cost: 35, costLabel: '$0.18/s', description: 'Cinematic 1080p, audio sync' },
-  { value: 'seedance-2-0', label: 'Seedance 2.0', provider: 'bytedance', cost: 35, costLabel: '$0.18/s', description: 'Native audio, lip-sync, dance, multi-shot' },
+  { value: 'kling-3.0', label: 'Kling 3.0', provider: 'kie', cost: 20, costLabel: '$0.10/s', description: 'Fast, general purpose, 720p' },
   { value: 'seedance-2-0-fast', label: 'Seedance 2.0 Fast', provider: 'bytedance', cost: 20, costLabel: '$0.10/s', description: 'Fast Seedance with audio & motion' },
+  { value: 'veo3', label: 'Veo 3.1', provider: 'google', cost: 35, costLabel: '$0.18/s', description: 'Cinematic 1080p, audio sync' },
+  { value: 'seedance-2-0', label: 'Seedance 2.0', provider: 'bytedance', cost: 35, costLabel: '$0.18/s', description: 'Native audio, lip-sync, dance' },
   { value: 'runway-aleph', label: 'Runway Aleph', provider: 'runway', cost: 40, costLabel: '$0.20/s', description: 'Video-to-video editing & style' },
+  { value: 'happyhorse-1-0', label: 'HappyHorse 1.0', provider: 'kie', cost: 50, costLabel: '$0.25/s', description: 'Multilingual, audio support' },
+  { value: 'wan-2-7', label: 'Wan 2.7', provider: 'kie', cost: 55, costLabel: '$0.28/s', description: 'Multi-modality, 1080p, editing' },
+  { value: 'grok-imagine-video', label: 'Grok Imagine Video', provider: 'kie', cost: 60, costLabel: '$0.30/s', description: 'xAI photorealistic video' },
+  { value: 'hailuo-2-3', label: 'Hailuo 2.3 Pro', provider: 'kie', cost: 65, costLabel: '$0.33/s', description: 'High-quality cinematic Pro' },
 ];
 
 const MODELS = [

@@ -2732,21 +2732,34 @@ export default function ChatPage() {
     let newPrompt = actualPrompt;
     
     // For videos, prepend with model instruction
-    if (['kling-3.0', 'veo3', 'runway-aleph', 'seedance-2-0', 'seedance-2-0-fast'].includes(modelId)) {
+    if (['kling-3.0', 'veo3', 'runway-aleph', 'seedance-2-0', 'seedance-2-0-fast', 'wan-2-7', 'happyhorse-1-0', 'hailuo-2-3', 'grok-imagine-video'].includes(modelId)) {
       const modelNames = {
         'kling-3.0': 'Kling 3.0',
         'veo3': 'Veo 3.1',
         'runway-aleph': 'Runway Aleph',
         'seedance-2-0': 'Seedance 2.0',
         'seedance-2-0-fast': 'Seedance 2.0 Fast',
+        'wan-2-7': 'Wan 2.7',
+        'happyhorse-1-0': 'HappyHorse 1.0',
+        'hailuo-2-3': 'Hailuo 2.3 Pro',
+        'grok-imagine-video': 'Grok Imagine Video',
       };
       newPrompt = `Use ${modelNames[modelId]} to generate: ${actualPrompt}`;
     } else {
       // For images
       const modelNames = {
         'nano-banana': 'Nano Banana',
+        'nano-banana-2': 'Nano Banana 2',
         'gemini-2.0-flash-exp-image-generation': 'Gemini',
-        'gpt-image-1': 'GPT Image'
+        'gpt-image-1': 'GPT Image',
+        'gpt-image-2': 'GPT Image 2',
+        'flux-2-pro': 'Flux-2 Pro',
+        'flux-2-flex': 'Flux-2 Flex',
+        'grok-imagine': 'Grok Imagine',
+        'wan-2-7-image': 'Wan 2.7 Image',
+        'qwen-image-2': 'Qwen Image 2.0',
+        'imagen-4-ultra': 'Imagen 4 Ultra',
+        'imagen-4-fast': 'Imagen 4 Fast',
       };
       newPrompt = `Use ${modelNames[modelId] || modelId} to generate: ${actualPrompt}`;
     }

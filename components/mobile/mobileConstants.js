@@ -39,22 +39,36 @@ const SHOW_COUNTER_CHARS = 5000; // Show character counter above this
 
 const IMAGE_MODELS = [
   { value: 'smart', label: '🧠 Dynamic Intelligence', description: 'AI picks best model', isSmartMode: true },
-  { value: 'seedream-5-lite', label: 'Seedream 5.0 Lite', description: 'Fast & affordable' },
-  { value: 'nano-banana', label: 'Nano Banana', description: 'Gemini-powered' },
-  { value: 'gpt4o-image', label: 'GPT-4o Image', description: 'High quality text' },
-  { value: 'flux-pro', label: 'Flux Pro', description: 'Artistic styles' },
-  { value: 'midjourney-v7', label: 'Midjourney V7', description: 'Premium quality' },
-  { value: 'gpt-image-1-5', label: 'GPT Image 1.5', description: 'OpenAI flagship' },
+  // Budget tier
+  { value: 'seedream-5-lite', label: 'Seedream 5 Lite', description: 'Fast, text-heavy images' },
+  { value: 'nano-banana', label: 'Nano Banana', description: 'Gemini-powered, versatile' },
+  { value: 'qwen-image-2', label: 'Qwen Image 2.0', description: 'Text rendering, 2K output' },
+  { value: 'nano-banana-2', label: 'Nano Banana 2', description: 'Improved consistency' },
+  // Mid tier
+  { value: 'flux-2-flex', label: 'Flux-2 Flex', description: 'Fast & versatile iteration' },
+  { value: 'imagen-4-fast', label: 'Imagen 4 Fast', description: 'Google quality, fast' },
+  { value: 'wan-2-7-image', label: 'Wan 2.7 Image', description: 'Multi-image, 2K output' },
+  { value: 'gpt4o-image', label: '4o Image', description: 'GPT-4o powered' },
+  { value: 'grok-imagine', label: 'Grok Imagine', description: 'xAI photorealistic' },
+  // Premium tier
+  { value: 'flux-2-pro', label: 'Flux-2 Pro', description: 'Professional photorealism' },
+  { value: 'imagen-4-ultra', label: 'Imagen 4 Ultra', description: 'Google flagship, stunning' },
+  { value: 'gpt-image-1-5', label: 'GPT Image 1.5', description: 'OpenAI text-to-image' },
+  { value: 'gpt-image-2', label: 'GPT Image 2', description: 'OpenAI next-gen flagship' },
 ];
 
 // Video Generation Models (matching desktop) - no pricing shown
 const VIDEO_MODELS = [
   { value: 'smart', label: '🧠 Dynamic Intelligence', description: 'AI picks best model for your prompt', isSmartMode: true },
-  { value: 'kling-3.0', label: 'Kling 3.0', description: 'Fast, general purpose, 720p 5s' },
-  { value: 'veo3', label: 'Veo 3.1', description: 'Cinematic 1080p, audio sync' },
-  { value: 'seedance-2-0', label: 'Seedance 2.0', description: 'Native audio, lip-sync, dance, multi-shot' },
+  { value: 'kling-3.0', label: 'Kling 3.0', description: 'Fast, general purpose, 720p' },
   { value: 'seedance-2-0-fast', label: 'Seedance 2.0 Fast', description: 'Fast Seedance with audio & motion' },
+  { value: 'veo3', label: 'Veo 3.1', description: 'Cinematic 1080p, audio sync' },
+  { value: 'seedance-2-0', label: 'Seedance 2.0', description: 'Native audio, lip-sync, dance' },
   { value: 'runway-aleph', label: 'Runway Aleph', description: 'Video-to-video editing & style' },
+  { value: 'happyhorse-1-0', label: 'HappyHorse 1.0', description: 'Multilingual, audio support' },
+  { value: 'wan-2-7', label: 'Wan 2.7', description: 'Multi-modality, 1080p, editing' },
+  { value: 'grok-imagine-video', label: 'Grok Imagine Video', description: 'xAI photorealistic video' },
+  { value: 'hailuo-2-3', label: 'Hailuo 2.3 Pro', description: 'High-quality cinematic Pro' },
 ];
 
 // Aspect ratios for image generation
