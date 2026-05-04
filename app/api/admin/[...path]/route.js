@@ -15,6 +15,18 @@ import {
   handleAdminDeleteFeatureFlag,
 } from '@/lib/handlers/feature-flags';
 
+// ── Utility: Generate URL-safe slug from title ──
+function generateSlug(title) {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 80);
+}
+
 // ============================================================
 // ADMIN AUTHENTICATION HELPER
 // ============================================================
