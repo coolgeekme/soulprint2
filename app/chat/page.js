@@ -1685,24 +1685,15 @@ export default function ChatPage() {
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
             } else if (data.type === 'music_task') {
-              // Music job started — store info for MusicCard rendering
-              setMessages(prev => {
-                const updated = [...prev];
-                for (let i = updated.length - 1; i >= 0; i--) {
-                  if (updated[i].role === 'assistant') {
-                    updated[i] = { ...updated[i], music_task: {
-                      jobId: data.jobId,
-                      taskId: data.taskId,
-                      title: data.title,
-                      style: data.style,
-                      instrumental: data.instrumental,
-                      status: data.status || 'generating',
-                    }};
-                    break;
-                  }
-                }
-                return updated;
-              });
+              // Music job started — store in ref for inclusion in final message on 'done'
+              streamingMusicTaskRef.current = {
+                jobId: data.jobId,
+                taskId: data.taskId,
+                title: data.title,
+                style: data.style,
+                instrumental: data.instrumental,
+                status: data.status || 'generating',
+              };
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
             } else if (data.type === 'context_info') {
@@ -4812,6 +4803,42 @@ export default function ChatPage() {
                       <div className="mt-4 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-cyan-500/5 border border-cyan-500/10">
                         <span className="text-xs">💡</span>
                         <p className="text-[11px] text-cyan-400/70">You can keep chatting — the video will appear when it's ready.</p>
+                      </div>
+                    </div>
+                  ) : visualGenerationType === 'music' ? (
+                    /* Music Generation Animation — purple/pink theme */
+                    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-900/20 via-pink-900/20 to-indigo-900/20 border-2 border-purple-500/30 p-6 shadow-lg shadow-purple-500/5">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-shimmer" />
+                      <div className="absolute inset-0 rounded-2xl border-2 border-purple-400/20 animate-pulse" />
+                      
+                      <div className="relative flex items-center gap-5">
+                        <div className="relative flex-shrink-0">
+                          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center">
+                            <span className="text-3xl animate-pulse">🎵</span>
+                          </div>
+                          <div className="absolute inset-0 rounded-2xl border-2 border-transparent border-t-purple-500/60 animate-spin" style={{ animationDuration: '2s' }} />
+                          <div className="absolute -inset-1 rounded-2xl border border-purple-500/10 animate-ping" style={{ animationDuration: '3s' }} />
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-bold text-lg mb-1">🎶 Composing Your Song...</p>
+                          <p className="text-purple-300/80 text-sm">Suno AI is creating your music. This typically takes 1-3 minutes.</p>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-5 relative h-2 bg-white/5 rounded-full overflow-hidden">
+                        <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-purple-500 via-pink-500 to-indigo-500 rounded-full animate-progress" />
+                      </div>
+                      
+                      <div className="flex justify-center gap-2.5 mt-4">
+                        <div className="w-3 h-3 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="w-3 h-3 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <div className="w-3 h-3 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-purple-500/5 border border-purple-500/10">
+                        <span className="text-xs">💡</span>
+                        <p className="text-[11px] text-purple-400/70">You can keep chatting — the audio player will appear when your song is ready.</p>
                       </div>
                     </div>
                   ) : (
