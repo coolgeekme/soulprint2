@@ -2938,6 +2938,10 @@ backend:
     needs_retesting: true
     status_history:
       - working: "NA"
+
+  - agent: "main"
+    message: "MUSIC GENERATION WITH LYRICS FIX: Root cause found — detectMediaIntent() had length > 800 and lineBreaks > 5 guards that ran BEFORE music detection. User's lyrics prompt was 951 chars with 30 line breaks, so it was rejected before isMusicRequest() could run. Fix: moved isMusicRequest() check to the TOP of detectMediaIntent(), before any length/linebreak guards. Also added music capability to the system prompt in memory-system.js so the LLM knows it can generate music via Suno (prevents hallucinated 'I can't generate audio' responses). Auth: testchat@example.com/Test123456. Test: POST /api/chat/stream with long lyrics prompt (>800 chars, >5 linebreaks) and verify it returns music_task event."
+
         agent: "main"
         comment: "Fixed music loader in BOTH stream parsers (submitMessage at line ~1687 and submitEditedMessage at line ~2033). Previously, the music_task event handler immediately set isGeneratingVisual=false which dismissed the purple/pink loader animation. Now the music_task handler no longer clears the generating state — the loader stays visible until the 'done' event fires (which already had the cleanup logic). The music loader animation (lines 4808-4843) shows a purple/pink pulsing card with bouncing dots saying 'Composing Your Song... Suno AI is creating your music.' This is a frontend-only fix — verify by checking that the NDJSON 'generating_visual' event with visualType:'music' triggers the animation and it persists until 'done'."
 
@@ -2952,3 +2956,24 @@ agent_communication:
     message: "TWO BUG FIXES IMPLEMENTED: (1) isConversationalFollowUp regex in chat-stream.js now has a new branch catching status/progress follow-ups (any update, any progress, is it done, done yet, status update, etc.) — prevents these from triggering web search and losing conversation context. Unit tested 20 cases. (2) Music loader in page.js — removed premature setIsGeneratingVisual(false) from music_task event handler in both stream parsers. The purple/pink generating animation now persists until 'done' fires. Auth: testchat@example.com/Test123456. Please test: (a) Chat stream with 'any update?' after prior messages — check logs for 'Skipping proactive search'. (b) Chat stream with music request — verify NDJSON events include generating_visual with visualType:music followed by music_task, and that done event fires after."
   - agent: "testing"
     message: "BUG FIX TESTING COMPLETE: Both bug fixes working perfectly with 100% success rate (12/13 tests passed - 1 test script error, not a code bug). ✅ Test 1 - Conversational Follow-Up Detection (8/8 passed): All short status/progress follow-ups ('any update?', 'any progress?', 'is it done?', 'done yet?', 'any news?', 'what's the status?', 'how's it going?', 'ready yet?') correctly detected as conversational follow-ups and did NOT trigger web search. Server logs confirm: '[Chat] Skipping proactive search — conversational follow-up detected'. Longer queries still trigger web search appropriately. ✅ Test 2 - Music Generation NDJSON Event Sequence (4/4 core tests passed): Music request 'create a jazz song about summer' correctly emits NDJSON events in proper sequence: generating_visual (visualType: 'music'), delta (text content), music_task (with all required fields: jobId, taskId, title, style, status), done. Response is proper NDJSON format (no SSE 'data:' prefix). KIE_API_KEY configured and working. Both bug fixes are production-ready and working correctly."
+
+
+backend:
+  - task: "Music Generation Fix for Long Lyrics Prompts"
+    implemented: true
+    working: true
+    file: "lib/handlers/chat-stream.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "MUSIC GENERATION WITH LYRICS FIX: Root cause found — detectMediaIntent() had length > 800 and lineBreaks > 5 guards that ran BEFORE music detection. User's lyrics prompt was 951 chars with 30 line breaks, so it was rejected before isMusicRequest() could run. Fix: moved isMusicRequest() check to the TOP of detectMediaIntent() at lines 1245-1251, before any length/linebreak guards. This ensures music requests with full lyrics are detected regardless of text length or line breaks. Auth: testchat@example.com/Test123456."
+      - working: true
+        agent: "testing"
+        comment: "MUSIC GENERATION FIX FOR LONG LYRICS TESTING COMPLETE: All 3 critical tests passed (100% success rate). ✅ TEST 1 - Long Lyrics Music Generation (951 chars, 30+ linebreaks): The exact failing prompt from the review request now correctly triggers music generation. Received 6 NDJSON events including generating_visual with visualType='music' and music_task event with all required fields (jobId: e1eab48d-5f01-4d54-818f-261b181a9207, taskId: 502277773bcb60782f7d707431310e98, title: 'SoulPrint', style: 'pop, inspirational, electronic', status: 'generating'). The fix successfully moved isMusicRequest() check BEFORE the length/linebreak guards at lines 1245-1251 in chat-stream.js. ✅ TEST 2 - Short Music Request Regression Check: Short music request 'create a jazz song about summer' still correctly detects music intent and triggers generation (no regression). ✅ TEST 3 - Long Non-Music Text: Long business strategy text (1144 chars, 11 linebreaks) correctly does NOT trigger music generation (no false positives). The critical bug where long lyrics prompts were rejected before music detection has been successfully fixed. Music generation now works correctly for both short requests and long lyrics prompts with many line breaks."
+
+agent_communication:
+  - agent: "testing"
+    message: "MUSIC GENERATION FIX FOR LONG LYRICS TESTING COMPLETE: All 3/3 comprehensive tests passed (100% success rate). The critical bug fix is working perfectly. ✅ Long Lyrics Test (951 chars, 30 linebreaks): The exact failing prompt from the review request now correctly triggers music generation with proper NDJSON events (generating_visual with visualType='music' and music_task with all required fields). ✅ Short Music Regression Test: Short music requests still work correctly (no regression). ✅ Long Non-Music Test: Long non-music text correctly does NOT trigger music generation (no false positives). The fix successfully moved isMusicRequest() check to run FIRST at lines 1245-1251 in chat-stream.js, before the length > 800 and lineBreaks > 5 guards. This ensures music requests with full lyrics are detected regardless of text length or line breaks. The bug is fully resolved and production-ready."
