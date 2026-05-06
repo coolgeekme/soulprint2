@@ -1619,8 +1619,8 @@ export default function ChatPage() {
               // Media confirmation flow — store the confirmation data
               const confirmData = {
                 detectedType: data.detectedType,
-                originalPrompt: data.originalPrompt,
-                refinedPrompt: data.refinedPrompt,
+                originalPrompt: data.originalPrompt || data.prompt,
+                refinedPrompt: data.refinedPrompt || data.originalPrompt || data.prompt,
                 availableModels: data.availableModels || [],
                 recommendedModel: data.recommendedModel || 'smart',
                 messageId: data.messageId,
@@ -1934,10 +1934,11 @@ export default function ChatPage() {
     
     // Build user message for display
     const confirmLabel = flow.type === 'image' ? '🎨 Generate Image' : flow.type === 'video_extend' ? '🎬 Extend Video' : '🎬 Generate Video';
+    const resolvedPrompt = flow.finalPrompt || flow.originalPrompt || 'generate';
     const userMsg = {
       id: `u-${Date.now()}`,
       role: 'user',
-      content: `${confirmLabel}: ${flow.finalPrompt}`,
+      content: `${confirmLabel}: ${resolvedPrompt}`,
       created_at: new Date().toISOString(),
     };
     setMessages(prev => [...prev, userMsg]);
@@ -1952,7 +1953,7 @@ export default function ChatPage() {
       const mediaFlowPayload = { 
         step: 'confirmed', 
         type: flow.type, 
-        finalPrompt: flow.finalPrompt, 
+        finalPrompt: resolvedPrompt, 
         selectedModel: flow.selectedModel, 
         sourceImageUrl: flow.sourceImageUrl || null, 
         referenceImageUrls: flow.referenceImageUrls || null,
@@ -1965,7 +1966,7 @@ export default function ChatPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          content: flow.finalPrompt,
+          content: resolvedPrompt,
           conversationId: conversationId || undefined,
           model: selectedModel,
           webSearch: false,
