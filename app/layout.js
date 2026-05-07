@@ -59,6 +59,37 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="SoulPrint" />
         <script dangerouslySetInnerHTML={{__html:'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);'}} />
+        {/* Clean copied text: strip dark-theme colors so paste = black text, no background */}
+        <script dangerouslySetInnerHTML={{__html: `
+          document.addEventListener('copy', function(e) {
+            var sel = window.getSelection();
+            if (!sel || sel.isCollapsed) return;
+            try {
+              var range = sel.getRangeAt(0);
+              var frag = range.cloneContents();
+              var div = document.createElement('div');
+              div.appendChild(frag);
+              // Strip all inline color/background styles from copied HTML
+              div.querySelectorAll('*').forEach(function(el) {
+                el.style.removeProperty('color');
+                el.style.removeProperty('background-color');
+                el.style.removeProperty('background');
+                el.style.removeProperty('-webkit-text-fill-color');
+                // Also remove dark theme classes that carry color
+                el.classList.remove('text-white', 'text-gray-100', 'text-gray-200', 'text-gray-300', 'text-gray-400');
+                el.classList.remove('bg-gray-800', 'bg-gray-900', 'bg-black', 'bg-zinc-800', 'bg-zinc-900');
+              });
+              // Force root text color to black for paste targets
+              div.style.color = '#000000';
+              div.style.backgroundColor = 'transparent';
+              var html = div.innerHTML;
+              var text = sel.toString();
+              e.clipboardData.setData('text/plain', text);
+              e.clipboardData.setData('text/html', '<div style="color:#000;background:transparent">' + html + '</div>');
+              e.preventDefault();
+            } catch(err) { /* Allow default copy on error */ }
+          });
+        `}} />
         <script dangerouslySetInnerHTML={{__html: themeScript}} />
         {/* YouTube IFrame API — preconnect + preload for faster hero video */}
         <link rel="preconnect" href="https://www.youtube.com" />
