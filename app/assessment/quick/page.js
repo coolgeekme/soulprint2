@@ -15,21 +15,43 @@ export default function QuickAssessmentPage() {
   const [phase, setPhase] = useState('layer1'); // 'layer1', 'layer2', 'naming', 'complete'
   const [assistantName, setAssistantName] = useState('');
   const [sliderValue, setSliderValue] = useState(50);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Load questions
+  // Load questions — and check if user/assessment is still valid
   useEffect(() => {
     const token = localStorage.getItem('sp_token');
     if (!token) { router.push('/auth'); return; }
     
-    fetch('/api/assessment/layered/questions', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.json())
+    // First: validate the token and check if assessment is already done
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => {
+        if (!r.ok) throw new Error('auth_failed');
+        return r.json();
+      })
+      .then(me => {
+        // If assessment is already complete, skip straight to the right destination
+        if (me.assessment_complete || me.profile?.assessment_complete) {
+          if (me.accepted || me.role === 'admin' || me.role === 'superadmin') {
+            router.replace('/chat');
+          } else {
+            router.replace('/waitlist');
+          }
+          return null; // Skip loading questions
+        }
+        return fetch('/api/assessment/layered/questions', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      })
+      .then(r => {
+        if (!r) return; // Already redirected
+        if (!r.ok) throw new Error('auth_failed');
+        return r.json();
+      })
       .then(data => {
+        if (!data) return; // Already redirected
         setQuestions(data.layer1 || []);
         setFollowUps(data.layer2 || []);
         if (data.progress?.answered) {
-          // Restore answers if any
           const restored = {};
           data.progress.answered.forEach(id => {
             restored[id] = localStorage.getItem(`layered_answer_${id}`) || '';
@@ -38,7 +60,15 @@ export default function QuickAssessmentPage() {
         }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((e) => {
+        if (e.message === 'auth_failed') {
+          // Token expired or invalid — clear and redirect to login
+          localStorage.removeItem('sp_token');
+          router.push('/auth?reason=session_expired');
+        } else {
+          setLoading(false);
+        }
+      });
   }, [router]);
 
   // Get current question
@@ -147,7 +177,13 @@ export default function QuickAssessmentPage() {
   // Complete assessment
   const handleComplete = async () => {
     setSubmitting(true);
+    setErrorMessage('');
     const token = localStorage.getItem('sp_token');
+    
+    if (!token) {
+      router.push('/auth?reason=session_expired');
+      return;
+    }
     
     try {
       const res = await fetch('/api/assessment/layered/complete', {
@@ -158,6 +194,14 @@ export default function QuickAssessmentPage() {
         },
         body: JSON.stringify({ assistant_name: assistantName || 'SoulPrint' })
       });
+      
+      // Handle expired/invalid token
+      if (res.status === 401) {
+        localStorage.removeItem('sp_token');
+        router.push('/auth?reason=session_expired');
+        return;
+      }
+      
       const data = await res.json();
       
       if (data.success) {
@@ -180,12 +224,12 @@ export default function QuickAssessmentPage() {
           }
         }, 3000);
       } else {
-        // Show error to user instead of silently failing
-        alert(data.error || 'Something went wrong. Please try again.');
+        // Show inline error instead of alert
+        setErrorMessage(data.error || 'Something went wrong. Please try again.');
       }
     } catch (e) {
       console.error('Failed to complete assessment:', e);
-      alert('Connection error. Please check your internet and try again.');
+      setErrorMessage('Connection error. Please check your internet and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -310,6 +354,18 @@ export default function QuickAssessmentPage() {
             >
               {submitting ? 'Setting up...' : 'Start Chatting →'}
             </button>
+            
+            {errorMessage && (
+              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                <p className="text-red-400 text-sm text-center">{errorMessage}</p>
+                <button 
+                  onClick={() => { localStorage.removeItem('sp_token'); router.push('/auth'); }}
+                  className="text-orange-400 hover:text-orange-300 text-xs underline w-full text-center mt-2"
+                >
+                  Try logging in again
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

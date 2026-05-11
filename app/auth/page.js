@@ -32,6 +32,14 @@ export default function AuthPage() {
   useEffect(() => {
     setLatency(Math.floor(Math.random() * 30 + 10));
     setSid(Math.random().toString(36).slice(2, 10).toUpperCase());
+    
+    // Check for session expiry redirect
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('reason') === 'session_expired') {
+        setError('Your session has expired. Please sign in again to continue.');
+      }
+    } catch (e) {}
   }, []);
 
   // Get reCAPTCHA token
