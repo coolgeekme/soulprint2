@@ -696,6 +696,18 @@ async function handleMe(request) {
       connection_id: conn.connection_id
     }));
 
+    // ── Sliding token refresh ──
+    // If the token was issued more than 7 days ago, issue a fresh one.
+    // Subscribed users or any active user gets a renewed session automatically.
+    let refreshedToken = null;
+    try {
+      const tokenAge = decoded.iat ? (Date.now() / 1000 - decoded.iat) : Infinity;
+      const sevenDays = 7 * 24 * 60 * 60;
+      if (tokenAge > sevenDays) {
+        refreshedToken = generateToken(user.id);
+      }
+    } catch (e) { /* Don't break /me if refresh fails */ }
+
     return ok({
       id: user.id,
       email: user.email,
@@ -710,6 +722,7 @@ async function handleMe(request) {
       onboarding_complete: profile?.onboarding_complete || false,
       assessment_complete: profile?.assessment_complete || false,
       connected_accounts: connectedAccounts,
+      ...(refreshedToken ? { refreshed_token: refreshedToken } : {}),
     });
   }
   

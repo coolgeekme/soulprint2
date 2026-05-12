@@ -487,6 +487,11 @@ export default function ChatPage() {
       .then(r => r.json())
       .then(d => {
         if (!d.accepted && d.role === 'user') { router.push('/waitlist'); return; }
+        // Sliding token refresh — if backend issued a new token, store it
+        if (d.refreshed_token) {
+          localStorage.setItem('sp_token', d.refreshed_token);
+          setToken(d.refreshed_token);
+        }
         setUser(d);
         setAssistantName(d.profile?.assistant_name || 'SoulPrint');
         // Load user settings (quick_generate, etc.)
