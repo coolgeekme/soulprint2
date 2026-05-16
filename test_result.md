@@ -2977,3 +2977,94 @@ backend:
 agent_communication:
   - agent: "testing"
     message: "MUSIC GENERATION FIX FOR LONG LYRICS TESTING COMPLETE: All 3/3 comprehensive tests passed (100% success rate). The critical bug fix is working perfectly. ✅ Long Lyrics Test (951 chars, 30 linebreaks): The exact failing prompt from the review request now correctly triggers music generation with proper NDJSON events (generating_visual with visualType='music' and music_task with all required fields). ✅ Short Music Regression Test: Short music requests still work correctly (no regression). ✅ Long Non-Music Test: Long non-music text correctly does NOT trigger music generation (no false positives). The fix successfully moved isMusicRequest() check to run FIRST at lines 1245-1251 in chat-stream.js, before the length > 800 and lineBreaks > 5 guards. This ensures music requests with full lyrics are detected regardless of text length or line breaks. The bug is fully resolved and production-ready."
+
+
+## Current Session Tasks
+
+user_problem_statement: "Fix Integrations Page UI Bug - The SettingsModal's integrations tab was missing the Composio app grid. User reported seeing only Google Workspace and GitHub in the integrations tab but no Composio-powered app grid (Gmail, Calendar, Slack, GitHub, Drive, Notion, Trello, Zoom). Also fixed Composio connections API returning toolkit as an object instead of a string."
+
+backend:
+  - task: "Composio Toolkits API endpoint"
+    implemented: true
+    working: true
+    file: "app/api/composio/[...path]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/composio/toolkits returns 8 toolkits (Gmail, Google Calendar, GitHub, Slack, Google Drive, Notion, Trello, Zoom) with proper auth. Tested with curl."
+
+  - task: "Composio Connections API — toolkit field normalization"
+    implemented: true
+    working: true
+    file: "lib/handlers/composio.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Fixed getUserConnections() in composio.js — Composio SDK returns toolkit as an object {slug: 'gmail'} but frontend expected a string 'GMAIL'. Updated mapping logic to extract slug from object and normalize to uppercase. Also normalizes status to uppercase. Auth: testchat@example.com/Test123456 (passcode field)."
+
+  - task: "Composio Connect/Disconnect endpoints"
+    implemented: true
+    working: "NA"
+    file: "app/api/composio/[...path]/route.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "POST /api/composio/connect and POST /api/composio/disconnect endpoints exist. Connect returns a redirectUrl for OAuth flow. Disconnect removes the connection. Not tested yet with actual OAuth flows."
+
+frontend:
+  - task: "SettingsModal Composio Integrations Grid"
+    implemented: true
+    working: "NA"
+    file: "components/chat/SettingsModal.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added Composio app grid to SettingsModal integrations tab. Added state variables (composioToolkits, composioConnections, composioLoading, connectingToolkit, disconnectingConn), fetchComposioData useCallback, handleComposioConnect/Disconnect handlers, and a 2-column grid UI showing all 8 toolkits with connect/disconnect buttons. Shows connected status with green dot for active connections."
+
+metadata:
+  created_by: "main_agent"
+  version: "2.0"
+  test_sequence: 0
+  run_ui: false
+
+test_plan:
+  current_focus: ["Composio Toolkits API", "Composio Connections normalization", "SettingsModal grid rendering"]
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "COMPOSIO INTEGRATIONS UI FIX: The user reported that the Integrations tab in the Settings modal only showed Google Workspace and GitHub. Root cause: the SettingsModal component was never updated with Composio app grid — only the standalone /integrations page was. Fix applied: (1) Added Composio state, fetch logic, connect/disconnect handlers to SettingsModal.js. (2) Fixed composio.js getUserConnections() — Composio SDK returns toolkit as {slug:'gmail'} object, normalized to uppercase string 'GMAIL'. (3) Added 2-column grid UI with all 8 toolkits inside the integrations tab. Auth: testchat@example.com (passcode: Test123456). Test: GET /api/composio/toolkits (should return 8 items), GET /api/composio/connections (toolkit field should be uppercase string like 'GMAIL')."
+
+backend:
+  - task: "Composio Integration API Endpoints"
+    implemented: true
+    working: true
+    file: "app/api/composio/[...path]/route.js, lib/handlers/composio.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "COMPOSIO INTEGRATIONS UI FIX: Fixed getUserConnections() to normalize toolkit field from Composio SDK object {slug:'gmail'} to uppercase string 'GMAIL'. Added Composio state and UI to SettingsModal.js with 2-column grid showing all 8 toolkits. Auth: testchat@example.com/Test123456."
+      - working: true
+        agent: "testing"
+        comment: "COMPOSIO INTEGRATION API TESTING COMPLETE: All critical endpoints working perfectly with 100% success rate (9/9 tests passed). ✅ Authentication with testchat@example.com/Test123456 working. ✅ GET /api/composio/status (NO AUTH) - returns 200 with {connected: true, totalAccounts: 10, supportedToolkits: 8}. ✅ GET /api/composio/toolkits (AUTH REQUIRED) - returns 200 with toolkits array containing all 8 expected items: GMAIL, GOOGLECALENDAR, GITHUB, SLACK, GOOGLEDRIVE, NOTION, TRELLO, ZOOM. Each toolkit has correct structure with key, name, icon (emoji), description, and category fields. ✅ GET /api/composio/connections (AUTH REQUIRED) - returns 200 with connections array (10 connections found). Each connection has correct structure: id, toolkit (UPPERCASE STRING like 'GMAIL', 'GOOGLECALENDAR'), status (UPPERCASE STRING like 'ACTIVE', 'EXPIRED'), alias, createdAt. CRITICAL FIX VERIFIED: toolkit field is now an UPPERCASE STRING (not an object), status field is now an UPPERCASE STRING as specified in review request. ✅ POST /api/composio/connect (AUTH REQUIRED) - properly validates toolkit parameter, returns 400 with error message for invalid toolkit ('INVALID_TOOLKIT') and empty body. ✅ Auth Validation: All protected endpoints (toolkits, connections, connect) correctly return 401 Unauthorized without auth token. The Composio integration API is fully functional with proper authentication, validation, and data normalization."
+
+agent_communication:
+  - agent: "testing"
+    message: "COMPOSIO INTEGRATION API TESTING COMPLETE: All 9/9 tests passed (100% success rate). ✅ GET /api/composio/status (no auth) working - returns 200 with connected: true and supportedToolkits: 8. ✅ GET /api/composio/toolkits (auth required) working - returns 200 with 8 toolkits array (GMAIL, GOOGLECALENDAR, GITHUB, SLACK, GOOGLEDRIVE, NOTION, TRELLO, ZOOM), each with key, name, icon, description, category fields. ✅ GET /api/composio/connections (auth required) working - returns 200 with connections array, toolkit field is UPPERCASE STRING (e.g., 'GMAIL', 'GOOGLECALENDAR'), status field is UPPERCASE STRING (e.g., 'ACTIVE', 'EXPIRED') as specified in review request. ✅ POST /api/composio/connect (auth required) working - properly validates toolkit parameter, returns 400 for invalid toolkit and empty body. ✅ Auth validation working correctly - all protected endpoints return 401 without token. The Composio integration backend is fully functional and ready for production use."

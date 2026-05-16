@@ -749,6 +749,13 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubDisconnecting, setGithubDisconnecting] = useState(false);
 
+  // Composio state
+  const [composioToolkits, setComposioToolkits] = useState([]);
+  const [composioConnections, setComposioConnections] = useState([]);
+  const [composioLoading, setComposioLoading] = useState(false);
+  const [connectingToolkit, setConnectingToolkit] = useState(null);
+  const [disconnectingConn, setDisconnectingConn] = useState(null);
+
   // Persona DNA notification state
   const [personaNotification, setPersonaNotification] = useState(false);
 
@@ -832,6 +839,89 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
       fetchGithubStatus();
     }
   }, [activeTab, profile?.user_id, fetchGithubStatus]);
+
+  // Fetch Composio data when integrations tab opens
+  const fetchComposioData = useCallback(async () => {
+    setComposioLoading(true);
+    try {
+      const [tkRes, connRes] = await Promise.all([
+        fetch('/api/composio/toolkits', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/composio/connections', { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (tkRes.ok) {
+        const tkData = await tkRes.json();
+        setComposioToolkits(tkData.toolkits || []);
+      }
+      if (connRes.ok) {
+        const connData = await connRes.json();
+        setComposioConnections(connData.connections || []);
+      }
+    } catch (e) {
+      console.error('Failed to fetch Composio data:', e);
+    } finally {
+      setComposioLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (activeTab === 'integrations' && token) {
+      fetchComposioData();
+    }
+  }, [activeTab, token, fetchComposioData]);
+
+  // Composio connect handler
+  const handleComposioConnect = async (toolkitKey) => {
+    setConnectingToolkit(toolkitKey);
+    try {
+      const res = await fetch('/api/composio/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ toolkit: toolkitKey }),
+      });
+      const data = await res.json();
+      if (data.redirectUrl) {
+        const authWindow = window.open(data.redirectUrl, '_blank', 'width=600,height=700');
+        const pollInterval = setInterval(() => {
+          if (authWindow?.closed) {
+            clearInterval(pollInterval);
+            fetchComposioData();
+          }
+        }, 1000);
+        setTimeout(() => clearInterval(pollInterval), 300000);
+      }
+    } catch (e) {
+      console.error('Composio connect error:', e);
+    } finally {
+      setConnectingToolkit(null);
+    }
+  };
+
+  // Composio disconnect handler
+  const handleComposioDisconnect = async (connectionId) => {
+    setDisconnectingConn(connectionId);
+    try {
+      const res = await fetch('/api/composio/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ connectionId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setComposioConnections(prev => prev.filter(c => c.id !== connectionId));
+      }
+    } catch (e) {
+      console.error('Composio disconnect error:', e);
+    } finally {
+      setDisconnectingConn(null);
+    }
+  };
+
+  // Composio helper: check if toolkit is connected
+  const getComposioConnection = (toolkitKey) => {
+    return composioConnections.find(c =>
+      c.toolkit?.toUpperCase() === toolkitKey?.toUpperCase() && (c.status === 'ACTIVE' || c.status === 'active')
+    );
+  };
 
   // GitHub connect handler
   const handleGitHubConnect = async () => {
@@ -2227,6 +2317,111 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                   </button>
                 </div>
               )}
+
+              {/* Divider */}
+              <div className="border-t border-white/10 my-2" />
+
+              {/* Composio App Integrations */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-white text-sm font-semibold">More Integrations</p>
+                    <p className="text-gray-500 text-[11px] mt-0.5">Connect your favorite apps to enhance your AI</p>
+                  </div>
+                  {!composioLoading && composioToolkits.length > 0 && (
+                    <button
+                      onClick={fetchComposioData}
+                      className="text-[10px] text-gray-500 hover:text-white px-2 py-1 rounded-lg border border-white/10 hover:border-white/20 transition-colors"
+                    >
+                      ↻ Refresh
+                    </button>
+                  )}
+                </div>
+
+                {composioLoading ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {[1,2,3,4].map(i => (
+                      <div key={i} className="p-3 bg-white/5 border border-white/10 rounded-xl animate-pulse">
+                        <div className="flex items-center gap-2">
+                          <div className="w-9 h-9 bg-white/10 rounded-lg" />
+                          <div className="flex-1">
+                            <div className="h-3 w-16 bg-white/10 rounded mb-1.5" />
+                            <div className="h-2 w-24 bg-white/5 rounded" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : composioToolkits.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {composioToolkits.map((toolkit) => {
+                      const connection = getComposioConnection(toolkit.key);
+                      const isConnected = !!connection;
+                      const isConnecting = connectingToolkit === toolkit.key;
+                      const isDisconnecting = disconnectingConn === connection?.id;
+
+                      return (
+                        <div
+                          key={toolkit.key}
+                          className={`p-3 border rounded-xl transition-all ${
+                            isConnected
+                              ? 'bg-green-500/5 border-green-500/20'
+                              : 'bg-white/5 border-white/10 hover:border-white/20'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-9 h-9 bg-white/10 rounded-lg flex items-center justify-center text-lg flex-shrink-0">
+                              {toolkit.icon}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-xs font-medium truncate">{toolkit.name}</p>
+                              <p className="text-gray-500 text-[10px] truncate">{toolkit.description}</p>
+                            </div>
+                          </div>
+                          {isConnected ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="flex items-center gap-1 text-[10px] text-green-400 flex-1">
+                                <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                                Connected
+                              </span>
+                              <button
+                                onClick={() => handleComposioDisconnect(connection.id)}
+                                disabled={isDisconnecting}
+                                className="text-[10px] text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/20 hover:border-red-500/40 transition-all disabled:opacity-50"
+                              >
+                                {isDisconnecting ? '...' : 'Disconnect'}
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleComposioConnect(toolkit.key)}
+                              disabled={isConnecting}
+                              className="w-full text-[10px] text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 px-2 py-1.5 rounded-lg transition-all disabled:opacity-50 font-medium"
+                            >
+                              {isConnecting ? (
+                                <span className="flex items-center justify-center gap-1">
+                                  <span className="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                  Connecting...
+                                </span>
+                              ) : (
+                                `Connect`
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-xl text-center">
+                    <p className="text-gray-400 text-xs">More integrations coming soon!</p>
+                  </div>
+                )}
+
+                <p className="text-[10px] text-gray-600 mt-2 text-center">
+                  Powered by Composio • OAuth 2.0 secured
+                </p>
+              </div>
 
               {/* Divider */}
               <div className="border-t border-white/10 my-2" />
