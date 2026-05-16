@@ -2193,6 +2193,8 @@ backend:
 
 agent_communication:
   - agent: "testing"
+    message: "COMPOSIO INTEGRATION BUG FIX TESTING COMPLETE: All 3 bug fixes working perfectly with 100% success rate (11/11 tests passed). ✅ BUG FIX 1: Disconnect now works - Successfully disconnected a connection (ZOHO toolkit with ID ca_p30RcbYdBr08), verified connection removed from list after disconnect, properly handles nonexistent connection IDs (returns success:false instead of crashing). ✅ BUG FIX 2: Filter supported toolkits - Without filter: Returns ALL connections (7 items) including unsupported toolkits (HUBSPOT, FACEBOOK, LINKEDIN, ZOHO). With ?supported=true: Returns ONLY supported toolkits (3 items: GOOGLECALENDAR, GMAIL, GMAIL). Verified ZERO unsupported toolkits (ZOHO, HUBSPOT, FACEBOOK, LINKEDIN) appear when filtered. ✅ BUG FIX 3: Multiple accounts per toolkit - Successfully verified multiple accounts per toolkit (GMAIL has 2 accounts). All connections have proper structure: id (string), toolkit (uppercase string), status (uppercase string: ACTIVE/EXPIRED), alias, createdAt. ✅ Other endpoints verification: GET /api/composio/toolkits returns 8 toolkits, GET /api/composio/status returns connected: true, POST /api/composio/connect returns redirectUrl (https://connect.composio.dev/link/...) and status: INITIATED. Authentication working with testchat@example.com/Test123456 (passcode field). All comprehensive tests passed - the 3 Composio bug fixes are fully functional and ready for production use."
+  - agent: "testing"
     message: "ADMIN DISCOUNT CODES CRUD & USER BILLING ENDPOINTS TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (3/3 test suites passed). ✅ Admin Discount Codes CRUD: All CRUD operations working correctly - GET /api/pricing/admin/discounts returns discount list, POST creates new discount codes with Stripe coupon integration, POST update/delete operations working, proper admin authentication enforcement. ✅ Non-Admin Access Restriction: Admin endpoints properly protected - fresh non-admin users receive 403 Forbidden when attempting to access admin discount endpoints, authorization working correctly. ✅ User Billing Endpoints: All user billing functionality working - GET /api/pricing/subscription returns subscription data (plan_id: free, status: grace_period), GET /api/pricing/history returns transaction history (5 transactions), GET /api/pricing/portal returns Stripe customer portal URL without 500 crashes. ✅ Authentication: Both admin (test@soulprint.com/test123) and user (testchat@example.com/Test123456) credentials working with 'passcode' field as specified. ✅ Stripe Integration: Discount code creation properly creates Stripe coupons, portal access working correctly. All endpoints tested as specified in review request - Admin CRUD operations, non-admin access restrictions, and user billing endpoints all fully functional."
   - agent: "testing"
     message: "PHASE 5 PART 4 ADD-ON PURCHASE ENDPOINTS TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (9/9 tests passed). ✅ GET /api/pricing/message-packs (PUBLIC) - returns 3 packs with correct IDs (msg-25, msg-50, msg-100) and all required fields (id, name, messages, price). ✅ POST /api/pricing/checkout/message-pack (AUTH REQUIRED) - properly enforces authentication (401 without token), creates valid Stripe checkout sessions with URLs starting with 'https://checkout.stripe.com' and session IDs starting with 'cs_test_', handles invalid pack IDs with appropriate errors. ✅ GET /api/pricing/enforcement/usage (AUTH REQUIRED) - properly enforces authentication (401 without token), returns all required fields (premium_messages_balance: 0, media_credits_balance: 0, usage object with standard_messages, premium_messages, images, videos, pdfs sub-objects). ✅ Existing endpoints verified working: GET /api/pricing/plans (3 plans), GET /api/pricing/credit-packs (0 packs). ✅ Authentication working with both admin (test@soulprint.com/test123) and user (testchat@example.com/Test123456) credentials using 'passcode' field. FIXED: Stripe API error with product_data description field - removed unsupported description parameter from price creation. The complete Phase 5 Part 4 add-on purchase system is fully functional with proper Stripe integration and authentication enforcement."
@@ -2312,12 +2314,27 @@ backend:
 
 test_plan:
   current_focus:
-    - "SMB Detection System for SoulPrint Engine Pro"
+    - "Composio Integration API Endpoints"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 backend:
+  - task: "Composio Integration API Endpoints - 3 Bug Fixes"
+    implemented: true
+    working: true
+    file: "app/api/composio/[...path]/route.js, lib/handlers/composio.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented Composio integration with 3 bug fixes: (1) BUG FIX 1: Disconnect now works - POST /api/composio/disconnect properly removes connected accounts and handles nonexistent IDs gracefully. (2) BUG FIX 2: Filter supported toolkits - GET /api/composio/connections?supported=true filters to only SUPPORTED_TOOLKITS (GMAIL, GOOGLECALENDAR, GITHUB, SLACK, GOOGLEDRIVE, NOTION, TRELLO, ZOOM). (3) BUG FIX 3: Multiple accounts per toolkit - System supports multiple connections for the same toolkit (e.g., multiple GMAIL accounts). All connections return proper structure with id (string), toolkit (uppercase string), status (uppercase string: ACTIVE/EXPIRED), alias, createdAt. Auth: testchat@example.com/Test123456."
+      - working: true
+        agent: "testing"
+        comment: "COMPOSIO INTEGRATION BUG FIX TESTING COMPLETE: All 3 bug fixes working perfectly with 100% success rate (11/11 tests passed). ✅ BUG FIX 1: Disconnect now works - Successfully disconnected a connection (ZOHO toolkit with ID ca_p30RcbYdBr08), verified connection removed from list, properly handles nonexistent connection IDs (returns success:false instead of crashing). ✅ BUG FIX 2: Filter supported toolkits - Without filter: Returns ALL connections (7 items) including unsupported toolkits (HUBSPOT, FACEBOOK, LINKEDIN, ZOHO). With ?supported=true: Returns ONLY supported toolkits (3 items: GOOGLECALENDAR, GMAIL, GMAIL). Verified ZERO unsupported toolkits (ZOHO, HUBSPOT, FACEBOOK, LINKEDIN) appear when filtered. ✅ BUG FIX 3: Multiple accounts per toolkit - Successfully verified multiple accounts per toolkit (GMAIL has 2 accounts). All connections have proper structure: id (string), toolkit (uppercase string), status (uppercase string: ACTIVE/EXPIRED), alias, createdAt. ✅ Other endpoints verification: GET /api/composio/toolkits returns 8 toolkits, GET /api/composio/status returns connected: true, POST /api/composio/connect returns redirectUrl (https://connect.composio.dev/link/...) and status: INITIATED. All comprehensive tests passed - the 3 Composio bug fixes are fully functional and ready for production use."
+
   - task: "SMB Detection System for SoulPrint Engine Pro"
     implemented: true
     working: false

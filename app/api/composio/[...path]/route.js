@@ -44,7 +44,8 @@ export async function GET(request, { params }) {
   // GET /api/composio/connections — List user's connected accounts
   if (pathStr === 'connections') {
     try {
-      const connections = await getUserConnections(user.id);
+      const filterSupported = request.nextUrl.searchParams.get('supported') === 'true';
+      const connections = await getUserConnections(user.id, { filterSupported });
       return ok({ connections });
     } catch (e) {
       return err(e.message, 500);

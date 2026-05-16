@@ -846,7 +846,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
     try {
       const [tkRes, connRes] = await Promise.all([
         fetch('/api/composio/toolkits', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/composio/connections', { headers: { Authorization: `Bearer ${token}` } }),
+        fetch('/api/composio/connections?supported=true', { headers: { Authorization: `Bearer ${token}` } }),
       ]);
       if (tkRes.ok) {
         const tkData = await tkRes.json();
@@ -916,10 +916,10 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
     }
   };
 
-  // Composio helper: check if toolkit is connected
-  const getComposioConnection = (toolkitKey) => {
-    return composioConnections.find(c =>
-      c.toolkit?.toUpperCase() === toolkitKey?.toUpperCase() && (c.status === 'ACTIVE' || c.status === 'active')
+  // Composio helper: get ALL connections for a toolkit (supports multiple accounts)
+  const getComposioConnections = (toolkitKey) => {
+    return composioConnections.filter(c =>
+      c.toolkit?.toUpperCase() === toolkitKey?.toUpperCase()
     );
   };
 
@@ -2353,18 +2353,18 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                     ))}
                   </div>
                 ) : composioToolkits.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2">
                     {composioToolkits.map((toolkit) => {
-                      const connection = getComposioConnection(toolkit.key);
-                      const isConnected = !!connection;
+                      const connections = getComposioConnections(toolkit.key);
+                      const activeConns = connections.filter(c => c.status === 'ACTIVE');
+                      const expiredConns = connections.filter(c => c.status !== 'ACTIVE');
                       const isConnecting = connectingToolkit === toolkit.key;
-                      const isDisconnecting = disconnectingConn === connection?.id;
 
                       return (
                         <div
                           key={toolkit.key}
                           className={`p-3 border rounded-xl transition-all ${
-                            isConnected
+                            activeConns.length > 0
                               ? 'bg-green-500/5 border-green-500/20'
                               : 'bg-white/5 border-white/10 hover:border-white/20'
                           }`}
@@ -2377,37 +2377,70 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                               <p className="text-white text-xs font-medium truncate">{toolkit.name}</p>
                               <p className="text-gray-500 text-[10px] truncate">{toolkit.description}</p>
                             </div>
-                          </div>
-                          {isConnected ? (
-                            <div className="flex items-center gap-1.5">
-                              <span className="flex items-center gap-1 text-[10px] text-green-400 flex-1">
+                            {activeConns.length > 0 && (
+                              <span className="flex items-center gap-1 text-[10px] text-green-400 flex-shrink-0">
                                 <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                                Connected
+                                {activeConns.length} active
                               </span>
-                              <button
-                                onClick={() => handleComposioDisconnect(connection.id)}
-                                disabled={isDisconnecting}
-                                className="text-[10px] text-red-400 hover:text-red-300 px-2 py-1 rounded border border-red-500/20 hover:border-red-500/40 transition-all disabled:opacity-50"
-                              >
-                                {isDisconnecting ? '...' : 'Disconnect'}
-                              </button>
+                            )}
+                          </div>
+
+                          {/* List each connected account */}
+                          {connections.length > 0 && (
+                            <div className="space-y-1.5 mb-2">
+                              {connections.map((conn) => {
+                                const isActive = conn.status === 'ACTIVE';
+                                const isDisconnecting = disconnectingConn === conn.id;
+                                return (
+                                  <div
+                                    key={conn.id}
+                                    className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-[10px] ${
+                                      isActive ? 'bg-green-500/10' : 'bg-yellow-500/10'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                                      <span className={`truncate ${isActive ? 'text-green-300' : 'text-yellow-300'}`}>
+                                        {conn.alias || conn.id.slice(0, 12)}
+                                      </span>
+                                      {!isActive && (
+                                        <span className="text-yellow-500/60 flex-shrink-0">(expired)</span>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={() => handleComposioDisconnect(conn.id)}
+                                      disabled={isDisconnecting}
+                                      className="text-[10px] text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded border border-red-500/20 hover:border-red-500/40 transition-all disabled:opacity-50 flex-shrink-0 ml-2"
+                                    >
+                                      {isDisconnecting ? '...' : 'Remove'}
+                                    </button>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          ) : (
-                            <button
-                              onClick={() => handleComposioConnect(toolkit.key)}
-                              disabled={isConnecting}
-                              className="w-full text-[10px] text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 px-2 py-1.5 rounded-lg transition-all disabled:opacity-50 font-medium"
-                            >
-                              {isConnecting ? (
-                                <span className="flex items-center justify-center gap-1">
-                                  <span className="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                  Connecting...
-                                </span>
-                              ) : (
-                                `Connect`
-                              )}
-                            </button>
                           )}
+
+                          {/* Connect button — always show (allows adding more accounts) */}
+                          <button
+                            onClick={() => handleComposioConnect(toolkit.key)}
+                            disabled={isConnecting}
+                            className={`w-full text-[10px] px-2 py-1.5 rounded-lg transition-all disabled:opacity-50 font-medium ${
+                              activeConns.length > 0
+                                ? 'text-purple-300 bg-white/5 hover:bg-white/10 border border-white/10'
+                                : 'text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500'
+                            }`}
+                          >
+                            {isConnecting ? (
+                              <span className="flex items-center justify-center gap-1">
+                                <span className="w-2.5 h-2.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                Connecting...
+                              </span>
+                            ) : activeConns.length > 0 ? (
+                              '+ Add Another Account'
+                            ) : (
+                              'Connect'
+                            )}
+                          </button>
                         </div>
                       );
                     })}
