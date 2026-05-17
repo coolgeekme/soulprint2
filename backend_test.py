@@ -1,448 +1,535 @@
 #!/usr/bin/env python3
 """
-Backend API Testing Script for SoulPrint Engine - Composio Integration
-Tests all Composio integration API endpoints as specified in the review request.
+Backend Test for Composio Integration (Telegram Bot Infrastructure)
+Tests the underlying Composio REST API that the Telegram bot uses.
 """
 
 import requests
 import json
 import sys
-import os
+from datetime import datetime, timedelta
 
-# Base URL from environment
-BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://soulprint-engine.preview.emergentagent.com')
-API_BASE = f"{BASE_URL}/api"
+# Base URLs
+APP_BASE_URL = "http://localhost:3000"
+COMPOSIO_API_BASE = "https://backend.composio.dev"
 
-# Test credentials
-TEST_EMAIL = "testchat@example.com"
-TEST_PASSCODE = "Test123456"
+# Composio API credentials (from review request)
+COMPOSIO_API_KEY = "ak_ZADt5Z_GI92E4tc0lY38"
+COMPOSIO_USER_ID = "sp_test"
 
-# Color codes for output
-GREEN = '\033[92m'
-RED = '\033[91m'
-YELLOW = '\033[93m'
-BLUE = '\033[94m'
-RESET = '\033[0m'
+# Auth credentials for app API
+AUTH_EMAIL = "testchat@example.com"
+AUTH_PASSCODE = "Test123456"
 
-def print_test(message):
-    print(f"{BLUE}[TEST]{RESET} {message}")
+def print_test(name):
+    print(f"\n{'='*80}")
+    print(f"TEST: {name}")
+    print('='*80)
 
-def print_success(message):
-    print(f"{GREEN}✓ PASS:{RESET} {message}")
+def print_success(msg):
+    print(f"✅ {msg}")
 
-def print_error(message):
-    print(f"{RED}✗ FAIL:{RESET} {message}")
+def print_error(msg):
+    print(f"❌ {msg}")
 
-def print_info(message):
-    print(f"{YELLOW}[INFO]{RESET} {message}")
+def print_info(msg):
+    print(f"ℹ️  {msg}")
 
 # ============================================================================
-# Test 1: Authentication
+# TEST 1: Composio Active Accounts REST API
 # ============================================================================
-def test_authentication():
-    """Test authentication with testchat@example.com/Test123456"""
-    print_test("Test 1: Authentication (POST /api/auth/login)")
+def test_composio_active_accounts():
+    print_test("Test 1: Composio Active Accounts REST API")
     
     try:
-        response = requests.post(
-            f"{API_BASE}/auth/login",
-            json={"email": TEST_EMAIL, "passcode": TEST_PASSCODE},
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
+        url = f"{COMPOSIO_API_BASE}/api/v1/connectedAccounts?user_id={COMPOSIO_USER_ID}"
+        headers = {"x-api-key": COMPOSIO_API_KEY}
         
-        if response.status_code == 200:
-            data = response.json()
-            if 'token' in data:
-                print_success(f"Authentication successful - Token received")
-                return data['token']
-            else:
-                print_error(f"Authentication response missing token: {data}")
-                return None
-        else:
-            print_error(f"Authentication failed - Status: {response.status_code}, Response: {response.text}")
-            return None
-    except Exception as e:
-        print_error(f"Authentication exception: {str(e)}")
-        return None
-
-# ============================================================================
-# Test 2: GET /api/composio/status (no auth required)
-# ============================================================================
-def test_composio_status():
-    """Test GET /api/composio/status - should work without auth"""
-    print_test("Test 2: GET /api/composio/status (no auth required)")
-    
-    try:
-        response = requests.get(
-            f"{API_BASE}/composio/status",
-            timeout=30
-        )
+        print_info(f"GET {url}")
+        response = requests.get(url, headers=headers, timeout=30)
         
-        if response.status_code == 200:
-            data = response.json()
-            print_success(f"Status endpoint returned 200")
-            
-            # Check required fields
-            if 'connected' in data and isinstance(data['connected'], bool):
-                print_success(f"  - 'connected' field present: {data['connected']}")
-            else:
-                print_error(f"  - 'connected' field missing or not boolean")
-            
-            if 'supportedToolkits' in data:
-                print_success(f"  - 'supportedToolkits' count: {data['supportedToolkits']}")
-                if data['supportedToolkits'] == 8:
-                    print_success(f"  - Correct count of 8 supported toolkits")
-                else:
-                    print_error(f"  - Expected 8 toolkits, got {data['supportedToolkits']}")
-            else:
-                print_error(f"  - 'supportedToolkits' field missing")
-            
-            print_info(f"Full response: {json.dumps(data, indent=2)}")
-            return True
-        else:
-            print_error(f"Status endpoint failed - Status: {response.status_code}, Response: {response.text}")
+        print_info(f"Status: {response.status_code}")
+        
+        if response.status_code != 200:
+            print_error(f"Expected 200, got {response.status_code}")
+            print_error(f"Response: {response.text[:500]}")
             return False
-    except Exception as e:
-        print_error(f"Status endpoint exception: {str(e)}")
-        return False
-
-# ============================================================================
-# Test 3: GET /api/composio/toolkits (requires auth)
-# ============================================================================
-def test_composio_toolkits_without_auth():
-    """Test GET /api/composio/toolkits without auth - should return 401"""
-    print_test("Test 3a: GET /api/composio/toolkits (without auth - should return 401)")
-    
-    try:
-        response = requests.get(
-            f"{API_BASE}/composio/toolkits",
-            timeout=30
-        )
         
-        if response.status_code == 401:
-            print_success(f"Correctly returned 401 Unauthorized without auth token")
-            return True
-        else:
-            print_error(f"Expected 401, got {response.status_code}: {response.text}")
+        data = response.json()
+        print_info(f"Response keys: {list(data.keys())}")
+        
+        # Check for items array
+        if 'items' not in data:
+            print_error("Response missing 'items' array")
+            print_error(f"Response: {json.dumps(data, indent=2)[:500]}")
             return False
+        
+        items = data['items']
+        print_success(f"Found {len(items)} connected accounts")
+        
+        # Filter for active accounts
+        active_accounts = [acc for acc in items if acc.get('status', '').lower() == 'active']
+        print_success(f"Found {len(active_accounts)} active accounts")
+        
+        # Check for Gmail and GoogleCalendar
+        gmail_accounts = []
+        calendar_accounts = []
+        
+        for acc in active_accounts:
+            # Extract app identifier
+            app_id = None
+            if isinstance(acc.get('appUniqueId'), str):
+                app_id = acc['appUniqueId'].upper()
+            
+            if not app_id:
+                continue
+            
+            print_info(f"Account: {acc.get('id')} - App: {app_id} - Status: {acc.get('status')}")
+            
+            if 'GMAIL' in app_id:
+                gmail_accounts.append(acc)
+            if 'GOOGLECALENDAR' in app_id or 'CALENDAR' in app_id:
+                calendar_accounts.append(acc)
+        
+        print_success(f"Gmail accounts: {len(gmail_accounts)}")
+        print_success(f"Calendar accounts: {len(calendar_accounts)}")
+        
+        # Verify structure
+        if len(active_accounts) > 0:
+            sample = active_accounts[0]
+            required_fields = ['id', 'appUniqueId', 'status']
+            for field in required_fields:
+                if field not in sample:
+                    print_error(f"Missing required field: {field}")
+                    return False
+            print_success("All required fields present in account structure")
+        
+        # Store account IDs for next tests
+        global GMAIL_ACCOUNT_ID, CALENDAR_ACCOUNT_ID
+        GMAIL_ACCOUNT_ID = gmail_accounts[0]['id'] if gmail_accounts else None
+        CALENDAR_ACCOUNT_ID = calendar_accounts[0]['id'] if calendar_accounts else None
+        
+        if GMAIL_ACCOUNT_ID:
+            print_success(f"Gmail account ID: {GMAIL_ACCOUNT_ID}")
+        else:
+            print_error("No Gmail account found - Test 2 will be skipped")
+        
+        if CALENDAR_ACCOUNT_ID:
+            print_success(f"Calendar account ID: {CALENDAR_ACCOUNT_ID}")
+        else:
+            print_error("No Calendar account found - Test 3 will be skipped")
+        
+        return True
+        
     except Exception as e:
         print_error(f"Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
-def test_composio_toolkits_with_auth(token):
-    """Test GET /api/composio/toolkits with auth - should return 200 with toolkits array"""
-    print_test("Test 3b: GET /api/composio/toolkits (with auth)")
+# ============================================================================
+# TEST 2: Composio Gmail Execution
+# ============================================================================
+def test_composio_gmail_execution():
+    print_test("Test 2: Composio Gmail Execution")
+    
+    if not GMAIL_ACCOUNT_ID:
+        print_error("Skipping - No Gmail account ID from Test 1")
+        return False
     
     try:
-        response = requests.get(
-            f"{API_BASE}/composio/toolkits",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=30
-        )
+        url = f"{COMPOSIO_API_BASE}/api/v2/actions/GMAIL_FETCH_EMAILS/execute"
+        headers = {
+            "x-api-key": COMPOSIO_API_KEY,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "connectedAccountId": GMAIL_ACCOUNT_ID,
+            "input": {
+                "max_results": 2
+            }
+        }
         
-        if response.status_code == 200:
-            data = response.json()
-            print_success(f"Toolkits endpoint returned 200")
+        print_info(f"POST {url}")
+        print_info(f"Account ID: {GMAIL_ACCOUNT_ID}")
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        
+        print_info(f"Status: {response.status_code}")
+        
+        if response.status_code != 200:
+            print_error(f"Expected 200, got {response.status_code}")
+            print_error(f"Response: {response.text[:500]}")
+            return False
+        
+        data = response.json()
+        print_info(f"Response keys: {list(data.keys())}")
+        
+        # Check for data.messages array
+        if 'data' not in data:
+            print_error("Response missing 'data' field")
+            print_error(f"Response: {json.dumps(data, indent=2)[:500]}")
+            return False
+        
+        messages = data['data'].get('messages', [])
+        print_success(f"Found {len(messages)} messages")
+        
+        # Verify message structure
+        if len(messages) > 0:
+            sample = messages[0]
+            print_info(f"Sample message keys: {list(sample.keys())}")
             
-            # Check for toolkits array
-            if 'toolkits' in data and isinstance(data['toolkits'], list):
-                toolkits = data['toolkits']
-                print_success(f"  - 'toolkits' array present with {len(toolkits)} items")
-                
-                # Check count
-                if len(toolkits) == 8:
-                    print_success(f"  - Correct count of 8 toolkits")
-                else:
-                    print_error(f"  - Expected 8 toolkits, got {len(toolkits)}")
-                
-                # Check expected toolkit keys
-                expected_keys = ['GMAIL', 'GOOGLECALENDAR', 'GITHUB', 'SLACK', 'GOOGLEDRIVE', 'NOTION', 'TRELLO', 'ZOOM']
-                toolkit_keys = [t.get('key') for t in toolkits]
-                
-                for expected_key in expected_keys:
-                    if expected_key in toolkit_keys:
-                        print_success(f"  - Found toolkit: {expected_key}")
-                    else:
-                        print_error(f"  - Missing toolkit: {expected_key}")
-                
-                # Check structure of first toolkit
-                if len(toolkits) > 0:
-                    first_toolkit = toolkits[0]
-                    required_fields = ['key', 'name', 'icon', 'description', 'category']
-                    
-                    print_info(f"Checking structure of first toolkit:")
-                    for field in required_fields:
-                        if field in first_toolkit and isinstance(first_toolkit[field], str):
-                            print_success(f"    - '{field}': {first_toolkit[field]}")
-                        else:
-                            print_error(f"    - '{field}' missing or not a string")
-                
-                return True
+            # Check for messageId and messageText fields
+            has_message_id = 'messageId' in sample or 'id' in sample
+            has_message_text = 'messageText' in sample or 'snippet' in sample or 'subject' in sample
+            
+            if has_message_id:
+                print_success("Messages have ID field")
             else:
-                print_error(f"  - 'toolkits' field missing or not an array")
-                print_info(f"Full response: {json.dumps(data, indent=2)}")
+                print_error("Messages missing ID field")
                 return False
-        else:
-            print_error(f"Toolkits endpoint failed - Status: {response.status_code}, Response: {response.text}")
-            return False
-    except Exception as e:
-        print_error(f"Toolkits endpoint exception: {str(e)}")
-        return False
-
-# ============================================================================
-# Test 4: GET /api/composio/connections (requires auth)
-# ============================================================================
-def test_composio_connections_without_auth():
-    """Test GET /api/composio/connections without auth - should return 401"""
-    print_test("Test 4a: GET /api/composio/connections (without auth - should return 401)")
-    
-    try:
-        response = requests.get(
-            f"{API_BASE}/composio/connections",
-            timeout=30
-        )
-        
-        if response.status_code == 401:
-            print_success(f"Correctly returned 401 Unauthorized without auth token")
-            return True
-        else:
-            print_error(f"Expected 401, got {response.status_code}: {response.text}")
-            return False
-    except Exception as e:
-        print_error(f"Exception: {str(e)}")
-        return False
-
-def test_composio_connections_with_auth(token):
-    """Test GET /api/composio/connections with auth - should return 200 with connections array"""
-    print_test("Test 4b: GET /api/composio/connections (with auth)")
-    
-    try:
-        response = requests.get(
-            f"{API_BASE}/composio/connections",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            print_success(f"Connections endpoint returned 200")
             
-            # Check for connections array
-            if 'connections' in data and isinstance(data['connections'], list):
-                connections = data['connections']
-                print_success(f"  - 'connections' array present with {len(connections)} items")
-                
-                # Check structure of connections if any exist
-                if len(connections) > 0:
-                    print_info(f"Checking structure of connections:")
-                    
-                    for i, conn in enumerate(connections):
-                        print_info(f"  Connection {i+1}:")
-                        
-                        # Check required fields
-                        if 'id' in conn:
-                            print_success(f"    - 'id': {conn['id']}")
-                        else:
-                            print_error(f"    - 'id' field missing")
-                        
-                        # CRITICAL: Check that toolkit is an UPPERCASE STRING, not an object
-                        if 'toolkit' in conn:
-                            if isinstance(conn['toolkit'], str):
-                                if conn['toolkit'].isupper():
-                                    print_success(f"    - 'toolkit' (UPPERCASE STRING): {conn['toolkit']}")
-                                else:
-                                    print_error(f"    - 'toolkit' is a string but NOT UPPERCASE: {conn['toolkit']}")
-                            else:
-                                print_error(f"    - 'toolkit' is NOT a string (type: {type(conn['toolkit'])}): {conn['toolkit']}")
-                        else:
-                            print_error(f"    - 'toolkit' field missing")
-                        
-                        # CRITICAL: Check that status is an UPPERCASE STRING
-                        if 'status' in conn:
-                            if isinstance(conn['status'], str):
-                                if conn['status'].isupper():
-                                    print_success(f"    - 'status' (UPPERCASE STRING): {conn['status']}")
-                                else:
-                                    print_error(f"    - 'status' is a string but NOT UPPERCASE: {conn['status']}")
-                            else:
-                                print_error(f"    - 'status' is NOT a string (type: {type(conn['status'])}): {conn['status']}")
-                        else:
-                            print_error(f"    - 'status' field missing")
-                        
-                        if 'alias' in conn:
-                            print_success(f"    - 'alias': {conn['alias']}")
-                        else:
-                            print_info(f"    - 'alias' field missing (optional)")
-                        
-                        if 'createdAt' in conn:
-                            print_success(f"    - 'createdAt': {conn['createdAt']}")
-                        else:
-                            print_info(f"    - 'createdAt' field missing (optional)")
-                else:
-                    print_info(f"  - No connections found (empty array is valid)")
-                
-                return True
+            if has_message_text:
+                print_success("Messages have text/content field")
             else:
-                print_error(f"  - 'connections' field missing or not an array")
-                print_info(f"Full response: {json.dumps(data, indent=2)}")
+                print_error("Messages missing text/content field")
                 return False
-        else:
-            print_error(f"Connections endpoint failed - Status: {response.status_code}, Response: {response.text}")
-            return False
+        
+        return True
+        
     except Exception as e:
-        print_error(f"Connections endpoint exception: {str(e)}")
+        print_error(f"Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 # ============================================================================
-# Test 5: POST /api/composio/connect (requires auth)
+# TEST 3: Composio Calendar Execution
 # ============================================================================
-def test_composio_connect_without_auth():
-    """Test POST /api/composio/connect without auth - should return 401"""
-    print_test("Test 5a: POST /api/composio/connect (without auth - should return 401)")
+def test_composio_calendar_execution():
+    print_test("Test 3: Composio Calendar Execution")
     
-    try:
-        response = requests.post(
-            f"{API_BASE}/composio/connect",
-            json={"toolkit": "GMAIL"},
-            headers={"Content-Type": "application/json"},
-            timeout=30
-        )
-        
-        if response.status_code == 401:
-            print_success(f"Correctly returned 401 Unauthorized without auth token")
-            return True
-        else:
-            print_error(f"Expected 401, got {response.status_code}: {response.text}")
-            return False
-    except Exception as e:
-        print_error(f"Exception: {str(e)}")
+    if not CALENDAR_ACCOUNT_ID:
+        print_error("Skipping - No Calendar account ID from Test 1")
         return False
-
-def test_composio_connect_invalid_toolkit(token):
-    """Test POST /api/composio/connect with invalid toolkit - should return error"""
-    print_test("Test 5b: POST /api/composio/connect (invalid toolkit)")
     
     try:
-        response = requests.post(
-            f"{API_BASE}/composio/connect",
-            json={"toolkit": "INVALID_TOOLKIT"},
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            },
-            timeout=30
-        )
+        url = f"{COMPOSIO_API_BASE}/api/v2/actions/GOOGLECALENDAR_FIND_EVENT/execute"
+        headers = {
+            "x-api-key": COMPOSIO_API_KEY,
+            "Content-Type": "application/json"
+        }
         
-        if response.status_code in [400, 422]:
-            print_success(f"Correctly returned error status {response.status_code} for invalid toolkit")
-            data = response.json()
-            if 'error' in data:
-                print_success(f"  - Error message: {data['error']}")
-            return True
-        else:
-            print_error(f"Expected 400/422, got {response.status_code}: {response.text}")
+        # Calculate time range (now to 7 days from now)
+        now = datetime.utcnow()
+        time_max = now + timedelta(days=7)
+        
+        payload = {
+            "connectedAccountId": CALENDAR_ACCOUNT_ID,
+            "input": {
+                "calendar_id": "primary",
+                "time_min": now.isoformat() + "Z",
+                "time_max": time_max.isoformat() + "Z"
+            }
+        }
+        
+        print_info(f"POST {url}")
+        print_info(f"Account ID: {CALENDAR_ACCOUNT_ID}")
+        print_info(f"Time range: {now.isoformat()} to {time_max.isoformat()}")
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        
+        print_info(f"Status: {response.status_code}")
+        
+        if response.status_code != 200:
+            print_error(f"Expected 200, got {response.status_code}")
+            print_error(f"Response: {response.text[:500]}")
             return False
+        
+        data = response.json()
+        print_info(f"Response keys: {list(data.keys())}")
+        
+        # Check for events data
+        if 'data' not in data:
+            print_error("Response missing 'data' field")
+            print_error(f"Response: {json.dumps(data, indent=2)[:500]}")
+            return False
+        
+        print_success("Calendar execution successful - returns 200 with data")
+        
+        # Try to extract events (structure may vary)
+        events_data = data['data']
+        events = []
+        
+        if isinstance(events_data, dict):
+            events = events_data.get('events', events_data.get('event_data', []))
+        elif isinstance(events_data, list):
+            events = events_data
+        
+        print_success(f"Found {len(events)} events in response")
+        
+        return True
+        
     except Exception as e:
         print_error(f"Exception: {str(e)}")
-        return False
-
-def test_composio_connect_empty_body(token):
-    """Test POST /api/composio/connect with empty body - should return error"""
-    print_test("Test 5c: POST /api/composio/connect (empty body)")
-    
-    try:
-        response = requests.post(
-            f"{API_BASE}/composio/connect",
-            json={},
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            },
-            timeout=30
-        )
-        
-        if response.status_code in [400, 422]:
-            print_success(f"Correctly returned error status {response.status_code} for empty body")
-            data = response.json()
-            if 'error' in data:
-                print_success(f"  - Error message: {data['error']}")
-            return True
-        else:
-            print_error(f"Expected 400/422, got {response.status_code}: {response.text}")
-            return False
-    except Exception as e:
-        print_error(f"Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 # ============================================================================
-# Main Test Runner
+# TEST 4: Composio API endpoints via app API
+# ============================================================================
+def test_app_composio_endpoints():
+    print_test("Test 4: Composio API endpoints via app API")
+    
+    # First, login to get auth token
+    try:
+        print_info("Logging in to get auth token...")
+        login_url = f"{APP_BASE_URL}/api/auth/login"
+        login_payload = {
+            "email": AUTH_EMAIL,
+            "passcode": AUTH_PASSCODE
+        }
+        
+        response = requests.post(login_url, json=login_payload, timeout=10)
+        
+        if response.status_code != 200:
+            print_error(f"Login failed: {response.status_code}")
+            print_error(f"Response: {response.text[:500]}")
+            return False
+        
+        data = response.json()
+        token = data.get('token')
+        
+        if not token:
+            print_error("No token in login response")
+            return False
+        
+        print_success("Login successful")
+        
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        # Test 4a: GET /api/composio/toolkits
+        print_info("\nTest 4a: GET /api/composio/toolkits")
+        url = f"{APP_BASE_URL}/api/composio/toolkits"
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code != 200:
+            print_error(f"Expected 200, got {response.status_code}")
+            return False
+        
+        data = response.json()
+        toolkits = data.get('toolkits', [])
+        print_success(f"Returns {len(toolkits)} toolkits")
+        
+        if len(toolkits) != 8:
+            print_error(f"Expected 8 toolkits, got {len(toolkits)}")
+            return False
+        
+        print_success("✅ GET /api/composio/toolkits returns 8 toolkits")
+        
+        # Test 4b: GET /api/composio/connections?supported=true
+        print_info("\nTest 4b: GET /api/composio/connections?supported=true")
+        url = f"{APP_BASE_URL}/api/composio/connections?supported=true"
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code != 200:
+            print_error(f"Expected 200, got {response.status_code}")
+            return False
+        
+        data = response.json()
+        connections = data.get('connections', [])
+        print_success(f"Returns {len(connections)} filtered connections")
+        
+        # Verify all connections are supported
+        supported_toolkits = ['GMAIL', 'GOOGLECALENDAR', 'GITHUB', 'SLACK', 'GOOGLEDRIVE', 'NOTION', 'TRELLO', 'ZOOM']
+        unsupported_found = []
+        
+        for conn in connections:
+            toolkit = conn.get('toolkit', '').upper()
+            if toolkit not in supported_toolkits:
+                unsupported_found.append(toolkit)
+        
+        if unsupported_found:
+            print_error(f"Found unsupported toolkits: {unsupported_found}")
+            return False
+        
+        print_success("✅ GET /api/composio/connections?supported=true returns filtered connections")
+        
+        # Test 4c: GET /api/composio/status
+        print_info("\nTest 4c: GET /api/composio/status")
+        url = f"{APP_BASE_URL}/api/composio/status"
+        response = requests.get(url, timeout=10)  # No auth required
+        
+        if response.status_code != 200:
+            print_error(f"Expected 200, got {response.status_code}")
+            return False
+        
+        data = response.json()
+        
+        if 'connected' not in data:
+            print_error("Response missing 'connected' field")
+            return False
+        
+        if data['connected'] != True:
+            print_error(f"Expected connected: true, got {data['connected']}")
+            return False
+        
+        print_success("✅ GET /api/composio/status returns connected: true")
+        
+        return True
+        
+    except Exception as e:
+        print_error(f"Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+# ============================================================================
+# TEST 5: Composio Disconnect
+# ============================================================================
+def test_composio_disconnect():
+    print_test("Test 5: Composio Disconnect")
+    
+    # First, login to get auth token
+    try:
+        print_info("Logging in to get auth token...")
+        login_url = f"{APP_BASE_URL}/api/auth/login"
+        login_payload = {
+            "email": AUTH_EMAIL,
+            "passcode": AUTH_PASSCODE
+        }
+        
+        response = requests.post(login_url, json=login_payload, timeout=10)
+        
+        if response.status_code != 200:
+            print_error(f"Login failed: {response.status_code}")
+            return False
+        
+        data = response.json()
+        token = data.get('token')
+        
+        if not token:
+            print_error("No token in login response")
+            return False
+        
+        print_success("Login successful")
+        
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        # Get connections to find one to disconnect
+        print_info("Getting connections list...")
+        url = f"{APP_BASE_URL}/api/composio/connections"
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code != 200:
+            print_error(f"Failed to get connections: {response.status_code}")
+            return False
+        
+        data = response.json()
+        connections = data.get('connections', [])
+        
+        if len(connections) == 0:
+            print_error("No connections to test disconnect with")
+            return False
+        
+        # Pick the first connection
+        test_connection = connections[0]
+        connection_id = test_connection.get('id')
+        toolkit = test_connection.get('toolkit')
+        
+        print_info(f"Testing disconnect with connection: {connection_id} ({toolkit})")
+        
+        # Test disconnect
+        url = f"{APP_BASE_URL}/api/composio/disconnect"
+        payload = {"connectionId": connection_id}
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        
+        if response.status_code != 200:
+            print_error(f"Disconnect failed: {response.status_code}")
+            print_error(f"Response: {response.text[:500]}")
+            return False
+        
+        data = response.json()
+        
+        if not data.get('success'):
+            print_error(f"Disconnect returned success: false")
+            print_error(f"Response: {json.dumps(data, indent=2)}")
+            return False
+        
+        print_success(f"✅ Successfully disconnected {toolkit} connection")
+        
+        # Verify connection is removed
+        print_info("Verifying connection is removed...")
+        url = f"{APP_BASE_URL}/api/composio/connections"
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        if response.status_code != 200:
+            print_error(f"Failed to verify: {response.status_code}")
+            return False
+        
+        data = response.json()
+        new_connections = data.get('connections', [])
+        
+        # Check if the connection is still in the list
+        still_exists = any(conn.get('id') == connection_id for conn in new_connections)
+        
+        if still_exists:
+            print_error("Connection still exists after disconnect")
+            return False
+        
+        print_success("✅ Connection successfully removed from list")
+        
+        return True
+        
+    except Exception as e:
+        print_error(f"Exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+# ============================================================================
+# MAIN
 # ============================================================================
 def main():
     print("\n" + "="*80)
-    print("COMPOSIO INTEGRATION API TESTING")
-    print("="*80 + "\n")
+    print("COMPOSIO INTEGRATION TESTING FOR TELEGRAM BOT")
+    print("Testing the underlying Composio infrastructure")
+    print("="*80)
     
-    print_info(f"Base URL: {BASE_URL}")
-    print_info(f"API Base: {API_BASE}")
-    print_info(f"Test User: {TEST_EMAIL}\n")
+    # Initialize global variables
+    global GMAIL_ACCOUNT_ID, CALENDAR_ACCOUNT_ID
+    GMAIL_ACCOUNT_ID = None
+    CALENDAR_ACCOUNT_ID = None
     
-    results = []
+    results = {}
     
-    # Test 1: Authentication
-    token = test_authentication()
-    results.append(("Authentication", token is not None))
-    print()
-    
-    if not token:
-        print_error("Cannot proceed without authentication token")
-        sys.exit(1)
-    
-    # Test 2: Status endpoint (no auth)
-    results.append(("GET /api/composio/status (no auth)", test_composio_status()))
-    print()
-    
-    # Test 3: Toolkits endpoint
-    results.append(("GET /api/composio/toolkits (without auth)", test_composio_toolkits_without_auth()))
-    print()
-    results.append(("GET /api/composio/toolkits (with auth)", test_composio_toolkits_with_auth(token)))
-    print()
-    
-    # Test 4: Connections endpoint
-    results.append(("GET /api/composio/connections (without auth)", test_composio_connections_without_auth()))
-    print()
-    results.append(("GET /api/composio/connections (with auth)", test_composio_connections_with_auth(token)))
-    print()
-    
-    # Test 5: Connect endpoint
-    results.append(("POST /api/composio/connect (without auth)", test_composio_connect_without_auth()))
-    print()
-    results.append(("POST /api/composio/connect (invalid toolkit)", test_composio_connect_invalid_toolkit(token)))
-    print()
-    results.append(("POST /api/composio/connect (empty body)", test_composio_connect_empty_body(token)))
-    print()
+    # Run tests
+    results['Test 1: Composio Active Accounts REST API'] = test_composio_active_accounts()
+    results['Test 2: Composio Gmail Execution'] = test_composio_gmail_execution()
+    results['Test 3: Composio Calendar Execution'] = test_composio_calendar_execution()
+    results['Test 4: Composio API endpoints via app API'] = test_app_composio_endpoints()
+    results['Test 5: Composio Disconnect'] = test_composio_disconnect()
     
     # Summary
-    print("="*80)
+    print("\n" + "="*80)
     print("TEST SUMMARY")
     print("="*80)
     
-    passed = sum(1 for _, result in results if result)
+    passed = sum(1 for v in results.values() if v)
     total = len(results)
     
-    for test_name, result in results:
-        status = f"{GREEN}✓ PASS{RESET}" if result else f"{RED}✗ FAIL{RESET}"
-        print(f"{status}: {test_name}")
+    for test_name, result in results.items():
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status} - {test_name}")
     
-    print()
-    print(f"Total: {passed}/{total} tests passed ({int(passed/total*100)}% success rate)")
+    print("\n" + "="*80)
+    print(f"TOTAL: {passed}/{total} tests passed ({int(passed/total*100)}%)")
+    print("="*80)
     
-    if passed == total:
-        print(f"{GREEN}All tests passed!{RESET}")
-        sys.exit(0)
-    else:
-        print(f"{RED}Some tests failed.{RESET}")
-        sys.exit(1)
+    # Exit with appropriate code
+    sys.exit(0 if passed == total else 1)
 
 if __name__ == "__main__":
     main()

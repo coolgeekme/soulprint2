@@ -7,6 +7,7 @@ import { sendTelegramMessage } from '@/lib/telegram-utils';
 import { extractUrlContent, extractUrls } from '@/lib/handlers/url-extractor';
 import { geocodeAddress, searchNearbyPlaces, parseLocationQuery, extractPlaceType } from '@/lib/handlers/location-services';
 import { generateImageWithKie } from '@/lib/handlers/model-comparison';
+import { getActiveComposioAccounts, buildComposioToolDefs, handleComposioToolCall, SUPPORTED_TOOLKITS } from '@/lib/handlers/composio';
 import {
   checkChatRateLimit,
   sanitizeInput,
@@ -1144,9 +1145,28 @@ async function handleTelegramWebhook(request) {
     const { getProvider: gp } = await import('@/lib/llm/providers');
     const provider = gp(preferredProvider, preferredModel);
 
-    // Define tools for Google access and memory
-    const googleTools = [
-      {
+    // ── Fetch Composio connections for this user ────────────────────────────
+    let composioAccounts = {};
+    try {
+      composioAccounts = await getActiveComposioAccounts(userId);
+      const connectedApps = Object.keys(composioAccounts);
+      if (connectedApps.length > 0) {
+        console.log(`[Telegram] User ${userId} has Composio connections: ${connectedApps.join(', ')}`);
+      }
+    } catch (composioErr) {
+      console.log('[Telegram] Composio check skipped:', composioErr.message);
+    }
+
+    // ── Build dynamic tool set ──────────────────────────────────────────────
+    // Composio tools (based on connected apps)
+    const composioToolDefs = buildComposioToolDefs(composioAccounts);
+
+    // Local tools (always available: memories, soulprint; Google as fallback)
+    const localTools = [];
+    
+    // Only add native Google tools if NOT connected via Composio
+    if (!composioAccounts.GMAIL) {
+      localTools.push({
         type: 'function',
         function: {
           name: 'get_emails',
@@ -1159,8 +1179,10 @@ async function handleTelegramWebhook(request) {
             },
           },
         },
-      },
-      {
+      });
+    }
+    if (!composioAccounts.GOOGLECALENDAR) {
+      localTools.push({
         type: 'function',
         function: {
           name: 'get_calendar',
@@ -1173,7 +1195,9 @@ async function handleTelegramWebhook(request) {
             },
           },
         },
-      },
+      });
+    }
+    localTools.push(
       {
         type: 'function',
         function: {
@@ -1190,18 +1214,40 @@ async function handleTelegramWebhook(request) {
           parameters: { type: 'object', properties: {} },
         },
       },
-    ];
-    
-    // Tool execution handler for Telegram
+    );
+
+    const allTools = [...composioToolDefs, ...localTools];
+
+    // ── Add connected apps context to system prompt ─────────────────────────
+    let connectedAppsContext = '';
+    const connectedAppNames = Object.keys(composioAccounts);
+    if (connectedAppNames.length > 0) {
+      const appLabels = connectedAppNames.map(k => {
+        const info = SUPPORTED_TOOLKITS[k];
+        return info ? `${info.icon} ${info.name}` : k;
+      });
+      connectedAppsContext = `\n\nCONNECTED APPS: The user has connected these apps via Composio: ${appLabels.join(', ')}. ` +
+        `You can use the composio_ tools to interact with these services on the user's behalf. ` +
+        `For example, you can read their emails, check their calendar, send Slack messages, or check GitHub issues. ` +
+        `Use these tools proactively when relevant to the user's question.`;
+    }
+    const enrichedSystemPrompt = systemPrompt + connectedAppsContext;
+
+    // ── Unified tool call handler ───────────────────────────────────────────
     const handleTelegramToolCall = async (toolName, args) => {
       console.log(`[Telegram Tool] Executing ${toolName}:`, args);
       
+      // Composio tools (prefixed with composio_)
+      if (toolName.startsWith('composio_')) {
+        return handleComposioToolCall(toolName, args, composioAccounts);
+      }
+
+      // Local tool handlers
       switch (toolName) {
         case 'get_emails':
         case 'check_email': {
-          console.log('[Telegram Tool] get_emails called for user:', userId);
           const tgGoogleConnections = await getAllGoogleConnections(userId);
-          if (!tgGoogleConnections.length) return { error: 'No Google account connected. Connect one on the web app in Settings → Integrations.' };
+          if (!tgGoogleConnections.length) return { error: 'No Google account connected. Connect Gmail via Settings → Integrations on the web app.' };
           const account = tgGoogleConnections[0];
           try {
             const token = await getValidGoogleToken(userId, account.email);
@@ -1232,9 +1278,8 @@ async function handleTelegramWebhook(request) {
         
         case 'get_calendar':
         case 'check_calendar': {
-          console.log('[Telegram Tool] get_calendar called for user:', userId);
           const tgCalGoogleConnections = await getAllGoogleConnections(userId);
-          if (!tgCalGoogleConnections.length) return { error: 'No Google account connected. Connect one on the web app in Settings → Integrations.' };
+          if (!tgCalGoogleConnections.length) return { error: 'No Google account connected. Connect Google Calendar via Settings → Integrations on the web app.' };
           const calAccount = tgCalGoogleConnections[0];
           try {
             const token = await getValidGoogleToken(userId, calAccount.email);
@@ -1292,11 +1337,11 @@ async function handleTelegramWebhook(request) {
     let aiResponse;
     let sources = [];
     try {
-      // Use streaming with custom tools for OpenAI (works best for tool calling)
+      // Use streaming with tools for OpenAI (works best for tool calling)
       const { stream, searchMeta, didSearch, customToolResults } = await provider.generateStream({
-        systemPrompt, messages: historyMessages, model: preferredModel,
+        systemPrompt: enrichedSystemPrompt, messages: historyMessages, model: preferredModel,
         temperature: 0.7, enableWebSearch: true,
-        customTools: preferredProvider === 'openai' ? googleTools : [],
+        customTools: preferredProvider === 'openai' ? allTools : [],
         onToolCall: handleTelegramToolCall,
       });
       
