@@ -2401,7 +2401,7 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                                     <div className="flex items-center gap-1.5 flex-1 min-w-0">
                                       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isActive ? 'bg-green-400' : 'bg-yellow-400'}`} />
                                       <span className={`truncate ${isActive ? 'text-green-300' : 'text-yellow-300'}`}>
-                                        {conn.alias || conn.id.slice(0, 12)}
+                                        {conn.displayName || conn.alias || conn.id.slice(0, 12)}
                                       </span>
                                       {!isActive && (
                                         <span className="text-yellow-500/60 flex-shrink-0">(expired)</span>

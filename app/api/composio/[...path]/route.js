@@ -10,6 +10,7 @@ import {
   disconnectAccount,
   getToolsForUser,
   SUPPORTED_TOOLKITS,
+  enrichConnectionsWithIdentity,
 } from '@/lib/handlers/composio';
 
 // ── GET routes ─────────────────────────────────────────────────────────
@@ -45,7 +46,14 @@ export async function GET(request, { params }) {
   if (pathStr === 'connections') {
     try {
       const filterSupported = request.nextUrl.searchParams.get('supported') === 'true';
-      const connections = await getUserConnections(user.id, { filterSupported });
+      const resolveIdentity = request.nextUrl.searchParams.get('identity') !== 'false'; // default true
+      let connections = await getUserConnections(user.id, { filterSupported });
+      
+      // Enrich with resolved identity (email/username) for active connections
+      if (resolveIdentity && connections.length > 0) {
+        connections = await enrichConnectionsWithIdentity(connections);
+      }
+      
       return ok({ connections });
     } catch (e) {
       return err(e.message, 500);
