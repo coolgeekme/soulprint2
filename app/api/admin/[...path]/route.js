@@ -997,11 +997,38 @@ async function handleAdminGetUsers(request) {
     .toArray();
   const subMap = Object.fromEntries(subscriptions.map(s => [s.user_id, s]));
 
+  // ── Per-User Token Usage Aggregation ─────────────────────────────────────
+  const userTokenAgg = await db.collection('messages').aggregate([
+    { $match: { user_id: { $in: paginatedUsers.map(u => u.id) }, role: 'assistant', est_input_tokens: { $exists: true } } },
+    {
+      $group: {
+        _id: '$user_id',
+        total_input_tokens: { $sum: '$est_input_tokens' },
+        total_output_tokens: { $sum: '$est_output_tokens' },
+        message_count: { $sum: 1 },
+      },
+    },
+  ]).toArray();
+  const tokenMap = Object.fromEntries(userTokenAgg.map(t => [t._id, t]));
+
+  // Also get message counts for users without token tracking
+  const userMsgCounts = await db.collection('messages').aggregate([
+    { $match: { user_id: { $in: paginatedUsers.map(u => u.id) }, role: 'assistant' } },
+    { $group: { _id: '$user_id', total_messages: { $sum: 1 } } },
+  ]).toArray();
+  const msgCountMap = Object.fromEntries(userMsgCounts.map(m => [m._id, m.total_messages]));
+
+  // Model pricing for per-user cost estimation (simplified top models)
+  const PER_USER_PRICING = { input: 5.00, output: 15.00 }; // default GPT-4o rate per 1M tokens
+
   return ok({
     users: paginatedUsers.map(u => {
       const answerCount = assessmentCountMap[u.id] || 0;
       const assessmentType = getAssessmentType(u.id);
       const sub = subMap[u.id];
+      const tokens = tokenMap[u.id] || { total_input_tokens: 0, total_output_tokens: 0, message_count: 0 };
+      const totalMessages = msgCountMap[u.id] || 0;
+      const estCost = (tokens.total_input_tokens / 1_000_000) * PER_USER_PRICING.input + (tokens.total_output_tokens / 1_000_000) * PER_USER_PRICING.output;
       return {
         id: u.id,
         email: u.email,
@@ -1016,6 +1043,12 @@ async function handleAdminGetUsers(request) {
         onboarding_complete: profileMap[u.id]?.onboarding_complete || false,
         plan_id: sub?.plan_id || 'free',
         plan_status: sub?.status || 'active',
+        // Token usage metrics
+        total_messages: totalMessages,
+        est_input_tokens: tokens.total_input_tokens,
+        est_output_tokens: tokens.total_output_tokens,
+        est_total_tokens: tokens.total_input_tokens + tokens.total_output_tokens,
+        est_cost: parseFloat(estCost.toFixed(4)),
       };
     }),
     total,
@@ -1359,11 +1392,46 @@ async function handleAdminGetUserDetails(request, userId) {
   });
   const estimatedVoiceMinutes = Math.round(voiceMessages * 0.5); // ~30 sec per voice message
 
-  // ── Cost Estimates ──
-  const llmCostEstimate = totalMessages * 0.002;
+  // ── Cost Estimates (Token-Based) ──
+  // Aggregate actual token data for this user
+  const userTokenAgg = await db.collection('messages').aggregate([
+    { $match: { user_id: userId, role: 'assistant', est_input_tokens: { $exists: true } } },
+    {
+      $group: {
+        _id: null,
+        total_input_tokens: { $sum: '$est_input_tokens' },
+        total_output_tokens: { $sum: '$est_output_tokens' },
+        tracked_count: { $sum: 1 },
+      },
+    },
+  ]).toArray();
+  const tokenData = userTokenAgg[0] || { total_input_tokens: 0, total_output_tokens: 0, tracked_count: 0 };
+  
+  // Per-model token breakdown for this user
+  const userTokenByModel = await db.collection('messages').aggregate([
+    { $match: { user_id: userId, role: 'assistant', est_input_tokens: { $exists: true } } },
+    {
+      $group: {
+        _id: '$model_used',
+        input_tokens: { $sum: '$est_input_tokens' },
+        output_tokens: { $sum: '$est_output_tokens' },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { input_tokens: -1 } },
+  ]).toArray();
+  
+  // Use default GPT-4o pricing for total estimate
+  const DEFAULT_RATE = { input: 5.00, output: 15.00 }; // per 1M tokens
+  const llmCostEstimate = (tokenData.total_input_tokens / 1_000_000) * DEFAULT_RATE.input + (tokenData.total_output_tokens / 1_000_000) * DEFAULT_RATE.output;
+  
+  // Fall back to rough estimate for untracked messages
+  const untrackedMessages = totalMessages - tokenData.tracked_count;
+  const untrackedCostEstimate = Math.max(0, untrackedMessages) * 0.002;
+  
   const mediaCost = mediaItems.reduce((sum, m) => sum + (m.cost || 0), 0) + (mediaMessages.length * 0.03);
   const voiceCost = estimatedVoiceMinutes * 0.01;
-  const totalCost = llmCostEstimate + mediaCost + voiceCost;
+  const totalCost = llmCostEstimate + untrackedCostEstimate + mediaCost + voiceCost;
 
   // ── Feedback Summary ──
   const feedback = await db.collection('user_feedback')
@@ -1413,9 +1481,23 @@ async function handleAdminGetUserDetails(request, userId) {
     },
     costs: {
       total_cost: parseFloat(totalCost.toFixed(2)),
-      llm_cost: parseFloat(llmCostEstimate.toFixed(2)),
+      llm_cost: parseFloat((llmCostEstimate + untrackedCostEstimate).toFixed(2)),
       media_cost: parseFloat(mediaCost.toFixed(2)),
       voice_cost: parseFloat(voiceCost.toFixed(2)),
+    },
+    token_usage: {
+      total_input_tokens: tokenData.total_input_tokens,
+      total_output_tokens: tokenData.total_output_tokens,
+      total_tokens: tokenData.total_input_tokens + tokenData.total_output_tokens,
+      tracked_messages: tokenData.tracked_count,
+      untracked_messages: Math.max(0, untrackedMessages),
+      by_model: userTokenByModel.map(m => ({
+        model: m._id || 'unknown',
+        input_tokens: m.input_tokens,
+        output_tokens: m.output_tokens,
+        total_tokens: m.input_tokens + m.output_tokens,
+        count: m.count,
+      })),
     },
     llm_usage: {
       total_llm_messages: totalLlmMessages,
@@ -3898,6 +3980,20 @@ async function handleAdminGetBusinessInsights(request) {
   const externalLLMCost = externalLLMCostAgg.length > 0
     ? (externalLLMCostAgg[0].input / 1_000_000) * 5 + (externalLLMCostAgg[0].output / 1_000_000) * 15
     : 0;
+  
+  // Aggregate token totals for the platform-wide overview
+  const platformTokenAgg = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', est_input_tokens: { $exists: true } } },
+    { $group: { _id: null, input: { $sum: '$est_input_tokens' }, output: { $sum: '$est_output_tokens' }, count: { $sum: 1 } } },
+  ]).toArray();
+  const platformTokens = platformTokenAgg[0] || { input: 0, output: 0, count: 0 };
+  
+  // 30-day token totals
+  const thirtyDayTokenAgg = await db.collection('messages').aggregate([
+    { $match: { role: 'assistant', est_input_tokens: { $exists: true }, created_at: { $gte: new Date(now - 30 * 86400000).toISOString() } } },
+    { $group: { _id: null, input: { $sum: '$est_input_tokens' }, output: { $sum: '$est_output_tokens' }, count: { $sum: 1 } } },
+  ]).toArray();
+  const tokens30d = thirtyDayTokenAgg[0] || { input: 0, output: 0, count: 0 };
   const externalMediaCostAgg = await db.collection('media_gallery').aggregate([
     { $match: { user_id: { $in: externalUserIdArray } } },
     { $group: { _id: null, total_cost: { $sum: '$cost_usd' } } },
@@ -3953,6 +4049,22 @@ async function handleAdminGetBusinessInsights(request) {
       total_media_cost: parseFloat(externalMediaCost.toFixed(2)),
       avg_cost_per_user: parseFloat(externalAvgCostPerUser.toFixed(2)),
       active_users: externalActiveUserCount,
+    },
+    
+    // Platform-wide Token Usage
+    token_totals: {
+      all_time: {
+        input_tokens: platformTokens.input,
+        output_tokens: platformTokens.output,
+        total_tokens: platformTokens.input + platformTokens.output,
+        tracked_messages: platformTokens.count,
+      },
+      last_30d: {
+        input_tokens: tokens30d.input,
+        output_tokens: tokens30d.output,
+        total_tokens: tokens30d.input + tokens30d.output,
+        tracked_messages: tokens30d.count,
+      },
     },
     
     // Top Users

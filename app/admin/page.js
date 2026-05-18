@@ -8,7 +8,7 @@ import {
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
   PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar,
   KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone, LifeBuoy, LogIn, Activity,
-  CreditCard, Receipt, Ticket, Play, Pause
+  CreditCard, Receipt, Ticket, Play, Pause, ArrowUp, ArrowDown
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import SubscriptionsTab from '@/components/admin/SubscriptionsTab';
@@ -1015,14 +1015,14 @@ function UsersTab({ token, adminRole }) {
         <table className="w-full admin-table">
           <thead>
             <tr className="border-b border-white/5">
-              {['Email', 'Role', 'Plan', 'Accepted', 'Onboarding', 'Assessment', 'Last Active', 'Actions'].map(h => (
+              {['Email', 'Role', 'Plan', 'Tokens / Cost', 'Accepted', 'Onboarding', 'Assessment', 'Last Active', 'Actions'].map(h => (
                 <th key={h} className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              <tr><td colSpan={9} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
             ) : users.map(u => (
               <tr key={u.id} className="border-b border-white/3 hover:bg-white/5 transition-colors">
                 <td className="py-3 pr-4">
@@ -1072,6 +1072,14 @@ function UsersTab({ token, adminRole }) {
                       {(u.plan_id || 'free').toUpperCase()}
                     </span>
                   )}
+                </td>
+                <td className="py-3 pr-4">
+                  <div className="text-right">
+                    <p className="text-[10px] text-green-400 font-mono">${u.est_cost?.toFixed(4) || '0.0000'}</p>
+                    <p className="text-[9px] text-gray-600" title={`Input: ${(u.est_input_tokens || 0).toLocaleString()} | Output: ${(u.est_output_tokens || 0).toLocaleString()}`}>
+                      {u.est_total_tokens > 1000000 ? `${(u.est_total_tokens / 1000000).toFixed(1)}M` : u.est_total_tokens > 1000 ? `${(u.est_total_tokens / 1000).toFixed(1)}K` : (u.est_total_tokens || 0)} tkns • {u.total_messages || 0} msgs
+                    </p>
+                  </div>
                 </td>
                 <td className="py-3 pr-4">
                   <button onClick={() => toggleAccepted(u.id, u.accepted)}
@@ -7370,6 +7378,76 @@ export default function AdminPage() {
               {/* Costs Sub-tab */}
               {metricsSubTab === 'costs' && (
                 <div>
+                  {/* Token Volume Overview */}
+                  <div className="mb-8">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Zap className="w-4 h-4 text-yellow-400" />
+                      <h3 className="text-sm font-bold text-white tracking-wide">Token Volume Overview</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                      <MetricCard
+                        label="Total Tokens (30d)"
+                        value={insights?.token_totals?.last_30d?.total_tokens ? `${(insights.token_totals.last_30d.total_tokens / 1000000).toFixed(2)}M` : '0'}
+                        sub={`${insights?.token_totals?.last_30d?.tracked_messages || 0} tracked msgs`}
+                        icon={Zap}
+                        color="green"
+                      />
+                      <MetricCard
+                        label="Input Tokens (30d)"
+                        value={insights?.token_totals?.last_30d?.input_tokens ? `${(insights.token_totals.last_30d.input_tokens / 1000000).toFixed(2)}M` : '0'}
+                        sub="Prompts sent"
+                        icon={ArrowUp}
+                        color="blue"
+                      />
+                      <MetricCard
+                        label="Output Tokens (30d)"
+                        value={insights?.token_totals?.last_30d?.output_tokens ? `${(insights.token_totals.last_30d.output_tokens / 1000000).toFixed(2)}M` : '0'}
+                        sub="Completions received"
+                        icon={ArrowDown}
+                        color="purple"
+                      />
+                      <MetricCard
+                        label="Avg Tokens/Msg (30d)"
+                        value={insights?.token_totals?.last_30d?.tracked_messages > 0 ? Math.round(insights.token_totals.last_30d.total_tokens / insights.token_totals.last_30d.tracked_messages).toLocaleString() : '—'}
+                        sub="Per tracked message"
+                        icon={BarChart2}
+                        color="orange"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <MetricCard
+                        label="Total Tokens (All-time)"
+                        value={insights?.token_totals?.all_time?.total_tokens ? `${(insights.token_totals.all_time.total_tokens / 1000000).toFixed(2)}M` : '0'}
+                        sub={`${insights?.token_totals?.all_time?.tracked_messages || 0} tracked msgs`}
+                        icon={Zap}
+                        color="purple"
+                      />
+                      <MetricCard
+                        label="Input Tokens (All-time)"
+                        value={insights?.token_totals?.all_time?.input_tokens ? `${(insights.token_totals.all_time.input_tokens / 1000000).toFixed(2)}M` : '0'}
+                        sub="All prompts"
+                        icon={ArrowUp}
+                        color="blue"
+                      />
+                      <MetricCard
+                        label="Output Tokens (All-time)"
+                        value={insights?.token_totals?.all_time?.output_tokens ? `${(insights.token_totals.all_time.output_tokens / 1000000).toFixed(2)}M` : '0'}
+                        sub="All completions"
+                        icon={ArrowDown}
+                        color="green"
+                      />
+                      <MetricCard
+                        label="Avg Tokens/Msg (All-time)"
+                        value={insights?.token_totals?.all_time?.tracked_messages > 0 ? Math.round(insights.token_totals.all_time.total_tokens / insights.token_totals.all_time.tracked_messages).toLocaleString() : '—'}
+                        sub="Per tracked message"
+                        icon={BarChart2}
+                        color="orange"
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-2 mb-3">
                     <DollarSign className="w-4 h-4 text-orange-400" />
                     <h3 className="text-sm font-bold text-white tracking-wide">LLM Cost Estimates</h3>

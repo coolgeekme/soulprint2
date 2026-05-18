@@ -163,7 +163,7 @@ export default function UserDetailPage() {
     );
   }
 
-  const { user, profile, usage_stats, costs, llm_usage, conversation_topics, memory_breakdown, 
+  const { user, profile, usage_stats, costs, token_usage, llm_usage, conversation_topics, memory_breakdown, 
           assessment_status, media_usage, platform_usage, integrations, feedback_summary, imports, soul_profile } = data;
 
   // Calculate max for progress bars
@@ -389,6 +389,65 @@ export default function UserDetailPage() {
                       color={i === 0 ? 'orange' : i === 1 ? 'blue' : 'purple'}
                     />
                   ))}
+                </div>
+              )}
+            </Section>
+
+            {/* Token Usage Breakdown */}
+            <Section title="Token Usage" icon={Zap} badge={token_usage?.total_tokens ? `${(token_usage.total_tokens / 1000).toFixed(1)}K` : '0'} defaultOpen={true}>
+              {!token_usage || token_usage.total_tokens === 0 ? (
+                <p className="text-gray-500 text-xs text-center py-4">No token data tracked yet</p>
+              ) : (
+                <div className="space-y-4">
+                  {/* Token Summary Cards */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">Input Tokens</p>
+                      <p className="text-sm font-bold text-blue-400">{(token_usage.total_input_tokens || 0).toLocaleString()}</p>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider">Output Tokens</p>
+                      <p className="text-sm font-bold text-green-400">{(token_usage.total_output_tokens || 0).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs border-b border-white/5 pb-2">
+                    <span className="text-gray-500">Total Tokens</span>
+                    <span className="text-white font-mono font-medium">{(token_usage.total_tokens || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs border-b border-white/5 pb-2">
+                    <span className="text-gray-500">Tracked Messages</span>
+                    <span className="text-white">{token_usage.tracked_messages || 0}</span>
+                  </div>
+                  {token_usage.untracked_messages > 0 && (
+                    <div className="flex items-center justify-between text-xs border-b border-white/5 pb-2">
+                      <span className="text-gray-500">Untracked Messages</span>
+                      <span className="text-yellow-400">{token_usage.untracked_messages}</span>
+                    </div>
+                  )}
+                  
+                  {/* Per-model token breakdown */}
+                  {token_usage.by_model?.length > 0 && (
+                    <div>
+                      <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-2">Tokens by Model</p>
+                      <div className="space-y-2">
+                        {token_usage.by_model.map((m, i) => {
+                          const maxTokens = token_usage.by_model[0]?.total_tokens || 1;
+                          const pct = Math.round((m.total_tokens / maxTokens) * 100);
+                          return (
+                            <div key={i}>
+                              <div className="flex items-center justify-between mb-0.5">
+                                <span className="text-gray-400 text-[10px] truncate max-w-[140px]">{m.model}</span>
+                                <span className="text-white text-[10px] font-mono">{m.total_tokens > 1000000 ? `${(m.total_tokens / 1000000).toFixed(1)}M` : `${(m.total_tokens / 1000).toFixed(1)}K`}</span>
+                              </div>
+                              <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${i === 0 ? 'bg-orange-500/60' : i === 1 ? 'bg-blue-500/60' : 'bg-purple-500/60'}`} style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </Section>
