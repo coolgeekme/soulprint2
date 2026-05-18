@@ -177,3 +177,24 @@ Full-stack Next.js 14 app ("SoulPrint") with multiple issues: 520 errors, Fireba
   - Status workflow: new → diagnosing → diagnosed → fix_applied/needs_development → resolved/closed
   - AI categorizes issues as: data_fix (auto-appliable), code_fix (needs development), user_action, no_fix
   - Test credentials: support@soulprint.com / Support123!
+
+### Session: Token Optimization & Admin Dashboard Token Metrics (May 2026)
+
+- **Token Optimization — 5 Strategies Finalized (P0)**:
+  - Optimization #1: Support KB conditional (only included when user asks support questions) — Done in previous session
+  - Optimization #2: Design guidelines conditional — Fixed undefined `isDesignRequest`/`isMediaGenMode` variables in `buildSystemPrompt`. Now derived from `messageContext.mediaGenMode` and regex match on design keywords (flyer, poster, logo, etc.)
+  - Optimization #3: Condensed web access section — Done in previous session
+  - Optimization #4: Google context conditional — Full Google account details only when message references email/calendar/drive/scheduling keywords. Minimal "Google services available on request" note otherwise.
+  - Optimization #5: History window capped at 32K tokens (was 128K) — Changed `trimHistory` default and call site in `chat-stream.js`
+  - Files: `lib/handlers/memory-system.js`, `lib/handlers/chat-stream.js`
+  - Impact: Estimated 30-60% token savings per API call
+
+- **Admin Dashboard Token Usage Metrics (P1)**:
+  - **Per-user token data in Users list**: Added MongoDB aggregation for est_input_tokens/est_output_tokens per user. Each user object now includes: est_input_tokens, est_output_tokens, est_total_tokens, est_cost (GPT-4o pricing), total_messages
+  - **Token/Cost column in Users table**: New "Tokens / Cost" column showing per-user cost estimate, total tokens, and message count
+  - **User Detail page Token Usage section**: New collapsible section showing input/output token cards, per-model token breakdown with progress bars, tracked vs untracked message counts
+  - **Token-based cost estimation**: Replaced rough `totalMessages * 0.002` with actual aggregated token data + GPT-4o pricing ($5/$15 per 1M input/output)
+  - **Platform-wide Token Volume Overview**: New section in Metrics tab with 8 MetricCards showing 30-day and all-time: total tokens, input tokens, output tokens, avg tokens per message
+  - **Admin Insights API**: Added `token_totals` object with `all_time` and `last_30d` sub-objects
+  - Files: `app/api/admin/[...path]/route.js`, `app/admin/page.js`, `app/admin/users/[userId]/page.js`
+  - All 4 backend tests passed (100% success rate)
