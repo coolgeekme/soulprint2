@@ -8,7 +8,7 @@ import {
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
   PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar,
   KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone, LifeBuoy, LogIn, Activity,
-  CreditCard, Receipt, Ticket, Play, Pause, ArrowUp, ArrowDown
+  CreditCard, Receipt, Ticket, Play, Pause, ArrowUp, ArrowDown, Mail
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import SubscriptionsTab from '@/components/admin/SubscriptionsTab';
@@ -3423,6 +3423,135 @@ function BetaCodesTab({ token }) {
 }
 
 // Business Insights Tab
+// Grace Notification Actions component
+function GraceNotifyActions({ token }) {
+  const [sending, setSending] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [result, setResult] = useState(null);
+  const [targetCohort, setTargetCohort] = useState('early');
+
+  const dryRun = async () => {
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/admin/notify/grace-expired', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cohort: targetCohort, dry_run: true }),
+      });
+      const data = await res.json();
+      setPreview(data);
+    } catch (err) {
+      setResult({ error: err.message });
+    }
+    setSending(false);
+  };
+
+  const sendEmails = async () => {
+    if (!confirm(`Send grace expiration emails to ${preview?.will_send || '?'} users? This cannot be undone.`)) return;
+    setSending(true);
+    try {
+      const res = await fetch('/api/admin/notify/grace-expired', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cohort: targetCohort }),
+      });
+      const data = await res.json();
+      setResult(data);
+      setPreview(null);
+    } catch (err) {
+      setResult({ error: err.message });
+    }
+    setSending(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <select
+          value={targetCohort}
+          onChange={e => { setTargetCohort(e.target.value); setPreview(null); setResult(null); }}
+          className="bg-black/30 border border-white/10 rounded px-3 py-2 text-xs text-white"
+        >
+          <option value="early">Early Access (Apr 1-30) — expired May 14</option>
+          <option value="og">Alpha (Mar 1-31) — expires May 31</option>
+          <option value="all">All Grace Users (Both)</option>
+        </select>
+        <button
+          onClick={dryRun}
+          disabled={sending}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white text-xs font-semibold rounded transition-colors"
+        >
+          {sending ? 'Checking...' : 'Preview (Dry Run)'}
+        </button>
+      </div>
+
+      {preview && (
+        <div className="bg-black/30 border border-blue-500/20 rounded-lg p-4 space-y-2">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div>
+              <p className="text-gray-500">In Cohort</p>
+              <p className="text-white font-bold text-lg">{preview.total_in_cohort}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Already Subscribed</p>
+              <p className="text-green-400 font-bold text-lg">{preview.already_subscribed}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Already Notified</p>
+              <p className="text-yellow-400 font-bold text-lg">{preview.already_notified}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Will Send</p>
+              <p className="text-orange-400 font-bold text-lg">{preview.will_send}</p>
+            </div>
+          </div>
+          {preview.users?.length > 0 && (
+            <div className="mt-3">
+              <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Recipients:</p>
+              <div className="flex flex-wrap gap-1">
+                {preview.users.map((u, i) => (
+                  <span key={i} className="text-[10px] px-2 py-0.5 bg-white/5 rounded text-gray-300">{u.email}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {preview.will_send > 0 && (
+            <button
+              onClick={sendEmails}
+              disabled={sending}
+              className="mt-3 px-6 py-2 bg-orange-600 hover:bg-orange-500 disabled:bg-gray-700 text-white text-xs font-bold rounded transition-colors"
+            >
+              {sending ? 'Sending...' : `Send ${preview.will_send} Emails Now`}
+            </button>
+          )}
+          {preview.will_send === 0 && (
+            <p className="text-green-400 text-xs mt-2">✓ All eligible users have already been notified or subscribed.</p>
+          )}
+        </div>
+      )}
+
+      {result && !result.error && (
+        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 text-xs">
+          <p className="text-green-400 font-bold">✓ Batch Complete</p>
+          <p className="text-gray-300 mt-1">Sent: {result.sent} | Failed: {result.failed}</p>
+          {result.errors?.length > 0 && (
+            <div className="mt-2 text-red-400">
+              {result.errors.map((e, i) => <p key={i}>{e.email}: {e.error}</p>)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {result?.error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-xs text-red-400">
+          Error: {result.error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InsightsTab({ token }) {
   const router = useRouter();
   const [insights, setInsights] = useState(null);
@@ -5099,14 +5228,24 @@ function InsightsTab({ token }) {
               </div>
             </div>
           )}
+
+          {/* Grace Period Notification Actions */}
+          <div className="bg-gradient-to-r from-orange-500/10 to-transparent border border-orange-500/30 rounded-xl p-5">
+            <h3 className="text-orange-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              Grace Period Notifications
+            </h3>
+            <p className="text-gray-400 text-xs mb-4">
+              Send "choose your plan" emails to users whose grace periods have expired. 
+              Early access users (Apr 1-30) expired May 14. Alpha users (Mar 1-31) expire May 31.
+            </p>
+            <GraceNotifyActions token={token} />
+          </div>
         </div>
       )}
     </div>
   );
 }
-
-
-// Feature Flags Tab
 function FeatureFlagsTab({ token }) {
   const [flags, setFlags] = useState([]);
   const [loading, setLoading] = useState(true);

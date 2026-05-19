@@ -5253,9 +5253,16 @@ export default function ChatPage() {
               <GraceCountdownBanner status={enforcement.status} />
             )}
             
-            {/* Trial End Prompt — shown when new user's trial is over */}
+            {/* Trial End Prompt — shown when user must choose a plan */}
             {enforcement.choosePlanPrompt && (
-              <TrialEndPrompt reason={enforcement.status?.assessment_complete ? 'assessment_complete' : 'limit_hit'} />
+              <TrialEndPrompt 
+                reason={
+                  enforcement.status?.grace_expired ? 'grace_expired' 
+                  : enforcement.status?.assessment_complete ? 'assessment_complete' 
+                  : 'limit_hit'
+                }
+                graceMessage={enforcement.status?.grace_expired_message}
+              />
             )}
             
             {subscription.warnings.length > 0 && (

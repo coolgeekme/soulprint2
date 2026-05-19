@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { generateToken, verifyToken, hashPassword, comparePassword, getTokenFromRequest } from '@/lib/auth';
 import { getProvider, AVAILABLE_MODELS } from '@/lib/llm/providers';
-import { sendWelcomeEmail, sendAcceptedEmail, sendBetaCodeEmail } from '@/lib/email';
+import { sendWelcomeEmail, sendAcceptedEmail, sendBetaCodeEmail, sendGraceExpiredEmail } from '@/lib/email';
 import { ok, err, authenticate } from '@/lib/api-utils';
 import { handleCreateSupportAgent, handleGetSupportAgents } from '@/lib/handlers/support-tickets';
 import { writeFile, mkdir } from 'fs/promises';
@@ -5553,6 +5553,116 @@ async function handleAdminGetSupportHistory(request) {
 
 // Handler: Get User Voice Stats - Get voice chat statistics for a specific user
 
+// Handler: Batch-send grace expiration emails to cohort users
+async function handleNotifyGraceExpiredUsers(request) {
+  const admin = await requireAdmin(request);
+  if (admin instanceof Response) return admin;
+  
+  const db = await getDb();
+  const body = await request.json().catch(() => ({}));
+  const { cohort, dry_run } = body; // cohort: 'early', 'og', or 'all'
+  
+  // Date boundaries
+  const ALPHA_START = new Date('2026-03-01T00:00:00Z');
+  const EARLY_START = new Date('2026-04-01T00:00:00Z');
+  const PRICING_LAUNCH = new Date('2026-05-01T00:00:00Z');
+  
+  // Build filter for the target cohort
+  let dateFilter = {};
+  const targetCohort = cohort || 'all';
+  
+  if (targetCohort === 'og') {
+    dateFilter = { $gte: ALPHA_START.toISOString(), $lt: EARLY_START.toISOString() };
+  } else if (targetCohort === 'early') {
+    dateFilter = { $gte: EARLY_START.toISOString(), $lt: PRICING_LAUNCH.toISOString() };
+  } else {
+    // 'all' — both OG and Early
+    dateFilter = { $gte: ALPHA_START.toISOString(), $lt: PRICING_LAUNCH.toISOString() };
+  }
+  
+  // Get users in this cohort who are NOT subscribed (no active paid subscription)
+  const users = await db.collection('users').find({
+    created_at: dateFilter,
+    role: { $nin: ['admin', 'superadmin'] },
+  }).toArray();
+  
+  // Filter out users who already have an active paid subscription
+  const subscribedUserIds = (await db.collection('user_subscriptions').find({
+    user_id: { $in: users.map(u => u.id) },
+    plan_id: { $ne: 'free' },
+    status: 'active',
+  }).toArray()).map(s => s.user_id);
+  
+  const subscribedSet = new Set(subscribedUserIds);
+  const eligibleUsers = users.filter(u => !subscribedSet.has(u.id));
+  
+  // Check which users have already been notified (prevent double-sending)
+  const alreadyNotified = await db.collection('grace_notifications').find({
+    user_id: { $in: eligibleUsers.map(u => u.id) },
+    type: 'grace_expired',
+  }).toArray();
+  const notifiedSet = new Set(alreadyNotified.map(n => n.user_id));
+  const toNotify = eligibleUsers.filter(u => !notifiedSet.has(u.id));
+  
+  if (dry_run) {
+    return ok({
+      dry_run: true,
+      cohort: targetCohort,
+      total_in_cohort: users.length,
+      already_subscribed: subscribedUserIds.length,
+      already_notified: alreadyNotified.length,
+      will_send: toNotify.length,
+      users: toNotify.map(u => ({
+        id: u.id,
+        email: u.email,
+        created_at: u.created_at,
+        cohort: new Date(u.created_at) < EARLY_START ? 'og' : 'early',
+      })),
+    });
+  }
+  
+  // Send emails
+  const results = { sent: 0, failed: 0, errors: [] };
+  const profiles = await db.collection('profiles').find({
+    user_id: { $in: toNotify.map(u => u.id) },
+  }).toArray();
+  const profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p]));
+  
+  for (const user of toNotify) {
+    const userCohort = new Date(user.created_at) < EARLY_START ? 'og' : 'early';
+    const displayName = profileMap[user.id]?.display_name || user.email?.split('@')[0] || 'there';
+    
+    try {
+      await sendGraceExpiredEmail(user.email, displayName, userCohort);
+      
+      // Record the notification to prevent double-sending
+      await db.collection('grace_notifications').insertOne({
+        user_id: user.id,
+        email: user.email,
+        type: 'grace_expired',
+        cohort: userCohort,
+        sent_at: new Date().toISOString(),
+        sent_by: admin.id || admin.email,
+      });
+      
+      results.sent++;
+    } catch (emailErr) {
+      results.failed++;
+      results.errors.push({ email: user.email, error: emailErr.message });
+    }
+  }
+  
+  return ok({
+    cohort: targetCohort,
+    total_in_cohort: users.length,
+    already_subscribed: subscribedUserIds.length,
+    already_notified: alreadyNotified.length,
+    sent: results.sent,
+    failed: results.failed,
+    errors: results.errors.length > 0 ? results.errors : undefined,
+  });
+}
+
 // ============================================================
 // ROUTER
 // ============================================================
@@ -5627,6 +5737,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'pricing-features/update') return handleAdminUpdatePricingFeature(request);
     if (pathStr === 'resolve-issue') return handleAdminResolveIssue(request);
     if (pathStr === 'support-agents') return handleCreateSupportAgent(request);
+    if (pathStr === 'notify/grace-expired') return handleNotifyGraceExpiredUsers(request);
 
     return err('Admin endpoint not found', 404);
   } catch (error) {

@@ -219,32 +219,47 @@ export function UsageStatsBar({ label, used, limit, period, icon: Icon, enforcem
 /**
  * TrialEndPrompt
  * 
- * Full-screen modal/prompt shown to new trial users when their trial ends
- * (assessment complete or limit hit). They must choose a plan.
+ * Full-screen modal/prompt shown when a user must choose a plan:
+ *  - New trial users (assessment complete or limit hit)
+ *  - Grace-expired OG/Early users (post grace period)
  */
-export function TrialEndPrompt({ reason }) {
+export function TrialEndPrompt({ reason, graceMessage }) {
+  const isGraceExpired = reason === 'grace_expired';
+  
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="max-w-md w-full mx-4 p-8 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-800 border border-orange-500/30 shadow-2xl">
         <div className="text-center">
-          <div className="mx-auto w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center mb-4">
-            <Sparkles className="w-6 h-6 text-orange-400" />
+          <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
+            isGraceExpired ? 'bg-red-500/20' : 'bg-orange-500/20'
+          }`}>
+            {isGraceExpired 
+              ? <TrendingUp className="w-6 h-6 text-red-400" />
+              : <Sparkles className="w-6 h-6 text-orange-400" />
+            }
           </div>
           <h2 className="text-xl font-bold text-white mb-2">
-            Your SoulPrint is ready!
+            {isGraceExpired 
+              ? 'Your Grace Period Has Ended'
+              : 'Your SoulPrint is ready!'
+            }
           </h2>
           <p className="text-sm text-gray-400 mb-6">
-            {reason === 'assessment_complete' 
-              ? "Your AI personality profile has been built. Choose a plan to continue your journey."
-              : "You've explored the core features. Choose a plan to unlock unlimited access."
+            {isGraceExpired 
+              ? (graceMessage || 'Your early access grace period has ended. Choose a plan to keep your premium features — or continue with the free tier.')
+              : reason === 'assessment_complete' 
+                ? "Your AI personality profile has been built. Choose a plan to continue your journey."
+                : "You've explored the core features. Choose a plan to unlock unlimited access."
             }
           </p>
           <div className="space-y-3">
             <a 
               href="/pricing" 
-              className="block w-full px-6 py-3 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold text-sm transition-colors"
+              className={`block w-full px-6 py-3 rounded-lg text-white font-semibold text-sm transition-colors ${
+                isGraceExpired ? 'bg-red-600 hover:bg-red-500' : 'bg-orange-600 hover:bg-orange-500'
+              }`}
             >
-              View Plans
+              View Plans & Subscribe
             </a>
             <a 
               href="/pricing#free" 
@@ -253,6 +268,11 @@ export function TrialEndPrompt({ reason }) {
               Continue with Free (limited)
             </a>
           </div>
+          {isGraceExpired && (
+            <p className="text-[10px] text-gray-600 mt-4">
+              Free tier: 50 messages/day • 10 images/month • No video or voice
+            </p>
+          )}
         </div>
       </div>
     </div>
