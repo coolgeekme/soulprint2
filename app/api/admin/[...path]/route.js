@@ -5556,7 +5556,7 @@ async function handleAdminGetSupportHistory(request) {
 // Handler: Batch-send grace expiration emails to cohort users
 async function handleNotifyGraceExpiredUsers(request) {
   const admin = await requireAdmin(request);
-  if (admin instanceof Response) return admin;
+  if (!admin) return err('Forbidden', 403);
   
   const db = await getDb();
   const body = await request.json().catch(() => ({}));
