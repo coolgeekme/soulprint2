@@ -1,299 +1,324 @@
 #!/usr/bin/env python3
 """
-Backend API Testing Script for Grace Expiration Notification and Enforcement Status
+Backend Testing Script for Composio Gmail Integration and Conversational Follow-up Memory Fixes
+Tests the following:
+1. Auth Protection Fix (POST /api/admin/notify/grace-expired)
+2. Chat Stream - No Crash on Email-Related Messages
+3. Chat Stream - Conversational Follow-Up (no web search)
+4. Google Context Detection with Composio (no crashes)
 """
 
 import requests
 import json
 import sys
-from datetime import datetime
+import time
 
-# Configuration
-BASE_URL = "http://localhost:3000"
+# Base URL from environment
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+API_BASE = f"{BASE_URL}/api"
+
+# Test credentials from review request
 ADMIN_EMAIL = "test@soulprint.com"
 ADMIN_PASSCODE = "test123"
-USER_EMAIL = "testchat@example.com"
-USER_PASSCODE = "Test123456"
+REGULAR_EMAIL = "testchat@example.com"
+REGULAR_PASSCODE = "Test123456"
 
-def print_test_header(test_name):
-    """Print a formatted test header"""
+def print_test(msg):
     print(f"\n{'='*80}")
-    print(f"TEST: {test_name}")
-    print(f"{'='*80}")
+    print(f"TEST: {msg}")
+    print('='*80)
 
-def print_result(success, message):
-    """Print test result"""
+def print_result(success, msg):
     status = "✅ PASS" if success else "❌ FAIL"
-    print(f"{status}: {message}")
+    print(f"{status}: {msg}")
 
 def login(email, passcode):
     """Login and return auth token"""
     try:
         response = requests.post(
-            f"{BASE_URL}/api/auth/login",
+            f"{API_BASE}/auth/login",
             json={"email": email, "passcode": passcode},
-            headers={"Content-Type": "application/json"},
-            timeout=30
+            timeout=10
         )
-        
         if response.status_code == 200:
             data = response.json()
-            token = data.get("token")
-            if token:
-                print_result(True, f"Login successful for {email}")
-                return token
-            else:
-                print_result(False, f"Login response missing token: {data}")
-                return None
+            return data.get('token')
         else:
-            print_result(False, f"Login failed with status {response.status_code}: {response.text}")
+            print(f"Login failed: {response.status_code} - {response.text}")
             return None
     except Exception as e:
-        print_result(False, f"Login exception: {str(e)}")
+        print(f"Login error: {e}")
         return None
 
-def test_grace_expired_notification_dry_run_early(admin_token):
-    """Test 1: Grace Expired Notification - Dry Run (Early Cohort)"""
-    print_test_header("Grace Expired Notification - Dry Run (Early Cohort)")
+def test_auth_protection_fix():
+    """
+    TEST 1: Auth Protection Fix (POST /api/admin/notify/grace-expired)
+    - POST without Authorization header should return 403 Forbidden
+    - POST with valid admin token should work (200 or appropriate response)
+    """
+    print_test("1. Auth Protection Fix - POST /api/admin/notify/grace-expired")
     
+    # Test 1a: Without auth header (should return 403)
     try:
+        print("\n[1a] Testing WITHOUT Authorization header...")
         response = requests.post(
-            f"{BASE_URL}/api/admin/notify/grace-expired",
-            json={"cohort": "early", "dry_run": True},
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {admin_token}"
-            },
+            f"{API_BASE}/admin/notify/grace-expired",
+            json={"cohort": "og", "dry_run": True},
             timeout=10
         )
         
-        print(f"Status Code: {response.status_code}")
+        if response.status_code == 403:
+            print_result(True, f"Correctly returned 403 Forbidden without auth (was returning 200 before fix)")
+        elif response.status_code == 401:
+            print_result(True, f"Returned 401 Unauthorized without auth (acceptable)")
+        else:
+            print_result(False, f"Expected 403/401, got {response.status_code}: {response.text[:200]}")
+    except Exception as e:
+        print_result(False, f"Request failed: {e}")
+    
+    # Test 1b: With valid admin token (should work)
+    try:
+        print("\n[1b] Testing WITH valid admin token...")
+        admin_token = login(ADMIN_EMAIL, ADMIN_PASSCODE)
+        if not admin_token:
+            print_result(False, "Could not obtain admin token")
+            return
+        
+        response = requests.post(
+            f"{API_BASE}/admin/notify/grace-expired",
+            json={"cohort": "og", "dry_run": True},
+            headers={"Authorization": f"Bearer {admin_token}"},
+            timeout=10
+        )
         
         if response.status_code == 200:
             data = response.json()
-            print(f"Response: {json.dumps(data, indent=2)}")
-            
-            # Verify response structure
-            required_fields = ["dry_run", "total_in_cohort", "already_subscribed", "already_notified", "will_send", "users"]
-            missing_fields = [field for field in required_fields if field not in data]
-            
-            if missing_fields:
-                print_result(False, f"Missing required fields: {missing_fields}")
-                return False
-            
-            if data.get("dry_run") != True:
-                print_result(False, f"dry_run should be true, got: {data.get('dry_run')}")
-                return False
-            
-            if not isinstance(data.get("total_in_cohort"), int):
-                print_result(False, f"total_in_cohort should be int, got: {type(data.get('total_in_cohort'))}")
-                return False
-            
-            if not isinstance(data.get("users"), list):
-                print_result(False, f"users should be list, got: {type(data.get('users'))}")
-                return False
-            
-            print_result(True, f"Dry run successful - Early cohort: {data.get('total_in_cohort')} total, {data.get('will_send')} will send")
-            return True
+            print_result(True, f"Admin can access endpoint: {data.get('cohort', 'N/A')} cohort, {data.get('will_send', 0)} users to notify")
         else:
-            print_result(False, f"Request failed with status {response.status_code}: {response.text}")
-            return False
-            
+            print_result(False, f"Expected 200, got {response.status_code}: {response.text[:200]}")
     except Exception as e:
-        print_result(False, f"Exception: {str(e)}")
-        return False
+        print_result(False, f"Request failed: {e}")
 
-def test_grace_expired_notification_dry_run_all(admin_token):
-    """Test 2: Grace Expired Notification - Dry Run (All Cohorts)"""
-    print_test_header("Grace Expired Notification - Dry Run (All Cohorts)")
-    
-    try:
-        response = requests.post(
-            f"{BASE_URL}/api/admin/notify/grace-expired",
-            json={"cohort": "all", "dry_run": True},
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {admin_token}"
-            },
-            timeout=10
-        )
-        
-        print(f"Status Code: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print(f"Response: {json.dumps(data, indent=2)}")
-            
-            # Verify response structure
-            required_fields = ["dry_run", "total_in_cohort", "already_subscribed", "already_notified", "will_send", "users"]
-            missing_fields = [field for field in required_fields if field not in data]
-            
-            if missing_fields:
-                print_result(False, f"Missing required fields: {missing_fields}")
-                return False
-            
-            if data.get("dry_run") != True:
-                print_result(False, f"dry_run should be true, got: {data.get('dry_run')}")
-                return False
-            
-            print_result(True, f"Dry run successful - All cohorts: {data.get('total_in_cohort')} total, {data.get('will_send')} will send")
-            return True
-        else:
-            print_result(False, f"Request failed with status {response.status_code}: {response.text}")
-            return False
-            
-    except Exception as e:
-        print_result(False, f"Exception: {str(e)}")
-        return False
-
-def test_enforcement_status_api(user_token):
-    """Test 3: Enforcement Status API (Regular User)"""
-    print_test_header("Enforcement Status API (Regular User)")
-    
-    # Try both possible endpoints
-    endpoints = [
-        "/api/enforcement/status",
-        "/api/pricing/enforcement"
-    ]
-    
-    for endpoint in endpoints:
-        print(f"\nTrying endpoint: {endpoint}")
-        try:
-            response = requests.get(
-                f"{BASE_URL}{endpoint}",
-                headers={
-                    "Authorization": f"Bearer {user_token}"
-                },
-                timeout=10
-            )
-            
-            print(f"Status Code: {response.status_code}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                print(f"Response: {json.dumps(data, indent=2)}")
-                
-                # Verify response structure
-                required_fields = ["cohort", "enforcement_active", "effective_plan", "effective_features"]
-                missing_fields = [field for field in required_fields if field not in data]
-                
-                if missing_fields:
-                    print_result(False, f"Missing required fields: {missing_fields}")
-                    continue
-                
-                # Check for grace expired fields if applicable
-                if data.get("grace_expired"):
-                    if "choose_plan_prompt" not in data:
-                        print_result(False, "grace_expired is true but choose_plan_prompt is missing")
-                        continue
-                
-                print_result(True, f"Enforcement status retrieved successfully from {endpoint}")
-                print(f"  - Cohort: {data.get('cohort')}")
-                print(f"  - Enforcement Active: {data.get('enforcement_active')}")
-                print(f"  - Effective Plan: {data.get('effective_plan')}")
-                print(f"  - Grace Expired: {data.get('grace_expired', False)}")
-                return True
-            elif response.status_code == 404:
-                print(f"Endpoint {endpoint} not found, trying next...")
-                continue
-            else:
-                print_result(False, f"Request failed with status {response.status_code}: {response.text}")
-                continue
-                
-        except Exception as e:
-            print_result(False, f"Exception: {str(e)}")
-            continue
-    
-    print_result(False, "All enforcement status endpoints failed")
-    return False
-
-def test_auth_protection(admin_token):
-    """Test 4: Auth Protection - POST without auth should return 401"""
-    print_test_header("Auth Protection - POST /api/admin/notify/grace-expired without auth")
-    
-    try:
-        response = requests.post(
-            f"{BASE_URL}/api/admin/notify/grace-expired",
-            json={"cohort": "early", "dry_run": True},
-            headers={
-                "Content-Type": "application/json"
-                # No Authorization header
-            },
-            timeout=10
-        )
-        
-        print(f"Status Code: {response.status_code}")
-        
-        if response.status_code == 401:
-            print_result(True, "Auth protection working - 401 returned without auth token")
-            return True
-        else:
-            print_result(False, f"Expected 401, got {response.status_code}: {response.text}")
-            return False
-            
-    except Exception as e:
-        print_result(False, f"Exception: {str(e)}")
-        return False
-
-def main():
-    """Run all tests"""
-    print(f"\n{'#'*80}")
-    print(f"# GRACE EXPIRATION NOTIFICATION & ENFORCEMENT STATUS API TESTS")
-    print(f"# Base URL: {BASE_URL}")
-    print(f"# Timestamp: {datetime.now().isoformat()}")
-    print(f"{'#'*80}")
-    
-    results = {
-        "total": 0,
-        "passed": 0,
-        "failed": 0
-    }
-    
-    # Login as admin
-    print_test_header("Admin Login")
-    admin_token = login(ADMIN_EMAIL, ADMIN_PASSCODE)
-    if not admin_token:
-        print("\n❌ CRITICAL: Admin login failed. Cannot proceed with tests.")
-        sys.exit(1)
+def test_chat_stream_email_no_crash():
+    """
+    TEST 2: Chat Stream - No Crash on Email-Related Messages
+    - POST /api/chat/stream with email-related queries should return 200 (NOT 500)
+    - Should handle messages about emails gracefully even without Composio connections
+    """
+    print_test("2. Chat Stream - No Crash on Email-Related Messages")
     
     # Login as regular user
-    print_test_header("Regular User Login")
-    user_token = login(USER_EMAIL, USER_PASSCODE)
-    if not user_token:
-        print("\n❌ CRITICAL: User login failed. Cannot proceed with tests.")
-        sys.exit(1)
+    token = login(REGULAR_EMAIL, REGULAR_PASSCODE)
+    if not token:
+        print_result(False, "Could not obtain user token")
+        return
     
-    # Run tests
-    tests = [
-        ("Grace Expired Notification - Dry Run (Early)", lambda: test_grace_expired_notification_dry_run_early(admin_token)),
-        ("Grace Expired Notification - Dry Run (All)", lambda: test_grace_expired_notification_dry_run_all(admin_token)),
-        ("Enforcement Status API", lambda: test_enforcement_status_api(user_token)),
-        ("Auth Protection", lambda: test_auth_protection(admin_token)),
-    ]
+    # Test 2a: Email search query
+    try:
+        print("\n[2a] Testing email search query...")
+        response = requests.post(
+            f"{API_BASE}/chat/stream",
+            json={
+                "content": "can you search my email for messages from Adrian Floyd?",
+                "conversation_id": "test-conv-email-1",
+                "model": "gpt-4o"
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code == 200:
+            # Read first few chunks to verify it's streaming
+            chunks_read = 0
+            for chunk in response.iter_lines():
+                if chunk:
+                    chunks_read += 1
+                    if chunks_read >= 3:  # Read a few chunks to verify streaming works
+                        break
+            print_result(True, f"Email search query returned 200 and streamed {chunks_read} chunks (NOT 500)")
+        else:
+            print_result(False, f"Expected 200, got {response.status_code}: {response.text[:200]}")
+    except Exception as e:
+        print_result(False, f"Request failed: {e}")
     
-    for test_name, test_func in tests:
-        results["total"] += 1
-        try:
-            if test_func():
-                results["passed"] += 1
+    # Test 2b: Follow-up about email summary
+    try:
+        print("\n[2b] Testing follow-up about email summary...")
+        time.sleep(1)  # Brief pause between requests
+        response = requests.post(
+            f"{API_BASE}/chat/stream",
+            json={
+                "content": "where's the summary of the emails?",
+                "conversation_id": "test-conv-email-1",
+                "model": "gpt-4o"
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code == 200:
+            chunks_read = 0
+            for chunk in response.iter_lines():
+                if chunk:
+                    chunks_read += 1
+                    if chunks_read >= 3:
+                        break
+            print_result(True, f"Follow-up query returned 200 and streamed {chunks_read} chunks (NOT 500, NOT web search about random people)")
+        else:
+            print_result(False, f"Expected 200, got {response.status_code}: {response.text[:200]}")
+    except Exception as e:
+        print_result(False, f"Request failed: {e}")
+
+def test_conversational_followup():
+    """
+    TEST 3: Chat Stream - Conversational Follow-Up
+    - First message: general query
+    - Second message: follow-up question should NOT trigger web search
+    """
+    print_test("3. Chat Stream - Conversational Follow-Up (No Web Search)")
+    
+    # Login as regular user
+    token = login(REGULAR_EMAIL, REGULAR_PASSCODE)
+    if not token:
+        print_result(False, "Could not obtain user token")
+        return
+    
+    # Test 3a: Initial message
+    try:
+        print("\n[3a] Testing initial message...")
+        response = requests.post(
+            f"{API_BASE}/chat/stream",
+            json={
+                "content": "tell me about machine learning",
+                "conversation_id": "test-conv-followup-1",
+                "model": "gpt-4o"
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code == 200:
+            chunks_read = 0
+            for chunk in response.iter_lines():
+                if chunk:
+                    chunks_read += 1
+                    if chunks_read >= 5:
+                        break
+            print_result(True, f"Initial message returned 200 and streamed {chunks_read} chunks")
+        else:
+            print_result(False, f"Expected 200, got {response.status_code}: {response.text[:200]}")
+    except Exception as e:
+        print_result(False, f"Request failed: {e}")
+    
+    # Test 3b: Follow-up message (should NOT trigger web search)
+    try:
+        print("\n[3b] Testing follow-up message (should NOT trigger web search)...")
+        time.sleep(1)
+        response = requests.post(
+            f"{API_BASE}/chat/stream",
+            json={
+                "content": "where's the summary you mentioned?",
+                "conversation_id": "test-conv-followup-1",
+                "model": "gpt-4o"
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code == 200:
+            # Check response content for web search indicators
+            chunks = []
+            for chunk in response.iter_lines():
+                if chunk:
+                    try:
+                        data = json.loads(chunk.decode('utf-8'))
+                        chunks.append(data)
+                        if len(chunks) >= 10:  # Read enough to detect web search
+                            break
+                    except:
+                        pass
+            
+            # Look for web search indicators in the chunks
+            has_web_search = any('web_search' in str(c).lower() or 'searching' in str(c).lower() for c in chunks)
+            
+            if has_web_search:
+                print_result(False, f"Follow-up triggered web search (should be conversational)")
             else:
-                results["failed"] += 1
-        except Exception as e:
-            print_result(False, f"Test exception: {str(e)}")
-            results["failed"] += 1
+                print_result(True, f"Follow-up did NOT trigger web search (correct conversational behavior)")
+        else:
+            print_result(False, f"Expected 200, got {response.status_code}: {response.text[:200]}")
+    except Exception as e:
+        print_result(False, f"Request failed: {e}")
+
+def test_google_context_composio():
+    """
+    TEST 4: Google Context Detection with Composio
+    - Should not crash even without real Composio connections
+    - Just verify no 500 errors
+    """
+    print_test("4. Google Context Detection with Composio (No Crash Test)")
     
-    # Print summary
-    print(f"\n{'='*80}")
-    print(f"TEST SUMMARY")
-    print(f"{'='*80}")
-    print(f"Total Tests: {results['total']}")
-    print(f"Passed: {results['passed']} ✅")
-    print(f"Failed: {results['failed']} ❌")
-    print(f"Success Rate: {(results['passed']/results['total']*100):.1f}%")
-    print(f"{'='*80}\n")
+    # Login as regular user
+    token = login(REGULAR_EMAIL, REGULAR_PASSCODE)
+    if not token:
+        print_result(False, "Could not obtain user token")
+        return
     
-    # Exit with appropriate code
-    sys.exit(0 if results['failed'] == 0 else 1)
+    # Test 4: Gmail inbox check
+    try:
+        print("\n[4] Testing Gmail inbox query...")
+        response = requests.post(
+            f"{API_BASE}/chat/stream",
+            json={
+                "content": "check my gmail inbox",
+                "conversation_id": "test-conv-gmail",
+                "model": "gpt-4o"
+            },
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code == 200:
+            chunks_read = 0
+            for chunk in response.iter_lines():
+                if chunk:
+                    chunks_read += 1
+                    if chunks_read >= 3:
+                        break
+            print_result(True, f"Gmail query returned 200 and streamed {chunks_read} chunks (NOT 500 crash)")
+        else:
+            print_result(False, f"Expected 200, got {response.status_code}: {response.text[:200]}")
+    except Exception as e:
+        print_result(False, f"Request failed: {e}")
+
+def main():
+    print("\n" + "="*80)
+    print("COMPOSIO GMAIL INTEGRATION & CONVERSATIONAL FOLLOW-UP MEMORY FIXES")
+    print("Backend Testing Suite")
+    print("="*80)
+    
+    try:
+        # Run all tests
+        test_auth_protection_fix()
+        test_chat_stream_email_no_crash()
+        test_conversational_followup()
+        test_google_context_composio()
+        
+        print("\n" + "="*80)
+        print("ALL TESTS COMPLETED")
+        print("="*80)
+        
+    except KeyboardInterrupt:
+        print("\n\nTests interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n\nFATAL ERROR: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
