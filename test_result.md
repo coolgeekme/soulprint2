@@ -2026,11 +2026,11 @@ backend:
 
   - task: "Save & Regenerate Fix + Short-Term Context Awareness"
     implemented: true
-    working: "NA"
-    file: "app/chat/page.js, components/mobile/MobileChat.js, app/api/[[...path]]/route.js, lib/handlers/memory-system.js"
-    stuck_count: 0
+    working: false
+    file: "app/chat/page.js, components/mobile/MobileChat.js, app/api/[[...path]]/route.js, lib/handlers/memory-system.js, lib/handlers/chat-stream.js"
+    stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
@@ -3292,3 +3292,10 @@ backend:
 agent_communication:
   - agent: "testing"
     message: "@ARCHEFORGE.COM TEAM EXEMPTION & WATERMARK UTILITIES TESTING COMPLETE: All 4/4 tests passed (100% success rate). ✅ Watermark File: /watermark.png accessible (200, image/png, 52.7KB). ✅ Regular User Enforcement: GET /api/pricing/enforcement returns cohort: 'og', enforcement_active: false, effective_features.image_watermark: false (OG users don't get watermarked during grace period). ✅ @archeforge.com Team Exemption: Created testuser@archeforge.com user, enforcement status returns cohort: 'team', enforcement_active: false, effective_plan: 'power', image_watermark: false. The team exemption logic in access-enforcement.js (lines 116-131) correctly detects @archeforge.com emails and grants unlimited Power-equivalent access. ✅ Chat Stream No Crash: POST /api/chat/stream with image generation request returns 200 and streams successfully (NOT 500). Watermark utilities (shouldWatermark, applyWatermark) properly integrated in chat-stream.js without causing crashes. All specified functionality working correctly: (1) Watermark file exists, (2) Enforcement status includes image_watermark field, (3) @archeforge.com users get team cohort with unlimited access, (4) Image generation flow doesn't crash with watermark integration. The @archeforge.com team exemption and watermark utilities are fully functional."
+      - working: false
+        agent: "testing"
+        comment: "CONVERSATION FOLLOW-UP MEMORY FIX TESTING COMPLETE: HTTP endpoints working (no crashes), but the conversational follow-up detection is NOT functioning as intended. ✅ TEST 1 (No Crash): POST /api/chat/stream with first message 'Tell me about DealRoom.net and their competitors' returns 200 OK. Follow-up message 'What is the average pricing?' returns 200 OK (no 500 crash). ✅ TEST 2 (Short Follow-Up): 'How do they compare?' returns 200 OK. ✅ TEST 3 (New Topic): 'What is the current weather forecast for San Francisco?' returns 200 OK. ❌ CRITICAL ISSUE: Backend logs show '[Chat] Proactive search triggered' for ALL messages including follow-ups 'What is the average pricing?' and 'How do they compare?'. The isConversationalFollowUp detection is NOT working - no '[Chat] Skipping proactive search — conversational follow-up detected' logs found. The detection logic at line 5575-5599 in chat-stream.js requires hasRecentConversation (historyMessages.length >= 2), but web search is being triggered even for short follow-up questions in active conversations. Root cause: Either (1) historyMessages is not being populated correctly with previous conversation messages, OR (2) the detection patterns are not matching the follow-up questions. The system does not crash (200 responses), but the feature is not preventing web search for conversational follow-ups as designed."
+
+agent_communication:
+  - agent: "testing"
+    message: "CONVERSATION FOLLOW-UP MEMORY FIX TESTING COMPLETE: The endpoints do not crash (all return 200 OK), but the conversational follow-up detection feature is NOT working as designed. ✅ HTTP Status: All 3 test scenarios return 200 OK (no 500 crashes) - 'What is the average pricing?' follow-up, 'How do they compare?' short follow-up, and 'What is the current weather forecast for San Francisco?' new topic query. ❌ FEATURE NOT WORKING: Backend logs show '[Chat] Proactive search triggered' for ALL messages including conversational follow-ups. The isConversationalFollowUp detection at lines 5575-5599 in chat-stream.js is NOT preventing web search for short follow-up questions. Expected behavior: Follow-up questions like 'What is the average pricing?' (31 chars) and 'How do they compare?' (20 chars) in active conversations should trigger '[Chat] Skipping proactive search — conversational follow-up detected' log message. Actual behavior: Web search is triggered for all messages. Root cause analysis needed: (1) Verify historyMessages is populated correctly with previous conversation messages (requires historyMessages.length >= 2 for hasRecentConversation), (2) Add debug logging to check if detection patterns are matching, (3) Verify the detection logic at line 5585 which should match short questions starting with 'what/where/why/how' under 80 chars in active conversations. The system is stable (no crashes), but the feature requires debugging to work as intended."
