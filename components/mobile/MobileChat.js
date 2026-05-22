@@ -74,6 +74,8 @@ export default function MobileChat({
   const [isIncognito, setIsIncognito] = useState(false); // Incognito mode — ephemeral, no DB saves
   const [contextInfo, setContextInfo] = useState(null);
   const [contextBannerDismissed, setContextBannerDismissed] = useState(false);
+  const [mobileMediaConfirm, setMobileMediaConfirm] = useState(null); // Media confirmation data from backend
+  const [mobileMediaConfirmStep, setMobileMediaConfirmStep] = useState(0); // 0=type, 1=model, -1=generating
   const [mediaGenMode, setMediaGenMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('sp_create_mode') === 'true';
@@ -1133,6 +1135,100 @@ export default function MobileChat({
   };
 
   // Send message
+  // ── Mobile Media Confirmation Handler ────────────────────────────────
+  const submitMobileMediaConfirm = useCallback(async (selectedType, selectedModel) => {
+    if (!mobileMediaConfirm || loading) return;
+    
+    const flow = {
+      step: 'confirmed',
+      type: selectedType || mobileMediaConfirm.detectedType || 'video',
+      finalPrompt: mobileMediaConfirm.prompt || mobileMediaConfirm.refinedPrompt,
+      selectedModel: selectedModel || 'smart',
+      conversationId: conversationId,
+      aspectRatio: mobileMediaConfirm.aspectRatio || '16:9',
+      seedImageUrl: mobileMediaConfirm.seedImageUrl || null,
+    };
+    
+    setMobileMediaConfirm(null);
+    setMobileMediaConfirmStep(-1);
+    setLoading(true);
+    setStreamingContent('');
+    
+    try {
+      const response = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `[Confirmed: Generate ${flow.type}]`,
+          conversationId: conversationId,
+          model: selectedModel === 'smart' ? 'smart' : selectedModel,
+          mediaFlow: flow,
+          create_mode: true,
+        }),
+      });
+      
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = '';
+      let localStreamingVideoTask = null;
+      let localStreamingImageUrl = null;
+      let doneMessageId = null;
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const text = decoder.decode(value, { stream: true });
+        for (const line of text.split('\n').filter(Boolean)) {
+          try {
+            const data = JSON.parse(line);
+            if (data.type === 'delta') {
+              fullContent += data.content || '';
+              setStreamingContent(fullContent);
+            } else if (data.type === 'image') {
+              localStreamingImageUrl = data.url;
+              setStreamingImageUrl(data.url);
+            } else if (data.type === 'video_task') {
+              localStreamingVideoTask = data;
+              setStreamingVideoTask(data);
+              setIsGeneratingVisual(true);
+              setVisualGenerationType('video');
+            } else if (data.type === 'done') {
+              if (data.messageId) doneMessageId = data.messageId;
+            }
+          } catch {}
+        }
+      }
+      
+      if (fullContent || localStreamingImageUrl || localStreamingVideoTask) {
+        const realMsgId = doneMessageId || localStreamingVideoTask?.messageId;
+        setMessages(prev => [...prev, {
+          id: realMsgId || `a-${Date.now()}`,
+          role: 'assistant',
+          content: fullContent,
+          image_url: localStreamingImageUrl || undefined,
+          video_task: localStreamingVideoTask || undefined,
+          model_label: localStreamingVideoTask ? (localStreamingVideoTask.videoModelLabel || 'AI Video') : undefined,
+        }]);
+      }
+    } catch (err) {
+      console.error('[MobileMediaConfirm] Error:', err);
+      setMessages(prev => [...prev, {
+        id: `err-${Date.now()}`,
+        role: 'assistant',
+        content: `❌ Failed to generate media: ${err.message}. Please try again.`,
+      }]);
+    } finally {
+      setLoading(false);
+      setStreamingContent('');
+      setStreamingImageUrl(null);
+      setStreamingVideoTask(null);
+      setIsGeneratingVisual(false);
+    }
+  }, [mobileMediaConfirm, conversationId, token, loading, selectedModel]);
+
   const sendMessage = async () => {
     if ((!input.trim() && !attachments.length && !pendingMediaAttachment) || loading) return;
     // Synchronous guard to prevent double-sends on mobile (rapid tap / Enter + tap)
@@ -1341,6 +1437,10 @@ export default function MobileChat({
               // Dismiss the generating_visual animation — MobileVideoCard takes over
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
+            } else if (data.type === 'media_confirmation') {
+              // Backend detected media intent — show confirmation UI
+              console.log('[MobileChat] Media confirmation received:', data.detectedType);
+              setMobileMediaConfirm(data);
             } else if (data.type === 'sources') {
               // Received sources from web search
               setStreamingSources(data.sources || []);
@@ -1368,6 +1468,8 @@ export default function MobileChat({
           id: realMsgId || `a-${Date.now()}`,
           role: 'assistant',
           content: fullContent,
+          content_type: mobileMediaConfirm ? 'media-confirmation' : undefined,
+          media_confirmation: mobileMediaConfirm || undefined,
           model_used: actualModelUsed,
           smart_mode: selectedModel === 'smart',
           smart_reason: dynamicIntelligenceReason,

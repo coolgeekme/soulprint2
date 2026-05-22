@@ -2631,6 +2631,19 @@ export default function ChatPage() {
         return m;
       });
       setMessages(processedMsgs);
+      
+      // Restore media confirmation state if the last message has pending confirmation
+      const lastMsg = processedMsgs[processedMsgs.length - 1];
+      if (lastMsg?.media_confirmation && lastMsg.content_type === 'media-confirmation' && !lastMsg.media_confirmation?.selectedType) {
+        console.log('[loadConversation] Restoring pending media confirmation');
+        setMediaConfirmation(lastMsg.media_confirmation);
+        mediaConfirmRef.current = lastMsg.media_confirmation;
+        setMediaConfirmStep(0);
+      } else {
+        setMediaConfirmation(null);
+        mediaConfirmRef.current = null;
+        setMediaConfirmStep(0);
+      }
     } catch (e) {}
     setShowSidebar(false);
   }
