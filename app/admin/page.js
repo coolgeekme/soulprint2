@@ -8,7 +8,7 @@ import {
   DollarSign, Zap, ListChecks, MessageCircle, Sparkles, Megaphone, Plus, Link, Edit, Trash2,
   PenSquare, Eye, EyeOff, Image, Tag, Bold, Italic, Heading, List, ListOrdered, Quote, Code, Link2, ImagePlus, Calendar,
   KeyRound, Mail, Send, AlertTriangle, Cpu, Mic, Phone, LifeBuoy, LogIn, Activity,
-  CreditCard, Receipt, Ticket, Play, Pause, ArrowUp, ArrowDown, Mail
+  CreditCard, Receipt, Ticket, Play, Pause, ArrowUp, ArrowDown
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import SubscriptionsTab from '@/components/admin/SubscriptionsTab';

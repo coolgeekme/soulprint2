@@ -3299,3 +3299,65 @@ agent_communication:
 agent_communication:
   - agent: "testing"
     message: "CONVERSATION FOLLOW-UP MEMORY FIX TESTING COMPLETE: The endpoints do not crash (all return 200 OK), but the conversational follow-up detection feature is NOT working as designed. ✅ HTTP Status: All 3 test scenarios return 200 OK (no 500 crashes) - 'What is the average pricing?' follow-up, 'How do they compare?' short follow-up, and 'What is the current weather forecast for San Francisco?' new topic query. ❌ FEATURE NOT WORKING: Backend logs show '[Chat] Proactive search triggered' for ALL messages including conversational follow-ups. The isConversationalFollowUp detection at lines 5575-5599 in chat-stream.js is NOT preventing web search for short follow-up questions. Expected behavior: Follow-up questions like 'What is the average pricing?' (31 chars) and 'How do they compare?' (20 chars) in active conversations should trigger '[Chat] Skipping proactive search — conversational follow-up detected' log message. Actual behavior: Web search is triggered for all messages. Root cause analysis needed: (1) Verify historyMessages is populated correctly with previous conversation messages (requires historyMessages.length >= 2 for hasRecentConversation), (2) Add debug logging to check if detection patterns are matching, (3) Verify the detection logic at line 5585 which should match short questions starting with 'what/where/why/how' under 80 chars in active conversations. The system is stable (no crashes), but the feature requires debugging to work as intended."
+
+frontend:
+  - task: "Mobile Media Confirmation Flow (Image/Video Generation on Mobile)"
+    implemented: true
+    working: "NA"
+    file: "components/mobile/MobileChat.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "COMPLETED: Mobile media confirmation flow implementation. Previous agent had added stream parser handling for media_confirmation events and submitMobileMediaConfirm handler, but UI cards were missing. Changes: (1) Imported MediaConfirmCard, PromptReviewCard, ModelSelectionCard, VideoExtendConfirmCard from @/components/chat/MediaConfirmation. (2) Added mobileMediaConfirmType state. (3) Added 4 step handler functions: handleMobileMediaConfirmType (step 0→1), handleMobileMediaConfirmPrompt (step 1→2), handleMobileMediaConfirmModel (step 2→generate), cancelMobileMediaConfirm. (4) Injected confirmation UI cards in message rendering loop after MessageBubble - includes SourceMediaBanner, MediaConfirmCard (step 0), PromptReviewCard (step 1), ModelSelectionCard (step 2), VideoExtendConfirmCard (step 10). (5) Fixed stale closure bug by using localMediaConfirmation variable in stream handler. (6) Added confirmation state restore from loaded messages via useEffect. (7) Reset confirmation states on conversation switch. (8) Updated submitMobileMediaConfirm to add user-facing confirmation message and use finalPrompt from step 1 edits. Also fixed pre-existing duplicate Mail import in admin/page.js."
+
+  - task: "Admin Page Build Fix (Duplicate Mail Import)"
+    implemented: true
+    working: true
+    file: "app/admin/page.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Fixed pre-existing build error: 'the name Mail is defined multiple times' in admin/page.js. Removed duplicate Mail import from lucide-react line 11."
+
+metadata:
+  created_by: "main_agent"
+  version: "5.0"
+  test_sequence: 0
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Mobile Media Confirmation Flow (Image/Video Generation on Mobile)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "MOBILE MEDIA CONFIRMATION FLOW IMPLEMENTED: Completed the missing UI for media intent confirmation on mobile. The backend sends media_confirmation events during chat streaming when it detects image/video generation intent. Desktop had full support for this, but mobile was missing the UI cards. Changes in MobileChat.js: (1) Added imports for MediaConfirmCard, PromptReviewCard, ModelSelectionCard, VideoExtendConfirmCard from shared components. (2) Added mobileMediaConfirmType state to track selected type (image/video). (3) Added 4 handler functions for the 3-step flow: type selection → prompt review → model selection → generation. (4) Injected all confirmation card UI into the message rendering loop, gated by msg.media_confirmation and step state. (5) Fixed stale closure bug using localMediaConfirmation in stream parser. (6) Added useEffect to restore confirmation state from loaded messages. (7) Reset all confirmation states on conversation switch. (8) Also fixed pre-existing duplicate Mail import in admin/page.js that was causing build failure. Auth: testchat@example.com/Test123456. Test focus: Verify the chat stream endpoint sends media_confirmation events when video/image generation intent is detected (e.g. 'make me a video of a cat'), and that the mobile frontend properly handles the 3-step confirmation flow."
+
+backend:
+  - task: "Mobile Media Confirmation Flow - Backend Testing"
+    implemented: true
+    working: false
+    file: "lib/handlers/chat-stream.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "MOBILE MEDIA CONFIRMATION FLOW BACKEND TESTING COMPLETE: 3/5 tests passed (60% success rate). ✅ TEST 3 PASSED: Regular chat ('what is the weather like today?') correctly does NOT trigger media_confirmation event - found delta and done events as expected. ✅ TEST 4 PASSED: Confirmed media flow endpoint works - POST /api/chat/stream with mediaFlow payload returns 200 (not 500), found video_task event with taskId, proper event types (video_task, done, meta, generating_visual, delta). ✅ TEST 5 PASSED: Admin page builds correctly - GET /admin returns 200 (not 500). ❌ TEST 1 FAILED: Video generation media confirmation - POST /api/chat/stream with 'make me a video of a sunset over the ocean' and mediaGenMode=false returns media_confirmation event BUT detectedType is NULL (expected 'video'). Event contains refinedPrompt, availableModels, recommendedModel but detectedType field is null. ❌ TEST 2 FAILED: Image generation media confirmation - POST /api/chat/stream with 'generate an image of a beautiful sunset' and mediaGenMode=false returns media_confirmation event BUT detectedType is NULL (expected 'image'). CRITICAL BUG FOUND: The media_confirmation event is being sent correctly, but the detectedType field is null instead of 'video' or 'image'. Root cause analysis: Line 3187 in chat-stream.js sets mediaIntent = null when mediaGenMode is false. The comment says 'Media Create mode is OFF — just let the AI respond normally' but this is incorrect - when mediaGenMode is false (confirmation mode), the system SHOULD show the confirmation UI, not skip media generation entirely. The code at line 3438 sends detectedType: mediaIntent, but mediaIntent has been cleared to null at line 3187. FIX NEEDED: The logic at lines 3181-3188 should check quickGenerate (user preference) instead of mediaGenMode (frontend toggle). When mediaGenMode=false, the system should proceed with the confirmation flow, not clear mediaIntent. The confirmation flow code at lines 3190+ only runs if mediaIntent is not null, so clearing it breaks the entire confirmation flow. Auth: testchat@example.com/Test123456. Response format is correct NDJSON (text/event-stream), no SSE 'data: ' prefix issues."
+      - working: false
+        agent: "testing"
+        comment: "CRITICAL P0 BUG: Mobile users unable to generate videos/images because detectedType field in media_confirmation event is NULL. The backend sends the media_confirmation event correctly, but the detectedType field (which tells the frontend whether it's an image or video request) is null. This breaks the entire mobile confirmation UI flow. Root cause: Line 3187 in chat-stream.js incorrectly clears mediaIntent to null when mediaGenMode is false. The developer misunderstood the requirement - when mediaGenMode is false (confirmation mode), the system should show confirmation UI, not skip media generation. The fix is to change the condition at line 3181 from 'if (!mediaGenMode)' to 'if (!quickGenerate)' so it checks the user's saved preference instead of the frontend toggle. This is a simple one-line fix that will restore the mobile media confirmation flow."
+
+agent_communication:
+  - agent: "testing"
+    message: "MOBILE MEDIA CONFIRMATION FLOW BACKEND TESTING COMPLETE: 3/5 tests passed (60% success rate). The P0 bug has been identified - mobile users cannot generate videos/images because the detectedType field in media_confirmation events is NULL. ✅ WORKING: Regular chat does not trigger media_confirmation (correct), confirmed media flow endpoint works (returns 200 with video_task events), admin page builds correctly (200). ❌ CRITICAL BUG: Video and image generation requests with mediaGenMode=false return media_confirmation events BUT detectedType is NULL (should be 'video' or 'image'). This breaks the mobile confirmation UI because the frontend cannot determine what type of media to generate. ROOT CAUSE: Line 3187 in chat-stream.js sets 'mediaIntent = null' when mediaGenMode is false. The comment says 'Media Create mode is OFF — just let the AI respond normally' but this is INCORRECT. When mediaGenMode=false (confirmation mode), the system SHOULD show the confirmation UI with the detectedType field populated. The code at line 3438 sends 'detectedType: mediaIntent', but mediaIntent has been cleared to null. FIX: Change line 3181 from 'if (!mediaGenMode)' to 'if (!quickGenerate)' to check the user's saved preference instead of the frontend toggle. This is a simple one-line fix. The confirmation flow code at lines 3190+ only runs if mediaIntent is not null, so clearing it breaks the entire flow. All other aspects working correctly: NDJSON format, refinedPrompt, availableModels, recommendedModel fields all present. Auth: testchat@example.com/Test123456."

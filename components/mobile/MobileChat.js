@@ -23,7 +23,7 @@ import { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT
 import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { MobileImageCard, MobileVideoCard, MobileSavedVideoCard } from './MobileMediaCards';
 import MusicCard from '@/components/chat/MusicCard';
-import { SourceMediaBanner } from '@/components/chat/MediaConfirmation';
+import { SourceMediaBanner, MediaConfirmCard, PromptReviewCard, ModelSelectionCard, VideoExtendConfirmCard } from '@/components/chat/MediaConfirmation';
 import { ContextAwarenessBanner } from '@/components/chat/ContextBanner';
 import { PdfCard } from '@/components/chat/PdfCard';
 import VideoProgressBanner from '@/components/chat/VideoProgressBanner';
@@ -75,7 +75,8 @@ export default function MobileChat({
   const [contextInfo, setContextInfo] = useState(null);
   const [contextBannerDismissed, setContextBannerDismissed] = useState(false);
   const [mobileMediaConfirm, setMobileMediaConfirm] = useState(null); // Media confirmation data from backend
-  const [mobileMediaConfirmStep, setMobileMediaConfirmStep] = useState(0); // 0=type, 1=model, -1=generating
+  const [mobileMediaConfirmStep, setMobileMediaConfirmStep] = useState(0); // 0=type, 1=prompt, 2=model, -1=generating
+  const [mobileMediaConfirmType, setMobileMediaConfirmType] = useState(null); // 'image' | 'video' | null
   const [mediaGenMode, setMediaGenMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('sp_create_mode') === 'true';
@@ -294,6 +295,23 @@ export default function MobileChat({
           setTimeout(() => {
             msgEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }, 150);
+        }
+      }
+      // Restore media confirmation UI from loaded messages (e.g. after page refresh)
+      if (lastMsg?.media_confirmation && lastMsg.content_type === 'media-confirmation' && !lastMsg.media_confirmation?.selectedType) {
+        setMobileMediaConfirm(lastMsg.media_confirmation);
+        if (lastMsg.media_confirmation.detectedType === 'video_extend') {
+          setMobileMediaConfirmStep(10);
+        } else {
+          setMobileMediaConfirmStep(0);
+        }
+        setMobileMediaConfirmType(null);
+      } else if (!lastMsg?.media_confirmation) {
+        // No confirmation pending — clear any stale state
+        if (mobileMediaConfirm) {
+          setMobileMediaConfirm(null);
+          setMobileMediaConfirmStep(-1);
+          setMobileMediaConfirmType(null);
         }
       }
     }
@@ -1142,15 +1160,27 @@ export default function MobileChat({
     const flow = {
       step: 'confirmed',
       type: selectedType || mobileMediaConfirm.detectedType || 'video',
-      finalPrompt: mobileMediaConfirm.prompt || mobileMediaConfirm.refinedPrompt,
+      finalPrompt: mobileMediaConfirm.finalPrompt || mobileMediaConfirm.refinedPrompt || mobileMediaConfirm.prompt,
       selectedModel: selectedModel || 'smart',
       conversationId: conversationId,
       aspectRatio: mobileMediaConfirm.aspectRatio || '16:9',
       seedImageUrl: mobileMediaConfirm.seedImageUrl || null,
+      sourceImageUrl: mobileMediaConfirm.sourceImageUrl || null,
+      referenceImageUrls: mobileMediaConfirm.referenceImageUrls || null,
     };
+    
+    // Add user-facing confirmation message
+    const confirmLabel = flow.type === 'image' ? '🎨 Generate Image' : flow.type === 'video_extend' ? '🎬 Extend Video' : '🎬 Generate Video';
+    setMessages(prev => [...prev, {
+      id: `u-${Date.now()}`,
+      role: 'user',
+      content: `${confirmLabel}: ${flow.finalPrompt}`,
+      created_at: new Date().toISOString(),
+    }]);
     
     setMobileMediaConfirm(null);
     setMobileMediaConfirmStep(-1);
+    setMobileMediaConfirmType(null);
     setLoading(true);
     setStreamingContent('');
     
@@ -1228,6 +1258,46 @@ export default function MobileChat({
       setIsGeneratingVisual(false);
     }
   }, [mobileMediaConfirm, conversationId, token, loading, selectedModel]);
+
+  // ── Mobile Media Confirmation Step Handlers ────────────────────────
+  // Step 0 → 1: User selects media type (image/video/just chat)
+  const handleMobileMediaConfirmType = useCallback((type) => {
+    if (!mobileMediaConfirm) return;
+    
+    if (type === 'chat') {
+      // User chose "Just Chat" — clear the confirmation UI and put prompt back
+      setMobileMediaConfirm(null);
+      setMobileMediaConfirmStep(-1);
+      setMobileMediaConfirmType(null);
+      setInput(mobileMediaConfirm.originalPrompt || '');
+      return;
+    }
+    
+    // User chose image or video — advance to prompt review (step 1)
+    setMobileMediaConfirmType(type);
+    setMobileMediaConfirmStep(1);
+  }, [mobileMediaConfirm]);
+  
+  // Step 1 → 2: User approves the refined prompt
+  const handleMobileMediaConfirmPrompt = useCallback((finalPrompt) => {
+    if (!mobileMediaConfirm) return;
+    // Store the final prompt on the confirm data
+    setMobileMediaConfirm(prev => prev ? { ...prev, finalPrompt } : null);
+    setMobileMediaConfirmStep(2);
+  }, [mobileMediaConfirm]);
+  
+  // Step 2 → Generate: User selects a model → triggers generation
+  const handleMobileMediaConfirmModel = useCallback((selectedModelKey) => {
+    if (!mobileMediaConfirm || !mobileMediaConfirmType) return;
+    submitMobileMediaConfirm(mobileMediaConfirmType, selectedModelKey);
+  }, [mobileMediaConfirm, mobileMediaConfirmType, submitMobileMediaConfirm]);
+
+  // Cancel media confirmation entirely
+  const cancelMobileMediaConfirm = useCallback(() => {
+    setMobileMediaConfirm(null);
+    setMobileMediaConfirmStep(-1);
+    setMobileMediaConfirmType(null);
+  }, []);
 
   const sendMessage = async () => {
     if ((!input.trim() && !attachments.length && !pendingMediaAttachment) || loading) return;
@@ -1342,6 +1412,7 @@ export default function MobileChat({
       let localStreamingImageUrl = null;
       let localStreamingVideoTask = null;
       let doneMessageId = null;
+      let localMediaConfirmation = null; // Track media_confirmation data locally to avoid stale closure
 
       while (reader) {
         const { done, value } = await reader.read();
@@ -1440,7 +1511,15 @@ export default function MobileChat({
             } else if (data.type === 'media_confirmation') {
               // Backend detected media intent — show confirmation UI
               console.log('[MobileChat] Media confirmation received:', data.detectedType);
+              localMediaConfirmation = data;
               setMobileMediaConfirm(data);
+              setMobileMediaConfirmType(null);
+              // For video_extend, skip to extension confirmation UI (step 10)
+              if (data.detectedType === 'video_extend') {
+                setMobileMediaConfirmStep(10);
+              } else {
+                setMobileMediaConfirmStep(0);
+              }
             } else if (data.type === 'sources') {
               // Received sources from web search
               setStreamingSources(data.sources || []);
@@ -1468,8 +1547,8 @@ export default function MobileChat({
           id: realMsgId || `a-${Date.now()}`,
           role: 'assistant',
           content: fullContent,
-          content_type: mobileMediaConfirm ? 'media-confirmation' : undefined,
-          media_confirmation: mobileMediaConfirm || undefined,
+          content_type: localMediaConfirmation ? 'media-confirmation' : undefined,
+          media_confirmation: localMediaConfirmation || undefined,
           model_used: actualModelUsed,
           smart_mode: selectedModel === 'smart',
           smart_reason: dynamicIntelligenceReason,
@@ -1699,6 +1778,10 @@ export default function MobileChat({
     setStreamingImageUrl(null);
     setStreamingVideoTask(null);
     setStreamingContent('');
+    // Reset media confirmation states
+    setMobileMediaConfirm(null);
+    setMobileMediaConfirmStep(-1);
+    setMobileMediaConfirmType(null);
     
     setConversationId(id);
     setActiveTab('chat');
@@ -3060,6 +3143,85 @@ export default function MobileChat({
                     ));
                   }}
                 />
+                {/* ── Mobile Media Confirmation Cards ── */}
+                {msg.media_confirmation && msg.role === 'assistant' && (
+                  <div className="px-4 pb-2">
+                    {/* Source Media Context Banner */}
+                    {(msg.media_confirmation.conversationVideoUrl || msg.media_confirmation.conversationImageUrl || msg.media_confirmation.sourceImageUrl) && msg.media_confirmation.detectedType !== 'video_extend' && (
+                      <SourceMediaBanner 
+                        imageUrl={msg.media_confirmation.sourceImageUrl || msg.media_confirmation.conversationImageUrl}
+                        videoUrl={msg.media_confirmation.conversationVideoUrl}
+                        onRemove={() => {
+                          setMessages(prev => prev.map(m => {
+                            if (m.id === msg.id && m.media_confirmation) {
+                              const updated = { ...m, media_confirmation: { ...m.media_confirmation } };
+                              delete updated.media_confirmation.conversationVideoUrl;
+                              delete updated.media_confirmation.conversationImageUrl;
+                              delete updated.media_confirmation.sourceImageUrl;
+                              return updated;
+                            }
+                            return m;
+                          }));
+                        }}
+                      />
+                    )}
+                    
+                    {/* Step 0: Media Type Selection (Image / Video / Just Chat) */}
+                    {mobileMediaConfirm && mobileMediaConfirmStep === 0 && msg.id === messages[messages.length - 1]?.id && (
+                      <MediaConfirmCard
+                        onSelect={handleMobileMediaConfirmType}
+                        disabled={loading}
+                      />
+                    )}
+                    
+                    {/* Step 1: Prompt Review */}
+                    {mobileMediaConfirm && mobileMediaConfirmStep === 1 && msg.id === messages[messages.length - 1]?.id && (
+                      <PromptReviewCard
+                        refinedPrompt={msg.media_confirmation.refinedPrompt}
+                        mediaType={mobileMediaConfirmType}
+                        onApprove={handleMobileMediaConfirmPrompt}
+                        disabled={loading}
+                      />
+                    )}
+                    
+                    {/* Step 2: Model Selection */}
+                    {mobileMediaConfirm && mobileMediaConfirmStep === 2 && msg.id === messages[messages.length - 1]?.id && (
+                      <ModelSelectionCard
+                        models={msg.media_confirmation.availableModels}
+                        mediaType={mobileMediaConfirmType}
+                        recommended={msg.media_confirmation.recommendedModel || 'smart'}
+                        onSelect={handleMobileMediaConfirmModel}
+                        disabled={loading}
+                      />
+                    )}
+
+                    {/* Video Extension Confirmation */}
+                    {mobileMediaConfirm && mobileMediaConfirmStep === 10 && msg.id === messages[messages.length - 1]?.id && (
+                      <VideoExtendConfirmCard
+                        refinedPrompt={msg.media_confirmation.refinedPrompt}
+                        sourceVideoUrl={msg.media_confirmation.sourceVideoUrl || msg.media_confirmation.conversationVideoUrl}
+                        seedImageUrl={msg.media_confirmation.seedImageUrl}
+                        onConfirm={(prompt) => {
+                          submitMobileMediaConfirm('video_extend', 'smart');
+                        }}
+                        onCancel={cancelMobileMediaConfirm}
+                        onRemoveReference={() => {
+                          setMessages(prev => prev.map(m => {
+                            if (m.id === msg.id && m.media_confirmation) {
+                              const updated = { ...m, media_confirmation: { ...m.media_confirmation } };
+                              delete updated.media_confirmation.sourceVideoUrl;
+                              delete updated.media_confirmation.conversationVideoUrl;
+                              delete updated.media_confirmation.seedImageUrl;
+                              return updated;
+                            }
+                            return m;
+                          }));
+                        }}
+                        disabled={loading}
+                      />
+                    )}
+                  </div>
+                )}
                 </div>
                 </MessageErrorBoundary>
                 );
