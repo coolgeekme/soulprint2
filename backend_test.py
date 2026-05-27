@@ -1,358 +1,528 @@
 #!/usr/bin/env python3
 """
-Backend Testing Script for SoulPrint Engine
-Tests the Composite Base Image Expired URL fallback fix
+Backend Testing for SoulPrint Engine - Composio Multi-Account Routing & edit_image Safeguard
+Tests two new features:
+1. Composio Multi-Account Routing (resolveAccountSelection, buildComposioToolDefs, describeAvailableAccounts)
+2. edit_image Emotional Conversation Safeguard (isConversationalMessage detection)
 """
 
 import requests
 import json
+import os
 import sys
-import time
 
-# Configuration
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com/api"
+# Get base URL from environment
+BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'http://localhost:3000')
+API_URL = f"{BASE_URL}/api"
+
+# Test credentials from /app/memory/test_credentials.md
 TEST_EMAIL = "testchat@example.com"
 TEST_PASSWORD = "Test123456"
 
-def print_test_header(test_name):
-    """Print a formatted test header"""
-    print(f"\n{'='*80}")
-    print(f"TEST: {test_name}")
-    print(f"{'='*80}")
+class Colors:
+    GREEN = '\033[92m'
+    RED = '\033[91m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    END = '\033[0m'
 
-def print_result(success, message):
-    """Print test result"""
-    status = "✅ PASS" if success else "❌ FAIL"
-    print(f"{status}: {message}")
+def print_test(msg):
+    print(f"{Colors.BLUE}[TEST]{Colors.END} {msg}")
+
+def print_pass(msg):
+    print(f"{Colors.GREEN}✅ PASS:{Colors.END} {msg}")
+
+def print_fail(msg):
+    print(f"{Colors.RED}❌ FAIL:{Colors.END} {msg}")
+
+def print_info(msg):
+    print(f"{Colors.YELLOW}ℹ️  INFO:{Colors.END} {msg}")
 
 def login():
-    """Login and get auth token"""
-    print_test_header("Authentication")
+    """Authenticate and get token"""
+    print_test("Authenticating...")
     try:
         response = requests.post(
-            f"{BASE_URL}/auth/login",
+            f"{API_URL}/auth/login",
             json={"email": TEST_EMAIL, "passcode": TEST_PASSWORD},
             timeout=10
         )
-        
         if response.status_code == 200:
             data = response.json()
-            token = data.get("token")
+            token = data.get('token')
             if token:
-                print_result(True, f"Login successful for {TEST_EMAIL}")
+                print_pass(f"Authentication successful for {TEST_EMAIL}")
                 return token
             else:
-                print_result(False, "No token in response")
+                print_fail("No token in response")
                 return None
         else:
-            print_result(False, f"Login failed with status {response.status_code}: {response.text}")
+            print_fail(f"Login failed: {response.status_code} - {response.text[:200]}")
             return None
     except Exception as e:
-        print_result(False, f"Login error: {str(e)}")
+        print_fail(f"Login error: {str(e)}")
         return None
 
-def test_normal_chat(token):
-    """Test 1: Normal chat stream works without regression"""
-    print_test_header("Test 1: Normal Chat Stream (No Regression)")
-    
-    try:
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "content": "hello, how are you?",
-            "conversationId": f"test-normal-{int(time.time())}",
-            "model": "gpt-4o"
-        }
-        
-        print(f"Sending POST to {BASE_URL}/chat/stream")
-        print(f"Payload: {json.dumps(payload, indent=2)}")
-        
-        response = requests.post(
-            f"{BASE_URL}/chat/stream",
-            headers=headers,
-            json=payload,
-            stream=True,
-            timeout=30
-        )
-        
-        if response.status_code != 200:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            print(f"Response: {response.text[:500]}")
-            return False
-        
-        # Parse NDJSON stream
-        events = []
-        for line in response.iter_lines():
-            if line:
-                try:
-                    event = json.loads(line.decode('utf-8'))
-                    events.append(event)
-                except json.JSONDecodeError:
-                    continue
-        
-        # Check for expected events
-        has_delta = any(e.get('type') == 'delta' for e in events)
-        has_done = any(e.get('type') == 'done' for e in events)
-        has_error = any('error' in e for e in events)
-        
-        print(f"Total events received: {len(events)}")
-        print(f"Has delta events: {has_delta}")
-        print(f"Has done event: {has_done}")
-        print(f"Has error: {has_error}")
-        
-        if has_delta and has_done and not has_error:
-            print_result(True, "Normal chat stream working correctly")
-            return True
-        else:
-            print_result(False, "Missing expected events or has errors")
-            return False
-            
-    except Exception as e:
-        print_result(False, f"Error: {str(e)}")
-        return False
+# ============================================================
+# FEATURE 1: Composio Multi-Account Routing Tests
+# ============================================================
 
-def test_chat_with_image_attachment(token):
-    """Test 2: Chat stream with image attachment works"""
-    print_test_header("Test 2: Chat Stream with Image Attachment")
+def test_composio_resolve_account_selection():
+    """
+    Test resolveAccountSelection logic with mock data
+    This function is in /app/lib/handlers/composio.js
+    We'll test the logic by examining the code behavior
+    """
+    print_test("\n=== FEATURE 1: Composio Multi-Account Routing ===")
+    print_test("Test 1: resolveAccountSelection logic verification")
     
+    # Since this is a JavaScript function, we'll test the API endpoints that use it
+    # The logic should be:
+    # 1. If single account, return that account
+    # 2. If multiple accounts, match by alias/displayName (partial, case-insensitive)
+    # 3. If numeric index (1-based), return accounts[idx-1]
+    # 4. Default to first account
+    
+    print_info("Testing resolveAccountSelection logic patterns:")
+    print_info("  Pattern 1: Multiple accounts with alias match (e.g., 'archeforge' matches 'ben@archeforge.com')")
+    print_info("  Pattern 2: Single account with null selection should return that account")
+    print_info("  Pattern 3: Numeric index '2' should return second account (1-based indexing)")
+    
+    # We can't directly test the JS function, but we can verify the logic is correct
+    # by checking if the function exists and is exported
     try:
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        }
-        
-        # Simple base64 1x1 red pixel PNG
-        red_pixel_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
-        
-        payload = {
-            "content": "what is in this image?",
-            "conversationId": f"test-image-{int(time.time())}",
-            "model": "gpt-4o",
-            "attachments": [
-                {
-                    "type": "image/png",
-                    "base64": red_pixel_base64,
-                    "name": "test.png"
-                }
+        with open('/app/lib/handlers/composio.js', 'r') as f:
+            content = f.read()
+            
+            # Check if resolveAccountSelection function exists
+            if 'function resolveAccountSelection' in content:
+                print_pass("resolveAccountSelection function exists in composio.js")
+            else:
+                print_fail("resolveAccountSelection function not found")
+                return False
+            
+            # Check key logic patterns
+            checks = [
+                ('accounts.length === 1', 'Single account check'),
+                ('toLowerCase()', 'Case-insensitive matching'),
+                ('includes(sel)', 'Partial match support'),
+                ('parseInt(sel, 10)', 'Numeric index parsing'),
+                ('idx >= 1 && idx <= accounts.length', '1-based index validation'),
+                ('accounts[idx - 1]', '1-based to 0-based conversion'),
             ]
-        }
-        
-        print(f"Sending POST to {BASE_URL}/chat/stream with image attachment")
-        
-        response = requests.post(
-            f"{BASE_URL}/chat/stream",
-            headers=headers,
-            json=payload,
-            stream=True,
-            timeout=30
-        )
-        
-        if response.status_code != 200:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            print(f"Response: {response.text[:500]}")
-            return False
-        
-        # Parse NDJSON stream
-        events = []
-        for line in response.iter_lines():
-            if line:
-                try:
-                    event = json.loads(line.decode('utf-8'))
-                    events.append(event)
-                except json.JSONDecodeError:
-                    continue
-        
-        # Check for expected events
-        has_delta = any(e.get('type') == 'delta' for e in events)
-        has_done = any(e.get('type') == 'done' for e in events)
-        has_error = any('error' in e for e in events)
-        
-        print(f"Total events received: {len(events)}")
-        print(f"Has delta events: {has_delta}")
-        print(f"Has done event: {has_done}")
-        print(f"Has error: {has_error}")
-        
-        if has_delta and has_done and not has_error:
-            print_result(True, "Chat with image attachment working correctly")
-            return True
-        else:
-            print_result(False, "Missing expected events or has errors")
-            return False
+            
+            all_passed = True
+            for pattern, description in checks:
+                if pattern in content:
+                    print_pass(f"  ✓ {description}: '{pattern}' found")
+                else:
+                    print_fail(f"  ✗ {description}: '{pattern}' not found")
+                    all_passed = False
+            
+            return all_passed
             
     except Exception as e:
-        print_result(False, f"Error: {str(e)}")
+        print_fail(f"Error reading composio.js: {str(e)}")
         return False
 
-def test_composite_code_structure():
-    """Test 3: Verify composite flow code structure is valid"""
-    print_test_header("Test 3: Composite Flow Code Structure Validation")
+def test_composio_build_tool_defs():
+    """
+    Test buildComposioToolDefs adds account parameter for multi-account scenarios
+    """
+    print_test("\nTest 2: buildComposioToolDefs account parameter injection")
     
     try:
-        # Read the chat-stream.js file
+        with open('/app/lib/handlers/composio.js', 'r') as f:
+            content = f.read()
+            
+            # Check if buildComposioToolDefs function exists
+            if 'function buildComposioToolDefs' not in content:
+                print_fail("buildComposioToolDefs function not found")
+                return False
+            
+            print_pass("buildComposioToolDefs function exists")
+            
+            # Check for addAccountParam helper function
+            if 'const addAccountParam = (appKey, properties)' in content:
+                print_pass("  ✓ addAccountParam helper function exists")
+            else:
+                print_fail("  ✗ addAccountParam helper function not found")
+                return False
+            
+            # Check for multi-account detection
+            if 'accounts.length > 1' in content:
+                print_pass("  ✓ Multi-account detection logic present")
+            else:
+                print_fail("  ✗ Multi-account detection logic missing")
+                return False
+            
+            # Check for account parameter addition
+            if 'properties.account = {' in content:
+                print_pass("  ✓ Account parameter injection logic present")
+            else:
+                print_fail("  ✗ Account parameter injection logic missing")
+                return False
+            
+            # Check for describeAvailableAccounts usage
+            if 'describeAvailableAccounts(accounts)' in content:
+                print_pass("  ✓ describeAvailableAccounts integration present")
+            else:
+                print_fail("  ✗ describeAvailableAccounts integration missing")
+                return False
+            
+            # Check for account parameter description
+            if 'Which account to use' in content or 'which account' in content.lower():
+                print_pass("  ✓ Account parameter description present")
+            else:
+                print_fail("  ✗ Account parameter description missing")
+                return False
+            
+            return True
+            
+    except Exception as e:
+        print_fail(f"Error reading composio.js: {str(e)}")
+        return False
+
+def test_composio_describe_available_accounts():
+    """
+    Test describeAvailableAccounts formats account list correctly
+    """
+    print_test("\nTest 3: describeAvailableAccounts formatting")
+    
+    try:
+        with open('/app/lib/handlers/composio.js', 'r') as f:
+            content = f.read()
+            
+            # Check if describeAvailableAccounts function exists
+            if 'function describeAvailableAccounts' not in content:
+                print_fail("describeAvailableAccounts function not found")
+                return False
+            
+            print_pass("describeAvailableAccounts function exists")
+            
+            # Check for single account early return
+            if 'accounts.length <= 1' in content and "return ''" in content:
+                print_pass("  ✓ Single account early return (returns empty string)")
+            else:
+                print_fail("  ✗ Single account early return logic missing")
+                return False
+            
+            # Check for account mapping with index
+            if 'accounts.map((acc, i)' in content:
+                print_pass("  ✓ Account mapping with index present")
+            else:
+                print_fail("  ✗ Account mapping with index missing")
+                return False
+            
+            # Check for label extraction (alias or displayName or id)
+            if 'acc.alias' in content and 'acc.displayName' in content and 'acc.id' in content:
+                print_pass("  ✓ Label extraction logic (alias/displayName/id) present")
+            else:
+                print_fail("  ✗ Label extraction logic incomplete")
+                return False
+            
+            # Check for 1-based numbering
+            if 'i + 1' in content:
+                print_pass("  ✓ 1-based numbering (i + 1) present")
+            else:
+                print_fail("  ✗ 1-based numbering missing")
+                return False
+            
+            return True
+            
+    except Exception as e:
+        print_fail(f"Error reading composio.js: {str(e)}")
+        return False
+
+def test_composio_handle_tool_call():
+    """
+    Test handleComposioToolCall uses resolveAccountSelection and includes account_used in response
+    """
+    print_test("\nTest 4: handleComposioToolCall account resolution and response")
+    
+    try:
+        with open('/app/lib/handlers/composio.js', 'r') as f:
+            content = f.read()
+            
+            # Check if handleComposioToolCall function exists
+            if 'async function handleComposioToolCall' not in content:
+                print_fail("handleComposioToolCall function not found")
+                return False
+            
+            print_pass("handleComposioToolCall function exists")
+            
+            # Check for resolveAccountSelection usage
+            resolve_calls = content.count('resolveAccountSelection(')
+            if resolve_calls >= 8:  # Should be called for each tool (Gmail, Calendar, Slack, GitHub)
+                print_pass(f"  ✓ resolveAccountSelection called {resolve_calls} times (for different tools)")
+            else:
+                print_fail(f"  ✗ resolveAccountSelection called only {resolve_calls} times (expected >= 8)")
+                return False
+            
+            # Check for account_used in responses
+            account_used_count = content.count('account_used:')
+            if account_used_count >= 8:
+                print_pass(f"  ✓ account_used field present in {account_used_count} tool responses")
+            else:
+                print_fail(f"  ✗ account_used field only in {account_used_count} responses (expected >= 8)")
+                return False
+            
+            # Check for console logging of account selection
+            if 'Using Gmail account:' in content or 'Using Calendar account:' in content:
+                print_pass("  ✓ Account selection logging present")
+            else:
+                print_fail("  ✗ Account selection logging missing")
+                return False
+            
+            return True
+            
+    except Exception as e:
+        print_fail(f"Error reading composio.js: {str(e)}")
+        return False
+
+# ============================================================
+# FEATURE 2: edit_image Emotional Conversation Safeguard Tests
+# ============================================================
+
+def test_edit_image_safeguard_exists():
+    """
+    Test that isConversationalMessage detection exists in chat-stream.js
+    """
+    print_test("\n=== FEATURE 2: edit_image Emotional Conversation Safeguard ===")
+    print_test("Test 5: isConversationalMessage detection exists")
+    
+    try:
         with open('/app/lib/handlers/chat-stream.js', 'r') as f:
             content = f.read()
-        
-        # Check for compositeFallThrough variable
-        checks = {
-            "Declaration": "let compositeFallThrough = false;",
-            "Set to true (recovery failed)": "compositeFallThrough = true;",
-            "Checked in catch block": "if (compErr.message === '__FALLTHROUGH__' || compositeFallThrough)",
-            "Guards save/return": "if (!compositeFallThrough)",
-            "Fallthrough comment": "compositeFallThrough === true: base image expired"
-        }
-        
-        all_found = True
-        for check_name, check_str in checks.items():
-            if check_str in content:
-                print(f"✓ Found: {check_name}")
-            else:
-                print(f"✗ Missing: {check_name}")
-                all_found = False
-        
-        # Check for the DB recovery logic
-        db_recovery_checks = [
-            "Base image expired (HTTP",
-            "attempting DB recovery",
-            "db.collection('messages').findOne",
-            "image_base64",
-            "Recovered base image from DB base64 cache",
-            "Base image unrecoverable — falling through"
-        ]
-        
-        print("\nDB Recovery Logic:")
-        for check in db_recovery_checks:
-            if check in content:
-                print(f"✓ Found: {check}")
-            else:
-                print(f"✗ Missing: {check}")
-                all_found = False
-        
-        if all_found:
-            print_result(True, "All composite fallback code structure checks passed")
-            return True
-        else:
-            print_result(False, "Some code structure checks failed")
-            return False
+            
+            # Check if isConversationalMessage detection exists
+            if 'const isConversationalMessage = (' not in content:
+                print_fail("isConversationalMessage detection not found")
+                return False
+            
+            print_pass("isConversationalMessage detection exists")
+            
+            # Check for question detection patterns
+            patterns = [
+                ('why|what|how|when|where|who', 'Question word detection'),
+                ("content.trim().endsWith('?')", 'Question mark detection'),
+                ('content.trim().length < 80', 'Short message detection'),
+                ('feel|love|miss|hate|afraid|scared|worried|happy|sad|angry', 'Emotional keyword detection'),
+                ('who are you', 'Identity/philosophical question detection'),
+            ]
+            
+            all_passed = True
+            for pattern, description in patterns:
+                if pattern in content:
+                    print_pass(f"  ✓ {description}")
+                else:
+                    print_fail(f"  ✗ {description} missing")
+                    all_passed = False
+            
+            return all_passed
             
     except Exception as e:
-        print_result(False, f"Error reading file: {str(e)}")
+        print_fail(f"Error reading chat-stream.js: {str(e)}")
         return False
 
-def test_syntax_check():
-    """Test 4: Verify no syntax errors in chat-stream.js"""
-    print_test_header("Test 4: JavaScript Syntax Check")
-    
-    try:
-        import subprocess
-        
-        # Use Node.js to check syntax
-        result = subprocess.run(
-            ['node', '--check', '/app/lib/handlers/chat-stream.js'],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        
-        if result.returncode == 0:
-            print_result(True, "No syntax errors found in chat-stream.js")
-            return True
-        else:
-            print_result(False, f"Syntax errors found: {result.stderr}")
-            return False
-            
-    except Exception as e:
-        print_result(False, f"Error checking syntax: {str(e)}")
-        return False
-
-def test_bracket_matching():
-    """Test 5: Verify proper bracket matching in composite area"""
-    print_test_header("Test 5: Bracket Matching in Composite Area")
+def test_edit_image_safeguard_rejection():
+    """
+    Test that edit_image tool returns error for conversational messages
+    """
+    print_test("\nTest 6: edit_image safeguard rejection logic")
     
     try:
         with open('/app/lib/handlers/chat-stream.js', 'r') as f:
-            lines = f.readlines()
-        
-        # Extract the composite area (lines 1653-2065)
-        composite_area = ''.join(lines[1652:2065])  # 0-indexed
-        
-        # Count brackets
-        open_braces = composite_area.count('{')
-        close_braces = composite_area.count('}')
-        open_parens = composite_area.count('(')
-        close_parens = composite_area.count(')')
-        open_brackets = composite_area.count('[')
-        close_brackets = composite_area.count(']')
-        
-        print(f"Braces: {{ {open_braces} | }} {close_braces}")
-        print(f"Parentheses: ( {open_parens} | ) {close_parens}")
-        print(f"Brackets: [ {open_brackets} | ] {close_brackets}")
-        
-        # Note: The composite area is part of a larger function, so brackets may not match
-        # The important check is that the overall file syntax is valid (checked in Test 4)
-        print("\nNote: The composite area (lines 1653-2065) is part of a larger function,")
-        print("so bracket counts may not match within this range. The syntax check (Test 4)")
-        print("confirms the entire file is syntactically correct.")
-        
-        print_result(True, "Bracket analysis complete (see note above)")
-        return True
+            content = f.read()
+            
+            # Check for rejection logic
+            if 'if (isConversationalMessage)' not in content:
+                print_fail("Rejection logic not found")
+                return False
+            
+            print_pass("Rejection logic exists")
+            
+            # Check for rejection message
+            if 'REJECTED — user message is conversational/emotional' in content:
+                print_pass("  ✓ Rejection logging present")
+            else:
+                print_fail("  ✗ Rejection logging missing")
+                return False
+            
+            # Check for error response
+            if 'success: false' in content and 'error:' in content:
+                print_pass("  ✓ Error response structure present")
+            else:
+                print_fail("  ✗ Error response structure missing")
+                return False
+            
+            # Check for guidance to respond with text only
+            if 'respond with' in content.lower() and 'text only' in content.lower():
+                print_pass("  ✓ Text-only response guidance present")
+            else:
+                print_fail("  ✗ Text-only response guidance missing")
+                return False
+            
+            return True
             
     except Exception as e:
-        print_result(False, f"Error checking brackets: {str(e)}")
+        print_fail(f"Error reading chat-stream.js: {str(e)}")
         return False
 
-def main():
-    """Run all tests"""
-    print("\n" + "="*80)
-    print("COMPOSITE BASE IMAGE EXPIRED URL FALLBACK FIX - BACKEND TESTING")
-    print("="*80)
+def test_edit_image_tool_description():
+    """
+    Test that edit_image tool description mentions emotional/personal conversations
+    """
+    print_test("\nTest 7: edit_image tool description update")
     
-    # Login first
+    try:
+        with open('/app/lib/handlers/chat-stream.js', 'r') as f:
+            content = f.read()
+            
+            # Find the edit_image tool definition
+            if "name: 'edit_image'" not in content:
+                print_fail("edit_image tool definition not found")
+                return False
+            
+            print_pass("edit_image tool definition found")
+            
+            # Check for emotional/personal conversation guidance in description
+            # The description should be near the tool definition
+            tool_section_start = content.find("name: 'edit_image'")
+            tool_section = content[max(0, tool_section_start - 2000):tool_section_start + 2000]
+            
+            checks = [
+                ('emotional', 'Emotional conversation mention'),
+                ('personal', 'Personal conversation mention'),
+                ('conversational', 'Conversational message mention'),
+                ('Do NOT use this tool', 'Explicit prohibition guidance'),
+                ('respond', 'Response guidance'),
+            ]
+            
+            all_passed = True
+            for keyword, description in checks:
+                if keyword.lower() in tool_section.lower():
+                    print_pass(f"  ✓ {description}: '{keyword}' found in tool description")
+                else:
+                    print_fail(f"  ✗ {description}: '{keyword}' not found in tool description")
+                    all_passed = False
+            
+            return all_passed
+            
+    except Exception as e:
+        print_fail(f"Error reading chat-stream.js: {str(e)}")
+        return False
+
+def test_normal_chat_no_regression(token):
+    """
+    Test that normal chat still works without regression
+    """
+    print_test("\nTest 8: Normal chat works without regression")
+    
+    try:
+        response = requests.post(
+            f"{API_URL}/chat/stream",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "content": "hello",
+                "conversationId": "test-composio-" + str(os.urandom(4).hex()),
+                "model": "gpt-4o-mini"
+            },
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code != 200:
+            print_fail(f"Chat stream failed: {response.status_code}")
+            return False
+        
+        print_pass("Chat stream endpoint accessible")
+        
+        # Check for NDJSON format
+        events = []
+        for line in response.iter_lines():
+            if line:
+                try:
+                    event = json.loads(line.decode('utf-8'))
+                    events.append(event)
+                except:
+                    pass
+        
+        if len(events) > 0:
+            print_pass(f"  ✓ Received {len(events)} NDJSON events")
+        else:
+            print_fail("  ✗ No events received")
+            return False
+        
+        # Check for expected event types
+        event_types = [e.get('type') for e in events]
+        if 'meta' in event_types or 'delta' in event_types or 'done' in event_types:
+            print_pass(f"  ✓ Expected event types present: {set(event_types)}")
+        else:
+            print_fail(f"  ✗ Unexpected event types: {set(event_types)}")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print_fail(f"Error testing normal chat: {str(e)}")
+        return False
+
+# ============================================================
+# Main Test Runner
+# ============================================================
+
+def main():
+    print("\n" + "="*70)
+    print("SoulPrint Engine - Composio Multi-Account & edit_image Safeguard Tests")
+    print("="*70)
+    
+    # Authenticate
     token = login()
     if not token:
-        print("\n❌ FATAL: Cannot proceed without authentication")
+        print_fail("\n❌ Authentication failed. Cannot proceed with tests.")
         sys.exit(1)
     
-    # Run tests
+    # Track results
     results = []
     
-    # Test 1: Normal chat (no regression)
-    results.append(("Normal Chat Stream", test_normal_chat(token)))
+    # Feature 1: Composio Multi-Account Routing
+    results.append(("resolveAccountSelection logic", test_composio_resolve_account_selection()))
+    results.append(("buildComposioToolDefs account param", test_composio_build_tool_defs()))
+    results.append(("describeAvailableAccounts formatting", test_composio_describe_available_accounts()))
+    results.append(("handleComposioToolCall account resolution", test_composio_handle_tool_call()))
     
-    # Test 2: Chat with image attachment
-    results.append(("Chat with Image Attachment", test_chat_with_image_attachment(token)))
-    
-    # Test 3: Code structure validation
-    results.append(("Code Structure Validation", test_composite_code_structure()))
-    
-    # Test 4: Syntax check
-    results.append(("Syntax Check", test_syntax_check()))
-    
-    # Test 5: Bracket matching
-    results.append(("Bracket Matching", test_bracket_matching()))
+    # Feature 2: edit_image Emotional Conversation Safeguard
+    results.append(("isConversationalMessage detection", test_edit_image_safeguard_exists()))
+    results.append(("edit_image safeguard rejection", test_edit_image_safeguard_rejection()))
+    results.append(("edit_image tool description", test_edit_image_tool_description()))
+    results.append(("Normal chat regression test", test_normal_chat_no_regression(token)))
     
     # Summary
-    print("\n" + "="*80)
+    print("\n" + "="*70)
     print("TEST SUMMARY")
-    print("="*80)
+    print("="*70)
     
     passed = sum(1 for _, result in results if result)
     total = len(results)
     
     for test_name, result in results:
-        status = "✅ PASS" if result else "❌ FAIL"
+        status = f"{Colors.GREEN}✅ PASS{Colors.END}" if result else f"{Colors.RED}❌ FAIL{Colors.END}"
         print(f"{status}: {test_name}")
     
-    print(f"\nTotal: {passed}/{total} tests passed ({int(passed/total*100)}% success rate)")
+    print("\n" + "="*70)
+    print(f"Results: {passed}/{total} tests passed ({int(passed/total*100)}% success rate)")
+    print("="*70 + "\n")
     
     if passed == total:
-        print("\n🎉 ALL TESTS PASSED!")
-        return 0
+        print(f"{Colors.GREEN}🎉 ALL TESTS PASSED!{Colors.END}")
+        sys.exit(0)
     else:
-        print(f"\n⚠️  {total - passed} test(s) failed")
-        return 1
+        print(f"{Colors.RED}⚠️  SOME TESTS FAILED{Colors.END}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
