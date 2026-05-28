@@ -5291,19 +5291,6 @@ function InsightsTab({ token }) {
             </p>
             <GraceNotifyActions token={token} />
           </div>
-
-          {/* Subscription Backfill Actions */}
-          <div className="bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/30 rounded-xl p-5">
-            <h3 className="text-blue-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
-              <UserCheck className="w-4 h-4" />
-              Subscription Data Backfill
-            </h3>
-            <p className="text-gray-400 text-xs mb-4">
-              Create Free tier subscription records for all existing users who are missing one.
-              This ensures every registered user appears in subscription metrics. Safe to run multiple times.
-            </p>
-            <BackfillSubscriptionsButton token={token} />
-          </div>
         </div>
       )}
     </div>
@@ -8067,7 +8054,21 @@ export default function AdminPage() {
           )}
 
           {activeTab === 'subscriptions' && token && (
-            <SubscriptionsTab token={token} />
+            <div className="space-y-6">
+              <SubscriptionsTab token={token} />
+              {/* Subscription Backfill Actions */}
+              <div className="bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/30 rounded-xl p-5">
+                <h3 className="text-blue-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4" />
+                  Subscription Data Backfill
+                </h3>
+                <p className="text-gray-400 text-xs mb-4">
+                  Create Free tier subscription records for all existing users who are missing one.
+                  This ensures every registered user appears in subscription metrics. Safe to run multiple times.
+                </p>
+                <BackfillSubscriptionsButton token={token} />
+              </div>
+            </div>
           )}
 
           {activeTab === 'discounts' && token && (
