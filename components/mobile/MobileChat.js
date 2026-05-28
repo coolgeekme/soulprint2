@@ -50,6 +50,8 @@ export default function MobileChat({
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingImageUrl, setStreamingImageUrl] = useState(null);
   const [streamingVideoTask, setStreamingVideoTask] = useState(null);
+  const [streamingMusicTask, setStreamingMusicTask] = useState(null);
+  const streamingMusicTaskRef = useRef(null);
   const [streamingSources, setStreamingSources] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [conversationId, setConversationId] = useState(initialConversationId);
@@ -1225,6 +1227,17 @@ export default function MobileChat({
               setStreamingVideoTask(data);
               setIsGeneratingVisual(true);
               setVisualGenerationType('video');
+            } else if (data.type === 'music_task') {
+              // Music generation started — store for inclusion in final message
+              streamingMusicTaskRef.current = {
+                jobId: data.jobId,
+                taskId: data.taskId,
+                title: data.title,
+                style: data.style,
+                instrumental: data.instrumental,
+                status: data.status || 'generating',
+              };
+              setStreamingMusicTask(streamingMusicTaskRef.current);
             } else if (data.type === 'done') {
               if (data.messageId) doneMessageId = data.messageId;
             }
@@ -1232,7 +1245,7 @@ export default function MobileChat({
         }
       }
       
-      if (fullContent || localStreamingImageUrl || localStreamingVideoTask) {
+      if (fullContent || localStreamingImageUrl || localStreamingVideoTask || streamingMusicTaskRef.current) {
         const realMsgId = doneMessageId || localStreamingVideoTask?.messageId;
         setMessages(prev => [...prev, {
           id: realMsgId || `a-${Date.now()}`,
@@ -1240,6 +1253,7 @@ export default function MobileChat({
           content: fullContent,
           image_url: localStreamingImageUrl || undefined,
           video_task: localStreamingVideoTask || undefined,
+          music_task: streamingMusicTaskRef.current || undefined,
           model_label: localStreamingVideoTask ? (localStreamingVideoTask.videoModelLabel || 'AI Video') : undefined,
         }]);
       }
@@ -1508,6 +1522,18 @@ export default function MobileChat({
               // Dismiss the generating_visual animation — MobileVideoCard takes over
               setIsGeneratingVisual(false);
               setVisualGenerationType('');
+            } else if (data.type === 'music_task') {
+              // Music generation started — store for inclusion in final message
+              console.log('[MobileChat] Music task received:', data.jobId, data.title);
+              streamingMusicTaskRef.current = {
+                jobId: data.jobId,
+                taskId: data.taskId,
+                title: data.title,
+                style: data.style,
+                instrumental: data.instrumental,
+                status: data.status || 'generating',
+              };
+              setStreamingMusicTask(streamingMusicTaskRef.current);
             } else if (data.type === 'media_confirmation') {
               // Backend detected media intent — show confirmation UI
               console.log('[MobileChat] Media confirmation received:', data.detectedType);
@@ -1554,6 +1580,7 @@ export default function MobileChat({
           smart_reason: dynamicIntelligenceReason,
           image_url: localStreamingImageUrl || undefined,
           video_task: localStreamingVideoTask || undefined,
+          music_task: streamingMusicTaskRef.current || undefined,
           model_label: localStreamingVideoTask ? (localStreamingVideoTask.videoModelLabel || 'AI Video') : undefined,
           video_model_reason: localStreamingVideoTask?.videoModelReason || undefined,
           sources: streamingSources.length > 0 ? [...streamingSources] : undefined,
@@ -1564,6 +1591,8 @@ export default function MobileChat({
       setStreamingImageUrl(null);
       setStreamingSources([]);
       setStreamingVideoTask(null);
+      setStreamingMusicTask(null);
+      streamingMusicTaskRef.current = null;
       setIsGeneratingVisual(false);
       setVisualGenerationType('');
       if (newConvId && newConvId !== conversationId) {
