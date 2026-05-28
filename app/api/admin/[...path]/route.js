@@ -5738,6 +5738,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'resolve-issue') return handleAdminResolveIssue(request);
     if (pathStr === 'support-agents') return handleCreateSupportAgent(request);
     if (pathStr === 'notify/grace-expired') return handleNotifyGraceExpiredUsers(request);
+    if (pathStr === 'backfill/subscriptions') return handleBackfillSubscriptions(request);
 
     return err('Admin endpoint not found', 404);
   } catch (error) {
@@ -5828,4 +5829,66 @@ export async function DELETE(request, { params }) {
     console.error('[Admin API] DELETE Error:', error);
     return err(error.message || 'Internal server error', 500);
   }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BACKFILL: Create Free tier subscription records for all users missing one
+// ═══════════════════════════════════════════════════════════════════════════
+async function handleBackfillSubscriptions() {
+  const db = await getDb();
+  const { v4: uuidv4 } = require('uuid');
+  
+  // Get all users
+  const allUsers = await db.collection('users').find({}).project({ id: 1 }).toArray();
+  
+  // Get all existing subscription user_ids
+  const existingSubs = await db.collection('user_subscriptions').find({}).project({ user_id: 1 }).toArray();
+  const existingUserIds = new Set(existingSubs.map(s => s.user_id));
+  
+  // Find users without a subscription record
+  const missingUsers = allUsers.filter(u => !existingUserIds.has(u.id));
+  
+  if (missingUsers.length === 0) {
+    return NextResponse.json({ 
+      success: true, 
+      message: 'All users already have subscription records',
+      total_users: allUsers.length,
+      existing_subs: existingSubs.length,
+      backfilled: 0 
+    });
+  }
+  
+  // Create Free tier subscription records for all missing users
+  const now = new Date();
+  const newSubs = missingUsers.map(u => ({
+    id: uuidv4(),
+    user_id: u.id,
+    plan_id: 'free',
+    status: 'active',
+    billing_period: null,
+    stripe_customer_id: null,
+    stripe_subscription_id: null,
+    current_period_start: now,
+    current_period_end: null,
+    grace_period_end: null,
+    trial_end: null,
+    discount_code: null,
+    lifetime_deal: false,
+    created_at: now,
+    updated_at: now,
+  }));
+  
+  await db.collection('user_subscriptions').insertMany(newSubs);
+  
+  console.log(`[Backfill] Created ${newSubs.length} Free tier subscription records for users without one`);
+  
+  return NextResponse.json({ 
+    success: true, 
+    message: `Backfilled ${newSubs.length} Free tier subscription records`,
+    total_users: allUsers.length,
+    existing_subs: existingSubs.length,
+    backfilled: newSubs.length,
+    total_after_backfill: existingSubs.length + newSubs.length,
+  });
 }

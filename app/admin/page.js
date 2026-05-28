@@ -3552,6 +3552,56 @@ function GraceNotifyActions({ token }) {
   );
 }
 
+function BackfillSubscriptionsButton({ token }) {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState(null);
+  
+  const runBackfill = async () => {
+    if (!confirm('This will create Free tier subscription records for all users who are missing one. Continue?')) return;
+    setRunning(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/admin/backfill/subscriptions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      setResult(data);
+    } catch (err) {
+      setResult({ error: err.message });
+    }
+    setRunning(false);
+  };
+  
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={runBackfill}
+        disabled={running}
+        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 text-white text-xs font-semibold rounded transition-colors"
+      >
+        {running ? 'Running...' : 'Run Backfill'}
+      </button>
+      {result && (
+        <div className={`text-xs p-3 rounded ${result.error ? 'bg-red-500/10 border border-red-500/30 text-red-400' : 'bg-green-500/10 border border-green-500/30 text-green-400'}`}>
+          {result.error ? (
+            <p>Error: {result.error}</p>
+          ) : (
+            <div className="space-y-1">
+              <p className="font-semibold">{result.message}</p>
+              <p>Total users: {result.total_users}</p>
+              <p>Had subscription: {result.existing_subs}</p>
+              <p>Backfilled: {result.backfilled}</p>
+              <p className="font-bold text-white">Total after backfill: {result.total_after_backfill}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function InsightsTab({ token }) {
   const router = useRouter();
   const [insights, setInsights] = useState(null);
@@ -5240,6 +5290,19 @@ function InsightsTab({ token }) {
               Early access users (Apr 1-30) expired May 14. Alpha users (Mar 1-31) expire May 31.
             </p>
             <GraceNotifyActions token={token} />
+          </div>
+
+          {/* Subscription Backfill Actions */}
+          <div className="bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/30 rounded-xl p-5">
+            <h3 className="text-blue-400 text-xs font-bold tracking-widest uppercase mb-4 flex items-center gap-2">
+              <UserCheck className="w-4 h-4" />
+              Subscription Data Backfill
+            </h3>
+            <p className="text-gray-400 text-xs mb-4">
+              Create Free tier subscription records for all existing users who are missing one.
+              This ensures every registered user appears in subscription metrics. Safe to run multiple times.
+            </p>
+            <BackfillSubscriptionsButton token={token} />
           </div>
         </div>
       )}
