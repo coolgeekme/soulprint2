@@ -306,6 +306,14 @@ export default function PricingPage() {
             >
               {checkoutLoading === 'base' ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : isCurrentPlan('base') ? 'Current Plan' : 'Subscribe'}
             </button>
+            {!isCurrentPlan('base') && (
+              <p className="text-[10px] text-gray-600 mt-2 text-center leading-relaxed">
+                {annual 
+                  ? 'Billed annually at $192.10/year. Auto-renews yearly until canceled.'
+                  : 'Billed monthly at $20.01/mo. Auto-renews monthly until canceled.'
+                }
+              </p>
+            )}
           </div>
 
           {/* Power */}
@@ -345,6 +353,14 @@ export default function PricingPage() {
             >
               {checkoutLoading === 'power' ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : isCurrentPlan('power') ? 'Current Plan' : 'Subscribe'}
             </button>
+            {!isCurrentPlan('power') && (
+              <p className="text-[10px] text-gray-600 mt-2 text-center leading-relaxed">
+                {annual 
+                  ? 'Billed annually at $950.50/year. Auto-renews yearly until canceled.'
+                  : 'Billed monthly at $99.01/mo. Auto-renews monthly until canceled.'
+                }
+              </p>
+            )}
           </div>
         </div>
 
@@ -493,13 +509,23 @@ export default function PricingPage() {
         )}
       </div>
 
-      {/* FAQ / CTA */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-20 text-center">
+      {/* Legal Disclosures */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-20 text-center space-y-3">
         <p className="text-gray-600 text-xs">
-          All plans include SoulPrint persona, memory, and assessment features. Prices in USD. Cancel anytime.
+          All plans include SoulPrint persona, memory, and assessment features. Prices in USD.
         </p>
+        <div className="text-gray-600 text-[10px] leading-relaxed max-w-2xl mx-auto space-y-1.5">
+          <p>
+            <strong className="text-gray-500">Auto-Renewal:</strong> Paid subscriptions automatically renew at the end of each billing cycle (monthly or annually) at the then-current rate until you cancel.
+            You will be charged on the same date each billing period. You can cancel anytime from Settings → Billing — your access continues through the end of your paid period.
+          </p>
+          <p>
+            <strong className="text-gray-500">Cancellation:</strong> Cancel your subscription at any time through your account settings. No cancellation fees apply.
+            After cancellation, you retain access to paid features until the end of your current billing period, then revert to the Free plan.
+          </p>
+        </div>
         <p className="text-gray-700 text-[10px] mt-2">
-          Payments processed securely by Stripe. Questions? <a href="mailto:support@archeforge.com" className="text-orange-400 hover:underline">support@archeforge.com</a>
+          Payments processed securely by Stripe. By subscribing, you agree to our <a href="/terms" className="text-orange-400 hover:underline">Terms of Service</a> and <a href="/privacy" className="text-orange-400 hover:underline">Privacy Policy</a>. Questions? <a href="mailto:support@archeforge.com" className="text-orange-400 hover:underline">support@archeforge.com</a>
         </p>
       </div>
     </div>

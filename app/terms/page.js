@@ -85,9 +85,62 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 5 */}
+          {/* Section 5 - Subscriptions */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">5. User Content</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">5. Subscriptions, Billing & Cancellation</h2>
+            <p className="text-gray-300 leading-relaxed">
+              SoulPrint offers both free and paid subscription plans. By subscribing to a paid plan, you agree to the following:
+            </p>
+            
+            <h3 className="text-lg font-medium text-white mt-4 mb-2">5.1 Auto-Renewal</h3>
+            <p className="text-gray-300 leading-relaxed">
+              <strong className="text-orange-400">All paid subscriptions automatically renew</strong> at the end of each billing cycle 
+              (monthly or annually, depending on your selected plan) at the then-current subscription rate, 
+              unless you cancel before the renewal date. You authorize ArcheForge LLC to charge your payment method 
+              on file for recurring subscription fees until you cancel.
+            </p>
+            
+            <h3 className="text-lg font-medium text-white mt-4 mb-2">5.2 Billing</h3>
+            <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
+              <li>Monthly subscriptions are billed every 30 days from your initial subscription date</li>
+              <li>Annual subscriptions are billed once per year from your initial subscription date</li>
+              <li>All prices are listed in U.S. Dollars (USD)</li>
+              <li>Payments are processed securely through Stripe</li>
+              <li>You are responsible for keeping your payment information current</li>
+            </ul>
+            
+            <h3 className="text-lg font-medium text-white mt-4 mb-2">5.3 How to Cancel</h3>
+            <p className="text-gray-300 leading-relaxed">
+              You may cancel your subscription at any time through <strong>Settings → Billing</strong> in your SoulPrint account. 
+              Cancellation takes effect at the end of your current billing period — you will retain access to paid features 
+              until that date. No partial refunds are issued for unused time within a billing period.
+            </p>
+            
+            <h3 className="text-lg font-medium text-white mt-4 mb-2">5.4 Free Tier</h3>
+            <p className="text-gray-300 leading-relaxed">
+              The Free plan provides limited access to SoulPrint features at no cost. Free plan users are not charged 
+              and no payment method is required. Usage limits apply as described on the pricing page.
+            </p>
+            
+            <h3 className="text-lg font-medium text-white mt-4 mb-2">5.5 Price Changes</h3>
+            <p className="text-gray-300 leading-relaxed">
+              We may change subscription prices from time to time. Any price changes will be communicated to you 
+              via email at least 30 days before they take effect. Your continued use of the Service after a price 
+              change constitutes acceptance of the new price.
+            </p>
+            
+            <h3 className="text-lg font-medium text-white mt-4 mb-2">5.6 Refunds</h3>
+            <p className="text-gray-300 leading-relaxed">
+              Subscription fees are generally non-refundable. However, if you believe you were charged in error 
+              or have extenuating circumstances, please contact us at{' '}
+              <a href="mailto:support@archeforge.com" className="text-orange-500 hover:text-orange-400 underline">support@archeforge.com</a>{' '}
+              and we will review your request on a case-by-case basis.
+            </p>
+          </section>
+
+          {/* Section 6 */}
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-3">6. User Content</h2>
             <p className="text-gray-300 leading-relaxed">
               You retain ownership of the content you submit ("User Content").
             </p>
@@ -107,9 +160,9 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 6 */}
+          {/* Section 7 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">6. Feedback & Testimonials</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">7. Feedback & Testimonials</h2>
             <p className="text-gray-300 leading-relaxed">
               By submitting feedback, reviews, suggestions, or testimonials through the Service, you grant ArcheForge LLC 
               a perpetual, worldwide, royalty-free license to use, reproduce, modify, and display such content for 
@@ -132,9 +185,9 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 7 */}
+          {/* Section 8 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">7. AI Output Disclaimer</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">8. AI Output Disclaimer</h2>
             <p className="text-gray-300 leading-relaxed">
               SoulPrint generates responses using artificial intelligence.
             </p>
@@ -151,7 +204,7 @@ export default function TermsOfServicePage() {
 
           {/* Section 8 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">8. Prohibited Uses</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">9. Prohibited Uses</h2>
             <p className="text-gray-300 leading-relaxed">You agree not to:</p>
             <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
               <li>Use the Service for unlawful purposes</li>
@@ -166,7 +219,7 @@ export default function TermsOfServicePage() {
 
           {/* Section 9 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">9. Intellectual Property</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">10. Intellectual Property</h2>
             <p className="text-gray-300 leading-relaxed">
               All platform architecture, design, trademarks, and system features remain the exclusive property of ArcheForge LLC.
             </p>
@@ -178,9 +231,9 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 10 */}
+          {/* Section 11 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">10. Limitation of Liability</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">11. Limitation of Liability</h2>
             <p className="text-gray-300 leading-relaxed">
               To the maximum extent permitted by law, ArcheForge LLC shall not be liable for:
             </p>
@@ -195,9 +248,9 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 11 */}
+          {/* Section 12 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">11. Termination</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">12. Termination</h2>
             <p className="text-gray-300 leading-relaxed">
               We may suspend or terminate access at any time, with or without notice.
             </p>
@@ -206,17 +259,17 @@ export default function TermsOfServicePage() {
             </p>
           </section>
 
-          {/* Section 12 */}
+          {/* Section 13 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">12. Changes to Terms</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">13. Changes to Terms</h2>
             <p className="text-gray-300 leading-relaxed">
               We may update these Terms periodically. Continued use constitutes acceptance of the updated Terms.
             </p>
           </section>
 
-          {/* Section 13 */}
+          {/* Section 14 */}
           <section>
-            <h2 className="text-xl font-semibold text-white mb-3">13. Governing Law</h2>
+            <h2 className="text-xl font-semibold text-white mb-3">14. Governing Law</h2>
             <p className="text-gray-300 leading-relaxed">
               These Terms are governed by the laws of the State of Maryland, United States.
             </p>

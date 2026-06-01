@@ -261,6 +261,9 @@ export function TrialEndPrompt({ reason, graceMessage }) {
             >
               View Plans & Subscribe
             </a>
+            <p className="text-[10px] text-gray-600 mt-1 text-center">
+              Paid plans auto-renew until canceled. Cancel anytime from Settings → Billing.
+            </p>
             <a 
               href="/pricing#free" 
               className="block w-full px-6 py-2.5 rounded-lg bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-medium text-sm transition-colors"
