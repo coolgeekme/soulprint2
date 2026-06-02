@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """
-Backend Testing for SoulPrint Engine - Composio Multi-Account Routing & edit_image Safeguard
-Tests two new features:
-1. Composio Multi-Account Routing (resolveAccountSelection, buildComposioToolDefs, describeAvailableAccounts)
-2. edit_image Emotional Conversation Safeguard (isConversationalMessage detection)
+Backend Testing for SoulPrint Engine - Media Generation Strict Gating
+Tests the strict gating implementation that prevents media generation when Create mode (mediaGenMode) is OFF.
+
+Test Focus:
+1. Create mode OFF - Image requests should NOT trigger media events
+2. Create mode OFF - Video requests should NOT trigger media events
+3. Create mode OFF - Music requests should NOT trigger media events
+4. Normal chat works with Create mode OFF
+5. Normal chat works with Create mode ON (no media keywords)
+6. Health check
 """
 
 import requests
 import json
 import os
 import sys
+import time
 
 # Get base URL from environment
 BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'http://localhost:3000')
@@ -63,361 +70,50 @@ def login():
         print_fail(f"Login error: {str(e)}")
         return None
 
-# ============================================================
-# FEATURE 1: Composio Multi-Account Routing Tests
-# ============================================================
-
-def test_composio_resolve_account_selection():
-    """
-    Test resolveAccountSelection logic with mock data
-    This function is in /app/lib/handlers/composio.js
-    We'll test the logic by examining the code behavior
-    """
-    print_test("\n=== FEATURE 1: Composio Multi-Account Routing ===")
-    print_test("Test 1: resolveAccountSelection logic verification")
-    
-    # Since this is a JavaScript function, we'll test the API endpoints that use it
-    # The logic should be:
-    # 1. If single account, return that account
-    # 2. If multiple accounts, match by alias/displayName (partial, case-insensitive)
-    # 3. If numeric index (1-based), return accounts[idx-1]
-    # 4. Default to first account
-    
-    print_info("Testing resolveAccountSelection logic patterns:")
-    print_info("  Pattern 1: Multiple accounts with alias match (e.g., 'archeforge' matches 'ben@archeforge.com')")
-    print_info("  Pattern 2: Single account with null selection should return that account")
-    print_info("  Pattern 3: Numeric index '2' should return second account (1-based indexing)")
-    
-    # We can't directly test the JS function, but we can verify the logic is correct
-    # by checking if the function exists and is exported
+def parse_ndjson_stream(response):
+    """Parse NDJSON stream response"""
+    events = []
     try:
-        with open('/app/lib/handlers/composio.js', 'r') as f:
-            content = f.read()
-            
-            # Check if resolveAccountSelection function exists
-            if 'function resolveAccountSelection' in content:
-                print_pass("resolveAccountSelection function exists in composio.js")
-            else:
-                print_fail("resolveAccountSelection function not found")
-                return False
-            
-            # Check key logic patterns
-            checks = [
-                ('accounts.length === 1', 'Single account check'),
-                ('toLowerCase()', 'Case-insensitive matching'),
-                ('includes(sel)', 'Partial match support'),
-                ('parseInt(sel, 10)', 'Numeric index parsing'),
-                ('idx >= 1 && idx <= accounts.length', '1-based index validation'),
-                ('accounts[idx - 1]', '1-based to 0-based conversion'),
-            ]
-            
-            all_passed = True
-            for pattern, description in checks:
-                if pattern in content:
-                    print_pass(f"  ✓ {description}: '{pattern}' found")
-                else:
-                    print_fail(f"  ✗ {description}: '{pattern}' not found")
-                    all_passed = False
-            
-            return all_passed
-            
+        for line in response.iter_lines():
+            if line:
+                try:
+                    # Decode and parse JSON line
+                    line_str = line.decode('utf-8').strip()
+                    if line_str:
+                        event = json.loads(line_str)
+                        events.append(event)
+                except json.JSONDecodeError as e:
+                    print_info(f"Failed to parse line: {line_str[:100]}")
+                except Exception as e:
+                    print_info(f"Error parsing line: {str(e)}")
     except Exception as e:
-        print_fail(f"Error reading composio.js: {str(e)}")
+        print_fail(f"Error reading stream: {str(e)}")
+    return events
+
+def test_health_check():
+    """Test 6: Health check"""
+    print_test("\n=== Test 6: Health Check ===")
+    try:
+        response = requests.get(f"{API_URL}/health", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'ok':
+                print_pass("Health check passed - API is healthy")
+                return True
+            else:
+                print_fail(f"Health check returned unexpected status: {data}")
+                return False
+        else:
+            print_fail(f"Health check failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print_fail(f"Health check error: {str(e)}")
         return False
 
-def test_composio_build_tool_defs():
-    """
-    Test buildComposioToolDefs adds account parameter for multi-account scenarios
-    """
-    print_test("\nTest 2: buildComposioToolDefs account parameter injection")
-    
-    try:
-        with open('/app/lib/handlers/composio.js', 'r') as f:
-            content = f.read()
-            
-            # Check if buildComposioToolDefs function exists
-            if 'function buildComposioToolDefs' not in content:
-                print_fail("buildComposioToolDefs function not found")
-                return False
-            
-            print_pass("buildComposioToolDefs function exists")
-            
-            # Check for addAccountParam helper function
-            if 'const addAccountParam = (appKey, properties)' in content:
-                print_pass("  ✓ addAccountParam helper function exists")
-            else:
-                print_fail("  ✗ addAccountParam helper function not found")
-                return False
-            
-            # Check for multi-account detection
-            if 'accounts.length > 1' in content:
-                print_pass("  ✓ Multi-account detection logic present")
-            else:
-                print_fail("  ✗ Multi-account detection logic missing")
-                return False
-            
-            # Check for account parameter addition
-            if 'properties.account = {' in content:
-                print_pass("  ✓ Account parameter injection logic present")
-            else:
-                print_fail("  ✗ Account parameter injection logic missing")
-                return False
-            
-            # Check for describeAvailableAccounts usage
-            if 'describeAvailableAccounts(accounts)' in content:
-                print_pass("  ✓ describeAvailableAccounts integration present")
-            else:
-                print_fail("  ✗ describeAvailableAccounts integration missing")
-                return False
-            
-            # Check for account parameter description
-            if 'Which account to use' in content or 'which account' in content.lower():
-                print_pass("  ✓ Account parameter description present")
-            else:
-                print_fail("  ✗ Account parameter description missing")
-                return False
-            
-            return True
-            
-    except Exception as e:
-        print_fail(f"Error reading composio.js: {str(e)}")
-        return False
-
-def test_composio_describe_available_accounts():
-    """
-    Test describeAvailableAccounts formats account list correctly
-    """
-    print_test("\nTest 3: describeAvailableAccounts formatting")
-    
-    try:
-        with open('/app/lib/handlers/composio.js', 'r') as f:
-            content = f.read()
-            
-            # Check if describeAvailableAccounts function exists
-            if 'function describeAvailableAccounts' not in content:
-                print_fail("describeAvailableAccounts function not found")
-                return False
-            
-            print_pass("describeAvailableAccounts function exists")
-            
-            # Check for single account early return
-            if 'accounts.length <= 1' in content and "return ''" in content:
-                print_pass("  ✓ Single account early return (returns empty string)")
-            else:
-                print_fail("  ✗ Single account early return logic missing")
-                return False
-            
-            # Check for account mapping with index
-            if 'accounts.map((acc, i)' in content:
-                print_pass("  ✓ Account mapping with index present")
-            else:
-                print_fail("  ✗ Account mapping with index missing")
-                return False
-            
-            # Check for label extraction (alias or displayName or id)
-            if 'acc.alias' in content and 'acc.displayName' in content and 'acc.id' in content:
-                print_pass("  ✓ Label extraction logic (alias/displayName/id) present")
-            else:
-                print_fail("  ✗ Label extraction logic incomplete")
-                return False
-            
-            # Check for 1-based numbering
-            if 'i + 1' in content:
-                print_pass("  ✓ 1-based numbering (i + 1) present")
-            else:
-                print_fail("  ✗ 1-based numbering missing")
-                return False
-            
-            return True
-            
-    except Exception as e:
-        print_fail(f"Error reading composio.js: {str(e)}")
-        return False
-
-def test_composio_handle_tool_call():
-    """
-    Test handleComposioToolCall uses resolveAccountSelection and includes account_used in response
-    """
-    print_test("\nTest 4: handleComposioToolCall account resolution and response")
-    
-    try:
-        with open('/app/lib/handlers/composio.js', 'r') as f:
-            content = f.read()
-            
-            # Check if handleComposioToolCall function exists
-            if 'async function handleComposioToolCall' not in content:
-                print_fail("handleComposioToolCall function not found")
-                return False
-            
-            print_pass("handleComposioToolCall function exists")
-            
-            # Check for resolveAccountSelection usage
-            resolve_calls = content.count('resolveAccountSelection(')
-            if resolve_calls >= 8:  # Should be called for each tool (Gmail, Calendar, Slack, GitHub)
-                print_pass(f"  ✓ resolveAccountSelection called {resolve_calls} times (for different tools)")
-            else:
-                print_fail(f"  ✗ resolveAccountSelection called only {resolve_calls} times (expected >= 8)")
-                return False
-            
-            # Check for account_used in responses
-            account_used_count = content.count('account_used:')
-            if account_used_count >= 8:
-                print_pass(f"  ✓ account_used field present in {account_used_count} tool responses")
-            else:
-                print_fail(f"  ✗ account_used field only in {account_used_count} responses (expected >= 8)")
-                return False
-            
-            # Check for console logging of account selection
-            if 'Using Gmail account:' in content or 'Using Calendar account:' in content:
-                print_pass("  ✓ Account selection logging present")
-            else:
-                print_fail("  ✗ Account selection logging missing")
-                return False
-            
-            return True
-            
-    except Exception as e:
-        print_fail(f"Error reading composio.js: {str(e)}")
-        return False
-
-# ============================================================
-# FEATURE 2: edit_image Emotional Conversation Safeguard Tests
-# ============================================================
-
-def test_edit_image_safeguard_exists():
-    """
-    Test that isConversationalMessage detection exists in chat-stream.js
-    """
-    print_test("\n=== FEATURE 2: edit_image Emotional Conversation Safeguard ===")
-    print_test("Test 5: isConversationalMessage detection exists")
-    
-    try:
-        with open('/app/lib/handlers/chat-stream.js', 'r') as f:
-            content = f.read()
-            
-            # Check if isConversationalMessage detection exists
-            if 'const isConversationalMessage = (' not in content:
-                print_fail("isConversationalMessage detection not found")
-                return False
-            
-            print_pass("isConversationalMessage detection exists")
-            
-            # Check for question detection patterns
-            patterns = [
-                ('why|what|how|when|where|who', 'Question word detection'),
-                ("content.trim().endsWith('?')", 'Question mark detection'),
-                ('content.trim().length < 80', 'Short message detection'),
-                ('feel|love|miss|hate|afraid|scared|worried|happy|sad|angry', 'Emotional keyword detection'),
-                ('who are you', 'Identity/philosophical question detection'),
-            ]
-            
-            all_passed = True
-            for pattern, description in patterns:
-                if pattern in content:
-                    print_pass(f"  ✓ {description}")
-                else:
-                    print_fail(f"  ✗ {description} missing")
-                    all_passed = False
-            
-            return all_passed
-            
-    except Exception as e:
-        print_fail(f"Error reading chat-stream.js: {str(e)}")
-        return False
-
-def test_edit_image_safeguard_rejection():
-    """
-    Test that edit_image tool returns error for conversational messages
-    """
-    print_test("\nTest 6: edit_image safeguard rejection logic")
-    
-    try:
-        with open('/app/lib/handlers/chat-stream.js', 'r') as f:
-            content = f.read()
-            
-            # Check for rejection logic
-            if 'if (isConversationalMessage)' not in content:
-                print_fail("Rejection logic not found")
-                return False
-            
-            print_pass("Rejection logic exists")
-            
-            # Check for rejection message
-            if 'REJECTED — user message is conversational/emotional' in content:
-                print_pass("  ✓ Rejection logging present")
-            else:
-                print_fail("  ✗ Rejection logging missing")
-                return False
-            
-            # Check for error response
-            if 'success: false' in content and 'error:' in content:
-                print_pass("  ✓ Error response structure present")
-            else:
-                print_fail("  ✗ Error response structure missing")
-                return False
-            
-            # Check for guidance to respond with text only
-            if 'respond with' in content.lower() and 'text only' in content.lower():
-                print_pass("  ✓ Text-only response guidance present")
-            else:
-                print_fail("  ✗ Text-only response guidance missing")
-                return False
-            
-            return True
-            
-    except Exception as e:
-        print_fail(f"Error reading chat-stream.js: {str(e)}")
-        return False
-
-def test_edit_image_tool_description():
-    """
-    Test that edit_image tool description mentions emotional/personal conversations
-    """
-    print_test("\nTest 7: edit_image tool description update")
-    
-    try:
-        with open('/app/lib/handlers/chat-stream.js', 'r') as f:
-            content = f.read()
-            
-            # Find the edit_image tool definition
-            if "name: 'edit_image'" not in content:
-                print_fail("edit_image tool definition not found")
-                return False
-            
-            print_pass("edit_image tool definition found")
-            
-            # Check for emotional/personal conversation guidance in description
-            # The description should be near the tool definition
-            tool_section_start = content.find("name: 'edit_image'")
-            tool_section = content[max(0, tool_section_start - 2000):tool_section_start + 2000]
-            
-            checks = [
-                ('emotional', 'Emotional conversation mention'),
-                ('personal', 'Personal conversation mention'),
-                ('conversational', 'Conversational message mention'),
-                ('Do NOT use this tool', 'Explicit prohibition guidance'),
-                ('respond', 'Response guidance'),
-            ]
-            
-            all_passed = True
-            for keyword, description in checks:
-                if keyword.lower() in tool_section.lower():
-                    print_pass(f"  ✓ {description}: '{keyword}' found in tool description")
-                else:
-                    print_fail(f"  ✗ {description}: '{keyword}' not found in tool description")
-                    all_passed = False
-            
-            return all_passed
-            
-    except Exception as e:
-        print_fail(f"Error reading chat-stream.js: {str(e)}")
-        return False
-
-def test_normal_chat_no_regression(token):
-    """
-    Test that normal chat still works without regression
-    """
-    print_test("\nTest 8: Normal chat works without regression")
+def test_create_mode_off_image(token):
+    """Test 1: Create mode OFF - Image request should NOT trigger media events"""
+    print_test("\n=== Test 1: Create Mode OFF - Image Request ===")
+    print_info("Testing: 'Create a beautiful sunset image over the ocean' with mediaGenMode=false")
     
     try:
         response = requests.post(
@@ -427,9 +123,10 @@ def test_normal_chat_no_regression(token):
                 "Content-Type": "application/json"
             },
             json={
-                "content": "hello",
-                "conversationId": "test-composio-" + str(os.urandom(4).hex()),
-                "model": "gpt-4o-mini"
+                "content": "Create a beautiful sunset image over the ocean",
+                "conversationId": "test-strict-gating-off",
+                "model": "gpt-4o-mini",
+                "mediaGenMode": False
             },
             timeout=30,
             stream=True
@@ -441,34 +138,300 @@ def test_normal_chat_no_regression(token):
         
         print_pass("Chat stream endpoint accessible")
         
-        # Check for NDJSON format
-        events = []
-        for line in response.iter_lines():
-            if line:
-                try:
-                    event = json.loads(line.decode('utf-8'))
-                    events.append(event)
-                except:
-                    pass
+        # Parse NDJSON events
+        events = parse_ndjson_stream(response)
+        print_info(f"Received {len(events)} events")
         
-        if len(events) > 0:
-            print_pass(f"  ✓ Received {len(events)} NDJSON events")
-        else:
-            print_fail("  ✗ No events received")
-            return False
-        
-        # Check for expected event types
+        # Check event types
         event_types = [e.get('type') for e in events]
-        if 'meta' in event_types or 'delta' in event_types or 'done' in event_types:
-            print_pass(f"  ✓ Expected event types present: {set(event_types)}")
+        print_info(f"Event types: {set(event_types)}")
+        
+        # Verify NO media events
+        media_events = ['media_confirmation', 'video_task', 'image', 'generating_visual']
+        found_media_events = [et for et in event_types if et in media_events]
+        
+        if found_media_events:
+            print_fail(f"Found media events when Create mode is OFF: {found_media_events}")
+            return False
         else:
-            print_fail(f"  ✗ Unexpected event types: {set(event_types)}")
+            print_pass("No media events found (correct behavior)")
+        
+        # Verify text response exists (can be delta or content events)
+        delta_events = [e for e in events if e.get('type') == 'delta']
+        content_events = [e for e in events if e.get('type') == 'content']
+        
+        if delta_events:
+            print_pass(f"Found {len(delta_events)} delta events with text content")
+            # Check if text mentions Create mode
+            text_content = ''.join([e.get('content', '') for e in delta_events])
+            if 'create' in text_content.lower() or 'toggle' in text_content.lower() or 'enable' in text_content.lower():
+                print_pass("AI response mentions enabling Create mode")
+        elif content_events:
+            print_pass(f"Found {len(content_events)} content events with text")
+            # Check content
+            text_content = ''.join([e.get('content', '') for e in content_events])
+            print_info(f"Content preview: {text_content[:200]}")
+        else:
+            print_fail("No delta or content events found - expected text response")
             return False
         
         return True
         
     except Exception as e:
-        print_fail(f"Error testing normal chat: {str(e)}")
+        print_fail(f"Error: {str(e)}")
+        return False
+
+def test_create_mode_off_video(token):
+    """Test 2: Create mode OFF - Video request should NOT trigger media events"""
+    print_test("\n=== Test 2: Create Mode OFF - Video Request ===")
+    print_info("Testing: 'Make a video of a dancing cat' with mediaGenMode=false")
+    
+    try:
+        response = requests.post(
+            f"{API_URL}/chat/stream",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "content": "Make a video of a dancing cat",
+                "conversationId": "test-strict-gating-off-video",
+                "model": "gpt-4o-mini",
+                "mediaGenMode": False
+            },
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code != 200:
+            print_fail(f"Chat stream failed: {response.status_code}")
+            return False
+        
+        print_pass("Chat stream endpoint accessible")
+        
+        # Parse NDJSON events
+        events = parse_ndjson_stream(response)
+        print_info(f"Received {len(events)} events")
+        
+        # Check event types
+        event_types = [e.get('type') for e in events]
+        print_info(f"Event types: {set(event_types)}")
+        
+        # Verify NO media events
+        media_events = ['media_confirmation', 'video_task', 'image', 'generating_visual']
+        found_media_events = [et for et in event_types if et in media_events]
+        
+        if found_media_events:
+            print_fail(f"Found media events when Create mode is OFF: {found_media_events}")
+            return False
+        else:
+            print_pass("No media events found (correct behavior)")
+        
+        # Verify text response exists
+        delta_events = [e for e in events if e.get('type') == 'delta']
+        if delta_events:
+            print_pass(f"Found {len(delta_events)} delta events with text content")
+        else:
+            print_fail("No delta events found - expected text response")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print_fail(f"Error: {str(e)}")
+        return False
+
+def test_create_mode_off_music(token):
+    """Test 3: Create mode OFF - Music request should NOT trigger media events"""
+    print_test("\n=== Test 3: Create Mode OFF - Music Request ===")
+    print_info("Testing: 'Write me a song about summer vibes' with mediaGenMode=false")
+    
+    try:
+        response = requests.post(
+            f"{API_URL}/chat/stream",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "content": "Write me a song about summer vibes",
+                "conversationId": "test-strict-gating-off-music",
+                "model": "gpt-4o-mini",
+                "mediaGenMode": False
+            },
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code != 200:
+            print_fail(f"Chat stream failed: {response.status_code}")
+            return False
+        
+        print_pass("Chat stream endpoint accessible")
+        
+        # Parse NDJSON events
+        events = parse_ndjson_stream(response)
+        print_info(f"Received {len(events)} events")
+        
+        # Check event types
+        event_types = [e.get('type') for e in events]
+        print_info(f"Event types: {set(event_types)}")
+        
+        # Verify NO music_task events
+        if 'music_task' in event_types:
+            print_fail("Found music_task event when Create mode is OFF")
+            return False
+        else:
+            print_pass("No music_task events found (correct behavior)")
+        
+        # Verify text response exists
+        delta_events = [e for e in events if e.get('type') == 'delta']
+        if delta_events:
+            print_pass(f"Found {len(delta_events)} delta events with text content")
+        else:
+            print_fail("No delta events found - expected text response")
+            return False
+        
+        return True
+        
+    except Exception as e:
+        print_fail(f"Error: {str(e)}")
+        return False
+
+def test_normal_chat_create_off(token):
+    """Test 4: Normal chat works with Create mode OFF"""
+    print_test("\n=== Test 4: Normal Chat with Create Mode OFF ===")
+    print_info("Testing: 'Tell me about the history of photography' with mediaGenMode=false")
+    
+    try:
+        response = requests.post(
+            f"{API_URL}/chat/stream",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "content": "Tell me about the history of photography",
+                "conversationId": "test-normal-chat",
+                "model": "gpt-4o-mini",
+                "mediaGenMode": False
+            },
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code != 200:
+            print_fail(f"Chat stream failed: {response.status_code}")
+            return False
+        
+        print_pass("Chat stream endpoint accessible")
+        
+        # Parse NDJSON events
+        events = parse_ndjson_stream(response)
+        print_info(f"Received {len(events)} events")
+        
+        # Check event types
+        event_types = [e.get('type') for e in events]
+        print_info(f"Event types: {set(event_types)}")
+        
+        # Verify normal text response
+        delta_events = [e for e in events if e.get('type') == 'delta']
+        if delta_events:
+            print_pass(f"Found {len(delta_events)} delta events with text content")
+        else:
+            print_fail("No delta events found")
+            return False
+        
+        # Verify done event
+        done_events = [e for e in events if e.get('type') == 'done']
+        if done_events:
+            print_pass("Found done event")
+        else:
+            print_fail("No done event found")
+            return False
+        
+        # Verify NO media events
+        media_events = ['media_confirmation', 'video_task', 'image', 'generating_visual', 'music_task']
+        found_media_events = [et for et in event_types if et in media_events]
+        
+        if found_media_events:
+            print_fail(f"Found unexpected media events: {found_media_events}")
+            return False
+        else:
+            print_pass("No media events found (correct behavior)")
+        
+        return True
+        
+    except Exception as e:
+        print_fail(f"Error: {str(e)}")
+        return False
+
+def test_normal_chat_create_on(token):
+    """Test 5: Normal chat works with Create mode ON (no media keywords)"""
+    print_test("\n=== Test 5: Normal Chat with Create Mode ON ===")
+    print_info("Testing: 'What is the capital of France?' with mediaGenMode=true")
+    
+    try:
+        response = requests.post(
+            f"{API_URL}/chat/stream",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "content": "What is the capital of France?",
+                "conversationId": "test-normal-chat-on",
+                "model": "gpt-4o-mini",
+                "mediaGenMode": True
+            },
+            timeout=30,
+            stream=True
+        )
+        
+        if response.status_code != 200:
+            print_fail(f"Chat stream failed: {response.status_code}")
+            return False
+        
+        print_pass("Chat stream endpoint accessible")
+        
+        # Parse NDJSON events
+        events = parse_ndjson_stream(response)
+        print_info(f"Received {len(events)} events")
+        
+        # Check event types
+        event_types = [e.get('type') for e in events]
+        print_info(f"Event types: {set(event_types)}")
+        
+        # Verify normal text response
+        delta_events = [e for e in events if e.get('type') == 'delta']
+        if delta_events:
+            print_pass(f"Found {len(delta_events)} delta events with text content")
+        else:
+            print_fail("No delta events found")
+            return False
+        
+        # Verify done event
+        done_events = [e for e in events if e.get('type') == 'done']
+        if done_events:
+            print_pass("Found done event")
+        else:
+            print_fail("No done event found")
+            return False
+        
+        # Verify NO media events (since no media keywords in message)
+        media_events = ['media_confirmation', 'video_task', 'image', 'generating_visual', 'music_task']
+        found_media_events = [et for et in event_types if et in media_events]
+        
+        if found_media_events:
+            print_fail(f"Found unexpected media events for non-media message: {found_media_events}")
+            return False
+        else:
+            print_pass("No media events found for non-media message (correct behavior)")
+        
+        return True
+        
+    except Exception as e:
+        print_fail(f"Error: {str(e)}")
         return False
 
 # ============================================================
@@ -477,8 +440,12 @@ def test_normal_chat_no_regression(token):
 
 def main():
     print("\n" + "="*70)
-    print("SoulPrint Engine - Composio Multi-Account & edit_image Safeguard Tests")
+    print("SoulPrint Engine - Media Generation Strict Gating Tests")
     print("="*70)
+    
+    # Test 6 first (health check - no auth needed)
+    results = []
+    results.append(("Health Check", test_health_check()))
     
     # Authenticate
     token = login()
@@ -486,20 +453,12 @@ def main():
         print_fail("\n❌ Authentication failed. Cannot proceed with tests.")
         sys.exit(1)
     
-    # Track results
-    results = []
-    
-    # Feature 1: Composio Multi-Account Routing
-    results.append(("resolveAccountSelection logic", test_composio_resolve_account_selection()))
-    results.append(("buildComposioToolDefs account param", test_composio_build_tool_defs()))
-    results.append(("describeAvailableAccounts formatting", test_composio_describe_available_accounts()))
-    results.append(("handleComposioToolCall account resolution", test_composio_handle_tool_call()))
-    
-    # Feature 2: edit_image Emotional Conversation Safeguard
-    results.append(("isConversationalMessage detection", test_edit_image_safeguard_exists()))
-    results.append(("edit_image safeguard rejection", test_edit_image_safeguard_rejection()))
-    results.append(("edit_image tool description", test_edit_image_tool_description()))
-    results.append(("Normal chat regression test", test_normal_chat_no_regression(token)))
+    # Run all tests
+    results.append(("Create Mode OFF - Image", test_create_mode_off_image(token)))
+    results.append(("Create Mode OFF - Video", test_create_mode_off_video(token)))
+    results.append(("Create Mode OFF - Music", test_create_mode_off_music(token)))
+    results.append(("Normal Chat - Create OFF", test_normal_chat_create_off(token)))
+    results.append(("Normal Chat - Create ON", test_normal_chat_create_on(token)))
     
     # Summary
     print("\n" + "="*70)
@@ -519,6 +478,10 @@ def main():
     
     if passed == total:
         print(f"{Colors.GREEN}🎉 ALL TESTS PASSED!{Colors.END}")
+        print(f"\n{Colors.GREEN}✅ Media Generation Strict Gating is working correctly:{Colors.END}")
+        print(f"  - Create mode OFF prevents ALL media generation (image/video/music)")
+        print(f"  - Normal chat works correctly with Create mode OFF")
+        print(f"  - Normal chat works correctly with Create mode ON (no false triggers)")
         sys.exit(0)
     else:
         print(f"{Colors.RED}⚠️  SOME TESTS FAILED{Colors.END}")
