@@ -3492,3 +3492,133 @@ backend:
         agent: "testing"
         comment: "CONVERSION BUNDLE TESTING COMPLETE: All 2/2 conversion bundle tests passed (100% success rate). ✅ TEST 7 (Enforcement Block Structure): GET /api/pricing/enforcement returns proper structure with all required fields (cohort, enforcement_active, effective_plan, effective_features). User testchat@example.com is OG cohort with enforcement_active=true (grace period expired on May 31, 2026). Enforcement status structure verified correct. ✅ TEST 8 (Usage Warning System): GET /api/pricing/enforcement/usage returns proper usage summary structure with usage field containing all categories (standard_messages, premium_messages, images, videos, pdfs, voice_minutes). Each category has used/limit/period fields. Current usage: standard_messages: 5 used (unlimited), images: 0/20 (0.0%), all other categories unlimited. Usage summary structure verified correct. The Conversion Bundle implementation is working correctly - enforcement blocks include proper metadata structure, usage summary endpoint returns complete data, and the system is ready to show usage warnings at 80% threshold and upgrade nudges on enforcement blocks. Authentication working with testchat@example.com/Test123456."
 
+
+  - task: "Imprints Marketplace - GET /api/imprints (Browse/Search)"
+    implemented: true
+    working: true
+    file: "lib/handlers/imprints.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented GET /api/imprints endpoint with auto-seed of 50 curated imprints across 5 categories (professional, creative, education, personality, lifestyle). Supports ?category, ?search, ?sort (popular/newest/name) query params. Returns imprints array and categories array with counts. Wired up in route.js."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: GET /api/imprints working perfectly. ✅ Public endpoint (no auth required) returns 200. ✅ Auto-seeding successful - found 50 imprints on first call. ✅ Response structure correct with 'imprints' array and 'categories' array. ✅ Categories include: professional (10), creative (10), education (10), personality (10), lifestyle (10). ✅ Imprint structure valid with all required fields: id, name, slug, icon, color, category, tags, short_description, description, rating_avg, rating_count, install_count, created_at. ✅ Query params working: ?category=creative returns 10 creative imprints, ?search=code returns 1 result, ?sort=newest returns sorted list. All comprehensive tests passed (100% success rate)."
+
+  - task: "Imprints Marketplace - GET /api/imprints/my (User's Installed)"
+    implemented: true
+    working: true
+    file: "lib/handlers/imprints.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented GET /api/imprints/my endpoint. Returns user's active default_imprint and project_imprints with full imprint data populated. Uses authenticate() for auth."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: GET /api/imprints/my working perfectly. ✅ Authentication required (Bearer token). ✅ Returns 200 with correct structure: default_imprint (null for fresh user) and project_imprints (empty array). ✅ After installation, correctly returns populated default_imprint with full imprint data including system_prompt, personality settings, interaction_rules, and sample_conversation. ✅ After uninstallation, correctly returns null for default_imprint. All comprehensive tests passed (100% success rate)."
+
+  - task: "Imprints Marketplace - POST /api/imprints/install (Activate Imprint)"
+    implemented: true
+    working: true
+    file: "lib/handlers/imprints.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented POST /api/imprints/install. Accepts imprint_id, usage_type (default/project), project_id. Deactivates existing default/project imprints before installing new one. Increments install_count."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: POST /api/imprints/install working perfectly. ✅ Authentication required (Bearer token). ✅ Accepts imprint_id and usage_type='default' in request body. ✅ Returns 200 with success: true, installation_id, imprint_name, and usage_type. ✅ Successfully installs imprint and increments install_count. ✅ Installation verified via GET /api/imprints/my - default_imprint is now populated with full imprint data. ✅ Deactivates existing default imprint before installing new one. All comprehensive tests passed (100% success rate)."
+
+  - task: "Imprints Marketplace - POST /api/imprints/uninstall (Remove Imprint)"
+    implemented: true
+    working: true
+    file: "lib/handlers/imprints.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented POST /api/imprints/uninstall. Accepts installation_id or usage_type+project_id to deactivate imprints."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: POST /api/imprints/uninstall working perfectly. ✅ Authentication required (Bearer token). ✅ Accepts usage_type='default' in request body. ✅ Returns 200 with success: true and deactivated count. ✅ Successfully deactivates default imprint. ✅ Uninstallation verified via GET /api/imprints/my - default_imprint is now null. All comprehensive tests passed (100% success rate)."
+
+  - task: "Imprints Marketplace - POST /api/imprints/generate (AI Generator)"
+    implemented: true
+    working: true
+    file: "lib/handlers/imprints.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented POST /api/imprints/generate using GPT-4o. Takes description, optional name, optional category. AI generates full persona with system_prompt, personality settings, interaction_rules, sample_conversation. Auto-installs as default. Uses OPENAI_API_KEY or EMERGENT_LLM_KEY."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: POST /api/imprints/generate working perfectly with OpenAI GPT-4o integration. ✅ Authentication required (Bearer token). ✅ Accepts description ('A witty British butler who helps with productivity and time management'), name ('Jeeves'), and category ('personality') in request body. ✅ Returns 200 with success: true, full imprint object, and message. ✅ OpenAI GPT-4o successfully generates complete imprint with all required fields: name, slug, category, description, instructions (system_prompt, personality, interaction_rules), sample_conversation. ✅ System prompt length: 820 chars (properly detailed). ✅ Processing time: ~8 seconds (expected for GPT-4o call). ✅ Auto-installs generated imprint as default. All comprehensive tests passed (100% success rate)."
+
+  - task: "Imprints Marketplace - POST /api/imprints/rate (Rating)"
+    implemented: true
+    working: true
+    file: "lib/handlers/imprints.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented POST /api/imprints/rate. Upserts user rating and recalculates average for the imprint."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: POST /api/imprints/rate working perfectly. ✅ Authentication required (Bearer token). ✅ Accepts imprint_id and rating (5) in request body. ✅ Returns 200 with success: true. ✅ Successfully upserts rating in imprint_ratings collection. ✅ Recalculates average rating for the imprint. All comprehensive tests passed (100% success rate)."
+
+  - task: "Imprints Marketplace - Chat System Integration (Active Imprint Injection)"
+    implemented: true
+    working: "NA"
+    file: "lib/handlers/chat-stream.js, lib/handlers/imprints.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Modified chat-stream.js to import getActiveImprint() and inject active imprint's system_prompt into the chat system prompt. Priority: Project imprint > Default imprint > none. Includes personality tone settings and interaction rules."
+      - working: "NA"
+        agent: "testing"
+        comment: "NOT TESTED: Chat system integration requires frontend testing to verify imprint injection into chat conversations. Backend endpoints (install/uninstall/my) are working correctly and properly manage imprint state. The getActiveImprint() function is implemented and ready for chat integration testing."
+
+metadata:
+  created_by: "main_agent"
+  version: "2.0"
+  test_sequence: 5
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Imprints Marketplace - GET /api/imprints (Browse/Search)"
+    - "Imprints Marketplace - GET /api/imprints/my (User's Installed)"
+    - "Imprints Marketplace - POST /api/imprints/install (Activate Imprint)"
+    - "Imprints Marketplace - POST /api/imprints/uninstall (Remove Imprint)"
+    - "Imprints Marketplace - POST /api/imprints/generate (AI Generator)"
+    - "Imprints Marketplace - POST /api/imprints/rate (Rating)"
+    - "Imprints Marketplace - Chat System Integration (Active Imprint Injection)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "New Imprints Marketplace Phase 1 has been implemented. Please test all 7 new backend tasks. Test credentials: testchat@example.com / Test123456. Login first at POST /api/auth/login. The GET /api/imprints endpoint auto-seeds 50 imprints on first call. For the generate endpoint, it calls OpenAI GPT-4o so test with a real description. All endpoints use Bearer token auth except GET /api/imprints and GET /api/imprints/:slug which are public."
+  - agent: "testing"
+    message: "IMPRINTS MARKETPLACE PHASE 1 BACKEND TESTING COMPLETE: All critical endpoints working perfectly with 100% success rate (8/8 tests passed). ✅ Authentication: testchat@example.com/Test123456 working correctly. ✅ GET /api/imprints (PUBLIC): Auto-seeding successful - 50 curated imprints across 5 categories (professional, creative, education, personality, lifestyle). Response structure correct with imprints array and categories array. Query params working (?category=creative, ?search=code, ?sort=newest). ✅ GET /api/imprints/:slug (PUBLIC): Returns full imprint details including system_prompt, personality settings, interaction_rules, and sample_conversation. ✅ GET /api/imprints/my (AUTH): Returns user's installed imprints (default_imprint + project_imprints). Correctly shows null for fresh users, populated after installation, null after uninstallation. ✅ POST /api/imprints/install (AUTH): Successfully installs imprints with proper validation. Returns installation_id, imprint_name, usage_type. Increments install_count. ✅ POST /api/imprints/uninstall (AUTH): Successfully deactivates imprints. Returns deactivated count. ✅ POST /api/imprints/rate (AUTH): Successfully upserts ratings and recalculates averages. ✅ POST /api/imprints/generate (AUTH, OpenAI GPT-4o): Successfully generates custom imprints via GPT-4o. Takes description ('A witty British butler who helps with productivity and time management'), name ('Jeeves'), category ('personality'). Returns complete imprint with system_prompt (820 chars), personality, interaction_rules, sample_conversation. Processing time ~8 seconds. Auto-installs as default. ✅ Database Collections: user_imprints and imprint_ratings collections created successfully. ✅ Data Persistence: All install/uninstall/rate operations properly persist to MongoDB. The complete Imprints Marketplace Phase 1 backend is fully functional and ready for frontend integration."

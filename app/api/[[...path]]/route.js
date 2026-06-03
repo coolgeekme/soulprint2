@@ -179,6 +179,17 @@ import {
   handleContactForm,
 } from '@/lib/handlers/media-intelligence';
 
+import {
+  handleGetImprints,
+  handleGetImprintBySlug,
+  handleGetMyImprints,
+  handleInstallImprint,
+  handleUninstallImprint,
+  handleGenerateImprint,
+  handleRateImprint,
+  handleSeedImprints,
+} from '@/lib/handlers/imprints';
+
 import { KIE_IMAGE_MODELS, KIE_CREDIT_TO_USD } from '@/lib/handlers/image-models';
 
 import {
@@ -636,6 +647,15 @@ export async function GET(request, { params }) {
       return handleDriveGet(request, fileId);
     }
 
+    // ── Imprints Marketplace GET routes ─────────────────────────────────
+    if (pathStr === 'imprints') return handleGetImprints(request);
+    if (pathStr === 'imprints/my') return handleGetMyImprints(request);
+    if (pathStr === 'imprints/seed') return handleSeedImprints();
+    if (pathStr.match(/^imprints\/[^\/]+$/) && pathArr[1] !== 'my' && pathArr[1] !== 'seed') {
+      const slug = pathArr[1];
+      return handleGetImprintBySlug(request, slug);
+    }
+
     return err('Not found', 404);
   } catch (error) {
     console.error('GET error:', error);
@@ -853,6 +873,13 @@ export async function POST(request, { params }) {
     // Viral invite routes
     if (pathStr === 'invites/validate') return handleValidateInviteCode(request);
     if (pathStr === 'invites/redeem') return handleRedeemInviteCode(request);
+
+    // ── Imprints Marketplace POST routes ────────────────────────────────
+    if (pathStr === 'imprints/install') return handleInstallImprint(request);
+    if (pathStr === 'imprints/uninstall') return handleUninstallImprint(request);
+    if (pathStr === 'imprints/generate') return handleGenerateImprint(request);
+    if (pathStr === 'imprints/rate') return handleRateImprint(request);
+    if (pathStr === 'imprints/seed') return handleSeedImprints();
 
     // Persona DNA
     if (pathStr === 'persona/override') {

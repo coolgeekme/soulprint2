@@ -76,6 +76,7 @@ import AttachmentPill from '@/components/chat/AttachmentPill';
 import { MediaConfirmCard, PromptReviewCard, ModelSelectionCard, VideoExtendConfirmCard, SourceMediaBanner } from '@/components/chat/MediaConfirmation';
 import { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS } from '@/components/chat/constants';
 import AssessmentNudge from '@/components/AssessmentNudge';
+import ImprintsMarketplace, { ActiveImprintBadge } from '@/components/chat/ImprintsMarketplace';
 
 
 export default function ChatPage() {
@@ -227,6 +228,7 @@ export default function ChatPage() {
   const [showMockupGenerator, setShowMockupGenerator] = useState(false);
   const [mockupDesign, setMockupDesign] = useState(null);
   const [isGeneratingMockup, setIsGeneratingMockup] = useState(false);
+  const [showImprintsMarketplace, setShowImprintsMarketplace] = useState(false);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const streamingMusicTaskRef = useRef(null);
@@ -3795,6 +3797,14 @@ export default function ChatPage() {
           >
             <GalleryHorizontal className="w-3.5 h-3.5" /> {!sidebarCollapsed && 'Media Gallery'}
           </button>
+          {/* Imprints Marketplace button */}
+          <button 
+            onClick={() => setShowImprintsMarketplace(true)}
+            className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-1.5'} w-full py-2 px-3 bg-gradient-to-r from-violet-500/10 to-pink-500/10 hover:from-violet-500/20 hover:to-pink-500/20 border border-violet-500/30 rounded-lg text-violet-400 hover:text-violet-300 text-xs transition-colors`}
+            title="Imprints Marketplace"
+          >
+            <Sparkles className="w-3.5 h-3.5" /> {!sidebarCollapsed && 'Imprints'}
+          </button>
           {/* Invite count */}
           {invitesRemaining !== null && (
             <div 
@@ -5534,6 +5544,14 @@ export default function ChatPage() {
       
       {/* Feedback Modal */}
       {showFeedbackModal && <SafeSection name="FeedbackModal"><FeedbackModal onClose={() => setShowFeedbackModal(false)} token={token} /></SafeSection>}
+      
+      {/* Imprints Marketplace Modal */}
+      <ImprintsMarketplace
+        open={showImprintsMarketplace}
+        onClose={() => setShowImprintsMarketplace(false)}
+        token={token}
+        projects={projects}
+      />
       
       {/* What's New Modal */}
       {showWhatsNew && (
