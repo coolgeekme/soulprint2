@@ -32,6 +32,7 @@ import { TabBar, ChatHeader } from './MobileNavigation';
 import MessageBubble from './MobileMessageBubble';
 import { ConversationItem, ThemeToggle, AttachmentPreview, RenameModal } from './MobileSmallComponents';
 import { ProfileView, AnnouncementsView, GalleryView } from './MobileViews';
+import ImprintsMarketplace from '@/components/chat/ImprintsMarketplace';
 import { MoreOptionsSheet, CreateOptionsSheet, ImageGenSheet, VideoGenSheet, FlyerGenSheet, CompareModeSheet, CompareResultsView, ImportSheet } from './MobileSheets';
 import SupportBubble from '@/components/chat/SupportBubble';
 
@@ -107,6 +108,7 @@ export default function MobileChat({
   const [renameTitle, setRenameTitle] = useState('');
   const [showGallery, setShowGallery] = useState(false);
   const [galleryItems, setGalleryItems] = useState([]);
+  const [showImprintsMarketplace, setShowImprintsMarketplace] = useState(false);
   const [showCompareMode, setShowCompareMode] = useState(false);
   const [compareModels, setCompareModels] = useState(['gpt-4o', 'claude-sonnet-4-5-20250929']);
   const [compareResponses, setCompareResponses] = useState(null);
@@ -4475,6 +4477,7 @@ export default function MobileChat({
         isOpen={showMoreOptions}
         onClose={() => setShowMoreOptions(false)}
         onSettings={onOpenSettings}
+        onImprints={() => setShowImprintsMarketplace(true)}
       />
 
       {/* Create Options Sheet (+ button) */}
@@ -4557,6 +4560,14 @@ export default function MobileChat({
           // Refresh gallery after regeneration
           setTimeout(() => loadGallery(), 2000);
         }}
+      />
+
+      {/* Imprints Marketplace Modal */}
+      <ImprintsMarketplace
+        open={showImprintsMarketplace}
+        onClose={() => setShowImprintsMarketplace(false)}
+        token={token}
+        projects={projects}
       />
 
       {/* Compare Mode Sheet */}

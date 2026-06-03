@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { SparklesIcon, AttachIcon } from '@/components/icons/SoulPrintIcons';
 
-const MoreOptionsSheet = ({ isOpen, onClose, onSettings }) => {
+const MoreOptionsSheet = ({ isOpen, onClose, onSettings, onImprints }) => {
   if (!isOpen) return null;
   
   return (
@@ -16,6 +16,18 @@ const MoreOptionsSheet = ({ isOpen, onClose, onSettings }) => {
         <div className="w-12 h-1 bg-gray-700 rounded-full mx-auto mb-6" />
         <h3 className="text-white font-semibold text-lg mb-4">Options</h3>
         <div className="space-y-2">
+          <button 
+            onClick={() => { onImprints?.(); onClose(); }}
+            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
+          >
+            <div className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-violet-400" />
+            </div>
+            <div>
+              <span className="text-white font-medium">Imprints</span>
+              <p className="text-gray-500 text-xs">Browse and create AI personas</p>
+            </div>
+          </button>
           <button 
             onClick={() => { window.location.href = '/'; onClose(); }}
             className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
