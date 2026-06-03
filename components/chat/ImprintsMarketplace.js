@@ -266,7 +266,7 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
 }
 
 // ── AI Imprint Generator Wizard ─────────────────────────────────────────────
-function ImprintGenerator({ token, onComplete, onBack }) {
+function ImprintGenerator({ token, onComplete, onBack, projects }) {
   const [step, setStep] = useState(1);
   const [description, setDescription] = useState('');
   const [name, setName] = useState('');
@@ -274,6 +274,9 @@ function ImprintGenerator({ token, onComplete, onBack }) {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [installType, setInstallType] = useState('default');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [installing, setInstalling] = useState(false);
 
   async function handleGenerate() {
     if (!description.trim()) return;
@@ -400,7 +403,7 @@ function ImprintGenerator({ token, onComplete, onBack }) {
           </div>
         )}
 
-        {/* Step 3: Result */}
+        {/* Step 3: Result — Choose how to activate */}
         {step === 3 && result && (
           <div className="space-y-4">
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex items-start gap-3">
@@ -451,9 +454,72 @@ function ImprintGenerator({ token, onComplete, onBack }) {
               </div>
             )}
 
-            <Button onClick={onComplete} className="w-full">
-              <Check className="w-4 h-4 mr-2" /> Start Chatting with Your Imprint
+            {/* Default / Project toggle for custom imprint */}
+            <div className="border border-border/60 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-semibold text-foreground">How would you like to use this imprint?</p>
+              <div className="flex gap-2 items-center">
+                <Button
+                  variant={installType === 'default' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setInstallType('default')}
+                  className="text-xs h-7"
+                >
+                  Default Persona
+                </Button>
+                <Button
+                  variant={installType === 'project' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setInstallType('project')}
+                  className="text-xs h-7"
+                >
+                  Project Only
+                </Button>
+              </div>
+              {installType === 'project' && (
+                <select
+                  value={selectedProjectId}
+                  onChange={e => setSelectedProjectId(e.target.value)}
+                  className="w-full text-xs bg-background border border-border rounded-md p-2"
+                >
+                  <option value="">Select a project...</option>
+                  {(projects || []).map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <Button
+              onClick={async () => {
+                if (!result.imprint) return;
+                setInstalling(true);
+                try {
+                  const body = { imprint_id: result.imprint.id, usage_type: installType };
+                  if (installType === 'project' && selectedProjectId) body.project_id = selectedProjectId;
+                  const res = await fetch('/api/imprints/install', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify(body),
+                  });
+                  if (res.ok) onComplete();
+                } catch (e) {
+                  console.error('Install failed:', e);
+                } finally {
+                  setInstalling(false);
+                }
+              }}
+              disabled={installing || (installType === 'project' && !selectedProjectId)}
+              className="w-full"
+            >
+              {installing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
+              Activate as {installType === 'default' ? 'Default Persona' : 'Project Persona'}
             </Button>
+            <button
+              onClick={onComplete}
+              className="w-full text-xs text-muted-foreground hover:text-foreground py-1 transition-colors"
+            >
+              Skip — don't activate now
+            </button>
           </div>
         )}
       </div>
@@ -679,7 +745,22 @@ export default function ImprintsMarketplace({ open, onClose, token, projects }) 
                 <span className="text-xs font-medium text-foreground flex items-center gap-1">
                   {myImprints.default_imprint.imprint.icon} {myImprints.default_imprint.imprint.name}
                 </span>
-                <span className="text-[10px] text-muted-foreground/60 ml-auto">Default persona</span>
+                <button
+                  onClick={async () => {
+                    try {
+                      await fetch('/api/imprints/uninstall', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ usage_type: 'default' }),
+                      });
+                      fetchImprints();
+                    } catch (e) { console.error('Remove failed:', e); }
+                  }}
+                  className="ml-auto text-[10px] text-red-400/70 hover:text-red-400 transition-colors flex items-center gap-1"
+                  title="Remove default imprint and return to standard AI personality"
+                >
+                  <X className="w-3 h-3" /> Remove
+                </button>
               </div>
             )}
           </>
@@ -704,6 +785,7 @@ export default function ImprintsMarketplace({ open, onClose, token, projects }) 
           <div className="p-5 flex-1 overflow-hidden">
             <ImprintGenerator
               token={token}
+              projects={projects}
               onComplete={() => { fetchImprints(); setView('library'); }}
               onBack={() => setView('library')}
             />
