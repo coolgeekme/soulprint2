@@ -24,6 +24,7 @@ import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { MobileImageCard, MobileVideoCard, MobileSavedVideoCard } from './MobileMediaCards';
 import MusicCard from '@/components/chat/MusicCard';
 import { SourceMediaBanner, MediaConfirmCard, PromptReviewCard, ModelSelectionCard, VideoExtendConfirmCard } from '@/components/chat/MediaConfirmation';
+import { EnforcementBlockMessage, UsageWarningBanner, PremiumPreviewBadge } from '@/components/chat/EnforcementUI';
 import { ContextAwarenessBanner } from '@/components/chat/ContextBanner';
 import { PdfCard } from '@/components/chat/PdfCard';
 import VideoProgressBanner from '@/components/chat/VideoProgressBanner';
@@ -1427,6 +1428,9 @@ export default function MobileChat({
       let localStreamingVideoTask = null;
       let doneMessageId = null;
       let localMediaConfirmation = null; // Track media_confirmation data locally to avoid stale closure
+      let localEnforcementBlock = null; // Track enforcement blocks
+      let localUsageWarning = null; // Track 80% usage warnings
+      let localPremiumPreview = null; // Track premium preview badges
 
       while (reader) {
         const { done, value } = await reader.read();
@@ -1552,6 +1556,15 @@ export default function MobileChat({
             } else if (data.type === 'continuation') {
               // Backend is auto-continuing a truncated response — keep streaming
               console.log(`[Chat] Auto-continuation ${data.count}/${data.max}`);
+            } else if (data.type === 'enforcement_block') {
+              // Store enforcement block data for inline rendering
+              localEnforcementBlock = data;
+            } else if (data.type === 'usage_warning') {
+              // Store 80% usage warning for gentle nudge
+              localUsageWarning = data;
+            } else if (data.type === 'premium_preview_used') {
+              // Store premium preview badge data
+              localPremiumPreview = data;
             } else if (data.type === 'done') {
               // Message complete — capture messageId if present
               if (data.messageId) {
@@ -1575,6 +1588,9 @@ export default function MobileChat({
           content: fullContent,
           content_type: localMediaConfirmation ? 'media-confirmation' : undefined,
           media_confirmation: localMediaConfirmation || undefined,
+          enforcement_block: localEnforcementBlock || undefined,
+          usage_warning: localUsageWarning || undefined,
+          premium_preview: localPremiumPreview || undefined,
           model_used: actualModelUsed,
           smart_mode: selectedModel === 'smart',
           smart_reason: dynamicIntelligenceReason,
@@ -3249,6 +3265,33 @@ export default function MobileChat({
                         disabled={loading}
                       />
                     )}
+                  </div>
+                )}
+                {/* ── Enforcement & Conversion UI ── */}
+                {msg.enforcement_block && msg.role === 'assistant' && (
+                  <div className="px-4 pb-2">
+                    <EnforcementBlockMessage data={msg.enforcement_block} />
+                  </div>
+                )}
+                {msg.usage_warning && msg.role === 'assistant' && (
+                  <div className="px-2">
+                    <UsageWarningBanner 
+                      warning={msg.usage_warning}
+                      onDismiss={() => {
+                        setMessages(prev => prev.map(m => 
+                          m.id === msg.id ? { ...m, usage_warning: null } : m
+                        ));
+                      }}
+                    />
+                  </div>
+                )}
+                {msg.premium_preview && msg.role === 'assistant' && (
+                  <div className="px-4 pb-2">
+                    <PremiumPreviewBadge 
+                      action={msg.premium_preview.action}
+                      remaining={msg.premium_preview.remaining}
+                      total={msg.premium_preview.total}
+                    />
                   </div>
                 )}
                 </div>

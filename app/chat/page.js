@@ -62,7 +62,7 @@ import { MockupGenerator } from '@/components/chat/MockupGenerator';
 import ImageCard from '@/components/chat/ImageCard';
 import MusicCard from '@/components/chat/MusicCard';
 import { ChatUpgradeBanner, PremiumBadge, ModelUpgradeNudge } from '@/components/chat/UpgradeBanner';
-import { GraceCountdownBanner, EnforcementBlockMessage, ModelLockBadge, ModelFallbackNotice, TrialEndPrompt } from '@/components/chat/EnforcementUI';
+import { GraceCountdownBanner, EnforcementBlockMessage, ModelLockBadge, ModelFallbackNotice, TrialEndPrompt, UsageWarningBanner, PremiumPreviewBadge } from '@/components/chat/EnforcementUI';
 import { useEnforcement } from '@/hooks/useEnforcement';
 import { ContextAwarenessBanner } from '@/components/chat/ContextBanner';
 import { PdfCard } from '@/components/chat/PdfCard';
@@ -1734,6 +1734,32 @@ export default function ChatPage() {
               });
               // Refresh enforcement status after a block
               enforcement.refresh();
+            } else if (data.type === 'usage_warning') {
+              // Handle 80% usage warning — show gentle conversion nudge
+              console.log('[UsageWarning]', data.resource, data.percentage + '% used');
+              setMessages(prev => {
+                const updated = [...prev];
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].role === 'assistant') {
+                    updated[i] = { ...updated[i], usage_warning: data };
+                    break;
+                  }
+                }
+                return updated;
+              });
+            } else if (data.type === 'premium_preview_used') {
+              // Handle premium preview badge — show "✨ This was created with Premium"
+              console.log('[PremiumPreview] Used:', data.action, 'remaining:', data.remaining);
+              setMessages(prev => {
+                const updated = [...prev];
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].role === 'assistant') {
+                    updated[i] = { ...updated[i], premium_preview: data };
+                    break;
+                  }
+                }
+                return updated;
+              });
             } else if (data.type === 'delta') {
               setSearchingWeb(false);
               setLastChunkTime(Date.now()); // Track when we last received content
@@ -4338,6 +4364,23 @@ export default function ChatPage() {
                         {/* Enforcement block inline message */}
                         {msg.enforcement_block && (
                           <EnforcementBlockMessage data={msg.enforcement_block} />
+                        )}
+                        {msg.usage_warning && (
+                          <UsageWarningBanner 
+                            warning={msg.usage_warning} 
+                            onDismiss={() => {
+                              setMessages(prev => prev.map(m => 
+                                m.id === msg.id ? { ...m, usage_warning: null } : m
+                              ));
+                            }}
+                          />
+                        )}
+                        {msg.premium_preview && (
+                          <PremiumPreviewBadge 
+                            action={msg.premium_preview.action}
+                            remaining={msg.premium_preview.remaining}
+                            total={msg.premium_preview.total}
+                          />
                         )}
                         
                         {/* Media Confirmation Flow — inline cards */}
