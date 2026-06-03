@@ -574,15 +574,16 @@ export function ActiveImprintBadge({ token, onClick }) {
 
 // ── Main Marketplace Modal ──────────────────────────────────────────────────
 export default function ImprintsMarketplace({ open, onClose, token, projects }) {
-  const [view, setView] = useState('library'); // library | detail | generator
+  const [view, setView] = useState('library'); // library | myimprints | detail | generator
   const [imprints, setImprints] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedImprint, setSelectedImprint] = useState(null);
-  const [myImprints, setMyImprints] = useState({ default_imprint: null, project_imprints: [] });
+  const [myImprints, setMyImprints] = useState({ default_imprint: null, project_imprints: [], created_imprints: [] });
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('popular');
+  const [activeTab, setActiveTab] = useState('browse'); // browse | mine
 
   const fetchImprints = useCallback(async () => {
     if (!token) return;
@@ -659,83 +660,264 @@ export default function ImprintsMarketplace({ open, onClose, token, projects }) 
                 </Button>
               </div>
 
-              {/* Search */}
-              <div className="relative mb-3">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search imprints..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 text-sm"
-                />
-              </div>
-
-              {/* Category Tabs */}
-              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-                {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors ${
-                      selectedCategory === cat.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                    }`}
-                  >
-                    <span>{cat.icon}</span> {cat.name}
-                    <span className="opacity-60">({cat.count})</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Sort bar */}
-            <div className="px-5 py-2 flex items-center gap-2 text-[10px]">
-              <span className="text-muted-foreground">Sort:</span>
-              {[
-                { id: 'popular', label: 'Popular' },
-                { id: 'newest', label: 'Newest' },
-                { id: 'name', label: 'A-Z' },
-              ].map(s => (
+              {/* Browse / My Imprints toggle */}
+              <div className="flex gap-1 mb-3 bg-muted/40 rounded-lg p-0.5">
                 <button
-                  key={s.id}
-                  onClick={() => setSortBy(s.id)}
-                  className={`px-2 py-0.5 rounded-full transition-colors ${
-                    sortBy === s.id ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground'
+                  onClick={() => setActiveTab('browse')}
+                  className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-all ${
+                    activeTab === 'browse' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {s.label}
+                  Browse All
                 </button>
-              ))}
-              <span className="ml-auto text-muted-foreground">{imprints.length} imprints</span>
-            </div>
+                <button
+                  onClick={() => setActiveTab('mine')}
+                  className={`flex-1 text-xs py-1.5 rounded-md font-medium transition-all flex items-center justify-center gap-1 ${
+                    activeTab === 'mine' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  My Imprints
+                  {(myImprints.created_imprints?.length > 0) && (
+                    <span className="text-[9px] bg-violet-500/20 text-violet-400 px-1.5 rounded-full">
+                      {myImprints.created_imprints.length}
+                    </span>
+                  )}
+                </button>
+              </div>
 
-            {/* Imprint Grid */}
-            <div className="flex-1 overflow-y-auto px-5 pb-5">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
-                </div>
-              ) : imprints.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Sparkles className="w-10 h-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm text-muted-foreground">No imprints found</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">Try a different search or category</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {imprints.map(imp => (
-                    <ImprintCard
-                      key={imp.id || imp.slug}
-                      imprint={imp}
-                      isInstalled={isImprintInstalled(imp.id)}
-                      onSelect={imp => { setSelectedImprint(imp); setView('detail'); }}
-                      onInstall={() => fetchImprints()}
+              {/* Search + Category Tabs (only for browse tab) */}
+              {activeTab === 'browse' && (
+                <>
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search imprints..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="pl-9 h-9 text-sm"
                     />
-                  ))}
-                </div>
+                  </div>
+
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+                    {categories.map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setSelectedCategory(cat.id)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors ${
+                          selectedCategory === cat.id
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        <span>{cat.icon}</span> {cat.name}
+                        <span className="opacity-60">({cat.count})</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
+
+            {/* Sort bar — Browse tab only */}
+            {activeTab === 'browse' && (
+              <div className="px-5 py-2 flex items-center gap-2 text-[10px]">
+                <span className="text-muted-foreground">Sort:</span>
+                {[
+                  { id: 'popular', label: 'Popular' },
+                  { id: 'newest', label: 'Newest' },
+                  { id: 'name', label: 'A-Z' },
+                ].map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => setSortBy(s.id)}
+                    className={`px-2 py-0.5 rounded-full transition-colors ${
+                      sortBy === s.id ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+                <span className="ml-auto text-muted-foreground">{imprints.length} imprints</span>
+              </div>
+            )}
+
+            {/* Browse Grid */}
+            {activeTab === 'browse' && (
+              <div className="flex-1 overflow-y-auto px-5 pb-5">
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+                  </div>
+                ) : imprints.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Sparkles className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                    <p className="text-sm text-muted-foreground">No imprints found</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Try a different search or category</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {imprints.map(imp => (
+                      <ImprintCard
+                        key={imp.id || imp.slug}
+                        imprint={imp}
+                        isInstalled={isImprintInstalled(imp.id)}
+                        onSelect={imp => { setSelectedImprint(imp); setView('detail'); }}
+                        onInstall={() => fetchImprints()}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* My Imprints Tab Content */}
+            {activeTab === 'mine' && (
+              <div className="flex-1 overflow-y-auto px-5 pb-5 pt-3 space-y-4">
+                {/* Currently Active Section */}
+                {(myImprints.default_imprint || myImprints.project_imprints?.length > 0) && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Currently Active</h3>
+                    <div className="space-y-2">
+                      {myImprints.default_imprint?.imprint && (
+                        <div className="flex items-center gap-3 p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
+                          <div
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg"
+                            style={{ backgroundColor: (myImprints.default_imprint.imprint.color || '#6366F1') + '20' }}
+                          >
+                            {myImprints.default_imprint.imprint.icon || '✨'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">
+                              {myImprints.default_imprint.imprint.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">Default Persona</p>
+                          </div>
+                          <Badge variant="secondary" className="text-[9px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30 shrink-0">
+                            <Check className="w-2.5 h-2.5 mr-0.5" /> Default
+                          </Badge>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await fetch('/api/imprints/uninstall', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ usage_type: 'default' }),
+                                });
+                                fetchImprints();
+                              } catch (e) { console.error(e); }
+                            }}
+                            className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors shrink-0"
+                            title="Remove and revert to standard AI"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      {myImprints.project_imprints?.map(pi => pi.imprint && (
+                        <div key={pi.id} className="flex items-center gap-3 p-3 rounded-xl border border-blue-500/30 bg-blue-500/5">
+                          <div
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg"
+                            style={{ backgroundColor: (pi.imprint.color || '#6366F1') + '20' }}
+                          >
+                            {pi.imprint.icon || '✨'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{pi.imprint.name}</p>
+                            <p className="text-[10px] text-muted-foreground">Project: {pi.project_id?.substring(0, 8)}...</p>
+                          </div>
+                          <Badge variant="secondary" className="text-[9px] bg-blue-500/15 text-blue-400 border-blue-500/30 shrink-0">
+                            Project
+                          </Badge>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await fetch('/api/imprints/uninstall', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ usage_type: 'project', project_id: pi.project_id }),
+                                });
+                                fetchImprints();
+                              } catch (e) { console.error(e); }
+                            }}
+                            className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors shrink-0"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom Created Imprints */}
+                <div>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Your Custom Imprints
+                  </h3>
+                  {(!myImprints.created_imprints || myImprints.created_imprints.length === 0) ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed border-border/60 rounded-xl">
+                      <Wand2 className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                      <p className="text-sm text-muted-foreground">No custom imprints yet</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">Use the generator to create your first persona</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setView('generator')}
+                        className="mt-3 text-xs"
+                      >
+                        <Wand2 className="w-3 h-3 mr-1.5" /> Create Custom
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {myImprints.created_imprints.map(imp => (
+                        <div key={imp.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-card hover:border-primary/30 transition-all group">
+                          <div
+                            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg cursor-pointer"
+                            style={{ backgroundColor: (imp.color || '#6366F1') + '20' }}
+                            onClick={() => { setSelectedImprint(imp); setView('detail'); }}
+                          >
+                            {imp.icon || '✨'}
+                          </div>
+                          <div
+                            className="flex-1 min-w-0 cursor-pointer"
+                            onClick={() => { setSelectedImprint(imp); setView('detail'); }}
+                          >
+                            <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                              {imp.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground line-clamp-1">{imp.short_description}</p>
+                          </div>
+                          {imp.is_currently_active ? (
+                            <Badge variant="secondary" className="text-[9px] bg-emerald-500/15 text-emerald-400 border-emerald-500/30 shrink-0">
+                              <Check className="w-2.5 h-2.5 mr-0.5" /> {imp.active_as}
+                            </Badge>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-[10px] h-7 shrink-0"
+                              onClick={async () => {
+                                try {
+                                  await fetch('/api/imprints/install', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                    body: JSON.stringify({ imprint_id: imp.id, usage_type: 'default' }),
+                                  });
+                                  fetchImprints();
+                                } catch (e) { console.error(e); }
+                              }}
+                            >
+                              <Zap className="w-2.5 h-2.5 mr-1" /> Activate
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Active Imprint Footer */}
             {myImprints.default_imprint?.imprint && (
