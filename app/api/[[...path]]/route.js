@@ -186,6 +186,7 @@ import {
   handleInstallImprint,
   handleUninstallImprint,
   handleGenerateImprint,
+  handleDeleteImprint,
   handleRateImprint,
   handleSeedImprints,
 } from '@/lib/handlers/imprints';
@@ -878,6 +879,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'imprints/install') return handleInstallImprint(request);
     if (pathStr === 'imprints/uninstall') return handleUninstallImprint(request);
     if (pathStr === 'imprints/generate') return handleGenerateImprint(request);
+    if (pathStr === 'imprints/delete') return handleDeleteImprint(request);
     if (pathStr === 'imprints/rate') return handleRateImprint(request);
     if (pathStr === 'imprints/seed') return handleSeedImprints();
 

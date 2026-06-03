@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Sparkles, Download, Check, X, ChevronLeft, Star, Loader2, Wand2, User, Zap } from 'lucide-react';
+import { Search, Sparkles, Download, Check, X, ChevronLeft, Star, Loader2, Wand2, User, Zap, Trash2 } from 'lucide-react';
 
 // ── Imprint Card ────────────────────────────────────────────────────────────
 function ImprintCard({ imprint, isInstalled, onSelect, onInstall }) {
@@ -911,6 +911,24 @@ export default function ImprintsMarketplace({ open, onClose, token, projects }) 
                               <Zap className="w-2.5 h-2.5 mr-1" /> Activate
                             </Button>
                           )}
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm(`Delete "${imp.name}"? This cannot be undone.`)) return;
+                              try {
+                                const res = await fetch('/api/imprints/delete', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ imprint_id: imp.id }),
+                                });
+                                if (res.ok) fetchImprints();
+                              } catch (e) { console.error(e); }
+                            }}
+                            className="text-muted-foreground/40 hover:text-red-400 transition-colors shrink-0 p-1"
+                            title="Delete this imprint permanently"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       ))}
                     </div>
