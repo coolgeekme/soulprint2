@@ -229,6 +229,7 @@ export default function ChatPage() {
   const [mockupDesign, setMockupDesign] = useState(null);
   const [isGeneratingMockup, setIsGeneratingMockup] = useState(false);
   const [showImprintsMarketplace, setShowImprintsMarketplace] = useState(false);
+  const [currentStreamImprint, setCurrentStreamImprint] = useState(null);
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const streamingMusicTaskRef = useRef(null);
@@ -1453,6 +1454,7 @@ export default function ChatPage() {
     setStreamingContent('');
     setStreamingImageUrl(null);
     setStreamingVideoTask(null);
+    setCurrentStreamImprint(null);
     // CRITICAL: Also clear refs directly to prevent stale data leaking into next message
     streamingImageUrlRef.current = null;
     streamingVideoTaskRef.current = null;
@@ -1587,6 +1589,7 @@ export default function ChatPage() {
       let buffer = '';
       let actualModelUsed = selectedModel;
       let dynamicIntelligenceReason = null;
+      let streamActiveImprint = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -1614,6 +1617,11 @@ export default function ChatPage() {
                 actualModelUsed = data.selectedModel;
                 dynamicIntelligenceReason = data.modelReason;
                 setLastSmartSelection({ model: data.selectedModel, reason: data.modelReason });
+              }
+              // Capture active imprint info for message attribution
+              if (data.activeImprint) {
+                streamActiveImprint = data.activeImprint;
+                setCurrentStreamImprint(data.activeImprint);
               }
             } else if (data.type === 'search') {
               setSearchingWeb(true);
@@ -1845,6 +1853,7 @@ export default function ChatPage() {
                 model_used: actualModelUsed || selectedModel,
                 smart_mode: selectedModel === 'smart',
                 smart_reason: dynamicIntelligenceReason,
+                activeImprint: streamActiveImprint || undefined,
                 image_url: streamingImageUrlRef.current || undefined,
                 video_task: streamingVideoTaskRef.current || undefined,
                 music_task: streamingMusicTaskRef.current || undefined,
@@ -2023,6 +2032,7 @@ export default function ChatPage() {
       let fullContent = '';
       let realMessageId = null;
       let hasVideoTask = false;
+      let editStreamActiveImprint = null;
       
       while (true) {
         const { done, value } = await reader.read();
@@ -2039,6 +2049,7 @@ export default function ChatPage() {
             if (data.type === 'meta') {
               if (data.conversationId && !conversationId) setConversationId(data.conversationId);
               if (data.messageId) realMessageId = data.messageId;
+              if (data.activeImprint) editStreamActiveImprint = data.activeImprint;
             } else if (data.type === 'delta') {
               fullContent += data.content;
               setStreamingContent(fullContent);
@@ -2086,6 +2097,7 @@ export default function ChatPage() {
                 content: fullContent,
                 created_at: new Date().toISOString(),
                 model_used: data.model_used || selectedModel,
+                activeImprint: editStreamActiveImprint || undefined,
                 image_url: streamingImageUrlRef.current || undefined,
                 video_task: streamingVideoTaskRef.current || undefined,
                 music_task: streamingMusicTaskRef.current || undefined,
@@ -4233,6 +4245,13 @@ export default function ChatPage() {
                   <div className={`rounded-2xl px-3 py-2.5 sm:px-5 sm:py-3.5 text-[15px] sm:text-base leading-7 break-words ${msg.role === 'user' ? 'bg-orange-500/15 border border-orange-500/20 text-white' : 'bg-white/4 border border-white/8 text-gray-200'}`}>
                     {msg.role === 'assistant' ? (
                       <>
+                        {/* Imprint Attribution Badge */}
+                        {msg.activeImprint && (
+                          <div className="flex items-center gap-1.5 mb-2 -mt-0.5">
+                            <span className="text-sm leading-none">{msg.activeImprint.icon}</span>
+                            <span className="text-[10px] font-medium text-white/50">{msg.activeImprint.name}</span>
+                          </div>
+                        )}
                         {/* Generating Animation - show when creating flyers/infographics/images */}
                         {msg.is_generating && (
                           <div className="mb-4">
@@ -4668,6 +4687,13 @@ export default function ChatPage() {
                   <SoulPrintLogo size={14} className="hidden sm:block" />
                 </div>
                 <div className="min-w-0 max-w-[95%] sm:max-w-[90%] lg:max-w-[85%] rounded-2xl px-3 py-2.5 sm:px-5 sm:py-3.5 bg-white/4 border border-white/8 text-[15px] sm:text-base text-gray-200 leading-7 break-words">
+                  {/* Active Imprint Attribution during streaming */}
+                  {currentStreamImprint && (
+                    <div className="flex items-center gap-1.5 mb-2 -mt-0.5">
+                      <span className="text-sm leading-none">{currentStreamImprint.icon}</span>
+                      <span className="text-[10px] font-medium text-white/50">{currentStreamImprint.name}</span>
+                    </div>
+                  )}
                   {/* Live image preview - only show while loading */}
                   {streamingImageUrl && loading && (
                     <ImageCard url={streamingImageUrl} revisedPrompt={streamingRevPrompt} onRegenerateWith={handleRegenerateWithModel} />

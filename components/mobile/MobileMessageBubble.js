@@ -85,6 +85,13 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           className="bg-white/5 rounded-3xl rounded-bl-lg px-4 py-3"
           onClick={() => setShowActions(!showActions)}
         >
+          {/* Imprint Attribution Badge */}
+          {message.activeImprint && (
+            <div className="flex items-center gap-1.5 mb-1.5 -mt-0.5">
+              <span className="text-sm leading-none">{message.activeImprint.icon}</span>
+              <span className="text-[10px] font-medium text-white/40">{message.activeImprint.name}</span>
+            </div>
+          )}
           {/* Show generated image */}
           {message.image_url && (
             <MobileImageCard 

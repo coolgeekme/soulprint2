@@ -109,6 +109,7 @@ export default function MobileChat({
   const [showGallery, setShowGallery] = useState(false);
   const [galleryItems, setGalleryItems] = useState([]);
   const [showImprintsMarketplace, setShowImprintsMarketplace] = useState(false);
+  const [currentStreamImprint, setCurrentStreamImprint] = useState(null);
   const [showCompareMode, setShowCompareMode] = useState(false);
   const [compareModels, setCompareModels] = useState(['gpt-4o', 'claude-sonnet-4-5-20250929']);
   const [compareResponses, setCompareResponses] = useState(null);
@@ -1426,6 +1427,7 @@ export default function MobileChat({
       let buffer = '';
       let actualModelUsed = selectedModel;
       let dynamicIntelligenceReason = null;
+      let streamActiveImprint = null;
       let localStreamingImageUrl = null;
       let localStreamingVideoTask = null;
       let doneMessageId = null;
@@ -1454,6 +1456,11 @@ export default function MobileChat({
                 actualModelUsed = data.selectedModel;
                 dynamicIntelligenceReason = data.modelReason;
                 setLastSmartSelection({ model: data.selectedModel, reason: data.modelReason });
+              }
+              // Capture active imprint info
+              if (data.activeImprint) {
+                streamActiveImprint = data.activeImprint;
+                setCurrentStreamImprint(data.activeImprint);
               }
             } else if (data.type === 'context_info') {
               setContextInfo(data);
@@ -1596,6 +1603,7 @@ export default function MobileChat({
           model_used: actualModelUsed,
           smart_mode: selectedModel === 'smart',
           smart_reason: dynamicIntelligenceReason,
+          activeImprint: streamActiveImprint || undefined,
           image_url: localStreamingImageUrl || undefined,
           video_task: localStreamingVideoTask || undefined,
           music_task: streamingMusicTaskRef.current || undefined,
@@ -3306,7 +3314,7 @@ export default function MobileChat({
               {streamingContent && !streamingVideoTask && !(isGeneratingVisual && visualGenerationType === 'video') && (
                 <div ref={streamingBubbleRef}>
                 <MessageBubble 
-                  message={{ content: streamingContent }}
+                  message={{ content: streamingContent, activeImprint: currentStreamImprint || undefined }}
                   isUser={false}
                   assistantName={assistantName}
                 />
