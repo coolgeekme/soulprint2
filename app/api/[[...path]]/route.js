@@ -417,7 +417,7 @@ import { processGitHubChatCommand } from '@/lib/handlers/github-integration';
 // ══════════════════════════════════════════════════════════════════════════════
 
 
-export const maxDuration = 300; // 5 minutes max for this route (large file processing)
+export const maxDuration = 600; // 10 minutes max for this route (streaming + large file processing)
 export const dynamic = 'force-dynamic';
 
 // Allow up to 50MB request body for image uploads
