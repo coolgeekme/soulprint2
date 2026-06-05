@@ -1805,6 +1805,11 @@ export default function MobileChat({
     setIsIncognito(false);
     
     setConversationId(null);
+    
+    // Reset context awareness banner for fresh conversation
+    setContextInfo(null);
+    setContextBannerDismissed(false);
+    
     const greet = profile?.display_name || user?.profile?.display_name || 'there';
     const customGreeting = profile?.custom_greeting || user?.profile?.custom_greeting;
     const greetingContent = customGreeting 
@@ -1840,6 +1845,10 @@ export default function MobileChat({
     
     setConversationId(id);
     setActiveTab('chat');
+    
+    // Reset context awareness banner when switching conversations
+    setContextInfo(null);
+    setContextBannerDismissed(false);
   };
 
   // Rename conversation

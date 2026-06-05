@@ -2659,6 +2659,11 @@ export default function ChatPage() {
     
     setConversationId(convId);
     setMessages([]);
+    
+    // Reset context awareness banner when switching conversations
+    setContextInfo(null);
+    setContextBannerDismissed(false);
+    
     try {
       const res = await fetch(`/api/messages?conversationId=${convId}`, { headers: { Authorization: `Bearer ${token}` } });
       const msgs = await res.json();
