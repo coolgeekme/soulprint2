@@ -1304,6 +1304,11 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
   const [memoriesLoaded, setMemoriesLoaded] = useState(false);
   const [newMemory, setNewMemory] = useState('');
   const [newMemoryCategory, setNewMemoryCategory] = useState('other');
+  const [memorySearch, setMemorySearch] = useState('');
+  const [memoryFilter, setMemoryFilter] = useState('all');
+  const [editingMemoryId, setEditingMemoryId] = useState(null);
+  const [editingMemoryContent, setEditingMemoryContent] = useState('');
+  const [editingMemoryCategory, setEditingMemoryCategory] = useState('');
   const memoryCategories = ['health', 'preferences', 'personal', 'work', 'relationships', 'goals', 'other'];
 
   const loadMemories = async () => {
@@ -1355,6 +1360,39 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
       loadMemories();
     } catch (e) {}
   };
+
+  const updateMemory = async (id) => {
+    if (!editingMemoryContent.trim()) return;
+    try {
+      await fetch(`/api/memories/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: editingMemoryContent.trim(), category: editingMemoryCategory }),
+      });
+      setEditingMemoryId(null);
+      setEditingMemoryContent('');
+      setEditingMemoryCategory('');
+      loadMemories();
+    } catch (e) {}
+  };
+
+  const clearLocation = async () => {
+    if (!confirm('Clear your stored location data? The AI will no longer reference your previous location.')) return;
+    try {
+      await fetch('/api/location', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      alert('Location data cleared successfully.');
+    } catch (e) {}
+  };
+
+  // Filter memories by search and category
+  const filteredMemories = memories.filter(mem => {
+    if (memoryFilter !== 'all' && mem.category !== memoryFilter) return false;
+    if (memorySearch.trim() && !mem.content.toLowerCase().includes(memorySearch.toLowerCase())) return false;
+    return true;
+  });
 
   const tabs = ['soulprint', 'personality', 'imports', 'integrations', 'telegram', 'voice', 'schedules', 'memories', 'invites', 'announcements', 'profile', 'billing', 'usage', 'privacy', 'appearance', 'feedback'];
 
@@ -3297,7 +3335,42 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                 </select>
               </div>
 
-              {/* Memory Status & Refresh */}
+              {/* Search & Filter */}
+              <div className="flex flex-col gap-2">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={memorySearch}
+                    onChange={(e) => setMemorySearch(e.target.value)}
+                    placeholder="Search memories..."
+                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-2 text-white text-sm focus:border-blue-500/40 outline-none"
+                  />
+                  <svg className="w-4 h-4 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </div>
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
+                  <button
+                    onClick={() => setMemoryFilter('all')}
+                    className={`px-2.5 py-1 rounded-full text-[10px] whitespace-nowrap transition-colors ${memoryFilter === 'all' ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-gray-500 hover:text-white'}`}
+                  >
+                    All ({memories.length})
+                  </button>
+                  {memoryCategories.map(cat => {
+                    const count = memories.filter(m => m.category === cat).length;
+                    if (count === 0) return null;
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => setMemoryFilter(cat)}
+                        className={`px-2.5 py-1 rounded-full text-[10px] whitespace-nowrap transition-colors capitalize ${memoryFilter === cat ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-gray-500 hover:text-white'}`}
+                      >
+                        {cat} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Memory Status & Actions */}
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   {memoriesLoading ? (
@@ -3309,29 +3382,38 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${memories.length > 0 ? 'bg-green-500' : 'bg-orange-500'}`} />
                       <span className="text-gray-400 text-xs">
-                        {memories.length > 0 
-                          ? `${memories.length} memories stored` 
-                          : 'No memories yet'}
+                        {filteredMemories.length !== memories.length 
+                          ? `${filteredMemories.length} of ${memories.length} memories`
+                          : `${memories.length} memories stored`}
                       </span>
                     </div>
                   ) : (
                     <span className="text-gray-600 text-xs">Click to load memories</span>
                   )}
                 </div>
-                <button 
-                  onClick={loadMemories} 
-                  disabled={memoriesLoading}
-                  className="flex items-center gap-1 px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-gray-500 hover:text-white text-xs transition-colors disabled:opacity-50"
-                >
-                  {memoriesLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={clearLocation}
+                    className="flex items-center gap-1 px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded-lg text-orange-400 text-[10px] hover:bg-orange-500/20 transition-colors"
+                    title="Clear stored location data"
+                  >
+                    📍 Clear Location
+                  </button>
+                  <button 
+                    onClick={loadMemories} 
+                    disabled={memoriesLoading}
+                    className="flex items-center gap-1 px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-gray-500 hover:text-white text-xs transition-colors disabled:opacity-50"
+                  >
+                    {memoriesLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                    Refresh
+                  </button>
+                </div>
               </div>
 
               {/* Memories List */}
-              {memoriesLoaded && memories.length > 0 ? (
+              {memoriesLoaded && filteredMemories.length > 0 ? (
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {memories.map(mem => (
+                  {filteredMemories.map(mem => (
                     <div key={mem.id} className={`flex items-start gap-3 p-3 rounded-lg border ${
                       mem.category === 'health' ? 'bg-red-500/5 border-red-500/20' :
                       mem.category === 'preferences' ? 'bg-blue-500/5 border-blue-500/20' :
@@ -3340,24 +3422,63 @@ function SettingsModal({ onClose, token, onAssessmentReset, initialTab, onModelC
                       'bg-white/5 border-white/10'
                     }`}>
                       <div className="flex-1">
-                        <p className="text-white text-sm">{mem.content}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                            mem.category === 'health' ? 'bg-red-500/20 text-red-400' :
-                            mem.category === 'preferences' ? 'bg-blue-500/20 text-blue-400' :
-                            mem.category === 'relationships' ? 'bg-pink-500/20 text-pink-400' :
-                            mem.category === 'work' ? 'bg-green-500/20 text-green-400' :
-                            'bg-gray-500/20 text-gray-400'
-                          }`}>
-                            {mem.category}
-                          </span>
-                          <span className="text-gray-600 text-[10px]">{mem.source === 'auto' ? '🤖 Auto' : '✍️ Manual'}</span>
-                          {mem.importance === 'high' && <span className="text-orange-400 text-[10px]">⚠️ Important</span>}
-                        </div>
+                        {editingMemoryId === mem.id ? (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={editingMemoryContent}
+                              onChange={(e) => setEditingMemoryContent(e.target.value)}
+                              className="w-full bg-white/10 border border-white/20 rounded px-2 py-1.5 text-white text-sm focus:border-blue-500/40 outline-none"
+                              autoFocus
+                              onKeyDown={(e) => e.key === 'Enter' && updateMemory(mem.id)}
+                            />
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={editingMemoryCategory}
+                                onChange={(e) => setEditingMemoryCategory(e.target.value)}
+                                className="bg-white/5 border border-white/10 rounded px-2 py-1 text-gray-400 text-[10px]"
+                              >
+                                {memoryCategories.map(cat => (
+                                  <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                              </select>
+                              <button onClick={() => updateMemory(mem.id)} className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-[10px] hover:bg-blue-500/30">Save</button>
+                              <button onClick={() => setEditingMemoryId(null)} className="px-2 py-1 bg-white/5 text-gray-500 rounded text-[10px] hover:text-white">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="text-white text-sm">{mem.content}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                mem.category === 'health' ? 'bg-red-500/20 text-red-400' :
+                                mem.category === 'preferences' ? 'bg-blue-500/20 text-blue-400' :
+                                mem.category === 'relationships' ? 'bg-pink-500/20 text-pink-400' :
+                                mem.category === 'work' ? 'bg-green-500/20 text-green-400' :
+                                'bg-gray-500/20 text-gray-400'
+                              }`}>
+                                {mem.category}
+                              </span>
+                              <span className="text-gray-600 text-[10px]">{mem.source === 'auto' || mem.source === 'auto_extracted' ? '🤖 Auto' : '✍️ Manual'}</span>
+                              {mem.importance === 'high' && <span className="text-orange-400 text-[10px]">⚠️ Important</span>}
+                            </div>
+                          </>
+                        )}
                       </div>
-                      <button onClick={() => deleteMemory(mem.id)} className="text-gray-600 hover:text-red-400 transition-colors">
-                        <X className="w-4 h-4" />
-                      </button>
+                      {editingMemoryId !== mem.id && (
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => { setEditingMemoryId(mem.id); setEditingMemoryContent(mem.content); setEditingMemoryCategory(mem.category); }}
+                            className="text-gray-600 hover:text-blue-400 transition-colors p-0.5"
+                            title="Edit memory"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                          <button onClick={() => deleteMemory(mem.id)} className="text-gray-600 hover:text-red-400 transition-colors p-0.5" title="Delete memory">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

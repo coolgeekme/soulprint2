@@ -242,6 +242,7 @@ import {
   handleCreateMemory,
   handleUpdateMemory,
   handleDeleteMemory,
+  handleClearLocation,
   buildSystemPrompt,
   generateProfileMarkdown,
   handleProfileExport,
@@ -1015,6 +1016,10 @@ export async function DELETE(request, { params }) {
     if (pathStr.startsWith('user/memories/') && pathArr.length === 3) {
       const memoryId = pathArr[2];
       return handleDeleteMemory(request, memoryId);
+    }
+    // Clear location data
+    if (pathStr === 'location') {
+      return handleClearLocation(request);
     }
     if (pathStr.startsWith('data-imports/') && pathArr.length === 2) {
       const importId = pathArr[1];
