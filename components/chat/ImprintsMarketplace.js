@@ -206,7 +206,7 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
       </div>
 
       {/* Install / Uninstall Footer */}
-      <div className="pt-4 border-t border-border/50 space-y-3">
+      <div className="pt-4 border-t border-border/50 space-y-3 pb-safe">
         {isInstalled ? (
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
@@ -967,7 +967,7 @@ export default function ImprintsMarketplace({ open, onClose, token, projects }) 
         )}
 
         {view === 'detail' && selectedImprint && (
-          <div className="p-5 flex-1 overflow-hidden">
+          <div className="p-5 flex-1 flex flex-col overflow-hidden">
             <ImprintDetail
               imprint={selectedImprint}
               isInstalled={isImprintInstalled(selectedImprint.id)}
@@ -982,7 +982,7 @@ export default function ImprintsMarketplace({ open, onClose, token, projects }) 
         )}
 
         {view === 'generator' && (
-          <div className="p-5 flex-1 overflow-hidden">
+          <div className="p-5 flex-1 flex flex-col overflow-hidden">
             <ImprintGenerator
               token={token}
               projects={projects}
