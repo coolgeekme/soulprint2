@@ -139,7 +139,7 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto py-4 space-y-5">
+      <div className="flex-1 overflow-y-auto py-4 space-y-5 min-h-0">
         {/* Description */}
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-1">About</h3>
@@ -159,7 +159,7 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
         {imprint.sample_conversation?.length > 0 && (
           <div>
             <h3 className="text-sm font-semibold text-foreground mb-2">Preview Conversation</h3>
-            <div className="space-y-2 bg-muted/50 rounded-lg p-3">
+            <div className="space-y-2 bg-muted/50 rounded-lg p-3 max-h-[200px] md:max-h-none overflow-y-auto">
               {imprint.sample_conversation.map((msg, i) => (
                 <div key={i} className={`flex gap-2 ${msg.role === 'user' ? '' : ''}`}>
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] ${msg.role === 'user' ? 'bg-primary/20 text-primary' : 'bg-emerald-500/20 text-emerald-400'}`}>
@@ -206,7 +206,7 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
       </div>
 
       {/* Install / Uninstall Footer */}
-      <div className="pt-4 border-t border-border/50 space-y-3 pb-safe">
+      <div className="pt-4 border-t border-border/50 space-y-3 pb-safe bg-background/95 backdrop-blur-sm">
         {isInstalled ? (
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
