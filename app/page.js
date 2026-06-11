@@ -648,9 +648,9 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex items-center justify-center gap-4 sm:gap-6 text-xs flex-wrap">
           <div className="flex items-center gap-2 text-gray-200 group">
             <span className="text-sm">🏢</span>
-            <span className="font-semibold text-white">SoulPrint Engine Pro</span>
+            <span className="font-semibold text-white">The Foundry</span>
             <span className="text-gray-400">(for Business)</span>
-            <span className="px-1.5 py-0.5 bg-orange-500/15 border border-orange-500/30 rounded text-orange-400 text-[9px] font-bold uppercase tracking-wider animate-pulse">Coming Soon</span>
+            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[9px] font-bold uppercase tracking-wider">Live</span>
           </div>
           <div className="w-px h-3.5 bg-white/10 hidden sm:block" />
           <a href="https://esp.soulprintengine.ai/lista-espera" target="_blank" rel="noopener noreferrer"
