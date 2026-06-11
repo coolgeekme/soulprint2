@@ -646,12 +646,12 @@ export default function LandingPage() {
       ═══════════════════════════════════════════════════════════════════ */}
       <div className="relative z-40 bg-[#0a0a0a] border-b border-white/5 py-2 px-4">
         <div className="max-w-6xl mx-auto flex items-center justify-center gap-4 sm:gap-6 text-xs flex-wrap">
-          <div className="flex items-center gap-2 text-gray-200 group">
+          <a href="https://foundryagents.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-200 hover:text-white transition-colors group">
             <span className="text-sm">🏢</span>
-            <span className="font-semibold text-white">The Foundry</span>
-            <span className="text-gray-400">(for Business)</span>
+            <span className="font-semibold text-white group-hover:text-white">The Foundry</span>
+            <span className="text-gray-400 group-hover:text-gray-300">(for Business)</span>
             <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[9px] font-bold uppercase tracking-wider">Live</span>
-          </div>
+          </a>
           <div className="w-px h-3.5 bg-white/10 hidden sm:block" />
           <a href="https://esp.soulprintengine.ai/lista-espera" target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors group">
