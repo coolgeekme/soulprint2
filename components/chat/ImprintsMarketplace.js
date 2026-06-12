@@ -97,7 +97,7 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
         body: JSON.stringify({ usage_type: installedUsageType || 'default' }),
       });
       if (res.ok) {
-        onInstall(); // refresh
+        onUninstall(); // refresh
       }
     } catch (e) {
       console.error('Uninstall failed:', e);
