@@ -660,11 +660,12 @@ export default function LandingPage() {
             <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[9px] font-bold uppercase tracking-wider group-hover:bg-green-500/25 transition-colors">Waitlist Open</span>
           </a>
           <div className="w-px h-3.5 bg-white/10 hidden sm:block" />
-          <div className="flex items-center gap-2 text-gray-500">
+          <a href="https://br.soulprintengine.ai/lista-espera" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors group">
             <span className="text-sm">🇧🇷</span>
             <span className="font-medium">Versão em Português</span>
-            <span className="px-1.5 py-0.5 bg-yellow-500/10 border border-yellow-500/20 rounded text-yellow-400/70 text-[9px] font-bold uppercase tracking-wider">Soon</span>
-          </div>
+            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[9px] font-bold uppercase tracking-wider group-hover:bg-green-500/25 transition-colors">Waitlist Open</span>
+          </a>
         </div>
       </div>
 
