@@ -139,7 +139,7 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto py-4 space-y-5 min-h-0">
+<div className="flex-1 overflow-y-auto py-4 space-y-4 min-h-0">
         {/* Description */}
         <div>
           <h3 className="text-sm font-semibold text-foreground mb-1">About</h3>
@@ -155,11 +155,11 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
           ))}
         </div>
 
-        {/* Sample Conversation */}
+        {/* Sample Conversation - Compact on mobile */}
         {imprint.sample_conversation?.length > 0 && (
           <div>
             <h3 className="text-sm font-semibold text-foreground mb-2">Preview Conversation</h3>
-            <div className="space-y-2 bg-muted/50 rounded-lg p-3 max-h-[200px] md:max-h-none overflow-y-auto">
+            <div className="space-y-2 bg-muted/50 rounded-lg p-3 max-h-[150px] md:max-h-[300px] overflow-y-auto">
               {imprint.sample_conversation.map((msg, i) => (
                 <div key={i} className={`flex gap-2 ${msg.role === 'user' ? '' : ''}`}>
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] ${msg.role === 'user' ? 'bg-primary/20 text-primary' : 'bg-emerald-500/20 text-emerald-400'}`}>
@@ -179,29 +179,28 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
           </div>
         )}
 
-        {/* Rating */}
-        <div>
-          <h3 className="text-sm font-semibold text-foreground mb-2">Rate this Imprint</h3>
+        {/* Rating & Stats - Compact on mobile */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Rate</h3>
+            <div className="flex gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><Download className="w-3 h-3" /> {imprint.install_count || 0}</span>
+              {imprint.rating_avg > 0 && (
+                <span className="flex items-center gap-1"><Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {imprint.rating_avg}</span>
+              )}
+            </div>
+          </div>
           <div className="flex gap-1">
             {[1, 2, 3, 4, 5].map(star => (
               <button
                 key={star}
                 onClick={() => handleRate(star)}
-                className="p-1 transition-transform hover:scale-110"
+                className="p-0.5 transition-transform hover:scale-110"
               >
-                <Star className={`w-5 h-5 ${star <= rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} />
+                <Star className={`w-4 h-4 ${star <= rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} />
               </button>
             ))}
           </div>
-        </div>
-
-        {/* Stats */}
-        <div className="flex gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1"><Download className="w-3.5 h-3.5" /> {imprint.install_count || 0} installs</span>
-          {imprint.rating_avg > 0 && (
-            <span className="flex items-center gap-1"><Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> {imprint.rating_avg} ({imprint.rating_count} ratings)</span>
-          )}
-          <span className="capitalize">Category: {imprint.category}</span>
         </div>
       </div>
 
