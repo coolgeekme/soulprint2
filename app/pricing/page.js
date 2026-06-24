@@ -395,6 +395,244 @@ export default function PricingPage() {
         </div>
       </div>
 
+      {/* Comparison Table - Phase 2: Value Communication */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-full px-4 py-1.5 mb-6">
+            <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+            <span className="text-xs font-medium text-orange-400">COMPARE & DECIDE</span>
+          </div>
+          <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
+            How Does SoulPrint Stack Up?
+          </h2>
+          <p className="text-gray-400 text-sm max-w-2xl mx-auto">
+            See why thousands are switching from ChatGPT Plus and Claude Pro to SoulPrint Engine
+          </p>
+        </div>
+
+        {/* Comparison Table */}
+        <div className="max-w-5xl mx-auto overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-white/10">
+                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-400">Feature</th>
+                <th className="py-4 px-4 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+                      <SoulPrintLogo size={20} />
+                    </div>
+                    <span className="text-sm font-bold text-white">SoulPrint</span>
+                    <span className="text-xs text-orange-400 font-semibold">$19/mo</span>
+                  </div>
+                </th>
+                <th className="py-4 px-4 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-lg">🤖</div>
+                    <span className="text-sm font-bold text-gray-400">ChatGPT Plus</span>
+                    <span className="text-xs text-gray-500">$20/mo</span>
+                  </div>
+                </th>
+                <th className="py-4 px-4 text-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-lg">🧠</div>
+                    <span className="text-sm font-bold text-gray-400">Claude Pro</span>
+                    <span className="text-xs text-gray-500">$20/mo</span>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="text-sm">
+              {/* Long-term Memory */}
+              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                <td className="py-4 px-4 text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <Brain className="w-4 h-4 text-orange-400" />
+                    <span className="font-medium">Long-term Memory</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">Remembers you across all conversations</p>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <Check className="w-5 h-5 text-green-400 mx-auto" />
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <X className="w-5 h-5 text-gray-600 mx-auto" />
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <X className="w-5 h-5 text-gray-600 mx-auto" />
+                </td>
+              </tr>
+
+              {/* Multi-Model Access */}
+              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                <td className="py-4 px-4 text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-orange-400" />
+                    <span className="font-medium">AI Models</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">Access to multiple cutting-edge models</p>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <div className="text-xs text-green-400 font-semibold">GPT-4o, Gemini, Claude</div>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <div className="text-xs text-gray-500">GPT-4o only</div>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <div className="text-xs text-gray-500">Claude only</div>
+                </td>
+              </tr>
+
+              {/* Image Generation */}
+              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                <td className="py-4 px-4 text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <Star className="w-4 h-4 text-orange-400" />
+                    <span className="font-medium">AI Image Generation</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">Create images, logos, art</p>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <div className="text-xs text-green-400 font-semibold">50/mo (HD)</div>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <div className="text-xs text-gray-500">Limited</div>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <X className="w-5 h-5 text-gray-600 mx-auto" />
+                </td>
+              </tr>
+
+              {/* Video Generation */}
+              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                <td className="py-4 px-4 text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-orange-400" />
+                    <span className="font-medium">AI Video Generation</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">Generate video clips from text</p>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <Check className="w-5 h-5 text-green-400 mx-auto" />
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <X className="w-5 h-5 text-gray-600 mx-auto" />
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <X className="w-5 h-5 text-gray-600 mx-auto" />
+                </td>
+              </tr>
+
+              {/* Custom Personas */}
+              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                <td className="py-4 px-4 text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <Fingerprint className="w-4 h-4 text-orange-400" />
+                    <span className="font-medium">Custom AI Personas</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">Create specialized AI assistants</p>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <Check className="w-5 h-5 text-green-400 mx-auto" />
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <X className="w-5 h-5 text-gray-600 mx-auto" />
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <X className="w-5 h-5 text-gray-600 mx-auto" />
+                </td>
+              </tr>
+
+              {/* Voice Chat */}
+              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                <td className="py-4 px-4 text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-orange-400" />
+                    <span className="font-medium">Real-time Voice Chat</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">Talk to AI naturally</p>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <div className="text-xs text-green-400 font-semibold">30 min/mo</div>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <Check className="w-5 h-5 text-gray-500 mx-auto" />
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <X className="w-5 h-5 text-gray-600 mx-auto" />
+                </td>
+              </tr>
+
+              {/* Project Organization */}
+              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                <td className="py-4 px-4 text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <Heart className="w-4 h-4 text-orange-400" />
+                    <span className="font-medium">Project Workspaces</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">Organize chats by topic/project</p>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <Check className="w-5 h-5 text-green-400 mx-auto" />
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <X className="w-5 h-5 text-gray-600 mx-auto" />
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <X className="w-5 h-5 text-gray-600 mx-auto" />
+                </td>
+              </tr>
+
+              {/* File Analysis */}
+              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                <td className="py-4 px-4 text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-orange-400" />
+                    <span className="font-medium">Advanced File Analysis</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 ml-6">PDFs, images, documents</p>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <div className="text-xs text-green-400 font-semibold">25 PDFs/mo</div>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <Check className="w-5 h-5 text-gray-500 mx-auto" />
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <Check className="w-5 h-5 text-gray-500 mx-auto" />
+                </td>
+              </tr>
+
+              {/* Price Highlight */}
+              <tr className="bg-orange-500/5 border-t-2 border-orange-500/20">
+                <td className="py-4 px-4 text-gray-300 font-bold">Monthly Price</td>
+                <td className="py-4 px-4 text-center">
+                  <div className="text-lg font-black text-orange-400">$19</div>
+                  <div className="text-xs text-green-400 font-semibold">Save $1/mo</div>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <div className="text-lg font-bold text-gray-500">$20</div>
+                </td>
+                <td className="py-4 px-4 text-center">
+                  <div className="text-lg font-bold text-gray-500">$20</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* CTA after comparison */}
+        <div className="text-center mt-10">
+          <p className="text-gray-400 text-sm mb-4">More features. Better price. One platform.</p>
+          <a 
+            href="#plans"
+            onClick={(e) => { e.preventDefault(); document.querySelector('.grid.md\\:grid-cols-3')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-3 rounded-xl text-sm font-semibold shadow-lg shadow-orange-500/20 transition-all"
+          >
+            Get Started with SoulPrint <ArrowRight className="w-4 h-4" />
+          </a>
+        </div>
+      </div>
+
       {/* Media Credit Packs */}
       <div id="addons" className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
         <div className="text-center mb-8">
