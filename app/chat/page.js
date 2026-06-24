@@ -3836,6 +3836,16 @@ export default function ChatPage() {
               )}
             </div>
           )}
+          {/* Upgrade Button - for Free tier users */}
+          {subscription.plan?.plan_id === 'free' && (
+            <a 
+              href="/pricing"
+              className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-2'} w-full py-2.5 px-3 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 rounded-lg text-white font-medium text-xs transition-all shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40`}
+              title="Upgrade to Pro"
+            >
+              <Zap className="w-4 h-4" /> {!sidebarCollapsed && 'Upgrade to Pro'}
+            </a>
+          )}
           {/* Admin Dashboard link - only for admins */}
           {(user?.role === 'admin' || user?.role === 'superadmin') && (
             <>

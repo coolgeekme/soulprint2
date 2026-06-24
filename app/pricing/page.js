@@ -8,7 +8,7 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 // ── Plan Feature Comparison Data ──
 const PLAN_FEATURES = [
   { category: 'Chat', features: [
-    { name: 'Standard AI Models', free: '50 msgs/day', base: 'Unlimited', power: 'Unlimited' },
+    { name: 'Standard AI Models', free: '10 msgs/day', base: 'Unlimited', power: 'Unlimited' },
     { name: 'Premium AI Models', free: false, base: '50 messages/mo included', power: 'Unlimited' },
     { name: 'Premium Overage', free: '—', base: '$0.15/message (add-on packs)', power: 'N/A' },
     { name: 'Persona & Memory', free: true, base: true, power: true },
