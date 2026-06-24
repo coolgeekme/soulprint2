@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, X, Zap, Crown, Rocket, ArrowLeft, Sparkles, Film, Shield, Loader2, Tag, CreditCard, MessageSquare } from 'lucide-react';
+import { Check, X, Zap, Crown, Rocket, ArrowLeft, Sparkles, Film, Shield, Loader2, Tag, CreditCard, MessageSquare, Brain, Star, Fingerprint, Heart, ArrowRight } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 // ── Plan Feature Comparison Data ──
