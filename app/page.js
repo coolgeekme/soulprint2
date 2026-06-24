@@ -685,6 +685,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-6">
             <a href="#features" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">Features</a>
             <a href="#testimonials" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">Reviews</a>
+            <Link href="/pricing" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">Pricing</Link>
             {isLoggedIn ? (
               <Link href="/chat" className="btn-orange px-5 py-2 rounded-lg text-sm flex items-center gap-2">
                 Open Chat <ArrowRight className="w-4 h-4" />
