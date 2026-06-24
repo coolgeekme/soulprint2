@@ -241,7 +241,7 @@ export default function PricingPage() {
               <span className="text-gray-500 text-sm">/forever</span>
             </div>
             <ul className="space-y-2.5 mb-8 flex-1">
-              {['Standard AI models — 50 msgs/day', '10 images/mo (watermarked)', 'No video generation', '5 PDFs/mo', 'SoulPrint memory & persona', 'Web + Telegram', '10-page file analysis', 'Ace AI Support Agent 24/7'].map((f, i) => (
+              {['Standard AI models — 10 msgs/day', '10 images/mo (watermarked)', 'No video generation', '5 PDFs/mo', 'SoulPrint memory & persona', 'Web + Telegram', '10-page file analysis', 'Ace AI Support Agent 24/7'].map((f, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-400">
                   <Check className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
                   <span>{f}</span>
@@ -275,9 +275,9 @@ export default function PricingPage() {
               <p className="text-gray-500 text-xs mt-1">For daily users who want premium AI.</p>
             </div>
             <div className="mb-6">
-              <span className="text-4xl font-black text-white">${annual ? '16.01' : '20.01'}</span>
+              <span className="text-4xl font-black text-white">${annual ? '15.20' : '19'}</span>
               <span className="text-gray-500 text-sm">/{annual ? 'mo (billed yearly)' : 'mo'}</span>
-              {annual && <p className="text-orange-400 text-xs mt-1">${(192.10).toFixed(2)}/year — save $48</p>}
+              {annual && <p className="text-orange-400 text-xs mt-1">${(182.40).toFixed(2)}/year — save $45.60</p>}
             </div>
             <ul className="space-y-2.5 mb-8 flex-1">
               {[
@@ -309,8 +309,8 @@ export default function PricingPage() {
             {!isCurrentPlan('base') && (
               <p className="text-[10px] text-gray-600 mt-2 text-center leading-relaxed">
                 {annual 
-                  ? 'Billed annually at $192.10/year. Auto-renews yearly until canceled.'
-                  : 'Billed monthly at $20.01/mo. Auto-renews monthly until canceled.'
+                  ? 'Billed annually at $182.40/year. Auto-renews yearly until canceled.'
+                  : 'Billed monthly at $19/mo. Auto-renews monthly until canceled.'
                 }
               </p>
             )}
@@ -326,9 +326,9 @@ export default function PricingPage() {
               <p className="text-gray-500 text-xs mt-1">Unlimited everything. Flat rate.</p>
             </div>
             <div className="mb-6">
-              <span className="text-4xl font-black text-white">${annual ? '79.21' : '99.01'}</span>
+              <span className="text-4xl font-black text-white">${annual ? '77.60' : '97'}</span>
               <span className="text-gray-500 text-sm">/{annual ? 'mo (billed yearly)' : 'mo'}</span>
-              {annual && <p className="text-purple-400 text-xs mt-1">${(950.50).toFixed(2)}/year — save $238</p>}
+              {annual && <p className="text-purple-400 text-xs mt-1">${(931.20).toFixed(2)}/year — save $232.80</p>}
             </div>
             <ul className="space-y-2.5 mb-8 flex-1">
               {[
@@ -356,8 +356,8 @@ export default function PricingPage() {
             {!isCurrentPlan('power') && (
               <p className="text-[10px] text-gray-600 mt-2 text-center leading-relaxed">
                 {annual 
-                  ? 'Billed annually at $950.50/year. Auto-renews yearly until canceled.'
-                  : 'Billed monthly at $99.01/mo. Auto-renews monthly until canceled.'
+                  ? 'Billed annually at $931.20/year. Auto-renews yearly until canceled.'
+                  : 'Billed monthly at $97/mo. Auto-renews monthly until canceled.'
                 }
               </p>
             )}
