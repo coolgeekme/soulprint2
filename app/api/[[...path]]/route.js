@@ -105,6 +105,11 @@ import {
 } from '@/lib/handlers/gradual-assessment';
 
 import {
+  handleDocumentGeneration,
+} from '@/lib/handlers/document-generator';
+
+
+import {
   handleGetLayeredQuestions,
   handleSubmitLayeredAnswer,
   handleCompleteLayeredAssessment,
@@ -741,6 +746,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'generate/image') return handleGenerateImage(request);
     if (pathStr === 'generate/image-kie') return handleGenerateImageKie(request);
     if (pathStr === 'generate/video') return handleGenerateVideo(request);
+    if (pathStr === 'documents/generate') return handleDocumentGeneration(request);
     if (pathStr === 'media/generate') return handleMediaGenerate(request);
     if (pathStr === 'media/save-to-gallery') return handleSaveToGallery(request);
     
