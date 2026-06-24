@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
@@ -230,6 +230,7 @@ export default function ChatPage() {
   const [isGeneratingMockup, setIsGeneratingMockup] = useState(false);
   const [showImprintsMarketplace, setShowImprintsMarketplace] = useState(false);
   const [currentStreamImprint, setCurrentStreamImprint] = useState(null);
+  const [activeImprint, setActiveImprint] = useState(null); // Currently active imprint (default or project-specific)
   const streamingImageUrlRef = useRef(null);
   const streamingVideoTaskRef = useRef(null);
   const streamingMusicTaskRef = useRef(null);
@@ -482,6 +483,41 @@ export default function ChatPage() {
     onInterim: (text) => setInterimText(text),
   });
 
+  // Computed display name: Project + Imprint OR Persona + Imprint
+  const displayName = useMemo(() => {
+    const currentProject = projects.find(p => p.id === selectedProject);
+    const projectName = currentProject?.name;
+    
+    // If in a project, use project name as base
+    if (projectName) {
+      if (activeImprint) {
+        return (
+          <span className="flex items-center gap-1.5">
+            <span className="truncate">{projectName}</span>
+            <span className="text-gray-500">·</span>
+            <span className="text-base leading-none">{activeImprint.icon}</span>
+            <span className="truncate">{activeImprint.name}</span>
+          </span>
+        );
+      }
+      return projectName;
+    }
+    
+    // Not in a project, use persona name as base
+    const baseName = assistantName || 'SoulPrint';
+    if (activeImprint) {
+      return (
+        <span className="flex items-center gap-1.5">
+          <span className="truncate">{baseName}</span>
+          <span className="text-gray-500">·</span>
+          <span className="text-base leading-none">{activeImprint.icon}</span>
+          <span className="truncate">{activeImprint.name}</span>
+        </span>
+      );
+    }
+    return baseName;
+  }, [selectedProject, projects, activeImprint, assistantName]);
+
   useEffect(() => {
     const t = localStorage.getItem('sp_token');
     if (!t) { router.push('/auth'); return; }
@@ -508,6 +544,15 @@ export default function ChatPage() {
           .then(data => { 
             if (data && data.enabled !== false) {
               setInvitesRemaining(data.invites_remaining ?? 0); 
+            }
+          })
+          .catch(() => {});
+        // Load active imprint (default or project-specific)
+        fetch('/api/imprints/my', { headers: { Authorization: `Bearer ${t}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            if (data?.default_imprint?.imprint) {
+              setActiveImprint(data.default_imprint.imprint);
             }
           })
           .catch(() => {});
@@ -3905,7 +3950,7 @@ export default function ChatPage() {
             </button>
             <div className="flex items-center gap-2">
               <SoulPrintLogo size={20} />
-              <span className="text-white font-medium text-sm">{assistantName}</span>
+              <span className="text-white font-medium text-sm flex items-center gap-1">{displayName}</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
