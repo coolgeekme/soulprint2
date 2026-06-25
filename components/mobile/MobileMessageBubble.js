@@ -33,9 +33,19 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
       <div className="flex justify-end mb-4 px-4">
         <div 
           className="max-w-[85%] bg-orange-500/20 border border-orange-500/30 rounded-3xl rounded-br-lg px-4 py-3"
-          onClick={() => setShowActions(!showActions)}
+          onTouchStart={(e) => {
+            // Allow text selection - don't immediately show actions
+            e.currentTarget._touchStartTime = Date.now();
+          }}
+          onTouchEnd={(e) => {
+            // Only toggle actions on quick tap (< 200ms), not on long press for selection
+            const touchDuration = Date.now() - (e.currentTarget._touchStartTime || 0);
+            if (touchDuration < 200 && !window.getSelection()?.toString()) {
+              setShowActions(!showActions);
+            }
+          }}
         >
-          <p className="text-white text-base leading-7">{String(message?.content || '')}</p>
+          <p className="text-white text-base leading-7 select-text" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{String(message?.content || '')}</p>
           {/* Variant toggle for user messages */}
           {message.variants && message.variants.length > 1 && !showActions && (
             <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-orange-500/10" onClick={e => e.stopPropagation()}>
@@ -83,7 +93,17 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
       <div className="max-w-[90%]">
         <div 
           className="bg-white/5 rounded-3xl rounded-bl-lg px-4 py-3"
-          onClick={() => setShowActions(!showActions)}
+          onTouchStart={(e) => {
+            // Allow text selection - don't immediately show actions
+            e.currentTarget._touchStartTime = Date.now();
+          }}
+          onTouchEnd={(e) => {
+            // Only toggle actions on quick tap (< 200ms), not on long press for selection
+            const touchDuration = Date.now() - (e.currentTarget._touchStartTime || 0);
+            if (touchDuration < 200 && !window.getSelection()?.toString()) {
+              setShowActions(!showActions);
+            }
+          }}
         >
           {/* Imprint Attribution Badge */}
           {message.activeImprint && (
@@ -194,7 +214,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           )}
           
           {/* Message content — show empty when video_task is present (VideoCard handles display) or when image_url (image card handles display) */}
-          <div className="text-gray-200 text-base leading-7 prose prose-invert prose-base max-w-none">
+          <div className="text-gray-200 text-base leading-7 prose prose-invert prose-base max-w-none select-text" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
             {(message.video_task && !message.video_url) || message.image_url ? null : (
             <>
             <SafeMarkdown content={typeof message.content === 'string' ? message.content : String(message.content || '')} />

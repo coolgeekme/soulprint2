@@ -59,13 +59,13 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
       
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       const rec = new SR();
-      rec.continuous = false; // Single utterance — auto-stops when user finishes speaking
+      rec.continuous = true; // Keep recording continuously until user stops
       rec.interimResults = true;
       rec.lang = 'en-US';
 
       rec.onresult = (e) => {
         // Reset silence timer on every result (speech is active)
-        resetSilenceTimer(4000); // 4s of silence after last speech → auto-stop
+        resetSilenceTimer(10000); // 10s of silence after last speech → auto-stop
 
         let interim = '';
         let final = '';
@@ -119,14 +119,27 @@ function useSpeechRecognition({ onTranscript, onInterim, token }) {
       };
       
       rec.onend = () => {
-        console.log('startLive: Recognition ended naturally');
+        console.log('startLive: Recognition ended');
         clearSilenceTimer();
-        // With continuous=false, recognition ends after the user finishes speaking.
-        // Clean up — no auto-restart.
-        recognitionRef.current = null;
-        setIsListening(false);
-        isListeningRef.current = false;
-        onInterim(''); // Clear any leftover interim text
+        
+        // In continuous mode, if we're still supposed to be listening, restart
+        if (isListeningRef.current && recognitionRef.current) {
+          console.log('startLive: Restarting recognition for continuous mode...');
+          try {
+            recognitionRef.current.start();
+          } catch (err) {
+            console.log('startLive: Could not restart, likely stopped by user');
+            recognitionRef.current = null;
+            setIsListening(false);
+            isListeningRef.current = false;
+          }
+        } else {
+          // User stopped or error occurred
+          recognitionRef.current = null;
+          setIsListening(false);
+          isListeningRef.current = false;
+          onInterim(''); // Clear any leftover interim text
+        }
       };
 
       recognitionRef.current = rec;
