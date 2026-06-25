@@ -49,6 +49,7 @@ export default function PricingPage() {
   const [currentPlan, setCurrentPlan] = useState(null);
   const [discountCode, setDiscountCode] = useState('');
   const [discountResult, setDiscountResult] = useState(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(null);
   const [showComparison, setShowComparison] = useState(false);
 
@@ -88,7 +89,7 @@ export default function PricingPage() {
   const handleCheckout = async (planId) => {
     const token = localStorage.getItem('sp_token');
     if (!token) {
-      router.push('/chat');
+      setShowAuthModal(true);
       return;
     }
     setCheckoutLoading(planId);
@@ -816,6 +817,37 @@ export default function PricingPage() {
           Payments processed securely by Stripe. By subscribing, you agree to our <a href="/terms" className="text-orange-400 hover:underline">Terms of Service</a> and <a href="/privacy" className="text-orange-400 hover:underline">Privacy Policy</a>. Questions? <a href="mailto:support@archeforge.com" className="text-orange-400 hover:underline">support@archeforge.com</a>
         </p>
       </div>
+
+      {/* Auth Required Modal */}
+      {showAuthModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowAuthModal(false)}>
+          <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-8 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-orange-500/10 flex items-center justify-center mb-4">
+                <Shield className="w-8 h-8 text-orange-400" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-3">Create an Account First</h3>
+              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                You need a SoulPrint account to subscribe to a paid plan. Create your free account in seconds and unlock the power of AI that knows you.
+              </p>
+              <div className="flex flex-col gap-3 w-full">
+                <button
+                  onClick={() => router.push('/chat')}
+                  className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-xl font-semibold transition-all shadow-lg shadow-orange-500/20"
+                >
+                  Create Free Account
+                </button>
+                <button
+                  onClick={() => setShowAuthModal(false)}
+                  className="w-full py-3 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl font-semibold transition-colors"
+                >
+                  Browse Plans
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
