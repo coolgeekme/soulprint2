@@ -226,7 +226,7 @@ export default function PricingPage() {
 
       {/* Plan Cards */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-12">
-        <div className="grid md:grid-cols-3 gap-5 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-7xl mx-auto">
           {/* Free */}
           <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-6 flex flex-col">
             <div className="mb-6">
@@ -311,6 +311,56 @@ export default function PricingPage() {
                 {annual 
                   ? 'Billed annually at $182.40/year. Auto-renews yearly until canceled.'
                   : 'Billed monthly at $19/mo. Auto-renews monthly until canceled.'
+                }
+              </p>
+            )}
+          </div>
+
+          {/* Plus — Best Value */}
+          <div className="relative bg-gradient-to-b from-blue-500/[0.06] to-transparent border border-blue-500/20 rounded-2xl p-6 flex flex-col">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+              <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[10px] font-bold tracking-wider px-3 py-1 rounded-full uppercase">Best Value</span>
+            </div>
+            <div className="mb-6">
+              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center mb-3">
+                <Star className="w-5 h-5 text-blue-400" />
+              </div>
+              <h3 className="text-xl font-bold text-white">Plus</h3>
+              <p className="text-gray-500 text-xs mt-1">Power user features at mid-tier price.</p>
+            </div>
+            <div className="mb-6">
+              <span className="text-4xl font-black text-white">${annual ? '31.20' : '39'}</span>
+              <span className="text-gray-500 text-sm">/{annual ? 'mo (billed yearly)' : 'mo'}</span>
+              {annual && <p className="text-blue-400 text-xs mt-1">${(374.40).toFixed(2)}/year — save $93.60</p>}
+            </div>
+            <ul className="space-y-2.5 mb-8 flex-1">
+              {[
+                'Everything in Base',
+                'Unlimited premium AI models',
+                '100 images/mo (HD, no watermark)',
+                '5 videos/mo (1080p, no watermark)',
+                '50 PDFs/mo',
+                'Unlimited voice chat',
+                'Priority support',
+              ].map((f, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                  <Check className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+            <button 
+              onClick={() => handleCheckout('plus')}
+              disabled={isCurrentPlan('plus') || checkoutLoading === 'plus'}
+              className={`w-full py-3 rounded-xl text-sm font-semibold transition-all ${isCurrentPlan('plus') ? 'bg-blue-500/20 text-blue-400/60 cursor-default' : 'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow-lg shadow-blue-500/20'}`}
+            >
+              {checkoutLoading === 'plus' ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : isCurrentPlan('plus') ? 'Current Plan' : 'Subscribe'}
+            </button>
+            {!isCurrentPlan('plus') && (
+              <p className="text-[10px] text-gray-600 mt-2 text-center leading-relaxed">
+                {annual 
+                  ? 'Billed annually at $374.40/year. Auto-renews yearly until canceled.'
+                  : 'Billed monthly at $39/mo. Auto-renews monthly until canceled.'
                 }
               </p>
             )}
