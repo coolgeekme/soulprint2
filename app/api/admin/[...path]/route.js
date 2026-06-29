@@ -1018,6 +1018,21 @@ async function handleAdminGetUsers(request) {
   ]).toArray();
   const msgCountMap = Object.fromEntries(userMsgCounts.map(m => [m._id, m.total_messages]));
 
+  // Daily message counts for Free tier users (for limit tracking)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dailyMsgCounts = await db.collection('messages').aggregate([
+    { 
+      $match: { 
+        user_id: { $in: paginatedUsers.map(u => u.id) }, 
+        role: 'assistant',
+        created_at: { $gte: today }
+      } 
+    },
+    { $group: { _id: '$user_id', daily_messages: { $sum: 1 } } },
+  ]).toArray();
+  const dailyMsgMap = Object.fromEntries(dailyMsgCounts.map(m => [m._id, m.daily_messages]));
+
   // Model pricing for per-user cost estimation (simplified top models)
   const PER_USER_PRICING = { input: 5.00, output: 15.00 }; // default GPT-4o rate per 1M tokens
 
@@ -1028,6 +1043,8 @@ async function handleAdminGetUsers(request) {
       const sub = subMap[u.id];
       const tokens = tokenMap[u.id] || { total_input_tokens: 0, total_output_tokens: 0, message_count: 0 };
       const totalMessages = msgCountMap[u.id] || 0;
+      const dailyMessages = dailyMsgMap[u.id] || 0;
+      const planId = sub?.plan_id || 'free';
       const estCost = (tokens.total_input_tokens / 1_000_000) * PER_USER_PRICING.input + (tokens.total_output_tokens / 1_000_000) * PER_USER_PRICING.output;
       return {
         id: u.id,
@@ -1041,10 +1058,11 @@ async function handleAdminGetUsers(request) {
         assessment_answer_count: answerCount,
         assessment_type: assessmentType,
         onboarding_complete: profileMap[u.id]?.onboarding_complete || false,
-        plan_id: sub?.plan_id || 'free',
+        plan_id: planId,
         plan_status: sub?.status || 'active',
         // Token usage metrics
         total_messages: totalMessages,
+        daily_messages: dailyMessages, // New field for daily tracking
         est_input_tokens: tokens.total_input_tokens,
         est_output_tokens: tokens.total_output_tokens,
         est_total_tokens: tokens.total_input_tokens + tokens.total_output_tokens,

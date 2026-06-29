@@ -1015,14 +1015,14 @@ function UsersTab({ token, adminRole }) {
         <table className="w-full admin-table">
           <thead>
             <tr className="border-b border-white/5">
-              {['Email', 'Role', 'Plan', 'Tokens / Cost', 'Accepted', 'Onboarding', 'Assessment', 'Last Active', 'Actions'].map(h => (
+              {['Email', 'Role', 'Plan', 'Tokens / Cost', 'Daily Usage', 'Accepted', 'Onboarding', 'Assessment', 'Last Active', 'Actions'].map(h => (
                 <th key={h} className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              <tr><td colSpan={10} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
             ) : users.map(u => (
               <tr key={u.id} className="border-b border-white/3 hover:bg-white/5 transition-colors">
                 <td className="py-3 pr-4">
@@ -1080,6 +1080,18 @@ function UsersTab({ token, adminRole }) {
                       {u.est_total_tokens > 1000000 ? `${(u.est_total_tokens / 1000000).toFixed(1)}M` : u.est_total_tokens > 1000 ? `${(u.est_total_tokens / 1000).toFixed(1)}K` : (u.est_total_tokens || 0)} tkns • {u.total_messages || 0} msgs
                     </p>
                   </div>
+                </td>
+                <td className="py-3 pr-4">
+                  {(u.plan_id === 'free' && u.role === 'user') ? (
+                    <div className="text-center">
+                      <p className={`text-[11px] font-bold ${(u.daily_messages || 0) >= 10 ? 'text-red-400' : (u.daily_messages || 0) >= 8 ? 'text-yellow-400' : 'text-green-400'}`}>
+                        {u.daily_messages || 0}/10
+                      </p>
+                      <p className="text-[9px] text-gray-600">today</p>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-gray-600 text-center block">—</span>
+                  )}
                 </td>
                 <td className="py-3 pr-4">
                   <button onClick={() => toggleAccepted(u.id, u.accepted)}
