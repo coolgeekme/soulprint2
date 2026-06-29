@@ -119,6 +119,8 @@ export default function MobileChat({
   const [announcements, setAnnouncements] = useState([]);
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [conversationSearch, setConversationSearch] = useState(''); // For searching conversations
+  const [searchResults, setSearchResults] = useState(null); // Search results from API
+  const searchTimeoutRef = useRef(null); // Debounce timer for search
   // PWA Install prompt state
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
@@ -3810,14 +3812,40 @@ export default function MobileChat({
               <input
                 type="text"
                 value={conversationSearch}
-                onChange={(e) => setConversationSearch(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setConversationSearch(val);
+                  
+                  // Clear previous timeout
+                  if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                  
+                  // If empty, clear search results
+                  if (!val.trim()) {
+                    setSearchResults(null);
+                    return;
+                  }
+                  
+                  // Debounce API call (300ms delay)
+                  searchTimeoutRef.current = setTimeout(() => {
+                    fetch(`/api/user/conversations?search=${encodeURIComponent(val)}`, { 
+                      headers: { Authorization: `Bearer ${token}` } 
+                    })
+                      .then(r => r.json())
+                      .then(d => setSearchResults(Array.isArray(d) ? d : []))
+                      .catch(() => setSearchResults([]));
+                  }, 300);
+                }}
                 placeholder={selectedProject ? "Search conversations..." : "Search projects & chats..."}
-                className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-9 py-2.5 text-sm text-white placeholder-gray-500 focus:border-orange-500/40 outline-none"
+                className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-9 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:border-orange-500/40 outline-none"
               />
               {conversationSearch && (
                 <button
-                  onClick={() => setConversationSearch('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                  onClick={() => { 
+                    setConversationSearch(''); 
+                    setSearchResults(null);
+                    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -3888,11 +3916,13 @@ export default function MobileChat({
                   </div>
                 </button>
                 
-                {/* Recent Conversations (when no search) */}
-                {!conversationSearch && conversations.length > 0 && (
+                {/* Recent Conversations (when no search) OR Search Results */}
+                {((conversationSearch && searchResults) || (!conversationSearch && conversations.length > 0)) && (
                   <div className="mt-4">
-                    <p className="px-4 text-xs text-gray-500 uppercase tracking-wider mb-2">Recent Chats</p>
-                    {conversations.slice(0, 5).map(conv => (
+                    <p className="px-4 text-xs text-gray-500 uppercase tracking-wider mb-2">
+                      {conversationSearch ? `Search Results (${searchResults?.length || 0})` : 'Recent Chats'}
+                    </p>
+                    {(conversationSearch ? searchResults : conversations.slice(0, 5)).map(conv => (
                       <ConversationItem
                         key={conv.id}
                         conversation={conv}
@@ -3903,7 +3933,7 @@ export default function MobileChat({
                         onMove={openMoveToProjectSheet}
                       />
                     ))}
-                    {conversations.length > 5 && (
+                    {!conversationSearch && conversations.length > 5 && (
                       <button 
                         onClick={() => setSelectedProject('general')}
                         className="w-full p-3 text-center text-orange-400 text-sm hover:bg-white/5"
