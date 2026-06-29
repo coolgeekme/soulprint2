@@ -619,21 +619,21 @@ export default function LandingPage() {
   const ctaText = isLoggedIn ? 'Open Chat' : 'Get Your SoulPrint';
 
   return (
-    <div className="min-h-screen bg-sp-black">
+    <div className="min-h-screen bg-white">
 
       {/* ═══════════════════════════════════════════════════════════════════
           STICKY CTA BAR - appears on scroll
       ═══════════════════════════════════════════════════════════════════ */}
       <div className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${showStickyBar ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'}`}>
-        <div className="bg-sp-black/95 backdrop-blur-md border-b border-white/10">
+        <div className="bg-white/95 backdrop-blur-md border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-8 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <SoulPrintLogo size={22} />
-              <span className="font-condensed text-sm font-bold tracking-widest text-white uppercase hidden sm:inline">SoulPrint</span>
+              <span className="font-condensed text-sm font-bold tracking-widest text-gray-900 uppercase hidden sm:inline">SoulPrint</span>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-gray-400 text-xs hidden md:inline">AI that actually knows you</span>
-              <Link href={ctaLink} className="btn-orange px-5 py-2 rounded-lg text-xs">
+              <span className="text-gray-600 text-xs hidden md:inline">AI that actually knows you</span>
+              <Link href={ctaLink} className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-5 py-2 rounded-lg text-xs font-semibold transition-all">
                 {ctaText} →
               </Link>
             </div>
@@ -644,159 +644,199 @@ export default function LandingPage() {
       {/* ═══════════════════════════════════════════════════════════════════
           LANGUAGE EXPANSION TICKER — top announcement bar
       ═══════════════════════════════════════════════════════════════════ */}
-      <div className="relative z-40 bg-[#0a0a0a] border-b border-white/5 py-2 px-4">
+      <div className="relative z-40 bg-gray-50 border-b border-gray-200 py-2 px-4">
         <div className="max-w-6xl mx-auto flex items-center justify-center gap-4 sm:gap-6 text-xs flex-wrap">
-          <a href="https://foundryagents.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-200 hover:text-white transition-colors group">
+          <a href="https://foundryagents.ai" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors group">
             <span className="text-sm">🏢</span>
-            <span className="font-semibold text-white group-hover:text-white">The Foundry</span>
-            <span className="text-gray-400 group-hover:text-gray-300">(for Business)</span>
-            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[9px] font-bold uppercase tracking-wider">Live</span>
+            <span className="font-semibold text-gray-900 group-hover:text-gray-900">The Foundry</span>
+            <span className="text-gray-600 group-hover:text-gray-700">(for Business)</span>
+            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-700 text-[9px] font-bold uppercase tracking-wider">Live</span>
           </a>
-          <div className="w-px h-3.5 bg-white/10 hidden sm:block" />
+          <div className="w-px h-3.5 bg-gray-300 hidden sm:block" />
           <a href="https://esp.soulprintengine.ai/lista-espera" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors group">
+            className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors group">
             <span className="text-sm">🇪🇸</span>
             <span className="font-medium">Versión en Español</span>
-            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[9px] font-bold uppercase tracking-wider group-hover:bg-green-500/25 transition-colors">Waitlist Open</span>
+            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-700 text-[9px] font-bold uppercase tracking-wider group-hover:bg-green-500/25 transition-colors">Waitlist Open</span>
           </a>
-          <div className="w-px h-3.5 bg-white/10 hidden sm:block" />
+          <div className="w-px h-3.5 bg-gray-300 hidden sm:block" />
           <a href="https://br.soulprintengine.ai/lista-espera" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors group">
+            className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors group">
             <span className="text-sm">🇧🇷</span>
             <span className="font-medium">Versão em Português</span>
-            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-400 text-[9px] font-bold uppercase tracking-wider group-hover:bg-green-500/25 transition-colors">Waitlist Open</span>
+            <span className="px-1.5 py-0.5 bg-green-500/15 border border-green-500/30 rounded text-green-700 text-[9px] font-bold uppercase tracking-wider group-hover:bg-green-500/25 transition-colors">Waitlist Open</span>
           </a>
         </div>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          HERO SECTION — YouTube Playlist Background
+          HERO SECTION — Light theme with competitive matrix
       ═══════════════════════════════════════════════════════════════════ */}
-      <section ref={heroRef} className="relative overflow-hidden" style={{ minHeight: '100vh' }}>
-        {/* YouTube Video Background */}
-        <YouTubeHeroBackground isMuted={isMuted} onPlayerReady={handlePlayerReady} />
-
+      <section ref={heroRef} className="relative overflow-hidden bg-gradient-to-br from-white via-orange-50/30 to-white">
+        
         {/* Nav */}
         <nav className="relative z-20 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
           <div className="flex items-center gap-2">
             <SoulPrintLogo size={28} />
-            <span className="font-condensed text-lg font-bold tracking-widest text-white uppercase">SoulPrint</span>
+            <span className="font-condensed text-lg font-bold tracking-widest text-gray-900 uppercase">SoulPrint</span>
           </div>
           <div className="flex items-center gap-6">
-            <a href="#features" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">Features</a>
-            <a href="#testimonials" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">Reviews</a>
-            <Link href="/pricing" className="text-sm text-gray-300 hover:text-white transition-colors hidden sm:inline">Pricing</Link>
+            <a href="#features" className="text-sm text-gray-700 hover:text-gray-900 transition-colors hidden sm:inline">Features</a>
+            <a href="#testimonials" className="text-sm text-gray-700 hover:text-gray-900 transition-colors hidden sm:inline">Reviews</a>
+            <Link href="/pricing" className="text-sm text-gray-700 hover:text-gray-900 transition-colors hidden sm:inline">Pricing</Link>
             {isLoggedIn ? (
-              <Link href="/chat" className="btn-orange px-5 py-2 rounded-lg text-sm flex items-center gap-2">
+              <Link href="/chat" className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2">
                 Open Chat <ArrowRight className="w-4 h-4" />
               </Link>
             ) : (
               <>
-                <Link href="/auth" className="text-sm text-gray-300 hover:text-white transition-colors">Sign In</Link>
-                <Link href="/auth" className="btn-orange px-5 py-2 rounded-lg text-sm">Get Started Free</Link>
+                <Link href="/auth" className="text-sm text-gray-700 hover:text-gray-900 transition-colors">Sign In</Link>
+                <Link href="/auth" className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all">Get Started Free</Link>
               </>
             )}
           </div>
         </nav>
 
-        {/* Hero content — centered over video */}
-        <div className="relative z-20 max-w-7xl mx-auto px-8 flex items-center min-h-[calc(100vh-80px)]">
-          <div className="max-w-2xl">
-            <h1 className="font-condensed font-black text-white leading-none mb-6"
-                style={{ fontSize: 'clamp(48px, 7.5vw, 100px)', letterSpacing: '-1px', textShadow: '0 2px 40px rgba(0,0,0,0.5)' }}>
-              STOP RE-<br />EXPLAINING<br />YOURSELF<br />TO AI
-            </h1>
-            <p className="text-gray-200 text-base mb-4 max-w-md leading-relaxed" style={{ textShadow: '0 1px 8px rgba(0,0,0,0.6)' }}>
-              Chat, organize, reflect, and plan with an AI that remembers your tone, your tempo, and your life.
-            </p>
-            {/* Trust indicators */}
-            <div className="flex items-center gap-4 mb-8 flex-wrap">
-              <span className="text-xs text-gray-300 flex items-center gap-1.5" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
-                <Shield className="w-3.5 h-3.5 text-green-400" /> Private & Encrypted
-              </span>
-              <span className="text-xs text-gray-300 flex items-center gap-1.5" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
-                <Zap className="w-3.5 h-3.5 text-yellow-400" /> GPT-4o, Gemini & Claude
-              </span>
-              <span className="text-xs text-gray-300 flex items-center gap-1.5" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
-                <Check className="w-3.5 h-3.5 text-orange-400" /> Free to Start
-              </span>
+        {/* Hero content with competitive matrix */}
+        <div className="relative z-20 max-w-7xl mx-auto px-8 py-16 lg:py-24">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            
+            {/* Left: Hero Copy */}
+            <div className="max-w-xl">
+              <h1 className="font-condensed font-black text-gray-900 leading-none mb-6"
+                  style={{ fontSize: 'clamp(48px, 7vw, 80px)', letterSpacing: '-1px' }}>
+                STOP RE-<br />EXPLAINING<br />YOURSELF<br />TO AI
+              </h1>
+              <p className="text-gray-700 text-lg mb-6 leading-relaxed">
+                Chat, organize, reflect, and plan with an AI that remembers your tone, your tempo, and your life.
+              </p>
+              
+              {/* Trust indicators */}
+              <div className="flex items-center gap-4 mb-8 flex-wrap">
+                <span className="text-sm text-gray-700 flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-green-500" /> Private & Encrypted
+                </span>
+                <span className="text-sm text-gray-700 flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-yellow-500" /> GPT-4o, Gemini & Claude
+                </span>
+                <span className="text-sm text-gray-700 flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-orange-500" /> Free to Start
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                {isLoggedIn ? (
+                  <Link href="/chat" className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-7 py-3.5 rounded-xl text-base font-semibold inline-flex items-center gap-2 shadow-lg shadow-orange-500/20">
+                    Go to Chat <ArrowRight className="w-5 h-5" />
+                  </Link>
+                ) : (
+                  <Link href="/auth" className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-7 py-3.5 rounded-xl text-base font-semibold inline-flex items-center gap-2 shadow-lg shadow-orange-500/20">
+                    Get Your SoulPrint — It&apos;s Free
+                  </Link>
+                )}
+                <a href="#features" className="text-gray-700 hover:text-gray-900 text-sm flex items-center gap-1 transition-colors font-medium">
+                  See what it can do <ChevronRight className="w-4 h-4" />
+                </a>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              {isLoggedIn ? (
-                <Link href="/chat" className="btn-orange px-7 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
-                  Go to Chat <ArrowRight className="w-4 h-4" />
+
+            {/* Right: Competitive Matrix */}
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-orange-500 to-red-500 px-6 py-4">
+                <h3 className="text-white font-bold text-lg">Why Choose SoulPrint?</h3>
+                <p className="text-orange-100 text-sm">More features. Better price. One platform.</p>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Feature</th>
+                      <th className="py-3 px-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <SoulPrintLogo size={16} />
+                          <span className="text-xs font-bold text-gray-900">SoulPrint</span>
+                          <span className="text-xs text-orange-600 font-semibold">$19/mo</span>
+                        </div>
+                      </th>
+                      <th className="py-3 px-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-sm">🤖</span>
+                          <span className="text-xs font-bold text-gray-600">ChatGPT</span>
+                          <span className="text-xs text-gray-500">$20/mo</span>
+                        </div>
+                      </th>
+                      <th className="py-3 px-4 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-sm">🧠</span>
+                          <span className="text-xs font-bold text-gray-600">Claude</span>
+                          <span className="text-xs text-gray-500">$20/mo</span>
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm">
+                    <tr className="border-b border-gray-100 hover:bg-orange-50/30">
+                      <td className="py-3 px-4 text-gray-700 font-medium">Long-term Memory</td>
+                      <td className="py-3 px-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                      <td className="py-3 px-4 text-center"><X className="w-5 h-5 text-gray-300 mx-auto" /></td>
+                      <td className="py-3 px-4 text-center"><X className="w-5 h-5 text-gray-300 mx-auto" /></td>
+                    </tr>
+                    <tr className="border-b border-gray-100 hover:bg-orange-50/30">
+                      <td className="py-3 px-4 text-gray-700 font-medium">AI Models</td>
+                      <td className="py-3 px-4 text-center text-xs text-green-600 font-semibold">All 3</td>
+                      <td className="py-3 px-4 text-center text-xs text-gray-500">GPT only</td>
+                      <td className="py-3 px-4 text-center text-xs text-gray-500">Claude only</td>
+                    </tr>
+                    <tr className="border-b border-gray-100 hover:bg-orange-50/30">
+                      <td className="py-3 px-4 text-gray-700 font-medium">Image Generation</td>
+                      <td className="py-3 px-4 text-center text-xs text-green-600 font-semibold">50/mo HD</td>
+                      <td className="py-3 px-4 text-center text-xs text-gray-500">Limited</td>
+                      <td className="py-3 px-4 text-center"><X className="w-5 h-5 text-gray-300 mx-auto" /></td>
+                    </tr>
+                    <tr className="border-b border-gray-100 hover:bg-orange-50/30">
+                      <td className="py-3 px-4 text-gray-700 font-medium">Video Generation</td>
+                      <td className="py-3 px-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                      <td className="py-3 px-4 text-center"><X className="w-5 h-5 text-gray-300 mx-auto" /></td>
+                      <td className="py-3 px-4 text-center"><X className="w-5 h-5 text-gray-300 mx-auto" /></td>
+                    </tr>
+                    <tr className="border-b border-gray-100 hover:bg-orange-50/30">
+                      <td className="py-3 px-4 text-gray-700 font-medium">Custom Personas</td>
+                      <td className="py-3 px-4 text-center"><Check className="w-5 h-5 text-green-500 mx-auto" /></td>
+                      <td className="py-3 px-4 text-center"><X className="w-5 h-5 text-gray-300 mx-auto" /></td>
+                      <td className="py-3 px-4 text-center"><X className="w-5 h-5 text-gray-300 mx-auto" /></td>
+                    </tr>
+                    <tr className="border-b border-gray-100 hover:bg-orange-50/30">
+                      <td className="py-3 px-4 text-gray-700 font-medium">Voice Chat</td>
+                      <td className="py-3 px-4 text-center text-xs text-green-600 font-semibold">30 min/mo</td>
+                      <td className="py-3 px-4 text-center"><Check className="w-5 h-5 text-gray-400 mx-auto" /></td>
+                      <td className="py-3 px-4 text-center"><X className="w-5 h-5 text-gray-300 mx-auto" /></td>
+                    </tr>
+                    <tr className="bg-orange-50">
+                      <td className="py-3 px-4 text-gray-900 font-bold">Price</td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="text-lg font-black text-orange-600">$19</div>
+                        <div className="text-xs text-green-600 font-semibold">Save $1</div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="text-lg font-bold text-gray-500">$20</div>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="text-lg font-bold text-gray-500">$20</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                <Link href="/pricing" className="text-orange-600 hover:text-orange-700 text-sm font-semibold flex items-center justify-center gap-1 transition-colors">
+                  View full pricing details <ArrowRight className="w-4 h-4" />
                 </Link>
-              ) : (
-                <Link href="/auth" className="btn-orange px-7 py-3.5 rounded-xl text-sm inline-flex items-center gap-2">
-                  Get Your SoulPrint — It&apos;s Free
-                </Link>
-              )}
-              <a href="#features" className="text-gray-300 hover:text-white text-sm flex items-center gap-1 transition-colors" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
-                See what it can do <ChevronRight className="w-4 h-4" />
-              </a>
+              </div>
             </div>
+
           </div>
-        </div>
-
-        {/* "Created with" badge — animated glowing pill overlaid on video */}
-        <div className="absolute bottom-6 left-6 z-30">
-          <div className="attribution-badge-glow h-10 px-4 rounded-full bg-black/60 backdrop-blur-md border border-orange-500/40 flex items-center gap-2.5 text-white text-sm font-semibold">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
-            </span>
-            <span className="attribution-shimmer-text">Clips generated with SoulPrint Engine</span>
-          </div>
-        </div>
-
-        {/* Player controls — bottom right */}
-        <div className="absolute bottom-6 right-6 z-30 flex items-center gap-2">
-          {/* Watch this video button */}
-          <button
-            onClick={openVideoPopup}
-            className="h-9 px-3.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center gap-2 text-white/70 hover:text-white hover:bg-white/20 transition-all text-xs font-medium"
-            aria-label="Watch this video"
-          >
-            <Youtube className="w-3.5 h-3.5" /> Watch
-          </button>
-
-          {/* Divider */}
-          <div className="w-px h-5 bg-white/20" />
-
-          {/* Transport controls */}
-          <button
-            onClick={skipPrev}
-            className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
-            aria-label="Previous video"
-          >
-            <SkipBack className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={togglePlayPause}
-            className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
-            aria-label={isPlaying ? 'Pause' : 'Play'}
-          >
-            {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
-          </button>
-          <button
-            onClick={skipNext}
-            className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
-            aria-label="Next video"
-          >
-            <SkipForward className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Divider */}
-          <div className="w-px h-5 bg-white/20" />
-
-          {/* Mute */}
-          <button
-            onClick={toggleMute}
-            className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all"
-            aria-label={isMuted ? 'Unmute video' : 'Mute video'}
-          >
-            {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-          </button>
         </div>
       </section>
 
