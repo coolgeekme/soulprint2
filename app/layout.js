@@ -28,7 +28,7 @@ export const viewport = {
 const themeScript = `
 (function() {
   try {
-    var theme = localStorage.getItem('soulprint-theme') || 'dark';
+    var theme = localStorage.getItem('soulprint-theme') || 'light';
     document.documentElement.classList.add(theme);
     if (theme === 'light') {
       document.body.style.backgroundColor = '#ffffff';
@@ -42,7 +42,7 @@ const themeScript = `
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" className="light" suppressHydrationWarning>
       <head>
         {/* Google Tag Manager */}
         <script dangerouslySetInnerHTML={{__html:`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':

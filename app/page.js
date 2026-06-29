@@ -784,7 +784,7 @@ export default function LandingPage() {
                     </tr>
                     <tr className="border-b border-gray-100 hover:bg-orange-50/30">
                       <td className="py-3 px-4 text-gray-700 font-medium">AI Models</td>
-                      <td className="py-3 px-4 text-center text-xs text-green-600 font-semibold">All 3</td>
+                      <td className="py-3 px-4 text-center text-xs text-green-600 font-semibold">Multiple</td>
                       <td className="py-3 px-4 text-center text-xs text-gray-500">GPT only</td>
                       <td className="py-3 px-4 text-center text-xs text-gray-500">Claude only</td>
                     </tr>
