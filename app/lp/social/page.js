@@ -439,7 +439,7 @@ export default function SocialLandingPage() {
                   <f.icon className="w-6 h-6 text-white" />
                 </div>
                 <h3 className="text-lg font-bold text-white mb-2">{f.title}</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">{f.desc}</p>
+                <p className="text-gray-300 text-sm leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -469,7 +469,7 @@ export default function SocialLandingPage() {
                   <span className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center">{item.step}</span>
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3">{item.title}</h3>
-                <p className="text-gray-400 text-sm leading-relaxed max-w-xs mx-auto">{item.desc}</p>
+                <p className="text-gray-300 text-sm leading-relaxed max-w-xs mx-auto">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -484,15 +484,15 @@ export default function SocialLandingPage() {
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12">Generic AI vs. <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">SoulPrint</span></h2>
             <div className="grid grid-cols-2 gap-4 sm:gap-6">
               <div className="space-y-3">
-                <div className="text-center pb-4 border-b border-white/10"><p className="text-gray-500 font-semibold text-sm">Other AI</p></div>
+                <div className="text-center pb-4 border-b border-white/10"><p className="text-gray-400 font-semibold text-sm">Other AI</p></div>
                 {['Forgets everything between sessions','Same generic responses for everyone','Robotic, impersonal tone','No context about your life','Starts from zero every time'].map((t, i) => (
-                  <div key={i} className="flex items-start gap-2 p-3 rounded-xl bg-white/[0.02] border border-white/5"><span className="text-red-500/60 mt-0.5 flex-shrink-0">✗</span><span className="text-gray-500 text-sm">{t}</span></div>
+                  <div key={i} className="flex items-start gap-2 p-3 rounded-xl bg-white/[0.02] border border-white/5"><span className="text-red-500/70 mt-0.5 flex-shrink-0">✗</span><span className="text-gray-400 text-sm">{t}</span></div>
                 ))}
               </div>
               <div className="space-y-3">
                 <div className="text-center pb-4 border-b border-orange-500/30"><p className="text-orange-400 font-semibold text-sm">SoulPrint</p></div>
                 {['Remembers every conversation & detail','Uniquely personalized to your style','Adapts to your tone & personality','Knows your goals, preferences & world','Grows smarter with every interaction'].map((t, i) => (
-                  <div key={i} className="flex items-start gap-2 p-3 rounded-xl bg-orange-500/[0.04] border border-orange-500/10"><span className="text-orange-400 mt-0.5 flex-shrink-0">✓</span><span className="text-gray-300 text-sm">{t}</span></div>
+                  <div key={i} className="flex items-start gap-2 p-3 rounded-xl bg-orange-500/[0.04] border border-orange-500/10"><span className="text-orange-400 mt-0.5 flex-shrink-0">✓</span><span className="text-gray-200 text-sm">{t}</span></div>
                 ))}
               </div>
             </div>
