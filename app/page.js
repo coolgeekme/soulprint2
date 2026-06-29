@@ -877,18 +877,18 @@ export default function LandingPage() {
       {/* ═══════════════════════════════════════════════════════════════════
           5 THINGS SOULPRINT CAN DO — from the ad
       ═══════════════════════════════════════════════════════════════════ */}
-      <section id="features" className="bg-sp-black grid-bg py-24 px-8">
+      <section id="features" className="bg-gradient-to-br from-gray-50 to-white py-24 px-8 border-y border-gray-200">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
+            <p className="text-orange-600 font-condensed font-bold text-sm tracking-widest uppercase mb-3">
               WHAT MAKES IT DIFFERENT
             </p>
-            <h2 className="font-condensed font-black text-white leading-tight mb-4"
+            <h2 className="font-condensed font-black text-gray-900 leading-tight mb-4"
                 style={{ fontSize: 'clamp(28px, 4vw, 52px)' }}>
               5 THINGS SOULPRINT ENGINE CAN DO<br />
-              <span className="text-orange-400">THAT OTHER AI CAN&apos;T</span>
+              <span className="text-orange-600">THAT OTHER AI CAN&apos;T</span>
             </h2>
-            <p className="text-gray-400 text-sm max-w-xl mx-auto">
+            <p className="text-gray-700 text-sm max-w-xl mx-auto">
               This isn&apos;t another chatbot. SoulPrint Engine is a fundamentally different kind of AI — one that&apos;s built around you.
             </p>
           </div>
@@ -899,11 +899,11 @@ export default function LandingPage() {
                 key={i} 
                 className={`rounded-2xl p-6 bg-gradient-to-br ${f.color} border ${f.border} hover:scale-[1.02] transition-transform duration-200`}
               >
-                <div className={`w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-4`}>
+                <div className={`w-12 h-12 rounded-xl bg-white/90 flex items-center justify-center mb-4`}>
                   <f.icon className={`w-6 h-6 ${f.iconColor}`} />
                 </div>
-                <h3 className="text-white font-bold text-lg mb-2">{f.title}</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">{f.desc}</p>
+                <h3 className="text-gray-900 font-bold text-lg mb-2">{f.title}</h3>
+                <p className="text-gray-700 text-sm leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -913,11 +913,11 @@ export default function LandingPage() {
                 key={i + 3} 
                 className={`rounded-2xl p-6 bg-gradient-to-br ${f.color} border ${f.border} hover:scale-[1.02] transition-transform duration-200`}
               >
-                <div className={`w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center mb-4`}>
+                <div className={`w-12 h-12 rounded-xl bg-white/90 flex items-center justify-center mb-4`}>
                   <f.icon className={`w-6 h-6 ${f.iconColor}`} />
                 </div>
-                <h3 className="text-white font-bold text-lg mb-2">{f.title}</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">{f.desc}</p>
+                <h3 className="text-gray-900 font-bold text-lg mb-2">{f.title}</h3>
+                <p className="text-gray-700 text-sm leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
