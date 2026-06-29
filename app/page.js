@@ -844,28 +844,6 @@ export default function LandingPage() {
       {popupVideoId && <VideoPopupModal videoId={popupVideoId} heroPlayerRef={ytPlayerRef} onClose={closeVideoPopup} />}
 
       {/* ═══════════════════════════════════════════════════════════════════
-          ATTRIBUTION BANNER — "No stock footage" callout
-      ═══════════════════════════════════════════════════════════════════ */}
-      <section className="relative bg-gradient-to-r from-orange-950 via-orange-900 to-orange-950 border-y border-orange-500/30 overflow-hidden">
-        {/* Subtle animated background glow */}
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-orange-500/20 to-transparent animate-pulse" />
-        </div>
-        <div className="relative max-w-5xl mx-auto px-8 py-4 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 text-center sm:text-left">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-orange-400 flex-shrink-0" />
-            <p className="text-white font-bold text-sm sm:text-base">
-              All clips generated using SoulPrint Engine
-            </p>
-          </div>
-          <div className="hidden sm:block w-px h-5 bg-orange-500/40" />
-          <p className="text-orange-200/80 text-xs sm:text-sm">
-            No stock footage. All clips AI-generated.
-          </p>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════════
           SOCIAL PROOF BAR
       ═══════════════════════════════════════════════════════════════════ */}
       <section className="bg-white py-6 px-8 border-b border-gray-200">
