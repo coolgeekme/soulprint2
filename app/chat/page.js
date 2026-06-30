@@ -917,21 +917,29 @@ export default function ChatPage() {
         }
         
         const data = await res.json();
+        
+        // Validate that we got meaningful text content
+        const extractedText = data.text || '';
+        const hasContent = extractedText.trim().length > 0;
+        
+        if (!hasContent) {
+          console.warn(`[Attach] Document "${file.name}" has no extractable text content`);
+          throw new Error('Unable to extract text from this document. The file may be image-based, password-protected, or corrupted.');
+        }
+        
+        console.log(`[Attach] Parsed ${file.name}: ${extractedText.length} chars`);
+        
         return { 
           type: 'document', 
-          text: data.text || '', 
+          text: extractedText, 
           name: file.name, 
           mimeType: file.type,
           metadata: data.metadata 
         };
       } catch (err) {
         console.error('Document parse error:', err);
-        return { 
-          type: 'document', 
-          text: `[Error reading ${file.name}: ${err.message}]`, 
-          name: file.name, 
-          mimeType: file.type 
-        };
+        // Instead of silently including error message as content, throw it so user sees it
+        throw new Error(`Unable to process "${file.name}": ${err.message}`);
       }
     } else {
       return new Promise((resolve, reject) => {
