@@ -244,7 +244,18 @@ export async function GET(request, { params }) {
     if (pathStr === 'admin/subscriptions') {
       await requireAdmin(request);
       const db = await getDb();
-      const subs = await db.collection('user_subscriptions').find({}).sort({ updated_at: -1 }).toArray();
+      
+      // Check both possible collection names (user_subscriptions and subscriptions)
+      let subs = await db.collection('user_subscriptions').find({}).sort({ updated_at: -1 }).toArray();
+      
+      // Fallback: check legacy 'subscriptions' collection if user_subscriptions is empty
+      if (subs.length === 0) {
+        const legacySubs = await db.collection('subscriptions').find({}).sort({ updated_at: -1 }).toArray();
+        if (legacySubs.length > 0) {
+          console.log(`[Admin] Found ${legacySubs.length} subscriptions in legacy 'subscriptions' collection`);
+          subs = legacySubs;
+        }
+      }
       
       // Enrich with user name and email
       const userIds = subs.map(s => s.user_id).filter(Boolean);
@@ -262,7 +273,7 @@ export async function GET(request, { params }) {
         user_email: userMap[s.user_id]?.email || '',
       }));
       
-      return ok({ subscriptions: enriched });
+      return ok({ subscriptions: enriched, _debug: { collection_used: subs.length > 0 ? (subs[0]._id ? 'found_data' : 'empty') : 'no_data', total_found: subs.length } });
     }
 
     return err('Not found', 404);
