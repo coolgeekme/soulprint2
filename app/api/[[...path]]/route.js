@@ -279,6 +279,7 @@ import {
   handleCreateConversation,
   handleRenameConversation,
   handleDeleteConversation,
+  handleGetAssistantName,
 } from '@/lib/handlers/conversations-crud';
 
 // ── Scheduling (extracted) ──
@@ -491,6 +492,7 @@ export async function GET(request, { params }) {
       return handleGetBlogPost(request, slug);
     }
     if (pathStr === 'conversations') return handleGetConversations(request);
+    if (pathStr === 'assistant-name') return handleGetAssistantName(request);
     if (pathStr === 'messages') return handleGetMessages(request);
     if (pathStr === 'notifications') return handleGetNotifications(request);
     

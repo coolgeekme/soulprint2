@@ -2730,6 +2730,21 @@ export default function ChatPage() {
       });
       setMessages(processedMsgs);
       
+      // Fetch dynamic assistant name based on conversation's project and active imprint
+      try {
+        const nameRes = await fetch(`/api/assistant-name?conversation_id=${convId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (nameRes.ok) {
+          const nameData = await nameRes.json();
+          if (nameData.assistant_name) {
+            setAssistantName(nameData.assistant_name);
+          }
+        }
+      } catch (nameErr) {
+        console.error('[loadConversation] Failed to fetch assistant name:', nameErr);
+      }
+      
       // Restore media confirmation state if the last message has pending confirmation
       const lastMsg = processedMsgs[processedMsgs.length - 1];
       if (lastMsg?.media_confirmation && lastMsg.content_type === 'media-confirmation' && !lastMsg.media_confirmation?.selectedType) {
