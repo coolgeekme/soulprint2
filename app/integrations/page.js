@@ -76,7 +76,7 @@ export default function IntegrationsPage() {
     try {
       const [tkRes, connRes] = await Promise.all([
         fetch('/api/composio/toolkits', { headers: { Authorization: `Bearer ${t}` } }),
-        fetch('/api/composio/connections?supported=true', { headers: { Authorization: `Bearer ${t}` } }),
+        fetch('/api/composio/connections?supported=true&identity=true', { headers: { Authorization: `Bearer ${t}` } }),
       ]);
       const tkData = await tkRes.json();
       const connData = await connRes.json();
@@ -717,6 +717,9 @@ export default function IntegrationsPage() {
                         {connections.map((conn) => {
                           const isActive = conn.status === 'ACTIVE';
                           const isDisconnecting = disconnectingConn === conn.id;
+                          const accountEmail = conn.displayName || conn.alias;
+                          const accountLabel = accountEmail || `Account ${conn.id.slice(0, 8)}`;
+                          
                           return (
                             <div
                               key={conn.id}
@@ -726,12 +729,19 @@ export default function IntegrationsPage() {
                             >
                               <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? 'bg-green-400' : 'bg-yellow-400'}`} />
-                                <span className={`truncate ${isActive ? 'text-green-300' : 'text-yellow-300'}`}>
-                                  {conn.displayName || conn.alias || conn.id.slice(0, 16)}
-                                </span>
-                                {!isActive && (
-                                  <span className="text-yellow-500/60 flex-shrink-0 text-[10px]">(expired)</span>
-                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className={`truncate font-medium ${isActive ? 'text-green-300' : 'text-yellow-300'}`}>
+                                    {accountLabel}
+                                  </div>
+                                  {isActive && (
+                                    <div className="text-[10px] text-gray-500 truncate">
+                                      Connected • Last used: Recently
+                                    </div>
+                                  )}
+                                  {!isActive && (
+                                    <span className="text-yellow-500/80 text-[10px]">Token expired - reconnect needed</span>
+                                  )}
+                                </div>
                               </div>
                               <button
                                 onClick={() => handleDisconnectApp(conn.id)}
