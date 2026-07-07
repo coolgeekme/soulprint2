@@ -151,3 +151,9 @@ pids
 
 # Test credentials (sensitive)
 /memory/test_credentials.md
+.env
+.env.*
+*.env
+credentials.json
+*.key
+.credentials
