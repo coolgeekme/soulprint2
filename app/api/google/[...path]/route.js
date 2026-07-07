@@ -236,8 +236,8 @@ async function handleGoogleAuthCallback(request) {
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     
-    // Use the production domain for OAuth redirect (must match Google Cloud Console registration)
-    const origin = 'https://soulprintengine.ai';
+    // Use dynamic origin from request for OAuth redirect
+    const origin = `${url.protocol}//${url.host}`;
     
     if (error) {
       return NextResponse.redirect(new URL('/integrations?google=error&message=' + encodeURIComponent(error), origin));
