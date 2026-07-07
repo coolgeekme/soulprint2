@@ -215,8 +215,9 @@ async function handleGoogleAuthStart(request) {
     const user = await authenticate(request);
     if (!user) return err('Unauthorized', 401);
     
-    // Use the production domain for OAuth redirect (must match Google Cloud Console registration)
-    const origin = 'https://soulprintengine.ai';
+    // Use dynamic origin from request for OAuth redirect
+    const url = new URL(request.url);
+    const origin = `${url.protocol}//${url.host}`;
     const redirectUri = `${origin}/api/google/auth/callback`;
     const state = Buffer.from(JSON.stringify({ userId: user.id, timestamp: Date.now() })).toString('base64');
     const authUrl = getGoogleAuthUrl(redirectUri, state);
