@@ -266,8 +266,23 @@ export default function MobileChat({
   const speech = useSpeechRecognition({
     token,
     onTranscript: (text) => {
-      setInput(prev => (prev ? prev + ' ' + text : text));
+      const newText = input ? input + ' ' + text : text;
+      setInput(newText);
       setInterimText('');
+      
+      // Move cursor to end of text after transcription
+      setTimeout(() => {
+        if (inputRef.current) {
+          const textLength = newText.length;
+          inputRef.current.focus();
+          inputRef.current.setSelectionRange(textLength, textLength);
+          
+          // Trigger auto-grow
+          inputRef.current.style.height = 'auto';
+          const maxH = Math.min(window.innerHeight * 0.4, 320);
+          inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, maxH) + 'px';
+        }
+      }, 0);
     },
     onInterim: (text) => setInterimText(text),
   });
@@ -3675,8 +3690,8 @@ export default function MobileChat({
                     }, 300);
                   }}
                   placeholder="Message..."
-                  className="flex-1 bg-transparent text-foreground text-[16px] placeholder-muted-foreground focus:outline-none resize-none min-h-[28px] min-w-0 leading-normal"
-                  rows={1}
+                  className="flex-1 bg-transparent text-foreground text-[16px] placeholder-muted-foreground focus:outline-none resize-none min-h-[64px] min-w-0 leading-normal"
+                  rows={3}
                   disabled={loading}
                   style={{ fontSize: '16px', lineHeight: '1.4', maxHeight: '40vh', overflowY: 'auto', caretColor: '#3b82f6' }}
                 />
