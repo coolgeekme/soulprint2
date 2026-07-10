@@ -11,12 +11,60 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
   const [showActions, setShowActions] = useState(false);
   const [feedback, setFeedback] = useState(message.feedback || null);
 
-  const handleCopy = () => {
-    try {
-      navigator.clipboard?.writeText(String(message?.content || ''));
-    } catch (e) {
-      console.error('Copy failed:', e);
+  const handleCopy = async () => {
+    const textToCopy = String(message?.content || '');
+    
+    // Try modern async clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        setShowActions(false);
+        return;
+      } catch (err) {
+        console.warn('Async clipboard failed, falling back:', err);
+      }
     }
+    
+    // Fallback for mobile browsers: use textarea method
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = textToCopy;
+      
+      // Make textarea invisible but accessible
+      textarea.style.position = 'fixed';
+      textarea.style.top = '0';
+      textarea.style.left = '0';
+      textarea.style.width = '2em';
+      textarea.style.height = '2em';
+      textarea.style.padding = '0';
+      textarea.style.border = 'none';
+      textarea.style.outline = 'none';
+      textarea.style.boxShadow = 'none';
+      textarea.style.background = 'transparent';
+      textarea.style.opacity = '0';
+      
+      document.body.appendChild(textarea);
+      
+      // Select text for iOS
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, textToCopy.length);
+      
+      // Copy command
+      const successful = document.execCommand('copy');
+      
+      // Clean up
+      document.body.removeChild(textarea);
+      
+      if (successful) {
+        console.log('Text copied successfully (fallback method)');
+      } else {
+        console.error('Copy command failed');
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+    }
+    
     setShowActions(false);
   };
 
