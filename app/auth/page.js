@@ -27,6 +27,7 @@ export default function AuthPage() {
   const [latency, setLatency] = useState(0);
   const buildId = 'v2.5.0';
   const [sid, setSid] = useState('');
+  const [extensionRedirect, setExtensionRedirect] = useState('');
 
   // Initialize random values on client-side only to avoid hydration mismatch
   useEffect(() => {
@@ -36,6 +37,17 @@ export default function AuthPage() {
     // Check for session expiry redirect
     try {
       const params = new URLSearchParams(window.location.search);
+      const requestedRedirect = params.get('extension_redirect');
+      if (requestedRedirect) {
+        try {
+          const redirect = new URL(requestedRedirect);
+          if (redirect.protocol === 'https:' && /^[a-p]{32}\.chromiumapp\.org$/.test(redirect.hostname)) {
+            setExtensionRedirect(`${redirect.origin}${redirect.pathname}`);
+          }
+        } catch (redirectError) {
+          console.warn('[Auth] Ignoring invalid extension redirect', redirectError);
+        }
+      }
       if (params.get('reason') === 'session_expired') {
         setError('Your session has expired. Please sign in again to continue.');
       }
@@ -307,6 +319,11 @@ export default function AuthPage() {
   }
 
   function handlePostAuth(data) {
+    if (extensionRedirect) {
+      const result = new URLSearchParams({ token: data.token });
+      window.location.assign(`${extensionRedirect}#${result.toString()}`);
+      return;
+    }
     if (!data.onboarding_complete) {
       router.push('/onboarding');
     } else if (!data.assessment_complete) {
