@@ -91,7 +91,7 @@ chrome.runtime.onConnect.addListener((port) => {
     if (message.action === 'abort') { controller?.abort(); return; } if (message.action !== 'start') return;
     controller = new AbortController();
     try {
-      const response = await apiRequest('/api/chat/stream', { method: 'POST', body: JSON.stringify(message.payload), signal: controller.signal });
+      const response = await apiRequest('/api/extension/chat', { method: 'POST', body: JSON.stringify(message.payload), signal: controller.signal });
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || `Chat failed (${response.status})`); }
       if (!response.body) throw new Error('Streaming is unavailable');
       const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
