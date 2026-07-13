@@ -1,0 +1,19 @@
+.google {
+  height: 43px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #dadce0;
+  border-radius: 10px;
+  background: #fff;
+  color: #202124;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.google:hover { background: #f7f8f8; }
+.google:disabled { opacity: .65; }
+.google-mark { font-family: Arial, sans-serif; font-size: 17px; font-weight: 800; color: #4285f4; }
+.divider { display: flex; align-items: center; gap: 10px; color: #66666f; font-size: 11px; }
+.divider::before, .divider::after { content: ""; height: 1px; flex: 1; background: #29292e; }
