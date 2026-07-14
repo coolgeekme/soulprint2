@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { trackEvent } from '@/lib/analytics';
 
 export default function AssessmentFinalPage() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function AssessmentFinalPage() {
       const userData = JSON.parse(localStorage.getItem('sp_user') || '{}');
       userData.assessment_complete = true;
       localStorage.setItem('sp_user', JSON.stringify(userData));
+      trackEvent('assessment_completed', { assessment_type: 'standard' });
 
       // Check if user is accepted
       const meRes = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });

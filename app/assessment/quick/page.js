@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Check, Sparkles, RefreshCw } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
+import { trackEvent } from '@/lib/analytics';
 
 export default function QuickAssessmentPage() {
   const router = useRouter();
@@ -205,6 +206,7 @@ export default function QuickAssessmentPage() {
       const data = await res.json();
       
       if (data.success) {
+        trackEvent('assessment_completed', { assessment_type: 'quick' });
         setPhase('complete');
         // Clear local storage
         Object.keys(answers).forEach(id => {

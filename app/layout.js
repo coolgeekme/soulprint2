@@ -2,6 +2,8 @@ import './globals.css'
 import ThemeProvider from '@/lib/providers/ThemeProvider'
 import { Toaster } from '@/components/ui/toaster'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import AttributionTracker from '@/components/AttributionTracker'
+import Script from 'next/script'
 
 export const metadata = {
   title: 'SoulPrint — Your Personal AI',
@@ -110,7 +112,16 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
           />
         </noscript>
         {/* End Google Tag Manager (noscript) */}
+        {/* Direct GA4 fallback: GTM-WCCXR92H is currently security-paused by Google. */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-JW09QN4TG1"
+          strategy="afterInteractive"
+        />
+        <Script id="soulprint-ga4" strategy="afterInteractive">
+          {`window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','G-JW09QN4TG1');`}
+        </Script>
         <ThemeProvider>
+          <AttributionTracker />
           <ErrorBoundary>
             {children}
           </ErrorBoundary>

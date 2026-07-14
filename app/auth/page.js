@@ -6,6 +6,7 @@ import { Eye, EyeOff, Mail, Lock, KeyRound, Loader2, CheckCircle } from 'lucide-
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } from '@/lib/firebase';
 import Script from 'next/script';
+import { trackEvent } from '@/lib/analytics';
 
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6Le_c34sAAAAAAEM4XN1qxw3Ropv6KJpjmaynfxT';
 
@@ -141,6 +142,7 @@ export default function AuthPage() {
       }
 
       const data = await syncWithBackend(user, idToken);
+      if (data.is_new_user) trackEvent('signup_completed', { signup_method: 'google' });
       console.log('[Auth] Calling handlePostAuth with:', data);
       handlePostAuth(data);
     } catch (err) {
@@ -204,6 +206,7 @@ export default function AuthPage() {
             const data = await legacyRes.json();
             localStorage.setItem('sp_token', data.token);
             localStorage.setItem('sp_user', JSON.stringify(data));
+            trackEvent('signup_completed', { signup_method: 'email' });
             handlePostAuth(data);
             setLoading(false);
             return;
@@ -223,6 +226,7 @@ export default function AuthPage() {
         
         // Sync with backend and send verification email
         const data = await syncWithBackend(result.user, result.idToken);
+        trackEvent('signup_completed', { signup_method: 'email' });
         
         // Send verification email
         await fetch('/api/auth/send-verification', {
