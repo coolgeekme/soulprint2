@@ -14,55 +14,51 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
   const handleCopy = async () => {
     const textToCopy = String(message?.content || '');
     
-    // Try modern async clipboard API first
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      try {
-        await navigator.clipboard.writeText(textToCopy);
-        setShowActions(false);
-        return;
-      } catch (err) {
-        console.warn('Async clipboard failed, falling back:', err);
-      }
-    }
-    
-    // Fallback for mobile browsers: use textarea method
+    // For mobile: Use the textarea fallback method FIRST (more reliable on iOS/Android)
     try {
       const textarea = document.createElement('textarea');
       textarea.value = textToCopy;
       
-      // Make textarea invisible but accessible
-      textarea.style.position = 'fixed';
+      // Critical for iOS: Make it visible but off-screen
+      textarea.style.position = 'absolute';
+      textarea.style.left = '-9999px';
       textarea.style.top = '0';
-      textarea.style.left = '0';
-      textarea.style.width = '2em';
-      textarea.style.height = '2em';
-      textarea.style.padding = '0';
-      textarea.style.border = 'none';
-      textarea.style.outline = 'none';
-      textarea.style.boxShadow = 'none';
-      textarea.style.background = 'transparent';
-      textarea.style.opacity = '0';
+      textarea.style.fontSize = '12pt'; // Prevent iOS zoom
+      textarea.setAttribute('readonly', ''); // Prevent iOS keyboard
       
       document.body.appendChild(textarea);
       
-      // Select text for iOS
-      textarea.focus();
-      textarea.select();
+      // For iOS Safari
+      const range = document.createRange();
+      range.selectNodeContents(textarea);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
       textarea.setSelectionRange(0, textToCopy.length);
       
-      // Copy command
+      // Copy command (synchronous - works better on mobile)
       const successful = document.execCommand('copy');
       
       // Clean up
       document.body.removeChild(textarea);
       
       if (successful) {
-        console.log('Text copied successfully (fallback method)');
-      } else {
-        console.error('Copy command failed');
+        setShowActions(false);
+        return;
       }
     } catch (err) {
-      console.error('Fallback copy failed:', err);
+      console.error('Textarea copy failed:', err);
+    }
+    
+    // Fallback: Try modern async clipboard API (for desktop)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        setShowActions(false);
+        return;
+      } catch (err) {
+        console.error('Async clipboard failed:', err);
+      }
     }
     
     setShowActions(false);
