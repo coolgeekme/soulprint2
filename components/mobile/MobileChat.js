@@ -5074,7 +5074,7 @@ export default function MobileChat({
           overflow-y: auto;
           overflow-x: hidden;
           color: #ffffff !important;
-          caret-color: #ffffff !important;
+          caret-color: #f97316 !important;
           -webkit-text-fill-color: #ffffff !important;
           background-color: transparent !important;
         }
@@ -5099,7 +5099,7 @@ export default function MobileChat({
         textarea, input[type="text"], input[type="email"], input[type="password"] {
           color: #ffffff !important;
           -webkit-text-fill-color: #ffffff !important;
-          caret-color: #ffffff !important;
+          caret-color: #f97316 !important;
           -moz-appearance: none !important;
         }
         textarea::placeholder, input::placeholder {

@@ -117,12 +117,12 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           )}
           {showActions && (
             <div className="flex items-center gap-2 mt-2 pt-2 border-t border-orange-500/20">
-              <button onClick={handleCopy} className="text-orange-300 text-xs flex items-center gap-1">
-                <Copy className="w-3 h-3" /> Copy
+              <button onClick={handleCopy} className="text-orange-300 text-sm flex items-center gap-1.5 px-3 py-2 -mx-2 rounded-lg active:bg-orange-500/10">
+                <Copy className="w-4 h-4" /> Copy
               </button>
               {onEdit && (
-                <button onClick={() => { onEdit(message); setShowActions(false); }} className="text-orange-300 text-xs flex items-center gap-1">
-                  <Edit3 className="w-3 h-3" /> Edit
+                <button onClick={() => { onEdit(message); setShowActions(false); }} className="text-orange-300 text-sm flex items-center gap-1.5 px-3 py-2 rounded-lg active:bg-orange-500/10">
+                  <Edit3 className="w-4 h-4" /> Edit
                 </button>
               )}
             </div>
@@ -306,14 +306,14 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
             )}
           </div>
           {showActions && (
-            <div className="flex items-center gap-3 mt-2 pt-2 border-t border-white/10">
+            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/10">
               {/* Variant toggle for assistant messages */}
               {message.variants && message.variants.length > 1 && (
                 <div className="flex items-center gap-1 mr-1 pr-2 border-r border-white/10" onClick={e => e.stopPropagation()}>
                   <button 
                     onClick={() => onToggleVariant?.(message.id, 'prev')}
                     disabled={(message.activeVariant || 0) === 0}
-                    className="p-0.5 text-gray-400 disabled:opacity-30"
+                    className="p-1.5 text-gray-400 disabled:opacity-30 rounded active:bg-white/5"
                   >
                     <ChevronLeft className="w-3 h-3" />
                   </button>
@@ -323,33 +323,33 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
                   <button 
                     onClick={() => onToggleVariant?.(message.id, 'next')}
                     disabled={(message.activeVariant || 0) >= message.variants.length - 1}
-                    className="p-0.5 text-gray-400 disabled:opacity-30"
+                    className="p-1.5 text-gray-400 disabled:opacity-30 rounded active:bg-white/5"
                   >
                     <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
               )}
-              <button onClick={handleCopy} className="text-gray-400 text-xs flex items-center gap-1">
-                <Copy className="w-3 h-3" /> Copy
+              <button onClick={handleCopy} className="text-gray-400 text-sm flex items-center gap-1.5 px-3 py-2 -mx-2 rounded-lg active:bg-white/5">
+                <Copy className="w-4 h-4" /> Copy
               </button>
               <button 
                 onClick={() => {
                   if (onReadAloud) onReadAloud(message.content, message.id);
                 }}
-                className={`text-xs flex items-center gap-1 ${readingAloudId === message.id ? 'text-orange-400' : 'text-gray-400'}`}
+                className={`text-sm flex items-center gap-1.5 px-3 py-2 rounded-lg active:bg-white/5 ${readingAloudId === message.id ? 'text-orange-400' : 'text-gray-400'}`}
               >
-                {readingAloudId === message.id ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                {readingAloudId === message.id ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                 <span>{readingAloudId === message.id ? 'Stop' : 'Read'}</span>
               </button>
               <button 
                 onClick={() => handleFeedback('up')} 
-                className={`text-xs flex items-center gap-1 ${feedback === 'up' ? 'text-green-400' : 'text-gray-400'}`}
+                className={`text-sm flex items-center gap-1.5 p-2 rounded-lg active:bg-white/5 ${feedback === 'up' ? 'text-green-400' : 'text-gray-400'}`}
               >
-                <ThumbsUp className="w-3 h-3" />
+                <ThumbsUp className="w-4 h-4" />
               </button>
               <button 
                 onClick={() => handleFeedback('down')} 
-                className={`text-xs flex items-center gap-1 ${feedback === 'down' ? 'text-red-400' : 'text-gray-400'}`}
+                className={`text-sm flex items-center gap-1.5 p-2 rounded-lg active:bg-white/5 ${feedback === 'down' ? 'text-red-400' : 'text-gray-400'}`}
               >
                 <ThumbsDown className="w-3 h-3" />
               </button>
