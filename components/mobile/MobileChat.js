@@ -3690,10 +3690,18 @@ export default function MobileChat({
                     }, 300);
                   }}
                   placeholder="Message..."
-                  className="flex-1 bg-transparent text-foreground text-[16px] placeholder-muted-foreground focus:outline-none resize-none min-h-[64px] min-w-0 leading-normal"
+                  className="flex-1 bg-transparent text-foreground text-[16px] placeholder-muted-foreground focus:outline-none resize-none min-h-[72px] min-w-0 leading-relaxed py-1"
                   rows={3}
                   disabled={loading}
-                  style={{ fontSize: '16px', lineHeight: '1.4', maxHeight: '40vh', overflowY: 'auto', caretColor: '#3b82f6' }}
+                  style={{ 
+                    fontSize: '16px', 
+                    lineHeight: '1.5', 
+                    maxHeight: '40vh', 
+                    overflowY: 'auto', 
+                    caretColor: '#f97316',
+                    WebkitTextFillColor: '#ffffff',
+                    color: '#ffffff'
+                  }}
                 />
                 {/* Voice input button */}
                 <button 
