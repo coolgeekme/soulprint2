@@ -5580,7 +5580,7 @@ export default function ChatPage() {
                     minHeight: '24px', 
                     maxHeight: '150px',
                     color: speech.isListening ? '#fdba74' : isDark ? '#ffffff' : '#000000',
-                    caretColor: speech.isListening ? '#fdba74' : isDark ? '#ffffff' : '#000000',
+                    caretColor: '#f97316',
                     WebkitTextFillColor: speech.isListening ? '#fdba74' : isDark ? '#ffffff' : '#000000',
                     backgroundColor: 'transparent',
                   }}
