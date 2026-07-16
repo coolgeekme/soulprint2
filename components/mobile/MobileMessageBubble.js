@@ -10,58 +10,76 @@ import MusicCard from '@/components/chat/MusicCard';
 const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId, onToggleVariant, onExtendVideo, onRetryGeneration }) => {
   const [showActions, setShowActions] = useState(false);
   const [feedback, setFeedback] = useState(message.feedback || null);
+  const [copyStatus, setCopyStatus] = useState(null); // 'success' | 'error' | null
 
   const handleCopy = async () => {
     const textToCopy = String(message?.content || '');
+    if (!textToCopy) {
+      setCopyStatus('error');
+      setTimeout(() => setCopyStatus(null), 2000);
+      return;
+    }
     
-    // For mobile: Use the textarea fallback method FIRST (more reliable on iOS/Android)
+    // Method 1: Try modern clipboard API first (best for iOS 13.4+, PWA-compatible)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        setCopyStatus('success');
+        setTimeout(() => {
+          setCopyStatus(null);
+          setShowActions(false);
+        }, 1500);
+        return;
+      } catch (err) {
+        console.log('Clipboard API failed, trying fallback:', err.message);
+      }
+    }
+    
+    // Method 2: Textarea fallback for older browsers/restrictive PWA contexts
     try {
       const textarea = document.createElement('textarea');
       textarea.value = textToCopy;
       
-      // Critical for iOS: Make it visible but off-screen
-      textarea.style.position = 'absolute';
-      textarea.style.left = '-9999px';
+      // iOS PWA-specific: Must be visible and focused
+      textarea.style.position = 'fixed';
       textarea.style.top = '0';
-      textarea.style.fontSize = '12pt'; // Prevent iOS zoom
-      textarea.setAttribute('readonly', ''); // Prevent iOS keyboard
+      textarea.style.left = '0';
+      textarea.style.width = '2em';
+      textarea.style.height = '2em';
+      textarea.style.padding = '0';
+      textarea.style.border = 'none';
+      textarea.style.outline = 'none';
+      textarea.style.boxShadow = 'none';
+      textarea.style.background = 'transparent';
+      textarea.style.fontSize = '16px'; // iOS: prevent zoom
       
       document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
       
-      // For iOS Safari
-      const range = document.createRange();
-      range.selectNodeContents(textarea);
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
+      // iOS: Explicitly set selection range
       textarea.setSelectionRange(0, textToCopy.length);
       
-      // Copy command (synchronous - works better on mobile)
+      // Execute copy command
       const successful = document.execCommand('copy');
       
-      // Clean up
       document.body.removeChild(textarea);
       
       if (successful) {
-        setShowActions(false);
+        setCopyStatus('success');
+        setTimeout(() => {
+          setCopyStatus(null);
+          setShowActions(false);
+        }, 1500);
         return;
       }
     } catch (err) {
       console.error('Textarea copy failed:', err);
     }
     
-    // Fallback: Try modern async clipboard API (for desktop)
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      try {
-        await navigator.clipboard.writeText(textToCopy);
-        setShowActions(false);
-        return;
-      } catch (err) {
-        console.error('Async clipboard failed:', err);
-      }
-    }
-    
-    setShowActions(false);
+    // If both methods failed
+    setCopyStatus('error');
+    setTimeout(() => setCopyStatus(null), 2000);
   };
 
   const handleFeedback = async (type) => {
@@ -118,7 +136,19 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           {showActions && (
             <div className="flex items-center gap-2 mt-2 pt-2 border-t border-orange-500/20">
               <button onClick={handleCopy} className="text-orange-300 text-sm flex items-center gap-1.5 px-3 py-2 -mx-2 rounded-lg active:bg-orange-500/10">
-                <Copy className="w-4 h-4" /> Copy
+                {copyStatus === 'success' ? (
+                  <>
+                    <Check className="w-4 h-4" /> Copied!
+                  </>
+                ) : copyStatus === 'error' ? (
+                  <>
+                    <Copy className="w-4 h-4" /> Failed
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" /> Copy
+                  </>
+                )}
               </button>
               {onEdit && (
                 <button onClick={() => { onEdit(message); setShowActions(false); }} className="text-orange-300 text-sm flex items-center gap-1.5 px-3 py-2 rounded-lg active:bg-orange-500/10">
@@ -330,7 +360,19 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
                 </div>
               )}
               <button onClick={handleCopy} className="text-gray-400 text-sm flex items-center gap-1.5 px-3 py-2 -mx-2 rounded-lg active:bg-white/5">
-                <Copy className="w-4 h-4" /> Copy
+                {copyStatus === 'success' ? (
+                  <>
+                    <Check className="w-4 h-4 text-green-400" /> Copied!
+                  </>
+                ) : copyStatus === 'error' ? (
+                  <>
+                    <Copy className="w-4 h-4 text-red-400" /> Failed
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" /> Copy
+                  </>
+                )}
               </button>
               <button 
                 onClick={() => {
