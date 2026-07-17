@@ -138,6 +138,7 @@ export default function MobileChat({
   // Projects state
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null); // null = show all, 'general' = uncategorized
+  const [activeImprint, setActiveImprint] = useState(null); // Currently active imprint
   const [showProjectSheet, setShowProjectSheet] = useState(false);
   const [projectSheetMode, setProjectSheetMode] = useState('create'); // 'create' | 'edit' | 'share'
   const [editingProject, setEditingProject] = useState(null);
@@ -179,6 +180,27 @@ export default function MobileChat({
   const fileInputRef = useRef(null);
   const docFileInputRef = useRef(null); // Separate input with accept="*/*" for Android document browsing
   const inputContainerRef = useRef(null);
+
+  // Computed display name: Project + Imprint OR Persona + Imprint
+  const displayName = useMemo(() => {
+    const currentProject = projects.find(p => p.id === selectedProject);
+    const projectName = currentProject?.name;
+    
+    // If in a project, use project name as base
+    if (projectName) {
+      if (activeImprint) {
+        return `${projectName} · ${activeImprint.icon} ${activeImprint.name}`;
+      }
+      return projectName;
+    }
+    
+    // Not in a project, use persona name as base
+    const baseName = assistantName || 'SoulPrint';
+    if (activeImprint) {
+      return `${baseName} · ${activeImprint.icon} ${activeImprint.name}`;
+    }
+    return baseName;
+  }, [selectedProject, projects, activeImprint, assistantName]);
 
   // ── Global Media Notification System ──
   const { toast } = useToast();
@@ -716,6 +738,25 @@ export default function MobileChat({
       .catch(console.error)
       .finally(() => setProjectsLoading(false));
   }, [token]);
+
+  // Load active imprint when project changes
+  useEffect(() => {
+    if (!token) return;
+    
+    const projectParam = selectedProject ? `?project_id=${selectedProject}` : '';
+    fetch(`/api/imprints/my${projectParam}`, { 
+      headers: { Authorization: `Bearer ${token}` } 
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.default_imprint?.imprint) {
+          setActiveImprint(data.default_imprint.imprint);
+        } else {
+          setActiveImprint(null);
+        }
+      })
+      .catch(() => {});
+  }, [token, selectedProject]);
 
   // Load profile
   useEffect(() => {
@@ -3037,7 +3078,7 @@ export default function MobileChat({
         >
           {/* Header takes its natural height */}
           <ChatHeader 
-            assistantName={assistantName}
+            assistantName={displayName}
             model={
               selectedModel === 'smart' && selectedVideoModel === 'smart' && selectedImageModel === 'smart'
                 ? '🧠 Dynamic Intelligence'

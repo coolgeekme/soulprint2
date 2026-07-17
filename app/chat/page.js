@@ -690,6 +690,26 @@ export default function ChatPage() {
       .catch(() => {});
   }, [token, user]);
 
+  // Load active imprint when project changes
+  useEffect(() => {
+    if (!token) return;
+    
+    const projectParam = selectedProject ? `?project_id=${selectedProject}` : '';
+    fetch(`/api/imprints/my${projectParam}`, { 
+      headers: { Authorization: `Bearer ${token}` } 
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.default_imprint?.imprint) {
+          setActiveImprint(data.default_imprint.imprint);
+        } else {
+          // No imprint for this project, clear it
+          setActiveImprint(null);
+        }
+      })
+      .catch(() => {});
+  }, [token, selectedProject]);
+
   // Auto-scroll: scroll to the TOP of the assistant's reply bubble once when streaming starts
   useEffect(() => {
     if (loading && streamingContent && !hasScrolledToReply.current) {
