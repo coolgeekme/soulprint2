@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   MessageSquare, User, ChevronDown, 
   Plus, Settings, X, Check, Loader2, Globe, Sparkles, EyeOff, Paintbrush,
