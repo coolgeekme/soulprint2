@@ -169,6 +169,12 @@ export default function MobileChat({
   const [manualLocationInput, setManualLocationInput] = useState('');
   const [locationError, setLocationError] = useState(null);
   
+  // Pull to refresh state
+  const [isPulling, setIsPulling] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const pullStartY = useRef(0);
+  const scrollContainerRef = useRef(null);
+  
   // Read aloud state
   const [readingAloudId, setReadingAloudId] = useState(null);
   const readAloudAudioRef = useRef(null);
@@ -694,6 +700,88 @@ export default function MobileChat({
     }
     
     setShowInstallPrompt(false);
+  };
+
+  // Pull-to-refresh handlers
+  const handleRefresh = async () => {
+    if (!token) return;
+    
+    setIsPulling(true);
+    
+    try {
+      // Reload conversations, active imprint, and messages
+      const projectQuery = selectedProject ? `?project_id=${selectedProject}` : '';
+      const [convRes, imprintRes] = await Promise.all([
+        fetch(`/api/conversations${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`/api/imprints/my${projectQuery}`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      
+      if (convRes.ok) {
+        const data = await convRes.json();
+        setConversations(Array.isArray(data) ? data : []);
+      }
+      
+      if (imprintRes.ok) {
+        const imprintData = await imprintRes.json();
+        setActiveImprint(imprintData?.default_imprint?.imprint || null);
+      }
+      
+      // Reload current conversation if selected
+      if (conversationId) {
+        const msgRes = await fetch(`/api/messages?conversationId=${conversationId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (msgRes.ok) {
+          const msgs = await msgRes.json();
+          if (Array.isArray(msgs)) setMessages(msgs);
+        }
+      }
+      
+      toast({
+        title: "✓ Refreshed",
+        description: "Conversations updated",
+        duration: 2000,
+      });
+    } catch (err) {
+      console.error('[Refresh]', err);
+    } finally {
+      setTimeout(() => {
+        setIsPulling(false);
+        setPullDistance(0);
+      }, 300);
+    }
+  };
+
+  const handleTouchStart = (e) => {
+    const container = scrollContainerRef.current;
+    if (container && container.scrollTop === 0 && !isPulling) {
+      pullStartY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (pullStartY.current === 0 || isPulling) return;
+    if (scrollContainerRef.current?.scrollTop > 0) {
+      pullStartY.current = 0;
+      return;
+    }
+    
+    const currentY = e.touches[0].clientY;
+    const distance = currentY - pullStartY.current;
+    
+    if (distance > 0 && distance < 100) {
+      e.preventDefault();
+      setPullDistance(distance);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullDistance > 70) {
+      handleRefresh();
+    } else {
+      setPullDistance(0);
+    }
+    pullStartY.current = 0;
   };
 
   // Ref to track if initial conversation was auto-selected
@@ -3099,12 +3187,46 @@ export default function MobileChat({
           
           {/* Scrollable Messages Area - takes remaining space */}
           <div 
+            ref={scrollContainerRef}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             className="flex-1 overflow-y-auto"
             style={{ 
               paddingTop: 'calc(4rem + env(safe-area-inset-top, 0px))',
               paddingBottom: '6rem'  /* Space for fixed input bar */
             }}
           >
+            {/* Pull to Refresh Indicator */}
+            {pullDistance > 0 && (
+              <div 
+                className="fixed top-16 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-200"
+                style={{
+                  opacity: Math.min(pullDistance / 70, 1),
+                  transform: `translate(-50%, ${Math.min(pullDistance - 20, 50)}px)`,
+                }}
+              >
+                <div className="bg-orange-500/90 backdrop-blur-sm text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
+                  {isPulling ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm font-medium">Refreshing...</span>
+                    </>
+                  ) : pullDistance > 70 ? (
+                    <>
+                      <RefreshCw className="w-4 h-4" />
+                      <span className="text-sm font-medium">Release to refresh</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4" />
+                      <span className="text-sm font-medium">Pull to refresh</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+            
             {/* Announcements Banner */}
             {announcements.length > 0 && (
               <div className="px-3 pt-2 pb-1">
