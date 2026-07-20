@@ -3682,3 +3682,23 @@ test_plan:
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+  - agent: "testing"
+    message: "ENHANCED API KEY ERROR HANDLING TESTING COMPLETE: All critical error handling features working perfectly with 100% success rate (3/3 tests passed). ✅ Code Review: Error detection patterns correctly implemented in /app/lib/handlers/chat-stream.js (lines 6917-6963). Pattern 1 (error.message.includes('API key was reported as leaked')) matches reported user error from ben@archeforge.com. Pattern 2 (403 + API key) also matches. Pattern 3 (API key + invalid/disabled) covers additional cases. ✅ Error Message Format: Enhanced error messages include clear problem indication ('🔐 API Key Issue Detected'), provider identification (detects 'gemini' in model name), step-by-step instructions (4 clear steps), link to get new key (https://aistudio.google.com/apikey for Gemini), and security warning ('rotate your API key immediately'). ✅ Rate Limit Handling: Pattern (429 or 'rate limit') with message '⏱️ Rate Limit Reached' and wait/retry options. ✅ Quota Handling: Pattern ('quota') with message '💳 API Quota Exceeded' and upgrade options. ✅ Stream Error Handling: Errors sent via send({ type: 'error', error: userMessage }), stream properly closed (controllerClosed = true; controller.close()), no crashes. ✅ Runtime Verification: Chat stream properly caught and handled API key error without crashing - error event received, stream closed gracefully, no regression in normal operation. The enhanced API key error handling successfully addresses the production issue reported by user ben@archeforge.com where leaked Gemini API key error was not user-friendly."
+
+backend:
+  - task: "Enhanced API Key Error Handling in Chat Stream"
+    implemented: true
+    working: true
+    file: "lib/handlers/chat-stream.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Enhanced error handling in chat-stream.js (lines 6917-6963) to detect and provide user-friendly messages for: (1) Leaked/invalid API keys (403 errors) - detects 'API key was reported as leaked', '403' + 'API key', 'API key' + 'invalid'/'disabled'. (2) Rate limit errors (429 errors) - detects '429' or 'rate limit'. (3) Quota exceeded errors - detects 'quota'. Error messages include clear problem indication, step-by-step fix instructions, provider-specific links (e.g., https://aistudio.google.com/apikey for Gemini), and security warnings. Errors sent as { type: 'error', error: userMessage } and stream properly closed without crashing. Fix addresses production issue from user ben@archeforge.com who received leaked Gemini API key error."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Enhanced API key error handling working perfectly. ✅ Code Review: All 3 error detection patterns correctly implemented and match reported user error format. Pattern 1 ('API key was reported as leaked') matches exact error from ben@archeforge.com. Pattern 2 ('403' + 'API key') also matches. Pattern 3 ('API key' + 'invalid'/'disabled') covers additional cases. ✅ Error Message Format: All 5 components present and user-friendly - clear problem indication, provider identification (Gemini detection working), step-by-step instructions (4 steps), link to get new key (https://aistudio.google.com/apikey), security warning (rotate key immediately). ✅ Rate Limit Handling: Pattern and message verified. ✅ Quota Handling: Pattern and message verified. ✅ Stream Error Handling: Errors properly sent and stream closed gracefully without crashes. ✅ Runtime Verification: Chat stream (POST /api/chat/stream) properly caught and handled API key error - received error event, stream closed gracefully, no regression in normal operation. The enhanced error handling successfully addresses the production issue where leaked API key errors were not user-friendly. All comprehensive tests passed (100% success rate)."
+
