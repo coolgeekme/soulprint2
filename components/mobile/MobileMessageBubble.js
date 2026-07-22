@@ -27,7 +27,6 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
         setCopyStatus('success');
         setTimeout(() => {
           setCopyStatus(null);
-          setShowActions(false);
         }, 1500);
         return;
       } catch (err) {
@@ -69,7 +68,6 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
         setCopyStatus('success');
         setTimeout(() => {
           setCopyStatus(null);
-          setShowActions(false);
         }, 1500);
         return;
       }

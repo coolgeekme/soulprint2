@@ -3255,14 +3255,15 @@ export default function ChatPage() {
       });
       
       if (!res.ok) {
-        throw new Error('TTS request failed');
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.error || 'TTS request failed');
       }
-      
+
       const audioBlob = await res.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       readAloudAudioRef.current = audio;
-      
+
       audio.onended = () => {
         setReadingAloudId(null);
         readAloudAudioRef.current = null;
@@ -3272,12 +3273,24 @@ export default function ChatPage() {
         setReadingAloudId(null);
         readAloudAudioRef.current = null;
         URL.revokeObjectURL(audioUrl);
+        toast({
+          title: '🔇 Playback Failed',
+          description: 'The voice audio could not be played. Please try again.',
+          duration: 5000,
+          className: 'bg-[#1a1f2e] border-red-500/30 text-white',
+        });
       };
-      
+
       await audio.play();
     } catch (e) {
       console.error('Read aloud failed:', e);
       setReadingAloudId(null);
+      toast({
+        title: '🔇 Read Aloud Failed',
+        description: e.message === 'TTS request failed' ? 'Could not generate voice audio. Please try again.' : e.message,
+        duration: 5000,
+        className: 'bg-[#1a1f2e] border-red-500/30 text-white',
+      });
     }
   }
 

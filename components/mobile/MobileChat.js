@@ -19,7 +19,7 @@ import { useTheme } from '@/lib/providers/ThemeProvider';
 import { useToast } from '@/hooks/use-toast';
 
 // Extracted components
-import { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS, IMAGE_MODELS, VIDEO_MODELS, ASPECT_RATIOS } from './mobileConstants';
+import { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS, MAX_INPUT_HEIGHT_PX, IMAGE_MODELS, VIDEO_MODELS, ASPECT_RATIOS } from './mobileConstants';
 import useSpeechRecognition from '@/components/chat/useSpeechRecognition';
 import { MobileImageCard, MobileVideoCard, MobileSavedVideoCard } from './MobileMediaCards';
 import MusicCard from '@/components/chat/MusicCard';
@@ -1880,13 +1880,16 @@ export default function MobileChat({
         body: JSON.stringify({ text: content }),
       });
       
-      if (!res.ok) throw new Error('TTS request failed');
-      
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.error || 'TTS request failed');
+      }
+
       const audioBlob = await res.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       readAloudAudioRef.current = audio;
-      
+
       audio.onended = () => {
         setReadingAloudId(null);
         readAloudAudioRef.current = null;
@@ -1896,12 +1899,24 @@ export default function MobileChat({
         setReadingAloudId(null);
         readAloudAudioRef.current = null;
         URL.revokeObjectURL(audioUrl);
+        toast({
+          title: '🔇 Playback Failed',
+          description: 'The voice audio could not be played. Please try again.',
+          duration: 5000,
+          className: 'bg-[#1a1f2e] border-red-500/30 text-white',
+        });
       };
-      
+
       await audio.play();
     } catch (e) {
       console.error('Read aloud failed:', e);
       setReadingAloudId(null);
+      toast({
+        title: '🔇 Read Aloud Failed',
+        description: e.message === 'TTS request failed' ? 'Could not generate voice audio. Please try again.' : e.message,
+        duration: 5000,
+        className: 'bg-[#1a1f2e] border-red-500/30 text-white',
+      });
     }
   };
 
@@ -3635,8 +3650,8 @@ export default function MobileChat({
         </div>
       )}
       
-      {/* Input Area - FIXED above tab bar (only shown on chat tab) */}
-      {activeTab === 'chat' && (
+      {/* Input Area - FIXED above tab bar (only shown on chat tab, hidden while a full-screen modal like Imprints Marketplace is open so it can't overlap modal controls) */}
+      {activeTab === 'chat' && !showImprintsMarketplace && (
         <div 
           ref={inputContainerRef}
           className="fixed left-0 right-0 bg-sp-black border-t border-white/10 px-3 py-3"
@@ -3835,10 +3850,9 @@ export default function MobileChat({
                   value={input}
                   onChange={(e) => {
                     setInput(e.target.value);
-                    // Auto-grow: reset height then expand to content, capped at 40% viewport
+                    // Auto-grow: start at 1 line, expand up to 3 lines, then scroll
                     e.target.style.height = 'auto';
-                    const maxH = Math.min(window.innerHeight * 0.4, 320);
-                    e.target.style.height = Math.min(e.target.scrollHeight, maxH) + 'px';
+                    e.target.style.height = Math.min(e.target.scrollHeight, MAX_INPUT_HEIGHT_PX) + 'px';
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -3853,13 +3867,13 @@ export default function MobileChat({
                     }, 300);
                   }}
                   placeholder="Message..."
-                  className="flex-1 bg-transparent text-foreground text-[16px] placeholder-muted-foreground focus:outline-none resize-none min-h-[72px] min-w-0 leading-relaxed py-1"
-                  rows={3}
+                  className="flex-1 bg-transparent text-foreground text-[16px] placeholder-muted-foreground focus:outline-none resize-none min-h-[24px] min-w-0 leading-relaxed py-1"
+                  rows={1}
                   disabled={loading}
                   style={{ 
                     fontSize: '16px', 
                     lineHeight: '1.5', 
-                    maxHeight: '40vh', 
+                    maxHeight: `${MAX_INPUT_HEIGHT_PX}px`, 
                     overflowY: 'auto', 
                     caretColor: '#f97316',
                     WebkitTextFillColor: '#ffffff',
