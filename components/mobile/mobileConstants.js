@@ -37,6 +37,10 @@ const MAX_INPUT_CHARS = 128000;
 const WARN_INPUT_CHARS = 100000; // Show yellow warning at this threshold
 const SHOW_COUNTER_CHARS = 5000; // Show character counter above this
 
+// Composer textarea: starts at 1 line, auto-grows up to 3 lines, then scrolls.
+// 16px font * 1.5 line-height = 24px/line; +8px for the textarea's vertical padding.
+const MAX_INPUT_HEIGHT_PX = 24 * 3 + 8;
+
 const IMAGE_MODELS = [
   { value: 'smart', label: '🧠 Dynamic Intelligence', description: 'AI picks best model', isSmartMode: true },
   // Budget tier
@@ -80,4 +84,4 @@ const ASPECT_RATIOS = [
 ];
 
 
-export { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS, IMAGE_MODELS, VIDEO_MODELS, ASPECT_RATIOS };
+export { MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS, MAX_INPUT_HEIGHT_PX, IMAGE_MODELS, VIDEO_MODELS, ASPECT_RATIOS };
