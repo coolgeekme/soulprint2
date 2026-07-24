@@ -157,6 +157,8 @@ export default function ChatPage() {
   const [projectShareLink, setProjectShareLink] = useState(null);
   const [showMoveToProject, setShowMoveToProject] = useState(false);
   const [movingConversation, setMovingConversation] = useState(null);
+  const [projectImprints, setProjectImprints] = useState({}); // Map of project_id → imprint_name
+  const [activeImprintName, setActiveImprintName] = useState(null); // Currently active Imprint name for this conversation
   // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   // Announcements state
@@ -612,12 +614,30 @@ export default function ChatPage() {
       }).catch(() => {});
     // Fetch projects
     fetch('/api/projects', { headers: { Authorization: `Bearer ${t}` } })
-      .then(r => r.json()).then(d => {
+      .then(r => r.json()).then(async (d) => {
         const allProjects = [
           ...(d.owned || []),
           ...(d.shared || []).map(p => ({ ...p, is_shared: true }))
         ];
         setProjects(allProjects);
+        
+        // Fetch Imprints to see which are attached to projects
+        try {
+          const imprintsRes = await fetch('/api/imprints/my', { headers: { Authorization: `Bearer ${t}` } });
+          if (imprintsRes.ok) {
+            const imprintsData = await imprintsRes.json();
+            // Build map of project_id → imprint_name
+            const projectImprintMap = {};
+            (imprintsData.project_imprints || []).forEach(pi => {
+              if (pi.project_id && pi.imprint) {
+                projectImprintMap[pi.project_id] = pi.imprint.name;
+              }
+            });
+            setProjectImprints(projectImprintMap);
+          }
+        } catch (e) {
+          console.error('Failed to fetch project imprints:', e);
+        }
       }).catch(() => {});
     // Fetch announcements
     fetch('/api/announcements', { headers: { Authorization: `Bearer ${t}` } })
@@ -3717,7 +3737,15 @@ export default function ChatPage() {
                           }`}
                         >
                           <Folder className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="flex-1 text-left truncate">{project.name}</span>
+                          <div className="flex-1 text-left min-w-0">
+                            <div className="truncate">{project.name}</div>
+                            {projectImprints[project.id] && (
+                              <div className="text-[9px] text-purple-400/60 truncate flex items-center gap-1 mt-0.5">
+                                <Sparkles className="w-2.5 h-2.5 flex-shrink-0" />
+                                {projectImprints[project.id]}
+                              </div>
+                            )}
+                          </div>
                           {project.is_shared && <Users className="w-3 h-3 text-purple-400 flex-shrink-0" />}
                           <span className="text-[10px] text-gray-600">{project.conversation_count || 0}</span>
                         </button>
