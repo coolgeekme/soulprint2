@@ -3702,3 +3702,18 @@ backend:
         agent: "testing"
         comment: "TESTED: Enhanced API key error handling working perfectly. ✅ Code Review: All 3 error detection patterns correctly implemented and match reported user error format. Pattern 1 ('API key was reported as leaked') matches exact error from ben@archeforge.com. Pattern 2 ('403' + 'API key') also matches. Pattern 3 ('API key' + 'invalid'/'disabled') covers additional cases. ✅ Error Message Format: All 5 components present and user-friendly - clear problem indication, provider identification (Gemini detection working), step-by-step instructions (4 steps), link to get new key (https://aistudio.google.com/apikey), security warning (rotate key immediately). ✅ Rate Limit Handling: Pattern and message verified. ✅ Quota Handling: Pattern and message verified. ✅ Stream Error Handling: Errors properly sent and stream closed gracefully without crashes. ✅ Runtime Verification: Chat stream (POST /api/chat/stream) properly caught and handled API key error - received error event, stream closed gracefully, no regression in normal operation. The enhanced error handling successfully addresses the production issue where leaked API key errors were not user-friendly. All comprehensive tests passed (100% success rate)."
 
+
+  - task: "Imprint-Project Auto-Association Fix"
+    implemented: true
+    working: true
+    file: "lib/handlers/chat-stream.js (lines 872-897), lib/handlers/imprints.js (getActiveImprint function)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Fixed critical bug where old conversations in a project were still using the default Imprint (Perseus) instead of the project-specific Imprint. Added logic in chat-stream.js (lines 872-897) to detect when an existing conversation has no project_id but the user is chatting within a project context, and automatically updates the conversation's project_id in the database. This ensures the active Imprint is loaded based on the project via getActiveImprint function in imprints.js."
+      - working: true
+        agent: "testing"
+        comment: "IMPRINT-PROJECT AUTO-ASSOCIATION FIX TESTING COMPLETE: All 4/4 critical test scenarios passed (100% success rate). ✅ Test 1 (New Conversation in Project): New conversations created within a project context correctly have project_id set in database. Verified conversation has correct project_id immediately after creation. ✅ Test 2 (Old Conversation Auto-Association - CRITICAL FIX): Old conversations with NO project_id are automatically associated with the current project when user sends a message within that project context. This is the core fix - verified that conversation.project_id is updated from NULL to the correct project_id after sending a message in project context. ✅ Test 3 (Conversation in Wrong Project): Conversations with existing project_id do NOT change when user tries to chat in a different project context. Verified project_id remains unchanged (respects existing association). ✅ Test 4 (No Project Context): Conversations with NO project_id remain NULL when chatting in 'All Chats' view (no selectedProject). Verified project_id doesn't randomly get assigned. The auto-association logic in chat-stream.js lines 878-898 is working perfectly: checks if conversation exists but has no project_id AND user is chatting within a project context, verifies user has access to the project, updates conversation.project_id in database, and updates the conv object so getActiveImprint uses the new project_id. All database integrity checks passed - conversations correctly updated with proper project associations."
