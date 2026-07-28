@@ -4393,7 +4393,7 @@ export default function ChatPage() {
                         {msg.activeImprint && (
                           <div className="flex items-center gap-1.5 mb-2 -mt-0.5">
                             <span className="text-sm leading-none">{msg.activeImprint.icon}</span>
-                            <span className="text-[10px] font-medium text-white/50">{msg.activeImprint.name}</span>
+                            <span className="text-[10px] font-medium text-gray-400">{msg.activeImprint.name}</span>
                           </div>
                         )}
                         {/* Generating Animation - show when creating flyers/infographics/images */}

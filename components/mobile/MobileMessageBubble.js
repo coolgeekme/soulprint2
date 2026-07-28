@@ -181,7 +181,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
           {message.activeImprint && (
             <div className="flex items-center gap-1.5 mb-1.5 -mt-0.5">
               <span className="text-sm leading-none">{message.activeImprint.icon}</span>
-              <span className="text-[10px] font-medium text-white/40">{message.activeImprint.name}</span>
+              <span className="text-[10px] font-medium text-gray-400">{message.activeImprint.name}</span>
             </div>
           )}
           {/* Show generated image */}
