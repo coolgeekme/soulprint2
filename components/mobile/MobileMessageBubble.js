@@ -84,7 +84,6 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
 
   const handleFeedback = async (type) => {
     setFeedback(type);
-    setShowActions(false);
     if (onFeedback) {
       onFeedback(message.id, type);
     }
@@ -93,23 +92,10 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
   if (isUser) {
     return (
       <div className="flex justify-end mb-4 px-4">
-        <div 
-          className="max-w-[85%] bg-orange-500/20 border border-orange-500/30 rounded-3xl rounded-br-lg px-4 py-3"
-          onTouchStart={(e) => {
-            // Allow text selection - don't immediately show actions
-            e.currentTarget._touchStartTime = Date.now();
-          }}
-          onTouchEnd={(e) => {
-            // Only toggle actions on quick tap (< 200ms), not on long press for selection
-            const touchDuration = Date.now() - (e.currentTarget._touchStartTime || 0);
-            if (touchDuration < 200 && !window.getSelection()?.toString()) {
-              setShowActions(!showActions);
-            }
-          }}
-        >
+        <div className="max-w-[85%] bg-orange-500/20 border border-orange-500/30 rounded-3xl rounded-br-lg px-4 py-3">
           <p className="text-white text-base leading-7 select-text" style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>{String(message?.content || '')}</p>
           {/* Variant toggle for user messages */}
-          {message.variants && message.variants.length > 1 && !showActions && (
+          {message.variants && message.variants.length > 1 && (
             <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-orange-500/10" onClick={e => e.stopPropagation()}>
               <button 
                 onClick={() => onToggleVariant?.(message.id, 'prev')}
@@ -133,30 +119,37 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               </span>
             </div>
           )}
-          {showActions && (
-            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-orange-500/20">
-              <button onClick={handleCopy} className="text-orange-300 text-sm flex items-center gap-1.5 px-3 py-2 -mx-2 rounded-lg active:bg-orange-500/10">
-                {copyStatus === 'success' ? (
-                  <>
-                    <Check className="w-4 h-4" /> Copied!
-                  </>
-                ) : copyStatus === 'error' ? (
-                  <>
-                    <Copy className="w-4 h-4" /> Failed
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" /> Copy
-                  </>
-                )}
-              </button>
-              {onEdit && (
-                <button onClick={() => { onEdit(message); setShowActions(false); }} className="text-orange-300 text-sm flex items-center gap-1.5 px-3 py-2 rounded-lg active:bg-orange-500/10">
-                  <Edit3 className="w-4 h-4" /> Edit
-                </button>
+          <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-orange-500/20">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="relative z-10 min-h-11 min-w-11 touch-manipulation text-orange-200 text-sm font-medium inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl active:bg-orange-500/15"
+              aria-label={copyStatus === 'success' ? 'Message copied' : 'Copy message'}
+            >
+              {copyStatus === 'success' ? (
+                <>
+                  <Check className="w-5 h-5" /> Copied!
+                </>
+              ) : copyStatus === 'error' ? (
+                <>
+                  <Copy className="w-5 h-5" /> Failed
+                </>
+              ) : (
+                <>
+                  <Copy className="w-5 h-5" /> Copy
+                </>
               )}
-            </div>
-          )}
+            </button>
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(message)}
+                className="min-h-11 min-w-11 touch-manipulation text-orange-200 text-sm font-medium inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl active:bg-orange-500/15"
+              >
+                <Edit3 className="w-5 h-5" /> Edit
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -165,20 +158,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
   return (
     <div className="flex justify-start mb-4 px-4">
       <div className="max-w-[90%]">
-        <div 
-          className="bg-white/5 rounded-3xl rounded-bl-lg px-4 py-3"
-          onTouchStart={(e) => {
-            // Allow text selection - don't immediately show actions
-            e.currentTarget._touchStartTime = Date.now();
-          }}
-          onTouchEnd={(e) => {
-            // Only toggle actions on quick tap (< 200ms), not on long press for selection
-            const touchDuration = Date.now() - (e.currentTarget._touchStartTime || 0);
-            if (touchDuration < 200 && !window.getSelection()?.toString()) {
-              setShowActions(!showActions);
-            }
-          }}
-        >
+        <div className="bg-white/5 rounded-3xl rounded-bl-lg px-4 py-3">
           {/* Imprint Attribution Badge */}
           {message.activeImprint && (
             <div className="flex items-center gap-1.5 mb-1.5 -mt-0.5">
@@ -335,8 +315,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
             </>
             )}
           </div>
-          {showActions && (
-            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/10">
+          <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-white/10">
               {/* Variant toggle for assistant messages */}
               {message.variants && message.variants.length > 1 && (
                 <div className="flex items-center gap-1 mr-1 pr-2 border-r border-white/10" onClick={e => e.stopPropagation()}>
@@ -359,18 +338,23 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
                   </button>
                 </div>
               )}
-              <button onClick={handleCopy} className="text-gray-400 text-sm flex items-center gap-1.5 px-3 py-2 -mx-2 rounded-lg active:bg-white/5">
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="relative z-10 min-h-11 min-w-11 touch-manipulation text-gray-300 text-sm font-medium inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl active:bg-white/10"
+                aria-label={copyStatus === 'success' ? 'Message copied' : 'Copy message'}
+              >
                 {copyStatus === 'success' ? (
                   <>
-                    <Check className="w-4 h-4 text-green-400" /> Copied!
+                    <Check className="w-5 h-5 text-green-400" /> Copied!
                   </>
                 ) : copyStatus === 'error' ? (
                   <>
-                    <Copy className="w-4 h-4 text-red-400" /> Failed
+                    <Copy className="w-5 h-5 text-red-400" /> Failed
                   </>
                 ) : (
                   <>
-                    <Copy className="w-4 h-4" /> Copy
+                    <Copy className="w-5 h-5" /> Copy
                   </>
                 )}
               </button>
@@ -395,8 +379,7 @@ const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedb
               >
                 <ThumbsDown className="w-3 h-3" />
               </button>
-            </div>
-          )}
+          </div>
         </div>
         {/* Model info - show Dynamic Intelligence badge if applicable */}
         {message.model_used && (
