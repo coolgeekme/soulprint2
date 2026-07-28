@@ -4768,11 +4768,17 @@ export default function ChatPage() {
                       </button>
                       {/* Copy Button */}
                       <button 
-                        onClick={() => copyMessage(msg.content, msg.id)} 
-                        className={`transition-colors p-1 rounded ${copiedMessageId === msg.id ? 'text-green-400' : 'text-gray-700 hover:text-white'}`}
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          copyMessage(msg.content, msg.id);
+                        }}
+                        className={`min-h-11 min-w-11 inline-flex items-center justify-center touch-manipulation transition-colors p-3 rounded-lg ${copiedMessageId === msg.id ? 'text-green-400 bg-green-400/10' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
                         title={copiedMessageId === msg.id ? 'Copied!' : 'Copy message'}
+                        aria-label={copiedMessageId === msg.id ? 'Message copied' : 'Copy message'}
                       >
-                        {copiedMessageId === msg.id ? <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+                        {copiedMessageId === msg.id ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
                       </button>
                       {/* Read Aloud Button */}
                       <button 
