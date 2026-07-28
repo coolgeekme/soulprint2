@@ -8,11 +8,13 @@ import { PdfCard } from '@/components/chat/PdfCard';
 import MusicCard from '@/components/chat/MusicCard';
 
 const MessageBubble = ({ message, isUser, assistantName, onCopy, onEdit, onFeedback, token, onRegenerateWith, onVideoReady, onReadAloud, readingAloudId, onToggleVariant, onExtendVideo, onRetryGeneration }) => {
-  const [showActions, setShowActions] = useState(false);
   const [feedback, setFeedback] = useState(message.feedback || null);
   const [copyStatus, setCopyStatus] = useState(null); // 'success' | 'error' | null
 
-  const handleCopy = async () => {
+  const handleCopy = async (event) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+
     const textToCopy = String(message?.content || '');
     if (!textToCopy) {
       setCopyStatus('error');
