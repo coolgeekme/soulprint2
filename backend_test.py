@@ -1,283 +1,291 @@
 #!/usr/bin/env python3
 """
-Backend Testing for SoulPrint Engine - Subscription Growth Strategy Phase 1
-
-Test Focus:
-1. Free Tier Enforcement - Verify free plan has 10 messages/day limit
-2. Pricing Display - Verify Base plan is $19/month and $182.40/year
-3. Pricing Display - Verify Power plan is $97/month and $931.20/year
-4. Pricing Page Access - Verify pricing page gate is open (visible: true)
+Backend Test Suite for GitHub Integration Loop Bug Fix
+Tests that casual GitHub mentions don't trigger connection prompts
 """
 
 import requests
 import json
-import os
 import sys
 
-# Get base URL from environment
-BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'http://localhost:3000')
-API_URL = f"{BASE_URL}/api"
-
-# Test credentials
+# Configuration
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com/api"
 TEST_EMAIL = "testchat@example.com"
 TEST_PASSWORD = "Test123456"
 
-class Colors:
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    END = '\033[0m'
+def print_test_header(test_name):
+    """Print a formatted test header"""
+    print(f"\n{'='*80}")
+    print(f"TEST: {test_name}")
+    print(f"{'='*80}")
 
-def print_test(msg):
-    print(f"{Colors.BLUE}[TEST]{Colors.END} {msg}")
-
-def print_pass(msg):
-    print(f"{Colors.GREEN}✅ PASS:{Colors.END} {msg}")
-
-def print_fail(msg):
-    print(f"{Colors.RED}❌ FAIL:{Colors.END} {msg}")
-
-def print_info(msg):
-    print(f"{Colors.YELLOW}ℹ️  INFO:{Colors.END} {msg}")
+def print_result(success, message):
+    """Print test result"""
+    status = "✅ PASS" if success else "❌ FAIL"
+    print(f"{status}: {message}")
+    return success
 
 def login():
-    """Authenticate and get token"""
-    print_test("Authenticating...")
+    """Login and get auth token"""
+    print_test_header("Authentication Setup")
     try:
         response = requests.post(
-            f"{API_URL}/auth/login",
+            f"{BASE_URL}/auth/login",
             json={"email": TEST_EMAIL, "passcode": TEST_PASSWORD},
-            timeout=10
+            timeout=30
         )
+        
         if response.status_code == 200:
             data = response.json()
             token = data.get('token')
             if token:
-                print_pass(f"Authentication successful for {TEST_EMAIL}")
+                print_result(True, f"Logged in successfully as {TEST_EMAIL}")
                 return token
             else:
-                print_fail("No token in response")
+                print_result(False, "No token in response")
                 return None
         else:
-            print_fail(f"Login failed: {response.status_code} - {response.text[:200]}")
+            print_result(False, f"Login failed with status {response.status_code}: {response.text}")
             return None
     except Exception as e:
-        print_fail(f"Login error: {str(e)}")
+        print_result(False, f"Login error: {str(e)}")
         return None
 
-def test_pricing_plans():
-    """Test 1: Verify pricing plans structure and values"""
-    print_test("\n=== Test 1: Pricing Plans Structure ===")
+def send_chat_message(token, message, conversation_id=None):
+    """Send a chat message and return the response"""
     try:
-        response = requests.get(f"{API_URL}/pricing/plans", timeout=10)
+        payload = {
+            "content": message,
+            "model": "gpt-4o-mini"  # Use free model to avoid enforcement blocking
+        }
+        if conversation_id:
+            payload["conversationId"] = conversation_id
+        
+        response = requests.post(
+            f"{BASE_URL}/chat/stream",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json=payload,
+            timeout=60,
+            stream=True
+        )
         
         if response.status_code != 200:
-            print_fail(f"GET /api/pricing/plans failed: {response.status_code}")
-            return False
+            return {
+                "success": False,
+                "error": f"HTTP {response.status_code}: {response.text[:200]}"
+            }
         
-        data = response.json()
-        plans = data.get('plans', [])
+        # Parse NDJSON stream
+        full_content = ""
+        conversation_id = None
+        message_id = None
+        is_github_system_response = False
+        line_count = 0
         
-        if not plans:
-            print_fail("No plans returned")
-            return False
-        
-        print_pass(f"GET /api/pricing/plans returned {len(plans)} plans")
-        
-        # Find each plan
-        free_plan = next((p for p in plans if p.get('id') == 'free'), None)
-        base_plan = next((p for p in plans if p.get('id') == 'base'), None)
-        power_plan = next((p for p in plans if p.get('id') == 'power'), None)
-        
-        all_tests_passed = True
-        
-        # Test Free Plan
-        if not free_plan:
-            print_fail("Free plan not found")
-            all_tests_passed = False
-        else:
-            print_info(f"Free plan found: {free_plan.get('name')}")
+        for line in response.iter_lines():
+            if not line:
+                continue
             
-            # Check standard_msgs_per_day
-            features = free_plan.get('features', {})
-            standard_msgs = features.get('standard_msgs_per_day')
-            
-            if standard_msgs == 10:
-                print_pass(f"Free plan has standard_msgs_per_day: {standard_msgs} ✓")
-            else:
-                print_fail(f"Free plan standard_msgs_per_day is {standard_msgs}, expected 10")
-                all_tests_passed = False
+            line_count += 1
+            try:
+                line_str = line.decode('utf-8').strip()
+                if not line_str:
+                    continue
+                
+                # Parse NDJSON (not SSE format)
+                event = json.loads(line_str)
+                
+                # Debug first few events
+                if line_count <= 3:
+                    print(f"[DEBUG] Event {line_count}: {event.get('type')} - {str(event)[:100]}")
+                
+                if event.get('type') == 'meta':
+                    conversation_id = event.get('conversationId')
+                    message_id = event.get('messageId')
+                elif event.get('type') == 'delta':
+                    content = event.get('content', '')
+                    full_content += content
+                    # Check if this is a GitHub system response
+                    if 'GitHub' in content and ('Connect' in content or 'connect' in content):
+                        is_github_system_response = True
+                elif event.get('type') == 'done':
+                    break
+                elif event.get('type') == 'error':
+                    return {
+                        "success": False,
+                        "error": event.get('error', 'Unknown error')
+                    }
+            except json.JSONDecodeError:
+                continue
         
-        # Test Base Plan
-        if not base_plan:
-            print_fail("Base plan not found")
-            all_tests_passed = False
-        else:
-            print_info(f"Base plan found: {base_plan.get('name')}")
-            
-            price_monthly = base_plan.get('price_monthly')
-            price_annual = base_plan.get('price_annual')
-            
-            if price_monthly == 19:
-                print_pass(f"Base plan price_monthly: ${price_monthly} ✓")
-            else:
-                print_fail(f"Base plan price_monthly is ${price_monthly}, expected $19")
-                all_tests_passed = False
-            
-            if price_annual == 182.40:
-                print_pass(f"Base plan price_annual: ${price_annual} ✓")
-            else:
-                print_fail(f"Base plan price_annual is ${price_annual}, expected $182.40")
-                all_tests_passed = False
-        
-        # Test Power Plan
-        if not power_plan:
-            print_fail("Power plan not found")
-            all_tests_passed = False
-        else:
-            print_info(f"Power plan found: {power_plan.get('name')}")
-            
-            price_monthly = power_plan.get('price_monthly')
-            price_annual = power_plan.get('price_annual')
-            
-            if price_monthly == 97:
-                print_pass(f"Power plan price_monthly: ${price_monthly} ✓")
-            else:
-                print_fail(f"Power plan price_monthly is ${price_monthly}, expected $97")
-                all_tests_passed = False
-            
-            if price_annual == 931.20:
-                print_pass(f"Power plan price_annual: ${price_annual} ✓")
-            else:
-                print_fail(f"Power plan price_annual is ${price_annual}, expected $931.20")
-                all_tests_passed = False
-        
-        return all_tests_passed
-        
+        return {
+            "success": True,
+            "content": full_content,
+            "conversation_id": conversation_id,
+            "message_id": message_id,
+            "is_github_system_response": is_github_system_response
+        }
+    
     except Exception as e:
-        print_fail(f"Error testing pricing plans: {str(e)}")
-        return False
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
-def test_pricing_gate():
-    """Test 2: Verify pricing page gate is open"""
-    print_test("\n=== Test 2: Pricing Page Gate ===")
-    try:
-        response = requests.get(f"{API_URL}/pricing/gate", timeout=10)
-        
-        if response.status_code != 200:
-            print_fail(f"GET /api/pricing/gate failed: {response.status_code}")
-            return False
-        
-        data = response.json()
-        visible = data.get('visible')
-        launch_date = data.get('launch_date')
-        
-        print_info(f"Gate response: visible={visible}, launch_date={launch_date}")
-        
-        if visible is True:
-            print_pass("Pricing page gate is open (visible: true) ✓")
-            return True
-        else:
-            print_fail(f"Pricing page gate is closed (visible: {visible}), expected true")
-            print_info("Note: Gate should be open since current date > May 2026")
-            return False
-        
-    except Exception as e:
-        print_fail(f"Error testing pricing gate: {str(e)}")
-        return False
+def test_casual_github_mention_1(token):
+    """Test 1: Casual GitHub mention should NOT trigger connection prompt"""
+    print_test_header("Test 1: Casual GitHub Mention - 'explain why GitHub is important'")
+    
+    message = "explain why GitHub is important for developers"
+    result = send_chat_message(token, message)
+    
+    if not result["success"]:
+        return print_result(False, f"Chat request failed: {result.get('error')}")
+    
+    content = result["content"]
+    is_github_response = result["is_github_system_response"]
+    
+    # Check that it's NOT a GitHub connection prompt
+    if is_github_response or "connect" in content.lower() and "github" in content.lower() and "account" in content.lower():
+        return print_result(False, f"CRITICAL BUG: Casual mention triggered GitHub connection prompt. Response: {content[:200]}")
+    
+    # Check that it's a normal AI response explaining GitHub
+    if len(content) > 50 and ("github" in content.lower() or "version control" in content.lower() or "repository" in content.lower()):
+        return print_result(True, f"Normal AI response received (length: {len(content)} chars). No GitHub connection prompt triggered.")
+    
+    return print_result(False, f"Unexpected response: {content[:200]}")
 
-def test_subscription_endpoint(token):
-    """Test 3: Verify subscription endpoint returns free tier limits"""
-    print_test("\n=== Test 3: Subscription Endpoint (Free Tier) ===")
-    try:
-        headers = {"Authorization": f"Bearer {token}"}
-        response = requests.get(f"{API_URL}/pricing/subscription", headers=headers, timeout=10)
-        
-        if response.status_code != 200:
-            print_fail(f"GET /api/pricing/subscription failed: {response.status_code}")
-            return False
-        
-        data = response.json()
-        plan_id = data.get('plan_id')
-        plan = data.get('plan', {})
-        
-        print_info(f"User subscription: plan_id={plan_id}")
-        
-        if plan_id == 'free':
-            print_pass("User is on free plan ✓")
-            
-            # Check if plan details include the correct limits
-            features = plan.get('features', {})
-            standard_msgs = features.get('standard_msgs_per_day')
-            
-            if standard_msgs == 10:
-                print_pass(f"Free tier shows standard_msgs_per_day: {standard_msgs} ✓")
-                return True
-            else:
-                print_info(f"Free tier standard_msgs_per_day: {standard_msgs}")
-                return True  # Still pass if subscription endpoint works
-        else:
-            print_info(f"User is on {plan_id} plan (not free)")
-            return True  # Still pass, just different plan
-        
-    except Exception as e:
-        print_fail(f"Error testing subscription endpoint: {str(e)}")
-        return False
+def test_casual_github_mention_2(token):
+    """Test 2: Another casual GitHub mention should NOT trigger connection prompt"""
+    print_test_header("Test 2: Casual GitHub Mention - 'write a slack message about GitHub'")
+    
+    message = "write a slack message telling Nick why he needs to be on GitHub"
+    result = send_chat_message(token, message)
+    
+    if not result["success"]:
+        return print_result(False, f"Chat request failed: {result.get('error')}")
+    
+    content = result["content"]
+    is_github_response = result["is_github_system_response"]
+    
+    # Check that it's NOT a GitHub connection prompt
+    if is_github_response or ("connect" in content.lower() and "github" in content.lower() and "account" in content.lower()):
+        return print_result(False, f"CRITICAL BUG: Casual mention triggered GitHub connection prompt. Response: {content[:200]}")
+    
+    # Check that it's a normal AI response writing a Slack message
+    if len(content) > 50:
+        return print_result(True, f"Normal AI response received (length: {len(content)} chars). No GitHub connection prompt triggered.")
+    
+    return print_result(False, f"Unexpected response: {content[:200]}")
+
+def test_slash_command_without_connection(token):
+    """Test 3: Slash command should trigger connection prompt"""
+    print_test_header("Test 3: Slash Command Without Connection - '/github repos'")
+    
+    message = "/github repos"
+    result = send_chat_message(token, message)
+    
+    if not result["success"]:
+        return print_result(False, f"Chat request failed: {result.get('error')}")
+    
+    content = result["content"]
+    
+    # Check that it IS a GitHub connection prompt
+    if "connect" in content.lower() and "github" in content.lower():
+        return print_result(True, f"Correctly triggered GitHub connection prompt: {content[:150]}")
+    
+    return print_result(False, f"Expected connection prompt but got: {content[:200]}")
+
+def test_explicit_connection_request(token):
+    """Test 4: Explicit connection request should trigger connection prompt"""
+    print_test_header("Test 4: Explicit Connection Request - 'I want to connect my github account'")
+    
+    message = "I want to connect my github account"
+    result = send_chat_message(token, message)
+    
+    if not result["success"]:
+        return print_result(False, f"Chat request failed: {result.get('error')}")
+    
+    content = result["content"]
+    
+    # Check that it IS a GitHub connection prompt
+    if "connect" in content.lower() and "github" in content.lower():
+        return print_result(True, f"Correctly triggered GitHub connection prompt: {content[:150]}")
+    
+    return print_result(False, f"Expected connection prompt but got: {content[:200]}")
+
+def test_normal_conversation(token):
+    """Test 5: Normal conversation should work without GitHub interference"""
+    print_test_header("Test 5: Normal Conversation - 'what's the weather like today?'")
+    
+    message = "what's the weather like today?"
+    result = send_chat_message(token, message)
+    
+    if not result["success"]:
+        return print_result(False, f"Chat request failed: {result.get('error')}")
+    
+    content = result["content"]
+    is_github_response = result["is_github_system_response"]
+    
+    # Check that there's NO GitHub interference
+    if is_github_response or ("github" in content.lower() and "connect" in content.lower()):
+        return print_result(False, f"GitHub logic interfered with normal conversation: {content[:200]}")
+    
+    # Check that it's a normal AI response
+    if len(content) > 20:
+        return print_result(True, f"Normal AI response received (length: {len(content)} chars). No GitHub interference.")
+    
+    return print_result(False, f"Unexpected response: {content[:200]}")
 
 def main():
-    print(f"\n{Colors.BLUE}{'='*70}{Colors.END}")
-    print(f"{Colors.BLUE}Subscription Growth Strategy Phase 1 - Backend Testing{Colors.END}")
-    print(f"{Colors.BLUE}{'='*70}{Colors.END}\n")
-    print_info(f"Testing against: {API_URL}")
+    """Run all tests"""
+    print("\n" + "="*80)
+    print("GITHUB INTEGRATION LOOP BUG FIX - BACKEND TEST SUITE")
+    print("="*80)
+    print(f"Testing against: {BASE_URL}")
+    print(f"Test user: {TEST_EMAIL}")
     
-    results = {
-        'total': 0,
-        'passed': 0,
-        'failed': 0
-    }
-    
-    # Test 1: Pricing Plans
-    results['total'] += 1
-    if test_pricing_plans():
-        results['passed'] += 1
-    else:
-        results['failed'] += 1
-    
-    # Test 2: Pricing Gate
-    results['total'] += 1
-    if test_pricing_gate():
-        results['passed'] += 1
-    else:
-        results['failed'] += 1
-    
-    # Test 3: Subscription Endpoint (requires auth)
+    # Login
     token = login()
-    if token:
-        results['total'] += 1
-        if test_subscription_endpoint(token):
-            results['passed'] += 1
-        else:
-            results['failed'] += 1
-    else:
-        print_fail("Skipping subscription endpoint test (no auth token)")
-        results['total'] += 1
-        results['failed'] += 1
+    if not token:
+        print("\n❌ FATAL: Could not authenticate. Aborting tests.")
+        sys.exit(1)
+    
+    # Run all tests
+    results = []
+    
+    # CRITICAL TESTS - These were broken before the fix
+    results.append(("Test 1: Casual GitHub Mention 1", test_casual_github_mention_1(token)))
+    results.append(("Test 2: Casual GitHub Mention 2", test_casual_github_mention_2(token)))
+    
+    # VERIFICATION TESTS - These should still work correctly
+    results.append(("Test 3: Slash Command", test_slash_command_without_connection(token)))
+    results.append(("Test 4: Explicit Connection Request", test_explicit_connection_request(token)))
+    results.append(("Test 5: Normal Conversation", test_normal_conversation(token)))
     
     # Summary
-    print(f"\n{Colors.BLUE}{'='*70}{Colors.END}")
-    print(f"{Colors.BLUE}Test Summary{Colors.END}")
-    print(f"{Colors.BLUE}{'='*70}{Colors.END}")
-    print(f"Total Tests: {results['total']}")
-    print(f"{Colors.GREEN}Passed: {results['passed']}{Colors.END}")
-    print(f"{Colors.RED}Failed: {results['failed']}{Colors.END}")
+    print("\n" + "="*80)
+    print("TEST SUMMARY")
+    print("="*80)
     
-    if results['failed'] == 0:
-        print(f"\n{Colors.GREEN}✅ All tests passed!{Colors.END}\n")
-        return 0
+    passed = sum(1 for _, result in results if result)
+    total = len(results)
+    
+    for test_name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{status}: {test_name}")
+    
+    print(f"\nTotal: {passed}/{total} tests passed ({int(passed/total*100)}% success rate)")
+    
+    if passed == total:
+        print("\n🎉 ALL TESTS PASSED! GitHub integration bug fix is working correctly.")
+        sys.exit(0)
     else:
-        print(f"\n{Colors.RED}❌ Some tests failed{Colors.END}\n")
-        return 1
+        print(f"\n⚠️  {total - passed} test(s) failed. Review the output above for details.")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
