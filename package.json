@@ -6,6 +6,7 @@
         "dev": "NODE_OPTIONS='--max-old-space-size=2048' next dev --hostname 0.0.0.0 --port 3000",
         "dev:no-reload": "next dev --hostname 0.0.0.0 --port 3000",
         "dev:webpack": "next dev --hostname 0.0.0.0 --port 3000",
+        "prebuild": "npm run test:conversation-context && npm run test:imprint-context",
         "build": "next build",
         "start": "next start",
         "test:conversation-context": "node --test tests/conversation-context.test.mjs",

@@ -59,7 +59,7 @@ function ImprintCard({ imprint, isInstalled, onSelect, onInstall }) {
 }
 
 // ── Imprint Detail View ─────────────────────────────────────────────────────
-function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onInstall, onUninstall, projects, token }) {
+function ImprintDetail({ imprint, isInstalled, installedUsageType, installedInstallation, onBack, onInstall, onUninstall, projects, token }) {
   const [installType, setInstallType] = useState('default');
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [installing, setInstalling] = useState(false);
@@ -79,7 +79,7 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
         body: JSON.stringify(body),
       });
       if (res.ok) {
-        onInstall();
+        onInstall(await res.json());
       }
     } catch (e) {
       console.error('Install failed:', e);
@@ -94,10 +94,14 @@ function ImprintDetail({ imprint, isInstalled, installedUsageType, onBack, onIns
       const res = await fetch('/api/imprints/uninstall', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ usage_type: installedUsageType || 'default' }),
+        body: JSON.stringify(
+          installedInstallation?.id
+            ? { installation_id: installedInstallation.id }
+            : { usage_type: installedUsageType || 'default' },
+        ),
       });
       if (res.ok) {
-        onUninstall(); // refresh
+        onUninstall(await res.json());
       }
     } catch (e) {
       console.error('Uninstall failed:', e);
@@ -500,7 +504,7 @@ function ImprintGenerator({ token, onComplete, onBack, projects }) {
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                     body: JSON.stringify(body),
                   });
-                  if (res.ok) onComplete();
+                  if (res.ok) onComplete(await res.json());
                 } catch (e) {
                   console.error('Install failed:', e);
                 } finally {
@@ -631,6 +635,11 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
     if (myImprints.default_imprint?.imprint_id === imprintId) return 'default';
     const proj = myImprints.project_imprints?.find(p => p.imprint_id === imprintId);
     return proj ? 'project' : null;
+  }
+
+  function getInstalledInstallation(imprintId) {
+    if (myImprints.default_imprint?.imprint_id === imprintId) return myImprints.default_imprint;
+    return myImprints.project_imprints?.find(p => p.imprint_id === imprintId) || null;
   }
 
   return (
@@ -797,12 +806,16 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
                           <button
                             onClick={async () => {
                               try {
-                                await fetch('/api/imprints/uninstall', {
+                                const res = await fetch('/api/imprints/uninstall', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                   body: JSON.stringify({ usage_type: 'default' }),
                                 });
-                                fetchImprints();
+                                if (res.ok) {
+                                  const change = await res.json();
+                                  fetchImprints();
+                                  onAssignmentsChanged?.({ ...change, action: 'uninstall' });
+                                }
                               } catch (e) { console.error(e); }
                             }}
                             className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors shrink-0"
@@ -830,12 +843,16 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
                           <button
                             onClick={async () => {
                               try {
-                                await fetch('/api/imprints/uninstall', {
+                                const res = await fetch('/api/imprints/uninstall', {
                                   method: 'POST',
                                   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                   body: JSON.stringify({ usage_type: 'project', project_id: pi.project_id }),
                                 });
-                                fetchImprints();
+                                if (res.ok) {
+                                  const change = await res.json();
+                                  fetchImprints();
+                                  onAssignmentsChanged?.({ ...change, action: 'uninstall', project_id: pi.project_id });
+                                }
                               } catch (e) { console.error(e); }
                             }}
                             className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors shrink-0"
@@ -898,12 +915,16 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
                               className="text-[10px] h-7 shrink-0"
                               onClick={async () => {
                                 try {
-                                  await fetch('/api/imprints/install', {
+                                  const res = await fetch('/api/imprints/install', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                                     body: JSON.stringify({ imprint_id: imp.id, usage_type: 'default' }),
                                   });
-                                  fetchImprints();
+                                  if (res.ok) {
+                                    const change = await res.json();
+                                    fetchImprints();
+                                    onAssignmentsChanged?.(change);
+                                  }
                                 } catch (e) { console.error(e); }
                               }}
                             >
@@ -947,12 +968,16 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
                 <button
                   onClick={async () => {
                     try {
-                      await fetch('/api/imprints/uninstall', {
+                      const res = await fetch('/api/imprints/uninstall', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                         body: JSON.stringify({ usage_type: 'default' }),
                       });
-                      fetchImprints();
+                      if (res.ok) {
+                        const change = await res.json();
+                        fetchImprints();
+                        onAssignmentsChanged?.({ ...change, action: 'uninstall' });
+                      }
                     } catch (e) { console.error('Remove failed:', e); }
                   }}
                   className="ml-auto text-[10px] text-red-400/70 hover:text-red-400 transition-colors flex items-center gap-1"
@@ -971,14 +996,15 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
               imprint={selectedImprint}
               isInstalled={isImprintInstalled(selectedImprint.id)}
               installedUsageType={getInstalledUsageType(selectedImprint.id)}
+              installedInstallation={getInstalledInstallation(selectedImprint.id)}
               onBack={() => { setView('library'); setSelectedImprint(null); }}
-              onInstall={() => { 
-                fetchImprints(); 
-                if (onAssignmentsChanged) onAssignmentsChanged();
+              onInstall={(change) => {
+                fetchImprints();
+                onAssignmentsChanged?.(change);
               }}
-              onUninstall={() => { 
-                fetchImprints(); 
-                if (onAssignmentsChanged) onAssignmentsChanged();
+              onUninstall={(change) => {
+                fetchImprints();
+                onAssignmentsChanged?.({ ...change, action: 'uninstall' });
               }}
               projects={projects}
               token={token}
@@ -991,7 +1017,11 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
             <ImprintGenerator
               token={token}
               projects={projects}
-              onComplete={() => { fetchImprints(); setView('library'); }}
+              onComplete={(change) => {
+                fetchImprints();
+                if (change?.success) onAssignmentsChanged?.(change);
+                setView('library');
+              }}
               onBack={() => setView('library')}
             />
           </div>

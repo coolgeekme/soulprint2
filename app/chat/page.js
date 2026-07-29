@@ -77,6 +77,7 @@ import { MediaConfirmCard, PromptReviewCard, ModelSelectionCard, VideoExtendConf
 import { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS } from '@/components/chat/constants';
 import AssessmentNudge from '@/components/AssessmentNudge';
 import ImprintsMarketplace, { ActiveImprintBadge } from '@/components/chat/ImprintsMarketplace';
+import { buildProjectImprintMap } from '@/lib/handlers/imprint-context.mjs';
 
 
 export default function ChatPage() {
@@ -157,7 +158,7 @@ export default function ChatPage() {
   const [projectShareLink, setProjectShareLink] = useState(null);
   const [showMoveToProject, setShowMoveToProject] = useState(false);
   const [movingConversation, setMovingConversation] = useState(null);
-  const [projectImprints, setProjectImprints] = useState({}); // Map of project_id → imprint_name
+  const [projectImprints, setProjectImprints] = useState({}); // Map of project_id → imprint
   const [activeImprintName, setActiveImprintName] = useState(null); // Currently active Imprint name for this conversation
   // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -520,6 +521,27 @@ export default function ChatPage() {
     return baseName;
   }, [selectedProject, projects, activeImprint, assistantName]);
 
+  const refreshImprintState = useCallback(async () => {
+    if (!token) return;
+
+    const projectParam = selectedProject
+      ? `?project_id=${encodeURIComponent(selectedProject)}`
+      : '';
+
+    try {
+      const response = await fetch(`/api/imprints/my${projectParam}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+
+      const data = await response.json();
+      setActiveImprint(data?.active_imprint?.imprint || null);
+      setProjectImprints(buildProjectImprintMap(data?.project_imprints));
+    } catch (error) {
+      console.error('Failed to refresh imprint state:', error);
+    }
+  }, [token, selectedProject]);
+
   useEffect(() => {
     const t = localStorage.getItem('sp_token');
     if (!t) { router.push('/auth'); return; }
@@ -553,9 +575,8 @@ export default function ChatPage() {
         fetch('/api/imprints/my', { headers: { Authorization: `Bearer ${t}` } })
           .then(r => r.ok ? r.json() : null)
           .then(data => {
-            if (data?.default_imprint?.imprint) {
-              setActiveImprint(data.default_imprint.imprint);
-            }
+            setActiveImprint(data?.active_imprint?.imprint || null);
+            setProjectImprints(buildProjectImprintMap(data?.project_imprints));
           })
           .catch(() => {});
         const greet = d.profile?.display_name || 'there';
@@ -626,14 +647,7 @@ export default function ChatPage() {
           const imprintsRes = await fetch('/api/imprints/my', { headers: { Authorization: `Bearer ${t}` } });
           if (imprintsRes.ok) {
             const imprintsData = await imprintsRes.json();
-            // Build map of project_id → imprint_name
-            const projectImprintMap = {};
-            (imprintsData.project_imprints || []).forEach(pi => {
-              if (pi.project_id && pi.imprint) {
-                projectImprintMap[pi.project_id] = pi.imprint.name;
-              }
-            });
-            setProjectImprints(projectImprintMap);
+            setProjectImprints(buildProjectImprintMap(imprintsData.project_imprints));
           }
         } catch (e) {
           console.error('Failed to fetch project imprints:', e);
@@ -710,75 +724,10 @@ export default function ChatPage() {
       .catch(() => {});
   }, [token, user]);
 
-  // Load active imprint when project changes
+  // Load the effective imprint and all project assignments whenever context changes.
   useEffect(() => {
-    if (!token) return;
-    
-    const projectParam = selectedProject ? `?project_id=${selectedProject}` : '';
-    fetch(`/api/imprints/my${projectParam}`, { 
-      headers: { Authorization: `Bearer ${token}` } 
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.default_imprint?.imprint) {
-          setActiveImprint(data.default_imprint.imprint);
-        } else {
-          // No imprint for this project, clear it
-          setActiveImprint(null);
-        }
-      })
-      .catch(() => {});
-  }, [token, selectedProject]);
-
-  // Refresh Imprint state after install/uninstall actions
-  const refreshImprintState = useCallback(async () => {
-    if (!token) return;
-    
-    try {
-      // Refresh projects list to get updated Imprint assignments
-      const projectsRes = await fetch('/api/projects', { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
-      if (projectsRes.ok) {
-        const projectsData = await projectsRes.json();
-        const allProjects = [
-          ...(projectsData.owned || []),
-          ...(projectsData.shared || []).map(p => ({ ...p, is_shared: true }))
-        ];
-        setProjects(allProjects);
-      }
-      
-      // Refresh Imprints to rebuild project map
-      const projectParam = selectedProject ? `?project_id=${selectedProject}` : '';
-      const imprintsRes = await fetch(`/api/imprints/my${projectParam}`, { 
-        headers: { Authorization: `Bearer ${token}` } 
-      });
-      
-      if (imprintsRes.ok) {
-        const imprintsData = await imprintsRes.json();
-        
-        // Update active imprint for current context
-        if (imprintsData.active_imprint?.imprint) {
-          setActiveImprint(imprintsData.active_imprint.imprint);
-        } else if (imprintsData.default_imprint?.imprint) {
-          setActiveImprint(imprintsData.default_imprint.imprint);
-        } else {
-          setActiveImprint(null);
-        }
-        
-        // Rebuild project imprint map
-        const projectImprintMap = {};
-        (imprintsData.project_imprints || []).forEach(pi => {
-          if (pi.project_id && pi.imprint) {
-            projectImprintMap[pi.project_id] = pi.imprint.name;
-          }
-        });
-        setProjectImprints(projectImprintMap);
-      }
-    } catch (e) {
-      console.error('Failed to refresh imprint state:', e);
-    }
-  }, [token, selectedProject]);
+    refreshImprintState();
+  }, [refreshImprintState]);
 
   // Auto-scroll: scroll to the TOP of the assistant's reply bubble once when streaming starts
   useEffect(() => {
@@ -3790,9 +3739,11 @@ export default function ChatPage() {
                           <div className="flex-1 text-left min-w-0">
                             <div className="truncate">{project.name}</div>
                             {projectImprints[project.id] && (
-                              <div className="text-[9px] text-purple-400/60 truncate flex items-center gap-1 mt-0.5">
+                              <div className="text-[10px] text-primary font-medium truncate flex items-center gap-1 mt-0.5">
                                 <Sparkles className="w-2.5 h-2.5 flex-shrink-0" />
-                                {projectImprints[project.id]}
+                                <span className="truncate">
+                                  {projectImprints[project.id].icon || '✨'} {projectImprints[project.id].name}
+                                </span>
                               </div>
                             )}
                           </div>
