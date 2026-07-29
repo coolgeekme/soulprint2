@@ -730,6 +730,56 @@ export default function ChatPage() {
       .catch(() => {});
   }, [token, selectedProject]);
 
+  // Refresh Imprint state after install/uninstall actions
+  const refreshImprintState = useCallback(async () => {
+    if (!token) return;
+    
+    try {
+      // Refresh projects list to get updated Imprint assignments
+      const projectsRes = await fetch('/api/projects', { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+      if (projectsRes.ok) {
+        const projectsData = await projectsRes.json();
+        const allProjects = [
+          ...(projectsData.owned || []),
+          ...(projectsData.shared || []).map(p => ({ ...p, is_shared: true }))
+        ];
+        setProjects(allProjects);
+      }
+      
+      // Refresh Imprints to rebuild project map
+      const projectParam = selectedProject ? `?project_id=${selectedProject}` : '';
+      const imprintsRes = await fetch(`/api/imprints/my${projectParam}`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+      
+      if (imprintsRes.ok) {
+        const imprintsData = await imprintsRes.json();
+        
+        // Update active imprint for current context
+        if (imprintsData.active_imprint?.imprint) {
+          setActiveImprint(imprintsData.active_imprint.imprint);
+        } else if (imprintsData.default_imprint?.imprint) {
+          setActiveImprint(imprintsData.default_imprint.imprint);
+        } else {
+          setActiveImprint(null);
+        }
+        
+        // Rebuild project imprint map
+        const projectImprintMap = {};
+        (imprintsData.project_imprints || []).forEach(pi => {
+          if (pi.project_id && pi.imprint) {
+            projectImprintMap[pi.project_id] = pi.imprint.name;
+          }
+        });
+        setProjectImprints(projectImprintMap);
+      }
+    } catch (e) {
+      console.error('Failed to refresh imprint state:', e);
+    }
+  }, [token, selectedProject]);
+
   // Auto-scroll: scroll to the TOP of the assistant's reply bubble once when streaming starts
   useEffect(() => {
     if (loading && streamingContent && !hasScrolledToReply.current) {
@@ -5727,6 +5777,7 @@ export default function ChatPage() {
         onClose={() => setShowImprintsMarketplace(false)}
         token={token}
         projects={projects}
+        onAssignmentsChanged={refreshImprintState}
       />
       
       {/* What's New Modal */}

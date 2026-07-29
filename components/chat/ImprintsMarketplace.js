@@ -572,7 +572,7 @@ export function ActiveImprintBadge({ token, onClick }) {
 }
 
 // ── Main Marketplace Modal ──────────────────────────────────────────────────
-export default function ImprintsMarketplace({ open, onClose, token, projects }) {
+export default function ImprintsMarketplace({ open, onClose, token, projects, onAssignmentsChanged }) {
   const [view, setView] = useState('library'); // library | myimprints | detail | generator
   const [imprints, setImprints] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -972,8 +972,14 @@ export default function ImprintsMarketplace({ open, onClose, token, projects }) 
               isInstalled={isImprintInstalled(selectedImprint.id)}
               installedUsageType={getInstalledUsageType(selectedImprint.id)}
               onBack={() => { setView('library'); setSelectedImprint(null); }}
-              onInstall={() => { fetchImprints(); }}
-              onUninstall={() => { fetchImprints(); }}
+              onInstall={() => { 
+                fetchImprints(); 
+                if (onAssignmentsChanged) onAssignmentsChanged();
+              }}
+              onUninstall={() => { 
+                fetchImprints(); 
+                if (onAssignmentsChanged) onAssignmentsChanged();
+              }}
               projects={projects}
               token={token}
             />
