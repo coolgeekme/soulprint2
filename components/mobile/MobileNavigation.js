@@ -68,8 +68,8 @@ const ChatHeader = ({ assistantName, model, onModelClick, isOnline, webSearchEna
             <SoulPrintLogo size={36} />
             <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${isOnline ? 'bg-green-500' : 'bg-gray-500'}`} />
           </div>
-          <div>
-            <h1 className="text-foreground font-semibold text-lg">{assistantName}</h1>
+          <div className="min-w-0">
+            <h1 className="text-foreground font-semibold text-lg truncate max-w-[58vw]">{assistantName}</h1>
             <button 
               onClick={onModelClick}
               className="text-muted-foreground text-xs flex items-center gap-1 hover:text-orange-400 transition-colors"

@@ -33,6 +33,7 @@ import MessageBubble from './MobileMessageBubble';
 import { ConversationItem, ThemeToggle, AttachmentPreview, RenameModal } from './MobileSmallComponents';
 import { ProfileView, AnnouncementsView, GalleryView } from './MobileViews';
 import ImprintsMarketplace from '@/components/chat/ImprintsMarketplace';
+import { buildProjectImprintMap } from '@/lib/handlers/imprint-context.mjs';
 import { MoreOptionsSheet, CreateOptionsSheet, ImageGenSheet, VideoGenSheet, FlyerGenSheet, CompareModeSheet, CompareResultsView, ImportSheet } from './MobileSheets';
 import SupportBubble from '@/components/chat/SupportBubble';
 
@@ -139,6 +140,7 @@ export default function MobileChat({
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null); // null = show all, 'general' = uncategorized
   const [activeImprint, setActiveImprint] = useState(null); // Currently active imprint
+  const [projectImprints, setProjectImprints] = useState({}); // Map of project_id → imprint
   const [showProjectSheet, setShowProjectSheet] = useState(false);
   const [projectSheetMode, setProjectSheetMode] = useState('create'); // 'create' | 'edit' | 'share'
   const [editingProject, setEditingProject] = useState(null);
@@ -207,6 +209,24 @@ export default function MobileChat({
     }
     return baseName;
   }, [selectedProject, projects, activeImprint, assistantName]);
+
+  const refreshImprintState = useCallback(async () => {
+    if (!token) return;
+
+    const projectParam = selectedProject ? `?project_id=${encodeURIComponent(selectedProject)}` : '';
+    try {
+      const response = await fetch(`/api/imprints/my${projectParam}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+
+      const data = await response.json();
+      setActiveImprint(data?.active_imprint?.imprint || null);
+      setProjectImprints(buildProjectImprintMap(data?.project_imprints));
+    } catch (error) {
+      console.error('Failed to refresh imprint state:', error);
+    }
+  }, [token, selectedProject]);
 
   // ── Global Media Notification System ──
   const { toast } = useToast();
@@ -723,7 +743,8 @@ export default function MobileChat({
       
       if (imprintRes.ok) {
         const imprintData = await imprintRes.json();
-        setActiveImprint(imprintData?.default_imprint?.imprint || null);
+        setActiveImprint(imprintData?.active_imprint?.imprint || null);
+        setProjectImprints(buildProjectImprintMap(imprintData?.project_imprints));
       }
       
       // Reload current conversation if selected
@@ -827,24 +848,10 @@ export default function MobileChat({
       .finally(() => setProjectsLoading(false));
   }, [token]);
 
-  // Load active imprint when project changes
+  // Load the effective imprint and all project assignments whenever context changes.
   useEffect(() => {
-    if (!token) return;
-    
-    const projectParam = selectedProject ? `?project_id=${selectedProject}` : '';
-    fetch(`/api/imprints/my${projectParam}`, { 
-      headers: { Authorization: `Bearer ${token}` } 
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.default_imprint?.imprint) {
-          setActiveImprint(data.default_imprint.imprint);
-        } else {
-          setActiveImprint(null);
-        }
-      })
-      .catch(() => {});
-  }, [token, selectedProject]);
+    refreshImprintState();
+  }, [refreshImprintState]);
 
   // Load profile
   useEffect(() => {
@@ -4089,6 +4096,14 @@ export default function MobileChat({
                                 {project.conversation_count || 0} conversations
                                 {project.description && ` · ${project.description}`}
                               </p>
+                              {projectImprints[project.id] && (
+                                <p className="text-primary text-xs font-medium truncate mt-1 flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">
+                                    {projectImprints[project.id].icon || '✨'} {projectImprints[project.id].name}
+                                  </span>
+                                </p>
+                              )}
                             </div>
                             <ChevronRight className="w-4 h-4 text-gray-600" />
                           </div>
@@ -4815,6 +4830,7 @@ export default function MobileChat({
         onClose={() => setShowImprintsMarketplace(false)}
         token={token}
         projects={projects}
+        onAssignmentsChanged={refreshImprintState}
       />
 
       {/* Compare Mode Sheet */}
