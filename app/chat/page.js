@@ -703,6 +703,28 @@ export default function ChatPage() {
       .catch(() => {});
   }, [token, user]);
 
+  // Refresh Imprint state after install/uninstall actions
+  const refreshImprintState = useCallback(async () => {
+    if (!token) return;
+
+    const projectParam = selectedProject
+      ? `?project_id=${encodeURIComponent(selectedProject)}`
+      : '';
+
+    try {
+      const response = await fetch(`/api/imprints/my${projectParam}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+
+      const data = await response.json();
+      setActiveImprint(data?.active_imprint?.imprint || null);
+      setProjectImprints(buildProjectImprintMap(data?.project_imprints));
+    } catch (error) {
+      console.error('Failed to refresh imprint state:', error);
+    }
+  }, [token, selectedProject]);
+
   // Load the effective imprint and all project assignments whenever context changes.
   useEffect(() => {
     refreshImprintState();
