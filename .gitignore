@@ -47,8 +47,12 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# Do not ignore the application's root /lib source directory.
+# Python virtual environments are ignored explicitly instead.
+.venv/
+venv/
+env/
+ENV/
 parts/
 sdist/
 var/
