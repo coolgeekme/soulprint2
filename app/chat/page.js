@@ -77,7 +77,7 @@ import { MediaConfirmCard, PromptReviewCard, ModelSelectionCard, VideoExtendConf
 import { IMAGE_MODELS, VIDEO_MODELS, MODELS, TELEGRAM_MODELS, ACCEPTED_FILE_TYPES, MAX_FILE_SIZE, MAX_INPUT_CHARS, WARN_INPUT_CHARS, SHOW_COUNTER_CHARS } from '@/components/chat/constants';
 import AssessmentNudge from '@/components/AssessmentNudge';
 import ImprintsMarketplace, { ActiveImprintBadge } from '@/components/chat/ImprintsMarketplace';
-import { buildProjectImprintMap } from '@/lib/handlers/imprint-context.mjs';
+import { buildProjectImprintMap } from '@/lib/handlers/imprint-context';
 
 
 export default function ChatPage() {
