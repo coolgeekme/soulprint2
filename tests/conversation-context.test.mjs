@@ -25,8 +25,12 @@ test('does not let recent image context hijack an unrelated comparison', () => {
   assert.equal(isContextualImageFollowUp('What is the weather in Phoenix?'), false);
 });
 
-test('recognizes a short pronoun-based image follow-up', () => {
-  assert.equal(isContextualImageFollowUp('What do you think about this?'), true);
+test('does not reuse context for pronoun-only queries without evaluation keywords', () => {
+  // This prevents "What do you think about this?" from hijacking image context
+  // when the user is asking about unrelated topics (stocks, weather, etc.)
+  assert.equal(isContextualImageFollowUp('What do you think about this?'), false);
+  assert.equal(isContextualImageFollowUp('Should I buy it?'), false);
+  assert.equal(isContextualImageFollowUp('Can you explain that?'), false);
 });
 
 test('only reuses an image when recent conversation state contains one', () => {
