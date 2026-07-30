@@ -660,7 +660,63 @@ export async function GET(request, { params }) {
     if (pathStr === 'imprints') return handleGetImprints(request);
     if (pathStr === 'imprints/my') return handleGetMyImprints(request);
     if (pathStr === 'imprints/seed') return handleSeedImprints();
-    if (pathStr.match(/^imprints\/[^\/]+$/) && pathArr[1] !== 'my' && pathArr[1] !== 'seed') {
+    
+    // DEBUG endpoint to diagnose imprint issues
+    if (pathStr === 'imprints/debug') {
+      const user = await authenticate(request);
+      if (!user) return err('Unauthorized', 401);
+      
+      const url = new URL(request.url);
+      const projectId = url.searchParams.get('project_id');
+      
+      const db = await getDb();
+      
+      // Get all active imprints for this user
+      const allImprints = await db.collection('user_imprints').find({
+        user_id: user.id,
+        is_active: true
+      }).toArray();
+      
+      // Get the specific project imprint if projectId provided
+      let projectImprint = null;
+      if (projectId) {
+        projectImprint = await db.collection('user_imprints').findOne({
+          user_id: user.id,
+          usage_type: 'project',
+          project_id: projectId,
+          is_active: true
+        });
+      }
+      
+      // Get imprint details
+      const imprintIds = allImprints.map(i => i.imprint_id);
+      const imprints = await db.collection('imprints').find({
+        id: { $in: imprintIds }
+      }).toArray();
+      
+      const imprintMap = {};
+      imprints.forEach(imp => { imprintMap[imp.id] = imp.name; });
+      
+      return ok({
+        user_id: user.id,
+        project_id_queried: projectId || null,
+        total_active_imprints: allImprints.length,
+        imprints: allImprints.map(i => ({
+          usage_type: i.usage_type,
+          project_id: i.project_id || null,
+          imprint_id: i.imprint_id,
+          imprint_name: imprintMap[i.imprint_id] || 'Unknown',
+          installed_at: i.installed_at
+        })),
+        project_imprint_found: projectImprint ? {
+          imprint_id: projectImprint.imprint_id,
+          imprint_name: imprintMap[projectImprint.imprint_id] || 'Unknown',
+          project_id: projectImprint.project_id
+        } : null
+      });
+    }
+    
+    if (pathStr.match(/^imprints\/[^\/]+$/) && pathArr[1] !== 'my' && pathArr[1] !== 'seed' && pathArr[1] !== 'debug') {
       const slug = pathArr[1];
       return handleGetImprintBySlug(request, slug);
     }
