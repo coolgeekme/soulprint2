@@ -660,12 +660,15 @@ export async function GET(request, { params }) {
     if (pathStr === 'imprints') return handleGetImprints(request);
     if (pathStr === 'imprints/my') return handleGetMyImprints(request);
     if (pathStr === 'imprints/seed') return handleSeedImprints();
-    
-    // DEBUG endpoint to diagnose imprint issues
+    // DEBUG endpoint to diagnose imprint issues (non-production only)
     if (pathStr === 'imprints/debug') {
       const user = await authenticate(request);
       if (!user) return err('Unauthorized', 401);
-      
+
+      if (process.env.NODE_ENV === 'production') {
+        return err('Debug endpoint not available in production', 404);
+      }
+
       const url = new URL(request.url);
       const projectId = url.searchParams.get('project_id');
       
