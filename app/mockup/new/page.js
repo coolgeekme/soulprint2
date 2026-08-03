@@ -4,7 +4,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  ArrowRight, ArrowUp, Brain, Zap, Fingerprint, Heart, Sparkles,
+  ArrowRight, ArrowUp, Brain, Zap, Fingerprint, Sparkles, Globe,
   Shield, Check, X, Star, Quote, User, Loader2, MessageCircle,
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
@@ -31,22 +31,22 @@ const FIVE_FEATURES = [
     iconColor: 'text-yellow-400',
   },
   {
+    icon: Sparkles,
+    title: 'Imprints',
+    desc: 'Swap between dozens of AI personas — from a sarcastic friend to a zen guide — all layered on the same memory of you.',
+    iconColor: 'text-pink-400',
+  },
+  {
+    icon: Globe,
+    title: 'Multi-Platform Memory',
+    desc: 'One identity that follows you across Web, Telegram & Slack — not trapped in a single app.',
+    iconColor: 'text-emerald-400',
+  },
+  {
     icon: Fingerprint,
     title: 'Identity Alignment',
     desc: 'Learns your decision style & communication cadence.',
     iconColor: 'text-purple-400',
-  },
-  {
-    icon: Heart,
-    title: 'Relationship Layer',
-    desc: 'Gets smarter the more you use it; truly grows with you.',
-    iconColor: 'text-pink-400',
-  },
-  {
-    icon: Sparkles,
-    title: 'Taste Integration',
-    desc: 'Learns your standard of "what good looks like."',
-    iconColor: 'text-emerald-400',
   },
 ];
 
@@ -204,7 +204,7 @@ export default function MockupNewPage() {
       <section className="relative overflow-hidden orange-glow-top">
         <div className="relative z-20 max-w-3xl mx-auto px-8 pt-6 pb-20 text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-xs font-medium mb-8">
-            <Brain className="w-3.5 h-3.5" /> The AI that actually knows you
+            <Brain className="w-3.5 h-3.5" /> Real memory. Real personas. Try it — no signup.
           </div>
 
           <h1 className="font-condensed font-black leading-[0.95] mb-6"
