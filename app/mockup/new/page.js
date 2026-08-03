@@ -203,9 +203,9 @@ export default function MockupNewPage() {
       ═══════════════════════════════════════════════════════════════════ */}
       <section className="relative overflow-hidden orange-glow-top">
         <div className="relative z-20 max-w-3xl mx-auto px-8 pt-6 pb-20 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-400 text-xs font-medium mb-8">
-            <Brain className="w-3.5 h-3.5" /> Real memory. Real personas. Try it — no signup.
-          </div>
+          <p className="text-orange-500 font-condensed font-bold text-sm tracking-widest uppercase mb-6">
+            Real memory. Real personas. Try it — no signup.
+          </p>
 
           <h1 className="font-condensed font-black leading-[0.95] mb-6"
               style={{ fontSize: 'clamp(36px, 6vw, 64px)', letterSpacing: '-1px' }}>
