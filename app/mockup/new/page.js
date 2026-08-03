@@ -1,13 +1,21 @@
 // MOCKUP — ChatGPT/Perplexity-style homepage concept. Route: /mockup/new
 // Standalone page — does not affect the live homepage at /.
 'use client';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight, ArrowUp, Brain, Zap, Fingerprint, Heart, Sparkles,
-  Shield, Check, X, Star, Quote, User, Loader2,
+  Shield, Check, X, Star, Quote, User, Loader2, MessageCircle,
 } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
+
+// Must match the keys/names in lib/handlers/homepage-demo.js IMPRINTS
+const DEMO_IMPRINTS = [
+  { key: 'sarcastic-friend', name: 'Sarcastic Friend', icon: '😏' },
+  { key: 'devils-advocate', name: "Devil's Advocate", icon: '😈' },
+  { key: 'hype-man', name: 'Hype Man', icon: '🎉' },
+  { key: 'zen-master', name: 'Zen Master', icon: '🧘' },
+];
 
 const FIVE_FEATURES = [
   {
@@ -92,9 +100,18 @@ function ComparisonCell({ value }) {
 export default function MockupNewPage() {
   const [demoInput, setDemoInput] = useState('');
   const [demoModel, setDemoModel] = useState('auto');
+  const [demoImprint, setDemoImprint] = useState(DEMO_IMPRINTS[DEMO_IMPRINTS.length - 1].key); // stable SSR default
   const [demoLoading, setDemoLoading] = useState(false);
   const [demoResult, setDemoResult] = useState(null);
   const [demoError, setDemoError] = useState('');
+  const [demoHistory, setDemoHistory] = useState([]); // this-session-only taste of memory
+
+  // Rotate the default imprint per page view — client-only, so it never
+  // fights server-rendered markup (SSR always renders the same default).
+  useEffect(() => {
+    const random = DEMO_IMPRINTS[Math.floor(Math.random() * DEMO_IMPRINTS.length)];
+    setDemoImprint(random.key);
+  }, []);
 
   const runDemo = useCallback(async (messageOverride) => {
     const message = (messageOverride ?? demoInput).trim();
@@ -106,17 +123,22 @@ export default function MockupNewPage() {
       const res = await fetch('/api/chat/demo-compare', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, model: demoModel }),
+        body: JSON.stringify({ message, model: demoModel, imprint: demoImprint, history: demoHistory }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Something went wrong');
       setDemoResult(data);
+      setDemoHistory(prev => [
+        ...prev,
+        { role: 'user', content: message },
+        { role: 'assistant', content: data?.soulprint?.text || '' },
+      ]);
     } catch (e) {
       setDemoError(e.message || 'Demo is temporarily unavailable — please try again shortly');
     } finally {
       setDemoLoading(false);
     }
-  }, [demoInput, demoModel, demoLoading]);
+  }, [demoInput, demoModel, demoImprint, demoHistory, demoLoading]);
 
   const handleDemoSubmit = useCallback((e) => {
     e.preventDefault();
@@ -127,6 +149,8 @@ export default function MockupNewPage() {
     setDemoInput(prompt);
     runDemo(prompt);
   }, [runDemo]);
+
+  const selectedImprint = DEMO_IMPRINTS.find(i => i.key === demoImprint) || DEMO_IMPRINTS[0];
 
   return (
     <div className="min-h-screen bg-sp-black grid-bg text-white">
@@ -231,6 +255,23 @@ export default function MockupNewPage() {
             </div>
           </form>
 
+          {/* Imprint picker — pick who SoulPrint is being right now */}
+          <div className="mt-4">
+            <p className="text-gray-600 text-[11px] uppercase tracking-widest font-bold mb-2">Try it as a different Imprint</p>
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              {DEMO_IMPRINTS.map(imp => (
+                <button
+                  key={imp.key}
+                  type="button"
+                  onClick={() => setDemoImprint(imp.key)}
+                  className={`chip ${demoImprint === imp.key ? 'selected' : ''}`}
+                >
+                  <span className="mr-1">{imp.icon}</span>{imp.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Suggestion chips */}
           <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
             {SUGGESTIONS.map(s => (
@@ -245,22 +286,39 @@ export default function MockupNewPage() {
             <p className="mt-6 text-sm text-red-400">{demoError}</p>
           )}
           {demoResult && (
-            <div className="mt-8 grid sm:grid-cols-2 gap-4 text-left">
-              <div className="dark-card rounded-xl p-5">
-                <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">{demoResult.baseline?.label || 'Stock AI'}</p>
-                <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{demoResult.baseline?.text}</p>
+            <div className="mt-8 text-left">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="dark-card rounded-xl p-5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">{demoResult.baseline?.label || 'Generic AI'}</p>
+                  <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{demoResult.baseline?.text}</p>
+                </div>
+                <div className="dark-card rounded-xl p-5" style={{ borderColor: 'rgba(246, 64, 0, 0.35)' }}>
+                  <p className="text-xs font-bold uppercase tracking-wider text-orange-400 mb-2 flex items-center gap-1.5">
+                    {demoResult.soulprint?.imprint?.icon || selectedImprint.icon} {demoResult.soulprint?.imprint?.name || selectedImprint.name}
+                  </p>
+                  <p className="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap">{demoResult.soulprint?.text}</p>
+                  {demoResult.soulprint?.model && (
+                    <p className="text-[11px] text-gray-500 mt-3 pt-3 border-t border-white/10 flex items-center gap-1.5">
+                      <Zap className="w-3 h-3 text-yellow-500 flex-shrink-0" />
+                      {demoResult.soulprint.autoRouted
+                        ? <>Auto-picked <strong className="text-gray-300">{demoResult.soulprint.model}</strong> — {demoResult.soulprint.reason}.</>
+                        : <>Using <strong className="text-gray-300">{demoResult.soulprint.model}</strong> — {demoResult.soulprint.reason}.</>}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="dark-card rounded-xl p-5" style={{ borderColor: 'rgba(246, 64, 0, 0.35)' }}>
-                <p className="text-xs font-bold uppercase tracking-wider text-orange-400 mb-2 flex items-center gap-1.5">
-                  <SoulPrintLogo size={12} /> SoulPrint Engine
-                </p>
-                <p className="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap">{demoResult.soulprint?.text}</p>
+
+              {/* Multi-platform continuity — illustrative, not interactive in this demo */}
+              <div className="flex items-center justify-center gap-2 mt-4 text-[11px] text-gray-600">
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>A real SoulPrint continues this — with full memory — on Web, Telegram &amp; Slack.</span>
               </div>
-              <div className="sm:col-span-2 text-center pt-2">
+
+              <div className="text-center pt-6">
                 <Link href="/auth" className="btn-orange px-6 py-3 rounded-xl text-sm inline-flex items-center gap-2">
                   Like what you see? Get Your SoulPrint <ArrowRight className="w-4 h-4" />
                 </Link>
-                <p className="text-gray-500 text-xs mt-2">Free to start. This demo has no memory — a real SoulPrint account does.</p>
+                <p className="text-gray-500 text-xs mt-2">Free to start. This demo remembers within this session only — a real account remembers forever.</p>
               </div>
             </div>
           )}
