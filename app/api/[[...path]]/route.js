@@ -380,6 +380,11 @@ import {
   handleChatStream,
 } from '@/lib/handlers/chat-stream';
 
+// ── Homepage demo (extracted) ──
+import {
+  handleHomepageDemo,
+} from '@/lib/handlers/homepage-demo';
+
 // ── Persona DNA (extracted) ──
 import {
   handleGetPersonaProfile,
@@ -799,6 +804,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'chat/stream') return handleChatStream(request);
     if (pathStr === 'chat/compare') return handleChatCompare(request);
     if (pathStr === 'chat/compare/select') return handleCompareSelect(request);
+    if (pathStr === 'chat/demo-compare') return handleHomepageDemo(request);
     if (pathStr === 'feedback') return handleSubmitFeedback(request);
     if (pathStr === 'user-feedback') return handleSubmitUserFeedback(request);
     if (pathStr === 'generate/image') return handleGenerateImage(request);
