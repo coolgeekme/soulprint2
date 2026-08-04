@@ -413,7 +413,7 @@ export default function MockupNewPage() {
                   <th className="px-6 py-4 text-left text-gray-900 text-sm font-bold uppercase tracking-wider">Feature</th>
                   <th className="px-6 py-4 text-center bg-orange-50 border-x border-orange-200">
                     <div className="text-orange-600 text-sm font-bold uppercase tracking-wider mb-1">SoulPrint</div>
-                    <div className="text-orange-700 text-xs font-semibold">$20/mo Base</div>
+                    <div className="text-orange-700 text-xs font-semibold">$19/mo Base</div>
                   </th>
                   <th className="px-6 py-4 text-center text-gray-500 text-xs font-semibold uppercase tracking-wider">
                     <div className="mb-1">ChatGPT</div>
