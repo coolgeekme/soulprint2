@@ -148,6 +148,7 @@ export default function ChatPage() {
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null); // null = all, 'general' = uncategorized, or project id
   const [projectConversations, setProjectConversations] = useState(null); // Conversations for selected project (fetched on demand)
+  const [documentReady, setDocumentReady] = useState(null); // {fileName, downloadUrl, format} - for floating download banner
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [projectModalMode, setProjectModalMode] = useState('create'); // 'create' | 'edit' | 'share'
   const [editingProject, setEditingProject] = useState(null);
@@ -1824,24 +1825,30 @@ export default function ChatPage() {
                 return updated;
               });
             } else if (data.type === 'document') {
-              // Excel/CSV/Word/PPT file generated — attach to the most recent assistant message
+              // Excel/CSV/Word/PPT file generated — attach to the correct assistant message
               console.log('[DocumentStream] Received document:', data);
               setMessages(prev => {
                 const updated = [...prev];
-                for (let i = updated.length - 1; i >= 0; i--) {
-                  if (updated[i].role === 'assistant') {
-                    console.log('[DocumentStream] Attaching document to message:', updated[i].id);
-                    updated[i] = { 
-                      ...updated[i], 
-                      document_url: data.downloadUrl,
-                      document_name: data.fileName,
-                      document_format: data.format,
-                      document_type: data.contentType
-                    };
-                    break;
-                  }
+                // Find the message with the matching ID from the stream's meta
+                const targetIndex = updated.findIndex(m => m.id === streamingMessageIdRef.current);
+                if (targetIndex !== -1) {
+                  console.log('[DocumentStream] Attaching document to message:', updated[targetIndex].id);
+                  updated[targetIndex] = { 
+                    ...updated[targetIndex], 
+                    document_url: data.downloadUrl,
+                    document_name: data.fileName,
+                    document_format: data.format,
+                    document_type: data.contentType
+                  };
                 }
                 return updated;
+              });
+              
+              // Also show a floating notification banner
+              setDocumentReady({
+                fileName: data.fileName,
+                downloadUrl: data.downloadUrl,
+                format: data.format
               });
             } else if (data.type === 'enforcement_block') {
               // Handle enforcement block events — store the block data for inline rendering
