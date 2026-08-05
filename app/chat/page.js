@@ -1829,10 +1829,22 @@ export default function ChatPage() {
             } else if (data.type === 'document') {
               // Excel/CSV/Word/PPT file generated — attach to the correct assistant message
               console.log('[DocumentStream] Received document:', data);
+              console.log('[DocumentStream] Current message ID:', currentMessageId);
               setMessages(prev => {
                 const updated = [...prev];
-                // Find the message with the matching ID from the stream's meta
-                const targetIndex = updated.findIndex(m => m.id === currentMessageId);
+                // Try to find by currentMessageId first, fallback to last assistant message
+                let targetIndex = currentMessageId ? updated.findIndex(m => m.id === currentMessageId) : -1;
+                
+                if (targetIndex === -1) {
+                  // Fallback: find the last assistant message
+                  for (let i = updated.length - 1; i >= 0; i--) {
+                    if (updated[i].role === 'assistant') {
+                      targetIndex = i;
+                      break;
+                    }
+                  }
+                }
+                
                 if (targetIndex !== -1) {
                   console.log('[DocumentStream] Attaching document to message:', updated[targetIndex].id);
                   updated[targetIndex] = { 
@@ -1842,6 +1854,9 @@ export default function ChatPage() {
                     document_format: data.format,
                     document_type: data.contentType
                   };
+                  console.log('[DocumentStream] Updated message:', updated[targetIndex]);
+                } else {
+                  console.error('[DocumentStream] No assistant message found to attach document!');
                 }
                 return updated;
               });
