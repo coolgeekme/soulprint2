@@ -1853,10 +1853,13 @@ export default function ChatPage() {
                 let targetIndex = currentMessageId ? updated.findIndex(m => m.id === currentMessageId) : -1;
                 
                 if (targetIndex === -1) {
-                  // Fallback: find the last assistant message
+                  // Fallback: find the last assistant message (but skip greeting/system messages)
                   for (let i = updated.length - 1; i >= 0; i--) {
-                    if (updated[i].role === 'assistant') {
+                    if (updated[i].role === 'assistant' && 
+                        updated[i].id !== 'greeting' && 
+                        !updated[i].id.startsWith('system-')) {
                       targetIndex = i;
+                      console.log('[DocumentStream] Fallback: using last non-greeting assistant message');
                       break;
                     }
                   }
