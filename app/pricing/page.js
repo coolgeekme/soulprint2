@@ -108,6 +108,9 @@ export default function PricingPage() {
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
+      } else if (data.redirect) {
+        // Free plan - redirect directly to chat
+        window.location.href = data.redirect;
       } else {
         alert(data.error || 'Failed to create checkout session');
       }
@@ -256,8 +259,9 @@ export default function PricingPage() {
               ))}
             </ul>
             <button 
+              onClick={() => !isCurrentPlan('free') && handleCheckout('free')}
               disabled={isCurrentPlan('free')}
-              className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors ${isCurrentPlan('free') ? 'bg-white/5 text-gray-600 cursor-default' : 'bg-white/5 hover:bg-white/10 text-white border border-white/10'}`}
+              className={`w-full py-3 rounded-xl text-sm font-semibold transition-colors ${isCurrentPlan('free') ? 'bg-white/5 text-gray-600 cursor-default' : 'bg-white/5 hover:bg-white/10 text-white border border-white/10 cursor-pointer'}`}
             >
               {isCurrentPlan('free') ? 'Current Plan' : 'Get Started'}
             </button>

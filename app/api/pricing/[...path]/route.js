@@ -321,6 +321,17 @@ export async function POST(request, { params }) {
       if (!planId || !billingPeriod || !originUrl) {
         return err('planId, billingPeriod, and originUrl are required');
       }
+      
+      // Special handling for Free plan - no Stripe needed
+      if (planId === 'free') {
+        const result = await adminSetUserPlan(user.userId || user.id, 'free', 'user_selected_free_plan');
+        return ok({ 
+          success: true, 
+          subscription: result,
+          redirect: `${originUrl}/chat`
+        });
+      }
+      
       const session = await createCheckoutSession(
         user.userId || user.id, planId, billingPeriod, originUrl, discountCode
       );
