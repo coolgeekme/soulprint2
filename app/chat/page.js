@@ -1702,6 +1702,23 @@ export default function ChatPage() {
               newConvId = data.conversationId;
               currentMessageId = data.messageId; // Track current message ID for attachments
               setConversationId(data.conversationId);
+              
+              // Update the assistant message with the real ID from backend
+              if (data.messageId) {
+                setMessages(prev => {
+                  const updated = [...prev];
+                  // Find the last assistant message (the one being streamed)
+                  for (let i = updated.length - 1; i >= 0; i--) {
+                    if (updated[i].role === 'assistant' && updated[i].id.startsWith('a-')) {
+                      // Update with real ID
+                      updated[i] = { ...updated[i], id: data.messageId };
+                      console.log('[Meta] Updated assistant message ID to:', data.messageId);
+                      break;
+                    }
+                  }
+                  return updated;
+                });
+              }
               // In incognito mode, don't set the conversation ID that would trigger history loading
               if (isIncognito) {
                 // Use a temporary ID that won't be fetched from DB
