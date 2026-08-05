@@ -1825,10 +1825,12 @@ export default function ChatPage() {
               });
             } else if (data.type === 'document') {
               // Excel/CSV/Word/PPT file generated — attach to the most recent assistant message
+              console.log('[DocumentStream] Received document:', data);
               setMessages(prev => {
                 const updated = [...prev];
                 for (let i = updated.length - 1; i >= 0; i--) {
                   if (updated[i].role === 'assistant') {
+                    console.log('[DocumentStream] Attaching document to message:', updated[i].id);
                     updated[i] = { 
                       ...updated[i], 
                       document_url: data.downloadUrl,
