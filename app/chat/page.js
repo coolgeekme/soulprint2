@@ -1881,7 +1881,7 @@ export default function ChatPage() {
                   const newDocMessage = {
                     id: currentMessageId || `doc-${Date.now()}`,
                     role: 'assistant',
-                    content: '',
+                    content: '📄 Document generated', // Minimal content
                     created_at: new Date().toISOString(),
                     document_url: data.downloadUrl,
                     document_name: data.fileName,
