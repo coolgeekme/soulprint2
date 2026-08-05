@@ -1876,7 +1876,19 @@ export default function ChatPage() {
                   };
                   console.log('[DocumentStream] Updated message:', updated[targetIndex]);
                 } else {
-                  console.error('[DocumentStream] No assistant message found to attach document!');
+                  // No message found - create a new one for the document
+                  console.log('[DocumentStream] Creating new message for document');
+                  const newDocMessage = {
+                    id: currentMessageId || `doc-${Date.now()}`,
+                    role: 'assistant',
+                    content: '',
+                    created_at: new Date().toISOString(),
+                    document_url: data.downloadUrl,
+                    document_name: data.fileName,
+                    document_format: data.format,
+                    document_type: data.contentType
+                  };
+                  updated.push(newDocMessage);
                 }
                 return updated;
               });
