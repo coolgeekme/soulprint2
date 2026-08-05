@@ -1570,6 +1570,7 @@ export default function ChatPage() {
     setSelectedCompareResponse(null);
 
     let newConvId = conversationId;
+    let currentMessageId = null; // Track message ID from meta
     let fullContent = '';
 
     // ── Compare Mode: Send to multiple models ──
@@ -1699,6 +1700,7 @@ export default function ChatPage() {
             const data = JSON.parse(line);
             if (data.type === 'meta') {
               newConvId = data.conversationId;
+              currentMessageId = data.messageId; // Track current message ID for attachments
               setConversationId(data.conversationId);
               // In incognito mode, don't set the conversation ID that would trigger history loading
               if (isIncognito) {
@@ -1830,7 +1832,7 @@ export default function ChatPage() {
               setMessages(prev => {
                 const updated = [...prev];
                 // Find the message with the matching ID from the stream's meta
-                const targetIndex = updated.findIndex(m => m.id === streamingMessageIdRef.current);
+                const targetIndex = updated.findIndex(m => m.id === currentMessageId);
                 if (targetIndex !== -1) {
                   console.log('[DocumentStream] Attaching document to message:', updated[targetIndex].id);
                   updated[targetIndex] = { 
