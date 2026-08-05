@@ -3760,6 +3760,43 @@ backend:
         agent: "testing"
         comment: "CONTEXT RETENTION & WEB SEARCH OVERRIDE FIX TESTING COMPLETE: All 5/5 critical test scenarios passed (100% success rate). ✅ Test 1 (Room Cleanliness Score - CRITICAL): User sends image with 'Is this room clean? Please analyze the image', then follows up with 'Give me a score' - correctly used conversation context (10 events, delta: true, done: true), NO web search triggered. This was the CRITICAL bug reported by user - now fixed. ✅ Test 2 (Comparison Score): User asks 'Compare these two approaches: REST API vs GraphQL for a mobile app backend', then follows up with 'what's the score?' - correctly used conversation context (12 events), NO web search triggered. ✅ Test 3 (Legitimate Sports Query): User asks 'What's the NBA score for the Lakers game?' - correctly triggered web search (5 sources found, 14 events total). This verifies the fix allows legitimate sports queries to still search. ✅ Test 4 (Short Conversational Follow-up): User asks 'What are the best practices for clean code?', then follows up with 'give me examples' - correctly used conversation context (4 events), NO web search triggered. ✅ Test 5 (Image Context Retention): User attaches image and asks 'what do you see?', then follows up with 'rate it from 1 to 10' - correctly maintained image context (4 events), NO web search triggered. The fix successfully addresses the production issue where short follow-ups like 'Give me a score' were incorrectly triggering sports scores web search. All comprehensive tests passed (100% success rate)."
 
+
+  - agent: "main"
+    message: "FREE PLAN ONBOARDING FIX: Fixed critical 520 error in production where users selecting Free plan got stuck in onboarding loop. CHANGES: (1) /app/app/api/pricing/[...path]/route.js (lines 325-333) - Added special handling for Free plan checkout: if planId === 'free', call adminSetUserPlan with reason='user_selected_free_plan' and return direct redirect to /chat (no Stripe session). (2) /app/lib/handlers/access-enforcement.js (lines 232-249) - Added check for admin_override_reason === 'user_selected_free_plan' to set choose_plan_prompt=false and user_selected_free=true, preventing popup from showing again. Test credentials: testchat@example.com / Test123456."
+  - agent: "testing"
+    message: "FREE PLAN ONBOARDING FIX TESTING COMPLETE: All critical functionality working correctly with 4/4 test cases passed. ✅ Test Case 1 (Free Plan Checkout): POST /api/pricing/checkout with planId='free' returns success=true, redirect to /chat, NO Stripe session created. Database verification shows admin_override_reason correctly set to 'user_selected_free_plan'. ✅ Test Case 2 (Enforcement Status After Free Selection): GET /api/pricing/enforcement returns choose_plan_prompt=false and user_selected_free=true - popup will NOT show to users who explicitly selected Free plan. This is the CRITICAL fix for the onboarding loop bug. ✅ Test Case 3 (Paid Plan Checkout Still Works): POST /api/pricing/checkout with planId='base' returns Stripe checkout URL (not direct redirect) - paid plan flow unchanged. Minor: Stripe sync needed for test environment but production should work. ✅ Test Case 4 (Error Handling): POST /api/pricing/checkout with missing required fields returns 400 with proper error message, doesn't crash. The fix successfully prevents the 520 error and onboarding loop - users who select Free plan are immediately redirected to /chat and will NOT see the plan selection popup again. All comprehensive tests passed (100% success rate)."
+
+backend:
+  - task: "Free Plan Onboarding Fix - Checkout Endpoint"
+    implemented: true
+    working: true
+    file: "app/api/pricing/[...path]/route.js (lines 325-333), lib/handlers/pricing.js (adminSetUserPlan function)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Fixed critical 520 error in production where users selecting Free plan got stuck in onboarding loop. Added special handling in POST /api/pricing/checkout endpoint (lines 325-333): if planId === 'free', call adminSetUserPlan(userId, 'free', 'user_selected_free_plan') and return { success: true, subscription, redirect: '/chat' } without creating Stripe session. This prevents the 520 error that was occurring when trying to create Stripe checkout for free plan."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Free plan checkout endpoint working correctly. ✅ POST /api/pricing/checkout with planId='free', billingPeriod='monthly', originUrl returns 200 with success=true, redirect to /chat, NO Stripe session (no 'url' or 'session_id' fields). ✅ Database verification: user_subscriptions collection shows admin_override_reason='user_selected_free_plan' correctly set. ✅ No 520 error or crashes. ✅ Paid plan checkout (planId='base') still returns Stripe checkout URL as expected. ✅ Error handling working (400 for missing fields). The fix successfully prevents the production 520 error by bypassing Stripe for free plan and directly setting user subscription."
+
+  - task: "Free Plan Onboarding Fix - Enforcement Status"
+    implemented: true
+    working: true
+    file: "lib/handlers/access-enforcement.js (lines 232-249)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added check in getUserEnforcementStatus function (lines 232-249) to detect when user explicitly selected Free plan: if planId === 'free' AND subscription.admin_override_reason === 'user_selected_free_plan', return choose_plan_prompt=false and user_selected_free=true. This prevents the plan selection popup from showing again to users who explicitly chose the Free plan, fixing the onboarding loop bug."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: Enforcement status correctly identifies users who selected Free plan. ✅ GET /api/pricing/enforcement returns choose_plan_prompt=false and user_selected_free=true for users with admin_override_reason='user_selected_free_plan'. ✅ This is the CRITICAL fix - popup will NOT show to users who explicitly selected Free plan. ✅ Cohort classification working correctly (user shows as 'og' cohort). ✅ enforcement_active=false means user has access to features. ✅ All enforcement logic working correctly with the new flag. The fix successfully prevents the onboarding loop by not prompting users who already made their plan choice."
+
 test_plan:
   current_focus: []
   stuck_tasks: []
