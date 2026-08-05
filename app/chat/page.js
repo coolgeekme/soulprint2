@@ -66,6 +66,7 @@ import { GraceCountdownBanner, EnforcementBlockMessage, ModelLockBadge, ModelFal
 import { useEnforcement } from '@/hooks/useEnforcement';
 import { ContextAwarenessBanner } from '@/components/chat/ContextBanner';
 import { PdfCard } from '@/components/chat/PdfCard';
+import DocumentCard from '@/components/chat/DocumentCard';
 import { useSubscription } from '@/hooks/useSubscription';
 import { CompareResponseCard, CompareModePicker } from '@/components/chat/CompareMode';
 import CreateMenu from '@/components/chat/CreateMenu';
@@ -1817,6 +1818,24 @@ export default function ChatPage() {
                 for (let i = updated.length - 1; i >= 0; i--) {
                   if (updated[i].role === 'assistant') {
                     updated[i] = { ...updated[i], file_url: data.url, file_name: data.fileName, file_type: data.contentType || 'application/pdf' };
+                    break;
+                  }
+                }
+                return updated;
+              });
+            } else if (data.type === 'document') {
+              // Excel/CSV/Word/PPT file generated — attach to the most recent assistant message
+              setMessages(prev => {
+                const updated = [...prev];
+                for (let i = updated.length - 1; i >= 0; i--) {
+                  if (updated[i].role === 'assistant') {
+                    updated[i] = { 
+                      ...updated[i], 
+                      document_url: data.downloadUrl,
+                      document_name: data.fileName,
+                      document_format: data.format,
+                      document_type: data.contentType
+                    };
                     break;
                   }
                 }
@@ -4452,6 +4471,16 @@ export default function ChatPage() {
                             url={msg.file_url} 
                             fileName={msg.file_name}
                             title={msg.content?.match(/\[(.+?)\]/)?.[1] || msg.file_name || 'Document'}
+                          />
+                        )}
+                        {/* Document card - Excel/CSV/Word/PPT downloads */}
+                        {msg.document_url && (
+                          <DocumentCard
+                            fileName={msg.document_name}
+                            downloadUrl={msg.document_url}
+                            format={msg.document_format}
+                            contentType={msg.document_type}
+                            className="mb-3"
                           />
                         )}
                         {/* Video card - for polling state (only if no video_url yet) */}
