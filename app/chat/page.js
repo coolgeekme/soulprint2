@@ -162,6 +162,7 @@ export default function ChatPage() {
   const [movingConversation, setMovingConversation] = useState(null);
   const [projectImprints, setProjectImprints] = useState({}); // Map of project_id → imprint
   const [activeImprintName, setActiveImprintName] = useState(null); // Currently active Imprint name for this conversation
+  const [editingProjectImprint, setEditingProjectImprint] = useState(null); // Active imprint for the project being edited
   // Feedback modal state
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   // Announcements state
@@ -3155,13 +3156,27 @@ export default function ChatPage() {
   }
   
   // Open project edit modal
-  function openEditProject(project) {
+  async function openEditProject(project) {
     setEditingProject(project);
     setNewProjectName(project.name);
     setNewProjectDescription(project.description || '');
     setNewProjectInstructions(project.instructions || '');
     setProjectModalMode('edit');
     setShowProjectModal(true);
+    
+    // Fetch active imprint for this project
+    try {
+      const res = await fetch('/api/imprints/my', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const projectImprint = data.project_imprints?.find(pi => pi.project_id === project.id);
+        setEditingProjectImprint(projectImprint || null);
+      }
+    } catch (err) {
+      console.error('Error fetching project imprint:', err);
+    }
   }
   
   // Open project share modal
@@ -3228,6 +3243,40 @@ export default function ChatPage() {
     navigator.clipboard.writeText(link);
     alert('Share link copied!');
   }
+  
+  // Detach imprint from project
+  async function detachProjectImprint(projectId) {
+    if (!projectId) return;
+    
+    try {
+      const res = await fetch('/api/imprints/uninstall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ usage_type: 'project', project_id: projectId }),
+      });
+      
+      if (res.ok) {
+        setEditingProjectImprint(null);
+        // Refresh projectImprints map
+        const imprintRes = await fetch('/api/imprints/my', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (imprintRes.ok) {
+          const imprintData = await imprintRes.json();
+          const imprintMap = {};
+          (imprintData.project_imprints || []).forEach(pi => {
+            if (pi.project_id && pi.imprint) {
+              imprintMap[pi.project_id] = pi.imprint;
+            }
+          });
+          setProjectImprints(imprintMap);
+        }
+      }
+    } catch (err) {
+      console.error('Error detaching imprint:', err);
+    }
+  }
+
   
   // Move conversation to project
   async function moveConversationToProject(convId, projectId) {
@@ -6243,6 +6292,57 @@ export default function ChatPage() {
                     />
                     <p className="text-[10px] text-gray-600 mt-1">These instructions will be applied to all chats in this project.</p>
                   </div>
+                  
+                  {/* Imprint Management Section */}
+                  <div className="mb-4 p-4 bg-white/5 border border-white/10 rounded-xl">
+                    <label className="text-xs text-gray-400 mb-2 block flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      AI Persona (Imprint)
+                    </label>
+                    {editingProjectImprint?.imprint ? (
+                      <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-500/30 bg-blue-500/5">
+                        <div
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base"
+                          style={{ backgroundColor: (editingProjectImprint.imprint.color || '#6366F1') + '20' }}
+                        >
+                          {editingProjectImprint.imprint.icon || '✨'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">
+                            {editingProjectImprint.imprint.name}
+                          </p>
+                          <p className="text-[10px] text-gray-400">
+                            {editingProjectImprint.imprint.short_description}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => detachProjectImprint(editingProject?.id)}
+                          className="shrink-0 p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          title="Detach imprint from this project"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-4 text-center border border-dashed border-white/10 rounded-lg">
+                        <Sparkles className="w-6 h-6 text-gray-500 mb-1.5" />
+                        <p className="text-xs text-gray-400 mb-2">No persona assigned to this project</p>
+                        <button
+                          onClick={() => {
+                            setShowProjectModal(false);
+                            setShowImprintsMarketplace(true);
+                          }}
+                          className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" /> Browse Imprints
+                        </button>
+                      </div>
+                    )}
+                    <p className="text-[10px] text-gray-600 mt-2">
+                      Imprints customize the AI's personality and expertise for this project.
+                    </p>
+                  </div>
+                  
                   <div className="flex gap-3">
                     <button
                       onClick={() => deleteProject(editingProject?.id)}
