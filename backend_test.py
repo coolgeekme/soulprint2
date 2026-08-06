@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Testing Script for Google OAuth Registration Flow
-Tests the redirect URI and OAuth endpoints
+Backend API Testing Script for Google OAuth Flow
+Tests the OAuth endpoints and redirect URI configuration
 """
 
 import requests
@@ -56,8 +56,8 @@ def login():
         return None
 
 def test_google_oauth_start(token):
-    """Test Google OAuth start endpoint - GET /api/auth/google"""
-    print_test("Google OAuth Start - Redirect URI Check")
+    """Test Case 1: Google OAuth Start Endpoint Accessible"""
+    print_test("Google OAuth Start Endpoint (POST /api/auth/google)")
     
     try:
         headers = {"Authorization": f"Bearer {token}"}
@@ -75,190 +75,236 @@ def test_google_oauth_start(token):
         
         data = response.json()
         
-        # Check if authUrl is present
         if 'authUrl' not in data:
             return print_result(False, "Response missing 'authUrl' field")
         
         auth_url = data['authUrl']
-        print(f"\nGenerated OAuth URL: {auth_url[:200]}...")
+        print(f"Auth URL received: {auth_url[:100]}...")
         
-        # Parse the URL
-        parsed = urlparse(auth_url)
-        query_params = parse_qs(parsed.query)
-        
-        # Verify it's a Google OAuth URL
-        if parsed.netloc != 'accounts.google.com':
-            return print_result(False, f"Expected Google OAuth domain, got {parsed.netloc}")
-        
-        print_result(True, "OAuth URL points to accounts.google.com")
-        
-        # Check required parameters
-        required_params = ['client_id', 'redirect_uri', 'response_type', 'scope', 'state']
-        missing_params = [p for p in required_params if p not in query_params]
-        
-        if missing_params:
-            return print_result(False, f"Missing required parameters: {missing_params}")
-        
-        print_result(True, "All required OAuth parameters present")
-        
-        # Extract and verify redirect_uri
-        redirect_uri = query_params['redirect_uri'][0]
-        print(f"\nRedirect URI: {redirect_uri}")
-        
-        # Check if redirect_uri is dynamic (not hardcoded)
-        if 'preview.emergentagent.com' in redirect_uri or BASE_URL in redirect_uri:
-            print_result(True, "Redirect URI uses current domain (dynamic)")
-        else:
-            print_result(False, f"Redirect URI may be hardcoded: {redirect_uri}")
-        
-        # Verify redirect_uri points to callback endpoint
-        if '/api/auth/google/callback' in redirect_uri:
-            print_result(True, "Redirect URI points to /api/auth/google/callback")
-        else:
-            return print_result(False, f"Redirect URI doesn't point to callback endpoint: {redirect_uri}")
-        
-        # Verify response_type
-        response_type = query_params['response_type'][0]
-        if response_type == 'code':
-            print_result(True, "response_type=code (correct)")
-        else:
-            return print_result(False, f"Expected response_type=code, got {response_type}")
-        
-        # Verify client_id exists
-        client_id = query_params['client_id'][0]
-        if client_id and len(client_id) > 10:
-            print_result(True, f"client_id present: {client_id[:20]}...")
-        else:
-            return print_result(False, "client_id missing or invalid")
-        
-        # Verify scope includes necessary Google scopes
-        scope = query_params['scope'][0]
-        required_scopes = ['openid', 'email', 'profile']
-        has_all_scopes = all(s in scope for s in required_scopes)
-        
-        if has_all_scopes:
-            print_result(True, f"Scope includes required scopes: {required_scopes}")
-        else:
-            print_result(False, f"Missing required scopes. Current scope: {scope}")
-        
-        # Verify state parameter exists (for CSRF protection)
-        state = query_params['state'][0]
-        if state and len(state) > 10:
-            print_result(True, "State parameter present (CSRF protection)")
-        else:
-            return print_result(False, "State parameter missing or invalid")
-        
-        print("\n" + "="*80)
-        print("SUMMARY - Google OAuth Start Endpoint")
-        print("="*80)
-        print(f"✅ OAuth URL structure: CORRECT")
-        print(f"✅ Redirect URI: {redirect_uri}")
-        print(f"✅ Client ID: {client_id[:30]}...")
-        print(f"✅ Response Type: {response_type}")
-        print(f"✅ Scope: {scope[:100]}...")
-        print(f"✅ State: Present")
-        
-        return True
+        return print_result(True, "OAuth start endpoint returns 200 with authUrl")
         
     except Exception as e:
         return print_result(False, f"Error: {str(e)}")
 
-def test_google_callback_endpoint():
-    """Test that the callback endpoint exists and is accessible"""
-    print_test("Google OAuth Callback Endpoint - Accessibility Check")
+def test_oauth_redirect_uri(token):
+    """Test Case 2: OAuth Redirect URI Check"""
+    print_test("OAuth Redirect URI Validation")
     
     try:
-        # Try to access callback without parameters (should fail gracefully)
-        response = requests.get(
-            f"{API_BASE}/auth/google/callback",
-            allow_redirects=False,
+        headers = {"Authorization": f"Bearer {token}"}
+        response = requests.post(
+            f"{API_BASE}/auth/google",
+            headers=headers,
             timeout=10
         )
         
-        print(f"Response Status: {response.status_code}")
+        if response.status_code != 200:
+            return print_result(False, f"Failed to get authUrl: {response.status_code}")
         
-        # Callback should redirect (302/307) or return error (400/401)
-        # It should NOT return 404 (endpoint not found)
-        if response.status_code == 404:
-            return print_result(False, "Callback endpoint returns 404 - endpoint not registered")
+        data = response.json()
+        auth_url = data.get('authUrl')
         
-        # Any other status means the endpoint exists
-        if response.status_code in [302, 307, 400, 401, 500]:
-            return print_result(True, f"Callback endpoint exists (status: {response.status_code})")
+        if not auth_url:
+            return print_result(False, "No authUrl in response")
         
-        return print_result(True, f"Callback endpoint accessible (status: {response.status_code})")
+        # Parse the auth URL
+        parsed = urlparse(auth_url)
+        params = parse_qs(parsed.query)
+        
+        print(f"Parsed OAuth URL:")
+        print(f"  - Base: {parsed.scheme}://{parsed.netloc}{parsed.path}")
+        print(f"  - Query params: {list(params.keys())}")
+        
+        # Check redirect_uri parameter
+        if 'redirect_uri' not in params:
+            return print_result(False, "Missing 'redirect_uri' parameter in OAuth URL")
+        
+        redirect_uri = params['redirect_uri'][0]
+        print(f"  - redirect_uri: {redirect_uri}")
+        
+        # Verify redirect_uri is NOT undefined/null
+        if not redirect_uri or redirect_uri in ['undefined', 'null', '']:
+            return print_result(False, f"redirect_uri is invalid: '{redirect_uri}'")
+        
+        # Verify redirect_uri format
+        if not redirect_uri.startswith('https://'):
+            return print_result(False, f"redirect_uri should use https: {redirect_uri}")
+        
+        # Verify redirect_uri ends with /api/auth/google/callback
+        if not redirect_uri.endswith('/api/auth/google/callback'):
+            return print_result(False, f"redirect_uri should end with /api/auth/google/callback: {redirect_uri}")
+        
+        # Verify domain matches request host (dynamic, not hardcoded)
+        redirect_domain = urlparse(redirect_uri).netloc
+        expected_domain = urlparse(BASE_URL).netloc
+        
+        print(f"  - Redirect domain: {redirect_domain}")
+        print(f"  - Expected domain: {expected_domain}")
+        
+        if redirect_domain != expected_domain:
+            return print_result(False, f"redirect_uri domain mismatch: {redirect_domain} vs {expected_domain}")
+        
+        return print_result(True, f"redirect_uri is properly formed: {redirect_uri}")
         
     except Exception as e:
         return print_result(False, f"Error: {str(e)}")
 
-def test_domain_detection():
-    """Test that redirect_uri uses dynamic domain detection"""
-    print_test("Domain Detection - Dynamic vs Hardcoded")
+def test_callback_endpoint_accessible():
+    """Test Case 3: Callback Endpoint Accessible (without code - should return error but not 404)"""
+    print_test("OAuth Callback Endpoint Accessibility (GET /api/auth/google/callback)")
     
-    print("Checking if redirect_uri is dynamically generated from request host...")
-    print(f"Current BASE_URL: {BASE_URL}")
-    print(f"Expected redirect_uri pattern: {BASE_URL}/api/auth/google/callback")
+    try:
+        # Call callback without code parameter - should return 400/401, NOT 404
+        response = requests.get(
+            f"{API_BASE}/auth/google/callback",
+            timeout=10,
+            allow_redirects=False  # Don't follow redirects
+        )
+        
+        print(f"Response Status: {response.status_code}")
+        print(f"Response Headers: {dict(response.headers)}")
+        
+        # Check if it's a redirect (302/301)
+        if response.status_code in [301, 302, 303, 307, 308]:
+            location = response.headers.get('Location', '')
+            print(f"Redirect Location: {location}")
+            
+            # This is acceptable - callback is redirecting (likely to error page)
+            if 'error' in location:
+                return print_result(True, f"Callback endpoint registered (redirects with error): {response.status_code}")
+            else:
+                return print_result(True, f"Callback endpoint registered (redirects): {response.status_code}")
+        
+        # Should NOT be 404 (endpoint not found)
+        if response.status_code == 404:
+            return print_result(False, "Callback endpoint returns 404 - endpoint not registered!")
+        
+        # 400 or 401 is acceptable (missing OAuth code)
+        if response.status_code in [400, 401]:
+            return print_result(True, f"Callback endpoint registered (returns {response.status_code} for missing code)")
+        
+        # Any other non-404 status means endpoint exists
+        return print_result(True, f"Callback endpoint registered (returns {response.status_code})")
+        
+    except Exception as e:
+        return print_result(False, f"Error: {str(e)}")
+
+def test_oauth_url_structure(token):
+    """Test Case 4: OAuth URL Structure"""
+    print_test("OAuth URL Structure Validation")
     
-    # This test is informational - the actual check is in test_google_oauth_start
-    print_result(True, "Domain detection test completed in OAuth start test")
-    return True
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        response = requests.post(
+            f"{API_BASE}/auth/google",
+            headers=headers,
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            return print_result(False, f"Failed to get authUrl: {response.status_code}")
+        
+        data = response.json()
+        auth_url = data.get('authUrl')
+        
+        if not auth_url:
+            return print_result(False, "No authUrl in response")
+        
+        # Parse the auth URL
+        parsed = urlparse(auth_url)
+        params = parse_qs(parsed.query)
+        
+        print(f"OAuth URL Structure:")
+        print(f"  - Base URL: {parsed.scheme}://{parsed.netloc}{parsed.path}")
+        
+        # Verify base URL
+        expected_base = "https://accounts.google.com/o/oauth2/v2/auth"
+        actual_base = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+        
+        if actual_base != expected_base:
+            return print_result(False, f"OAuth base URL incorrect: {actual_base} (expected {expected_base})")
+        
+        print(f"  ✓ Base URL correct: {expected_base}")
+        
+        # Check required parameters
+        required_params = ['client_id', 'redirect_uri', 'response_type', 'scope', 'state']
+        missing_params = []
+        
+        for param in required_params:
+            if param not in params:
+                missing_params.append(param)
+            else:
+                value = params[param][0]
+                if param == 'response_type':
+                    if value != 'code':
+                        return print_result(False, f"response_type should be 'code', got '{value}'")
+                    print(f"  ✓ {param}: {value}")
+                elif param == 'scope':
+                    print(f"  ✓ {param}: {value[:50]}...")
+                elif param == 'client_id':
+                    print(f"  ✓ {param}: {value[:30]}...")
+                elif param == 'redirect_uri':
+                    print(f"  ✓ {param}: {value}")
+                elif param == 'state':
+                    print(f"  ✓ {param}: {value[:30]}...")
+        
+        if missing_params:
+            return print_result(False, f"Missing required parameters: {', '.join(missing_params)}")
+        
+        return print_result(True, "OAuth URL has all required parameters with correct structure")
+        
+    except Exception as e:
+        return print_result(False, f"Error: {str(e)}")
 
 def main():
     """Run all tests"""
     print("\n" + "="*80)
-    print("GOOGLE OAUTH REGISTRATION FLOW - BACKEND TESTING")
+    print("GOOGLE OAUTH FLOW TESTING")
     print("="*80)
     print(f"Base URL: {BASE_URL}")
+    print(f"API Base: {API_BASE}")
     print(f"Test User: {TEST_EMAIL}")
     
-    # Step 1: Login
+    # Login first
     token = login()
     if not token:
-        print("\n❌ CRITICAL: Cannot proceed without authentication token")
+        print("\n❌ CRITICAL: Authentication failed. Cannot proceed with OAuth tests.")
         sys.exit(1)
     
-    # Step 2: Test Google OAuth Start
-    oauth_start_success = test_google_oauth_start(token)
+    # Run OAuth tests
+    results = []
     
-    # Step 3: Test Callback Endpoint Exists
-    callback_success = test_google_callback_endpoint()
+    # Test 1: OAuth Start Endpoint
+    results.append(test_google_oauth_start(token))
     
-    # Step 4: Domain Detection
-    domain_success = test_domain_detection()
+    # Test 2: Redirect URI Check
+    results.append(test_oauth_redirect_uri(token))
     
-    # Final Summary
+    # Test 3: Callback Endpoint Accessible
+    results.append(test_callback_endpoint_accessible())
+    
+    # Test 4: OAuth URL Structure
+    results.append(test_oauth_url_structure(token))
+    
+    # Summary
     print("\n" + "="*80)
-    print("FINAL TEST SUMMARY")
+    print("TEST SUMMARY")
     print("="*80)
+    total = len(results)
+    passed = sum(results)
+    failed = total - passed
     
-    all_tests = [
-        ("Authentication", token is not None),
-        ("Google OAuth Start", oauth_start_success),
-        ("Callback Endpoint", callback_success),
-        ("Domain Detection", domain_success),
-    ]
+    print(f"Total Tests: {total}")
+    print(f"Passed: {passed} ✅")
+    print(f"Failed: {failed} ❌")
+    print(f"Success Rate: {(passed/total*100):.1f}%")
     
-    passed = sum(1 for _, success in all_tests if success)
-    total = len(all_tests)
-    
-    for test_name, success in all_tests:
-        status = "✅ PASS" if success else "❌ FAIL"
-        print(f"{status} - {test_name}")
-    
-    print(f"\nTotal: {passed}/{total} tests passed")
-    
-    if passed == total:
-        print("\n✅ ALL TESTS PASSED - Google OAuth flow is correctly configured")
-        print("\nKEY FINDINGS:")
-        print("1. OAuth start endpoint (POST /api/auth/google) is working")
-        print("2. Redirect URI is dynamically generated from request host")
-        print("3. Callback endpoint (/api/auth/google/callback) is registered")
-        print("4. All required OAuth parameters are present")
-        print("5. Client ID and scopes are properly configured")
-        sys.exit(0)
-    else:
-        print("\n❌ SOME TESTS FAILED - Review the errors above")
+    if failed > 0:
+        print("\n❌ SOME TESTS FAILED")
         sys.exit(1)
+    else:
+        print("\n✅ ALL TESTS PASSED")
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()

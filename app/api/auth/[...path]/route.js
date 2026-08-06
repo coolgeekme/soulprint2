@@ -4,6 +4,10 @@ import { getDb, ensureCriticalIndexes } from '@/lib/mongodb';
 import { generateToken, hashPassword, comparePassword, getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { sendWelcomeEmail, sendBetaCodeEmail } from '@/lib/email';
 import { ok, err, authenticate, requireAdmin, checkRateLimit } from '@/lib/api-utils';
+import { 
+  handleGoogleAuthStart, 
+  handleGoogleAuthCallback 
+} from '@/lib/handlers/google-integration';
 
 // Ensure critical indexes on first load (non-blocking)
 let indexesEnsured = false;
@@ -623,6 +627,9 @@ export async function POST(request, { params }) {
         return await handleLogin(request);
       case 'firebase':
         return await handleFirebaseAuth(request);
+      case 'google':
+        // POST /api/auth/google - Start OAuth flow
+        return await handleGoogleAuthStart(request);
       case 'redeem-code':
         return await handleRedeemBetaCode(request);
       case 'validate-code':
@@ -655,6 +662,12 @@ export async function GET(request, { params }) {
     if (endpoint === 'me') {
       return await handleMe(request);
     }
+    
+    if (endpoint === 'google' && pathArr[1] === 'callback') {
+      // GET /api/auth/google/callback - OAuth callback
+      return await handleGoogleAuthCallback(request);
+    }
+    
     return err('Auth endpoint not found', 404);
   } catch (error) {
     console.error('[Auth API] GET Error:', error);
