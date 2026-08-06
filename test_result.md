@@ -3843,3 +3843,31 @@ backend:
 agent_communication:
   - agent: "testing"
     message: "ONBOARDING FLOW BACKEND TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (5/5 test steps passed). The backend properly implements the complete onboarding flow as specified in the review request. ✅ NEW USER REGISTRATION: POST /api/auth/register creates users with onboarding_complete=false by default. Registration response correctly includes onboarding_complete=false field. ✅ PROFILE STATUS CHECK: GET /api/auth/me returns profile with onboarding_complete=false for new users. This confirms new users do NOT have onboarding completed by default. ✅ COMPLETE ONBOARDING: PUT /api/profile successfully updates profile with all onboarding fields (display_name, descriptors, field, help_with, discovery_source) and sets onboarding_complete=true. ✅ VERIFY ONBOARDING STATUS: GET /api/auth/me after completion returns profile with onboarding_complete=true. The flag is properly persisted and retrieved from the database. All onboarding data (display_name='Test User', descriptors=['Entrepreneur'], field='Tech', help_with=['Research & Analysis'], discovery_source='Friend / Referral') saved correctly. ✅ CLEANUP: Test user successfully deleted via admin API. The reported issue where new users skip onboarding and go straight to chat is properly addressed at the backend level - the onboarding_completed flag is correctly set to false for new users and can be updated to true after completing onboarding. The backend API endpoints (POST /api/auth/register, GET /api/auth/me, PUT /api/profile) all work correctly for the onboarding flow. All comprehensive tests passed (100% success rate)."
+
+backend:
+  - task: "Google OAuth Redirect URI Fix (POST /api/auth/google)"
+    implemented: true
+    working: false
+    file: "lib/handlers/google-integration.js, app/api/[[...path]]/route.js, app/api/auth/[...path]/route.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added missing imports for handleGoogleAuthStart and handleGoogleAuthCallback which were being called but not imported. The handlers exist in lib/handlers/google-integration.js and are imported in the main catch-all route (app/api/[[...path]]/route.js lines 68-72). The OAuth start endpoint is registered at line 999 (POST handler) and callback at line 660 (GET handler)."
+      - working: false
+        agent: "testing"
+        comment: "GOOGLE OAUTH REGISTRATION FLOW TESTING FAILED: Critical routing issue discovered. ✅ Authentication working (testchat@example.com/Test123456 login successful). ❌ POST /api/auth/google returns 404 with error 'Auth endpoint not found'. ❌ GET /api/auth/google/callback returns 404 (endpoint not registered). ROOT CAUSE IDENTIFIED: Next.js routing hierarchy issue. The Google OAuth handlers (handleGoogleAuthStart, handleGoogleAuthCallback) are imported and registered in the main catch-all route (/api/[[...path]]/route.js at lines 68-72, 999, 660), BUT requests to /api/auth/google are intercepted by the /api/auth/[...path]/route.js file FIRST due to Next.js routing precedence. The auth route file (lines 619-638) has a switch statement that handles 'register', 'login', 'firebase', 'redeem-code', 'validate-code', 'verify-captcha', 'send-verification', 'verify-email' but does NOT have a case for 'google' or 'google/callback', so it returns 'Auth endpoint not found' (line 637). FIX REQUIRED: The Google OAuth handlers need to be added to the /api/auth/[...path]/route.js file switch statement, OR the handlers need to be moved to a different route path that doesn't conflict with the auth route. The handlers themselves are correctly implemented with dynamic redirect_uri generation (lines 149-154 in google-integration.js use request.url to build baseUrl), but they are unreachable due to the routing conflict."
+
+test_plan:
+  current_focus:
+    - "Google OAuth Redirect URI Fix (POST /api/auth/google)"
+  stuck_tasks:
+    - "Google OAuth Redirect URI Fix (POST /api/auth/google)"
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "testing"
+    message: "GOOGLE OAUTH REGISTRATION FLOW TESTING - ROUTING ISSUE DISCOVERED: The Google OAuth endpoints are returning 404 errors due to a Next.js routing conflict. ISSUE: The handlers (handleGoogleAuthStart, handleGoogleAuthCallback) are correctly implemented in lib/handlers/google-integration.js with dynamic redirect_uri generation (lines 149-154 use request.url to build baseUrl dynamically). They are imported and registered in the main catch-all route (/api/[[...path]]/route.js at lines 68-72 for imports, line 999 for POST /api/auth/google, line 660 for GET /api/auth/google/callback). HOWEVER, Next.js routing hierarchy causes requests to /api/auth/* to be handled by /api/auth/[...path]/route.js FIRST, which only handles specific auth endpoints (register, login, firebase, etc.) and returns 404 for 'google' and 'google/callback'. FIX NEEDED: Add Google OAuth handlers to /api/auth/[...path]/route.js switch statement. The handlers need to be imported from lib/handlers/google-integration.js and added as cases 'google' (POST) and 'google/callback' (GET) in the switch statements at lines 619-638 (POST) and 654-658 (GET). The redirect_uri implementation is correct (dynamic, not hardcoded), but the endpoints are currently unreachable due to routing precedence."

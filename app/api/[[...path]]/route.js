@@ -65,6 +65,13 @@ import {
 } from '@/lib/handlers/google-context';
 
 import {
+  handleGoogleAuthStart,
+  handleGoogleAuthCallback,
+  handleGoogleStatus,
+  handleGoogleDisconnect,
+} from '@/lib/handlers/google-integration';
+
+import {
   handleGetAnnouncements,
   handleDismissAnnouncement,
   handleAnnouncementClick,

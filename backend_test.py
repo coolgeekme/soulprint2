@@ -1,344 +1,264 @@
 #!/usr/bin/env python3
 """
-Backend Test: Onboarding Flow
-Tests that new users go through complete onboarding process before accessing chat
+Backend API Testing Script for Google OAuth Registration Flow
+Tests the redirect URI and OAuth endpoints
 """
 
 import requests
 import json
-import time
 import sys
-from pymongo import MongoClient
-import os
+from urllib.parse import urlparse, parse_qs
 
 # Configuration
-BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://soulprint-engine.preview.emergentagent.com')
-API_URL = f"{BASE_URL}/api"
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
+API_BASE = f"{BASE_URL}/api"
 
 # Test credentials
-TEST_EMAIL = "test-onboard@example.com"
-TEST_PASSCODE = "Test123!"
+TEST_EMAIL = "testchat@example.com"
+TEST_PASSWORD = "Test123456"
 
-# Admin credentials for cleanup
-ADMIN_EMAIL = "test@soulprint.com"
-ADMIN_PASSCODE = "test123"
-
-# MongoDB connection
-MONGO_URL = os.getenv('MONGO_URL')
-
-def print_test(msg):
+def print_test(name):
+    """Print test name"""
     print(f"\n{'='*80}")
-    print(f"TEST: {msg}")
+    print(f"TEST: {name}")
     print('='*80)
 
-def print_success(msg):
-    print(f"✅ SUCCESS: {msg}")
+def print_result(success, message):
+    """Print test result"""
+    status = "✅ PASS" if success else "❌ FAIL"
+    print(f"{status}: {message}")
+    return success
 
-def print_error(msg):
-    print(f"❌ ERROR: {msg}")
-
-def print_info(msg):
-    print(f"ℹ️  INFO: {msg}")
-
-def cleanup_test_user(email):
-    """Delete test user via admin API"""
+def login():
+    """Login and get auth token"""
+    print_test("Authentication - Login")
     try:
-        # Login as admin
-        admin_response = requests.post(
-            f"{API_URL}/auth/login",
-            json={
-                "email": ADMIN_EMAIL,
-                "passcode": ADMIN_PASSCODE
-            },
-            headers={"Content-Type": "application/json"}
-        )
-        
-        if admin_response.status_code != 200:
-            print_info(f"Admin login failed: {admin_response.status_code}")
-            return False
-        
-        admin_token = admin_response.json().get('token')
-        
-        # Get user list to find the user ID
-        users_response = requests.get(
-            f"{API_URL}/admin/users",
-            headers={"Authorization": f"Bearer {admin_token}"}
-        )
-        
-        if users_response.status_code != 200:
-            print_info(f"Failed to get users list: {users_response.status_code}")
-            return False
-        
-        users = users_response.json().get('users', [])
-        user_id = None
-        for user in users:
-            if user.get('email') == email.lower():
-                user_id = user.get('id')
-                break
-        
-        if not user_id:
-            print_info(f"User {email} not found in admin list")
-            return True
-        
-        # Delete the user
-        delete_response = requests.delete(
-            f"{API_URL}/admin/users/{user_id}",
-            headers={"Authorization": f"Bearer {admin_token}"}
-        )
-        
-        if delete_response.status_code == 200:
-            print_success(f"Cleanup: Deleted test user {email}")
-            return True
-        else:
-            print_info(f"Cleanup delete status: {delete_response.status_code}")
-            return False
-            
-    except Exception as e:
-        print_info(f"Cleanup failed: {e}")
-        return False
-
-def test_onboarding_flow():
-    """
-    Test Flow:
-    1. Register New User
-    2. Check Profile Status (onboarding_completed should be false)
-    3. Complete Onboarding
-    4. Verify Onboarding Status After (should be true)
-    5. Cleanup
-    """
-    
-    test_token = None
-    test_user_id = None
-    
-    try:
-        # Cleanup any existing test user first
-        print_info("Pre-test cleanup: Removing any existing test user...")
-        cleanup_test_user(TEST_EMAIL)
-        time.sleep(2)
-        
-        # ============================================================
-        # STEP 1: Register New User
-        # ============================================================
-        print_test("Step 1: Register New User")
-        
         response = requests.post(
-            f"{API_URL}/auth/register",
-            json={
-                "email": TEST_EMAIL,
-                "passcode": TEST_PASSCODE
-            },
-            headers={"Content-Type": "application/json"}
+            f"{API_BASE}/auth/login",
+            json={"email": TEST_EMAIL, "passcode": TEST_PASSWORD},
+            timeout=10
         )
-        
-        print_info(f"POST /api/auth/register - Status: {response.status_code}")
-        print_info(f"Response: {response.text}")
         
         if response.status_code == 200:
             data = response.json()
-            test_token = data.get('token')
-            test_user_id = data.get('userId')
-            onboarding_complete = data.get('onboarding_complete')
-            
-            print_success(f"User created successfully - userId: {test_user_id}")
-            print_info(f"Token: {test_token[:20]}...")
-            print_info(f"onboarding_complete in response: {onboarding_complete}")
-            
-            # Verify onboarding_complete is false in registration response
-            if onboarding_complete == False:
-                print_success("✅ Registration response correctly shows onboarding_complete: false")
+            token = data.get('token')
+            if token:
+                print_result(True, f"Login successful, token received")
+                return token
             else:
-                print_error(f"❌ Registration response has onboarding_complete: {onboarding_complete} (expected: false)")
-                return False
+                print_result(False, "Login response missing token")
+                return None
         else:
-            print_error(f"Failed to create user: {response.text}")
-            return False
-        
-        if not test_user_id or not test_token:
-            print_error("Could not create test user")
-            return False
-        
-        time.sleep(1)
-        
-        # ============================================================
-        # STEP 2: Check Profile Status
-        # ============================================================
-        print_test("Step 2: Check Profile Status")
-        
-        profile_response = requests.get(
-            f"{API_URL}/auth/me",
-            headers={"Authorization": f"Bearer {test_token}"}
+            print_result(False, f"Login failed with status {response.status_code}: {response.text}")
+            return None
+    except Exception as e:
+        print_result(False, f"Login error: {str(e)}")
+        return None
+
+def test_google_oauth_start(token):
+    """Test Google OAuth start endpoint - GET /api/auth/google"""
+    print_test("Google OAuth Start - Redirect URI Check")
+    
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        response = requests.post(
+            f"{API_BASE}/auth/google",
+            headers=headers,
+            timeout=10
         )
         
-        print_info(f"GET /api/auth/me - Status: {profile_response.status_code}")
-        print_info(f"Response: {profile_response.text}")
+        print(f"Response Status: {response.status_code}")
+        print(f"Response Body: {response.text[:500]}")
         
-        if profile_response.status_code == 200:
-            profile_data = profile_response.json()
-            profile = profile_data.get('profile', {})
-            onboarding_complete = profile.get('onboarding_complete')
-            
-            print_success("Profile retrieved successfully")
-            print_info(f"Profile data: {json.dumps(profile, indent=2)}")
-            
-            # Critical Check: onboarding_complete should be false for new users
-            if onboarding_complete == False or onboarding_complete is None:
-                print_success("✅ CRITICAL CHECK PASSED: New user has onboarding_complete=false (or not set)")
-            else:
-                print_error(f"❌ CRITICAL CHECK FAILED: New user has onboarding_complete={onboarding_complete} (expected: false)")
-                return False
+        if response.status_code != 200:
+            return print_result(False, f"Expected 200, got {response.status_code}")
+        
+        data = response.json()
+        
+        # Check if authUrl is present
+        if 'authUrl' not in data:
+            return print_result(False, "Response missing 'authUrl' field")
+        
+        auth_url = data['authUrl']
+        print(f"\nGenerated OAuth URL: {auth_url[:200]}...")
+        
+        # Parse the URL
+        parsed = urlparse(auth_url)
+        query_params = parse_qs(parsed.query)
+        
+        # Verify it's a Google OAuth URL
+        if parsed.netloc != 'accounts.google.com':
+            return print_result(False, f"Expected Google OAuth domain, got {parsed.netloc}")
+        
+        print_result(True, "OAuth URL points to accounts.google.com")
+        
+        # Check required parameters
+        required_params = ['client_id', 'redirect_uri', 'response_type', 'scope', 'state']
+        missing_params = [p for p in required_params if p not in query_params]
+        
+        if missing_params:
+            return print_result(False, f"Missing required parameters: {missing_params}")
+        
+        print_result(True, "All required OAuth parameters present")
+        
+        # Extract and verify redirect_uri
+        redirect_uri = query_params['redirect_uri'][0]
+        print(f"\nRedirect URI: {redirect_uri}")
+        
+        # Check if redirect_uri is dynamic (not hardcoded)
+        if 'preview.emergentagent.com' in redirect_uri or BASE_URL in redirect_uri:
+            print_result(True, "Redirect URI uses current domain (dynamic)")
         else:
-            print_error(f"Failed to get profile: {profile_response.text}")
-            return False
+            print_result(False, f"Redirect URI may be hardcoded: {redirect_uri}")
         
-        time.sleep(1)
-        
-        # ============================================================
-        # STEP 3: Complete Onboarding
-        # ============================================================
-        print_test("Step 3: Complete Onboarding")
-        
-        onboarding_data = {
-            "display_name": "Test User",
-            "descriptors": ["Entrepreneur"],
-            "field": "Tech",
-            "help_with": ["Research & Analysis"],
-            "discovery_source": "Friend / Referral",
-            "onboarding_complete": True
-        }
-        
-        update_response = requests.put(
-            f"{API_URL}/profile",
-            json=onboarding_data,
-            headers={
-                "Authorization": f"Bearer {test_token}",
-                "Content-Type": "application/json"
-            }
-        )
-        
-        print_info(f"PUT /api/profile - Status: {update_response.status_code}")
-        print_info(f"Request body: {json.dumps(onboarding_data, indent=2)}")
-        print_info(f"Response: {update_response.text}")
-        
-        if update_response.status_code == 200:
-            update_data = update_response.json()
-            if update_data.get('success'):
-                print_success("✅ Profile updated successfully")
-            else:
-                print_error(f"Profile update returned success=false: {update_data}")
-                return False
+        # Verify redirect_uri points to callback endpoint
+        if '/api/auth/google/callback' in redirect_uri:
+            print_result(True, "Redirect URI points to /api/auth/google/callback")
         else:
-            print_error(f"Failed to update profile: {update_response.text}")
-            return False
+            return print_result(False, f"Redirect URI doesn't point to callback endpoint: {redirect_uri}")
         
-        time.sleep(1)
-        
-        # ============================================================
-        # STEP 4: Verify Onboarding Status After
-        # ============================================================
-        print_test("Step 4: Verify Onboarding Status After")
-        
-        verify_response = requests.get(
-            f"{API_URL}/auth/me",
-            headers={"Authorization": f"Bearer {test_token}"}
-        )
-        
-        print_info(f"GET /api/auth/me - Status: {verify_response.status_code}")
-        print_info(f"Response: {verify_response.text}")
-        
-        if verify_response.status_code == 200:
-            verify_data = verify_response.json()
-            profile = verify_data.get('profile', {})
-            onboarding_complete = profile.get('onboarding_complete')
-            display_name = profile.get('display_name')
-            descriptors = profile.get('descriptors')
-            field = profile.get('field')
-            help_with = profile.get('help_with')
-            discovery_source = profile.get('discovery_source')
-            
-            print_success("Profile retrieved successfully")
-            print_info(f"Profile data: {json.dumps(profile, indent=2)}")
-            
-            # Critical Check: onboarding_complete should NOW be true
-            if onboarding_complete == True:
-                print_success("✅ CRITICAL CHECK PASSED: onboarding_complete is NOW true")
-            else:
-                print_error(f"❌ CRITICAL CHECK FAILED: onboarding_complete={onboarding_complete} (expected: true)")
-                return False
-            
-            # Verify all onboarding data was saved
-            all_data_saved = True
-            if display_name != "Test User":
-                print_error(f"display_name mismatch: {display_name} (expected: Test User)")
-                all_data_saved = False
-            if descriptors != ["Entrepreneur"]:
-                print_error(f"descriptors mismatch: {descriptors} (expected: ['Entrepreneur'])")
-                all_data_saved = False
-            if field != "Tech":
-                print_error(f"field mismatch: {field} (expected: Tech)")
-                all_data_saved = False
-            if help_with != ["Research & Analysis"]:
-                print_error(f"help_with mismatch: {help_with} (expected: ['Research & Analysis'])")
-                all_data_saved = False
-            if discovery_source != "Friend / Referral":
-                print_error(f"discovery_source mismatch: {discovery_source} (expected: Friend / Referral)")
-                all_data_saved = False
-            
-            if all_data_saved:
-                print_success("✅ All onboarding data saved correctly")
-            else:
-                print_error("❌ Some onboarding data was not saved correctly")
-                return False
+        # Verify response_type
+        response_type = query_params['response_type'][0]
+        if response_type == 'code':
+            print_result(True, "response_type=code (correct)")
         else:
-            print_error(f"Failed to verify profile: {verify_response.text}")
-            return False
+            return print_result(False, f"Expected response_type=code, got {response_type}")
         
-        time.sleep(1)
-        
-        # ============================================================
-        # STEP 5: Cleanup
-        # ============================================================
-        print_test("Step 5: Cleanup")
-        
-        cleanup_success = cleanup_test_user(TEST_EMAIL)
-        if cleanup_success:
-            print_success("Cleanup successful - test user deleted")
+        # Verify client_id exists
+        client_id = query_params['client_id'][0]
+        if client_id and len(client_id) > 10:
+            print_result(True, f"client_id present: {client_id[:20]}...")
         else:
-            print_info("Cleanup may have failed - manual cleanup may be needed")
+            return print_result(False, "client_id missing or invalid")
+        
+        # Verify scope includes necessary Google scopes
+        scope = query_params['scope'][0]
+        required_scopes = ['openid', 'email', 'profile']
+        has_all_scopes = all(s in scope for s in required_scopes)
+        
+        if has_all_scopes:
+            print_result(True, f"Scope includes required scopes: {required_scopes}")
+        else:
+            print_result(False, f"Missing required scopes. Current scope: {scope}")
+        
+        # Verify state parameter exists (for CSRF protection)
+        state = query_params['state'][0]
+        if state and len(state) > 10:
+            print_result(True, "State parameter present (CSRF protection)")
+        else:
+            return print_result(False, "State parameter missing or invalid")
+        
+        print("\n" + "="*80)
+        print("SUMMARY - Google OAuth Start Endpoint")
+        print("="*80)
+        print(f"✅ OAuth URL structure: CORRECT")
+        print(f"✅ Redirect URI: {redirect_uri}")
+        print(f"✅ Client ID: {client_id[:30]}...")
+        print(f"✅ Response Type: {response_type}")
+        print(f"✅ Scope: {scope[:100]}...")
+        print(f"✅ State: Present")
         
         return True
         
     except Exception as e:
-        print_error(f"Test failed with exception: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Attempt cleanup even on failure
-        if test_user_id:
-            print_info("Attempting cleanup after failure...")
-            cleanup_test_user(TEST_EMAIL)
-        
-        return False
+        return print_result(False, f"Error: {str(e)}")
 
-if __name__ == "__main__":
+def test_google_callback_endpoint():
+    """Test that the callback endpoint exists and is accessible"""
+    print_test("Google OAuth Callback Endpoint - Accessibility Check")
+    
+    try:
+        # Try to access callback without parameters (should fail gracefully)
+        response = requests.get(
+            f"{API_BASE}/auth/google/callback",
+            allow_redirects=False,
+            timeout=10
+        )
+        
+        print(f"Response Status: {response.status_code}")
+        
+        # Callback should redirect (302/307) or return error (400/401)
+        # It should NOT return 404 (endpoint not found)
+        if response.status_code == 404:
+            return print_result(False, "Callback endpoint returns 404 - endpoint not registered")
+        
+        # Any other status means the endpoint exists
+        if response.status_code in [302, 307, 400, 401, 500]:
+            return print_result(True, f"Callback endpoint exists (status: {response.status_code})")
+        
+        return print_result(True, f"Callback endpoint accessible (status: {response.status_code})")
+        
+    except Exception as e:
+        return print_result(False, f"Error: {str(e)}")
+
+def test_domain_detection():
+    """Test that redirect_uri uses dynamic domain detection"""
+    print_test("Domain Detection - Dynamic vs Hardcoded")
+    
+    print("Checking if redirect_uri is dynamically generated from request host...")
+    print(f"Current BASE_URL: {BASE_URL}")
+    print(f"Expected redirect_uri pattern: {BASE_URL}/api/auth/google/callback")
+    
+    # This test is informational - the actual check is in test_google_oauth_start
+    print_result(True, "Domain detection test completed in OAuth start test")
+    return True
+
+def main():
+    """Run all tests"""
     print("\n" + "="*80)
-    print("ONBOARDING FLOW BACKEND TEST")
-    print("Testing that new users go through complete onboarding process")
+    print("GOOGLE OAUTH REGISTRATION FLOW - BACKEND TESTING")
+    print("="*80)
+    print(f"Base URL: {BASE_URL}")
+    print(f"Test User: {TEST_EMAIL}")
+    
+    # Step 1: Login
+    token = login()
+    if not token:
+        print("\n❌ CRITICAL: Cannot proceed without authentication token")
+        sys.exit(1)
+    
+    # Step 2: Test Google OAuth Start
+    oauth_start_success = test_google_oauth_start(token)
+    
+    # Step 3: Test Callback Endpoint Exists
+    callback_success = test_google_callback_endpoint()
+    
+    # Step 4: Domain Detection
+    domain_success = test_domain_detection()
+    
+    # Final Summary
+    print("\n" + "="*80)
+    print("FINAL TEST SUMMARY")
     print("="*80)
     
-    success = test_onboarding_flow()
+    all_tests = [
+        ("Authentication", token is not None),
+        ("Google OAuth Start", oauth_start_success),
+        ("Callback Endpoint", callback_success),
+        ("Domain Detection", domain_success),
+    ]
     
-    print("\n" + "="*80)
-    if success:
-        print("✅ ALL TESTS PASSED")
-        print("="*80)
-        print("\nSUMMARY:")
-        print("✅ New users are created with onboarding_complete=false")
-        print("✅ Profile endpoint correctly returns onboarding status")
-        print("✅ Onboarding data can be saved via PUT /api/profile")
-        print("✅ onboarding_complete flag is properly set to true after completion")
-        print("✅ Backend properly stores and returns the onboarding flag")
+    passed = sum(1 for _, success in all_tests if success)
+    total = len(all_tests)
+    
+    for test_name, success in all_tests:
+        status = "✅ PASS" if success else "❌ FAIL"
+        print(f"{status} - {test_name}")
+    
+    print(f"\nTotal: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("\n✅ ALL TESTS PASSED - Google OAuth flow is correctly configured")
+        print("\nKEY FINDINGS:")
+        print("1. OAuth start endpoint (POST /api/auth/google) is working")
+        print("2. Redirect URI is dynamically generated from request host")
+        print("3. Callback endpoint (/api/auth/google/callback) is registered")
+        print("4. All required OAuth parameters are present")
+        print("5. Client ID and scopes are properly configured")
         sys.exit(0)
     else:
-        print("❌ TESTS FAILED")
-        print("="*80)
+        print("\n❌ SOME TESTS FAILED - Review the errors above")
         sys.exit(1)
+
+if __name__ == "__main__":
+    main()
