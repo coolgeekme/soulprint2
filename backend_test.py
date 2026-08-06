@@ -1,317 +1,385 @@
 #!/usr/bin/env python3
 """
-Backend API Testing Script for Onboarding Loop Fix
-Tests the complete onboarding flow to verify field name consistency
+Backend API Testing Script for SoulPrint Engine
+Tests the onboarding loop fix after backend field name correction
 """
 
 import requests
 import json
 import sys
-from datetime import datetime
+import time
+import random
+import string
 
-# Backend URL from environment
+# Base URL from environment
 BASE_URL = "https://soulprint-engine.preview.emergentagent.com/api"
 
-def print_test_header(test_name):
-    """Print a formatted test header"""
-    print(f"\n{'='*80}")
-    print(f"TEST: {test_name}")
-    print(f"{'='*80}")
-
-def print_result(success, message):
-    """Print test result"""
-    status = "✅ PASS" if success else "❌ FAIL"
-    print(f"{status}: {message}")
-    return success
+def generate_random_email():
+    """Generate a random email for testing"""
+    random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    return f"onboarding_test_{random_string}@test.com"
 
 def test_onboarding_loop_fix():
     """
-    Test the onboarding loop fix to ensure users can complete onboarding
-    without getting stuck in a redirect loop.
-    
-    Issue: Onboarding page was setting onboarding_complete (no 'd')
-           Chat page was checking for onboarding_completed (with 'd')
-           Field name mismatch caused the loop
-    
-    Fix: Changed onboarding page to set onboarding_completed (with 'd')
+    Test the complete onboarding flow to verify users can complete onboarding without getting stuck in a loop.
     
     Test Flow:
-    1. Create test user via POST /api/auth/register
-    2. Check initial onboarding status via GET /api/user/profile
-    3. Complete onboarding via PUT /api/user/profile with onboarding_completed=true
-    4. Verify flag is saved via GET /api/user/profile again
+    1. Create Test User - POST /api/auth/register
+    2. Verify user created with onboarding_completed: false
+    3. Complete Onboarding - PUT /api/user/profile
+    4. Verify Flag Persists - GET /api/auth/me
+    5. Verify Login Preserves Flag - POST /api/auth/login then GET /api/auth/me
     """
     
-    print_test_header("Onboarding Loop Fix - Field Name Consistency Test")
+    print("\n" + "="*80)
+    print("ONBOARDING LOOP FIX TEST - Backend Field Name Correction Verification")
+    print("="*80)
     
-    # Generate unique test email
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    test_email = f"test-onboarding-{timestamp}@example.com"
-    test_passcode = "Test123456!"
+    # Generate unique test credentials
+    test_email = generate_random_email()
+    test_passcode = "TestPass123!"
+    test_token = None
     
-    all_tests_passed = True
-    token = None
-    user_id = None
+    print(f"\n[TEST SETUP] Using test credentials:")
+    print(f"  Email: {test_email}")
+    print(f"  Passcode: {test_passcode}")
+    
+    # ========================================================================
+    # STEP 1: Create Test User
+    # ========================================================================
+    print("\n" + "-"*80)
+    print("STEP 1: Create Test User - POST /api/auth/register")
+    print("-"*80)
     
     try:
-        # Step 1: Create Test User
-        print_test_header("Step 1: Create Test User")
-        print(f"Creating user: {test_email}")
+        register_payload = {
+            "email": test_email,
+            "passcode": test_passcode
+        }
         
-        register_response = requests.post(
+        print(f"[REQUEST] POST {BASE_URL}/auth/register")
+        print(f"[PAYLOAD] {json.dumps(register_payload, indent=2)}")
+        
+        response = requests.post(
             f"{BASE_URL}/auth/register",
-            json={
-                "email": test_email,
-                "passcode": test_passcode
-            },
+            json=register_payload,
+            headers={"Content-Type": "application/json"},
             timeout=30
         )
         
-        print(f"Status Code: {register_response.status_code}")
-        print(f"Response: {json.dumps(register_response.json(), indent=2)}")
+        print(f"[RESPONSE] Status: {response.status_code}")
         
-        if register_response.status_code == 200:
-            data = register_response.json()
-            token = data.get('token')
-            user_id = data.get('userId')
+        if response.status_code == 200:
+            data = response.json()
+            print(f"[RESPONSE] Body: {json.dumps(data, indent=2)}")
             
-            # Check if response includes onboarding_complete field (backend uses this)
-            has_onboarding_complete = 'onboarding_complete' in data
-            # Check if response includes onboarding_completed field (frontend expects this)
-            has_onboarding_completed = 'onboarding_completed' in data
-            
-            print(f"\n🔍 Field Name Analysis:")
-            print(f"   - Response has 'onboarding_complete' (no 'd'): {has_onboarding_complete}")
-            print(f"   - Response has 'onboarding_completed' (with 'd'): {has_onboarding_completed}")
-            
-            if has_onboarding_complete and not has_onboarding_completed:
-                print(f"\n⚠️  MISMATCH DETECTED: Backend returns 'onboarding_complete' but frontend expects 'onboarding_completed'")
-                all_tests_passed = False
-            
-            all_tests_passed &= print_result(
-                token is not None and user_id is not None,
-                f"User created successfully with token and userId"
-            )
-        else:
-            all_tests_passed &= print_result(False, f"Failed to create user: {register_response.text}")
-            return all_tests_passed
-        
-        # Step 2: Check Initial Onboarding Status
-        print_test_header("Step 2: Check Initial Onboarding Status via GET /api/auth/me")
-        
-        me_response = requests.get(
-            f"{BASE_URL}/auth/me",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=30
-        )
-        
-        print(f"Status Code: {me_response.status_code}")
-        print(f"Response: {json.dumps(me_response.json(), indent=2)}")
-        
-        if me_response.status_code == 200:
-            data = me_response.json()
-            profile = data.get('profile', {})
-            
-            # Check which field name is used in the response
-            has_onboarding_complete = 'onboarding_complete' in profile
-            has_onboarding_completed = 'onboarding_completed' in profile
-            
-            print(f"\n🔍 Field Name Analysis in Profile:")
-            print(f"   - Profile has 'onboarding_complete' (no 'd'): {has_onboarding_complete}")
-            print(f"   - Profile has 'onboarding_completed' (with 'd'): {has_onboarding_completed}")
-            
-            if has_onboarding_complete:
-                onboarding_status = profile.get('onboarding_complete')
-                print(f"   - onboarding_complete value: {onboarding_status}")
-            
-            if has_onboarding_completed:
-                onboarding_status = profile.get('onboarding_completed')
-                print(f"   - onboarding_completed value: {onboarding_status}")
-            
-            if has_onboarding_complete and not has_onboarding_completed:
-                print(f"\n⚠️  CRITICAL ISSUE: Backend returns 'onboarding_complete' but frontend checks for 'onboarding_completed'")
-                print(f"   This will cause the onboarding loop because:")
-                print(f"   1. Frontend sends 'onboarding_completed: true' (line 82 in onboarding/page.js)")
-                print(f"   2. Backend doesn't recognize it (line 421 in auth-handlers.js looks for 'onboarding_complete')")
-                print(f"   3. Chat page checks 'onboarding_completed' (line 569 in chat/page.js)")
-                print(f"   4. Backend returns 'onboarding_complete', so frontend never sees the flag as true")
-                all_tests_passed = False
-            
-            all_tests_passed &= print_result(
-                me_response.status_code == 200,
-                "Profile retrieved successfully"
-            )
-        else:
-            all_tests_passed &= print_result(False, f"Failed to get profile: {me_response.text}")
-            return all_tests_passed
-        
-        # Step 3: Complete Onboarding with onboarding_completed (with 'd')
-        print_test_header("Step 3: Complete Onboarding via PUT /api/user/profile")
-        print("Sending onboarding_completed: true (with 'd' at end)")
-        
-        profile_update_response = requests.put(
-            f"{BASE_URL}/user/profile",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "display_name": "Test User",
-                "descriptors": ["Entrepreneur"],
-                "field": "Tech",
-                "help_with": ["Research & Analysis"],
-                "discovery_source": "Friend / Referral",
-                "onboarding_completed": True  # Frontend sends this (with 'd')
-            },
-            timeout=30
-        )
-        
-        print(f"Status Code: {profile_update_response.status_code}")
-        print(f"Response: {json.dumps(profile_update_response.json(), indent=2)}")
-        
-        all_tests_passed &= print_result(
-            profile_update_response.status_code == 200,
-            "Profile update request completed"
-        )
-        
-        # Step 4: Verify Onboarding Flag is Saved
-        print_test_header("Step 4: Verify Onboarding Flag is Saved via GET /api/auth/me")
-        
-        verify_response = requests.get(
-            f"{BASE_URL}/auth/me",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=30
-        )
-        
-        print(f"Status Code: {verify_response.status_code}")
-        print(f"Response: {json.dumps(verify_response.json(), indent=2)}")
-        
-        if verify_response.status_code == 200:
-            data = verify_response.json()
-            profile = data.get('profile', {})
-            
-            # Check which field name is present and its value
-            has_onboarding_complete = 'onboarding_complete' in profile
-            has_onboarding_completed = 'onboarding_completed' in profile
-            
-            onboarding_complete_value = profile.get('onboarding_complete')
-            onboarding_completed_value = profile.get('onboarding_completed')
-            
-            print(f"\n🔍 Critical Check - Field Name and Value After Update:")
-            print(f"   - Profile has 'onboarding_complete' (no 'd'): {has_onboarding_complete}")
-            if has_onboarding_complete:
-                print(f"     Value: {onboarding_complete_value}")
-            
-            print(f"   - Profile has 'onboarding_completed' (with 'd'): {has_onboarding_completed}")
-            if has_onboarding_completed:
-                print(f"     Value: {onboarding_completed_value}")
-            
-            # The critical test: Did the flag get saved correctly?
-            if has_onboarding_completed and onboarding_completed_value == True:
-                print(f"\n✅ SUCCESS: onboarding_completed flag is TRUE - Loop fix is working!")
-                all_tests_passed &= print_result(True, "Onboarding flag correctly saved and retrieved with 'd' at end")
-            elif has_onboarding_complete and onboarding_complete_value == True:
-                print(f"\n⚠️  PARTIAL: Backend saved to 'onboarding_complete' (no 'd') instead of 'onboarding_completed' (with 'd')")
-                print(f"   This means:")
-                print(f"   - Backend accepted the update but stored it in the wrong field")
-                print(f"   - Frontend will still see onboarding_completed as undefined/false")
-                print(f"   - User will be stuck in onboarding loop")
-                all_tests_passed = False
+            # Verify response structure
+            if 'token' in data and 'userId' in data:
+                test_token = data['token']
+                print(f"✅ STEP 1 PASSED: User created successfully")
+                print(f"   - Token received: {test_token[:20]}...")
+                print(f"   - User ID: {data['userId']}")
+                
+                # CRITICAL: Verify onboarding_completed is false
+                if 'onboarding_completed' in data:
+                    if data['onboarding_completed'] == False:
+                        print(f"   ✅ onboarding_completed: false (CORRECT)")
+                    else:
+                        print(f"   ❌ onboarding_completed: {data['onboarding_completed']} (EXPECTED: false)")
+                        return False
+                else:
+                    print(f"   ⚠️  onboarding_completed field missing in response")
             else:
-                print(f"\n❌ FAILURE: Onboarding flag was NOT saved correctly")
-                print(f"   - Frontend sent: onboarding_completed=true (with 'd')")
-                print(f"   - Backend returned: onboarding_complete={onboarding_complete_value} (no 'd')")
-                print(f"   - This confirms the field name mismatch bug")
-                all_tests_passed = False
-            
-            # Verify other profile fields were saved
-            if profile.get('display_name') == 'Test User':
-                all_tests_passed &= print_result(True, "Display name saved correctly")
-            else:
-                all_tests_passed &= print_result(False, f"Display name not saved correctly: {profile.get('display_name')}")
+                print(f"❌ STEP 1 FAILED: Missing token or userId in response")
+                return False
         else:
-            all_tests_passed &= print_result(False, f"Failed to verify profile: {verify_response.text}")
-        
-        # Step 5: Test with onboarding_complete (no 'd') to see if backend accepts it
-        print_test_header("Step 5: Test Backend Field Name - Try onboarding_complete (no 'd')")
-        print("Sending onboarding_complete: false (no 'd' at end) to test backend compatibility")
-        
-        profile_update_no_d_response = requests.put(
-            f"{BASE_URL}/user/profile",
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "onboarding_complete": False  # Backend expects this (no 'd')
-            },
-            timeout=30
-        )
-        
-        print(f"Status Code: {profile_update_no_d_response.status_code}")
-        
-        # Verify if backend accepted it
-        verify_no_d_response = requests.get(
-            f"{BASE_URL}/auth/me",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=30
-        )
-        
-        if verify_no_d_response.status_code == 200:
-            data = verify_no_d_response.json()
-            profile = data.get('profile', {})
+            print(f"❌ STEP 1 FAILED: Registration failed with status {response.status_code}")
+            print(f"[RESPONSE] {response.text}")
+            return False
             
-            onboarding_complete_value = profile.get('onboarding_complete')
-            
-            print(f"\n🔍 Backend Field Name Test:")
-            print(f"   - Sent: onboarding_complete=false (no 'd')")
-            print(f"   - Backend returned: onboarding_complete={onboarding_complete_value}")
-            
-            if onboarding_complete_value == False:
-                print(f"\n✅ CONFIRMED: Backend ONLY accepts 'onboarding_complete' (no 'd')")
-                print(f"   This proves the field name mismatch:")
-                print(f"   - Frontend sends: onboarding_completed (with 'd')")
-                print(f"   - Backend expects: onboarding_complete (no 'd')")
-                print(f"   - Result: Frontend updates are ignored, causing the loop")
-            else:
-                print(f"\n⚠️  Unexpected result: {onboarding_complete_value}")
-        
     except Exception as e:
-        print(f"\n❌ ERROR: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        all_tests_passed = False
+        print(f"❌ STEP 1 FAILED: Exception during registration: {str(e)}")
+        return False
     
-    # Summary
-    print_test_header("TEST SUMMARY")
-    if all_tests_passed:
-        print("✅ ALL TESTS PASSED - Onboarding loop fix is working correctly")
-        print("   Field name consistency verified between frontend and backend")
-    else:
-        print("❌ TESTS FAILED - Onboarding loop bug still exists")
-        print("\n🔧 ROOT CAUSE:")
-        print("   Field name mismatch between frontend and backend:")
-        print("   - Frontend (onboarding/page.js line 82): sends 'onboarding_completed' (with 'd')")
-        print("   - Frontend (chat/page.js line 569): checks 'onboarding_completed' (with 'd')")
-        print("   - Backend (auth-handlers.js line 421): expects 'onboarding_complete' (no 'd')")
-        print("   - Backend (auth-handlers.js line 431): updates 'onboarding_complete' (no 'd')")
-        print("\n🔧 FIX REQUIRED:")
-        print("   Backend needs to be updated to use 'onboarding_completed' (with 'd') to match frontend")
-        print("   Files to update:")
-        print("   - /app/lib/handlers/auth-handlers.js (lines 115, 157, 201, 343, 367, 403, 421, 431)")
-        print("   Change all instances of 'onboarding_complete' to 'onboarding_completed'")
+    # ========================================================================
+    # STEP 2: Verify Initial Profile State
+    # ========================================================================
+    print("\n" + "-"*80)
+    print("STEP 2: Verify Initial Profile State - GET /api/auth/me")
+    print("-"*80)
     
-    return all_tests_passed
+    try:
+        print(f"[REQUEST] GET {BASE_URL}/auth/me")
+        print(f"[HEADERS] Authorization: Bearer {test_token[:20]}...")
+        
+        response = requests.get(
+            f"{BASE_URL}/auth/me",
+            headers={
+                "Authorization": f"Bearer {test_token}",
+                "Content-Type": "application/json"
+            },
+            timeout=30
+        )
+        
+        print(f"[RESPONSE] Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"[RESPONSE] Body: {json.dumps(data, indent=2)}")
+            
+            # Verify profile exists and onboarding_completed is false
+            if 'profile' in data and data['profile']:
+                profile = data['profile']
+                if 'onboarding_completed' in profile:
+                    if profile['onboarding_completed'] == False:
+                        print(f"✅ STEP 2 PASSED: Initial profile state correct")
+                        print(f"   ✅ profile.onboarding_completed: false (CORRECT)")
+                    else:
+                        print(f"❌ STEP 2 FAILED: profile.onboarding_completed: {profile['onboarding_completed']} (EXPECTED: false)")
+                        return False
+                else:
+                    print(f"❌ STEP 2 FAILED: onboarding_completed field missing in profile")
+                    return False
+            else:
+                print(f"❌ STEP 2 FAILED: Profile missing in response")
+                return False
+        else:
+            print(f"❌ STEP 2 FAILED: Auth/me failed with status {response.status_code}")
+            print(f"[RESPONSE] {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ STEP 2 FAILED: Exception during auth/me: {str(e)}")
+        return False
+    
+    # ========================================================================
+    # STEP 3: Complete Onboarding
+    # ========================================================================
+    print("\n" + "-"*80)
+    print("STEP 3: Complete Onboarding - PUT /api/user/profile")
+    print("-"*80)
+    
+    try:
+        profile_payload = {
+            "display_name": "Loop Test User",
+            "descriptors": ["Entrepreneur"],
+            "field": "Tech",
+            "help_with": ["Research"],
+            "discovery_source": "Friend",
+            "onboarding_completed": True
+        }
+        
+        print(f"[REQUEST] PUT {BASE_URL}/user/profile")
+        print(f"[HEADERS] Authorization: Bearer {test_token[:20]}...")
+        print(f"[PAYLOAD] {json.dumps(profile_payload, indent=2)}")
+        
+        response = requests.put(
+            f"{BASE_URL}/user/profile",
+            json=profile_payload,
+            headers={
+                "Authorization": f"Bearer {test_token}",
+                "Content-Type": "application/json"
+            },
+            timeout=30
+        )
+        
+        print(f"[RESPONSE] Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"[RESPONSE] Body: {json.dumps(data, indent=2)}")
+            
+            if data.get('success') == True:
+                print(f"✅ STEP 3 PASSED: Profile update successful")
+                print(f"   - Onboarding marked as completed")
+            else:
+                print(f"❌ STEP 3 FAILED: Profile update did not return success")
+                return False
+        else:
+            print(f"❌ STEP 3 FAILED: Profile update failed with status {response.status_code}")
+            print(f"[RESPONSE] {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ STEP 3 FAILED: Exception during profile update: {str(e)}")
+        return False
+    
+    # ========================================================================
+    # STEP 4: Verify Flag Persists (CRITICAL)
+    # ========================================================================
+    print("\n" + "-"*80)
+    print("STEP 4: Verify Flag Persists - GET /api/auth/me (CRITICAL TEST)")
+    print("-"*80)
+    
+    try:
+        print(f"[REQUEST] GET {BASE_URL}/auth/me")
+        print(f"[HEADERS] Authorization: Bearer {test_token[:20]}...")
+        
+        # Add a small delay to ensure database write completes
+        time.sleep(1)
+        
+        response = requests.get(
+            f"{BASE_URL}/auth/me",
+            headers={
+                "Authorization": f"Bearer {test_token}",
+                "Content-Type": "application/json"
+            },
+            timeout=30
+        )
+        
+        print(f"[RESPONSE] Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"[RESPONSE] Body: {json.dumps(data, indent=2)}")
+            
+            # CRITICAL: Verify onboarding_completed is now true
+            if 'profile' in data and data['profile']:
+                profile = data['profile']
+                if 'onboarding_completed' in profile:
+                    if profile['onboarding_completed'] == True:
+                        print(f"✅ STEP 4 PASSED: Onboarding flag persisted correctly")
+                        print(f"   ✅ profile.onboarding_completed: true (CORRECT)")
+                        print(f"   ✅ Field name matches and flag is saved")
+                    else:
+                        print(f"❌ STEP 4 FAILED: profile.onboarding_completed: {profile['onboarding_completed']} (EXPECTED: true)")
+                        print(f"   ❌ CRITICAL BUG: Onboarding flag did not persist!")
+                        return False
+                else:
+                    print(f"❌ STEP 4 FAILED: onboarding_completed field missing in profile")
+                    return False
+            else:
+                print(f"❌ STEP 4 FAILED: Profile missing in response")
+                return False
+        else:
+            print(f"❌ STEP 4 FAILED: Auth/me failed with status {response.status_code}")
+            print(f"[RESPONSE] {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ STEP 4 FAILED: Exception during auth/me: {str(e)}")
+        return False
+    
+    # ========================================================================
+    # STEP 5: Verify Login Preserves Flag
+    # ========================================================================
+    print("\n" + "-"*80)
+    print("STEP 5: Verify Login Preserves Flag - POST /api/auth/login")
+    print("-"*80)
+    
+    try:
+        login_payload = {
+            "email": test_email,
+            "passcode": test_passcode
+        }
+        
+        print(f"[REQUEST] POST {BASE_URL}/auth/login")
+        print(f"[PAYLOAD] {json.dumps(login_payload, indent=2)}")
+        
+        response = requests.post(
+            f"{BASE_URL}/auth/login",
+            json=login_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=30
+        )
+        
+        print(f"[RESPONSE] Status: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"[RESPONSE] Body: {json.dumps(data, indent=2)}")
+            
+            if 'token' in data:
+                new_token = data['token']
+                print(f"✅ Login successful")
+                print(f"   - New token received: {new_token[:20]}...")
+                
+                # Verify onboarding_completed in login response
+                if 'onboarding_completed' in data:
+                    if data['onboarding_completed'] == True:
+                        print(f"   ✅ onboarding_completed: true in login response (CORRECT)")
+                    else:
+                        print(f"   ❌ onboarding_completed: {data['onboarding_completed']} in login response (EXPECTED: true)")
+                        return False
+                else:
+                    print(f"   ⚠️  onboarding_completed field missing in login response")
+                
+                # Now verify with auth/me using new token
+                print(f"\n[REQUEST] GET {BASE_URL}/auth/me (with new token)")
+                print(f"[HEADERS] Authorization: Bearer {new_token[:20]}...")
+                
+                me_response = requests.get(
+                    f"{BASE_URL}/auth/me",
+                    headers={
+                        "Authorization": f"Bearer {new_token}",
+                        "Content-Type": "application/json"
+                    },
+                    timeout=30
+                )
+                
+                print(f"[RESPONSE] Status: {me_response.status_code}")
+                
+                if me_response.status_code == 200:
+                    me_data = me_response.json()
+                    print(f"[RESPONSE] Body: {json.dumps(me_data, indent=2)}")
+                    
+                    if 'profile' in me_data and me_data['profile']:
+                        profile = me_data['profile']
+                        if 'onboarding_completed' in profile:
+                            if profile['onboarding_completed'] == True:
+                                print(f"✅ STEP 5 PASSED: Login preserves onboarding flag")
+                                print(f"   ✅ profile.onboarding_completed: true after login (CORRECT)")
+                            else:
+                                print(f"❌ STEP 5 FAILED: profile.onboarding_completed: {profile['onboarding_completed']} after login (EXPECTED: true)")
+                                return False
+                        else:
+                            print(f"❌ STEP 5 FAILED: onboarding_completed field missing in profile after login")
+                            return False
+                    else:
+                        print(f"❌ STEP 5 FAILED: Profile missing in auth/me response after login")
+                        return False
+                else:
+                    print(f"❌ STEP 5 FAILED: Auth/me failed with status {me_response.status_code}")
+                    print(f"[RESPONSE] {me_response.text}")
+                    return False
+            else:
+                print(f"❌ STEP 5 FAILED: Missing token in login response")
+                return False
+        else:
+            print(f"❌ STEP 5 FAILED: Login failed with status {response.status_code}")
+            print(f"[RESPONSE] {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ STEP 5 FAILED: Exception during login: {str(e)}")
+        return False
+    
+    # ========================================================================
+    # ALL TESTS PASSED
+    # ========================================================================
+    print("\n" + "="*80)
+    print("✅ ALL ONBOARDING LOOP FIX TESTS PASSED")
+    print("="*80)
+    print("\n[SUCCESS SUMMARY]")
+    print("  ✅ User registration shows onboarding_completed: false")
+    print("  ✅ Profile update with onboarding_completed: true succeeds")
+    print("  ✅ Profile GET returns onboarding_completed: true after update")
+    print("  ✅ Login preserves onboarding_completed: true")
+    print("  ✅ Field name is consistent throughout (always 'onboarding_completed' with 'd')")
+    print("\n[CONCLUSION]")
+    print("  The onboarding loop fix is working correctly. Users can complete")
+    print("  onboarding without getting stuck in a loop. The field name mismatch")
+    print("  has been resolved - all instances use 'onboarding_completed' (with 'd').")
+    print("\n" + "="*80)
+    
+    return True
 
 if __name__ == "__main__":
     try:
         success = test_onboarding_loop_fix()
         sys.exit(0 if success else 1)
-    except KeyboardInterrupt:
-        print("\n\nTest interrupted by user")
-        sys.exit(1)
     except Exception as e:
-        print(f"\n\nFatal error: {e}")
+        print(f"\n❌ FATAL ERROR: {str(e)}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
