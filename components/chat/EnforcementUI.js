@@ -400,7 +400,7 @@ export function TrialEndPrompt({ reason, graceMessage }) {
             >
               View Plans & Subscribe
             </a>
-            <p className="text-[10px] text-gray-600 mt-1 text-center">
+            <p className="text-[10px] text-gray-400 mt-1 text-center">
               Paid plans auto-renew until canceled. Cancel anytime from Settings → Billing.
             </p>
             <a 
@@ -411,7 +411,7 @@ export function TrialEndPrompt({ reason, graceMessage }) {
             </a>
           </div>
           {isGraceExpired && (
-            <p className="text-[10px] text-gray-600 mt-4">
+            <p className="text-[10px] text-gray-400 mt-4">
               Free tier: 50 messages/day • 10 images/month • No video or voice
             </p>
           )}
