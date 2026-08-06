@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend Test: Admin Delete User Functionality
-Tests complete user deletion and re-registration with same email
+Backend Test: Onboarding Flow
+Tests that new users go through complete onboarding process before accessing chat
 """
 
 import requests
@@ -16,11 +16,10 @@ BASE_URL = os.getenv('NEXT_PUBLIC_BASE_URL', 'https://soulprint-engine.preview.e
 API_URL = f"{BASE_URL}/api"
 
 # Test credentials
-TEST_EMAIL = "test-delete@example.com"
+TEST_EMAIL = "test-onboard@example.com"
 TEST_PASSCODE = "Test123!"
-NEW_PASSCODE = "NewPass456!"
 
-# Admin credentials (from test_result.md)
+# Admin credentials for cleanup
 ADMIN_EMAIL = "test@soulprint.com"
 ADMIN_PASSCODE = "test123"
 
@@ -41,87 +40,86 @@ def print_error(msg):
 def print_info(msg):
     print(f"ℹ️  INFO: {msg}")
 
-def check_mongodb_deletion(email):
-    """Check MongoDB directly to verify complete deletion"""
+def cleanup_test_user(email):
+    """Delete test user via admin API"""
     try:
-        client = MongoClient(MONGO_URL)
-        db = client['soulprint']
+        # Login as admin
+        admin_response = requests.post(
+            f"{API_URL}/auth/login",
+            json={
+                "email": ADMIN_EMAIL,
+                "passcode": ADMIN_PASSCODE
+            },
+            headers={"Content-Type": "application/json"}
+        )
         
-        print_info(f"Checking MongoDB for email: {email}")
-        
-        # Check all collections that might have user data
-        collections_to_check = [
-            'users',
-            'user_subscriptions',
-            'subscriptions',
-            'profiles',
-            'conversations',
-            'messages',
-            'soul_profiles',
-            'assessment_responses',
-            'user_memories',
-            'media_gallery',
-            'imported_messages',
-            'imported_data',
-            'telegram_links',
-            'user_feedback',
-            'user_preferences',
-            'communication_profiles',
-            'video_jobs',
-            'scheduled_tasks',
-            'announcement_dismissals',
-            'announcement_clicks',
-            'imprints',
-            'projects',
-            'invite_codes'
-        ]
-        
-        found_records = {}
-        for collection_name in collections_to_check:
-            try:
-                collection = db[collection_name]
-                # Check by email
-                count_by_email = collection.count_documents({'email': email.lower()})
-                if count_by_email > 0:
-                    found_records[collection_name] = count_by_email
-                    print_error(f"Found {count_by_email} records in {collection_name} with email={email}")
-            except Exception as e:
-                print_info(f"Could not check {collection_name}: {e}")
-        
-        client.close()
-        
-        if found_records:
-            print_error(f"INCOMPLETE DELETION: Found records in {len(found_records)} collections")
+        if admin_response.status_code != 200:
+            print_info(f"Admin login failed: {admin_response.status_code}")
             return False
-        else:
-            print_success("MongoDB verification: All records deleted")
+        
+        admin_token = admin_response.json().get('token')
+        
+        # Get user list to find the user ID
+        users_response = requests.get(
+            f"{API_URL}/admin/users",
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        
+        if users_response.status_code != 200:
+            print_info(f"Failed to get users list: {users_response.status_code}")
+            return False
+        
+        users = users_response.json().get('users', [])
+        user_id = None
+        for user in users:
+            if user.get('email') == email.lower():
+                user_id = user.get('id')
+                break
+        
+        if not user_id:
+            print_info(f"User {email} not found in admin list")
             return True
+        
+        # Delete the user
+        delete_response = requests.delete(
+            f"{API_URL}/admin/users/{user_id}",
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        
+        if delete_response.status_code == 200:
+            print_success(f"Cleanup: Deleted test user {email}")
+            return True
+        else:
+            print_info(f"Cleanup delete status: {delete_response.status_code}")
+            return False
             
     except Exception as e:
-        print_error(f"MongoDB check failed: {e}")
-        return None
+        print_info(f"Cleanup failed: {e}")
+        return False
 
-def test_admin_delete_user():
+def test_onboarding_flow():
     """
     Test Flow:
-    1. Create test user
-    2. Admin deletes user
-    3. Verify complete deletion
-    4. Re-register with same email
+    1. Register New User
+    2. Check Profile Status (onboarding_completed should be false)
+    3. Complete Onboarding
+    4. Verify Onboarding Status After (should be true)
     5. Cleanup
     """
     
-    test_user_id = None
     test_token = None
-    admin_token = None
-    new_user_id = None
-    new_token = None
+    test_user_id = None
     
     try:
+        # Cleanup any existing test user first
+        print_info("Pre-test cleanup: Removing any existing test user...")
+        cleanup_test_user(TEST_EMAIL)
+        time.sleep(2)
+        
         # ============================================================
-        # STEP 1: Create Test User
+        # STEP 1: Register New User
         # ============================================================
-        print_test("Step 1: Create Test User")
+        print_test("Step 1: Register New User")
         
         response = requests.post(
             f"{API_URL}/auth/register",
@@ -133,65 +131,27 @@ def test_admin_delete_user():
         )
         
         print_info(f"POST /api/auth/register - Status: {response.status_code}")
+        print_info(f"Response: {response.text}")
         
         if response.status_code == 200:
             data = response.json()
             test_token = data.get('token')
             test_user_id = data.get('userId')
+            onboarding_complete = data.get('onboarding_complete')
+            
             print_success(f"User created successfully - userId: {test_user_id}")
             print_info(f"Token: {test_token[:20]}...")
+            print_info(f"onboarding_complete in response: {onboarding_complete}")
+            
+            # Verify onboarding_complete is false in registration response
+            if onboarding_complete == False:
+                print_success("✅ Registration response correctly shows onboarding_complete: false")
+            else:
+                print_error(f"❌ Registration response has onboarding_complete: {onboarding_complete} (expected: false)")
+                return False
         else:
             print_error(f"Failed to create user: {response.text}")
-            # If user already exists, try to get admin token and delete first
-            if "already registered" in response.text.lower():
-                print_info("User already exists, will try to delete first...")
-                # Get admin token
-                admin_response = requests.post(
-                    f"{API_URL}/auth/login",
-                    json={
-                        "email": ADMIN_EMAIL,
-                        "passcode": ADMIN_PASSCODE
-                    },
-                    headers={"Content-Type": "application/json"}
-                )
-                if admin_response.status_code == 200:
-                    admin_token = admin_response.json().get('token')
-                    # Get user list to find the user ID
-                    users_response = requests.get(
-                        f"{API_URL}/admin/users",
-                        headers={"Authorization": f"Bearer {admin_token}"}
-                    )
-                    if users_response.status_code == 200:
-                        users = users_response.json().get('users', [])
-                        for user in users:
-                            if user.get('email') == TEST_EMAIL.lower():
-                                test_user_id = user.get('id')
-                                print_info(f"Found existing user ID: {test_user_id}")
-                                # Delete the user
-                                delete_response = requests.delete(
-                                    f"{API_URL}/admin/users/{test_user_id}",
-                                    headers={"Authorization": f"Bearer {admin_token}"}
-                                )
-                                print_info(f"Cleanup delete status: {delete_response.status_code}")
-                                time.sleep(2)
-                                # Try registration again
-                                response = requests.post(
-                                    f"{API_URL}/auth/register",
-                                    json={
-                                        "email": TEST_EMAIL,
-                                        "passcode": TEST_PASSCODE
-                                    },
-                                    headers={"Content-Type": "application/json"}
-                                )
-                                if response.status_code == 200:
-                                    data = response.json()
-                                    test_token = data.get('token')
-                                    test_user_id = data.get('userId')
-                                    print_success(f"User created after cleanup - userId: {test_user_id}")
-                                else:
-                                    print_error(f"Still failed after cleanup: {response.text}")
-                                    return False
-                                break
+            return False
         
         if not test_user_id or not test_token:
             print_error("Could not create test user")
@@ -200,142 +160,150 @@ def test_admin_delete_user():
         time.sleep(1)
         
         # ============================================================
-        # STEP 2: Admin Login and Delete User
+        # STEP 2: Check Profile Status
         # ============================================================
-        print_test("Step 2: Admin Login and Delete User")
+        print_test("Step 2: Check Profile Status")
         
-        # Login as admin
-        admin_response = requests.post(
-            f"{API_URL}/auth/login",
-            json={
-                "email": ADMIN_EMAIL,
-                "passcode": ADMIN_PASSCODE
-            },
-            headers={"Content-Type": "application/json"}
+        profile_response = requests.get(
+            f"{API_URL}/auth/me",
+            headers={"Authorization": f"Bearer {test_token}"}
         )
         
-        print_info(f"POST /api/auth/login (admin) - Status: {admin_response.status_code}")
+        print_info(f"GET /api/auth/me - Status: {profile_response.status_code}")
+        print_info(f"Response: {profile_response.text}")
         
-        if admin_response.status_code == 200:
-            admin_token = admin_response.json().get('token')
-            print_success("Admin login successful")
-        else:
-            print_error(f"Admin login failed: {admin_response.text}")
-            return False
-        
-        time.sleep(1)
-        
-        # Delete the test user
-        delete_response = requests.delete(
-            f"{API_URL}/admin/users/{test_user_id}",
-            headers={"Authorization": f"Bearer {admin_token}"}
-        )
-        
-        print_info(f"DELETE /api/admin/users/{test_user_id} - Status: {delete_response.status_code}")
-        
-        if delete_response.status_code == 200:
-            data = delete_response.json()
-            if data.get('success'):
-                print_success("User deleted successfully")
-            else:
-                print_error(f"Delete returned success=false: {data}")
-                return False
-        else:
-            print_error(f"Delete failed: {delete_response.text}")
-            return False
-        
-        time.sleep(2)
-        
-        # ============================================================
-        # STEP 3: Verify Complete Deletion
-        # ============================================================
-        print_test("Step 3: Verify Complete Deletion")
-        
-        # Check via API - user should not be in admin users list
-        users_response = requests.get(
-            f"{API_URL}/admin/users",
-            headers={"Authorization": f"Bearer {admin_token}"}
-        )
-        
-        print_info(f"GET /api/admin/users - Status: {users_response.status_code}")
-        
-        if users_response.status_code == 200:
-            users = users_response.json().get('users', [])
-            found = False
-            for user in users:
-                if user.get('email') == TEST_EMAIL.lower():
-                    found = True
-                    print_error(f"User still found in admin list: {user}")
-                    break
+        if profile_response.status_code == 200:
+            profile_data = profile_response.json()
+            profile = profile_data.get('profile', {})
+            onboarding_complete = profile.get('onboarding_complete')
             
-            if not found:
-                print_success("User not found in admin users list")
+            print_success("Profile retrieved successfully")
+            print_info(f"Profile data: {json.dumps(profile, indent=2)}")
+            
+            # Critical Check: onboarding_complete should be false for new users
+            if onboarding_complete == False or onboarding_complete is None:
+                print_success("✅ CRITICAL CHECK PASSED: New user has onboarding_complete=false (or not set)")
             else:
-                print_error("User still exists in admin list")
+                print_error(f"❌ CRITICAL CHECK FAILED: New user has onboarding_complete={onboarding_complete} (expected: false)")
                 return False
         else:
-            print_error(f"Failed to get users list: {users_response.text}")
-        
-        # Check MongoDB directly
-        if MONGO_URL:
-            mongodb_clean = check_mongodb_deletion(TEST_EMAIL)
-            if mongodb_clean is False:
-                print_error("MongoDB still contains user records")
-                return False
-        else:
-            print_info("MONGO_URL not available, skipping direct MongoDB check")
+            print_error(f"Failed to get profile: {profile_response.text}")
+            return False
         
         time.sleep(1)
         
         # ============================================================
-        # STEP 4: Re-register with Same Email (THE CRITICAL TEST)
+        # STEP 3: Complete Onboarding
         # ============================================================
-        print_test("Step 4: Re-register with Same Email")
+        print_test("Step 3: Complete Onboarding")
         
-        reregister_response = requests.post(
-            f"{API_URL}/auth/register",
-            json={
-                "email": TEST_EMAIL,
-                "passcode": NEW_PASSCODE
-            },
-            headers={"Content-Type": "application/json"}
+        onboarding_data = {
+            "display_name": "Test User",
+            "descriptors": ["Entrepreneur"],
+            "field": "Tech",
+            "help_with": ["Research & Analysis"],
+            "discovery_source": "Friend / Referral",
+            "onboarding_complete": True
+        }
+        
+        update_response = requests.put(
+            f"{API_URL}/profile",
+            json=onboarding_data,
+            headers={
+                "Authorization": f"Bearer {test_token}",
+                "Content-Type": "application/json"
+            }
         )
         
-        print_info(f"POST /api/auth/register (re-registration) - Status: {reregister_response.status_code}")
-        print_info(f"Response: {reregister_response.text}")
+        print_info(f"PUT /api/profile - Status: {update_response.status_code}")
+        print_info(f"Request body: {json.dumps(onboarding_data, indent=2)}")
+        print_info(f"Response: {update_response.text}")
         
-        if reregister_response.status_code == 200:
-            data = reregister_response.json()
-            new_token = data.get('token')
-            new_user_id = data.get('userId')
-            print_success(f"✅ RE-REGISTRATION SUCCESSFUL! New userId: {new_user_id}")
-            print_success("BUG IS FIXED: User can re-register with same email after deletion")
-        else:
-            print_error(f"❌ RE-REGISTRATION FAILED: {reregister_response.text}")
-            if "already registered" in reregister_response.text.lower():
-                print_error("BUG STILL EXISTS: Email still marked as registered after deletion")
-                return False
+        if update_response.status_code == 200:
+            update_data = update_response.json()
+            if update_data.get('success'):
+                print_success("✅ Profile updated successfully")
             else:
-                print_error(f"Unexpected error during re-registration")
+                print_error(f"Profile update returned success=false: {update_data}")
                 return False
+        else:
+            print_error(f"Failed to update profile: {update_response.text}")
+            return False
         
         time.sleep(1)
         
         # ============================================================
-        # STEP 5: Cleanup - Delete the re-registered user
+        # STEP 4: Verify Onboarding Status After
+        # ============================================================
+        print_test("Step 4: Verify Onboarding Status After")
+        
+        verify_response = requests.get(
+            f"{API_URL}/auth/me",
+            headers={"Authorization": f"Bearer {test_token}"}
+        )
+        
+        print_info(f"GET /api/auth/me - Status: {verify_response.status_code}")
+        print_info(f"Response: {verify_response.text}")
+        
+        if verify_response.status_code == 200:
+            verify_data = verify_response.json()
+            profile = verify_data.get('profile', {})
+            onboarding_complete = profile.get('onboarding_complete')
+            display_name = profile.get('display_name')
+            descriptors = profile.get('descriptors')
+            field = profile.get('field')
+            help_with = profile.get('help_with')
+            discovery_source = profile.get('discovery_source')
+            
+            print_success("Profile retrieved successfully")
+            print_info(f"Profile data: {json.dumps(profile, indent=2)}")
+            
+            # Critical Check: onboarding_complete should NOW be true
+            if onboarding_complete == True:
+                print_success("✅ CRITICAL CHECK PASSED: onboarding_complete is NOW true")
+            else:
+                print_error(f"❌ CRITICAL CHECK FAILED: onboarding_complete={onboarding_complete} (expected: true)")
+                return False
+            
+            # Verify all onboarding data was saved
+            all_data_saved = True
+            if display_name != "Test User":
+                print_error(f"display_name mismatch: {display_name} (expected: Test User)")
+                all_data_saved = False
+            if descriptors != ["Entrepreneur"]:
+                print_error(f"descriptors mismatch: {descriptors} (expected: ['Entrepreneur'])")
+                all_data_saved = False
+            if field != "Tech":
+                print_error(f"field mismatch: {field} (expected: Tech)")
+                all_data_saved = False
+            if help_with != ["Research & Analysis"]:
+                print_error(f"help_with mismatch: {help_with} (expected: ['Research & Analysis'])")
+                all_data_saved = False
+            if discovery_source != "Friend / Referral":
+                print_error(f"discovery_source mismatch: {discovery_source} (expected: Friend / Referral)")
+                all_data_saved = False
+            
+            if all_data_saved:
+                print_success("✅ All onboarding data saved correctly")
+            else:
+                print_error("❌ Some onboarding data was not saved correctly")
+                return False
+        else:
+            print_error(f"Failed to verify profile: {verify_response.text}")
+            return False
+        
+        time.sleep(1)
+        
+        # ============================================================
+        # STEP 5: Cleanup
         # ============================================================
         print_test("Step 5: Cleanup")
         
-        if new_user_id:
-            cleanup_response = requests.delete(
-                f"{API_URL}/admin/users/{new_user_id}",
-                headers={"Authorization": f"Bearer {admin_token}"}
-            )
-            print_info(f"DELETE /api/admin/users/{new_user_id} (cleanup) - Status: {cleanup_response.status_code}")
-            if cleanup_response.status_code == 200:
-                print_success("Cleanup successful - test user deleted")
-            else:
-                print_info(f"Cleanup delete status: {cleanup_response.status_code}")
+        cleanup_success = cleanup_test_user(TEST_EMAIL)
+        if cleanup_success:
+            print_success("Cleanup successful - test user deleted")
+        else:
+            print_info("Cleanup may have failed - manual cleanup may be needed")
         
         return True
         
@@ -343,20 +311,32 @@ def test_admin_delete_user():
         print_error(f"Test failed with exception: {e}")
         import traceback
         traceback.print_exc()
+        
+        # Attempt cleanup even on failure
+        if test_user_id:
+            print_info("Attempting cleanup after failure...")
+            cleanup_test_user(TEST_EMAIL)
+        
         return False
 
 if __name__ == "__main__":
     print("\n" + "="*80)
-    print("ADMIN DELETE USER FUNCTIONALITY TEST")
-    print("Testing complete user deletion and re-registration with same email")
+    print("ONBOARDING FLOW BACKEND TEST")
+    print("Testing that new users go through complete onboarding process")
     print("="*80)
     
-    success = test_admin_delete_user()
+    success = test_onboarding_flow()
     
     print("\n" + "="*80)
     if success:
         print("✅ ALL TESTS PASSED")
         print("="*80)
+        print("\nSUMMARY:")
+        print("✅ New users are created with onboarding_complete=false")
+        print("✅ Profile endpoint correctly returns onboarding status")
+        print("✅ Onboarding data can be saved via PUT /api/profile")
+        print("✅ onboarding_complete flag is properly set to true after completion")
+        print("✅ Backend properly stores and returns the onboarding flag")
         sys.exit(0)
     else:
         print("❌ TESTS FAILED")

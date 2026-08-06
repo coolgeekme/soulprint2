@@ -564,10 +564,12 @@ export default function ChatPage() {
         const botName = d.profile?.assistant_name || 'SoulPrint';
         const customGreeting = d.profile?.custom_greeting;
         
-        // Check if new user (show onboarding if they haven't seen it)
+        // Check if new user (redirect to onboarding if they haven't completed it)
         const hasSeenOnboarding = localStorage.getItem('sp_onboarding_seen');
         if (!hasSeenOnboarding && !d.profile?.onboarding_completed) {
-          setShowOnboarding(true);
+          // Redirect to onboarding instead of just showing a popup
+          router.push('/onboarding');
+          return;
         }
         
         // Use custom greeting if set, otherwise use default
