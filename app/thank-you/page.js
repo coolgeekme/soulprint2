@@ -100,28 +100,28 @@ export default function ThankYouPage() {
         </div>
 
         {/* Main Card */}
-        <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-8 md:p-12 text-center shadow-2xl">
+        <div className="bg-white/95 backdrop-blur-xl border border-orange-200 rounded-2xl p-8 md:p-12 text-center shadow-2xl">
           {/* Success Icon */}
           <div className={`inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br ${config.color} mb-6 shadow-lg`}>
             {config.icon}
           </div>
 
           {/* Message */}
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-3">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
             {config.message}
           </h1>
-          <p className="text-gray-400 text-lg mb-8">{config.subtitle}</p>
+          <p className="text-gray-700 text-lg mb-8">{config.subtitle}</p>
 
           {/* Features */}
-          <div className="bg-gray-800/50 rounded-xl p-6 mb-8 text-left">
-            <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 mb-8 text-left">
+            <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
               What's included:
             </h2>
             <div className="space-y-3">
               {config.features.map((feature, idx) => (
                 <div key={idx} className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-white text-sm">{feature}</span>
+                  <Check className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <span className="text-gray-800 text-sm">{feature}</span>
                 </div>
               ))}
             </div>
@@ -137,7 +137,7 @@ export default function ThankYouPage() {
           </button>
 
           {/* Help Text */}
-          <p className="text-gray-500 text-sm mt-6">
+          <p className="text-gray-400 text-sm mt-6">
             Questions? Email us at{' '}
             <a href="mailto:support@soulprint.ai" className="text-orange-400 hover:text-orange-300 underline">
               support@soulprint.ai
@@ -146,7 +146,7 @@ export default function ThankYouPage() {
         </div>
 
         {/* Footer Note */}
-        <p className="text-center text-gray-600 text-xs mt-6">
+        <p className="text-center text-gray-400 text-xs mt-6">
           Your receipt has been sent to your email. You can manage your subscription anytime from Settings.
         </p>
       </div>
