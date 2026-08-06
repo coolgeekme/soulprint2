@@ -3626,7 +3626,7 @@ function InsightsTab({ token }) {
   const [hypo, setHypo] = useState({
     totalUsers: 100,
     conversionRate: 30,
-    basePrice: 20.01,
+    basePrice: 19,
     addOnARPU: 5,
     videoARPU: 10,
     cogsPerUser: 11.25,
@@ -3659,7 +3659,7 @@ function InsightsTab({ token }) {
       ],
     },
     assumptions: {
-      basePrice: 20.01,
+      basePrice: 19,
       targetMargin: 0.80,
       annualDiscount: 0.20,
       freeImageAllowance: 20,
@@ -3701,10 +3701,10 @@ function InsightsTab({ token }) {
     },
     revenue: {
       segments: [
-        { name: 'Light (base only)', users: 33, baseMRR: 660.33, premiumChat: 0, imageGen: 0, videoCredits: 0, arpu: 20.01, segmentMRR: 660.33 },
+        { name: 'Light (base only)', users: 33, baseMRR: 627, premiumChat: 0, imageGen: 0, videoCredits: 0, arpu: 19, segmentMRR: 627 },
         { name: 'Moderate', users: 8, baseMRR: 160.08, premiumChat: 3, imageGen: 0, videoCredits: 0, arpu: 23.01, segmentMRR: 184.08 },
         { name: 'Heavy', users: 2, baseMRR: 40.02, premiumChat: 15, imageGen: 1, videoCredits: 15, arpu: 51.01, segmentMRR: 102.02 },
-        { name: 'Power', users: 1, baseMRR: 20.01, premiumChat: 60, imageGen: 12, videoCredits: 50, arpu: 142.01, segmentMRR: 142.01 },
+        { name: 'Power', users: 1, baseMRR: 19, premiumChat: 60, imageGen: 12, videoCredits: 50, arpu: 141, segmentMRR: 141 },
       ],
       totalMRR: 1088.44,
       arr: 13061.28,
@@ -3749,7 +3749,7 @@ function InsightsTab({ token }) {
         cogs: 0.156,
       },
       {
-        name: 'BASE', price: 20.01, color: 'blue', emoji: '⭐',
+        name: 'BASE', price: 19, color: 'blue', emoji: '⭐',
         description: 'For daily users who want premium AI and clean media.',
         features: {
           'Standard chat models': 'Unlimited',
@@ -3767,7 +3767,7 @@ function InsightsTab({ token }) {
           'Support': 'Ace AI Agent 24/7 + Email',
         },
         bestFor: 'Typical paying customer',
-        billing: '$20.01/mo or $192.10/yr (20% off)',
+        billing: '$19/mo or $182.40/yr (20% off)',
         cogs: 3.86,
         grossMargin: 0.807,
       },
@@ -4539,7 +4539,7 @@ function InsightsTab({ token }) {
         // Scenario presets
         const presets = [
           { label: 'Conservative', totalUsers: 50, conversionRate: 20, basePrice: 15.00, addOnARPU: 3, videoARPU: 5, cogsPerUser: 11.25, fixedCosts: 25, annualDiscount: 15 },
-          { label: 'Base Case (v2)', totalUsers: 84, conversionRate: 52, basePrice: 20.01, addOnARPU: 4.77, videoARPU: 10, cogsPerUser: 11.25, fixedCosts: 25, annualDiscount: 20 },
+          { label: 'Base Case (v2)', totalUsers: 84, conversionRate: 52, basePrice: 19, addOnARPU: 4.77, videoARPU: 10, cogsPerUser: 11.25, fixedCosts: 25, annualDiscount: 20 },
           { label: 'Aggressive', totalUsers: 250, conversionRate: 35, basePrice: 25.00, addOnARPU: 8, videoARPU: 15, cogsPerUser: 9.50, fixedCosts: 50, annualDiscount: 20 },
           { label: 'Scale (1k)', totalUsers: 1000, conversionRate: 25, basePrice: 20.00, addOnARPU: 6, videoARPU: 12, cogsPerUser: 7.00, fixedCosts: 100, annualDiscount: 20 },
         ];
@@ -4601,7 +4601,7 @@ function InsightsTab({ token }) {
                 onClick={() => setHypo({
                   totalUsers: insights?.user_segments_external?.total_external ?? 10,
                   conversionRate: 30,
-                  basePrice: 20.01,
+                  basePrice: 19,
                   addOnARPU: 5,
                   videoARPU: 10,
                   cogsPerUser: insights?.pricing_recommendations?.avg_cost_per_user ?? 11.25,
@@ -4874,7 +4874,7 @@ function InsightsTab({ token }) {
                 <tr className="border-b border-white/10">
                   <th className="text-left py-2 px-2 text-gray-500">Feature</th>
                   <th className="text-center py-2 px-2 text-gray-400">🆓 FREE</th>
-                  <th className="text-center py-2 px-2 text-blue-400">⭐ BASE ($20.01)</th>
+                  <th className="text-center py-2 px-2 text-blue-400">⭐ BASE ($19)</th>
                   <th className="text-center py-2 px-2 text-orange-400">🚀 POWER ($99)</th>
                 </tr>
               </thead>
