@@ -328,7 +328,7 @@ export async function POST(request, { params }) {
         return ok({ 
           success: true, 
           subscription: result,
-          redirect: `${originUrl}/chat`
+          redirect: `${originUrl}/thank-you?plan=free`
         });
       }
       
