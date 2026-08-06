@@ -1258,21 +1258,71 @@ async function handleAdminDeleteUser(request, userId) {
   
   // Delete subscription data
   await db.collection('subscriptions').deleteMany({ user_id: userId });
+  await db.collection('user_subscriptions').deleteMany({ user_id: userId });
   
   // Delete user's imprints
   await db.collection('imprints').deleteMany({ user_id: userId });
+  await db.collection('user_imprints').deleteMany({ user_id: userId });
   
   // Delete user's projects
   await db.collection('projects').deleteMany({ user_id: userId });
   
   // Delete any invites created by this user
   await db.collection('invite_codes').deleteMany({ creator_user_id: userId });
+  await db.collection('invite_redemptions').deleteMany({ user_id: userId });
+  
+  // Delete user settings and profiles
+  await db.collection('user_settings').deleteMany({ user_id: userId });
+  await db.collection('user_profiles').deleteMany({ user_id: userId });
+  await db.collection('user_privacy_settings').deleteMany({ user_id: userId });
+  await db.collection('user_voice_settings').deleteMany({ user_id: userId });
+  await db.collection('user_credits').deleteMany({ user_id: userId });
+  await db.collection('user_sessions').deleteMany({ user_id: userId });
+  await db.collection('user_locations').deleteMany({ user_id: userId });
+  
+  // Delete voice and video data
+  await db.collection('voice_samples').deleteMany({ user_id: userId });
+  await db.collection('voice_sessions').deleteMany({ user_id: userId });
+  await db.collection('voice_settings').deleteMany({ user_id: userId });
+  await db.collection('video_edits').deleteMany({ user_id: userId });
+  
+  // Delete usage and audit data
+  await db.collection('usage_counters').deleteMany({ user_id: userId });
+  await db.collection('usage_log').deleteMany({ user_id: userId });
+  await db.collection('audit_log').deleteMany({ user_id: userId });
+  
+  // Delete assessment data
+  await db.collection('assessment_history').deleteMany({ user_id: userId });
+  await db.collection('assessment_answers').deleteMany({ user_id: userId });
+  await db.collection('assessment_slider_answers').deleteMany({ user_id: userId });
+  await db.collection('gradual_assessment_progress').deleteMany({ user_id: userId });
+  await db.collection('inline_assessment_tracker').deleteMany({ user_id: userId });
+  await db.collection('layered_assessment_answers').deleteMany({ user_id: userId });
+  
+  // Delete third-party integrations
+  await db.collection('google_connections').deleteMany({ user_id: userId });
+  await db.collection('google_tokens').deleteMany({ user_id: userId });
+  await db.collection('github_connections').deleteMany({ user_id: userId });
+  await db.collection('composio_connections').deleteMany({ user_id: userId });
+  await db.collection('telegram_mappings').deleteMany({ user_id: userId });
+  
+  // Delete media and uploads
+  await db.collection('chunked_uploads').deleteMany({ user_id: userId });
+  await db.collection('upload_chunks').deleteMany({ user_id: userId });
+  await db.collection('upload_sessions').deleteMany({ user_id: userId });
+  await db.collection('temp_attachments').deleteMany({ user_id: userId });
+  
+  // Delete comparison and support data
+  await db.collection('comparisons').deleteMany({ user_id: userId });
+  await db.collection('support_tickets').deleteMany({ user_id: userId });
+  await db.collection('support_bot_sessions').deleteMany({ user_id: userId });
   
   // Also check for email-based records (in case user_id isn't set)
   await db.collection('users').deleteMany({ email: user.email.toLowerCase() });
   await db.collection('subscriptions').deleteMany({ email: user.email.toLowerCase() });
+  await db.collection('user_subscriptions').deleteMany({ email: user.email.toLowerCase() });
   
-  console.log(`[Admin] Fully deleted user ${userId} (${user.email}) and all associated data`);
+  console.log(`[Admin] Fully deleted user ${userId} (${user.email}) and all associated data from 50+ collections`);
 
   // Log action
   await db.collection('admin_audit_log').insertOne({
