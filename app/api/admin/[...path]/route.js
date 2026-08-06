@@ -1256,6 +1256,22 @@ async function handleAdminDeleteUser(request, userId) {
   await db.collection('announcement_dismissals').deleteMany({ user_id: userId });
   await db.collection('announcement_clicks').deleteMany({ user_id: userId });
   
+  // Delete subscription data
+  await db.collection('subscriptions').deleteMany({ user_id: userId });
+  
+  // Delete user's imprints
+  await db.collection('imprints').deleteMany({ user_id: userId });
+  
+  // Delete user's projects
+  await db.collection('projects').deleteMany({ user_id: userId });
+  
+  // Delete any invites created by this user
+  await db.collection('invite_codes').deleteMany({ creator_user_id: userId });
+  
+  // Also check for email-based records (in case user_id isn't set)
+  await db.collection('users').deleteMany({ email: user.email.toLowerCase() });
+  await db.collection('subscriptions').deleteMany({ email: user.email.toLowerCase() });
+  
   console.log(`[Admin] Fully deleted user ${userId} (${user.email}) and all associated data`);
 
   // Log action

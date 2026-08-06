@@ -3802,3 +3802,24 @@ test_plan:
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+
+agent_communication:
+  - agent: "testing"
+    message: "ADMIN DELETE USER FUNCTIONALITY TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (5/5 test steps passed). ✅ Step 1 (Create Test User): POST /api/auth/register with test-delete@example.com/Test123! successfully creates user with userId returned. ✅ Step 2 (Admin Delete User): Admin login successful with test@soulprint.com/test123, DELETE /api/admin/users/{userId} returns success=true. ✅ Step 3 (Verify Complete Deletion): User not found in GET /api/admin/users list after deletion. MongoDB verification confirms complete deletion from all collections: users (0 records), user_subscriptions (0 records), subscriptions (0 records), profiles (0 records), conversations (0 records), messages (0 records). ✅ Step 4 (Re-register with Same Email - CRITICAL TEST): POST /api/auth/register with same email test-delete@example.com but new passcode NewPass456! returns 200 with new userId. BUG IS FIXED: User can successfully re-register with same email after deletion. The reported bug where users got 'Email already in use' error after admin deletion has been RESOLVED. ✅ Step 5 (Cleanup): Successfully deleted re-registered test user. The main agent's fix to delete from more collections (subscriptions, imprints, projects, invite_codes) and double-check deletion by email (lines 1272-1273 in admin route) is working correctly. All comprehensive tests passed (100% success rate)."
+
+backend:
+  - task: "Admin Delete User - Complete Deletion and Re-registration"
+    implemented: true
+    working: true
+    file: "app/api/admin/[...path]/route.js (handleAdminDeleteUser function, lines 1211-1288)"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Updated admin delete user function to ensure complete deletion and allow re-registration with same email. User reported bug: after admin deletes a user, they cannot register again with same email - getting 'Email already in use' error. CHANGES: (1) Delete from more collections: subscriptions (line 1260), imprints (line 1263), projects (line 1266), invite_codes (line 1269). (2) Double-check deletion by email (lines 1272-1273): await db.collection('users').deleteMany({ email: user.email.toLowerCase() }), await db.collection('subscriptions').deleteMany({ email: user.email.toLowerCase() }). This ensures any email-based records are also removed, not just user_id-based records."
+      - working: true
+        agent: "testing"
+        comment: "ADMIN DELETE USER FUNCTIONALITY TESTING COMPLETE: All critical functionality working perfectly with 100% success rate (5/5 test steps passed). ✅ Step 1 (Create Test User): POST /api/auth/register with test-delete@example.com/Test123! successfully creates user with userId returned. ✅ Step 2 (Admin Delete User): Admin login successful with test@soulprint.com/test123, DELETE /api/admin/users/{userId} returns success=true. ✅ Step 3 (Verify Complete Deletion): User not found in GET /api/admin/users list after deletion. MongoDB direct verification confirms complete deletion from all collections: users (0 records), user_subscriptions (0 records), subscriptions (0 records), profiles (0 records), conversations (0 records), messages (0 records). All user data completely removed from database. ✅ Step 4 (Re-register with Same Email - CRITICAL TEST): POST /api/auth/register with same email test-delete@example.com but new passcode NewPass456! returns 200 with new userId. This is the CRITICAL test - BUG IS FIXED: User can successfully re-register with same email after deletion. The reported bug where users got 'Email already in use' error after admin deletion has been RESOLVED. ✅ Step 5 (Cleanup): Successfully deleted re-registered test user. The main agent's fix to delete from more collections (subscriptions, imprints, projects, invite_codes) and double-check deletion by email (lines 1272-1273: deleteMany by email for users and subscriptions) is working correctly. The handleAdminDeleteUser function now properly removes all traces of the user from the database, allowing clean re-registration. All comprehensive tests passed (100% success rate)."
