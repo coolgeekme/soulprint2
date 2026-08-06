@@ -40,7 +40,7 @@ async function handleGetProfile(request) {
     discovery_source: profile?.discovery_source || '',
     custom_greeting: profile?.custom_greeting || '',
     soul_profile_summary: profile?.soul_profile_summary || '',
-    onboarding_complete: profile?.onboarding_complete || false,
+    onboarding_completed: profile?.onboarding_completed || false,
     assessment_complete: profile?.assessment_complete || false,
     created_at: user.created_at,
   });
@@ -51,7 +51,7 @@ async function handleUpdateProfile(request) {
   if (!user) return err('Unauthorized', 401);
 
   const body = await request.json();
-  const { display_name, descriptors, field, help_with, discovery_source, assistant_name, onboarding_complete, custom_greeting, default_model } = body;
+  const { display_name, descriptors, field, help_with, discovery_source, assistant_name, onboarding_completed, custom_greeting, default_model } = body;
 
   const db = await getDb();
   const update = { updated_at: new Date() };
@@ -62,7 +62,7 @@ async function handleUpdateProfile(request) {
   if (help_with !== undefined) update.help_with = help_with;
   if (discovery_source !== undefined) update.discovery_source = discovery_source;
   if (assistant_name !== undefined) update.assistant_name = assistant_name;
-  if (onboarding_complete !== undefined) update.onboarding_complete = onboarding_complete;
+  if (onboarding_completed !== undefined) update.onboarding_completed = onboarding_completed;
   if (custom_greeting !== undefined) update.custom_greeting = custom_greeting;
   if (default_model !== undefined) update.default_model = default_model;
 

@@ -135,7 +135,7 @@ async function handleRegister(request) {
     help_with: [],
     discovery_source: '',
     soul_profile_summary: '',
-    onboarding_complete: false,
+    onboarding_completed: false,
     assessment_complete: false,
     created_at: now,
   });
@@ -155,7 +155,7 @@ async function handleRegister(request) {
     userId, 
     role, 
     accepted: true,  // Auto-accept all new users
-    onboarding_complete: false,
+    onboarding_completed: false,
     assessment_complete: false,
   });
 }
@@ -204,7 +204,7 @@ async function handleLogin(request) {
     userId: user.id,
     role: user.role,
     accepted: user.accepted,
-    onboarding_complete: profile?.onboarding_complete || false,
+    onboarding_completed: profile?.onboarding_completed || false,
     assessment_complete: profile?.assessment_complete || false,
   });
 }
@@ -360,7 +360,7 @@ async function handleFirebaseAuth(request) {
       help_with: [],
       discovery_source: '',
       soul_profile_summary: '',
-      onboarding_complete: false,
+      onboarding_completed: false,
       assessment_complete: false,
       created_at: now,
     });
@@ -383,7 +383,7 @@ async function handleFirebaseAuth(request) {
     userId: user.id,
     role: user.role,
     accepted: user.accepted,
-    onboarding_complete: profile?.onboarding_complete || false,
+    onboarding_completed: profile?.onboarding_completed || false,
     assessment_complete: profile?.assessment_complete || false,
     firebase_linked: true,
   });
@@ -732,7 +732,7 @@ async function handleMe(request) {
         ...profile,
         display_name: profile?.display_name || user.display_name,
       },
-      onboarding_complete: profile?.onboarding_complete || false,
+      onboarding_completed: profile?.onboarding_completed || false,
       assessment_complete: profile?.assessment_complete || false,
       connected_accounts: connectedAccounts,
       ...(refreshedToken ? { refreshed_token: refreshedToken } : {}),
