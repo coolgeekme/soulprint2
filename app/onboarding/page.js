@@ -79,9 +79,13 @@ export default function OnboardingPage() {
           field,
           help_with: helpWith,
           discovery_source: discovery,
-          onboarding_complete: true,
+          onboarding_completed: true, // Fixed: was onboarding_complete (missing 'd')
         }),
       });
+      
+      // Mark onboarding as seen in localStorage to prevent redirect loops
+      localStorage.setItem('sp_onboarding_seen', 'true');
+      
       // Check if user is accepted or waitlisted
       const meRes = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
       const meData = await meRes.json();

@@ -1,27 +1,22 @@
 #!/usr/bin/env python3
 """
-Backend API Testing Script for Google OAuth Flow
-Tests the OAuth endpoints and redirect URI configuration
+Backend API Testing Script for Onboarding Loop Fix
+Tests the complete onboarding flow to verify field name consistency
 """
 
 import requests
 import json
 import sys
-from urllib.parse import urlparse, parse_qs
+from datetime import datetime
 
-# Configuration
-BASE_URL = "https://soulprint-engine.preview.emergentagent.com"
-API_BASE = f"{BASE_URL}/api"
+# Backend URL from environment
+BASE_URL = "https://soulprint-engine.preview.emergentagent.com/api"
 
-# Test credentials
-TEST_EMAIL = "testchat@example.com"
-TEST_PASSWORD = "Test123456"
-
-def print_test(name):
-    """Print test name"""
+def print_test_header(test_name):
+    """Print a formatted test header"""
     print(f"\n{'='*80}")
-    print(f"TEST: {name}")
-    print('='*80)
+    print(f"TEST: {test_name}")
+    print(f"{'='*80}")
 
 def print_result(success, message):
     """Print test result"""
@@ -29,282 +24,294 @@ def print_result(success, message):
     print(f"{status}: {message}")
     return success
 
-def login():
-    """Login and get auth token"""
-    print_test("Authentication - Login")
+def test_onboarding_loop_fix():
+    """
+    Test the onboarding loop fix to ensure users can complete onboarding
+    without getting stuck in a redirect loop.
+    
+    Issue: Onboarding page was setting onboarding_complete (no 'd')
+           Chat page was checking for onboarding_completed (with 'd')
+           Field name mismatch caused the loop
+    
+    Fix: Changed onboarding page to set onboarding_completed (with 'd')
+    
+    Test Flow:
+    1. Create test user via POST /api/auth/register
+    2. Check initial onboarding status via GET /api/user/profile
+    3. Complete onboarding via PUT /api/user/profile with onboarding_completed=true
+    4. Verify flag is saved via GET /api/user/profile again
+    """
+    
+    print_test_header("Onboarding Loop Fix - Field Name Consistency Test")
+    
+    # Generate unique test email
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    test_email = f"test-onboarding-{timestamp}@example.com"
+    test_passcode = "Test123456!"
+    
+    all_tests_passed = True
+    token = None
+    user_id = None
+    
     try:
-        response = requests.post(
-            f"{API_BASE}/auth/login",
-            json={"email": TEST_EMAIL, "passcode": TEST_PASSWORD},
-            timeout=10
+        # Step 1: Create Test User
+        print_test_header("Step 1: Create Test User")
+        print(f"Creating user: {test_email}")
+        
+        register_response = requests.post(
+            f"{BASE_URL}/auth/register",
+            json={
+                "email": test_email,
+                "passcode": test_passcode
+            },
+            timeout=30
         )
         
-        if response.status_code == 200:
-            data = response.json()
+        print(f"Status Code: {register_response.status_code}")
+        print(f"Response: {json.dumps(register_response.json(), indent=2)}")
+        
+        if register_response.status_code == 200:
+            data = register_response.json()
             token = data.get('token')
-            if token:
-                print_result(True, f"Login successful, token received")
-                return token
-            else:
-                print_result(False, "Login response missing token")
-                return None
-        else:
-            print_result(False, f"Login failed with status {response.status_code}: {response.text}")
-            return None
-    except Exception as e:
-        print_result(False, f"Login error: {str(e)}")
-        return None
-
-def test_google_oauth_start(token):
-    """Test Case 1: Google OAuth Start Endpoint Accessible"""
-    print_test("Google OAuth Start Endpoint (POST /api/auth/google)")
-    
-    try:
-        headers = {"Authorization": f"Bearer {token}"}
-        response = requests.post(
-            f"{API_BASE}/auth/google",
-            headers=headers,
-            timeout=10
-        )
-        
-        print(f"Response Status: {response.status_code}")
-        print(f"Response Body: {response.text[:500]}")
-        
-        if response.status_code != 200:
-            return print_result(False, f"Expected 200, got {response.status_code}")
-        
-        data = response.json()
-        
-        if 'authUrl' not in data:
-            return print_result(False, "Response missing 'authUrl' field")
-        
-        auth_url = data['authUrl']
-        print(f"Auth URL received: {auth_url[:100]}...")
-        
-        return print_result(True, "OAuth start endpoint returns 200 with authUrl")
-        
-    except Exception as e:
-        return print_result(False, f"Error: {str(e)}")
-
-def test_oauth_redirect_uri(token):
-    """Test Case 2: OAuth Redirect URI Check"""
-    print_test("OAuth Redirect URI Validation")
-    
-    try:
-        headers = {"Authorization": f"Bearer {token}"}
-        response = requests.post(
-            f"{API_BASE}/auth/google",
-            headers=headers,
-            timeout=10
-        )
-        
-        if response.status_code != 200:
-            return print_result(False, f"Failed to get authUrl: {response.status_code}")
-        
-        data = response.json()
-        auth_url = data.get('authUrl')
-        
-        if not auth_url:
-            return print_result(False, "No authUrl in response")
-        
-        # Parse the auth URL
-        parsed = urlparse(auth_url)
-        params = parse_qs(parsed.query)
-        
-        print(f"Parsed OAuth URL:")
-        print(f"  - Base: {parsed.scheme}://{parsed.netloc}{parsed.path}")
-        print(f"  - Query params: {list(params.keys())}")
-        
-        # Check redirect_uri parameter
-        if 'redirect_uri' not in params:
-            return print_result(False, "Missing 'redirect_uri' parameter in OAuth URL")
-        
-        redirect_uri = params['redirect_uri'][0]
-        print(f"  - redirect_uri: {redirect_uri}")
-        
-        # Verify redirect_uri is NOT undefined/null
-        if not redirect_uri or redirect_uri in ['undefined', 'null', '']:
-            return print_result(False, f"redirect_uri is invalid: '{redirect_uri}'")
-        
-        # Verify redirect_uri format
-        if not redirect_uri.startswith('https://'):
-            return print_result(False, f"redirect_uri should use https: {redirect_uri}")
-        
-        # Verify redirect_uri ends with /api/auth/google/callback
-        if not redirect_uri.endswith('/api/auth/google/callback'):
-            return print_result(False, f"redirect_uri should end with /api/auth/google/callback: {redirect_uri}")
-        
-        # Verify domain matches request host (dynamic, not hardcoded)
-        redirect_domain = urlparse(redirect_uri).netloc
-        expected_domain = urlparse(BASE_URL).netloc
-        
-        print(f"  - Redirect domain: {redirect_domain}")
-        print(f"  - Expected domain: {expected_domain}")
-        
-        if redirect_domain != expected_domain:
-            return print_result(False, f"redirect_uri domain mismatch: {redirect_domain} vs {expected_domain}")
-        
-        return print_result(True, f"redirect_uri is properly formed: {redirect_uri}")
-        
-    except Exception as e:
-        return print_result(False, f"Error: {str(e)}")
-
-def test_callback_endpoint_accessible():
-    """Test Case 3: Callback Endpoint Accessible (without code - should return error but not 404)"""
-    print_test("OAuth Callback Endpoint Accessibility (GET /api/auth/google/callback)")
-    
-    try:
-        # Call callback without code parameter - should return 400/401, NOT 404
-        response = requests.get(
-            f"{API_BASE}/auth/google/callback",
-            timeout=10,
-            allow_redirects=False  # Don't follow redirects
-        )
-        
-        print(f"Response Status: {response.status_code}")
-        print(f"Response Headers: {dict(response.headers)}")
-        
-        # Check if it's a redirect (302/301)
-        if response.status_code in [301, 302, 303, 307, 308]:
-            location = response.headers.get('Location', '')
-            print(f"Redirect Location: {location}")
+            user_id = data.get('userId')
             
-            # This is acceptable - callback is redirecting (likely to error page)
-            if 'error' in location:
-                return print_result(True, f"Callback endpoint registered (redirects with error): {response.status_code}")
-            else:
-                return print_result(True, f"Callback endpoint registered (redirects): {response.status_code}")
+            # Check if response includes onboarding_complete field (backend uses this)
+            has_onboarding_complete = 'onboarding_complete' in data
+            # Check if response includes onboarding_completed field (frontend expects this)
+            has_onboarding_completed = 'onboarding_completed' in data
+            
+            print(f"\n🔍 Field Name Analysis:")
+            print(f"   - Response has 'onboarding_complete' (no 'd'): {has_onboarding_complete}")
+            print(f"   - Response has 'onboarding_completed' (with 'd'): {has_onboarding_completed}")
+            
+            if has_onboarding_complete and not has_onboarding_completed:
+                print(f"\n⚠️  MISMATCH DETECTED: Backend returns 'onboarding_complete' but frontend expects 'onboarding_completed'")
+                all_tests_passed = False
+            
+            all_tests_passed &= print_result(
+                token is not None and user_id is not None,
+                f"User created successfully with token and userId"
+            )
+        else:
+            all_tests_passed &= print_result(False, f"Failed to create user: {register_response.text}")
+            return all_tests_passed
         
-        # Should NOT be 404 (endpoint not found)
-        if response.status_code == 404:
-            return print_result(False, "Callback endpoint returns 404 - endpoint not registered!")
+        # Step 2: Check Initial Onboarding Status
+        print_test_header("Step 2: Check Initial Onboarding Status via GET /api/auth/me")
         
-        # 400 or 401 is acceptable (missing OAuth code)
-        if response.status_code in [400, 401]:
-            return print_result(True, f"Callback endpoint registered (returns {response.status_code} for missing code)")
-        
-        # Any other non-404 status means endpoint exists
-        return print_result(True, f"Callback endpoint registered (returns {response.status_code})")
-        
-    except Exception as e:
-        return print_result(False, f"Error: {str(e)}")
-
-def test_oauth_url_structure(token):
-    """Test Case 4: OAuth URL Structure"""
-    print_test("OAuth URL Structure Validation")
-    
-    try:
-        headers = {"Authorization": f"Bearer {token}"}
-        response = requests.post(
-            f"{API_BASE}/auth/google",
-            headers=headers,
-            timeout=10
+        me_response = requests.get(
+            f"{BASE_URL}/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30
         )
         
-        if response.status_code != 200:
-            return print_result(False, f"Failed to get authUrl: {response.status_code}")
+        print(f"Status Code: {me_response.status_code}")
+        print(f"Response: {json.dumps(me_response.json(), indent=2)}")
         
-        data = response.json()
-        auth_url = data.get('authUrl')
+        if me_response.status_code == 200:
+            data = me_response.json()
+            profile = data.get('profile', {})
+            
+            # Check which field name is used in the response
+            has_onboarding_complete = 'onboarding_complete' in profile
+            has_onboarding_completed = 'onboarding_completed' in profile
+            
+            print(f"\n🔍 Field Name Analysis in Profile:")
+            print(f"   - Profile has 'onboarding_complete' (no 'd'): {has_onboarding_complete}")
+            print(f"   - Profile has 'onboarding_completed' (with 'd'): {has_onboarding_completed}")
+            
+            if has_onboarding_complete:
+                onboarding_status = profile.get('onboarding_complete')
+                print(f"   - onboarding_complete value: {onboarding_status}")
+            
+            if has_onboarding_completed:
+                onboarding_status = profile.get('onboarding_completed')
+                print(f"   - onboarding_completed value: {onboarding_status}")
+            
+            if has_onboarding_complete and not has_onboarding_completed:
+                print(f"\n⚠️  CRITICAL ISSUE: Backend returns 'onboarding_complete' but frontend checks for 'onboarding_completed'")
+                print(f"   This will cause the onboarding loop because:")
+                print(f"   1. Frontend sends 'onboarding_completed: true' (line 82 in onboarding/page.js)")
+                print(f"   2. Backend doesn't recognize it (line 421 in auth-handlers.js looks for 'onboarding_complete')")
+                print(f"   3. Chat page checks 'onboarding_completed' (line 569 in chat/page.js)")
+                print(f"   4. Backend returns 'onboarding_complete', so frontend never sees the flag as true")
+                all_tests_passed = False
+            
+            all_tests_passed &= print_result(
+                me_response.status_code == 200,
+                "Profile retrieved successfully"
+            )
+        else:
+            all_tests_passed &= print_result(False, f"Failed to get profile: {me_response.text}")
+            return all_tests_passed
         
-        if not auth_url:
-            return print_result(False, "No authUrl in response")
+        # Step 3: Complete Onboarding with onboarding_completed (with 'd')
+        print_test_header("Step 3: Complete Onboarding via PUT /api/user/profile")
+        print("Sending onboarding_completed: true (with 'd' at end)")
         
-        # Parse the auth URL
-        parsed = urlparse(auth_url)
-        params = parse_qs(parsed.query)
+        profile_update_response = requests.put(
+            f"{BASE_URL}/user/profile",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "display_name": "Test User",
+                "descriptors": ["Entrepreneur"],
+                "field": "Tech",
+                "help_with": ["Research & Analysis"],
+                "discovery_source": "Friend / Referral",
+                "onboarding_completed": True  # Frontend sends this (with 'd')
+            },
+            timeout=30
+        )
         
-        print(f"OAuth URL Structure:")
-        print(f"  - Base URL: {parsed.scheme}://{parsed.netloc}{parsed.path}")
+        print(f"Status Code: {profile_update_response.status_code}")
+        print(f"Response: {json.dumps(profile_update_response.json(), indent=2)}")
         
-        # Verify base URL
-        expected_base = "https://accounts.google.com/o/oauth2/v2/auth"
-        actual_base = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+        all_tests_passed &= print_result(
+            profile_update_response.status_code == 200,
+            "Profile update request completed"
+        )
         
-        if actual_base != expected_base:
-            return print_result(False, f"OAuth base URL incorrect: {actual_base} (expected {expected_base})")
+        # Step 4: Verify Onboarding Flag is Saved
+        print_test_header("Step 4: Verify Onboarding Flag is Saved via GET /api/auth/me")
         
-        print(f"  ✓ Base URL correct: {expected_base}")
+        verify_response = requests.get(
+            f"{BASE_URL}/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30
+        )
         
-        # Check required parameters
-        required_params = ['client_id', 'redirect_uri', 'response_type', 'scope', 'state']
-        missing_params = []
+        print(f"Status Code: {verify_response.status_code}")
+        print(f"Response: {json.dumps(verify_response.json(), indent=2)}")
         
-        for param in required_params:
-            if param not in params:
-                missing_params.append(param)
+        if verify_response.status_code == 200:
+            data = verify_response.json()
+            profile = data.get('profile', {})
+            
+            # Check which field name is present and its value
+            has_onboarding_complete = 'onboarding_complete' in profile
+            has_onboarding_completed = 'onboarding_completed' in profile
+            
+            onboarding_complete_value = profile.get('onboarding_complete')
+            onboarding_completed_value = profile.get('onboarding_completed')
+            
+            print(f"\n🔍 Critical Check - Field Name and Value After Update:")
+            print(f"   - Profile has 'onboarding_complete' (no 'd'): {has_onboarding_complete}")
+            if has_onboarding_complete:
+                print(f"     Value: {onboarding_complete_value}")
+            
+            print(f"   - Profile has 'onboarding_completed' (with 'd'): {has_onboarding_completed}")
+            if has_onboarding_completed:
+                print(f"     Value: {onboarding_completed_value}")
+            
+            # The critical test: Did the flag get saved correctly?
+            if has_onboarding_completed and onboarding_completed_value == True:
+                print(f"\n✅ SUCCESS: onboarding_completed flag is TRUE - Loop fix is working!")
+                all_tests_passed &= print_result(True, "Onboarding flag correctly saved and retrieved with 'd' at end")
+            elif has_onboarding_complete and onboarding_complete_value == True:
+                print(f"\n⚠️  PARTIAL: Backend saved to 'onboarding_complete' (no 'd') instead of 'onboarding_completed' (with 'd')")
+                print(f"   This means:")
+                print(f"   - Backend accepted the update but stored it in the wrong field")
+                print(f"   - Frontend will still see onboarding_completed as undefined/false")
+                print(f"   - User will be stuck in onboarding loop")
+                all_tests_passed = False
             else:
-                value = params[param][0]
-                if param == 'response_type':
-                    if value != 'code':
-                        return print_result(False, f"response_type should be 'code', got '{value}'")
-                    print(f"  ✓ {param}: {value}")
-                elif param == 'scope':
-                    print(f"  ✓ {param}: {value[:50]}...")
-                elif param == 'client_id':
-                    print(f"  ✓ {param}: {value[:30]}...")
-                elif param == 'redirect_uri':
-                    print(f"  ✓ {param}: {value}")
-                elif param == 'state':
-                    print(f"  ✓ {param}: {value[:30]}...")
+                print(f"\n❌ FAILURE: Onboarding flag was NOT saved correctly")
+                print(f"   - Frontend sent: onboarding_completed=true (with 'd')")
+                print(f"   - Backend returned: onboarding_complete={onboarding_complete_value} (no 'd')")
+                print(f"   - This confirms the field name mismatch bug")
+                all_tests_passed = False
+            
+            # Verify other profile fields were saved
+            if profile.get('display_name') == 'Test User':
+                all_tests_passed &= print_result(True, "Display name saved correctly")
+            else:
+                all_tests_passed &= print_result(False, f"Display name not saved correctly: {profile.get('display_name')}")
+        else:
+            all_tests_passed &= print_result(False, f"Failed to verify profile: {verify_response.text}")
         
-        if missing_params:
-            return print_result(False, f"Missing required parameters: {', '.join(missing_params)}")
+        # Step 5: Test with onboarding_complete (no 'd') to see if backend accepts it
+        print_test_header("Step 5: Test Backend Field Name - Try onboarding_complete (no 'd')")
+        print("Sending onboarding_complete: false (no 'd' at end) to test backend compatibility")
         
-        return print_result(True, "OAuth URL has all required parameters with correct structure")
+        profile_update_no_d_response = requests.put(
+            f"{BASE_URL}/user/profile",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "onboarding_complete": False  # Backend expects this (no 'd')
+            },
+            timeout=30
+        )
+        
+        print(f"Status Code: {profile_update_no_d_response.status_code}")
+        
+        # Verify if backend accepted it
+        verify_no_d_response = requests.get(
+            f"{BASE_URL}/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30
+        )
+        
+        if verify_no_d_response.status_code == 200:
+            data = verify_no_d_response.json()
+            profile = data.get('profile', {})
+            
+            onboarding_complete_value = profile.get('onboarding_complete')
+            
+            print(f"\n🔍 Backend Field Name Test:")
+            print(f"   - Sent: onboarding_complete=false (no 'd')")
+            print(f"   - Backend returned: onboarding_complete={onboarding_complete_value}")
+            
+            if onboarding_complete_value == False:
+                print(f"\n✅ CONFIRMED: Backend ONLY accepts 'onboarding_complete' (no 'd')")
+                print(f"   This proves the field name mismatch:")
+                print(f"   - Frontend sends: onboarding_completed (with 'd')")
+                print(f"   - Backend expects: onboarding_complete (no 'd')")
+                print(f"   - Result: Frontend updates are ignored, causing the loop")
+            else:
+                print(f"\n⚠️  Unexpected result: {onboarding_complete_value}")
         
     except Exception as e:
-        return print_result(False, f"Error: {str(e)}")
-
-def main():
-    """Run all tests"""
-    print("\n" + "="*80)
-    print("GOOGLE OAUTH FLOW TESTING")
-    print("="*80)
-    print(f"Base URL: {BASE_URL}")
-    print(f"API Base: {API_BASE}")
-    print(f"Test User: {TEST_EMAIL}")
-    
-    # Login first
-    token = login()
-    if not token:
-        print("\n❌ CRITICAL: Authentication failed. Cannot proceed with OAuth tests.")
-        sys.exit(1)
-    
-    # Run OAuth tests
-    results = []
-    
-    # Test 1: OAuth Start Endpoint
-    results.append(test_google_oauth_start(token))
-    
-    # Test 2: Redirect URI Check
-    results.append(test_oauth_redirect_uri(token))
-    
-    # Test 3: Callback Endpoint Accessible
-    results.append(test_callback_endpoint_accessible())
-    
-    # Test 4: OAuth URL Structure
-    results.append(test_oauth_url_structure(token))
+        print(f"\n❌ ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        all_tests_passed = False
     
     # Summary
-    print("\n" + "="*80)
-    print("TEST SUMMARY")
-    print("="*80)
-    total = len(results)
-    passed = sum(results)
-    failed = total - passed
-    
-    print(f"Total Tests: {total}")
-    print(f"Passed: {passed} ✅")
-    print(f"Failed: {failed} ❌")
-    print(f"Success Rate: {(passed/total*100):.1f}%")
-    
-    if failed > 0:
-        print("\n❌ SOME TESTS FAILED")
-        sys.exit(1)
+    print_test_header("TEST SUMMARY")
+    if all_tests_passed:
+        print("✅ ALL TESTS PASSED - Onboarding loop fix is working correctly")
+        print("   Field name consistency verified between frontend and backend")
     else:
-        print("\n✅ ALL TESTS PASSED")
-        sys.exit(0)
+        print("❌ TESTS FAILED - Onboarding loop bug still exists")
+        print("\n🔧 ROOT CAUSE:")
+        print("   Field name mismatch between frontend and backend:")
+        print("   - Frontend (onboarding/page.js line 82): sends 'onboarding_completed' (with 'd')")
+        print("   - Frontend (chat/page.js line 569): checks 'onboarding_completed' (with 'd')")
+        print("   - Backend (auth-handlers.js line 421): expects 'onboarding_complete' (no 'd')")
+        print("   - Backend (auth-handlers.js line 431): updates 'onboarding_complete' (no 'd')")
+        print("\n🔧 FIX REQUIRED:")
+        print("   Backend needs to be updated to use 'onboarding_completed' (with 'd') to match frontend")
+        print("   Files to update:")
+        print("   - /app/lib/handlers/auth-handlers.js (lines 115, 157, 201, 343, 367, 403, 421, 431)")
+        print("   Change all instances of 'onboarding_complete' to 'onboarding_completed'")
+    
+    return all_tests_passed
 
 if __name__ == "__main__":
-    main()
+    try:
+        success = test_onboarding_loop_fix()
+        sys.exit(0 if success else 1)
+    except KeyboardInterrupt:
+        print("\n\nTest interrupted by user")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n\nFatal error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
