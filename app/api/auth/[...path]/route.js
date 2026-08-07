@@ -608,6 +608,27 @@ async function handleVerifyEmail(request) {
   }
 }
 
+// POST /api/auth/verify-token — lightweight token check for extension
+async function handleVerifyToken(request) {
+  const token = getTokenFromRequest(request);
+  if (!token) return err('Unauthorized', 401);
+
+  const decoded = verifyToken(token);
+  if (!decoded) return err('Invalid token', 401);
+
+  const db = await getDb();
+  const user = await db.collection('users').findOne({ id: decoded.userId });
+  if (!user) return err('User not found', 404);
+
+  return ok({
+    connected: true,
+    user: {
+      email: user.email,
+      role: user.role,
+    },
+  });
+}
+
 // ============================================================
 // ROUTE HANDLER
 // ============================================================
@@ -640,6 +661,8 @@ export async function POST(request, { params }) {
         return await handleSendVerificationEmail(request);
       case 'verify-email':
         return await handleVerifyEmail(request);
+      case 'verify-token':
+        return await handleVerifyToken(request);
       default:
         return err('Auth endpoint not found', 404);
     }
@@ -666,6 +689,10 @@ export async function GET(request, { params }) {
     if (endpoint === 'google' && pathArr[1] === 'callback') {
       // GET /api/auth/google/callback - OAuth callback
       return await handleGoogleAuthCallback(request);
+    }
+
+    if (endpoint === 'verify-token') {
+      return await handleVerifyToken(request);
     }
     
     return err('Auth endpoint not found', 404);

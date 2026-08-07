@@ -537,6 +537,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'schedules') return handleGetSchedules(request);
     if (pathStr === 'schedules/templates') return ok(SCHEDULE_TEMPLATES);
     if (pathStr === 'memories') return handleGetMemories(request);
+    if (pathStr === 'memories/export') return handleGetMemories(request);
     
     // Aliases for user/* prefixed routes (frontend compatibility)
     if (pathStr === 'user/memories') return handleGetMemories(request);
