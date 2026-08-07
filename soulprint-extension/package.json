@@ -1,0 +1,8 @@
+{
+  "name": "soulprint-chrome-extension",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "build": "webpack --mode production", "dev": "webpack --mode development --watch", "check": "eslint src tests webpack.config.js", "test:smoke": "node tests/smoke.mjs" },
+  "dependencies": { "dompurify": "^3.2.6", "highlight.js": "^11.11.1", "lucide-react": "^0.516.0", "marked": "^15.0.12", "react": "^18.3.1", "react-dom": "^18.3.1" },
+  "devDependencies": { "@babel/core": "^7.27.4", "@babel/eslint-parser": "^7.27.1", "@babel/preset-env": "^7.27.2", "@babel/preset-react": "^7.27.1", "babel-loader": "^10.0.0", "copy-webpack-plugin": "^14.0.0", "css-loader": "^7.1.2", "eslint": "^9.28.0", "eslint-plugin-react": "^7.37.5", "puppeteer-core": "^24.10.2", "style-loader": "^4.0.0", "webpack": "^5.99.9", "webpack-cli": "^6.0.1" }
+}

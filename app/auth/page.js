@@ -6,6 +6,7 @@ import { Eye, EyeOff, Mail, Lock, KeyRound, Loader2, CheckCircle } from 'lucide-
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } from '@/lib/firebase';
 import Script from 'next/script';
+import { trackEvent } from '@/lib/analytics';
 
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6Le_c34sAAAAAAEM4XN1qxw3Ropv6KJpjmaynfxT';
 
@@ -27,6 +28,7 @@ export default function AuthPage() {
   const [latency, setLatency] = useState(0);
   const buildId = 'v2.5.0';
   const [sid, setSid] = useState('');
+  const [extensionRedirect, setExtensionRedirect] = useState('');
 
   // Initialize random values on client-side only to avoid hydration mismatch
   useEffect(() => {
@@ -36,6 +38,17 @@ export default function AuthPage() {
     // Check for session expiry redirect
     try {
       const params = new URLSearchParams(window.location.search);
+      const requestedRedirect = params.get('extension_redirect');
+      if (requestedRedirect) {
+        try {
+          const redirect = new URL(requestedRedirect);
+          if (redirect.protocol === 'https:' && /^[a-p]{32}\.chromiumapp\.org$/.test(redirect.hostname)) {
+            setExtensionRedirect(`${redirect.origin}${redirect.pathname}`);
+          }
+        } catch (redirectError) {
+          console.warn('[Auth] Ignoring invalid extension redirect', redirectError);
+        }
+      }
       if (params.get('reason') === 'session_expired') {
         setError('Your session has expired. Please sign in again to continue.');
       }
@@ -129,6 +142,7 @@ export default function AuthPage() {
       }
 
       const data = await syncWithBackend(user, idToken);
+      if (data.is_new_user) trackEvent('signup_completed', { signup_method: 'google' });
       console.log('[Auth] Calling handlePostAuth with:', data);
       handlePostAuth(data);
     } catch (err) {
@@ -192,6 +206,7 @@ export default function AuthPage() {
             const data = await legacyRes.json();
             localStorage.setItem('sp_token', data.token);
             localStorage.setItem('sp_user', JSON.stringify(data));
+            trackEvent('signup_completed', { signup_method: 'email' });
             handlePostAuth(data);
             setLoading(false);
             return;
@@ -211,6 +226,7 @@ export default function AuthPage() {
         
         // Sync with backend and send verification email
         const data = await syncWithBackend(result.user, result.idToken);
+        trackEvent('signup_completed', { signup_method: 'email' });
         
         // Send verification email
         await fetch('/api/auth/send-verification', {
@@ -307,6 +323,11 @@ export default function AuthPage() {
   }
 
   function handlePostAuth(data) {
+    if (extensionRedirect) {
+      const result = new URLSearchParams({ token: data.token });
+      window.location.assign(`${extensionRedirect}#${result.toString()}`);
+      return;
+    }
     if (!data.onboarding_complete) {
       router.push('/onboarding');
     } else if (!data.assessment_complete) {

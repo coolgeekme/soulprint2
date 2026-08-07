@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2, Users, Gift, ArrowRight, Check, X, Eye, EyeOff } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
+import { trackEvent } from '@/lib/analytics';
 
 export default function InvitePage() {
   const params = useParams();
@@ -83,6 +84,8 @@ export default function InvitePage() {
       if (res.ok && data.token) {
         // Save token and redirect
         localStorage.setItem('soulprint_token', data.token);
+        trackEvent('invite_redeemed', { invite_code: code });
+        trackEvent('signup_completed', { signup_method: 'invite' });
         setSuccess(true);
         
         // Redirect to onboarding after a short delay
