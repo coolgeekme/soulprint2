@@ -695,6 +695,9 @@ export async function GET(request, { params }) {
       return await handleVerifyToken(request);
     }
     
+    if (endpoint === 'verify-token') {
+      return await handleVerifyToken(request);
+    }
     return err('Auth endpoint not found', 404);
   } catch (error) {
     console.error('[Auth API] GET Error:', error);
