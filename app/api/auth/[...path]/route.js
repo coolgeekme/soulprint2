@@ -620,13 +620,110 @@ async function handleVerifyToken(request) {
   const user = await db.collection('users').findOne({ id: decoded.userId });
   if (!user) return err('User not found', 404);
 
+  // Resolve identity-platform tier
+  const tier = await resolveIdentityTier(user.id, user.email);
+
   return ok({
     connected: true,
     user: {
       email: user.email,
       role: user.role,
     },
+    tier,
   });
+}
+
+// ── Identity Platform Tier Definitions ──────────────────────────────────
+const IDENTITY_TIERS = {
+  free: {
+    name: 'Free',
+    maxMemories: 10,
+    maxConnectedSurfaces: 1,
+    mcpAccess: false,
+    autoExtraction: false,
+    customImprints: false,
+    advancedSearch: false,
+    importHistory: false,
+  },
+  plus: {
+    name: 'Plus',
+    maxMemories: 250,
+    maxConnectedSurfaces: 3,
+    mcpAccess: false,
+    autoExtraction: true,
+    customImprints: false,
+    advancedSearch: false,
+    importHistory: false,
+  },
+  pro: {
+    name: 'Pro',
+    maxMemories: 2000,
+    maxConnectedSurfaces: Infinity,
+    mcpAccess: true,
+    autoExtraction: true,
+    customImprints: true,
+    advancedSearch: true,
+    importHistory: true,
+  },
+  family: {
+    name: 'Family',
+    maxMemories: 250,
+    maxConnectedSurfaces: 3,
+    mcpAccess: false,
+    autoExtraction: true,
+    customImprints: false,
+    advancedSearch: false,
+    importHistory: false,
+  },
+  team: {
+    name: 'Team',
+    maxMemories: 2000,
+    maxConnectedSurfaces: Infinity,
+    mcpAccess: true,
+    autoExtraction: true,
+    customImprints: true,
+    advancedSearch: true,
+    importHistory: true,
+  },
+};
+
+async function resolveIdentityTier(userId, email) {
+  try {
+    const db = await getDb();
+
+    // Check for an explicit identity-tier override on the user document
+    const user = await db.collection('users').findOne(
+      { id: userId },
+      { projection: { identity_tier: 1 } }
+    );
+    if (user?.identity_tier && IDENTITY_TIERS[user.identity_tier]) {
+      return { id: user.identity_tier, ...IDENTITY_TIERS[user.identity_tier] };
+    }
+
+    // Check active subscription for tier mapping
+    const sub = await db.collection('user_subscriptions').findOne(
+      { user_id: userId, status: 'active' },
+      { projection: { plan_id: 1 } }
+    );
+
+    // Map subscription plans to identity tiers
+    const PLAN_TO_TIER = {
+      free: 'free',
+      base: 'plus',
+      power: 'pro',
+      pro: 'pro',
+      plus: 'plus',
+      family: 'family',
+      team: 'team',
+    };
+
+    const tierId = (sub?.plan_id && PLAN_TO_TIER[sub.plan_id]) || 'free';
+    return { id: tierId, ...IDENTITY_TIERS[tierId] };
+  } catch (e) {
+    // Fallback to free tier on any error
+    console.error('[resolveIdentityTier] Error:', e.message);
+    return { id: 'free', ...IDENTITY_TIERS.free };
+  }
 }
 
 // ============================================================
