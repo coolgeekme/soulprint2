@@ -717,7 +717,14 @@ async function resolveIdentityTier(userId, email) {
       team: 'team',
     };
 
-    const tierId = (sub?.plan_id && PLAN_TO_TIER[sub.plan_id]) || 'free';
+    // Known plan → mapped tier. Unknown paid plan → Pro. No subscription → Free.
+    let tierId
+    if (sub) {
+      tierId = PLAN_TO_TIER[sub.plan_id] || 'pro'
+    } else {
+      tierId = 'free'
+    }
+
     return { id: tierId, ...IDENTITY_TIERS[tierId] };
   } catch (e) {
     // Fallback to free tier on any error
