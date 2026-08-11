@@ -638,7 +638,7 @@ const IDENTITY_TIERS = {
   free: {
     name: 'Free',
     maxMemories: 10,
-    maxConnectedSurfaces: 1,
+    maxConnectedSurfaces: 2,
     mcpAccess: false,
     autoExtraction: false,
     customImprints: false,
