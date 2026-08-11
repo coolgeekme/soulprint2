@@ -694,10 +694,15 @@ async function resolveIdentityTier(userId, email) {
     // Check for an explicit identity-tier override on the user document
     const user = await db.collection('users').findOne(
       { id: userId },
-      { projection: { identity_tier: 1 } }
+      { projection: { identity_tier: 1, role: 1 } }
     );
     if (user?.identity_tier && IDENTITY_TIERS[user.identity_tier]) {
       return { id: user.identity_tier, ...IDENTITY_TIERS[user.identity_tier] };
+    }
+
+    // Superadmin/Admin — always Pro tier, bypassing subscription check
+    if (user?.role === 'superadmin' || user?.role === 'admin') {
+      return { id: 'pro', ...IDENTITY_TIERS.pro };
     }
 
     // Check active subscription for tier mapping
