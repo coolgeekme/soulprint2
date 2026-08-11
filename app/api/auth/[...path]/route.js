@@ -623,11 +623,12 @@ async function handleVerifyToken(request) {
   // Resolve identity-platform tier
   const tier = await resolveIdentityTier(user.id, user.email);
 
+  console.log('[verify-token] Resolved tier for', user.email, 'role:', user.role, 'tier:', tier.id);
   return ok({
     connected: true,
     user: {
       email: user.email,
-      role: user.role,
+      role: user.role || 'user',
     },
     tier,
   });
