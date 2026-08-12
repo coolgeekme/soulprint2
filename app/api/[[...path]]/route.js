@@ -200,6 +200,7 @@ import {
   handleGetImprints,
   handleGetImprintBySlug,
   handleGetMyImprints,
+  handleImprintAccess,
   handleInstallImprint,
   handleUninstallImprint,
   handleGenerateImprint,
@@ -678,6 +679,7 @@ export async function GET(request, { params }) {
     }
 
     // ── Imprints Marketplace GET routes ─────────────────────────────────
+    if (pathStr === 'imprints/access') return handleImprintAccess(request);
     if (pathStr === 'imprints') return handleGetImprints(request);
     if (pathStr === 'imprints/my') return handleGetMyImprints(request);
     if (pathStr === 'imprints/seed') return handleSeedImprints();
@@ -737,7 +739,7 @@ export async function GET(request, { params }) {
       });
     }
     
-    if (pathStr.match(/^imprints\/[^\/]+$/) && pathArr[1] !== 'my' && pathArr[1] !== 'seed' && pathArr[1] !== 'debug') {
+    if (pathStr.match(/^imprints\/[^\/]+$/) && pathArr[1] !== 'my' && pathArr[1] !== 'seed' && pathArr[1] !== 'debug' && pathArr[1] !== 'access') {
       const slug = pathArr[1];
       return handleGetImprintBySlug(request, slug);
     }
