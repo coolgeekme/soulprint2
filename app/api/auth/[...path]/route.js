@@ -639,7 +639,7 @@ const IDENTITY_TIERS = {
   free: {
     name: 'Free',
     maxMemories: 10,
-    maxConnectedSurfaces: 1,
+    maxConnectedSurfaces: 2,
     mcpAccess: false,
     autoExtraction: false,
     customImprints: false,
@@ -695,10 +695,15 @@ async function resolveIdentityTier(userId, email) {
     // Check for an explicit identity-tier override on the user document
     const user = await db.collection('users').findOne(
       { id: userId },
-      { projection: { identity_tier: 1 } }
+      { projection: { identity_tier: 1, role: 1 } }
     );
     if (user?.identity_tier && IDENTITY_TIERS[user.identity_tier]) {
       return { id: user.identity_tier, ...IDENTITY_TIERS[user.identity_tier] };
+    }
+
+    // Superadmin/Admin — always Pro tier, bypassing subscription check
+    if (user?.role === 'superadmin' || user?.role === 'admin') {
+      return { id: 'pro', ...IDENTITY_TIERS.pro };
     }
 
     // Check active subscription for tier mapping
@@ -719,13 +724,13 @@ async function resolveIdentityTier(userId, email) {
     };
 
     // Known plan → mapped tier. Unknown paid plan → Pro. No subscription → Free.
-    let tierId;
+    let tierId
     if (sub) {
-      tierId = PLAN_TO_TIER[sub.plan_id] || 'pro';  // Defaults to pro if subscription exists
+      tierId = PLAN_TO_TIER[sub.plan_id] || 'pro'
     } else {
-      tierId = 'free';
+      tierId = 'free'
     }
-    
+
     return { id: tierId, ...IDENTITY_TIERS[tierId] };
   } catch (e) {
     // Fallback to free tier on any error
