@@ -4,6 +4,7 @@ import { getDb, ensureCriticalIndexes } from '@/lib/mongodb';
 import { generateToken, hashPassword, comparePassword, getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { sendWelcomeEmail, sendBetaCodeEmail } from '@/lib/email';
 import { ok, err, authenticate, requireAdmin, checkRateLimit } from '@/lib/api-utils';
+import { isTeamProEmail } from '@/lib/handlers/team-access';
 import { 
   handleGoogleAuthStart, 
   handleGoogleAuthCallback 
@@ -703,6 +704,11 @@ async function resolveIdentityTier(userId, email) {
 
     // Superadmin/Admin — always Pro tier, bypassing subscription check
     if (user?.role === 'superadmin' || user?.role === 'admin') {
+      return { id: 'pro', ...IDENTITY_TIERS.pro };
+    }
+
+    // Team Pro domain bypass (@archeforge.com, etc.)
+    if (email && isTeamProEmail(email)) {
       return { id: 'pro', ...IDENTITY_TIERS.pro };
     }
 
