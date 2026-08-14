@@ -566,8 +566,10 @@ export default function ChatPage() {
         const customGreeting = d.profile?.custom_greeting;
         
         // Check if new user (redirect to onboarding if they haven't completed it)
+        // Superadmins and admins skip onboarding
         const hasSeenOnboarding = localStorage.getItem('sp_onboarding_seen');
-        if (!hasSeenOnboarding && !d.profile?.onboarding_completed) {
+        const isAdmin = d.role === 'superadmin' || d.role === 'admin';
+        if (!hasSeenOnboarding && !d.profile?.onboarding_completed && !isAdmin) {
           // Redirect to onboarding instead of just showing a popup
           router.push('/onboarding');
           return;
