@@ -88,6 +88,7 @@ async function handleGetSoulProfile(request) {
   const memories = await db.collection('user_memories').find({ user_id: user.id }).limit(50).toArray();
   const latestSnapshot = await db.collection('soulprint_snapshots')
     .findOne({ user_id: user.id }, { sort: { created_at: -1 } });
+  const commProfile = await db.collection('communication_profiles').findOne({ user_id: user.id });
 
   // Surface values/interests from the latest SoulPrint snapshot. The assessment
   // generates them, but they're stored in soulprint_snapshots — not
@@ -108,6 +109,24 @@ async function handleGetSoulProfile(request) {
       default_model: profile?.default_model || null,
     },
     soul_insights: hasInsights ? insights : null,
+    // Full assessment payload: 4 communication trait axes + latest SoulPrint snapshot.
+    // The extension maps these onto communicationProfile / soulprintSnapshot; the MCP
+    // mirrors the same shape so both inject the identical identity.
+    communication_profile: commProfile
+      ? {
+          directness: commProfile.directness,
+          emotional_warmth: commProfile.emotional_warmth,
+          information_density: commProfile.information_density,
+          proactivity: commProfile.proactivity,
+        }
+      : null,
+    soulprint_snapshot: latestSnapshot
+      ? {
+          summary: latestSnapshot.summary,
+          communication_style: latestSnapshot.communication_style,
+          interests: latestSnapshot.interests,
+        }
+      : null,
     assessment_answers: assessmentAnswers.length,
     memory_count: memories.length,
   });
