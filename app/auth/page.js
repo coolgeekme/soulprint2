@@ -307,14 +307,20 @@ export default function AuthPage() {
   }
 
   function handlePostAuth(data) {
-    if (!data.onboarding_complete) {
+    // Admins always go to admin dashboard
+    if (data.role === 'admin' || data.role === 'superadmin') {
+      router.push('/admin');
+      return;
+    }
+    
+    // Check onboarding status - but only redirect if explicitly false
+    // (undefined/null = existing user without the field = skip onboarding)
+    if (data.onboarding_complete === false) {
       router.push('/onboarding');
-    } else if (!data.assessment_complete) {
+    } else if (data.assessment_complete === false) {
       router.push('/assessment');
     } else if (!data.accepted && data.role === 'user') {
       router.push('/waitlist');
-    } else if (data.role === 'admin' || data.role === 'superadmin') {
-      router.push('/admin');
     } else {
       router.push('/chat');
     }
