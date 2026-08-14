@@ -86,6 +86,16 @@ async function handleGetSoulProfile(request) {
   const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
   const assessmentAnswers = await db.collection('assessment_answers').find({ user_id: user.id }).toArray();
   const memories = await db.collection('user_memories').find({ user_id: user.id }).limit(50).toArray();
+  const latestSnapshot = await db.collection('soulprint_snapshots')
+    .findOne({ user_id: user.id }, { sort: { created_at: -1 } });
+
+  // Surface values/interests from the latest SoulPrint snapshot. The assessment
+  // generates them, but they're stored in soulprint_snapshots — not
+  // soul_profiles.insights — so merge them in here.
+  const insights = soulProfile?.insights ? { ...soulProfile.insights } : {};
+  if (latestSnapshot?.values != null) insights.values = latestSnapshot.values;
+  if (latestSnapshot?.interests != null) insights.interests = latestSnapshot.interests;
+  const hasInsights = Object.keys(insights).length > 0;
 
   return ok({
     profile: {
@@ -97,7 +107,7 @@ async function handleGetSoulProfile(request) {
       soul_profile_summary: profile?.soul_profile_summary,
       default_model: profile?.default_model || null,
     },
-    soul_insights: soulProfile?.insights || null,
+    soul_insights: hasInsights ? insights : null,
     assessment_answers: assessmentAnswers.length,
     memory_count: memories.length,
   });
