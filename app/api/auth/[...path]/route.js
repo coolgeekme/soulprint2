@@ -205,8 +205,8 @@ async function handleLogin(request) {
     userId: user.id,
     role: user.role,
     accepted: user.accepted,
-    onboarding_completed: profile?.onboarding_completed || false,
-    assessment_complete: profile?.assessment_complete || false,
+    onboarding_completed: profile?.onboarding_completed ?? null,
+    assessment_complete: profile?.assessment_complete ?? null,
   });
 }
 
@@ -384,8 +384,8 @@ async function handleFirebaseAuth(request) {
     userId: user.id,
     role: user.role,
     accepted: user.accepted,
-    onboarding_completed: profile?.onboarding_completed || false,
-    assessment_complete: profile?.assessment_complete || false,
+    onboarding_completed: profile?.onboarding_completed ?? null,
+    assessment_complete: profile?.assessment_complete ?? null,
     firebase_linked: true,
   });
 }

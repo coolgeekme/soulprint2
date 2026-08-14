@@ -576,13 +576,15 @@ function ChatPageInner() {
         // 3. User has seen onboarding before (returning user)
         const hasSeenOnboarding = localStorage.getItem('sp_onboarding_seen');
         const isAdmin = d.role === 'superadmin' || d.role === 'admin';
-        const completedOnboarding = d.profile?.onboarding_completed === true;
+        const needsOnboarding = d.profile?.onboarding_completed === false;
         
         // Only redirect to onboarding if ALL conditions are true:
         // - Not an admin
         // - Haven't completed onboarding
         // - First time visiting (no localStorage flag)
-        if (!isAdmin && !completedOnboarding && !hasSeenOnboarding) {
+        // Only redirect to onboarding if the user has EXPLICITLY not completed
+        // it (null/undefined = legacy/existing user = skip onboarding)
+        if (!isAdmin && needsOnboarding && !hasSeenOnboarding) {
           // Redirect to onboarding
           router.push('/onboarding');
           return;

@@ -315,7 +315,7 @@ export default function AuthPage() {
     
     // Check onboarding status - but only redirect if explicitly false
     // (undefined/null = existing user without the field = skip onboarding)
-    if (data.onboarding_complete === false) {
+    if (data.onboarding_completed === false) {
       router.push('/onboarding');
     } else if (data.assessment_complete === false) {
       router.push('/assessment');
