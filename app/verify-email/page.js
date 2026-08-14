@@ -1,11 +1,15 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle, XCircle, Loader2, Mail } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 export default function VerifyEmailPage() {
+  return <Suspense fallback={null}><VerifyEmailPageInner /></Suspense>;
+}
+
+function VerifyEmailPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState('loading'); // 'loading' | 'success' | 'error' | 'no-token'

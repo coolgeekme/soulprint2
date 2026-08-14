@@ -82,6 +82,10 @@ import { buildProjectImprintMap } from '@/lib/handlers/imprint-context';
 
 
 export default function ChatPage() {
+  return <Suspense fallback={null}><ChatPageInner /></Suspense>;
+}
+
+function ChatPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();

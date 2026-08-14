@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
@@ -11,6 +11,10 @@ import Link from 'next/link'
 // ═══════════════════════════════════════════════════════════════
 
 export default function SubscriptionSuccessPage() {
+  return <Suspense fallback={null}><SubscriptionSuccessPageInner /></Suspense>;
+}
+
+function SubscriptionSuccessPageInner() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get('session_id')
   const [purchase, setPurchase] = useState(null)

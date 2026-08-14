@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { readFile, stat } from 'fs/promises';
 import path from 'path';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/pdf/serve?file=/tmp/report_1234.pdf
  * 

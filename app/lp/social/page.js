@@ -469,7 +469,7 @@ export default function SocialLandingPage() {
                   <span className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center">{item.step}</span>
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3">{item.title}</h3>
-                <p className="text-gray-300 text-sm leading-relaxed max-w-xs mx-auto">{f.desc}</p>
+                <p className="text-gray-300 text-sm leading-relaxed max-w-xs mx-auto">{item.desc}</p>
               </div>
             ))}
           </div>

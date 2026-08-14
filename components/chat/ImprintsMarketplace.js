@@ -572,7 +572,7 @@ export function ActiveImprintBadge({ token, onClick }) {
 }
 
 // ── Main Marketplace Modal ──────────────────────────────────────────────────
-export default function ImprintsMarketplace({ open, onClose, token, projects, onAssignmentsChanged }) {
+export default function ImprintsMarketplace({ open, onClose, token, projects, onAssignmentsChanged, canCustom = false }) {
   const [view, setView] = useState('library'); // library | myimprints | detail | generator
   const [imprints, setImprints] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -653,6 +653,7 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
                 <Button
                   onClick={() => setView('generator')}
                   size="sm"
+                  disabled={!canCustom}
                   className="bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-700 hover:to-pink-700 text-xs h-8"
                 >
                   <Wand2 className="w-3 h-3 mr-1.5" /> Create Custom
@@ -857,7 +858,8 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
                     <div className="flex flex-col items-center justify-center py-8 text-center border border-dashed border-border/60 rounded-xl">
                       <Wand2 className="w-8 h-8 text-muted-foreground/30 mb-2" />
                       <p className="text-sm text-muted-foreground">No custom imprints yet</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">Use the generator to create your first persona</p>
+                      <p className="text-xs text-muted-foreground/60 mt-1">{canCustom ? 'Use the generator to create your first persona' : 'Custom personas are available on Pro and Team plans'}</p>
+                      {canCustom && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -866,6 +868,7 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
                       >
                         <Wand2 className="w-3 h-3 mr-1.5" /> Create Custom
                       </Button>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -987,6 +990,7 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
         )}
 
         {view === 'generator' && (
+          canCustom ? (
           <div className="p-5 flex-1 flex flex-col overflow-hidden">
             <ImprintGenerator
               token={token}
@@ -995,6 +999,13 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
               onBack={() => setView('library')}
             />
           </div>
+          ) : (
+          <div className="p-8 flex-1 flex flex-col items-center justify-center text-center gap-2">
+            <Wand2 className="w-8 h-8 text-muted-foreground/30" />
+            <p className="text-sm text-muted-foreground">Custom persona generation is available on Pro and Team plans.</p>
+            <Button variant="ghost" size="sm" onClick={() => setView('library')} className="mt-2 text-xs">Back to library</Button>
+          </div>
+          )
         )}
       </DialogContent>
     </Dialog>

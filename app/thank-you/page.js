@@ -1,11 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Check, Sparkles, Crown, Rocket, ArrowRight } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 export default function ThankYouPage() {
+  return <Suspense fallback={null}><ThankYouPageInner /></Suspense>;
+}
+
+function ThankYouPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [plan, setPlan] = useState('base');

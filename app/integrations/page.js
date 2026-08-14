@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   ArrowLeft, Mail, Calendar, FolderOpen, Check, X, Loader2, 
@@ -20,6 +20,10 @@ const GoogleIcon = () => (
 );
 
 export default function IntegrationsPage() {
+  return <Suspense fallback={null}><IntegrationsPageInner /></Suspense>;
+}
+
+function IntegrationsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [token, setToken] = useState(null);
