@@ -973,9 +973,9 @@ async function handleAdminGetUsers(request) {
 
   // Apply onboarding/assessment filters
   if (onboardingFilter === 'complete') {
-    users = users.filter(u => profileMap[u.id]?.onboarding_complete === true);
+    users = users.filter(u => profileMap[u.id]?.onboarding_completed === true);
   } else if (onboardingFilter === 'incomplete') {
-    users = users.filter(u => !profileMap[u.id]?.onboarding_complete);
+    users = users.filter(u => !profileMap[u.id]?.onboarding_completed);
   }
   
   if (assessmentFilter === 'complete') {
@@ -1057,7 +1057,7 @@ async function handleAdminGetUsers(request) {
         assessment_complete: profileMap[u.id]?.assessment_complete || false,
         assessment_answer_count: answerCount,
         assessment_type: assessmentType,
-        onboarding_complete: profileMap[u.id]?.onboarding_complete || false,
+        onboarding_complete: profileMap[u.id]?.onboarding_completed || false,
         plan_id: planId,
         plan_status: sub?.status || 'active',
         // Token usage metrics
@@ -1178,7 +1178,7 @@ async function handleAdminCreateUser(request) {
     display_name: display_name || '',
     role: role || 'user',
     accepted: accepted ?? true,
-    onboarding_complete: false,
+    onboarding_completed: false,
     assessment_complete: false,
     created_at: new Date(),
     created_by: admin.id,
@@ -1547,7 +1547,7 @@ async function handleAdminGetUserDetails(request, userId) {
     profile: profile ? {
       display_name: profile.display_name,
       assistant_name: profile.assistant_name,
-      onboarding_complete: profile.onboarding_complete,
+      onboarding_complete: profile.onboarding_completed,
       assessment_complete: profile.assessment_complete,
       field: profile.field,
       help_with: profile.help_with,
@@ -1680,7 +1680,7 @@ async function handleAdminGetWaitlist(request) {
       accepted: u.accepted,
       created_at: u.created_at,
       assessment_complete: profileMap[u.id]?.assessment_complete || false,
-      onboarding_complete: profileMap[u.id]?.onboarding_complete || false,
+      onboarding_complete: profileMap[u.id]?.onboarding_completed || false,
     })),
   });
 }
@@ -2398,7 +2398,7 @@ async function handleAdminExportUsers(request) {
       invited_by: u.invited_by ? 'Yes' : 'No',
       auth_provider: u.auth_provider || 'legacy',
       discovery_source: profile.discovery_source || '',
-      onboarding_complete: profile.onboarding_complete ? 'Yes' : 'No',
+      onboarding_complete: profile.onboarding_completed ? 'Yes' : 'No',
       assessment_complete: profile.assessment_complete ? 'Yes' : 'No',
       message_count: msgCount,
       field: profile.field || '',
@@ -2945,7 +2945,7 @@ async function handleRedeemInviteCode(request) {
     help_with: [],
     discovery_source: 'invite',
     soul_profile_summary: '',
-    onboarding_complete: false,
+    onboarding_completed: false,
     assessment_complete: false,
     created_at: now,
   });
@@ -2960,7 +2960,7 @@ async function handleRedeemInviteCode(request) {
     userId,
     role: 'user',
     accepted: true,
-    onboarding_complete: false,
+    onboarding_completed: false,
     assessment_complete: false,
     invite_code: newInviteCode, // Their own invite code
   });
