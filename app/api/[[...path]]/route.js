@@ -52,6 +52,11 @@ import {
   parseLocationQuery,
   extractPlaceType,
 } from '@/lib/handlers/location-services';
+import {
+  handleDeviceAuth,
+  handleTokenExchange,
+  handleDeviceActivate,
+} from '@/lib/handlers/device-auth';
 
 import {
   detectGoogleIntent,
@@ -940,6 +945,9 @@ export async function POST(request, { params }) {
     if (pathStr === 'user/memories/extract') return handleExtractMemories(request);
     if (pathStr === 'memories/import') return handleImportMemories(request);
     if (pathStr === 'user/memories/import') return handleImportMemories(request);
+    if (pathStr === 'oauth/device') return handleDeviceAuth(request);
+    if (pathStr === 'oauth/token') return handleTokenExchange(request);
+    if (pathStr === 'oauth/activate') return handleDeviceActivate(request);
     if (pathStr === 'contact') return handleContactForm(request);
     
     // Error reporting endpoint
