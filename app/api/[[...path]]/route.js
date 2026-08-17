@@ -259,6 +259,7 @@ import {
   handleGetMemories,
   handleCreateMemory,
   handleExtractMemories,
+  handleImportMemories,
   handleUpdateMemory,
   handleDeleteMemory,
   handleClearLocation,
@@ -937,6 +938,8 @@ export async function POST(request, { params }) {
     if (pathStr === 'user/memories') return handleCreateMemory(request);
     if (pathStr === 'memories/extract') return handleExtractMemories(request);
     if (pathStr === 'user/memories/extract') return handleExtractMemories(request);
+    if (pathStr === 'memories/import') return handleImportMemories(request);
+    if (pathStr === 'user/memories/import') return handleImportMemories(request);
     if (pathStr === 'contact') return handleContactForm(request);
     
     // Error reporting endpoint
