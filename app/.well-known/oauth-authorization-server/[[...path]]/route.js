@@ -18,7 +18,7 @@ export async function GET(request) {
       token_endpoint: oauth.tokenUrl,
       registration_endpoint: oauth.registrationUrl,
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
       token_endpoint_auth_methods_supported: ['none', 'client_secret_post'],
       code_challenge_methods_supported: ['S256'],
       client_id_metadata_document_supported: true,

@@ -11,6 +11,7 @@ import { generateCode, storeAuthCode, isRedirectAllowed, isKnownClient, getRegis
 export const dynamic = 'force-dynamic';
 
 function fail(request, redirect_uri, state, error) {
+  console.error('[oauth:authorize] FAIL:', error, '| redirect=', redirect_uri, '| state=', state);
   if (redirect_uri && isRedirectAllowed(redirect_uri, request)) {
     const u = new URL(redirect_uri);
     u.searchParams.set('error', error);
@@ -30,6 +31,8 @@ export async function GET(request) {
   const state = searchParams.get('state');
   const code_challenge = searchParams.get('code_challenge');
   const code_challenge_method = searchParams.get('code_challenge_method') || 'S256';
+
+  console.error('[oauth:authorize] GET | client_id=', client_id, '| redirect_uri=', redirect_uri, '| response_type=', response_type);
 
   if (response_type !== 'code') return fail(request, redirect_uri, state, 'unsupported_response_type');
   if (!redirect_uri || !isRedirectAllowed(redirect_uri, request)) return fail(request, redirect_uri, state, 'invalid_redirect_uri');
@@ -67,6 +70,7 @@ export async function GET(request) {
     code_challenge,
     code_challenge_method,
   });
+  console.error('[oauth:authorize] issued code | user=', user.id, '| client=', client_id, '| redirect=', redirect_uri);
 
   const u = new URL(redirect_uri);
   u.searchParams.set('code', code);

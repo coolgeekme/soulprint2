@@ -15,8 +15,17 @@ export async function POST(request) {
   try {
     body = await request.json();
   } catch {
+    console.error('[oauth:register] invalid JSON body');
     return NextResponse.json({ error: 'invalid_client_metadata' }, { status: 400 });
   }
+
+  console.error('[oauth:register] body:', JSON.stringify({
+    redirect_uris: body.redirect_uris,
+    auth_method: body.token_endpoint_auth_method,
+    grant_types: body.grant_types,
+    response_types: body.response_types,
+    client_name: body.client_name,
+  }));
 
   const redirect_uris = Array.isArray(body.redirect_uris) ? body.redirect_uris : [];
   const token_endpoint_auth_method = body.token_endpoint_auth_method || 'client_secret_post';
@@ -45,6 +54,7 @@ export async function POST(request) {
     token_endpoint_auth_method,
     client_name: body.client_name,
   });
+  console.error('[oauth:register] registered client', client.client_id, '| redirects=', redirect_uris.join(','));
 
   return NextResponse.json(client, {
     status: 201,

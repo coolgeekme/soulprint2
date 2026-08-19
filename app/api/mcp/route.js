@@ -78,6 +78,7 @@ export async function POST(request) {
 
   const mcpAccess = await getMcpAccess(user);
   if (!mcpAccess) {
+    console.error('[mcp] access denied | user=', user.email || user.id, '| tier/plan=', user.identity_tier || user.plan || 'unknown');
     return NextResponse.json(
       rpcError(null, -32003, 'SoulPrint MCP requires a Pro or Team plan. Upgrade at soulprintengine.ai/pricing.'),
       { status: 403 },
