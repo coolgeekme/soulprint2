@@ -274,6 +274,7 @@ import {
   handleGetSoulProfile,
   ensureUploadsDir,
 } from '@/lib/handlers/memory-system';
+import { handleMemoryCleanupScan } from '@/lib/handlers/memory-cleanup';
 
 // ── Auth handlers (extracted) ──
 import {
@@ -939,6 +940,7 @@ export async function POST(request, { params }) {
     if (pathStr === 'data-import/chunked/chunk') return handleChunkedUploadChunk(request);
     if (pathStr === 'data-import/chunked/complete') return handleChunkedUploadComplete(request);
     if (pathStr === 'assessment/reset') return handleResetAssessment(request);
+    if (pathStr === 'memories/cleanup') return handleMemoryCleanupScan(request);
     if (pathStr === 'memories') return handleCreateMemory(request);
     if (pathStr === 'user/memories') return handleCreateMemory(request);
     if (pathStr === 'memories/extract') return handleExtractMemories(request);
