@@ -6,12 +6,12 @@
 
 import { NextResponse } from 'next/server';
 import { authenticate } from '@/lib/api-utils';
-import { generateCode, storeAuthCode, isRedirectAllowed, OAUTH } from '@/lib/mcp/oauth';
+import { generateCode, storeAuthCode, isRedirectAllowed, getOAuth } from '@/lib/mcp/oauth';
 
 export const dynamic = 'force-dynamic';
 
-function fail(redirect_uri, state, error) {
-  if (redirect_uri && isRedirectAllowed(redirect_uri)) {
+function fail(request, redirect_uri, state, error) {
+  if (redirect_uri && isRedirectAllowed(redirect_uri, request)) {
     const u = new URL(redirect_uri);
     u.searchParams.set('error', error);
     if (state) u.searchParams.set('state', state);
@@ -21,6 +21,7 @@ function fail(redirect_uri, state, error) {
 }
 
 export async function GET(request) {
+  const oauth = getOAuth(request);
   const { searchParams } = new URL(request.url);
   const response_type = searchParams.get('response_type');
   const client_id = searchParams.get('client_id');
@@ -30,14 +31,14 @@ export async function GET(request) {
   const code_challenge = searchParams.get('code_challenge');
   const code_challenge_method = searchParams.get('code_challenge_method') || 'S256';
 
-  if (response_type !== 'code') return fail(redirect_uri, state, 'unsupported_response_type');
-  if (!client_id || client_id !== OAUTH.clientId) return fail(redirect_uri, state, 'invalid_client');
-  if (!redirect_uri || !isRedirectAllowed(redirect_uri)) return fail(redirect_uri, state, 'invalid_redirect_uri');
-  if (!code_challenge || code_challenge_method !== 'S256') return fail(redirect_uri, state, 'invalid_request');
+  if (response_type !== 'code') return fail(request, redirect_uri, state, 'unsupported_response_type');
+  if (!client_id || client_id !== oauth.clientId) return fail(request, redirect_uri, state, 'invalid_client');
+  if (!redirect_uri || !isRedirectAllowed(redirect_uri, request)) return fail(request, redirect_uri, state, 'invalid_redirect_uri');
+  if (!code_challenge || code_challenge_method !== 'S256') return fail(request, redirect_uri, state, 'invalid_request');
 
   const user = await authenticate(request);
   if (!user) {
-    const loginUrl = new URL('/auth', OAUTH.issuer);
+    const loginUrl = new URL('/auth', oauth.issuer);
     loginUrl.searchParams.set('next', request.url);
     return NextResponse.redirect(loginUrl.toString());
   }

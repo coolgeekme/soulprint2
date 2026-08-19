@@ -4,15 +4,16 @@
 // discover auth via the protected-resource well-known endpoint.
 
 import { NextResponse } from 'next/server';
-import { OAUTH } from '@/lib/mcp/oauth';
+import { getOAuth } from '@/lib/mcp/oauth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request) {
+  const oauth = getOAuth(request);
   return NextResponse.json(
     {
-      resource: `${OAUTH.issuer}/api/mcp`,
-      authorization_servers: [`${OAUTH.issuer}/.well-known/oauth-authorization-server`],
+      resource: `${oauth.issuer}/api/mcp`,
+      authorization_servers: [`${oauth.issuer}/.well-known/oauth-authorization-server`],
     },
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
   );

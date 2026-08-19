@@ -11,14 +11,18 @@ import { authenticate } from '@/lib/api-utils';
 import { getMcpAccess } from '@/lib/handlers/mcp-access';
 import { TOOLS } from '@/lib/mcp/tools';
 import { handleMcpTool } from '@/lib/mcp/handlers';
-import { OAUTH } from '@/lib/mcp/oauth';
+import { getOAuth } from '@/lib/mcp/oauth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const SERVER_INFO = { name: 'soulprint-mcp', version: '0.4.2' };
 const PROTOCOL_VERSION = '2024-11-05';
-const WWW_AUTHENTICATE = `Bearer resource_metadata="${OAUTH.resourceMetadataUrl}", authorization_server="${OAUTH.authServerUrl}"`;
+
+function wwwAuthenticate(request) {
+  const oauth = getOAuth(request);
+  return `Bearer resource_metadata="${oauth.resourceMetadataUrl}", authorization_server="${oauth.authServerUrl}"`;
+}
 
 function rpcResult(id, result) {
   return { jsonrpc: '2.0', id, result };
@@ -68,7 +72,7 @@ export async function POST(request) {
   if (!user) {
     return NextResponse.json(
       rpcError(null, -32001, 'Unauthorized — connect via SoulPrint OAuth or supply a Bearer token'),
-      { status: 401, headers: { 'WWW-Authenticate': WWW_AUTHENTICATE } },
+      { status: 401, headers: { 'WWW-Authenticate': wwwAuthenticate(request) } },
     );
   }
 
@@ -108,7 +112,7 @@ export async function GET(request) {
   if (!user) {
     return NextResponse.json(
       rpcError(null, -32001, 'Unauthorized — SoulPrint MCP uses OAuth'),
-      { status: 401, headers: { 'WWW-Authenticate': WWW_AUTHENTICATE } },
+      { status: 401, headers: { 'WWW-Authenticate': wwwAuthenticate(request) } },
     );
   }
   return NextResponse.json({
