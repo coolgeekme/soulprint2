@@ -19,6 +19,7 @@ export async function GET() {
       grant_types_supported: ['authorization_code'],
       token_endpoint_auth_methods_supported: ['none'],
       code_challenge_methods_supported: ['S256'],
+      client_id_metadata_document_supported: true,
       mcp: {
         client_id: OAUTH.clientId,
         redirect_uri: OAUTH.redirectUri,

@@ -11,12 +11,14 @@ import { authenticate } from '@/lib/api-utils';
 import { getMcpAccess } from '@/lib/handlers/mcp-access';
 import { TOOLS } from '@/lib/mcp/tools';
 import { handleMcpTool } from '@/lib/mcp/handlers';
+import { OAUTH } from '@/lib/mcp/oauth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const SERVER_INFO = { name: 'soulprint-mcp', version: '0.4.2' };
 const PROTOCOL_VERSION = '2024-11-05';
+const WWW_AUTHENTICATE = `Bearer resource_metadata="${OAUTH.resourceMetadataUrl}", authorization_server="${OAUTH.authServerUrl}"`;
 
 function rpcResult(id, result) {
   return { jsonrpc: '2.0', id, result };
@@ -66,7 +68,7 @@ export async function POST(request) {
   if (!user) {
     return NextResponse.json(
       rpcError(null, -32001, 'Unauthorized — connect via SoulPrint OAuth or supply a Bearer token'),
-      { status: 401, headers: { 'WWW-Authenticate': 'Bearer' } },
+      { status: 401, headers: { 'WWW-Authenticate': WWW_AUTHENTICATE } },
     );
   }
 
@@ -101,7 +103,14 @@ export async function POST(request) {
   );
 }
 
-export async function GET() {
+export async function GET(request) {
+  const user = await authenticate(request);
+  if (!user) {
+    return NextResponse.json(
+      rpcError(null, -32001, 'Unauthorized — SoulPrint MCP uses OAuth'),
+      { status: 401, headers: { 'WWW-Authenticate': WWW_AUTHENTICATE } },
+    );
+  }
   return NextResponse.json({
     name: 'soulprint-mcp',
     description: 'SoulPrint MCP server (streamable HTTP). Connect via ChatGPT → Apps & Connectors as a remote MCP connector.',
