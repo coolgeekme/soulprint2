@@ -39,7 +39,13 @@ export async function GET(request) {
   const user = await authenticate(request);
   if (!user) {
     const loginUrl = new URL('/auth', oauth.issuer);
-    loginUrl.searchParams.set('next', request.url);
+    // Rebuild `next` on the PUBLIC issuer, NOT request.url. On Emergent's prod,
+    // request.url is the internal render URL (https://r-<uuid>:3000/...) while
+    // the public domain lives only in the Host/x-forwarded-host header — using
+    // it verbatim would bounce the user into the preview environment after login.
+    const req = new URL(request.url);
+    const nextUrl = new URL(req.pathname + req.search, oauth.issuer);
+    loginUrl.searchParams.set('next', nextUrl.toString());
     return NextResponse.redirect(loginUrl.toString());
   }
 
