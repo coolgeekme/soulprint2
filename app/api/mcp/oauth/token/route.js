@@ -4,7 +4,7 @@
 // token (the existing 365d JWT). Standard RFC 6749 / OAuth 2.1 grant.
 
 import { NextResponse } from 'next/server';
-import { consumeAuthCode, verifyPkce, issueAccessToken } from '@/lib/mcp/oauth';
+import { consumeAuthCode, verifyPkce, issueAccessToken, getRegisteredClient, verifyClientSecret } from '@/lib/mcp/oauth';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +28,16 @@ export async function POST(request) {
   }
   if (!code) {
     return NextResponse.json({ error: 'invalid_request' }, { status: 400 });
+  }
+
+  // Claude (DCR) authenticates with client_secret_post; ChatGPT uses 'none'.
+  // getRegisteredClient() returns null for ChatGPT's CIMD client_id (a URL),
+  // so the CIMD flow skips this check entirely.
+  if (client_id) {
+    const registered = await getRegisteredClient(client_id);
+    if (registered && !verifyClientSecret(params.get('client_secret'), registered.client_secret)) {
+      return NextResponse.json({ error: 'invalid_client' }, { status: 401 });
+    }
   }
 
   const rec = await consumeAuthCode(code);

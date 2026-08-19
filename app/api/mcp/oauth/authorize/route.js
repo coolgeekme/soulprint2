@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { authenticate } from '@/lib/api-utils';
-import { generateCode, storeAuthCode, isRedirectAllowed, isKnownClient, getOAuth } from '@/lib/mcp/oauth';
+import { generateCode, storeAuthCode, isRedirectAllowed, isKnownClient, getRegisteredClient, getOAuth } from '@/lib/mcp/oauth';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,9 +32,17 @@ export async function GET(request) {
   const code_challenge_method = searchParams.get('code_challenge_method') || 'S256';
 
   if (response_type !== 'code') return fail(request, redirect_uri, state, 'unsupported_response_type');
-  if (!client_id || !isKnownClient(client_id, request)) return fail(request, redirect_uri, state, 'invalid_client');
   if (!redirect_uri || !isRedirectAllowed(redirect_uri, request)) return fail(request, redirect_uri, state, 'invalid_redirect_uri');
   if (!code_challenge || code_challenge_method !== 'S256') return fail(request, redirect_uri, state, 'invalid_request');
+
+  // Client identification: CIMD (ChatGPT) OR a DCR-registered client (Claude).
+  const isCimd = isKnownClient(client_id, request);
+  const registered = isCimd ? null : await getRegisteredClient(client_id);
+  if (!client_id || (!isCimd && !registered)) return fail(request, redirect_uri, state, 'invalid_client');
+  // A DCR-registered client must use one of the redirect_uris it registered.
+  if (registered && !(registered.redirect_uris || []).includes(redirect_uri)) {
+    return fail(request, redirect_uri, state, 'invalid_redirect_uri');
+  }
 
   const user = await authenticate(request);
   if (!user) {
