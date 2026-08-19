@@ -21,10 +21,7 @@ export async function GET(request) {
       token_endpoint_auth_methods_supported: ['none'],
       code_challenge_methods_supported: ['S256'],
       client_id_metadata_document_supported: true,
-      mcp: {
-        client_id: oauth.clientId,
-        redirect_uri: oauth.redirectUri,
-      },
+      authorization_response_iss_parameter_supported: true,
     },
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
   );

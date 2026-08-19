@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { authenticate } from '@/lib/api-utils';
-import { generateCode, storeAuthCode, isRedirectAllowed, getOAuth } from '@/lib/mcp/oauth';
+import { generateCode, storeAuthCode, isRedirectAllowed, isKnownClient, getOAuth } from '@/lib/mcp/oauth';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +14,7 @@ function fail(request, redirect_uri, state, error) {
   if (redirect_uri && isRedirectAllowed(redirect_uri, request)) {
     const u = new URL(redirect_uri);
     u.searchParams.set('error', error);
+    u.searchParams.set('iss', getOAuth(request).issuer);
     if (state) u.searchParams.set('state', state);
     return NextResponse.redirect(u.toString());
   }
@@ -26,13 +27,12 @@ export async function GET(request) {
   const response_type = searchParams.get('response_type');
   const client_id = searchParams.get('client_id');
   const redirect_uri = searchParams.get('redirect_uri');
-  const scope = searchParams.get('scope');
   const state = searchParams.get('state');
   const code_challenge = searchParams.get('code_challenge');
   const code_challenge_method = searchParams.get('code_challenge_method') || 'S256';
 
   if (response_type !== 'code') return fail(request, redirect_uri, state, 'unsupported_response_type');
-  if (!client_id || client_id !== oauth.clientId) return fail(request, redirect_uri, state, 'invalid_client');
+  if (!client_id || !isKnownClient(client_id, request)) return fail(request, redirect_uri, state, 'invalid_client');
   if (!redirect_uri || !isRedirectAllowed(redirect_uri, request)) return fail(request, redirect_uri, state, 'invalid_redirect_uri');
   if (!code_challenge || code_challenge_method !== 'S256') return fail(request, redirect_uri, state, 'invalid_request');
 
@@ -56,6 +56,7 @@ export async function GET(request) {
 
   const u = new URL(redirect_uri);
   u.searchParams.set('code', code);
+  u.searchParams.set('iss', oauth.issuer);
   if (state) u.searchParams.set('state', state);
   return NextResponse.redirect(u.toString());
 }
