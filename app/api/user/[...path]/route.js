@@ -85,7 +85,7 @@ async function handleGetSoulProfile(request) {
   const profile = await db.collection('profiles').findOne({ user_id: user.id });
   const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
   const assessmentAnswers = await db.collection('assessment_answers').find({ user_id: user.id }).toArray();
-  const memories = await db.collection('user_memories').find({ user_id: user.id }).limit(50).toArray();
+  const memoryCount = await db.collection('user_memories').countDocuments({ user_id: user.id });
   const latestSnapshot = await db.collection('soulprint_snapshots')
     .findOne({ user_id: user.id }, { sort: { created_at: -1 } });
   const commProfile = await db.collection('communication_profiles').findOne({ user_id: user.id });
@@ -128,7 +128,7 @@ async function handleGetSoulProfile(request) {
         }
       : null,
     assessment_answers: assessmentAnswers.length,
-    memory_count: memories.length,
+    memory_count: memoryCount,
   });
 }
 
