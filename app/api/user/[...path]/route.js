@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { ok, err, authenticate } from '@/lib/api-utils';
 import { generateProfileMarkdown } from '@/lib/handlers/memory-system';
+import { gateMcpRequest } from '@/lib/handlers/mcp-access';
 
 // ============================================================
 // CONSTANTS
@@ -79,6 +80,8 @@ async function handleUpdateProfile(request) {
 async function handleGetSoulProfile(request) {
   const user = await authenticate(request);
   if (!user) return err('Unauthorized', 401);
+  const mcpGate = await gateMcpRequest(request, user);
+  if (mcpGate) return mcpGate;
 
   const db = await getDb();
   
