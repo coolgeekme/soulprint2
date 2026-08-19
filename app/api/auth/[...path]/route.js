@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb, ensureCriticalIndexes } from '@/lib/mongodb';
 import { generateToken, hashPassword, comparePassword, getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { sendWelcomeEmail, sendBetaCodeEmail } from '@/lib/email';
-import { ok, err, authenticate, requireAdmin, checkRateLimit } from '@/lib/api-utils';
+import { ok, err, authenticate, requireAdmin, checkRateLimit, setTokenCookie } from '@/lib/api-utils';
 import { isTeamProEmail } from '@/lib/handlers/team-access';
 import { 
   handleGoogleAuthStart, 
@@ -151,14 +151,14 @@ async function handleRegister(request) {
     accepted: true,  // Auto-accept all new users
   }).catch(e => console.error('Admin notification email failed:', e));
   
-  return ok({ 
+  return setTokenCookie(ok({ 
     token, 
     userId, 
     role, 
     accepted: true,  // Auto-accept all new users
     onboarding_completed: false,
     assessment_complete: false,
-  });
+  }), token);
 }
 
 // POST /api/auth/login
@@ -200,14 +200,14 @@ async function handleLogin(request) {
   const token = generateToken(user.id);
   const profile = await db.collection('profiles').findOne({ user_id: user.id });
 
-  return ok({
+  return setTokenCookie(ok({
     token,
     userId: user.id,
     role: user.role,
     accepted: user.accepted,
     onboarding_completed: profile?.onboarding_completed ?? null,
     assessment_complete: profile?.assessment_complete ?? null,
-  });
+  }), token);
 }
 
 // POST /api/auth/firebase
@@ -379,7 +379,7 @@ async function handleFirebaseAuth(request) {
   const token = generateToken(user.id);
   const profile = await db.collection('profiles').findOne({ user_id: user.id });
   
-  return ok({
+  return setTokenCookie(ok({
     token,
     userId: user.id,
     role: user.role,
@@ -387,7 +387,7 @@ async function handleFirebaseAuth(request) {
     onboarding_completed: profile?.onboarding_completed ?? null,
     assessment_complete: profile?.assessment_complete ?? null,
     firebase_linked: true,
-  });
+  }), token);
 }
 
 // POST /api/auth/redeem-code

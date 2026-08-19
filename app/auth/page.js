@@ -9,6 +9,21 @@ import Script from 'next/script';
 
 const RECAPTCHA_SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6Le_c34sAAAAAAEM4XN1qxw3Ropv6KJpjmaynfxT';
 
+// Same-origin `next` redirect target (used to return to the OAuth authorize
+// flow after login). Rejects absolute external URLs to prevent open redirect.
+function getSafeNext() {
+  if (typeof window === 'undefined') return null;
+  const next = new URLSearchParams(window.location.search).get('next');
+  if (!next) return null;
+  try {
+    const u = new URL(next, window.location.origin);
+    if (u.origin !== window.location.origin) return null;
+    return u.pathname + u.search;
+  } catch {
+    return null;
+  }
+}
+
 export default function AuthPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -307,6 +322,13 @@ export default function AuthPage() {
   }
 
   function handlePostAuth(data) {
+    // Return to the OAuth authorize flow if one was in progress (same-origin).
+    const next = getSafeNext();
+    if (next) {
+      window.location.assign(next);
+      return;
+    }
+
     // Admins always go to admin dashboard
     if (data.role === 'admin' || data.role === 'superadmin') {
       router.push('/admin');
