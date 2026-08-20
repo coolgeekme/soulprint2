@@ -13,7 +13,9 @@ export async function GET(request) {
   return NextResponse.json(
     {
       resource: `${oauth.issuer}/api/mcp`,
-      authorization_servers: [`${oauth.issuer}/.well-known/oauth-authorization-server`],
+      // MUST be the authorization server's ISSUER URL (RFC 9728 / Anthropic docs),
+      // not the well-known path — Claude resolves {issuer}/.well-known/oauth-authorization-server.
+      authorization_servers: [oauth.issuer],
     },
     { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } },
   );
