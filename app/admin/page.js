@@ -409,11 +409,15 @@ function UsersTab({ token, adminRole }) {
 
   // Toggle sort direction or change field
   const handleSort = (field) => {
+    console.log('[Admin Sort] Clicked field:', field, 'Current:', sortField, sortDirection);
     if (sortField === field) {
       // Toggle direction
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      const newDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      console.log('[Admin Sort] Toggling direction to:', newDirection);
+      setSortDirection(newDirection);
     } else {
       // New field, default to desc
+      console.log('[Admin Sort] Changing field to:', field, 'desc');
       setSortField(field);
       setSortDirection('desc');
     }
@@ -421,7 +425,8 @@ function UsersTab({ token, adminRole }) {
 
   // Memoized sorted users - recomputes when users, sortField, or sortDirection changes
   const sortedUsers = useMemo(() => {
-    return [...users].sort((a, b) => {
+    console.log('[Admin Sort] Computing sortedUsers. Field:', sortField, 'Direction:', sortDirection, 'Users count:', users.length);
+    const sorted = [...users].sort((a, b) => {
       let aVal, bVal;
       
       switch (sortField) {
@@ -453,6 +458,8 @@ function UsersTab({ token, adminRole }) {
         return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
       }
     });
+    console.log('[Admin Sort] Sorted. First user:', sorted[0]?.email, 'Last user:', sorted[sorted.length - 1]?.email);
+    return sorted;
   }, [users, sortField, sortDirection]);
 
   async function toggleAccepted(userId, current) {
