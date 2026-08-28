@@ -434,7 +434,7 @@ function UsersTab({ token, adminRole }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       const d = await res.json();
-      setUsers(sortUsers(d.users || []));
+      setUsers(d.users || []); // Store unsorted, sorting happens in render
       setTotal(d.total || 0);
       setPages(d.pages || 1);
     } catch (e) {}
@@ -442,13 +442,6 @@ function UsersTab({ token, adminRole }) {
   };
 
   useEffect(() => { load(); }, [search, page, registrationDateFilter, onboardingFilter, assessmentFilter]);
-
-  // Re-sort users when sort field or direction changes
-  useEffect(() => {
-    if (users.length > 0) {
-      setUsers(sortUsers(users));
-    }
-  }, [sortField, sortDirection]);
 
   // Toggle sort direction or change field
   const handleSort = (field) => {
@@ -461,6 +454,9 @@ function UsersTab({ token, adminRole }) {
       setSortDirection('desc');
     }
   };
+
+  // Get sorted users for display (computed on render)
+  const sortedUsers = sortUsers(users);
 
   async function toggleAccepted(userId, current) {
     await fetch(`/api/admin/users/${userId}`, {
@@ -1119,7 +1115,7 @@ function UsersTab({ token, adminRole }) {
           <tbody>
             {loading ? (
               <tr><td colSpan={10} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-            ) : users.map(u => (
+            ) : sortedUsers.map(u => (
               <tr key={u.id} className="border-b border-white/3 hover:bg-white/5 transition-colors">
                 <td className="py-3 pr-4">
                   <button
