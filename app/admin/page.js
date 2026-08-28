@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users, User, BarChart2, MessageSquare, Upload, Settings, Shield,
@@ -375,42 +375,6 @@ function UsersTab({ token, adminRole }) {
   const [exporting, setExporting] = useState(false);
   const [exportPreview, setExportPreview] = useState(null);
 
-  // Sort users clientside
-  const sortUsers = (usersList) => {
-    return [...usersList].sort((a, b) => {
-      let aVal, bVal;
-      
-      switch (sortField) {
-        case 'email':
-          aVal = (a.email || '').toLowerCase();
-          bVal = (b.email || '').toLowerCase();
-          break;
-        case 'role':
-          aVal = a.role || 'user';
-          bVal = b.role || 'user';
-          break;
-        case 'plan':
-          aVal = a.identity_tier || a.plan || 'free';
-          bVal = b.identity_tier || b.plan || 'free';
-          break;
-        case 'cost':
-          aVal = parseFloat(a.customer_lifetime_value || 0);
-          bVal = parseFloat(b.customer_lifetime_value || 0);
-          break;
-        case 'last_active':
-        default:
-          aVal = new Date(a.last_active || 0).getTime();
-          bVal = new Date(b.last_active || 0).getTime();
-      }
-      
-      if (sortDirection === 'asc') {
-        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-      } else {
-        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
-      }
-    });
-  };
-
   const load = async () => {
     setLoading(true);
     try {
@@ -455,8 +419,41 @@ function UsersTab({ token, adminRole }) {
     }
   };
 
-  // Get sorted users for display (computed on render)
-  const sortedUsers = sortUsers(users);
+  // Memoized sorted users - recomputes when users, sortField, or sortDirection changes
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      let aVal, bVal;
+      
+      switch (sortField) {
+        case 'email':
+          aVal = (a.email || '').toLowerCase();
+          bVal = (b.email || '').toLowerCase();
+          break;
+        case 'role':
+          aVal = a.role || 'user';
+          bVal = b.role || 'user';
+          break;
+        case 'plan':
+          aVal = a.identity_tier || a.plan || 'free';
+          bVal = b.identity_tier || b.plan || 'free';
+          break;
+        case 'cost':
+          aVal = parseFloat(a.customer_lifetime_value || 0);
+          bVal = parseFloat(b.customer_lifetime_value || 0);
+          break;
+        case 'last_active':
+        default:
+          aVal = new Date(a.last_active || 0).getTime();
+          bVal = new Date(b.last_active || 0).getTime();
+      }
+      
+      if (sortDirection === 'asc') {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+      }
+    });
+  }, [users, sortField, sortDirection]);
 
   async function toggleAccepted(userId, current) {
     await fetch(`/api/admin/users/${userId}`, {
