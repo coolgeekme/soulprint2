@@ -346,6 +346,10 @@ function UsersTab({ token, adminRole }) {
   const [newPasscode, setNewPasscode] = useState('');
   const [planChanging, setPlanChanging] = useState(null); // userId being changed
   
+  // Sorting state
+  const [sortField, setSortField] = useState('last_active'); // email, role, plan, cost, last_active
+  const [sortDirection, setSortDirection] = useState('desc'); // asc, desc
+  
   // Date filters
   const [registrationDateFilter, setRegistrationDateFilter] = useState({ preset: 'all' });
   const [onboardingFilter, setOnboardingFilter] = useState('all'); // all, complete, incomplete
@@ -371,6 +375,42 @@ function UsersTab({ token, adminRole }) {
   const [exporting, setExporting] = useState(false);
   const [exportPreview, setExportPreview] = useState(null);
 
+  // Sort users clientside
+  const sortUsers = (usersList) => {
+    return [...usersList].sort((a, b) => {
+      let aVal, bVal;
+      
+      switch (sortField) {
+        case 'email':
+          aVal = (a.email || '').toLowerCase();
+          bVal = (b.email || '').toLowerCase();
+          break;
+        case 'role':
+          aVal = a.role || 'user';
+          bVal = b.role || 'user';
+          break;
+        case 'plan':
+          aVal = a.identity_tier || a.plan || 'free';
+          bVal = b.identity_tier || b.plan || 'free';
+          break;
+        case 'cost':
+          aVal = parseFloat(a.customer_lifetime_value || 0);
+          bVal = parseFloat(b.customer_lifetime_value || 0);
+          break;
+        case 'last_active':
+        default:
+          aVal = new Date(a.last_active || 0).getTime();
+          bVal = new Date(b.last_active || 0).getTime();
+      }
+      
+      if (sortDirection === 'asc') {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+      }
+    });
+  };
+
   const load = async () => {
     setLoading(true);
     try {
@@ -394,7 +434,7 @@ function UsersTab({ token, adminRole }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       const d = await res.json();
-      setUsers(d.users || []);
+      setUsers(sortUsers(d.users || []));
       setTotal(d.total || 0);
       setPages(d.pages || 1);
     } catch (e) {}
@@ -402,6 +442,25 @@ function UsersTab({ token, adminRole }) {
   };
 
   useEffect(() => { load(); }, [search, page, registrationDateFilter, onboardingFilter, assessmentFilter]);
+
+  // Re-sort users when sort field or direction changes
+  useEffect(() => {
+    if (users.length > 0) {
+      setUsers(sortUsers(users));
+    }
+  }, [sortField, sortDirection]);
+
+  // Toggle sort direction or change field
+  const handleSort = (field) => {
+    if (sortField === field) {
+      // Toggle direction
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New field, default to desc
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
 
   async function toggleAccepted(userId, current) {
     await fetch(`/api/admin/users/${userId}`, {
@@ -1015,9 +1074,46 @@ function UsersTab({ token, adminRole }) {
         <table className="w-full admin-table">
           <thead>
             <tr className="border-b border-white/5">
-              {['Email', 'Role', 'Plan', 'Tokens / Cost', 'Daily Usage', 'Accepted', 'Onboarding', 'Assessment', 'Last Active', 'Actions'].map(h => (
-                <th key={h} className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">{h}</th>
-              ))}
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4 cursor-pointer hover:text-orange-400 transition-colors"
+                  onClick={() => handleSort('email')}>
+                <div className="flex items-center gap-1">
+                  Email
+                  {sortField === 'email' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                </div>
+              </th>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4 cursor-pointer hover:text-orange-400 transition-colors"
+                  onClick={() => handleSort('role')}>
+                <div className="flex items-center gap-1">
+                  Role
+                  {sortField === 'role' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                </div>
+              </th>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4 cursor-pointer hover:text-orange-400 transition-colors"
+                  onClick={() => handleSort('plan')}>
+                <div className="flex items-center gap-1">
+                  Plan
+                  {sortField === 'plan' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                </div>
+              </th>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4 cursor-pointer hover:text-orange-400 transition-colors"
+                  onClick={() => handleSort('cost')}>
+                <div className="flex items-center gap-1">
+                  Tokens / Cost
+                  {sortField === 'cost' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                </div>
+              </th>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">Daily Usage</th>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">Accepted</th>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">Onboarding</th>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">Assessment</th>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4 cursor-pointer hover:text-orange-400 transition-colors"
+                  onClick={() => handleSort('last_active')}>
+                <div className="flex items-center gap-1">
+                  Last Active
+                  {sortField === 'last_active' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                </div>
+              </th>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">Actions</th>
             </tr>
           </thead>
           <tbody>
