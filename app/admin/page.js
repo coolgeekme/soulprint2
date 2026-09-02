@@ -439,17 +439,17 @@ function UsersTab({ token, adminRole }) {
           bVal = b.role || 'user';
           break;
         case 'plan':
-          aVal = a.identity_tier || a.plan || 'free';
-          bVal = b.identity_tier || b.plan || 'free';
+          aVal = a.plan_id || a.identity_tier || a.plan || 'free';
+          bVal = b.plan_id || b.identity_tier || b.plan || 'free';
           break;
         case 'cost':
-          aVal = parseFloat(a.customer_lifetime_value || 0);
-          bVal = parseFloat(b.customer_lifetime_value || 0);
+          aVal = parseFloat(a.est_cost || a.customer_lifetime_value || 0);
+          bVal = parseFloat(b.est_cost || b.customer_lifetime_value || 0);
           break;
         case 'last_active':
         default:
-          aVal = new Date(a.last_active || 0).getTime();
-          bVal = new Date(b.last_active || 0).getTime();
+          aVal = new Date(a.last_active_at || 0).getTime();
+          bVal = new Date(b.last_active_at || 0).getTime();
       }
       
       if (sortDirection === 'asc') {
