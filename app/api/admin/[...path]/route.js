@@ -1036,6 +1036,29 @@ async function handleAdminGetUsers(request) {
   // Model pricing for per-user cost estimation (simplified top models)
   const PER_USER_PRICING = { input: 5.00, output: 15.00 }; // default GPT-4o rate per 1M tokens
 
+  // ── Per-User Memory Category Breakdown ────────────────────────────────────
+  const memoryBreakdown = await db.collection('user_memories').aggregate([
+    { $match: { user_id: { $in: paginatedUsers.map(u => u.id) } } },
+    {
+      $group: {
+        _id: { user_id: '$user_id', category: '$category' },
+        count: { $sum: 1 },
+      },
+    },
+  ]).toArray();
+  
+  // Transform into a map: userId -> { health: 5, work: 12, ... }
+  const memoryMap = {};
+  for (const item of memoryBreakdown) {
+    const userId = item._id.user_id;
+    const category = item._id.category || 'other';
+    if (!memoryMap[userId]) {
+      memoryMap[userId] = { health: 0, work: 0, preferences: 0, relationships: 0, other: 0, total: 0 };
+    }
+    memoryMap[userId][category] = item.count;
+    memoryMap[userId].total += item.count;
+  }
+
   return ok({
     users: paginatedUsers.map(u => {
       const answerCount = assessmentCountMap[u.id] || 0;
@@ -1046,6 +1069,7 @@ async function handleAdminGetUsers(request) {
       const dailyMessages = dailyMsgMap[u.id] || 0;
       const planId = sub?.plan_id || 'free';
       const estCost = (tokens.total_input_tokens / 1_000_000) * PER_USER_PRICING.input + (tokens.total_output_tokens / 1_000_000) * PER_USER_PRICING.output;
+      const memories = memoryMap[u.id] || { health: 0, work: 0, preferences: 0, relationships: 0, other: 0, total: 0 };
       return {
         id: u.id,
         email: u.email,
@@ -1067,6 +1091,8 @@ async function handleAdminGetUsers(request) {
         est_output_tokens: tokens.total_output_tokens,
         est_total_tokens: tokens.total_input_tokens + tokens.total_output_tokens,
         est_cost: parseFloat(estCost.toFixed(4)),
+        // Memory breakdown by category
+        memory_breakdown: memories,
       };
     }),
     total,

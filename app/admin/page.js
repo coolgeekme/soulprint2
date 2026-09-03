@@ -446,6 +446,10 @@ function UsersTab({ token, adminRole }) {
           aVal = parseFloat(a.est_cost || a.customer_lifetime_value || 0);
           bVal = parseFloat(b.est_cost || b.customer_lifetime_value || 0);
           break;
+        case 'memories':
+          aVal = a.memory_breakdown?.total || 0;
+          bVal = b.memory_breakdown?.total || 0;
+          break;
         case 'last_active':
         default:
           aVal = new Date(a.last_active_at || 0).getTime();
@@ -1107,6 +1111,13 @@ function UsersTab({ token, adminRole }) {
               <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">Onboarding</th>
               <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">Assessment</th>
               <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4 cursor-pointer hover:text-orange-400 transition-colors"
+                  onClick={() => handleSort('memories')}>
+                <div className="flex items-center gap-1">
+                  Memories
+                  {sortField === 'memories' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                </div>
+              </th>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4 cursor-pointer hover:text-orange-400 transition-colors"
                   onClick={() => handleSort('last_active')}>
                 <div className="flex items-center gap-1">
                   Last Active
@@ -1118,7 +1129,7 @@ function UsersTab({ token, adminRole }) {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={10} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              <tr><td colSpan={11} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
             ) : sortedUsers.map(u => (
               <tr key={u.id} className="border-b border-white/3 hover:bg-white/5 transition-colors">
                 <td className="py-3 pr-4">
@@ -1213,6 +1224,54 @@ function UsersTab({ token, adminRole }) {
                     <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[10px] rounded" title={`${u.assessment_answer_count} answers`}>
                       Partial ({u.assessment_answer_count})
                     </span>
+                  ) : (
+                    <span className="text-gray-600 text-[10px]">—</span>
+                  )}
+                </td>
+                <td className="py-3 pr-4">
+                  {u.memory_breakdown?.total > 0 ? (
+                    <div className="group relative">
+                      <div className="flex items-center gap-1 cursor-help">
+                        <span className="text-white text-xs font-medium">{u.memory_breakdown.total}</span>
+                        <Database className="w-3 h-3 text-gray-500" />
+                      </div>
+                      {/* Hover tooltip with breakdown */}
+                      <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50 bg-[#1a1a1a] border border-white/20 rounded-lg p-2 shadow-xl min-w-[160px]">
+                        <p className="text-[10px] text-gray-500 font-bold uppercase mb-1.5">Memory Categories</p>
+                        <div className="space-y-1">
+                          {u.memory_breakdown.health > 0 && (
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[10px] text-red-400">❤️ Health</span>
+                              <span className="text-[10px] text-white font-medium">{u.memory_breakdown.health}</span>
+                            </div>
+                          )}
+                          {u.memory_breakdown.work > 0 && (
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[10px] text-blue-400">💼 Work</span>
+                              <span className="text-[10px] text-white font-medium">{u.memory_breakdown.work}</span>
+                            </div>
+                          )}
+                          {u.memory_breakdown.preferences > 0 && (
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[10px] text-purple-400">⚙️ Preferences</span>
+                              <span className="text-[10px] text-white font-medium">{u.memory_breakdown.preferences}</span>
+                            </div>
+                          )}
+                          {u.memory_breakdown.relationships > 0 && (
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[10px] text-pink-400">👥 Relationships</span>
+                              <span className="text-[10px] text-white font-medium">{u.memory_breakdown.relationships}</span>
+                            </div>
+                          )}
+                          {u.memory_breakdown.other > 0 && (
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-[10px] text-gray-400">📝 Other</span>
+                              <span className="text-[10px] text-white font-medium">{u.memory_breakdown.other}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   ) : (
                     <span className="text-gray-600 text-[10px]">—</span>
                   )}
