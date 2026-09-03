@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users, User, BarChart2, MessageSquare, Upload, Settings, Shield,
@@ -378,7 +378,7 @@ function UsersTab({ token, adminRole }) {
   const load = async () => {
     setLoading(true);
     try {
-      let url = `/api/admin/users?search=${search}&page=${page}`;
+      let url = `/api/admin/users?search=${search}&page=${page}&sortField=${sortField}&sortDirection=${sortDirection}`;
       
       // Add date filter params
       if (registrationDateFilter.startDate) {
@@ -398,14 +398,14 @@ function UsersTab({ token, adminRole }) {
         headers: { Authorization: `Bearer ${token}` },
       });
       const d = await res.json();
-      setUsers(d.users || []); // Store unsorted, sorting happens in render
+      setUsers(d.users || []); // Already sorted by server
       setTotal(d.total || 0);
       setPages(d.pages || 1);
     } catch (e) {}
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [search, page, registrationDateFilter, onboardingFilter, assessmentFilter]);
+  useEffect(() => { load(); }, [search, page, registrationDateFilter, onboardingFilter, assessmentFilter, sortField, sortDirection]);
 
   // Toggle sort direction or change field
   const handleSort = (field) => {
@@ -421,50 +421,8 @@ function UsersTab({ token, adminRole }) {
       setSortField(field);
       setSortDirection('desc');
     }
+    // Note: useEffect will trigger load() automatically when sortField/sortDirection changes
   };
-
-  // Memoized sorted users - recomputes when users, sortField, or sortDirection changes
-  const sortedUsers = useMemo(() => {
-    console.log('[Admin Sort] Computing sortedUsers. Field:', sortField, 'Direction:', sortDirection, 'Users count:', users.length);
-    const sorted = [...users].sort((a, b) => {
-      let aVal, bVal;
-      
-      switch (sortField) {
-        case 'email':
-          aVal = (a.email || '').toLowerCase();
-          bVal = (b.email || '').toLowerCase();
-          break;
-        case 'role':
-          aVal = a.role || 'user';
-          bVal = b.role || 'user';
-          break;
-        case 'plan':
-          aVal = a.plan_id || a.identity_tier || a.plan || 'free';
-          bVal = b.plan_id || b.identity_tier || b.plan || 'free';
-          break;
-        case 'cost':
-          aVal = parseFloat(a.est_cost || a.customer_lifetime_value || 0);
-          bVal = parseFloat(b.est_cost || b.customer_lifetime_value || 0);
-          break;
-        case 'memories':
-          aVal = a.memory_breakdown?.total || 0;
-          bVal = b.memory_breakdown?.total || 0;
-          break;
-        case 'last_active':
-        default:
-          aVal = new Date(a.last_active_at || 0).getTime();
-          bVal = new Date(b.last_active_at || 0).getTime();
-      }
-      
-      if (sortDirection === 'asc') {
-        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-      } else {
-        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
-      }
-    });
-    console.log('[Admin Sort] Sorted. First user:', sorted[0]?.email, 'Last user:', sorted[sorted.length - 1]?.email);
-    return sorted;
-  }, [users, sortField, sortDirection]);
 
   async function toggleAccepted(userId, current) {
     await fetch(`/api/admin/users/${userId}`, {
@@ -1130,7 +1088,7 @@ function UsersTab({ token, adminRole }) {
           <tbody>
             {loading ? (
               <tr><td colSpan={11} className="text-center py-8 text-gray-600"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
-            ) : sortedUsers.map(u => (
+            ) : users.map(u => (
               <tr key={u.id} className="border-b border-white/3 hover:bg-white/5 transition-colors">
                 <td className="py-3 pr-4">
                   <button

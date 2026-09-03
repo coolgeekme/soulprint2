@@ -914,6 +914,10 @@ async function handleAdminGetUsers(request) {
   const page = parseInt(searchParams.get('page') || '1');
   const limit = 20;
   
+  // Sorting parameters
+  const sortField = searchParams.get('sortField') || 'last_active';
+  const sortDirection = searchParams.get('sortDirection') || 'desc';
+  
   // Date filters
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
@@ -988,18 +992,18 @@ async function handleAdminGetUsers(request) {
     users = users.filter(u => getAssessmentType(u.id) === 'full');
   }
 
-  const total = users.length;
-  const paginatedUsers = users.slice((page - 1) * limit, page * limit);
-
-  // Get subscription plans for paginated users
+  // NOTE: For sorting to work across all pages, we need to fetch aggregated data for ALL users,
+  // then sort, then paginate. This is more expensive but necessary for correct sorting.
+  
+  // Get subscription plans for ALL users
   const subscriptions = await db.collection('user_subscriptions')
-    .find({ user_id: { $in: paginatedUsers.map(u => u.id) } })
+    .find({ user_id: { $in: users.map(u => u.id) } })
     .toArray();
   const subMap = Object.fromEntries(subscriptions.map(s => [s.user_id, s]));
 
-  // ── Per-User Token Usage Aggregation ─────────────────────────────────────
+  // ── Per-User Token Usage Aggregation (ALL USERS) ─────────────────────────────────────
   const userTokenAgg = await db.collection('messages').aggregate([
-    { $match: { user_id: { $in: paginatedUsers.map(u => u.id) }, role: 'assistant', est_input_tokens: { $exists: true } } },
+    { $match: { user_id: { $in: users.map(u => u.id) }, role: 'assistant', est_input_tokens: { $exists: true } } },
     {
       $group: {
         _id: '$user_id',
@@ -1013,7 +1017,7 @@ async function handleAdminGetUsers(request) {
 
   // Also get message counts for users without token tracking
   const userMsgCounts = await db.collection('messages').aggregate([
-    { $match: { user_id: { $in: paginatedUsers.map(u => u.id) }, role: 'assistant' } },
+    { $match: { user_id: { $in: users.map(u => u.id) }, role: 'assistant' } },
     { $group: { _id: '$user_id', total_messages: { $sum: 1 } } },
   ]).toArray();
   const msgCountMap = Object.fromEntries(userMsgCounts.map(m => [m._id, m.total_messages]));
@@ -1024,7 +1028,7 @@ async function handleAdminGetUsers(request) {
   const dailyMsgCounts = await db.collection('messages').aggregate([
     { 
       $match: { 
-        user_id: { $in: paginatedUsers.map(u => u.id) }, 
+        user_id: { $in: users.map(u => u.id) }, 
         role: 'assistant',
         created_at: { $gte: today }
       } 
@@ -1036,9 +1040,9 @@ async function handleAdminGetUsers(request) {
   // Model pricing for per-user cost estimation (simplified top models)
   const PER_USER_PRICING = { input: 5.00, output: 15.00 }; // default GPT-4o rate per 1M tokens
 
-  // ── Per-User Memory Category Breakdown ────────────────────────────────────
+  // ── Per-User Memory Category Breakdown (ALL USERS) ────────────────────────────────────
   const memoryBreakdown = await db.collection('user_memories').aggregate([
-    { $match: { user_id: { $in: paginatedUsers.map(u => u.id) } } },
+    { $match: { user_id: { $in: users.map(u => u.id) } } },
     {
       $group: {
         _id: { user_id: '$user_id', category: '$category' },
@@ -1059,42 +1063,86 @@ async function handleAdminGetUsers(request) {
     memoryMap[userId].total += item.count;
   }
 
+  // Build complete user objects with all computed fields
+  const enrichedUsers = users.map(u => {
+    const answerCount = assessmentCountMap[u.id] || 0;
+    const assessmentType = getAssessmentType(u.id);
+    const sub = subMap[u.id];
+    const tokens = tokenMap[u.id] || { total_input_tokens: 0, total_output_tokens: 0, message_count: 0 };
+    const totalMessages = msgCountMap[u.id] || 0;
+    const dailyMessages = dailyMsgMap[u.id] || 0;
+    const planId = sub?.plan_id || 'free';
+    const estCost = (tokens.total_input_tokens / 1_000_000) * PER_USER_PRICING.input + (tokens.total_output_tokens / 1_000_000) * PER_USER_PRICING.output;
+    const memories = memoryMap[u.id] || { health: 0, work: 0, preferences: 0, relationships: 0, other: 0, total: 0 };
+    
+    return {
+      id: u.id,
+      email: u.email,
+      role: u.role,
+      accepted: u.accepted,
+      created_at: u.created_at,
+      last_active_at: u.last_active_at,
+      display_name: profileMap[u.id]?.display_name || '',
+      assessment_complete: profileMap[u.id]?.assessment_complete || false,
+      assessment_answer_count: answerCount,
+      assessment_type: assessmentType,
+      onboarding_complete: profileMap[u.id]?.onboarding_completed || false,
+      plan_id: planId,
+      plan_status: sub?.status || 'active',
+      total_messages: totalMessages,
+      daily_messages: dailyMessages,
+      est_input_tokens: tokens.total_input_tokens,
+      est_output_tokens: tokens.total_output_tokens,
+      est_total_tokens: tokens.total_input_tokens + tokens.total_output_tokens,
+      est_cost: parseFloat(estCost.toFixed(4)),
+      memory_breakdown: memories,
+    };
+  });
+
+  // ── SERVER-SIDE SORTING ──────────────────────────────────────────────────
+  enrichedUsers.sort((a, b) => {
+    let aVal, bVal;
+    
+    switch (sortField) {
+      case 'email':
+        aVal = (a.email || '').toLowerCase();
+        bVal = (b.email || '').toLowerCase();
+        break;
+      case 'role':
+        aVal = a.role || 'user';
+        bVal = b.role || 'user';
+        break;
+      case 'plan':
+        aVal = a.plan_id || 'free';
+        bVal = b.plan_id || 'free';
+        break;
+      case 'cost':
+        aVal = a.est_cost || 0;
+        bVal = b.est_cost || 0;
+        break;
+      case 'memories':
+        aVal = a.memory_breakdown?.total || 0;
+        bVal = b.memory_breakdown?.total || 0;
+        break;
+      case 'last_active':
+      default:
+        aVal = new Date(a.last_active_at || 0).getTime();
+        bVal = new Date(b.last_active_at || 0).getTime();
+    }
+    
+    if (sortDirection === 'asc') {
+      return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+    } else {
+      return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+    }
+  });
+
+  // ── PAGINATION (after sorting) ────────────────────────────────────────────
+  const total = enrichedUsers.length;
+  const paginatedUsers = enrichedUsers.slice((page - 1) * limit, page * limit);
+
   return ok({
-    users: paginatedUsers.map(u => {
-      const answerCount = assessmentCountMap[u.id] || 0;
-      const assessmentType = getAssessmentType(u.id);
-      const sub = subMap[u.id];
-      const tokens = tokenMap[u.id] || { total_input_tokens: 0, total_output_tokens: 0, message_count: 0 };
-      const totalMessages = msgCountMap[u.id] || 0;
-      const dailyMessages = dailyMsgMap[u.id] || 0;
-      const planId = sub?.plan_id || 'free';
-      const estCost = (tokens.total_input_tokens / 1_000_000) * PER_USER_PRICING.input + (tokens.total_output_tokens / 1_000_000) * PER_USER_PRICING.output;
-      const memories = memoryMap[u.id] || { health: 0, work: 0, preferences: 0, relationships: 0, other: 0, total: 0 };
-      return {
-        id: u.id,
-        email: u.email,
-        role: u.role,
-        accepted: u.accepted,
-        created_at: u.created_at,
-        last_active_at: u.last_active_at,
-        display_name: profileMap[u.id]?.display_name || '',
-        assessment_complete: profileMap[u.id]?.assessment_complete || false,
-        assessment_answer_count: answerCount,
-        assessment_type: assessmentType,
-        onboarding_complete: profileMap[u.id]?.onboarding_completed || false,
-        plan_id: planId,
-        plan_status: sub?.status || 'active',
-        // Token usage metrics
-        total_messages: totalMessages,
-        daily_messages: dailyMessages, // New field for daily tracking
-        est_input_tokens: tokens.total_input_tokens,
-        est_output_tokens: tokens.total_output_tokens,
-        est_total_tokens: tokens.total_input_tokens + tokens.total_output_tokens,
-        est_cost: parseFloat(estCost.toFixed(4)),
-        // Memory breakdown by category
-        memory_breakdown: memories,
-      };
-    }),
+    users: paginatedUsers,
     total,
     page,
     pages: Math.ceil(total / limit),
