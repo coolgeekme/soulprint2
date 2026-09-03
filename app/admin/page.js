@@ -374,6 +374,10 @@ function UsersTab({ token, adminRole }) {
   });
   const [exporting, setExporting] = useState(false);
   const [exportPreview, setExportPreview] = useState(null);
+  
+  // Memory statistics
+  const [memoryStats, setMemoryStats] = useState(null);
+  const [showMemorySortMenu, setShowMemorySortMenu] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -401,11 +405,23 @@ function UsersTab({ token, adminRole }) {
       setUsers(d.users || []); // Already sorted by server
       setTotal(d.total || 0);
       setPages(d.pages || 1);
+      setMemoryStats(d.memory_stats || null);
     } catch (e) {}
     setLoading(false);
   };
 
   useEffect(() => { load(); }, [search, page, registrationDateFilter, onboardingFilter, assessmentFilter, sortField, sortDirection]);
+
+  // Close memory sort menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showMemorySortMenu && !e.target.closest('th')) {
+        setShowMemorySortMenu(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showMemorySortMenu]);
 
   // Toggle sort direction or change field
   const handleSort = (field) => {
@@ -1032,6 +1048,72 @@ function UsersTab({ token, adminRole }) {
         )}
       </div>
 
+      {/* Memory Statistics Summary */}
+      {memoryStats && memoryStats.total > 0 && (
+        <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Database className="w-4 h-4 text-purple-400" />
+              <h3 className="text-sm font-semibold text-white">Platform Memory Analytics</h3>
+            </div>
+            <span className="text-xs text-gray-500">Across all {total} users</span>
+          </div>
+          
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+            {/* Total */}
+            <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+              <p className="text-[10px] text-gray-500 font-bold uppercase mb-1">Total</p>
+              <p className="text-xl font-bold text-white">{memoryStats.total.toLocaleString()}</p>
+            </div>
+            
+            {/* Work */}
+            <div className="bg-blue-500/10 rounded-lg p-3 border border-blue-500/20">
+              <p className="text-[10px] text-blue-400 font-bold uppercase mb-1">💼 Work</p>
+              <p className="text-xl font-bold text-white">{memoryStats.work.toLocaleString()}</p>
+              <p className="text-[9px] text-gray-500 mt-1">
+                {memoryStats.total > 0 ? Math.round((memoryStats.work / memoryStats.total) * 100) : 0}%
+              </p>
+            </div>
+            
+            {/* Health */}
+            <div className="bg-red-500/10 rounded-lg p-3 border border-red-500/20">
+              <p className="text-[10px] text-red-400 font-bold uppercase mb-1">❤️ Health</p>
+              <p className="text-xl font-bold text-white">{memoryStats.health.toLocaleString()}</p>
+              <p className="text-[9px] text-gray-500 mt-1">
+                {memoryStats.total > 0 ? Math.round((memoryStats.health / memoryStats.total) * 100) : 0}%
+              </p>
+            </div>
+            
+            {/* Preferences */}
+            <div className="bg-purple-500/10 rounded-lg p-3 border border-purple-500/20">
+              <p className="text-[10px] text-purple-400 font-bold uppercase mb-1">⚙️ Prefs</p>
+              <p className="text-xl font-bold text-white">{memoryStats.preferences.toLocaleString()}</p>
+              <p className="text-[9px] text-gray-500 mt-1">
+                {memoryStats.total > 0 ? Math.round((memoryStats.preferences / memoryStats.total) * 100) : 0}%
+              </p>
+            </div>
+            
+            {/* Relationships */}
+            <div className="bg-pink-500/10 rounded-lg p-3 border border-pink-500/20">
+              <p className="text-[10px] text-pink-400 font-bold uppercase mb-1">👥 Relations</p>
+              <p className="text-xl font-bold text-white">{memoryStats.relationships.toLocaleString()}</p>
+              <p className="text-[9px] text-gray-500 mt-1">
+                {memoryStats.total > 0 ? Math.round((memoryStats.relationships / memoryStats.total) * 100) : 0}%
+              </p>
+            </div>
+            
+            {/* Other */}
+            <div className="bg-gray-500/10 rounded-lg p-3 border border-gray-500/20">
+              <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">📝 Other</p>
+              <p className="text-xl font-bold text-white">{memoryStats.other.toLocaleString()}</p>
+              <p className="text-[9px] text-gray-500 mt-1">
+                {memoryStats.total > 0 ? Math.round((memoryStats.other / memoryStats.total) * 100) : 0}%
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full admin-table">
           <thead>
@@ -1068,11 +1150,79 @@ function UsersTab({ token, adminRole }) {
               <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">Accepted</th>
               <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">Onboarding</th>
               <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4">Assessment</th>
-              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4 cursor-pointer hover:text-orange-400 transition-colors"
-                  onClick={() => handleSort('memories')}>
+              <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4 relative">
                 <div className="flex items-center gap-1">
-                  Memories
-                  {sortField === 'memories' && (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                  <button
+                    onClick={() => setShowMemorySortMenu(!showMemorySortMenu)}
+                    className="flex items-center gap-1 hover:text-orange-400 transition-colors"
+                  >
+                    Memories
+                    {(sortField === 'memories' || sortField.startsWith('memory_')) && (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                    )}
+                    <ChevronLeft className={`w-3 h-3 transition-transform ${showMemorySortMenu ? 'rotate-90' : '-rotate-90'}`} />
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  {showMemorySortMenu && (
+                    <div className="absolute left-0 top-full mt-1 bg-[#1a1a1a] border border-white/20 rounded-lg shadow-xl z-50 min-w-[180px] py-1">
+                      <button
+                        onClick={() => { handleSort('memories'); setShowMemorySortMenu(false); }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
+                          sortField === 'memories' ? 'bg-orange-500/20 text-orange-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span>📊 Total Memories</span>
+                        {sortField === 'memories' && <Check className="w-3 h-3" />}
+                      </button>
+                      <div className="border-t border-white/10 my-1"></div>
+                      <button
+                        onClick={() => { handleSort('memory_work'); setShowMemorySortMenu(false); }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
+                          sortField === 'memory_work' ? 'bg-blue-500/20 text-blue-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span>💼 Work</span>
+                        {sortField === 'memory_work' && <Check className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={() => { handleSort('memory_health'); setShowMemorySortMenu(false); }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
+                          sortField === 'memory_health' ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span>❤️ Health</span>
+                        {sortField === 'memory_health' && <Check className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={() => { handleSort('memory_preferences'); setShowMemorySortMenu(false); }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
+                          sortField === 'memory_preferences' ? 'bg-purple-500/20 text-purple-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span>⚙️ Preferences</span>
+                        {sortField === 'memory_preferences' && <Check className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={() => { handleSort('memory_relationships'); setShowMemorySortMenu(false); }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
+                          sortField === 'memory_relationships' ? 'bg-pink-500/20 text-pink-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span>👥 Relationships</span>
+                        {sortField === 'memory_relationships' && <Check className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={() => { handleSort('memory_other'); setShowMemorySortMenu(false); }}
+                        className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
+                          sortField === 'memory_other' ? 'bg-gray-500/20 text-gray-400' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span>📝 Other</span>
+                        {sortField === 'memory_other' && <Check className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </th>
               <th className="text-left text-[10px] font-bold text-gray-600 tracking-widest uppercase pb-3 pr-4 cursor-pointer hover:text-orange-400 transition-colors"

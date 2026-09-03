@@ -1124,6 +1124,26 @@ async function handleAdminGetUsers(request) {
         aVal = a.memory_breakdown?.total || 0;
         bVal = b.memory_breakdown?.total || 0;
         break;
+      case 'memory_health':
+        aVal = a.memory_breakdown?.health || 0;
+        bVal = b.memory_breakdown?.health || 0;
+        break;
+      case 'memory_work':
+        aVal = a.memory_breakdown?.work || 0;
+        bVal = b.memory_breakdown?.work || 0;
+        break;
+      case 'memory_preferences':
+        aVal = a.memory_breakdown?.preferences || 0;
+        bVal = b.memory_breakdown?.preferences || 0;
+        break;
+      case 'memory_relationships':
+        aVal = a.memory_breakdown?.relationships || 0;
+        bVal = b.memory_breakdown?.relationships || 0;
+        break;
+      case 'memory_other':
+        aVal = a.memory_breakdown?.other || 0;
+        bVal = b.memory_breakdown?.other || 0;
+        break;
       case 'last_active':
       default:
         aVal = new Date(a.last_active_at || 0).getTime();
@@ -1141,11 +1161,33 @@ async function handleAdminGetUsers(request) {
   const total = enrichedUsers.length;
   const paginatedUsers = enrichedUsers.slice((page - 1) * limit, page * limit);
 
+  // ── AGGREGATE MEMORY STATS (across all users) ─────────────────────────────
+  const memoryStats = {
+    total: 0,
+    health: 0,
+    work: 0,
+    preferences: 0,
+    relationships: 0,
+    other: 0,
+  };
+  
+  for (const user of enrichedUsers) {
+    if (user.memory_breakdown) {
+      memoryStats.total += user.memory_breakdown.total || 0;
+      memoryStats.health += user.memory_breakdown.health || 0;
+      memoryStats.work += user.memory_breakdown.work || 0;
+      memoryStats.preferences += user.memory_breakdown.preferences || 0;
+      memoryStats.relationships += user.memory_breakdown.relationships || 0;
+      memoryStats.other += user.memory_breakdown.other || 0;
+    }
+  }
+
   return ok({
     users: paginatedUsers,
     total,
     page,
     pages: Math.ceil(total / limit),
+    memory_stats: memoryStats,
   });
 }
 
