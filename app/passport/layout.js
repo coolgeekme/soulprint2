@@ -11,6 +11,7 @@ const navLinks = [
   { href: '/passport/how-it-works', label: 'How It Works' },
   { href: '/passport/integrations', label: 'Integrations' },
   { href: '/passport/features', label: 'Features' },
+  { href: '/passport/pricing', label: 'Pricing' },
   { href: '/passport/faq', label: 'FAQ' },
 ];
 
