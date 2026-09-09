@@ -39,7 +39,7 @@ import {
   MessageSquare, X, ChevronDown, Loader2, FileText, Globe,
   Image as ImageIcon, Paperclip, Search, Video, Download, RefreshCw, Play,
   MapPin, Upload, MoreVertical, Pencil, Trash2, Check, MessageCircle, Megaphone, ExternalLink, Shield, Brain, AudioWaveform, EyeOff, Paintbrush,
-  GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette, GalleryHorizontal,
+  GitCompare, CheckCircle2, Clock, Zap, Sparkles, Film, ImagePlus, Palette,
   Cloud, Link2, HardDrive, AlertCircle, FileArchive, Newspaper, ChevronRight, LogOut, Copy, Edit3, Square, ArrowRight,
   Folder, FolderPlus, Share2, Users, UserPlus, ArrowLeft, Sun, Moon, Code, Bot, Volume2, VolumeX, CreditCard
 } from 'lucide-react';
@@ -70,7 +70,6 @@ import DocumentCard from '@/components/chat/DocumentCard';
 import { useSubscription } from '@/hooks/useSubscription';
 import { CompareResponseCard, CompareModePicker } from '@/components/chat/CompareMode';
 import CreateMenu from '@/components/chat/CreateMenu';
-import { GalleryItem, GalleryModal } from '@/components/chat/Gallery';
 import CloudImportModal from '@/components/chat/CloudImportModal';
 import { SettingsModal, FeedbackModal } from '@/components/chat/SettingsModal';
 import AttachmentPill from '@/components/chat/AttachmentPill';
@@ -91,6 +90,12 @@ function ChatPageInner() {
   const isMobile = useIsMobile();
   const { isDark } = useTheme(); // Get theme state for input styling
   const [messages, setMessages] = useState([]);
+  const [showSetupBanner, setShowSetupBanner] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('sp_connect_banner_dismissed') !== '1') {
+      setShowSetupBanner(true);
+    }
+  }, []);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -183,11 +188,7 @@ function ChatPageInner() {
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareResponses, setCompareResponses] = useState(null); // { responses: [], comparisonId, userMessageId }
   const [selectedCompareResponse, setSelectedCompareResponse] = useState(null);
-  // Gallery & Media generation state
-  const [showGallery, setShowGallery] = useState(false);
-  const [galleryItems, setGalleryItems] = useState([]);
-  const [galleryLoading, setGalleryLoading] = useState(false);
-  const [selectedGalleryItem, setSelectedGalleryItem] = useState(null);
+  // Media generation state
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false);
   // Cloud import state
   const [showCloudImport, setShowCloudImport] = useState(false);
@@ -2683,8 +2684,6 @@ function ChatPageInner() {
               }
             : m
         ));
-        // Refresh gallery
-        loadGallery();
       }
     } catch (err) {
       setMessages(prev => prev.map(m => 
@@ -2738,7 +2737,6 @@ function ChatPageInner() {
                 }
               : m
           ));
-          loadGallery();
           return;
         } else if (data.status === 'failed') {
           setMessages(prev => prev.map(m => 
@@ -2775,30 +2773,6 @@ function ChatPageInner() {
     
     poll();
   }, [token]);
-
-  // ── Gallery Loader ────────────────────────────────────────────────────────
-  const loadGallery = useCallback(async () => {
-    if (!token) return;
-    setGalleryLoading(true);
-    try {
-      const res = await fetch('/api/media/gallery', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setGalleryItems(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Error loading gallery:', err);
-    } finally {
-      setGalleryLoading(false);
-    }
-  }, [token]);
-
-  // Load gallery when showing it
-  useEffect(() => {
-    if (showGallery && token) {
-      loadGallery();
-    }
-  }, [showGallery, token, loadGallery]);
 
   // Listen for cloud import modal open event
   useEffect(() => {
@@ -4082,14 +4056,6 @@ function ChatPageInner() {
         )}
         
         <div className={`p-3 border-t border-white/5 space-y-2 safe-area-bottom ${sidebarCollapsed ? 'px-2' : ''}`} style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}>
-          {/* Gallery button */}
-          <button 
-            onClick={() => setShowGallery(true)}
-            className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-1.5'} w-full py-2 px-3 bg-gradient-to-r from-pink-500/10 to-blue-500/10 hover:from-pink-500/20 hover:to-blue-500/20 border border-pink-500/30 rounded-lg text-pink-400 hover:text-pink-300 text-xs transition-colors`}
-            title="Media Gallery"
-          >
-            <GalleryHorizontal className="w-3.5 h-3.5" /> {!sidebarCollapsed && 'Media Gallery'}
-          </button>
           {/* Imprints Marketplace button */}
           <button 
             onClick={() => setShowImprintsMarketplace(true)}
@@ -5623,6 +5589,43 @@ function ChatPageInner() {
 
             {/* Media generation handled dynamically through chat - no manual controls needed */}
 
+            {/* Setup strip — install extension / connect MCP */}
+            {showSetupBanner && (
+              <div className="relative flex flex-col sm:flex-row sm:items-center gap-3 mb-3 rounded-2xl border border-orange-500/30 bg-gradient-to-r from-orange-500/10 via-white/[0.03] to-transparent p-4 pr-12">
+                <button
+                  onClick={() => {
+                    setShowSetupBanner(false);
+                    localStorage.setItem('sp_connect_banner_dismissed', '1');
+                  }}
+                  className="absolute top-2.5 right-2.5 text-gray-500 hover:text-gray-300 p-1 rounded-lg transition-colors"
+                  aria-label="Dismiss"
+                >
+                  <X size={16} />
+                </button>
+                <div className="flex items-center gap-2 font-condensed font-black uppercase tracking-wider text-orange-500 text-sm shrink-0">
+                  <Link2 size={15} /> Take SoulPrint everywhere
+                </div>
+                <p className="text-xs text-gray-400 flex-1 min-w-[200px]">
+                  One-time setup: install the free extension or connect MCP so your SoulPrint
+                  follows you into ChatGPT, Claude, and other agents.
+                </p>
+                <div className="flex gap-2 shrink-0">
+                  <a
+                    href="/connect#extension"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white text-xs font-semibold transition-colors"
+                  >
+                    Extension <ArrowRight size={13} />
+                  </a>
+                  <a
+                    href="/connect#mcp"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/15 hover:border-orange-500/50 hover:text-orange-400 text-gray-300 text-xs font-semibold transition-colors"
+                  >
+                    Connect MCP <ArrowRight size={13} />
+                  </a>
+                </div>
+              </div>
+            )}
+
             {/* Context Awareness Banner — shows when conversation is long and AI context is trimmed */}
             <ContextAwarenessBanner
               contextInfo={contextInfo}
@@ -6718,66 +6721,6 @@ function ChatPageInner() {
             </div>
           </div>
         </div>
-      )}
-      
-      {/* Gallery Modal */}
-      {showGallery && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col" onClick={() => setShowGallery(false)}>
-          <div className="flex-1 max-w-6xl w-full mx-auto p-6 overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-blue-500 flex items-center justify-center">
-                  <GalleryHorizontal className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white">Media Gallery</h2>
-                  <p className="text-xs text-gray-500">{galleryItems.length} items generated</p>
-                </div>
-              </div>
-              <button onClick={() => setShowGallery(false)} className="text-gray-400 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-colors">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            {/* Gallery Grid */}
-            <div className="flex-1 overflow-y-auto">
-              {galleryLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <Loader2 className="w-8 h-8 animate-spin text-pink-400" />
-                </div>
-              ) : galleryItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 text-center">
-                  <Sparkles className="w-12 h-12 text-gray-700 mb-4" />
-                  <p className="text-gray-500 text-sm mb-2">No media generated yet</p>
-                  <p className="text-gray-700 text-xs">Use the ✨ button in the chat to create images and videos</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {galleryItems.map(item => (
-                    <GalleryItem key={item.id} item={item} onClick={setSelectedGalleryItem} />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Gallery Item Detail Modal */}
-      {selectedGalleryItem && (
-        <GalleryModal 
-          item={selectedGalleryItem} 
-          onClose={() => setSelectedGalleryItem(null)} 
-          token={token}
-          onDelete={(deletedId) => {
-            setGalleryItems(prev => prev.filter(item => item.id !== deletedId));
-          }}
-          onRegenerate={() => {
-            // Refresh gallery after regeneration
-            setTimeout(() => loadGallery(), 2000);
-          }}
-        />
       )}
       
       {/* Cloud Import Modal */}

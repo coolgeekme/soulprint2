@@ -68,7 +68,7 @@ export default function Connect() {
       </p>
 
       {/* ── OPTION 1: EXTENSION ── */}
-      <div className="bg-white border border-gray-200 rounded-3xl p-8 md:p-10 shadow-sm mb-6">
+      <div id="extension" className="bg-white border border-gray-200 rounded-3xl p-8 md:p-10 shadow-sm mb-6">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="h-12 w-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center">
@@ -216,7 +216,7 @@ export default function Connect() {
       </div>
 
       {/* ── OPTION 3: ChatGPT & Claude app connectors ── */}
-      <div className="bg-white border border-gray-200 rounded-3xl p-8 md:p-10 shadow-sm mb-6">
+      <div id="mcp" className="bg-white border border-gray-200 rounded-3xl p-8 md:p-10 shadow-sm mb-6">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="h-12 w-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center">
