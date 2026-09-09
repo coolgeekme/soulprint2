@@ -18,6 +18,10 @@ const faqs = [
     a: 'Built-in memory is trapped inside one tool. If you switch tools, you start over. SoulPrint is portable — one identity, one memory store, available everywhere. You own it, you can export it, and you can correct anything it knows.',
   },
   {
+    q: 'Do I still get the chat?',
+    a: 'Yes. Your Passport includes SoulPrint chat — an assistant powered by dynamic intelligence that reasons with your live profile, memories, and Imprints in every reply. Sign in at soulprintengine.ai and it is waiting for you.',
+  },
+  {
     q: 'What does it cost?',
     a: 'Free to start — assessment, core memories, and two connected surfaces. Pro is $14/month (or $12/month billed annually) and unlocks the full experience: more memories, auto-extraction, custom Imprints, history import, and MCP access.',
   },

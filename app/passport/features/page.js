@@ -31,6 +31,11 @@ const features = [
     title: 'Private by design',
     body: 'Your SoulPrint is yours, full stop. Provenance, correction, and control built into every memory — you decide what the AI knows.',
   },
+  {
+    icon: '◎',
+    title: 'Chat with dynamic intelligence',
+    body: 'Beyond the connectors: your SoulPrint also powers your own chat — an assistant that reasons with your live profile, memories, and Imprints in every reply.',
+  },
 ];
 
 export default function Features() {

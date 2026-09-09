@@ -371,6 +371,21 @@ export default function Connect() {
         </p>
       </div>
 
+      {/* CHAT BAND */}
+      <div className="bg-[#f8fafc] border border-gray-200 rounded-3xl p-8 md:p-10 mb-10 text-center">
+        <h2 className="font-condensed font-black uppercase text-2xl md:text-3xl text-gray-900 mb-3">
+          Every door opens the same SoulPrint
+        </h2>
+        <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+          And when you are signed in, your private chat is waiting at{' '}
+          <Link href="/chat" className="text-orange-600 font-semibold hover:text-orange-700 transition-colors">
+            soulprintengine.ai/chat
+          </Link>{' '}
+          &mdash; dynamic intelligence that reasons with your profile, memories, and Imprints in
+          every reply.
+        </p>
+      </div>
+
       {/* ── BOTTOM CTA ── */}
       <div className="text-center mt-12">
         <h2 className="font-condensed font-black uppercase text-3xl md:text-4xl text-gray-900 mb-6">
