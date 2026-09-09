@@ -23,15 +23,15 @@ const faqs = [
   },
   {
     q: 'What does Passport cost?',
-    a: 'One plan, one price: everything included — your SoulPrint across ChatGPT, Claude, and agents via MCP, unlimited platform connections, auto-extraction, custom Imprints, and history import. $14/month, or $12/month billed annually. No feature tiers.',
+    a: 'The Chrome extension is free to install and use — context injection and local memories work without an account. Passport is the paid layer: your SoulPrint in the cloud, with auto-extraction, sync across ChatGPT, Claude, and agents via MCP, custom Imprints, and history import. One plan — $14/month, or $12/month billed annually.',
   },
   {
     q: 'Is my data private?',
     a: 'Your memories are yours. Nothing is sold. You can review, correct, or delete any memory and export your data anytime. Your prompts are read locally to match context; when you connect an account, extracted memories sync over HTTPS so they are available across your devices.',
   },
   {
-    q: 'Is there a free tier?',
-    a: 'Passport is a single plan — no feature tiers. Create your account and you get the full experience: your SoulPrint across every connected AI, auto-extraction, Imprints, and history.',
+    q: 'Is the extension free?',
+    a: 'Yes. Install SoulPrint for Chrome and it works on its own — it matches your memories locally and injects context into ChatGPT and Claude, no account or credit card needed. Passport adds the cloud layer: memories that sync everywhere, auto-extraction, MCP access, and custom Imprints.',
   },
 ];
 
