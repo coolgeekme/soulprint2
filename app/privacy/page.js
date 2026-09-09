@@ -38,6 +38,7 @@ export default function PrivacyPolicyPage() {
             <p className="text-gray-300 leading-relaxed">We collect:</p>
             <ul className="list-disc list-inside text-gray-300 mt-2 space-y-1">
               <li>Email address (for account creation)</li>
+              <li>Memories and context you choose to save, including content you ask SoulPrint to remember from conversations on sites you use (via the SoulPrint for Chrome extension and MCP connectors)</li>
               <li>Conversation content submitted to the Service</li>
               <li>Usage metrics (tokens, session counts, interaction timestamps)</li>
               <li>Technical metadata (IP address, browser type, device type)</li>
@@ -80,6 +81,17 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-xl font-semibold text-white mb-3">4. Data Storage</h2>
             <p className="text-gray-300 leading-relaxed">
               Conversation history and memory objects may be stored to support continuity features.
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-2">
+              The SoulPrint for Chrome extension stores memories locally on your device when you
+              use it without an account, and syncs them to your SoulPrint account when signed in.
+              You can clear local data by removing the extension, and account data by requesting
+              deletion at any time.
+            </p>
+            <p className="text-gray-300 leading-relaxed mt-2">
+              We do not read or store the content of your conversations beyond what is needed to
+              inject your saved context on your behalf and to extract memories you ask us to
+              remember.
             </p>
             <p className="text-gray-300 leading-relaxed mt-2">
               Beta data retention policies may change as the Service evolves.
