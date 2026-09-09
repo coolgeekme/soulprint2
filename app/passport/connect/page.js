@@ -371,19 +371,39 @@ export default function Connect() {
         </p>
       </div>
 
-      {/* CHAT BAND */}
-      <div className="bg-[#f8fafc] border border-gray-200 rounded-3xl p-8 md:p-10 mb-10 text-center">
-        <h2 className="font-condensed font-black uppercase text-2xl md:text-3xl text-gray-900 mb-3">
-          Every door opens the same SoulPrint
-        </h2>
-        <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-          And when you are signed in, your private chat is waiting at{' '}
-          <Link href="/chat" className="text-orange-600 font-semibold hover:text-orange-700 transition-colors">
-            soulprintengine.ai/chat
-          </Link>{' '}
-          &mdash; dynamic intelligence that reasons with your profile, memories, and Imprints in
-          every reply.
-        </p>
+      {/* CHAT + FOUNDRY BAND */}
+      <div className="bg-[#f8fafc] border border-gray-200 rounded-3xl p-8 md:p-10 mb-10">
+        <div className="grid md:grid-cols-2 gap-8 items-center">
+          <div>
+            <h2 className="font-condensed font-black uppercase text-2xl text-gray-900 mb-2">
+              Prefer to skip ChatGPT and Claude?
+            </h2>
+            <p className="text-gray-600 text-base leading-relaxed">
+              A simple built-in chat is included with your account at{' '}
+              <Link href="/chat" className="text-orange-600 font-semibold hover:text-orange-700 transition-colors">
+                soulprintengine.ai/chat
+              </Link>{' '}
+              &mdash; no other AI tools needed.
+            </p>
+          </div>
+          <div>
+            <h2 className="font-condensed font-black uppercase text-2xl text-gray-900 mb-2">
+              Want images, video, or audio?
+            </h2>
+            <p className="text-gray-600 text-base leading-relaxed">
+              That is The Foundry&rsquo;s job.{' '}
+              <a
+                href="https://foundryagents.ai"
+                target="_blank"
+                rel="noreferrer"
+                className="text-orange-600 font-semibold hover:text-orange-700 transition-colors"
+              >
+                foundryagents.ai
+              </a>{' '}
+              handles media generation and creative production.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* ── BOTTOM CTA ── */}

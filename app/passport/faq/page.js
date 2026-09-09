@@ -19,7 +19,7 @@ const faqs = [
   },
   {
     q: 'Do I still get the chat?',
-    a: 'Yes. Your Passport includes SoulPrint chat — an assistant powered by dynamic intelligence that reasons with your live profile, memories, and Imprints in every reply. Sign in at soulprintengine.ai and it is waiting for you.',
+    a: 'Yes. The built-in chat is there for people who want to skip ChatGPT and Claude entirely — simple conversation powered by your SoulPrint. It is chat-only: for images, video, or audio generation, use The Foundry at foundryagents.ai.',
   },
   {
     q: 'What does it cost?',

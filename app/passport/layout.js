@@ -21,6 +21,8 @@ const footerLinks = [
   { href: '/contact', label: 'Contact' },
 ];
 
+const footerExternal = [{ href: 'https://foundryagents.ai', label: 'The Foundry' }];
+
 function Wordmark() {
   return (
     <span className="flex flex-col leading-none">
@@ -117,6 +119,17 @@ export default function PassportLayout({ children }) {
               <Link key={l.href} href={l.href} className="hover:text-gray-900 transition-colors">
                 {l.label}
               </Link>
+            ))}
+            {footerExternal.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-gray-900 transition-colors"
+              >
+                {l.label}
+              </a>
             ))}
           </nav>
           <p className="text-sm text-gray-500">&copy; 2026 ArcheForge LLC</p>
