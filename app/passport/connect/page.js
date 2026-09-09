@@ -248,19 +248,26 @@ export default function Connect() {
               <li className="flex gap-3">
                 <span className="font-condensed font-black text-orange-500/60 shrink-0">1</span>
                 <span>
-                  Enable <strong>Developer Mode</strong> once: Settings &rarr; Security and login
-                  &rarr; Developer mode <em>on</em> (required before ChatGPT will fetch the server).
+                  <strong>One-time prerequisite:</strong> enable Developer Mode &mdash; Settings
+                  &rarr; Security and login &rarr; Developer mode <em>on</em>. Without it, ChatGPT
+                  shows &ldquo;Developer mode is required&rdquo; when you add the server.
                 </span>
               </li>
               <li className="flex gap-3">
                 <span className="font-condensed font-black text-orange-500/60 shrink-0">2</span>
                 <span>
-                  Go to <strong>chatgpt.com/plugins</strong> &rarr; <strong>Create app</strong>{' '}
-                  &rarr; <strong>New Plugin&hellip;</strong>
+                  Open <strong>chatgpt.com</strong> and click <strong>Plugins</strong>.
                 </span>
               </li>
               <li className="flex gap-3">
                 <span className="font-condensed font-black text-orange-500/60 shrink-0">3</span>
+                <span>
+                  Click <strong>Create app</strong>, then <strong>New Plugin&hellip;</strong>
+                  (lands in Settings &rarr; Connectors).
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">4</span>
                 <span>
                   Paste the server URL:{' '}
                   <code className="font-mono text-[12px] bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-800">
@@ -269,28 +276,32 @@ export default function Connect() {
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="font-condensed font-black text-orange-500/60 shrink-0">4</span>
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">5</span>
                 <span>
                   Check <strong>&ldquo;I understand and want to continue&hellip;&rdquo;</strong>{' '}
-                  &rarr; <strong>Create</strong>
+                  &rarr; click <strong>Create</strong>.
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="font-condensed font-black text-orange-500/60 shrink-0">5</span>
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">6</span>
                 <span>
-                  Sign in with <strong>SoulPrint MCP</strong>, then open Permissions &rarr;{' '}
+                  Sign in with <strong>SoulPrint MCP</strong> when it prompts.
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">7</span>
+                <span>
+                  Open the app&rsquo;s <strong>Permissions</strong> &rarr;{' '}
                   <strong>Allow all actions</strong>.
                 </span>
               </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">8</span>
+                <span>
+                  Start a <strong>new chat</strong> &mdash; your SoulPrint tools are ready.
+                </span>
+              </li>
             </ol>
-            <a
-              href="https://app.tango.us/app/workflow/d556d311-a7cd-4204-96ab-76e9f106d3c0"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 mt-5 text-orange-600 font-semibold text-sm hover:text-orange-700 transition-colors"
-            >
-              Watch the walkthrough <ArrowRight size={15} />
-            </a>
           </div>
 
           {/* Claude card */}
@@ -304,19 +315,25 @@ export default function Connect() {
               <li className="flex gap-3">
                 <span className="font-condensed font-black text-orange-500/60 shrink-0">1</span>
                 <span>
-                  Open <strong>claude.ai</strong> and go to your profile &rarr;{' '}
-                  <strong>Settings</strong>
+                  Open <strong>claude.ai</strong> (a new chat is fine) and click your{' '}
+                  <strong>profile icon</strong> in the bottom-left.
                 </span>
               </li>
               <li className="flex gap-3">
                 <span className="font-condensed font-black text-orange-500/60 shrink-0">2</span>
                 <span>
-                  Click <strong>Connectors</strong> &rarr; <strong>Add</strong> &rarr;{' '}
-                  <strong>Add custom connector</strong>
+                  Click <strong>Settings</strong>.
                 </span>
               </li>
               <li className="flex gap-3">
                 <span className="font-condensed font-black text-orange-500/60 shrink-0">3</span>
+                <span>
+                  Click <strong>Connectors</strong> &rarr; <strong>Add</strong> &rarr;{' '}
+                  <strong>Add custom connector</strong>.
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">4</span>
                 <span>
                   Paste the server URL:{' '}
                   <code className="font-mono text-[12px] bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-800">
@@ -325,26 +342,24 @@ export default function Connect() {
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="font-condensed font-black text-orange-500/60 shrink-0">4</span>
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">5</span>
                 <span>
-                  Click <strong>Continue</strong>, then <strong>Connect</strong>
+                  Click <strong>Continue</strong>, then <strong>Connect</strong>.
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="font-condensed font-black text-orange-500/60 shrink-0">5</span>
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">6</span>
                 <span>
-                  Authorize with <strong>SoulPrint MCP</strong> — your tools are ready in a new chat.
+                  Authorize with <strong>SoulPrint MCP</strong> when it prompts.
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">7</span>
+                <span>
+                  Start a <strong>new chat</strong> &mdash; your SoulPrint tools are ready.
                 </span>
               </li>
             </ol>
-            <a
-              href="https://app.tango.us/app/workflow/Connect-SoulPrint-MCP-in-Claude-19e86db1623448ba8a8b2e0b6fd01203"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 mt-5 text-orange-600 font-semibold text-sm hover:text-orange-700 transition-colors"
-            >
-              Watch the walkthrough <ArrowRight size={15} />
-            </a>
           </div>
         </div>
 
