@@ -45,7 +45,7 @@ const mcpTools = [
 
 function CodeBlock({ code }) {
   return (
-    <pre className="bg-gray-900 text-gray-100 text-[12.5px] leading-relaxed rounded-xl p-4 overflow-x-auto whitespace-pre-wrap">
+    <pre className="bg-[#f8fafc] border border-gray-200 text-gray-800 text-[13px] leading-relaxed rounded-xl p-4 overflow-x-auto whitespace-pre-wrap font-mono">
       <code>{code}</code>
     </pre>
   );
@@ -115,41 +115,47 @@ export default function Connect() {
       </div>
 
       {/* ── OPTION 2: MCP ── */}
-      <div className="bg-gray-950 text-white rounded-3xl p-8 md:p-10 mb-6">
+      <div className="bg-white border border-gray-200 rounded-3xl p-8 md:p-10 shadow-sm mb-6">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-3">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-white/10 text-orange-400 flex items-center justify-center">
+            <div className="h-12 w-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center">
               <TerminalSquare size={24} />
             </div>
             <div>
-              <h2 className="font-condensed font-black uppercase text-2xl">Code with AI agents</h2>
-              <p className="text-gray-400 text-sm">
+              <h2 className="font-condensed font-black uppercase text-2xl text-gray-900">
+                Code with AI agents
+              </h2>
+              <p className="text-gray-500 text-sm">
                 Hermes, Claude Code, Codex, Cursor — live today via the SoulPrint MCP server.
               </p>
             </div>
           </div>
-          <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border bg-green-500/10 text-green-400 border-green-500/30 self-center">
+          <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border bg-green-50 text-green-600 border-green-200 self-center">
             Live now
           </span>
         </div>
 
         <ol className="space-y-5 mt-6 mb-8">
           <li className="flex gap-4">
-            <span className="font-condensed font-black text-orange-400/60 text-2xl leading-none pt-0.5 shrink-0">
+            <span className="font-condensed font-black text-orange-500/50 text-2xl leading-none pt-0.5 shrink-0">
               01
             </span>
             <div className="min-w-0 flex-1">
-              <h3 className="font-condensed font-bold uppercase text-lg mb-2">Install the server</h3>
+              <h3 className="font-condensed font-bold uppercase text-lg text-gray-900 mb-2">
+                Install the server
+              </h3>
               <CodeBlock code={'pip install soulprint-mcp\n# or\nuvx soulprint-mcp'} />
             </div>
           </li>
           <li className="flex gap-4">
-            <span className="font-condensed font-black text-orange-400/60 text-2xl leading-none pt-0.5 shrink-0">
+            <span className="font-condensed font-black text-orange-500/50 text-2xl leading-none pt-0.5 shrink-0">
               02
             </span>
             <div className="min-w-0 flex-1">
-              <h3 className="font-condensed font-bold uppercase text-lg mb-2">Sign in once</h3>
-              <p className="text-gray-400 text-sm mb-3">
+              <h3 className="font-condensed font-bold uppercase text-lg text-gray-900 mb-2">
+                Sign in once
+              </h3>
+              <p className="text-gray-600 text-sm mb-3 leading-relaxed">
                 Run the one-time login — approve in your browser and the token is cached locally.
                 Nothing leaves your machine except calls to your SoulPrint.
               </p>
@@ -157,17 +163,17 @@ export default function Connect() {
             </div>
           </li>
           <li className="flex gap-4">
-            <span className="font-condensed font-black text-orange-400/60 text-2xl leading-none pt-0.5 shrink-0">
+            <span className="font-condensed font-black text-orange-500/50 text-2xl leading-none pt-0.5 shrink-0">
               03
             </span>
             <div className="min-w-0 flex-1">
-              <h3 className="font-condensed font-bold uppercase text-lg mb-2">
+              <h3 className="font-condensed font-bold uppercase text-lg text-gray-900 mb-2">
                 Add it to your agent
               </h3>
               <div className="grid md:grid-cols-2 gap-3 mt-3">
                 {mcpHarnesses.map((h) => (
-                  <div key={h.name} className="bg-white/5 border border-white/10 rounded-xl p-4">
-                    <p className="font-semibold text-sm text-gray-200 mb-2">{h.name}</p>
+                  <div key={h.name} className="bg-[#f8fafc] border border-gray-200 rounded-xl p-4">
+                    <p className="font-semibold text-sm text-gray-800 mb-2">{h.name}</p>
                     <CodeBlock code={h.cmd} />
                   </div>
                 ))}
@@ -176,33 +182,33 @@ export default function Connect() {
           </li>
         </ol>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-          <p className="font-condensed font-bold uppercase tracking-[0.18em] text-orange-400 text-xs mb-3">
+        <div className="bg-[#f8fafc] border border-gray-200 rounded-2xl p-5 mb-6">
+          <p className="font-condensed font-bold uppercase tracking-[0.18em] text-orange-600 text-xs mb-3">
             What your agent can do
           </p>
           <div className="flex flex-wrap gap-2">
             {mcpTools.map((t) => (
-              <code key={t} className="text-[12px] px-2.5 py-1 rounded-md bg-black/40 border border-white/10 text-gray-200">
+              <code key={t} className="text-[12px] px-2.5 py-1 rounded-md bg-white border border-gray-200 text-gray-700 font-mono">
                 {t}
               </code>
             ))}
-            <code className="text-[12px] px-2.5 py-1 rounded-md bg-black/40 border border-white/10 text-gray-200">
+            <code className="text-[12px] px-2.5 py-1 rounded-md bg-white border border-gray-200 text-gray-500 font-mono">
               and more
             </code>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="text-gray-400 text-sm flex items-center gap-2">
-            <Sparkles size={15} className="text-orange-400 shrink-0" />
+          <p className="text-gray-600 text-sm flex items-center gap-2 leading-relaxed">
+            <Sparkles size={15} className="text-orange-500 shrink-0" />
             MCP-over-HTTP clients (like the ChatGPT app): point them at{' '}
-            <code className="text-gray-200 bg-white/10 px-1.5 py-0.5 rounded text-[12px]">
+            <code className="text-gray-800 bg-gray-100 px-1.5 py-0.5 rounded text-[12px] font-mono">
               https://soulprintengine.ai/api/mcp
             </code>
           </p>
           <Link
             href="https://github.com/coolgeekme/soulprint-mcp"
-            className="inline-flex items-center gap-2 text-white border border-white/20 hover:border-orange-400/60 px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+            className="inline-flex items-center gap-2 text-gray-800 border border-gray-300 hover:border-orange-400 hover:text-orange-600 px-6 py-2.5 rounded-lg text-sm font-semibold transition-colors"
           >
             Read the docs <ArrowRight size={16} />
           </Link>
