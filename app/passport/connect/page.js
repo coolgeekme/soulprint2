@@ -106,7 +106,7 @@ export default function Connect() {
             Works in ChatGPT and Claude today. Gemini and Perplexity on the way.
           </p>
           <Link
-            href="/auth"
+            href="/passport/early-access"
             className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all"
           >
             Get early access <ArrowRight size={16} />
@@ -350,8 +350,9 @@ export default function Connect() {
 
         <p className="text-gray-500 text-sm mt-5 flex items-center gap-2 leading-relaxed">
           <CheckCircle2 size={15} className="text-green-600 shrink-0" />
-          One door per chat surface: use the browser extension <em>or</em> the app connector for
-          ChatGPT and Claude &mdash; not both &mdash; so memories are never captured twice.
+          Running the extension and the app connector together is fine &mdash; the extension
+          detects when SoulPrint MCP is connected and stays in the background, so context is
+          never injected twice.
         </p>
       </div>
 
