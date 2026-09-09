@@ -93,7 +93,7 @@ export default function EarlyAccess() {
         <p className="text-gray-500 text-sm mt-6">
           Already approved?{' '}
           <Link
-            href="/passport/connect"
+            href="/connect"
             className="text-orange-600 font-semibold hover:text-orange-700 transition-colors"
           >
             Jump to the setup steps &rarr;

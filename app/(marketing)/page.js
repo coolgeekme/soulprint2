@@ -163,7 +163,7 @@ export default function PassportHome() {
 
           <div className="text-center mt-10">
             <Link
-              href="/passport/connect"
+              href="/connect"
               className="inline-flex items-center gap-2 text-orange-600 font-semibold text-sm hover:text-orange-700 transition-colors"
             >
               See how to connect your AI <span aria-hidden="true">&rarr;</span>

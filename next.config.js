@@ -26,6 +26,12 @@ const nextConfig = {
     maxInactiveAge: 10000,
     pagesBufferLength: 2,
   },
+  async redirects() {
+    return [
+      { source: '/passport', destination: '/', permanent: true },
+      { source: '/passport/:path*', destination: '/:path*', permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

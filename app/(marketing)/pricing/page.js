@@ -104,7 +104,7 @@ export default function Pricing() {
         <p className="text-gray-400 text-sm mt-8">
           Questions? Check the{' '}
           <Link
-            href="/passport/faq"
+            href="/faq"
             className="text-orange-600 font-semibold hover:text-orange-700 transition-colors"
           >
             FAQ

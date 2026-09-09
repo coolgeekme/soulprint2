@@ -683,7 +683,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-6">
             <a href="#features" className="text-sm text-gray-700 hover:text-gray-900 transition-colors hidden sm:inline">Features</a>
             <a href="#testimonials" className="text-sm text-gray-700 hover:text-gray-900 transition-colors hidden sm:inline">Reviews</a>
-            <Link href="/pricing" className="text-sm text-gray-700 hover:text-gray-900 transition-colors hidden sm:inline">Pricing</Link>
+            <Link href="/og-pages/pricing" className="text-sm text-gray-700 hover:text-gray-900 transition-colors hidden sm:inline">Pricing</Link>
             {isLoggedIn ? (
               <Link href="/chat" className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2">
                 Open Chat <ArrowRight className="w-4 h-4" />
@@ -830,7 +830,7 @@ export default function LandingPage() {
               </div>
               
               <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                <Link href="/pricing" className="text-orange-600 hover:text-orange-700 text-sm font-semibold flex items-center justify-center gap-1 transition-colors">
+                <Link href="/og-pages/pricing" className="text-orange-600 hover:text-orange-700 text-sm font-semibold flex items-center justify-center gap-1 transition-colors">
                   View full pricing details <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>

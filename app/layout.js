@@ -4,8 +4,8 @@ import { Toaster } from '@/components/ui/toaster'
 import ErrorBoundary from '@/components/ErrorBoundary'
 
 export const metadata = {
-  title: 'SoulPrint — Your Personal AI',
-  description: 'Stop re-explaining yourself to AI. SoulPrint remembers your tone, your tempo, and your life.',
+  title: 'SoulPrint Engine',
+  description: 'Your SoulPrint Passport — one persistent layer of you, across every AI you use.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

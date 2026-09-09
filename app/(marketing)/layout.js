@@ -8,11 +8,11 @@ export const metadata = {
 };
 
 const navLinks = [
-  { href: '/passport/how-it-works', label: 'How It Works' },
-  { href: '/passport/integrations', label: 'Integrations' },
-  { href: '/passport/features', label: 'Features' },
-  { href: '/passport/pricing', label: 'Pricing' },
-  { href: '/passport/faq', label: 'FAQ' },
+  { href: '/how-it-works', label: 'How It Works' },
+  { href: '/integrations', label: 'Integrations' },
+  { href: '/features', label: 'Features' },
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/faq', label: 'FAQ' },
 ];
 
 const footerLinks = [
@@ -43,7 +43,7 @@ export default function PassportLayout({ children }) {
       {/* NAV */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
         <nav className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4">
-          <Link href="/passport" className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-2.5">
             <SoulPrintLogo size={30} />
             <Wordmark />
           </Link>

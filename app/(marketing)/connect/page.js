@@ -106,7 +106,7 @@ export default function Connect() {
             Works in ChatGPT and Claude today. Gemini and Perplexity on the way.
           </p>
           <Link
-            href="/passport/early-access"
+            href="/early-access"
             className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold transition-all"
           >
             Get early access <ArrowRight size={16} />
