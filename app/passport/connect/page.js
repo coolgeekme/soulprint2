@@ -61,8 +61,10 @@ export default function Connect() {
         Bring your SoulPrint to life
       </h1>
       <p className="text-gray-600 text-lg text-center max-w-2xl mx-auto mb-16">
-        Two ways in — pick the one that matches how you use AI. Both use the same SoulPrint,
-        so anything you build in one is there in the other.
+        One passport, two doors. Your SoulPrint — identity, memory, and context — lives in your
+        account. These are just the ways in, so pick the one that matches how you use AI. You
+        don&rsquo;t need both, and everything you teach it through one door is already waiting
+        through the other.
       </p>
 
       {/* ── OPTION 1: EXTENSION ── */}
