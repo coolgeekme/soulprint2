@@ -6,7 +6,6 @@ import {
   Network,
   Clock3,
   Lock,
-  Sparkles,
 } from 'lucide-react';
 
 const chatAi = [
@@ -25,9 +24,9 @@ const chatAi = [
 ];
 
 const agents = [
-  { name: 'Hermes', logo: null, status: 'Live', note: 'MCP' },
+  { name: 'Hermes', logo: '/logos/hermes.png', status: 'Live', note: 'MCP' },
   { name: 'Claude Code', logo: '/logos/claude.svg', status: 'Live', note: 'MCP' },
-  { name: 'Codex', logo: '/logos/codex.svg', status: 'Live', note: 'MCP' },
+  { name: 'Codex', logo: '/logos/codex.png', status: 'Live', note: 'MCP' },
   { name: 'Cursor', logo: '/logos/cursor.svg', status: 'Live', note: 'MCP' },
 ];
 
@@ -73,9 +72,7 @@ function PlatformCard({ name, logo, status, tone = 'soon', note }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logo} alt={`${name} logo`} className="h-9 w-9 object-contain" />
         ) : (
-          <span className="h-9 w-9 flex items-center justify-center bg-gray-900 rounded-lg text-white">
-            <Sparkles size={18} />
-          </span>
+          <span className="h-9 w-9 rounded-lg bg-gray-100 border border-gray-200" />
         )}
       </div>
       <span className="font-semibold text-gray-900 text-sm">{name}</span>

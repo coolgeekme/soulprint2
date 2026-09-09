@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Sparkles, TerminalSquare } from 'lucide-react';
+import { TerminalSquare } from 'lucide-react';
 
 const groups = [
   {
@@ -14,9 +14,9 @@ const groups = [
     label: 'Agents & Dev Tools',
     sub: 'Connect through the SoulPrint MCP server — your identity becomes a native tool.',
     items: [
-      { name: 'Hermes', logo: null, status: 'Live · MCP' },
+      { name: 'Hermes', logo: '/logos/hermes.png', status: 'Live · MCP' },
       { name: 'Claude Code', logo: '/logos/claude.svg', status: 'Live · MCP' },
-      { name: 'Codex', logo: '/logos/codex.svg', status: 'Live · MCP' },
+      { name: 'Codex', logo: '/logos/codex.png', status: 'Live · MCP' },
       { name: 'Cursor', logo: '/logos/cursor.svg', status: 'Live · MCP' },
     ],
   },
@@ -60,9 +60,7 @@ export default function Integrations() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={it.logo} alt={`${it.name} logo`} className="h-9 w-9 object-contain" />
                   ) : (
-                    <span className="h-9 w-9 flex items-center justify-center bg-gray-900 rounded-lg text-white">
-                      <Sparkles size={18} />
-                    </span>
+                    <span className="h-9 w-9 rounded-lg bg-gray-100 border border-gray-200" />
                   )}
                 </div>
                 <span className="font-semibold text-gray-900 text-sm">{it.name}</span>
