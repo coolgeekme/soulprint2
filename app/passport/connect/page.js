@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Chrome, TerminalSquare, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
+import { Chrome, TerminalSquare, ArrowRight, CheckCircle2, Sparkles, MessageSquare } from 'lucide-react';
 
 const extSteps = [
   {
@@ -213,6 +213,146 @@ export default function Connect() {
             Read the docs <ArrowRight size={16} />
           </Link>
         </div>
+      </div>
+
+      {/* ── OPTION 3: ChatGPT & Claude app connectors ── */}
+      <div className="bg-white border border-gray-200 rounded-3xl p-8 md:p-10 shadow-sm mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center">
+              <MessageSquare size={24} />
+            </div>
+            <div>
+              <h2 className="font-condensed font-black uppercase text-2xl text-gray-900">
+                Inside the ChatGPT &amp; Claude apps
+              </h2>
+              <p className="text-gray-500 text-sm">
+                Prefer working in the apps themselves? Connect the same SoulPrint tools there.
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border bg-green-50 text-green-600 border-green-200 self-center">
+            Live now
+          </span>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-5">
+          {/* ChatGPT card */}
+          <div className="bg-[#f8fafc] border border-gray-200 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logos/chatgpt.svg" alt="ChatGPT logo" className="h-7 w-7 object-contain" />
+              <h3 className="font-condensed font-bold uppercase text-lg text-gray-900">ChatGPT.com</h3>
+            </div>
+            <ol className="space-y-3 text-sm text-gray-700">
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">1</span>
+                <span>
+                  Enable <strong>Developer Mode</strong> once: Settings &rarr; Security and login
+                  &rarr; Developer mode <em>on</em> (required before ChatGPT will fetch the server).
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">2</span>
+                <span>
+                  Go to <strong>chatgpt.com/plugins</strong> &rarr; <strong>Create app</strong>{' '}
+                  &rarr; <strong>New Plugin&hellip;</strong>
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">3</span>
+                <span>
+                  Paste the server URL:{' '}
+                  <code className="font-mono text-[12px] bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-800">
+                    https://soulprintengine.ai/api/mcp
+                  </code>
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">4</span>
+                <span>
+                  Check <strong>&ldquo;I understand and want to continue&hellip;&rdquo;</strong>{' '}
+                  &rarr; <strong>Create</strong>
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">5</span>
+                <span>
+                  Sign in with <strong>SoulPrint MCP</strong>, then open Permissions &rarr;{' '}
+                  <strong>Allow all actions</strong>.
+                </span>
+              </li>
+            </ol>
+            <a
+              href="https://app.tango.us/app/workflow/d556d311-a7cd-4204-96ab-76e9f106d3c0"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 mt-5 text-orange-600 font-semibold text-sm hover:text-orange-700 transition-colors"
+            >
+              Watch the walkthrough <ArrowRight size={15} />
+            </a>
+          </div>
+
+          {/* Claude card */}
+          <div className="bg-[#f8fafc] border border-gray-200 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logos/claude.svg" alt="Claude logo" className="h-7 w-7 object-contain" />
+              <h3 className="font-condensed font-bold uppercase text-lg text-gray-900">Claude.ai</h3>
+            </div>
+            <ol className="space-y-3 text-sm text-gray-700">
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">1</span>
+                <span>
+                  Open <strong>claude.ai</strong> and go to your profile &rarr;{' '}
+                  <strong>Settings</strong>
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">2</span>
+                <span>
+                  Click <strong>Connectors</strong> &rarr; <strong>Add</strong> &rarr;{' '}
+                  <strong>Add custom connector</strong>
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">3</span>
+                <span>
+                  Paste the server URL:{' '}
+                  <code className="font-mono text-[12px] bg-white border border-gray-200 rounded px-1.5 py-0.5 text-gray-800">
+                    https://soulprintengine.ai/api/mcp
+                  </code>
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">4</span>
+                <span>
+                  Click <strong>Continue</strong>, then <strong>Connect</strong>
+                </span>
+              </li>
+              <li className="flex gap-3">
+                <span className="font-condensed font-black text-orange-500/60 shrink-0">5</span>
+                <span>
+                  Authorize with <strong>SoulPrint MCP</strong> — your tools are ready in a new chat.
+                </span>
+              </li>
+            </ol>
+            <a
+              href="https://app.tango.us/app/workflow/Connect-SoulPrint-MCP-in-Claude-19e86db1623448ba8a8b2e0b6fd01203"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 mt-5 text-orange-600 font-semibold text-sm hover:text-orange-700 transition-colors"
+            >
+              Watch the walkthrough <ArrowRight size={15} />
+            </a>
+          </div>
+        </div>
+
+        <p className="text-gray-500 text-sm mt-5 flex items-center gap-2 leading-relaxed">
+          <CheckCircle2 size={15} className="text-green-600 shrink-0" />
+          One door per chat surface: use the browser extension <em>or</em> the app connector for
+          ChatGPT and Claude &mdash; not both &mdash; so memories are never captured twice.
+        </p>
       </div>
 
       {/* ── BOTTOM CTA ── */}
