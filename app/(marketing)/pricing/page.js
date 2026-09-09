@@ -90,7 +90,7 @@ export default function Pricing() {
           the difference, and add Passport when you want your SoulPrint everywhere.
         </p>
         <p className="text-gray-400 text-sm mt-4">
-          Looking for images, video, or audio generation? That is{' '}
+          Looking for images, video, files, or PDFs? That is{' '}
           <a
             href="https://foundryagents.ai"
             target="_blank"

@@ -19,7 +19,7 @@ const faqs = [
   },
   {
     q: 'Do I still get the chat?',
-    a: 'Yes. The built-in chat is there for people who want to skip ChatGPT and Claude entirely — simple conversation powered by your SoulPrint. It is chat-only: for images, video, or audio generation, use The Foundry at foundryagents.ai.',
+    a: 'Yes. The built-in chat is there for people who want to skip ChatGPT and Claude entirely — simple conversation powered by your SoulPrint. It is chat-only: for images, video, audio, and file or PDF generation, use The Foundry at foundryagents.ai.',
   },
   {
     q: 'What does Passport cost?',

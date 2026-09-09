@@ -388,10 +388,10 @@ export default function Connect() {
           </div>
           <div>
             <h2 className="font-condensed font-black uppercase text-2xl text-gray-900 mb-2">
-              Want images, video, or audio?
+              Want images, video, files, or PDFs?
             </h2>
             <p className="text-gray-600 text-base leading-relaxed">
-              That is The Foundry&rsquo;s job.{' '}
+              That is The Foundry&rsquo;s job — file and PDF generation too.{' '}
               <a
                 href="https://foundryagents.ai"
                 target="_blank"
