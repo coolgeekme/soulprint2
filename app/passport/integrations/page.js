@@ -93,6 +93,12 @@ export default function Integrations() {
               SoulPrint directly — profile, memories, and Imprints as native tools. The SoulPrint
               MCP server runs locally and connects in minutes.
             </p>
+            <Link
+              href="/passport/connect"
+              className="inline-flex items-center gap-2 mt-4 text-orange-600 font-semibold text-sm hover:text-orange-700 transition-colors"
+            >
+              Full setup guide <span aria-hidden="true">&rarr;</span>
+            </Link>
           </div>
         </div>
       </div>
