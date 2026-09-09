@@ -11,7 +11,7 @@ const faqs = [
   },
   {
     q: 'What are Imprints?',
-    a: 'Imprints are modes your AI takes on — a supportive friend, a brutally honest advisor, a career coach, a senior code reviewer. Your identity and memories stay the same; the way the AI shows up changes with the moment. Custom Imprints are a Pro feature.',
+    a: 'Imprints are modes your AI takes on — a supportive friend, a brutally honest advisor, a career coach, a senior code reviewer. Your identity and memories stay the same; the way the AI shows up changes with the moment. Custom Imprints are included in Passport.',
   },
   {
     q: 'How is this different from built-in memory features?',
@@ -22,16 +22,16 @@ const faqs = [
     a: 'Yes. The built-in chat is there for people who want to skip ChatGPT and Claude entirely — simple conversation powered by your SoulPrint. It is chat-only: for images, video, or audio generation, use The Foundry at foundryagents.ai.',
   },
   {
-    q: 'What does it cost?',
-    a: 'Free to start — assessment, core memories, and two connected surfaces. Pro is $14/month (or $12/month billed annually) and unlocks the full experience: more memories, auto-extraction, custom Imprints, history import, and MCP access.',
+    q: 'What does Passport cost?',
+    a: 'One plan, one price: everything included — your SoulPrint across ChatGPT, Claude, and agents via MCP, unlimited platform connections, auto-extraction, custom Imprints, and history import. $14/month, or $12/month billed annually. No feature tiers.',
   },
   {
     q: 'Is my data private?',
     a: 'Your memories are yours. Nothing is sold. You can review, correct, or delete any memory and export your data anytime. Your prompts are read locally to match context; when you connect an account, extracted memories sync over HTTPS so they are available across your devices.',
   },
   {
-    q: 'Which plan should I start with?',
-    a: 'Free. Connect two tools, build a few memories, and feel the difference. Upgrade when you want auto-extraction and the full experience.',
+    q: 'Is there a free tier?',
+    a: 'Passport is a single plan — no feature tiers. Create your account and you get the full experience: your SoulPrint across every connected AI, auto-extraction, Imprints, and history.',
   },
 ];
 

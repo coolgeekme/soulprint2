@@ -224,7 +224,7 @@ export default function PassportHome() {
             ))}
           </div>
           <p className="text-gray-500 text-sm mt-6">
-            Pick one per conversation, or build your own on Pro.
+            Pick one per conversation, or build your own.
           </p>
         </div>
       </section>
