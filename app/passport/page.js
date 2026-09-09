@@ -191,6 +191,44 @@ export default function PassportHome() {
         </div>
       </section>
 
+      {/* IMPRINTS */}
+      <section className="bg-[#f8fafc] py-20 border-y border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="font-condensed font-bold uppercase tracking-[0.3em] text-orange-600 text-sm mb-3">
+            Imprints
+          </p>
+          <h2 className="font-condensed font-black uppercase text-3xl md:text-5xl text-gray-900 mb-4">
+            One you. Every mode you need.
+          </h2>
+          <p className="text-gray-600 text-lg max-w-2xl mx-auto mb-9">
+            Your SoulPrint stays constant. Imprints change how your AI shows up for the
+            moment &mdash; the voice, the tone, the priorities.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3 max-w-3xl mx-auto">
+            {[
+              'Supportive Friend',
+              'Brutally Honest Advisor',
+              'Career Coach',
+              'Study Buddy',
+              'Thoughtful Editor',
+              'Senior Code Reviewer',
+              'Calm Decision Maker',
+              'Creative Director',
+            ].map((c) => (
+              <span
+                key={c}
+                className="px-4 py-2 rounded-full bg-white border border-gray-200 text-gray-700 text-sm font-medium"
+              >
+                {c}
+              </span>
+            ))}
+          </div>
+          <p className="text-gray-500 text-sm mt-6">
+            Pick one per conversation, or build your own on Pro.
+          </p>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="pb-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

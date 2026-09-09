@@ -10,6 +10,10 @@ const faqs = [
     a: 'Yes. The Chrome extension works with ChatGPT and Claude today, and the SoulPrint MCP server connects agents like Hermes, Claude Code, Codex, and Cursor. Gemini and Perplexity support are on the way.',
   },
   {
+    q: 'What are Imprints?',
+    a: 'Imprints are modes your AI takes on — a supportive friend, a brutally honest advisor, a career coach, a senior code reviewer. Your identity and memories stay the same; the way the AI shows up changes with the moment. Custom Imprints are a Pro feature.',
+  },
+  {
     q: 'How is this different from built-in memory features?',
     a: 'Built-in memory is trapped inside one tool. If you switch tools, you start over. SoulPrint is portable — one identity, one memory store, available everywhere. You own it, you can export it, and you can correct anything it knows.',
   },

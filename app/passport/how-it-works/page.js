@@ -57,7 +57,27 @@ export default function HowItWorks() {
         ))}
       </div>
 
-      <div className="mt-14 bg-[#f8fafc] border border-gray-200 rounded-2xl p-8 text-center">
+      <div className="mt-14 bg-white border border-gray-200 rounded-2xl p-8">
+        <p className="font-condensed font-bold uppercase tracking-[0.22em] text-gray-400 text-xs mb-6 text-center">
+          Your passport carries three things
+        </p>
+        <div className="grid md:grid-cols-3 gap-4 text-center">
+          <div className="bg-[#f8fafc] rounded-xl p-5">
+            <p className="font-condensed font-black uppercase text-lg text-gray-900 mb-1">SoulPrint</p>
+            <p className="text-gray-600 text-sm">Who you are &mdash; stable, constant, yours.</p>
+          </div>
+          <div className="bg-[#f8fafc] rounded-xl p-5">
+            <p className="font-condensed font-black uppercase text-lg text-gray-900 mb-1">Memories</p>
+            <p className="text-gray-600 text-sm">What you know and carry &mdash; built as you talk.</p>
+          </div>
+          <div className="bg-[#f8fafc] rounded-xl p-5">
+            <p className="font-condensed font-black uppercase text-lg text-gray-900 mb-1">Imprints</p>
+            <p className="text-gray-600 text-sm">Who you need the AI to be &mdash; for the moment.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 bg-[#f8fafc] border border-gray-200 rounded-2xl p-8 text-center">
         <p className="font-condensed font-bold uppercase tracking-[0.22em] text-gray-400 text-xs mb-5">
           Old AI ends the conversation. SoulPrint starts it.
         </p>
