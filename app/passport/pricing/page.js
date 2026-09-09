@@ -55,20 +55,22 @@ export default function Pricing() {
         </div>
 
         {/* Passport */}
-        <div className="bg-gray-950 text-white rounded-3xl p-8 shadow-lg flex flex-col relative overflow-hidden">
-          <span className="absolute top-5 right-5 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/30">
+        <div className="bg-white border-2 border-orange-500/50 rounded-3xl p-8 shadow-md flex flex-col relative overflow-hidden">
+          <span className="absolute top-5 right-5 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-orange-50 text-orange-600 border border-orange-200">
             Everything included
           </span>
-          <h2 className="font-condensed font-black uppercase text-xl">SoulPrint Passport</h2>
-          <p className="text-gray-400 text-sm mt-1 mb-5">One plan. No tiers.</p>
-          <p className="text-5xl font-black mb-1">
-            $14<span className="text-lg font-semibold text-gray-400">/mo</span>
+          <h2 className="font-condensed font-black uppercase text-xl text-gray-900">
+            SoulPrint Passport
+          </h2>
+          <p className="text-gray-500 text-sm mt-1 mb-5">One plan. No tiers.</p>
+          <p className="text-5xl font-black text-gray-900 mb-1">
+            $14<span className="text-lg font-semibold text-gray-500">/mo</span>
           </p>
-          <p className="text-gray-400 text-sm mb-7">or $12/month billed annually ($144/yr)</p>
+          <p className="text-gray-600 text-sm mb-7">or $12/month billed annually ($144/yr)</p>
           <ul className="space-y-3 mb-8 flex-1">
             {passportFeatures.map((f) => (
-              <li key={f} className="flex items-start gap-3 text-gray-200 text-sm">
-                <Check size={17} className="text-orange-400 shrink-0 mt-0.5" />
+              <li key={f} className="flex items-start gap-3 text-gray-700 text-sm">
+                <Check size={17} className="text-orange-500 shrink-0 mt-0.5" />
                 {f}
               </li>
             ))}
