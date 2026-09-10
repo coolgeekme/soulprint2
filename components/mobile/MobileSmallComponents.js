@@ -153,6 +153,4 @@ const RenameModal = ({ isOpen, onClose, title, onTitleChange, onSave }) => {
   );
 };
 
-// Media Gallery View
-
 export { ConversationItem, ThemeToggle, AttachmentPreview, RenameModal };

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Film, Loader2, X, Square, Check, Download, RefreshCw, GalleryHorizontal, Sparkles, Image as ImageIcon, FastForward } from 'lucide-react';
+import { Film, Loader2, X, Square, Check, Download, RefreshCw, Sparkles, Image as ImageIcon, FastForward } from 'lucide-react';
 
 // ── Mobile download helper — uses backend proxy for reliable cross-origin downloads ──
 function useMobileDownload() {
@@ -43,10 +43,8 @@ function useMobileDownload() {
   return { downloading, handleDownload };
 }
 
-// ── MobileImageCard: image display with Save to Gallery button ─────────────
+// ── MobileImageCard: image display ─────────────
 function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
-  const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [imgSrc, setImgSrc] = useState(url);
@@ -60,22 +58,6 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
     { id: 'gpt-image-1', label: 'GPT Image', description: 'Creative, detailed' },
   ];
   
-  const saveToGallery = async () => {
-    if (saving || saved) return;
-    setSaving(true);
-    try {
-      const res = await fetch('/api/media/save-to-gallery', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ url, model: modelLabel || 'unknown', modelLabel: modelLabel || 'AI Generated' }),
-      });
-      if (res.ok) setSaved(true);
-    } catch (e) {
-      console.error('Failed to save to gallery:', e);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleRegenerateWith = (modelId) => {
     setShowModelPicker(false);
@@ -128,15 +110,6 @@ function MobileImageCard({ url, modelLabel, token, prompt, onRegenerateWith }) {
             <ImageIcon className="w-3.5 h-3.5" /> {modelLabel ? `Generated with ${modelLabel}` : 'AI Generated'}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={saveToGallery}
-              disabled={saving || saved}
-              className={`flex items-center gap-1 px-2.5 py-1 text-[11px] rounded-lg transition-colors ${
-                saved ? 'bg-green-500/20 text-green-400' : saving ? 'text-gray-500' : 'bg-purple-500/15 text-purple-400 active:bg-purple-500/25'
-              }`}
-            >
-              {saved ? '✓ Saved' : saving ? '...' : '📁 Gallery'}
-            </button>
             <button onClick={() => handleDownload(url)} disabled={downloading}
               className="flex items-center gap-1 px-2.5 py-1 bg-orange-500/15 text-orange-400 text-[11px] rounded-lg active:bg-orange-500/25 disabled:opacity-50">
               {downloading ? '⏳ Saving...' : '↓ Save'}
@@ -179,8 +152,6 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
   const [status, setStatus] = useState(initialStatus);
   const [videoUrl, setVideoUrl] = useState(null);
   const [error, setError] = useState(null);
-  const [savedToGallery, setSavedToGallery] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('Queuing your video...');
   const [estimatedTime, setEstimatedTime] = useState(null);
@@ -360,25 +331,6 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
     return () => clearInterval(pollRef.current);
   }, [taskId, status, token, messageId]);
 
-  const saveToGallery = async () => {
-    if (saving || savedToGallery || !videoUrl) return;
-    setSaving(true);
-    try {
-      const res = await fetch('/api/media/save-to-gallery', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          url: videoUrl,
-          prompt: prompt || '',
-          model: modelLabel || 'unknown',
-          modelLabel: modelLabel || 'AI Generated',
-          type: 'video',
-        }),
-      });
-      if (res.ok) setSavedToGallery(true);
-    } catch (e) {}
-    finally { setSaving(false); }
-  };
 
   if (status === 'success' && videoUrl) {
     return (
@@ -403,19 +355,6 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={saveToGallery}
-              disabled={saving || savedToGallery}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border text-xs rounded-xl transition-colors ${
-                savedToGallery 
-                  ? 'bg-green-500/20 border-green-500/30 text-green-400' 
-                  : saving
-                    ? 'bg-white/5 border-white/10 text-gray-500'
-                    : 'bg-purple-500/15 border-purple-500/30 text-purple-400 active:bg-purple-500/25'
-              }`}
-            >
-              {savedToGallery ? <><Check className="w-3.5 h-3.5" /> Saved</> : saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><GalleryHorizontal className="w-3.5 h-3.5" /> Save to Gallery</>}
-            </button>
             <button onClick={() => handleDownload(videoUrl)} disabled={downloading}
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl active:bg-orange-500/25 transition-colors disabled:opacity-50">
               {downloading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Download className="w-3.5 h-3.5" /> Download</>}
@@ -558,8 +497,6 @@ function MobileVideoCard({ taskId, prompt, token, initialStatus = 'generating', 
 // ── MobileSavedVideoCard: displays a saved video from database with matching UX ─
 function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerateWith, sourceImageUrl, onExtendVideo, videoTaskId }) {
   const { downloading, handleDownload } = useMobileDownload();
-  const [savedToGallery, setSavedToGallery] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [showModelPicker, setShowModelPicker] = useState(false);
 
   // Available video models for regeneration
@@ -569,25 +506,6 @@ function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerat
     { id: 'runway-aleph', label: 'Runway Aleph', description: 'Creative, artistic' },
   ];
 
-  const saveToGallery = async () => {
-    if (saving || savedToGallery || !videoUrl) return;
-    setSaving(true);
-    try {
-      const res = await fetch('/api/media/save-to-gallery', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          url: videoUrl,
-          prompt: prompt || '',
-          model: modelLabel || 'unknown',
-          modelLabel: modelLabel || 'AI Generated',
-          type: 'video',
-        }),
-      });
-      if (res.ok) setSavedToGallery(true);
-    } catch (e) {}
-    finally { setSaving(false); }
-  };
 
   const handleRegenerateWith = (modelId) => {
     setShowModelPicker(false);
@@ -622,19 +540,6 @@ function MobileSavedVideoCard({ videoUrl, modelLabel, prompt, token, onRegenerat
           {prompt && <p className="text-[10px] text-gray-600 mt-0.5 truncate">{prompt}</p>}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={saveToGallery}
-            disabled={saving || savedToGallery}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border text-xs rounded-xl transition-colors ${
-              savedToGallery 
-                ? 'bg-green-500/20 border-green-500/30 text-green-400' 
-                : saving
-                  ? 'bg-white/5 border-white/10 text-gray-500'
-                  : 'bg-purple-500/15 border-purple-500/30 text-purple-400 active:bg-purple-500/25'
-            }`}
-          >
-            {savedToGallery ? <><Check className="w-3.5 h-3.5" /> Saved</> : saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><GalleryHorizontal className="w-3.5 h-3.5" /> Save to Gallery</>}
-          </button>
           <button onClick={() => handleDownload(videoUrl)} disabled={downloading}
             className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs rounded-xl active:bg-orange-500/25 transition-colors disabled:opacity-50">
             {downloading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Download className="w-3.5 h-3.5" /> Download</>}

@@ -1,5 +1,5 @@
 'use client';
-import { MessageSquare, User, Globe, ChevronDown, Home, AudioWaveform, GalleryHorizontal, MoreHorizontal, ExternalLink } from 'lucide-react';
+import { MessageSquare, User, Globe, ChevronDown, Home, AudioWaveform, MoreHorizontal, ExternalLink } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
 const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {

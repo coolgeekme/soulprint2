@@ -8,7 +8,7 @@ import {
   Copy, Edit3, ThumbsUp, ThumbsDown, Trash2, MoreVertical,
   Video, Search, ChevronRight, Square, Download, Home, ExternalLink, FileText, RefreshCw,
   Folder, FolderPlus, Share2, Users, Link2, UserPlus, Upload, Sun, Moon, MapPin, AudioWaveform,
-  Film, GalleryHorizontal, CheckCircle
+  Film, CheckCircle
 } from 'lucide-react';
 import SafeMarkdown from '@/components/SafeMarkdown';
 import MessageErrorBoundary from '@/components/MessageErrorBoundary';
@@ -31,7 +31,7 @@ import VideoProgressBanner from '@/components/chat/VideoProgressBanner';
 import { TabBar, ChatHeader } from './MobileNavigation';
 import MessageBubble from './MobileMessageBubble';
 import { ConversationItem, ThemeToggle, AttachmentPreview, RenameModal } from './MobileSmallComponents';
-import { ProfileView, AnnouncementsView, GalleryView } from './MobileViews';
+import { ProfileView, AnnouncementsView } from './MobileViews';
 import ImprintsMarketplace from '@/components/chat/ImprintsMarketplace';
 import { MoreOptionsSheet, CreateOptionsSheet, ImageGenSheet, VideoGenSheet, FlyerGenSheet, CompareModeSheet, CompareResultsView, ImportSheet } from './MobileSheets';
 import SupportBubble from '@/components/chat/SupportBubble';
@@ -106,8 +106,6 @@ export default function MobileChat({
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renamingConversation, setRenamingConversation] = useState(null);
   const [renameTitle, setRenameTitle] = useState('');
-  const [showGallery, setShowGallery] = useState(false);
-  const [galleryItems, setGalleryItems] = useState([]);
   const [showImprintsMarketplace, setShowImprintsMarketplace] = useState(false);
   const [currentStreamImprint, setCurrentStreamImprint] = useState(null);
   const [showCompareMode, setShowCompareMode] = useState(false);
@@ -2418,7 +2416,6 @@ export default function MobileChat({
               }
             : m
         ));
-        loadGallery();
       }
     } catch (err) {
       setMessages(prev => prev.map(m => 
@@ -2504,7 +2501,6 @@ export default function MobileChat({
               }
             : m
         ));
-        loadGallery();
       }
     } catch (err) {
       setMessages(prev => prev.map(m => 
@@ -2560,7 +2556,6 @@ export default function MobileChat({
                 }
               : m
           ));
-          loadGallery();
         } else if (data.status === 'failed') {
           clearInterval(pollInterval);
           setMessages(prev => prev.map(m => 
@@ -2589,19 +2584,6 @@ export default function MobileChat({
         // Don't clear on network errors, keep trying
       }
     }, 3000);
-  };
-
-  // Load gallery items
-  const loadGallery = async () => {
-    try {
-      const res = await fetch('/api/media/gallery', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setGalleryItems(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Gallery load error:', err);
-    }
   };
 
   // Handle compare mode
@@ -4744,7 +4726,6 @@ export default function MobileChat({
         onImageGen={() => setShowImageGenSheet(true)}
         onVideoGen={() => setShowVideoGenSheet(true)}
         onCompare={() => setShowCompareMode(true)}
-        onGallery={() => { loadGallery(); setShowGallery(true); }}
         onNewConversation={newConversation}
       />
 
@@ -4792,21 +4773,6 @@ export default function MobileChat({
         title={renameTitle}
         onTitleChange={setRenameTitle}
         onSave={renameConversation}
-      />
-
-      {/* Gallery View */}
-      <GalleryView
-        isOpen={showGallery}
-        onClose={() => setShowGallery(false)}
-        items={galleryItems}
-        token={token}
-        onDeleteItem={(deletedId) => {
-          setGalleryItems(prev => prev.filter(item => item.id !== deletedId));
-        }}
-        onRegenerate={() => {
-          // Refresh gallery after regeneration
-          setTimeout(() => loadGallery(), 2000);
-        }}
       />
 
       {/* Imprints Marketplace Modal */}

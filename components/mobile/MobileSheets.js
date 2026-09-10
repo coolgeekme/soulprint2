@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 import { 
   Settings, X, Loader2, Plus, Sparkles, Shield, Home,
   Video, Image as ImageIcon,
-  Film, GalleryHorizontal, Upload, MapPin, ChevronDown, Check, Globe, Clock
+  Film, Upload, MapPin, ChevronDown, Check, Globe, Clock
 } from 'lucide-react';
 import { SparklesIcon, AttachIcon } from '@/components/icons/SoulPrintIcons';
 
@@ -62,7 +62,7 @@ const MoreOptionsSheet = ({ isOpen, onClose, onSettings, onImprints }) => {
 };
 
 // Attachment/Create Options Sheet (+ button menu)
-const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onImageGen, onVideoGen, onCompare, onGallery, onNewConversation }) => {
+const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onImageGen, onVideoGen, onCompare, onNewConversation }) => {
   if (!isOpen) return null;
   
   return (
@@ -101,19 +101,7 @@ const CreateOptionsSheet = ({ isOpen, onClose, onFileSelect, onCameraSelect, onI
             </div>
           </button>
           
-          {/* Media Gallery */}
-          <button 
-            onClick={() => { onGallery?.(); onClose(); }}
-            className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
-          >
-            <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-              <ImageIcon className="w-5 h-5 text-amber-400" />
-            </div>
-            <div>
-              <span className="text-white font-medium">Media Gallery</span>
-              <p className="text-gray-500 text-xs">View your generated images and videos</p>
-            </div>
-          </button>
+
           
           {/* Divider */}
           <div className="border-t border-white/10 my-3"></div>
