@@ -1,3 +1,14 @@
+> ⚠️ **SUPERSEDED — DO NOT USE FOR DEVELOPMENT.**
+>
+> This document describes a **chat-sidebar** extension, which is not the product that was
+> built. The shipped SoulPrint extension is a **memory-injection** extension: it intercepts
+> outgoing messages on ChatGPT/Claude and injects saved context. There is no chat sidebar.
+>
+> Current roadmap: `soulprint-extension/docs/ROADMAP.md`
+> Current technical truth: `soulprint-extension/README.md`
+>
+> Kept for historical reference only.
+
 # SoulPrint Chrome Extension - Technical Specifications
 
 **Version:** 1.0.0  
