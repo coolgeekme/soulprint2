@@ -90,6 +90,43 @@ Typography: **Georgia / Times New Roman serif** stack.
 
 ---
 
+## Plain-text fallback
+
+Every send needs a `text/plain` alternative part — some clients display it, and spam
+filters penalise HTML-only mail. **Do not hand-write it**: it drifts from the HTML the
+moment anyone edits one and not the other.
+
+Instead, `build_email.py` renders **both parts from one content spec**, so they cannot
+diverge:
+
+```bash
+python3 build_email.py content/spe-changes-oct1.json out/
+#  -> out/spe-changes-oct1.html
+#  -> out/spe-changes-oct1.txt
+
+python3 build_email.py --check out/     # fails if any {{PLACEHOLDER}} survived
+```
+
+### Content spec shape
+
+Filled example: `content/spe-changes-oct1.json`. Keys mirror the template placeholders;
+the only structural ones are `PARAGRAPHS` (list) and `FEATURES` (list of
+`{title, tag, desc}`) — those expand to N blocks automatically, so the HTML and the text
+always contain the same number of paragraphs and items.
+
+### Text-part rules the builder enforces
+
+- Wrapped at **72 characters** (safe across clients)
+- **URLs on their own line** so they stay clickable and never break mid-link
+- **No markdown** — it renders literally in most clients
+- Domains are never upper-cased (a URL in a heading stays a URL)
+- A feature with no `tag` has its tag cell omitted entirely rather than rendering empty
+
+### Before sending
+
+Always `--check` first, then send yourself a test. An email shipping with a literal
+`{{HEADLINE}}` is worse than plain text.
+
 ## Sending from the app
 
 The app has **no broadcast capability.** `soulprint2/lib/email.js` exposes:
