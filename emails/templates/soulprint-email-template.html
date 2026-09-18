@@ -1,0 +1,285 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>{{EMAIL_TITLE}}</title>
+  <!--[if mso]>
+  <style type="text/css">body, table, td, p { font-family: Georgia, serif !important; }</style>
+  <![endif]-->
+  <style type="text/css">
+    body, html { margin: 0 !important; padding: 0 !important; width: 100% !important; height: 100% !important; }
+    body { -webkit-text-size-adjust: 100% !important; -ms-text-size-adjust: 100% !important; }
+    table { border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; }
+    img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+    * { box-sizing: border-box; }
+    @media screen and (max-width: 600px) {
+      .outer-td  { padding: 20px 12px !important; }
+      .shell     { width: 100% !important; }
+      .hdr-td    { padding: 32px 20px 28px !important; }
+      .body-td   { padding: 32px 20px 28px !important; }
+      .ftr-td    { padding: 20px !important; }
+      .h2        { font-size: 18px !important; }
+      .h3        { font-size: 16px !important; }
+      .p         { font-size: 14px !important; line-height: 1.75 !important; }
+      .small     { font-size: 11px !important; }
+      .list-td   { font-size: 14px !important; }
+      .logo-img  { width: 160px !important; max-width: 160px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background-color:#000000;width:100%;font-family:Georgia,'Times New Roman',serif;">
+<table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#000000;margin:0;padding:0;">
+  <tr>
+    <td class="outer-td" align="center" valign="top" style="padding:40px 16px;">
+    <center>
+      <table class="shell" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background-color:#0a0a0a;border:1px solid #1e2a4a;">
+
+        <!-- ══ HEADER ══ -->
+        <tr>
+          <td class="hdr-td" align="center" style="background-color:#000000;padding:48px 48px 40px;border-bottom:1px solid #1e2a4a;">
+
+            <!-- Logo — Gmail-safe table width approach -->
+            <table border="0" cellpadding="0" cellspacing="0" width="200" style="margin:0 auto;width:200px;">
+              <tr>
+                <td width="200" style="width:200px;">
+                  <a href="{{SOULPRINT_URL}}" target="_blank" style="display:block;text-decoration:none;border:0;">
+                    <img src="{{LOGO_SRC}}"
+                         alt="SoulPrint Engine"
+                         width="200"
+                         class="logo-img"
+                         style="display:block;width:200px;height:auto;border:0;outline:none;text-decoration:none;" />
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Spacer -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+              <tr><td height="24" style="font-size:0;line-height:0;">&nbsp;</td></tr>
+            </table>
+
+            <!-- Eyebrow -->
+            <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:normal;letter-spacing:3px;text-transform:uppercase;color:#5c7099;line-height:1.4;">
+              {{HEADER_EYEBROW}}
+            </p>
+
+            <!-- Header tagline -->
+            <p class="h2" style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:normal;font-style:italic;color:#b8c5d6;line-height:1.4;">
+              {{HEADER_TAGLINE}}
+            </p>
+
+          </td>
+        </tr>
+
+        <!-- ══ BODY ══ -->
+        <tr>
+          <td class="body-td" style="padding:48px 48px 40px;background-color:#0a0a0a;">
+
+            <!-- ── BADGE (optional) ──
+                 Remove this table if no badge needed -->
+            <table border="0" cellpadding="0" cellspacing="0" style="margin:0 auto 28px auto;">
+              <tr>
+                <td align="center" style="background-color:#0d0d0d;border:1px solid #d4a574;padding:10px 24px;">
+                  <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:4px;text-transform:uppercase;color:#d4a574;line-height:1.4;">
+                    {{BADGE_TEXT}}
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── HEADLINE ── -->
+            <p class="h3" style="margin:0 0 20px 0;font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:normal;color:#eef0f6;line-height:1.4;">
+              {{HEADLINE}}
+            </p>
+
+            <!-- ── BODY PARAGRAPHS ──
+                 Repeat this block for each paragraph -->
+            <p class="p" style="margin:0 0 18px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:normal;line-height:1.85;color:#8a9bbf;">
+              {{PARAGRAPH_TEXT}}
+            </p>
+
+            <!-- ── DIVIDER ──
+                 Use between sections -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:28px 0;">
+              <tr><td height="1" style="background-color:#1a2540;font-size:0;line-height:0;">&nbsp;</td></tr>
+            </table>
+
+            <!-- ── SECTION LABEL ──
+                 Orange uppercase heading above a content group -->
+            <p style="margin:0 0 14px 0;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:4px;text-transform:uppercase;color:#e8834f;line-height:1.4;">
+              {{SECTION_LABEL}}
+            </p>
+
+            <!-- ── FEATURE ROW (gold accent) ──
+                 Repeat for each feature/item. Change border-color for different accents:
+                 Gold #d4a574 | Orange #e8834f | Green #1a4a2a | Red #3a1a1a | Blue #2a3a5c | Purple #9b6fd4 -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 8px 0;">
+              <tr>
+                <td width="3" style="background-color:#d4a574;font-size:0;line-height:0;">&nbsp;</td>
+                <td style="background-color:#0d0d0d;padding:14px 16px;">
+                  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 5px 0;">
+                    <tr>
+                      <td>
+                        <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:14px;font-weight:bold;color:#eef0f6;line-height:1.3;">{{FEATURE_TITLE}}</p>
+                      </td>
+                      <!-- Tag — remove this td if no tag needed.
+                           Tag colors: NEW #e8834f | ENHANCED #5c7099 | FIXED #4a7a5c | REBUILT #9b6fd4 -->
+                      <td align="right" style="white-space:nowrap;padding-left:10px;">
+                        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:9px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#e8834f;background-color:#0a0a0a;border:1px solid #e8834f;padding:3px 7px;">{{FEATURE_TAG}}</p>
+                      </td>
+                    </tr>
+                  </table>
+                  <p class="p" style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#8a9bbf;line-height:1.75;">{{FEATURE_DESC}}</p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── QUOTE / HIGHLIGHT BLOCK ── -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 24px 0;">
+              <tr>
+                <td style="background-color:#05080f;border-left:3px solid #d4a574;padding:20px 22px;">
+                  <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:16px;font-weight:normal;font-style:italic;color:#b8c5d6;line-height:1.6;">
+                    {{QUOTE_TEXT}}
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── ACCENT PANEL (left border + dark bg) ──
+                 For tips, reminders, how-to steps, feedback nudges -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 16px 0;">
+              <tr>
+                <td width="3" style="background-color:#d4a574;font-size:0;line-height:0;">&nbsp;</td>
+                <td style="background-color:#0d0d0d;padding:18px 20px;">
+                  <p style="margin:0 0 10px 0;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;color:#e8834f;line-height:1.4;">{{PANEL_LABEL}}</p>
+                  <p class="p" style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#8a9bbf;line-height:1.7;">{{PANEL_CONTENT}}</p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── BORDERED CALLOUT (alert / important notice) ──
+                 Use border-left color: gold #d4a574 | orange #e8834f -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 16px 0;">
+              <tr>
+                <td style="background-color:#0d0d0d;border:1px solid #1e2a4a;border-left:3px solid #d4a574;padding:16px 18px;">
+                  <p style="margin:0 0 6px 0;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;color:#d4a574;line-height:1.4;">{{CALLOUT_LABEL}}</p>
+                  <p class="p" style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#8a9bbf;line-height:1.75;">{{CALLOUT_TEXT}}</p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── CENTER FEATURE BLOCK (code / offer / teaser) ── -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 28px 0;">
+              <tr>
+                <td align="center" style="background-color:#05080f;border:1px solid #d4a574;padding:32px 24px;">
+                  <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:4px;text-transform:uppercase;color:#e8834f;line-height:1.4;">{{CENTER_BLOCK_EYEBROW}}</p>
+                  <p style="margin:0 0 18px 0;font-family:Georgia,'Times New Roman',serif;font-size:30px;font-weight:bold;letter-spacing:6px;color:#eef0f6;line-height:1.2;">{{CENTER_BLOCK_MAIN}}</p>
+                  <!-- Decorative rule -->
+                  <table border="0" cellpadding="0" cellspacing="0" style="margin:0 auto 18px auto;">
+                    <tr><td width="48" height="1" style="background-color:#d4a574;font-size:0;line-height:0;">&nbsp;</td></tr>
+                  </table>
+                  <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:normal;letter-spacing:2px;text-transform:uppercase;color:#5c7099;line-height:1.6;">{{CENTER_BLOCK_SUB}}</p>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── PRIMARY CTA BUTTON ── -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 28px 0;">
+              <tr>
+                <td align="center">
+                  <table border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td align="center" style="background-color:#d4a574;padding:16px 40px;">
+                        <a href="{{CTA_URL}}" style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:3px;text-transform:uppercase;color:#000000;text-decoration:none;display:block;">{{CTA_LABEL}} &rarr;</a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- ── SIGN-OFF ── -->
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:28px 0 0 0;">
+              <tr>
+                <td>
+                  <p class="p" style="margin:0 0 20px 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:normal;color:#5c7099;line-height:1.85;">
+                    {{SIGNOFF_TEXT}}
+                  </p>
+                  <!-- Gold rule -->
+                  <table border="0" cellpadding="0" cellspacing="0" style="margin:0 0 12px 0;">
+                    <tr><td width="40" height="2" style="background-color:#d4a574;font-size:0;line-height:0;">&nbsp;</td></tr>
+                  </table>
+                  <p style="margin:0 0 3px 0;font-family:Georgia,'Times New Roman',serif;font-size:17px;font-weight:bold;color:#eef0f6;letter-spacing:1px;line-height:1.3;">{{SENDER_NAME}}</p>
+                  <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:normal;letter-spacing:3px;text-transform:uppercase;color:#d4a574;line-height:1.4;">{{SENDER_TITLE}}</p>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+
+        <!-- ══ FOOTER ══ -->
+        <tr>
+          <td class="ftr-td" align="center" style="padding:24px 48px;background-color:#000000;border-top:1px solid #111827;">
+
+            <!-- Brand names -->
+            <p style="margin:0 0 8px 0;font-family:Georgia,'Times New Roman',serif;font-size:11px;font-weight:bold;letter-spacing:4px;color:#4a5e80;text-transform:uppercase;line-height:1.4;">
+              <a href="{{SOULPRINT_URL}}" style="color:#4a5e80;text-decoration:none;" target="_blank">SOULPRINT ENGINE</a>
+              &nbsp;&#183;&nbsp;
+              <a href="{{ARCHEFORGE_URL}}" style="color:#4a5e80;text-decoration:none;" target="_blank">ARCHEFORGE</a>
+            </p>
+
+            <!-- Social icons -->
+            <table border="0" cellpadding="0" cellspacing="0" style="margin:12px auto 14px auto;">
+              <tr>
+                <td style="padding:0 5px;">
+                  <a href="{{LINKEDIN_URL}}" target="_blank" style="text-decoration:none;">
+                    <table border="0" cellpadding="0" cellspacing="0"><tr><td align="center" style="background-color:#1a2540;border:1px solid #2a3a5c;padding:5px 9px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:1px;color:#4a5e80;text-transform:uppercase;white-space:nowrap;">in</td></tr></table>
+                  </a>
+                </td>
+                <td style="padding:0 5px;">
+                  <a href="{{INSTAGRAM_URL}}" target="_blank" style="text-decoration:none;">
+                    <table border="0" cellpadding="0" cellspacing="0"><tr><td align="center" style="background-color:#1a2540;border:1px solid #2a3a5c;padding:5px 9px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:1px;color:#4a5e80;text-transform:uppercase;white-space:nowrap;">IG</td></tr></table>
+                  </a>
+                </td>
+                <td style="padding:0 5px;">
+                  <a href="{{X_URL}}" target="_blank" style="text-decoration:none;">
+                    <table border="0" cellpadding="0" cellspacing="0"><tr><td align="center" style="background-color:#1a2540;border:1px solid #2a3a5c;padding:5px 9px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:1px;color:#4a5e80;text-transform:uppercase;white-space:nowrap;">&#120143;</td></tr></table>
+                  </a>
+                </td>
+                <td style="padding:0 5px;">
+                  <a href="{{BLUESKY_URL}}" target="_blank" style="text-decoration:none;">
+                    <table border="0" cellpadding="0" cellspacing="0"><tr><td align="center" style="background-color:#1a2540;border:1px solid #2a3a5c;padding:5px 9px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:1px;color:#4a5e80;text-transform:uppercase;white-space:nowrap;">BSky</td></tr></table>
+                  </a>
+                </td>
+                <td style="padding:0 5px;">
+                  <a href="{{FACEBOOK_URL}}" target="_blank" style="text-decoration:none;">
+                    <table border="0" cellpadding="0" cellspacing="0"><tr><td align="center" style="background-color:#1a2540;border:1px solid #2a3a5c;padding:5px 9px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:1px;color:#4a5e80;text-transform:uppercase;white-space:nowrap;">fb</td></tr></table>
+                  </a>
+                </td>
+                <td style="padding:0 5px;">
+                  <a href="{{YOUTUBE_URL}}" target="_blank" style="text-decoration:none;">
+                    <table border="0" cellpadding="0" cellspacing="0"><tr><td align="center" style="background-color:#1a2540;border:1px solid #2a3a5c;padding:5px 9px;font-family:Arial,Helvetica,sans-serif;font-size:10px;font-weight:bold;letter-spacing:1px;color:#4a5e80;text-transform:uppercase;white-space:nowrap;">YT</td></tr></table>
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Footer note -->
+            <p class="small" style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:normal;color:#4a5e80;line-height:1.85;">
+              {{FOOTER_NOTE}}
+            </p>
+
+          </td>
+        </tr>
+
+      </table>
+    </center>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
