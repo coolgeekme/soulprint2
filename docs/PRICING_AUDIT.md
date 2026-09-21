@@ -96,3 +96,76 @@ This is directly reusable for the Foundry offer and for any founding-member rate
 The tier ladder was priced for heavy image/video users — an audience that now belongs to
 The Foundry. Collapsing to one plan does not sacrifice surviving revenue; it stops
 selling a product we have decided not to build.
+
+---
+
+# Migrating the existing subscriber — safety analysis
+
+One paying subscriber, confirmed. Verified below that catalog changes **cannot** alter his
+billing, and identified the single operation that **would** break him.
+
+## Why his payment is structurally safe
+
+**1. Stripe Prices are immutable.** The amount on an existing `price_xxx` object cannot be
+edited — Stripe requires creating a new Price. His subscription references the old price
+ID, so no catalog edit can change what he is charged. This is not a coding convention;
+it is enforced by Stripe's API.
+
+**2. Nothing in this codebase modifies a subscription's price.** The only
+`stripe.subscriptions.update` call is in `cancelSubscription` (pricing.js:783) and it sets
+`cancel_at_period_end: true` only — no price, no line-item change. No code path performs a
+plan swap with proration.
+
+**3. The webhook never re-maps `plan_id` from a price.** All four relevant handlers were
+read in full:
+
+| Event | What it writes | Touches `plan_id`? |
+|---|---|---|
+| `invoice.paid` | `status: 'active'` | No |
+| `invoice.payment_failed` | `status: 'past_due'` + email | No |
+| `customer.subscription.updated` | status + period dates | No |
+| `customer.subscription.deleted` | `plan_id: 'free'` | Only on real cancellation |
+
+So even if we archive or null price IDs, no inbound event can silently move him to a
+different plan.
+
+`startGracePeriodForAllUsers` is also safe — it only writes to users with no subscription
+or `plan_id === 'free'`, so it cannot reach a paid subscriber.
+
+## The one operation that WOULD break him
+
+`lib/handlers/access-check.js:71`:
+
+```js
+const plan = await plansCol.findOne({ id: sub.plan_id }) || {
+  id: 'free', name: 'Free', features: { chat_model_tier: 'standard' }
+};
+```
+
+This query has **no `is_active` filter** — it matches on `id` alone. Two consequences:
+
+| Action | Effect on him |
+|---|---|
+| `is_active: false` | **Safe.** He still resolves his plan. Deactivation only hides the plan from the public listing, since `getPlans()` filters on `is_active`. |
+| **Delete the plan doc / rename its `id`** | **BREAKS HIM.** He silently falls back to Free features while Stripe keeps charging. Paying-but-locked-out, with no error raised. |
+
+### Rule
+
+> **Deactivate plans. Never delete them.** Retire Base / Plus / Power with
+> `is_active: false`. Their documents must outlive every subscription that references
+> `plan_id`.
+
+Add a regression test asserting that a user whose `plan_id` points at an inactive plan
+still resolves that plan's features.
+
+## Recommended treatment of the subscriber
+
+Grandfathering preserves revenue but leaves him paying tier prices for a product that no
+longer includes roughly 60% of what the tier promised. Since N=1, revenue is a rounding
+error and goodwill is worth more than the delta:
+
+1. **Keep his existing Stripe subscription untouched** — no price change, no cancellation.
+2. **Grant Passport access explicitly** via `adminSetUserPlan` (sets `admin_override: true`
+   with a reason), which writes only to `user_subscriptions` and never calls Stripe.
+3. **Offer a founding-member rate** — a decrease or a credit, never an increase.
+4. **Contact him personally**, not by broadcast. He is the only migration test case.
