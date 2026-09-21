@@ -211,7 +211,69 @@ that fits the model.
 
 ---
 
-## 10. Recommendation
+## 10. Recommendation — CONSUMER POSITIONING (rev. Sept 21)
+
+**Decision:** Passport is a **consumer product**. Reggie confirmed this and judged the
+$19/$16 prosumer recommendation too high. This section is rewritten for the consumer band;
+the prosumer/dev analysis above is retained as the rejected alternative.
+
+### Why $19 was wrong for consumer
+
+$19 was anchored to the *prosumer memory + MCP* cluster (Pieces $18.99, Tana $20) and to
+platform professional tiers (Claude $17–20, Google AI Pro $19.99). For a **consumer**
+product that is the top of the band, not the middle. The consumer second-brain cluster
+verified in Section 2 is **$8–$20 with a modal price of ~$10**:
+
+| Product | Monthly | Annual |
+|---|---|---|
+| MyMemo | $9.90 | $5.90/mo |
+| Saner.AI | $8.00 | — |
+| Mem (Plus) | $9.00 | — |
+| Reflect | $10.00 | — |
+| Pieces | $18.99 | $14.17/mo |
+| Tana | $35.00 | $20.00/mo |
+
+Modal consumer entry: **$9–10/month.**
+
+### The stronger reason to stay low: free bundled competition
+
+Repeating Section 4 because it dominates consumer pricing: **Claude's $0 tier includes
+memory, ChatGPT bundles memory, Microsoft Recall is a $0 Windows feature**, and Mem0 /
+Cognee / Graphiti are open-source at $0. A consumer is already being given memory for free
+by products they pay nothing for. A consumer price has to be an easy yes against *free*.
+
+### Recommended: **$9/month, $90/year ($7.50/mo effective)**
+
+- Sits at the modal consumer memory price (Mem $9), under the $10 line.
+- Annual discount **17%** — inside the verified 15–17% norm (Claude ~15%, Google One 16%).
+- Clears at 97%+ gross margin at any realistic usage (Section 1).
+- Low enough to look like an obvious add-on next to a $20 assistant.
+
+### The honest counterpoint: the number barely matters yet
+
+At the RevenueCat freemium median of **2.1% conversion**, 200 registered users ≈ **4 paying
+subscribers**. At $9 that is ~$36/mo; at $19, ~$76/mo. Both are rounding errors.
+
+**The price debate is not the bottleneck. Conversion is.** What actually decides revenue at
+this stage is (a) how many of the 200 convert and (b) year-one retention — and RevenueCat's
+finding is that hard paywalls convert ~5× better at day 35 while **year-one retention is
+nearly identical**. Price level barely moves either.
+
+**Practical consequence:** do not agonise over $9 vs $12. Publish a defensible low number,
+lock beta users in at a founding rate they keep, and spend the effort on conversion.
+
+### How to actually settle it (cheap, and we have the panel)
+
+Beta is free, so no price needs to be published until beta ends. That is a free window:
+
+1. **Mine engagement first** — free, non-hypothetical, shows which value moment precedes
+   payment. Segment the 200 by usage depth.
+2. **Ship the beta survey** (Section 8) — Van Westendorp + Gabor-Granger, then **discount
+   the results ~21%** per Schmidt & Bijmolt.
+3. **Live test on new signups only** from $9–12. Never test price on existing payers.
+4. Decide at beta end with real data instead of a document.
+
+**Recommended default if you want to decide now: $9/mo, $90/yr.**
 
 **Price the MCP/dev surface, not the consumer extension.** The extension is the free
 acquisition surface; the paid product is portable memory + agent access.
