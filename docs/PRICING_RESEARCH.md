@@ -211,6 +211,108 @@ that fits the model.
 
 ---
 
+## 11. CHAT CHANGES THE MODEL — the deciding factor (rev. Sept 21)
+
+**Reggie confirmed the chat feature stays.** This invalidates the flat $9/mo recommendation
+in Section 10 and is the single most important finding in this document.
+
+### The two cost centers are nothing alike
+
+Traced from `lib/handlers/chat-stream.js:490-532` (model routing) and the rates in
+`memory/PRICING_MODEL_TIERS.md`:
+
+| Layer | Model | Cost/message |
+|---|---|---|
+| Memory extraction | `gpt-4o-mini` | **~$0.0005** |
+| Chat | `gpt-4o` (default) + Sonnet/Opus/Gemini | **~$0.0134** blended |
+
+**Chat is roughly 27× the per-message cost of memory.** The code defaults to `gpt-4o`
+(`chat-stream.js:826`: `model = 'gpt-4o'`), i.e. $2.50/$10.00 per 1M tokens — not the
+$0.15/$0.60 mini tier.
+
+### What that does to margins
+
+| Usage | Msgs/mo | Cost/mo | Margin @ $9 | Margin @ $19 |
+|---|---|---|---|---|
+| Light (5/day) | 150 | **$2.08** | 76.9% | 89.0% |
+| Typical (20/day) | 600 | **$8.33** | **7.4%** | 56.2% |
+| Heavy (50/day) | 1,500 | **$20.83** | **−131%** | −9.6% |
+| Power (100/day) | 3,000 | **$41.66** | −363% | −119% |
+
+**Break-even at $9/mo is 21.6 messages/day.** A merely *typical* user sits at 7% margin,
+and any heavy user is a direct loss. $9/mo with unlimited chat is not viable.
+
+### The old tier ladder was right about one thing
+
+The original design included "**50 premium messages/mo included**" and "**Premium message
+packs ($3.75–$14.00)**". Those were not arbitrary — **they were chat cost control**, and
+they were correct. Memory is cheap enough to give away; chat is not. The *structure* of the
+old pricing was sound. Only the tiers and the memory rationing were wrong.
+
+### The lever: routing
+
+`chat-stream.js` already routes 'simple/quick/basic/short/brief' → `gpt-4o-mini`. Tuning
+that classifier is the cheapest way to make a low price work:
+
+| Routing | Cost/msg | 600 msgs/mo |
+|---|---|---|
+| Current (est.) | $0.0134 | **$8.03** |
+| Aggressive mini-first | $0.0064 | **$3.87** |
+| Mini-first + Sonnet only | $0.0034 | **$2.02** |
+
+A 4× cost reduction with no pricing change. **This should be done regardless of price.**
+
+### Margin-preserving chat caps by price
+
+| Price | Cap @ 80% margin | Cap @ 70% margin |
+|---|---|---|
+| $9 | 129 msgs | 194 msgs |
+| $12 | 173 msgs | 259 msgs |
+| $14 | 201 msgs | 302 msgs |
+| $19 | 273 msgs | 410 msgs |
+
+### What price would support unlimited chat?
+
+| User | Cost/mo | Price for 60% margin | Price for 80% margin |
+|---|---|---|---|
+| Typical (20/day) | $8.33 | **$20.85** | $41.70 |
+| Heavy (50/day) | $20.83 | $52.10 | $104.25 |
+
+Unlimited chat at any consumer price only works for *light* users. This is why every
+consumer AI assistant caps or throttles usage.
+
+### Recommended structure — hybrid, not flat
+
+| Layer | Cost | Treatment |
+|---|---|---|
+| **Memory** (extraction, sync, MCP, Imprints) | ~$0.0005/msg | **Unlimited.** It is the differentiator and effectively free. Use it as the competitive weapon. |
+| **Chat** | ~$0.0134/msg | **Capped**, or metered for premium models. Real variable cost. |
+| **Light chat** | — | Route to `gpt-4o-mini` / Gemini Flash. Makes the generous cap affordable. |
+| **Premium models** | — | Metered (Opus/Sonnet), or a credit add-on — the old "premium message pack" idea was correct. |
+
+**Concrete recommendation:** **$12/mo, $120/yr (17% off)** with **unlimited memory** and a
+**~300-message/mo chat allowance** (70% margin at cap), plus metered premium-model usage.
+Combined with mini-first routing, that holds 70–85% margin across light-to-heavy users.
+
+### The comparison set changed
+
+With chat included, Passport is no longer a $10 memory utility — **it is a full assistant**
+competing with ChatGPT Plus / Claude Pro / Google AI Pro at **~$17–20/mo**. That is
+legitimate support for pricing *above* the memory-tool band, *provided* usage is capped.
+The memory-only consumer cluster in Section 2 ($8–20, modal $10) no longer applies cleanly.
+
+**This is the answer to "does chat change the price": yes — it raises the defensible price
+band and makes unlimited untenable at the low end. Cap the chat, keep memory unlimited,
+and route aggressively to cheap models.**
+
+---
+
+## 10b. Superseded recommendation (memory-only, no chat)
+
+*Retained for the record.* If chat were ever removed or sold separately, the memory layer
+alone would be a **$9/mo, $90/yr** product priced against the $8–20 consumer second-brain
+cluster — see Section 10. With chat bundled, use Section 11.
+
 ## 10. Recommendation — CONSUMER POSITIONING (rev. Sept 21)
 
 **Decision:** Passport is a **consumer product**. Reggie confirmed this and judged the
