@@ -84,6 +84,11 @@ This is directly reusable for the Foundry offer and for any founding-member rate
 
 ## Recommended shape
 
+> **SUPERSEDED (Sept 21).** The pricing page now reads **"Free while we're in beta"** —
+> no price is published and no new plan is needed yet. The steps below are retained for
+> when beta ends. Do **not** create a `passport` plan at a fixed price until the
+> willingness-to-pay research lands.
+
 1. **Create a single `passport` plan** at $14/mo, $144/yr — the numbers already on the
    marketing page and FAQ. Price is unchanged; this is alignment, not a repricing.
 2. **Retire Base / Plus / Power** by setting `is_active: false` (never delete — existing
@@ -92,6 +97,14 @@ This is directly reusable for the Foundry offer and for any founding-member rate
 4. **Migrate any existing paid subscriber** to Passport at no increase, with a discount
    code, rather than downgrading them.
 5. **Confirm the subscriber count** from Stripe before sending anything.
+
+## Open inconsistency after the beta change
+
+The marketing pages no longer publish a price, but `/api/pricing/plans` (public, live)
+still returns **Free / Base $19 / Plus $39 / Power $97**. Nothing on the public marketing
+path links there — the pricing CTA points at `/auth`, and there is no checkout UI — so
+this is not user-visible. It is still a latent contradiction worth resolving before beta
+ends, and it is the reason the tier ladder should be retired rather than left running.
 
 The tier ladder was priced for heavy image/video users — an audience that now belongs to
 The Foundry. Collapsing to one plan does not sacrifice surviving revenue; it stops
