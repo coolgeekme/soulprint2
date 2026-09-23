@@ -24,11 +24,11 @@ export default function Pricing() {
         Pricing
       </p>
       <h1 className="font-condensed font-black uppercase text-center text-gray-900 text-4xl md:text-6xl mb-5">
-        One Passport. Simple.
+        Free while we&apos;re in beta.
       </h1>
       <p className="text-gray-600 text-lg text-center max-w-2xl mx-auto mb-14">
-        The extension is free. Passport is one plan with everything included — no feature tiers,
-        no surprises.
+        SoulPrint Passport is in beta, so everything is free right now — no credit card, no
+        tiers, no upsells. When beta ends, we&apos;ll tell you well before anything changes.
       </p>
 
       <div className="grid md:grid-cols-2 gap-5 items-stretch">
@@ -37,7 +37,9 @@ export default function Pricing() {
           <h2 className="font-condensed font-black uppercase text-xl text-gray-900">
             SoulPrint Extension
           </h2>
-          <p className="text-gray-500 text-sm mt-1 mb-6">Free forever</p>
+          <p className="text-gray-500 text-sm mt-1 mb-5">Works on its own</p>
+          <p className="text-5xl font-black text-gray-900 mb-1">Free</p>
+          <p className="text-gray-600 text-sm mb-7">forever — no account needed</p>
           <ul className="space-y-3 mb-8 flex-1">
             {extensionFeatures.map((f) => (
               <li key={f} className="flex items-start gap-3 text-gray-700 text-sm">
@@ -57,16 +59,18 @@ export default function Pricing() {
         {/* Passport */}
         <div className="bg-white border-2 border-orange-500/50 rounded-3xl p-8 shadow-md flex flex-col relative overflow-hidden">
           <span className="absolute top-5 right-5 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-orange-50 text-orange-600 border border-orange-200">
-            Everything included
+            Beta — everything included
           </span>
           <h2 className="font-condensed font-black uppercase text-xl text-gray-900">
             SoulPrint Passport
           </h2>
-          <p className="text-gray-500 text-sm mt-1 mb-5">One plan. No tiers.</p>
+          <p className="text-gray-500 text-sm mt-1 mb-5">Everything, while it&apos;s in beta</p>
           <p className="text-5xl font-black text-gray-900 mb-1">
-            $14<span className="text-lg font-semibold text-gray-500">/mo</span>
+            Free
           </p>
-          <p className="text-gray-600 text-sm mb-7">or $12/month billed annually ($144/yr)</p>
+          <p className="text-gray-600 text-sm mb-7">
+            during beta — no card, no commitment
+          </p>
           <ul className="space-y-3 mb-8 flex-1">
             {passportFeatures.map((f) => (
               <li key={f} className="flex items-start gap-3 text-gray-700 text-sm">
@@ -79,8 +83,21 @@ export default function Pricing() {
             href="/auth"
             className="text-center bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold rounded-xl px-6 py-3 text-sm transition-all shadow-md shadow-orange-500/20"
           >
-            Get Passport
+            Start free
           </Link>
+        </div>
+      </div>
+
+      <div className="mt-10 max-w-2xl mx-auto">
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6">
+          <h3 className="font-condensed font-black uppercase text-sm text-gray-900 mb-3 tracking-wide">
+            What happens when beta ends?
+          </h3>
+          <p className="text-gray-600 text-sm">
+            We&apos;ll decide on pricing once beta tells us what&apos;s actually worth paying
+            for. Beta users will hear from us first, and well before anything changes — nobody
+            gets surprised by a bill. The extension stays free forever either way.
+          </p>
         </div>
       </div>
 
