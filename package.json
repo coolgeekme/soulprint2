@@ -9,7 +9,9 @@
         "build": "next build",
         "start": "next start",
         "test:conversation-context": "node --test tests/conversation-context.test.mjs",
-        "test:imprint-context": "node --test tests/imprint-context.test.mjs"
+        "test:imprint-context": "node --test tests/imprint-context.test.mjs",
+        "test:mcp-memory": "node --test tests/mcp-memory.test.mjs",
+        "test": "node --test tests/conversation-context.test.mjs tests/imprint-context.test.mjs tests/mcp-memory.test.mjs"
     },
     "dependencies": {
         "@anthropic-ai/sdk": "^0.78.0",
