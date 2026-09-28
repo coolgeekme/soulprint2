@@ -8,6 +8,16 @@ import {
   Lock,
 } from 'lucide-react';
 
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata({
+  title: 'SoulPrint Passport — One Persistent Layer Across Every AI',
+  absoluteTitle: true,
+  description:
+    'Your SoulPrint Passport is one persistent layer of you — identity, memory, and context — that travels with you across every AI you use. Free during beta.',
+  path: '/',
+});
+
 const chatAi = [
   {
     name: 'ChatGPT',

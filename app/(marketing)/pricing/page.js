@@ -1,6 +1,15 @@
 import Link from 'next/link';
 import { Check } from 'lucide-react';
 
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata({
+  title: 'Pricing — Free During Beta',
+  description:
+    "SoulPrint is free while we're in beta — no credit card, no commitment. See what each plan includes and what happens when beta ends.",
+  path: '/pricing',
+});
+
 const passportFeatures = [
   'SoulPrint across ChatGPT, Claude, and agents via MCP',
   'Unlimited platform connections',

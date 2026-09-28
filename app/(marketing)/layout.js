@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 
-export const metadata = {
-  title: 'Your SoulPrint Passport — SoulPrint Engine',
-  description:
-    'Your SoulPrint Passport: one persistent layer of you — identity, memory, context — that travels with you across every AI you use.',
-};
+// No metadata here on purpose. This layout sits directly under app/layout.js,
+// so a title set at this level would be stamped onto every marketing page —
+// which is exactly the duplicate-metadata problem we are fixing. Each page in
+// this group exports its own title and description via lib/seo.js instead.
 
 const navLinks = [
   { href: '/how-it-works', label: 'How It Works' },

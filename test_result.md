@@ -106,6 +106,8 @@ user_problem_statement: "SoulPrint Engine — Multi-model AI chat with image/vid
 
 agent_communication:
   - agent: "testing"
+    message: "SEO/METADATA COMMIT VERIFICATION COMPLETE (7a0dd19): All 4 critical SEO/metadata endpoints working perfectly. ✅ GET /robots.txt returns HTTP 200, Content-Type: text/plain, body starts with 'User-Agent: *' (8620 characters, includes AI crawler rules). ✅ GET /sitemap.xml returns HTTP 200, application/xml, contains 13 URLs including 'https://soulprintengine.ai/features' as required. ✅ GET /llms.txt returns HTTP 200, Content-Type: text/plain; charset=utf-8, body starts with '# SoulPrint Engine' (3193 characters). ✅ GET /pricing returns HTTP 200, HTML title is 'Pricing — Free During Beta | SoulPrint Engine' (page-specific title working correctly). All previously broken endpoints (404s) are now fixed. Page-specific metadata working correctly via Next.js metadata API. Files verified: app/robots.js, app/sitemap.js, app/llms.txt/route.js, app/(marketing)/pricing/page.js. 100% success rate (4/4 tests passed)."
+  - agent: "testing"
     message: "BACKEND REFACTORING VERIFICATION COMPLETE: All critical endpoints working perfectly after major route.js refactoring. ✅ Health Check (GET /api/health returns {status: 'ok'}). ✅ Models Endpoint (GET /api/models returns 18 models). ✅ Authentication Flow (POST /api/auth/login with email/passcode working, auto-registration for new users). ✅ Profile Update (PUT /api/profile with auth token working). ✅ Announcements (GET /api/announcements with auth returns proper structure). ✅ Privacy Settings (GET /api/privacy/settings returns all expected fields). ✅ Conversations (GET /api/conversations returns user conversations). ✅ Chat Stream (POST /api/chat/stream properly enforces approval workflow). All 8 comprehensive tests passed - refactoring from monolithic 19.6k line route.js to 7 extracted handler modules successful. No routing errors or broken endpoints found."
   - agent: "main"
     message: "PHASE 2 REFACTORING COMPLETE: Route.js reduced from 19.6k to 9.85k lines (50% reduction total). 17 handler modules in lib/handlers/. Fixed missing imports (LAYERED_ASSESSMENT_QUESTIONS, KIE_VIDEO_MODELS, NextResponse, getProvider, etc.). Fixed accepted:false blocking users. Auto-accept on signup. Auth: testchat@example.com / Test123456. Test ALL endpoints."
@@ -1187,6 +1189,21 @@ backend:
     stuck_count: 0
     priority: "high"
     needs_retesting: false
+
+  - task: "SEO/Metadata Endpoints (GET /robots.txt, /sitemap.xml, /llms.txt, page-specific titles)"
+    implemented: true
+    working: true
+    file: "app/robots.js, app/sitemap.js, app/llms.txt/route.js, app/(marketing)/pricing/page.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented SEO/metadata commit (7a0dd19). Added app/robots.js (generates robots.txt at build time with AI crawler rules), app/sitemap.js (generates sitemap.xml with 13 static routes + blog posts), app/llms.txt/route.js (serves llms.txt for AI assistants). Updated multiple layout.js files with page-specific metadata using pageMetadata() helper from lib/seo.js. Fixed issues: /robots.txt 404, /sitemap.xml 404, /llms.txt 404, generic page titles."
+      - working: true
+        agent: "testing"
+        comment: "TESTED: All 4 SEO/metadata endpoints working perfectly. ✅ GET /robots.txt returns HTTP 200, Content-Type: text/plain, body starts with 'User-Agent: *' (8620 characters, includes AI crawler rules for GPTBot, ClaudeBot, PerplexityBot, etc.). ✅ GET /sitemap.xml returns HTTP 200, application/xml, contains 13 URLs including 'https://soulprintengine.ai/features' as required. ✅ GET /llms.txt returns HTTP 200, Content-Type: text/plain; charset=utf-8, body starts with '# SoulPrint Engine' (3193 characters, follows llmstxt.org convention). ✅ GET /pricing returns HTTP 200, HTML title is 'Pricing — Free During Beta | SoulPrint Engine' (page-specific title working correctly via Next.js metadata API). All previously broken endpoints (404s) are now fixed. Files verified: app/robots.js, app/sitemap.js, app/llms.txt/route.js, app/(marketing)/pricing/page.js, lib/seo.js. 100% success rate (4/4 tests passed). Commit 7a0dd19 verified successfully."
 
   - task: "Realtime Voice Chat WebRTC Endpoint (POST /api/realtime/session)"
     implemented: true
