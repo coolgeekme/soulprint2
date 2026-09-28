@@ -14,7 +14,21 @@ import { getDb } from '@/lib/mongodb';
  * result hourly so a failed read self-heals.
  */
 
-export const revalidate = 3600;
+/**
+ * Always render on request, never at build time.
+ *
+ * The build runs on the Emergent pod, whose MONGO_URL points at its LOCAL
+ * preview database — not production Atlas. A prerendered sitemap therefore
+ * bakes in whatever the preview DB happens to hold (in practice: no posts),
+ * and serves that stale list until ISR's first revalidation an hour later.
+ * That window repeats on EVERY deploy.
+ *
+ * force-dynamic makes the first render happen in the production runtime, so
+ * the post list is read from the live database from the very first request.
+ * The query is a single indexed lookup and crawlers fetch a sitemap rarely,
+ * so the cost is negligible next to being wrong.
+ */
+export const dynamic = 'force-dynamic';
 
 const LAST_CONTENT_REVIEW = new Date('2026-09-28');
 
