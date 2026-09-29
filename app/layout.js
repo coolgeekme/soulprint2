@@ -2,15 +2,68 @@ import './globals.css'
 import ThemeProvider from '@/lib/providers/ThemeProvider'
 import { Toaster } from '@/components/ui/toaster'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import { SITE_URL, SITE_NAME, DEFAULT_OG_IMAGE } from '@/lib/seo'
 
+/**
+ * Root metadata.
+ *
+ * `title.template` is applied to every child segment, so individual pages
+ * export just the unique part ("Pricing — Free During Beta") and the brand
+ * suffix is added once, here. Pages that should not carry the suffix pass
+ * `absoluteTitle: true` through lib/seo.js.
+ *
+ * No canonical is set at this level on purpose: a root canonical would point
+ * every route at the homepage. Each page sets its own via lib/seo.js.
+ */
 export const metadata = {
-  title: 'SoulPrint Engine',
-  description: 'Your SoulPrint Passport — one persistent layer of you, across every AI you use.',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: 'SoulPrint Engine — One Persistent Layer Across Every AI',
+    template: '%s | SoulPrint Engine',
+  },
+  description:
+    'Your SoulPrint Passport is one persistent layer of you — identity, memory, and context — that travels with you across every AI you use. Free during beta.',
+  applicationName: 'SoulPrint',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'SoulPrint',
+  },
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    title: 'SoulPrint Engine — One Persistent Layer Across Every AI',
+    description:
+      'Your SoulPrint Passport is one persistent layer of you — identity, memory, and context — that travels with you across every AI you use.',
+    url: '/',
+    images: [DEFAULT_OG_IMAGE],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'SoulPrint Engine — One Persistent Layer Across Every AI',
+    description:
+      'Your SoulPrint Passport is one persistent layer of you — identity, memory, and context — that travels with you across every AI you use.',
+    images: [DEFAULT_OG_IMAGE.url],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/icon-512.png', type: 'image/png', sizes: '512x512' },
+    ],
+    apple: '/apple-touch-icon.png',
   },
 }
 
@@ -51,13 +104,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','GTM-WCCXR92H');`}} />
         {/* End Google Tag Manager */}
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="SoulPrint" />
+        {/* Icons, manifest, and apple-mobile-web-app tags are emitted by the
+            `metadata` export above. Do not re-add them here — hand-written
+            duplicates render twice in <head>. */}
         <script dangerouslySetInnerHTML={{__html:'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);'}} />
         {/* Clean copied text: strip dark-theme colors so paste = black text, no background */}
         <script dangerouslySetInnerHTML={{__html: `

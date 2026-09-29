@@ -1,5 +1,14 @@
 import Link from 'next/link';
 
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata({
+  title: 'How It Works — One Layer, Four Steps',
+  description:
+    'See how the SoulPrint Passport works: your identity, memories, and imprints follow you from ChatGPT to Claude and back — set up once, used everywhere.',
+  path: '/how-it-works',
+});
+
 const steps = [
   {
     n: '01',

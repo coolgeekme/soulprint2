@@ -1,6 +1,15 @@
 import Link from 'next/link';
 import { Chrome, TerminalSquare, ArrowRight, CheckCircle2, Sparkles, MessageSquare } from 'lucide-react';
 
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata({
+  title: 'Connect Your AI — Setup Guide',
+  description:
+    'Step-by-step setup for bringing your SoulPrint to ChatGPT, Claude, and MCP-compatible agents. Pick your path: browser extension or MCP server.',
+  path: '/connect',
+});
+
 const extSteps = [
   {
     t: 'Install the extension',

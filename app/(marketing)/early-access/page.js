@@ -1,6 +1,15 @@
 import Link from 'next/link';
 import { Chrome, Zap, MessageSquare, Rocket } from 'lucide-react';
 
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata({
+  title: 'Early Access — Chrome Extension Preview',
+  description:
+    'Get the SoulPrint Chrome extension before it reaches the store. Free account, no credit card, and it works in ChatGPT and Claude today.',
+  path: '/early-access',
+});
+
 const perks = [
   {
     icon: Zap,

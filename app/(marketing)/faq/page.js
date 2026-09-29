@@ -1,5 +1,14 @@
 import Link from 'next/link';
 
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata({
+  title: 'FAQ — Straight Answers on SoulPrint',
+  description:
+    'Straight answers about your SoulPrint Passport: what it stores, how privacy works, which AIs it connects to, and what happens when beta ends.',
+  path: '/faq',
+});
+
 const faqs = [
   {
     q: 'What is a SoulPrint?',

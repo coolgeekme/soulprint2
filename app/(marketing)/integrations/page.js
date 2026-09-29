@@ -1,6 +1,15 @@
 import Link from 'next/link';
 import { TerminalSquare } from 'lucide-react';
 
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata({
+  title: 'Integrations — Every AI, One You',
+  description:
+    'Connect your SoulPrint to ChatGPT, Claude, Gemini, and Perplexity — plus AI agents like Hermes, Claude Code, Codex, and Cursor via the MCP server.',
+  path: '/integrations',
+});
+
 const groups = [
   {
     label: 'Chat AI',

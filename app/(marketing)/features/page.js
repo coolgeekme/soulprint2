@@ -1,5 +1,14 @@
 import Link from 'next/link';
 
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata({
+  title: 'Features — Memory, Context, and Imprints',
+  description:
+    "SoulPrint goes beyond memory: a Passport that carries who you are, memories that build as you chat, and Imprints that shape the AI for the moment.",
+  path: '/features',
+});
+
 const features = [
   {
     icon: '✦',
