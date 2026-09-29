@@ -58,7 +58,9 @@ export default function Pricing() {
             ))}
           </ul>
           <a
-            href="https://soulprintengine.ai"
+            href="https://chromewebstore.google.com/detail/soulprint-passport/kngblnfncpnandiemjhgkijfanogpjgh"
+            target="_blank"
+            rel="noreferrer"
             className="text-center border-2 border-gray-200 hover:border-orange-400 hover:text-orange-600 text-gray-800 font-semibold rounded-xl px-6 py-3 text-sm transition-colors"
           >
             Get the free extension
