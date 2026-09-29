@@ -103,9 +103,10 @@ export default function Pricing() {
             What happens when beta ends?
           </h3>
           <p className="text-gray-600 text-sm">
-            We&apos;ll decide on pricing once beta tells us what&apos;s actually worth paying
-            for. Beta users will hear from us first, and well before anything changes — nobody
-            gets surprised by a bill. The extension stays free forever either way.
+            When beta ends, Passport is $9/month or $90/year. The first 50 founding members
+            keep lifetime access — $99 for the first 25, $199 for the next 25. Beta users
+            hear from us first, and well before anything changes — nobody gets surprised by
+            a bill. The extension stays free forever either way.
           </p>
         </div>
       </div>

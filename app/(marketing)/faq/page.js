@@ -32,7 +32,7 @@ const faqs = [
   },
   {
     q: 'What does Passport cost?',
-    a: 'Passport is free while we are in beta. The Chrome extension is free to install and use — context injection and local memories work without an account. Passport adds the cloud layer: your SoulPrint in the cloud, with auto-extraction, sync across ChatGPT, Claude, and agents via MCP, custom Imprints, and history import. When beta ends we will give you plenty of notice before anything changes.',
+    a: 'Passport is free while we are in beta. The Chrome extension is free to install and use — context injection and local memories work without an account. Passport adds the cloud layer: your SoulPrint in the cloud, with auto-extraction, sync across ChatGPT, Claude, and agents via MCP, custom Imprints, and history import. When beta ends, Passport is $9/month or $90/year, and the first 50 founding members keep lifetime access — $99 for the first 25, $199 for the next 25. We will give you plenty of notice before anything changes.',
   },
   {
     q: 'Is my data private?',
