@@ -161,7 +161,7 @@ export default function InvitePage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-            <SoulPrintLogo size={64} />
+            <SoulPrintLogo variant="reverse" size={64} />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">You're Invited!</h1>
           <div className="flex items-center justify-center gap-2 text-purple-400 mb-4">

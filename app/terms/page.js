@@ -18,7 +18,7 @@ export default function TermsOfServicePage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-3">
-            <SoulPrintLogo size={32} />
+            <SoulPrintLogo variant="reverse" size={32} />
             <span className="font-semibold">SoulPrint</span>
           </div>
         </div>

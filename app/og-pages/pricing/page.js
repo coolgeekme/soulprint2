@@ -191,7 +191,7 @@ export default function PricingPage() {
             <span className="text-sm">Back to Chat</span>
           </button>
           <div className="flex items-center gap-2">
-            <SoulPrintLogo size={24} />
+            <SoulPrintLogo variant="reverse" size={24} />
             <span className="text-sm font-semibold text-white">SoulPrint Engine</span>
           </div>
           <div className="w-24" /> {/* Spacer */}
@@ -474,7 +474,7 @@ export default function PricingPage() {
                 <th className="py-4 px-4 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
-                      <SoulPrintLogo size={20} />
+                      <SoulPrintLogo variant="reverse" size={20} />
                     </div>
                     <span className="text-sm font-bold text-white">SoulPrint</span>
                     <span className="text-xs text-orange-400 font-semibold">$19/mo</span>

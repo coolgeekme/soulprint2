@@ -565,11 +565,11 @@ async function handleSendVerificationEmail(request) {
         subject: 'Verify your SoulPrint account',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0D1217; padding: 40px; border-radius: 12px;">
-            <h1 style="color: #F64000; text-align: center;">SoulPrint</h1>
+            <h1 style="color: #F5531A; text-align: center;">SoulPrint</h1>
             <div style="background: #141a21; border-radius: 8px; padding: 30px; text-align: center;">
               <h2 style="color: white;">Verify Your Email</h2>
               <p style="color: #D2D3D7;">Click the button below to verify your email address.</p>
-              <a href="${verifyUrl}" style="display: inline-block; background: linear-gradient(135deg, #F64000, #d63600); color: white; padding: 14px 32px; border-radius: 8px; font-weight: bold; text-decoration: none;">Verify My Email</a>
+              <a href="${verifyUrl}" style="display: inline-block; background: linear-gradient(135deg, #F5531A, #C43F0D); color: white; padding: 14px 32px; border-radius: 8px; font-weight: bold; text-decoration: none;">Verify My Email</a>
               <p style="color: #707176; font-size: 12px; margin-top: 20px;">This link expires in 24 hours.</p>
             </div>
           </div>

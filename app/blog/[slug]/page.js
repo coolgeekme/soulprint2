@@ -76,7 +76,7 @@ export default function BlogPostPage() {
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <SoulPrintLogo size={32} />
+              <SoulPrintLogo variant="reverse" size={32} />
               <span className="font-semibold">SoulPrint</span>
             </Link>
             <span className="text-gray-600">/</span>
@@ -270,7 +270,7 @@ export default function BlogPostPage() {
                     </div>
                   ) : (
                     <div className="aspect-video bg-gradient-to-br from-orange-500/20 to-pink-500/20 flex items-center justify-center">
-                      <SoulPrintLogo size={32} />
+                      <SoulPrintLogo variant="reverse" size={32} />
                     </div>
                   )}
                   <div className="p-4">

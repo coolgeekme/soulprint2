@@ -138,7 +138,7 @@ export default function ExtensionAuthPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
-            <div className="h-3 w-3 rounded-full bg-[#F64000]" />
+            <div className="h-3 w-3 rounded-full bg-[#F5531A]" />
             <span className="text-white text-lg font-semibold tracking-tight">SoulPrint</span>
           </div>
           <p className="text-[#707176] text-sm">Connect your account to the extension</p>
@@ -202,7 +202,7 @@ export default function ExtensionAuthPage() {
                   placeholder="you@example.com"
                   required
                   autoFocus
-                  className="w-full bg-[#0D1217] border border-[#202830] rounded-md px-3 py-2.5 text-white text-sm placeholder:text-[#505056] focus:outline-none focus:border-[#F64000] transition-colors"
+                  className="w-full bg-[#0D1217] border border-[#202830] rounded-md px-3 py-2.5 text-white text-sm placeholder:text-[#505056] focus:outline-none focus:border-[#F5531A] transition-colors"
                 />
               </div>
 
@@ -214,14 +214,14 @@ export default function ExtensionAuthPage() {
                   onChange={e => setPasscode(e.target.value)}
                   placeholder="Your passcode"
                   required
-                  className="w-full bg-[#0D1217] border border-[#202830] rounded-md px-3 py-2.5 text-white text-sm placeholder:text-[#505056] focus:outline-none focus:border-[#F64000] transition-colors"
+                  className="w-full bg-[#0D1217] border border-[#202830] rounded-md px-3 py-2.5 text-white text-sm placeholder:text-[#505056] focus:outline-none focus:border-[#F5531A] transition-colors"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading || googleLoading}
-                className="w-full bg-[#F64000] hover:bg-[#d63600] disabled:opacity-50 text-white font-medium rounded-md py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-[#F5531A] hover:bg-[#C43F0D] disabled:opacity-50 text-white font-medium rounded-md py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>

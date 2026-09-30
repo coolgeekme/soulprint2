@@ -26,10 +26,20 @@ const footerExternal = [{ href: 'https://foundryagents.ai', label: 'The Foundry'
 function Wordmark() {
   return (
     <span className="flex flex-col leading-none">
-      <span className="font-condensed font-black uppercase tracking-[0.06em] text-gray-900 text-[17px]">
-        SoulPrint
+      {/* Brand guide: wordmark is Inter 800 at -0.025em tracking, with "Soul" in
+          ink and "Print" in orange. Never set in a single colour. */}
+      <span
+        style={{ fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 800, letterSpacing: '-0.025em' }}
+        className="text-[17px]"
+      >
+        <span style={{ color: '#0A1C2D' }}>Soul</span>
+        <span style={{ color: '#F5531A' }}>Print</span>
       </span>
-      <span className="font-condensed font-semibold uppercase tracking-[0.42em] text-orange-600 text-[9px]">
+      {/* Subline is Inter 700 at 0.34em tracking and sits in ink, not orange. */}
+      <span
+        style={{ fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 700, letterSpacing: '0.34em', color: '#0A1C2D' }}
+        className="uppercase text-[9px] mt-[3px]"
+      >
         Engine
       </span>
     </span>
@@ -43,7 +53,7 @@ export default function PassportLayout({ children }) {
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
         <nav className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4">
           <Link href="/" className="flex items-center gap-2.5">
-            <SoulPrintLogo size={30} />
+            <SoulPrintLogo variant="ink" size={30} />
             <Wordmark />
           </Link>
 
@@ -111,7 +121,7 @@ export default function PassportLayout({ children }) {
       <footer className="bg-[#f0f0f0] py-12 px-6">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2.5">
-            <SoulPrintLogo size={24} />
+            <SoulPrintLogo variant="ink" size={24} />
             <Wordmark />
           </div>
           <nav className="flex items-center gap-6 text-sm text-gray-600">

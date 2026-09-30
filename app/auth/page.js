@@ -416,7 +416,7 @@ export default function AuthPage() {
   if (verificationSent) {
     return (
       <div className="min-h-screen grid-bg flex items-center justify-center px-4 relative overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(246,64,0,0.2)_0%,transparent_70%)]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(245,83,26,0.2)_0%,transparent_70%)]" />
         
         <div className="relative z-10 w-full max-w-md text-center">
           <div className="flex flex-col items-center mb-6">

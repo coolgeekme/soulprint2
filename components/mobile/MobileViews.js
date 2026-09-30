@@ -13,7 +13,7 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClic
   <div className="min-h-screen bg-sp-black pt-16 pb-24 px-4">
     <div className="text-center mb-8">
       <div className="w-24 h-24 mx-auto bg-gradient-to-br from-orange-500/20 to-amber-500/20 rounded-full flex items-center justify-center mb-4">
-        <SoulPrintLogo size={48} />
+        <SoulPrintLogo variant="reverse" size={48} />
       </div>
       <h1 className="text-white text-xl font-semibold">{profile?.display_name || 'Your Profile'}</h1>
       <button 

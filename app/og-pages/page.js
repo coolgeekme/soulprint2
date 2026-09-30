@@ -67,7 +67,7 @@ function BlogPreview() {
                   </div>
                 ) : (
                   <div className="aspect-video bg-gradient-to-br from-orange-100 to-pink-100 flex items-center justify-center">
-                    <SoulPrintLogo size={40} />
+                    <SoulPrintLogo variant="ink" size={40} />
                   </div>
                 )}
                 <div className="p-6">
@@ -628,7 +628,7 @@ export default function LandingPage() {
         <div className="bg-white/95 backdrop-blur-md border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-8 py-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <SoulPrintLogo size={22} />
+              <SoulPrintLogo variant="ink" size={22} />
               <span className="font-condensed text-sm font-bold tracking-widest text-gray-900 uppercase hidden sm:inline">SoulPrint</span>
             </div>
             <div className="flex items-center gap-3">
@@ -677,7 +677,7 @@ export default function LandingPage() {
         {/* Nav */}
         <nav className="relative z-20 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
           <div className="flex items-center gap-2">
-            <SoulPrintLogo size={28} />
+            <SoulPrintLogo variant="ink" size={28} />
             <span className="font-condensed text-lg font-bold tracking-widest text-gray-900 uppercase">SoulPrint</span>
           </div>
           <div className="flex items-center gap-6">
@@ -754,7 +754,7 @@ export default function LandingPage() {
                       <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Feature</th>
                       <th className="py-3 px-4 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <SoulPrintLogo size={16} />
+                          <SoulPrintLogo variant="ink" size={16} />
                           <span className="text-xs font-bold text-gray-900">SoulPrint</span>
                           <span className="text-xs text-orange-600 font-semibold">$19/mo</span>
                         </div>
@@ -1109,10 +1109,10 @@ export default function LandingPage() {
       <section className="bg-sp-black py-20 px-8">
         <div className="max-w-3xl mx-auto text-center">
           <div className="rounded-3xl p-10 md:p-16 relative overflow-hidden"
-               style={{ background: 'linear-gradient(135deg, rgba(246,64,0,0.15), rgba(246,64,0,0.05))', border: '1px solid rgba(246,64,0,0.25)' }}>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(246,64,0,0.1)_0%,transparent_70%)]" />
+               style={{ background: 'linear-gradient(135deg, rgba(245,83,26,0.15), rgba(245,83,26,0.05))', border: '1px solid rgba(245,83,26,0.25)' }}>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(245,83,26,0.1)_0%,transparent_70%)]" />
             <div className="relative z-10">
-              <SoulPrintLogo size={60} className="mx-auto mb-6 opacity-90" />
+              <SoulPrintLogo variant="ink" size={60} className="mx-auto mb-6 opacity-90" />
               <h2 className="font-condensed font-black text-white text-3xl md:text-5xl uppercase leading-tight mb-4">
                 Ready to Meet<br />Your SoulPrint?
               </h2>
@@ -1215,7 +1215,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col items-center mb-8">
             <div className="flex items-center gap-2 mb-4">
-              <SoulPrintLogo size={20} />
+              <SoulPrintLogo variant="ink" size={20} />
               <span className="font-condensed font-bold text-gray-800 tracking-widest text-xs uppercase">SoulPrint</span>
             </div>
             <div className="flex items-center gap-4 mb-4">

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Barlow+Condensed:wght@400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,9 +7,16 @@
 @layer base {
   :root {
     /* SoulPrint Brand Colors */
-    --sp-orange: #F64000;
+    --sp-orange: #F5531A;
     --sp-black: #0D1217;
+    --sp-navy: #0F2034;
+    --sp-cream: #F2E3C6;
     --sp-dark: #4B5057;
+
+    /* SoulPrint mark: card fill + outline stroke. These two flip with the
+       theme so an <SoulPrintLogo variant="auto" /> stays legible on either. */
+    --sp-mark-card: #FFFFFF;
+    --sp-mark-ink: #0A0A0A;
     --sp-gray: #707176;
     --sp-light: #D2D3D7;
     
@@ -60,6 +67,13 @@
     --theme-border-strong: rgba(255, 255, 255, 0.2);
   }
   
+  /* Dark Mode is declared on <html> by the theme provider. The mark needs its
+     cream/navy colourway there or the card outline vanishes into the page. */
+  .dark {
+    --sp-mark-card: #0F2034;
+    --sp-mark-ink: #F2E3C6;
+  }
+
   /* Light Mode */
   .light {
     --background: 0 0% 100%;
@@ -102,8 +116,10 @@
     --theme-border-strong: rgba(13, 18, 23, 0.2);
     
     /* SoulPrint brand colors for light mode - keep orange prominent */
-    --sp-orange: #F64000;
+    --sp-orange: #F5531A;
     --sp-black: #0D1217;
+    --sp-mark-card: #FFFFFF;
+    --sp-mark-ink: #0A0A0A;
   }
 }
 
@@ -168,7 +184,7 @@
   transform: translateX(-50%);
   width: 600px;
   height: 300px;
-  background: radial-gradient(ellipse at top, rgba(246, 64, 0, 0.18) 0%, transparent 70%);
+  background: radial-gradient(ellipse at top, rgba(245, 83, 26, 0.18) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -180,19 +196,19 @@
 
 /* Orange button glow */
 .btn-orange {
-  background: linear-gradient(135deg, #F64000, #d63600);
+  background: linear-gradient(135deg, #F5531A, #C43F0D);
   color: white;
   font-weight: 700;
   font-family: 'Barlow Condensed', sans-serif;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   transition: all 0.2s ease;
-  box-shadow: 0 0 20px rgba(246, 64, 0, 0.25);
+  box-shadow: 0 0 20px rgba(245, 83, 26, 0.25);
 }
 
 .btn-orange:hover {
-  background: linear-gradient(135deg, #ff5a1a, #F64000);
-  box-shadow: 0 0 30px rgba(246, 64, 0, 0.4);
+  background: linear-gradient(135deg, #FF7A4D, #F5531A);
+  box-shadow: 0 0 30px rgba(245, 83, 26, 0.4);
   transform: translateY(-1px);
 }
 
@@ -217,13 +233,13 @@
 }
 
 .chip:hover {
-  border-color: rgba(246, 64, 0, 0.5);
+  border-color: rgba(245, 83, 26, 0.5);
   color: white;
 }
 
 .chip.selected {
-  background: rgba(246, 64, 0, 0.15);
-  border-color: #F64000;
+  background: rgba(245, 83, 26, 0.15);
+  border-color: #F5531A;
   color: #ff6b33;
 }
 
@@ -238,8 +254,8 @@
 }
 
 .pillar-card:hover {
-  border-color: rgba(246, 64, 0, 0.3);
-  background: rgba(246, 64, 0, 0.05);
+  border-color: rgba(245, 83, 26, 0.3);
+  background: rgba(245, 83, 26, 0.05);
 }
 
 /* Scrollbar */
@@ -250,11 +266,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(246, 64, 0, 0.3);
+  background: rgba(245, 83, 26, 0.3);
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(246, 64, 0, 0.5);
+  background: rgba(245, 83, 26, 0.5);
 }
 
 /* Hide scrollbar utility */
@@ -320,7 +336,7 @@ textarea:focus, input:focus {
 
 /* Admin table */
 .admin-table tr:hover td {
-  background: rgba(246, 64, 0, 0.05);
+  background: rgba(245, 83, 26, 0.05);
 }
 
 
@@ -451,14 +467,14 @@ html.light body {
 }
 
 .light .chip:hover {
-  border-color: rgba(246, 64, 0, 0.5);
+  border-color: rgba(245, 83, 26, 0.5);
   color: #0D1217;
 }
 
 .light .chip.selected {
-  background: rgba(246, 64, 0, 0.1);
-  border-color: #F64000;
-  color: #F64000;
+  background: rgba(245, 83, 26, 0.1);
+  border-color: #F5531A;
+  color: #F5531A;
 }
 
 /* Light mode pillar card */
@@ -468,8 +484,8 @@ html.light body {
 }
 
 .light .pillar-card:hover {
-  border-color: rgba(246, 64, 0, 0.3);
-  background: rgba(246, 64, 0, 0.05);
+  border-color: rgba(245, 83, 26, 0.3);
+  background: rgba(245, 83, 26, 0.05);
 }
 
 /* Light mode FAQ */
@@ -479,7 +495,7 @@ html.light body {
 
 /* Light mode admin table */
 .light .admin-table tr:hover td {
-  background: rgba(246, 64, 0, 0.05);
+  background: rgba(245, 83, 26, 0.05);
 }
 
 /* Light mode mobile input area */
@@ -583,29 +599,29 @@ html.light body {
 }
 
 .light::-webkit-scrollbar-thumb {
-  background: rgba(246, 64, 0, 0.4);
+  background: rgba(245, 83, 26, 0.4);
 }
 
 /* Keep orange accents the same in light mode */
 .light .text-orange-400,
 .light .text-orange-500 {
-  color: #F64000 !important;
+  color: #F5531A !important;
 }
 
 .light .bg-orange-500\/10,
 .light .bg-orange-500\/20 {
-  background-color: rgba(246, 64, 0, 0.1) !important;
+  background-color: rgba(245, 83, 26, 0.1) !important;
 }
 
 .light .border-orange-500\/20,
 .light .border-orange-500\/30 {
-  border-color: rgba(246, 64, 0, 0.25) !important;
+  border-color: rgba(245, 83, 26, 0.25) !important;
 }
 
 /* Light mode gradient text stays vibrant */
 .light .from-orange-500,
 .light .to-amber-500 {
-  --tw-gradient-from: #F64000;
+  --tw-gradient-from: #F5531A;
   --tw-gradient-to: #f59e0b;
 }
 
@@ -652,8 +668,8 @@ html.light body {
 .light input:focus,
 .light textarea:focus,
 .light select:focus {
-  border-color: #F64000 !important;
-  box-shadow: 0 0 0 2px rgba(246, 64, 0, 0.1) !important;
+  border-color: #F5531A !important;
+  box-shadow: 0 0 0 2px rgba(245, 83, 26, 0.1) !important;
 }
 
 /* Light mode modals/dialogs */

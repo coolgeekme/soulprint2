@@ -47,7 +47,7 @@ function Slide01Cover({ active }) {
       {/* Logo */}
       <div className={`transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
         <div className="w-16 h-16 md:w-24 md:h-24 mx-auto mb-6 md:mb-8 flex items-center justify-center">
-          <SoulPrintLogo size={typeof window !== 'undefined' && window.innerWidth < 768 ? 64 : 96} />
+          <SoulPrintLogo variant="reverse" size={typeof window !== 'undefined' && window.innerWidth < 768 ? 64 : 96} />
         </div>
       </div>
 
@@ -1032,7 +1032,7 @@ function Slide14Ask({ active }) {
   return (
     <div className="slide-content flex flex-col items-center justify-center text-center px-8 md:px-20 max-w-4xl mx-auto w-full">
       <div className={`w-12 h-12 mx-auto mb-2 flex items-center justify-center transition-all duration-1000 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
-        <SoulPrintLogo size={48} />
+        <SoulPrintLogo variant="reverse" size={48} />
       </div>
 
       <h2 className={`text-3xl md:text-5xl font-black text-white mb-2 transition-all duration-700 delay-200 ${active ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -1161,7 +1161,7 @@ function PitchAccessGate({ onAccess }) {
 
       <div className="relative w-full max-w-sm">
         <div className="flex justify-center mb-6">
-          <SoulPrintLogo size={56} />
+          <SoulPrintLogo variant="reverse" size={56} />
         </div>
         <h2 className="text-white text-xl font-bold text-center mb-1">Investor Deck</h2>
         <p className="text-gray-500 text-xs text-center mb-8">This deck is confidential. Please enter your details to continue.</p>
@@ -1260,7 +1260,7 @@ export default function PitchPage() {
   if (checking) {
     return (
       <div className="fixed inset-0 bg-[#0a0a0a] flex items-center justify-center">
-        <SoulPrintLogo size={40} />
+        <SoulPrintLogo variant="reverse" size={40} />
       </div>
     );
   }

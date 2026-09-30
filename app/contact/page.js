@@ -46,7 +46,7 @@ export default function ContactPage() {
       {/* Nav */}
       <nav className="flex items-center justify-between px-8 py-6 max-w-4xl mx-auto">
         <Link href="/" className="flex items-center gap-2">
-          <SoulPrintLogo size={28} />
+          <SoulPrintLogo variant="reverse" size={28} />
           <span className="font-condensed text-lg font-bold tracking-widest text-white uppercase">SoulPrint</span>
         </Link>
         <Link href="/" className="text-gray-400 hover:text-white text-sm flex items-center gap-2 transition-colors">

@@ -110,7 +110,7 @@ export default function MemoriesPage() {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
           <div>
-            <div style={{ fontSize: 13, letterSpacing: 2, color: '#F64000', textTransform: 'uppercase', fontWeight: 600 }}>SoulPrint</div>
+            <div style={{ fontSize: 13, letterSpacing: 2, color: '#F5531A', textTransform: 'uppercase', fontWeight: 600 }}>SoulPrint</div>
             <h1 style={{ color: '#fff', fontSize: 30, fontWeight: 700, margin: '4px 0 0', textTransform: 'uppercase', fontFamily: '"Barlow Condensed", Impact, sans-serif' }}>
               Your memories
             </h1>
@@ -118,7 +118,7 @@ export default function MemoriesPage() {
           <div style={{ display: 'flex', gap: 10 }}>
             <a href="/chat" style={{ color: '#707176', fontSize: 14, textDecoration: 'none', padding: '10px 16px', border: '1px solid rgba(255,255,255,.08)', borderRadius: 8 }}>Back to chat</a>
             <button onClick={runScan} disabled={scanning}
-              style={{ background: '#F64000', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 14, fontWeight: 600, cursor: scanning ? 'default' : 'pointer', opacity: scanning ? 0.7 : 1 }}>
+              style={{ background: '#F5531A', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 14, fontWeight: 600, cursor: scanning ? 'default' : 'pointer', opacity: scanning ? 0.7 : 1 }}>
               {scanning ? 'Scanning…' : 'Scan for issues'}
             </button>
           </div>
@@ -152,14 +152,14 @@ export default function MemoriesPage() {
                 <div key={sug.id} style={{ background: '#141A20', border: '1px solid rgba(255,255,255,.08)', borderRadius: 12, padding: 18, marginBottom: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <div>
-                      <span style={{ background: sug.type === 'duplicate' ? '#F64000' : sug.type === 'contradiction' ? '#f6a800' : '#707176', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: 1 }}>
+                      <span style={{ background: sug.type === 'duplicate' ? '#F5531A' : sug.type === 'contradiction' ? '#f6a800' : '#707176', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: 1 }}>
                         {sug.type}
                       </span>
                       <span style={{ marginLeft: 10, color: '#fff', fontSize: 14, fontWeight: 600 }}>{sug.title}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => dismissSuggestion(sug)} style={{ background: 'transparent', color: '#707176', border: '1px solid rgba(255,255,255,.08)', borderRadius: 8, padding: '7px 14px', fontSize: 13, cursor: 'pointer' }}>Dismiss</button>
-                      <button onClick={() => applySuggestion(sug)} style={{ background: '#F64000', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Approve</button>
+                      <button onClick={() => applySuggestion(sug)} style={{ background: '#F5531A', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Approve</button>
                     </div>
                   </div>
                   {sug.reason && <p style={{ color: '#707176', fontSize: 13, marginBottom: 10 }}>{sug.reason}</p>}
@@ -211,7 +211,7 @@ export default function MemoriesPage() {
                 <div style={{ flex: 1 }}>
                   {editId === m.id ? (
                     <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={2}
-                      style={{ width: '100%', background: '#06090C', border: '1px solid rgba(246,64,0,.5)', borderRadius: 8, padding: 8, color: '#fff', fontSize: 14 }} />
+                      style={{ width: '100%', background: '#06090C', border: '1px solid rgba(245,83,26,.5)', borderRadius: 8, padding: 8, color: '#fff', fontSize: 14 }} />
                   ) : (
                     <div style={{ fontSize: 14, color: '#fff' }}>{m.content}</div>
                   )}
@@ -239,5 +239,5 @@ export default function MemoriesPage() {
   );
 }
 
-const btn = { background: '#F64000', color: '#fff', border: 'none', borderRadius: 7, padding: '6px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer' };
+const btn = { background: '#F5531A', color: '#fff', border: 'none', borderRadius: 7, padding: '6px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer' };
 const btnGhost = { background: 'transparent', color: '#D2D3D7', border: '1px solid rgba(255,255,255,.08)', borderRadius: 7, padding: '6px 12px', fontSize: 13, cursor: 'pointer' };

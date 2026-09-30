@@ -140,7 +140,7 @@ export default function FeaturesPage() {
       {/* Navigation */}
       <nav className="relative z-10 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
         <Link href="/" className="flex items-center gap-2">
-          <SoulPrintLogo size={28} />
+          <SoulPrintLogo variant="reverse" size={28} />
           <span className="font-condensed text-lg font-bold tracking-widest text-white uppercase">SoulPrint</span>
         </Link>
         <div className="flex items-center gap-6">
@@ -159,7 +159,7 @@ export default function FeaturesPage() {
       {/* Hero Section */}
       <section className="relative py-20 px-8 overflow-hidden">
         <div className="absolute inset-0 grid-bg opacity-50" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(246,64,0,0.15)_0%,transparent_70%)]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(245,83,26,0.15)_0%,transparent_70%)]" />
         
         <div className="relative z-10 max-w-4xl mx-auto text-center">
           <span className="inline-block px-4 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-full text-orange-400 text-sm font-medium mb-6">
@@ -188,7 +188,7 @@ export default function FeaturesPage() {
       {/* PERSISTENT IDENTITY LAYER - The Key Differentiator */}
       <section className="bg-gradient-to-b from-gray-900 to-sp-black py-24 px-8 relative overflow-hidden">
         <div className="absolute inset-0 grid-bg opacity-30" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[radial-gradient(ellipse,rgba(246,64,0,0.1)_0%,transparent_70%)]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[radial-gradient(ellipse,rgba(245,83,26,0.1)_0%,transparent_70%)]" />
         
         <div className="relative z-10 max-w-5xl mx-auto">
           <div className="text-center mb-16">
@@ -244,7 +244,7 @@ export default function FeaturesPage() {
           <div className="bg-white/5 backdrop-blur rounded-2xl p-8 border border-white/10">
             <div className="flex items-start gap-6">
               <div className="hidden md:block">
-                <SoulPrintLogo size={60} />
+                <SoulPrintLogo variant="reverse" size={60} />
               </div>
               <div>
                 <h3 className="font-bold text-white text-xl mb-3">What is a SoulPrint?</h3>
@@ -636,7 +636,7 @@ export default function FeaturesPage() {
                   <th className="text-left py-4 px-4 font-medium text-gray-500">Feature</th>
                   <th className="py-4 px-4 text-center">
                     <div className="flex items-center justify-center gap-2">
-                      <SoulPrintLogo size={20} />
+                      <SoulPrintLogo variant="reverse" size={20} />
                       <span className="font-bold text-orange-500">SoulPrint</span>
                     </div>
                   </th>
@@ -695,7 +695,7 @@ export default function FeaturesPage() {
       <footer className="bg-sp-black py-12 px-8 border-t border-gray-800">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <SoulPrintLogo size={24} />
+            <SoulPrintLogo variant="reverse" size={24} />
             <span className="font-condensed text-sm font-bold tracking-widest text-white uppercase">SoulPrint</span>
           </div>
           <p className="text-gray-500 text-sm">© 2025 SoulPrint Engine. All rights reserved.</p>

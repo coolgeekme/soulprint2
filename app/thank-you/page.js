@@ -100,7 +100,7 @@ function ThankYouPageInner() {
       <div className="max-w-2xl w-full">
         {/* Logo */}
         <div className="flex justify-center mb-8">
-          <SoulPrintLogo size="large" />
+          <SoulPrintLogo variant="reverse" size={96} />
         </div>
 
         {/* Main Card */}
