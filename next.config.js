@@ -26,12 +26,10 @@ const nextConfig = {
     maxInactiveAge: 10000,
     pagesBufferLength: 2,
   },
-  async redirects() {
-    return [
-      { source: '/passport', destination: '/', permanent: true },
-      { source: '/passport/:path*', destination: '/:path*', permanent: true },
-    ];
-  },
+  // NOTE: the `/passport` -> `/` redirects that used to live here were removed when the
+  // real /passport route was added (app/(marketing)/passport/page.js). Next.js resolves
+  // redirects() BEFORE filesystem routes, so leaving them in would have made the new page
+  // permanently unreachable — it would 308 to `/` with no error anywhere.
   async headers() {
     return [
       {
