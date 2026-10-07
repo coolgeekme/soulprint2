@@ -434,7 +434,7 @@ export default function AuthPage() {
           
           <div className="bg-white/5 border border-white/10 rounded-xl p-6 mb-6">
             <p className="text-gray-300 text-sm leading-relaxed mb-4">
-              Click the link in your email to verify your account. Once verified, you can sign in and start using SoulPrint.
+              Click the link in your email to verify your account. Once verified, you can sign in and start using SoulPrint Passport.
             </p>
             <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
               <CheckCircle className="w-4 h-4 text-green-500" />
@@ -473,6 +473,14 @@ export default function AuthPage() {
         <div className="flex flex-col items-center mb-8">
           <SoulPrintLogo mark="passport" size={64} />
           <h1 className="font-condensed font-black text-white text-3xl tracking-[0.25em] mt-4 uppercase">SOULPRINT</h1>
+          {/* Product subline. /auth is strictly Passport's door, so the lockup
+              names the product — the same shape the site nav uses for the
+              platform (wordmark over a spaced subline). Kept on its own line
+              because "SOULPRINT PASSPORT" on one line overflows max-w-md at
+              this size and tracking, and badly at 320px. */}
+          <span className="font-condensed font-bold text-white text-[11px] tracking-[0.34em] uppercase mt-2">
+            Passport
+          </span>
           <div className="flex items-center gap-3 mt-2">
             <div className="h-px flex-1 bg-orange-500/30" />
             <span className="text-[10px] text-gray-500 tracking-widest uppercase">

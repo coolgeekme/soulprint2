@@ -4,9 +4,10 @@ import { pageMetadata } from '@/lib/seo';
 // itself (Next.js does not allow metadata exports from client components). Metadata lives here instead.
 
 export const metadata = pageMetadata({
-  title: 'Sign In',
+  title: 'Sign in to SoulPrint Passport',
+  absoluteTitle: true,
   description:
-    'Internal SoulPrint Engine page. Not intended for search indexing.',
+    'Sign in to SoulPrint Passport. Internal page, not intended for search indexing.',
   path: '/auth',
   noindex: true,
 });
