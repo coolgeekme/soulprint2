@@ -24,6 +24,7 @@ export const metadata = pageMetadata({
 const family = [
   {
     name: 'SoulPrint Passport',
+    logo: '/logos/passport-mark.svg',
     domain: 'soulprintpassport.ai',
     href: '/passport',
     internal: true,
@@ -33,6 +34,7 @@ const family = [
   },
   {
     name: 'KidSprint',
+    logo: '/logos/kidsprint-mark.png',
     domain: 'kidsprint.ai',
     href: '/kidsprint',
     internal: true,
@@ -44,6 +46,7 @@ const family = [
     // Foundry's own site carries "Powered by SoulPrint Engine", so it belongs in
     // this family rather than in a separate "also from us" band.
     name: 'Foundry',
+    logo: '/logos/foundry-mark.png',
     domain: 'foundryagents.ai',
     href: 'https://foundryagents.ai',
     status: 'Beta',
@@ -141,27 +144,72 @@ const coverage = [
 /* ── faq ────────────────────────────────────────────────────────────────── */
 
 const faq = [
+  /* The engine itself */
   {
+    tag: 'The engine',
     q: 'Is SoulPrint Engine something I can buy?',
     a: 'No. The engine is the platform, not a product. SoulPrint Passport, KidSprint and Foundry are the products built on it — those are what you sign up for.',
   },
   {
+    tag: 'The engine',
+    q: 'What do the three products actually share?',
+    a: 'One memory, one identity and one routing layer. Your profile is stored once, and each product points that same engine at a different job.',
+  },
+
+  /* SoulPrint Passport */
+  {
+    tag: 'SoulPrint Passport',
     q: 'What is SoulPrint Passport?',
-    a: 'Your AI, remembering you. It carries one memory across ChatGPT, Claude and every agent tool you use, so you stop re-explaining yourself. It lives at soulprintpassport.ai.',
+    a: 'Your AI, remembering you. It carries one memory across ChatGPT, Claude and every agent tool you use, so switching tools never resets the thread.',
   },
   {
-    q: 'What is KidSprint?',
-    a: 'A safe AI learning sidekick for kids, currently in development. It helps children work through homework and big questions while parents stay in the loop. There is a page about it here on this site.',
+    tag: 'SoulPrint Passport',
+    q: 'What does Passport cost?',
+    a: 'It is free during beta — no card and no limits. After beta it is $9 a month or $90 a year, and the first fifty founding members keep lifetime access.',
   },
   {
-    q: 'Do I need both?',
-    a: 'No. They are built for different people and run independently. They simply share the same engine underneath.',
-  },
-  {
-    q: 'Which AI tools does it work with?',
+    tag: 'SoulPrint Passport',
+    q: 'Which AI tools does Passport work with?',
     a: 'ChatGPT and Claude are connected today. Gemini and Perplexity are coming. Hermes, Claude Code, Codex and Cursor connect through MCP right now.',
   },
+
+  /* KidSprint */
   {
+    tag: 'KidSprint',
+    q: 'What is KidSprint?',
+    a: 'A safe AI learning sidekick for kids. It adapts to how your child thinks and works at their pace, encourages curiosity instead of handing over answers, and keeps parents in the loop. There is a page about it here on this site.',
+  },
+  {
+    tag: 'KidSprint',
+    q: 'When can I use KidSprint?',
+    a: 'Not yet. KidSprint is still in development, so there is no signup and no waitlist. When it is ready, this site will say so.',
+  },
+  {
+    tag: 'KidSprint',
+    q: 'What keeps KidSprint safe for kids?',
+    a: 'Guardrails are built in from the start rather than bolted on later, and parents get useful insight into what their child is working on without having to read every conversation.',
+  },
+
+  /* Foundry */
+  {
+    tag: 'Foundry',
+    q: 'What is Foundry?',
+    a: 'A working crew of specialized AI agents for a team. You brief them once on your mission, your tone and your people, then work with them in direct or group chat. It lives at foundryagents.ai and is in beta.',
+  },
+  {
+    tag: 'Foundry',
+    q: 'How is Foundry different from SoulPrint Passport?',
+    a: 'Passport is built for one person moving between AI tools. Foundry is built for a team working alongside a set of agents. Both run on the same engine, so context does not have to be rebuilt for either.',
+  },
+
+  /* Shared */
+  {
+    tag: 'All products',
+    q: 'Do I need all three?',
+    a: 'No. They are built for different people and run independently — they simply share the same engine underneath.',
+  },
+  {
+    tag: 'All products',
     q: 'Is there a mobile app?',
     a: 'No, and there does not need to be. MCP covers mobile through the apps you already have installed.',
   },
@@ -183,8 +231,9 @@ export default function SoulPrintEngineHome() {
               One engine. Every product that remembers.
             </h1>
             <p className="text-lg md:text-xl text-[rgba(255,255,255,0.72)] mt-7 max-w-2xl leading-relaxed">
-              SoulPrint Engine is the platform underneath every product we build. Same identity,
-              same memory, same portability &mdash; each product just points it at a different job.
+              SoulPrint Engine is the platform underneath SoulPrint Passport, KidSprint and
+              Foundry. Same identity, same memory, same portability &mdash; each product just
+              points it at a different job.
             </p>
             <div className="flex flex-wrap items-center gap-4 mt-10">
               <a
@@ -224,11 +273,20 @@ export default function SoulPrintEngineHome() {
                 key={p.name}
                 className="border border-gray-200 rounded-2xl p-8 flex flex-col hover:border-gray-300 hover:shadow-lg transition-all"
               >
-                {p.status ? (
-                  <span className="inline-flex self-start items-center text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-green-50 text-green-600 border border-green-200">
-                    {p.status}
-                  </span>
-                ) : null}
+                <div className="flex items-start justify-between gap-5">
+                  {/* The product's own mark, straight from that product's brand. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.logo}
+                    alt={`${p.name} logo`}
+                    className="h-14 w-14 object-contain object-left flex-none"
+                  />
+                  {p.status ? (
+                    <span className="inline-flex items-center text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-green-50 text-green-600 border border-green-200 flex-none">
+                      {p.status}
+                    </span>
+                  ) : null}
+                </div>
                 <h3 className="font-condensed font-black uppercase text-2xl md:text-3xl text-gray-900 mt-6">
                   {p.name}
                 </h3>
@@ -277,6 +335,19 @@ export default function SoulPrintEngineHome() {
             Six systems, shared by every product. Build them once and each new product starts with
             the hard part already done.
           </p>
+
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-4 mt-8 pt-8 border-t border-gray-200">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              Shared by every product
+            </span>
+            {family.map((p) => (
+              <span key={p.name} className="inline-flex items-center gap-2.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.logo} alt="" className="h-7 w-7 object-contain" />
+                <span className="text-sm font-semibold text-gray-700">{p.name}</span>
+              </span>
+            ))}
+          </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-14">
             {systems.map((s) => (
@@ -350,8 +421,8 @@ export default function SoulPrintEngineHome() {
           </div>
 
           <p className="text-sm text-gray-500 mt-6">
-            Fifty imprints ship with the engine, across five categories. Anything you don&rsquo;t
-            see, you describe in a sentence and build.
+            Fifty imprints ship with the engine, across five categories, and SoulPrint Passport
+            uses them today. Anything you don&rsquo;t see, you describe in a sentence and build.
           </p>
         </div>
       </section>
@@ -371,7 +442,7 @@ export default function SoulPrintEngineHome() {
           <p className="text-lg text-gray-600 mt-5 max-w-3xl leading-relaxed">
             Every question gets read before it gets answered. The engine works out what you&rsquo;re
             actually asking for and routes it to whichever AI handles it best &mdash; then tells you
-            which one answered, and why.
+            which one answered, and why. Every product in the family routes through it.
           </p>
 
           <div className="mt-14 overflow-x-auto">
@@ -424,7 +495,7 @@ export default function SoulPrintEngineHome() {
           </h2>
           <p className="text-lg text-gray-600 mt-5 max-w-3xl leading-relaxed">
             We sit across the AI tools, not above them. Keep the ones you like and carry your memory
-            between them.
+            between them. SoulPrint Passport is the product that connects to them today.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5 mt-14">
@@ -485,8 +556,13 @@ export default function SoulPrintEngineHome() {
           <div className="mt-12 divide-y divide-gray-200 border-t border-gray-200">
             {faq.map((f) => (
               <details key={f.q} className="group py-6">
-                <summary className="flex items-center justify-between gap-6 cursor-pointer list-none">
-                  <span className="font-semibold text-lg text-gray-900">{f.q}</span>
+                <summary className="flex items-start justify-between gap-6 cursor-pointer list-none">
+                  <span>
+                    <span className="block text-[11px] font-bold uppercase tracking-wider text-[#F5531A] mb-1.5">
+                      {f.tag}
+                    </span>
+                    <span className="font-semibold text-lg text-gray-900">{f.q}</span>
+                  </span>
                   <span
                     className="text-orange-600 text-2xl leading-none flex-none transition-transform group-open:rotate-45"
                     aria-hidden="true"
@@ -511,7 +587,7 @@ export default function SoulPrintEngineHome() {
             Pick the product. The engine is already running.
           </h2>
           <p className="text-lg text-gray-600 mt-5 max-w-3xl">
-            Both products run on the same platform, so neither is a bet on the other.
+            All three run on the same platform, so none of them is a bet on the others.
           </p>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mt-14">
@@ -522,10 +598,16 @@ export default function SoulPrintEngineHome() {
                 {...(p.internal ? {} : { target: '_blank', rel: 'noopener' })}
                 className="border border-gray-200 rounded-2xl p-8 hover:border-orange-400/60 hover:shadow-lg transition-all block"
               >
-                <h3 className="font-condensed font-black uppercase text-2xl text-gray-900">
-                  {p.name}
-                </h3>
-                <p className="text-sm font-medium text-gray-400 mt-2">{p.domain}</p>
+                <div className="flex items-center gap-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.logo} alt="" className="h-10 w-10 object-contain flex-none" />
+                  <div>
+                    <h3 className="font-condensed font-black uppercase text-2xl text-gray-900">
+                      {p.name}
+                    </h3>
+                    <p className="text-sm font-medium text-gray-400 mt-1">{p.domain}</p>
+                  </div>
+                </div>
                 <span className="inline-flex items-center gap-2 mt-6 font-semibold text-[#F5531A]">
                   {p.internal ? 'Read more' : 'Visit'}
                   <span aria-hidden="true">&rarr;</span>
