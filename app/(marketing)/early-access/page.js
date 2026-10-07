@@ -101,12 +101,14 @@ export default function EarlyAccess() {
         </p>
         <p className="text-gray-500 text-sm mt-6">
           Already approved?{' '}
-          <Link
-            href="/connect"
+          <a
+            href="https://soulprintpassport.ai/connect"
             className="text-orange-600 font-semibold hover:text-orange-700 transition-colors"
+            target="_blank"
+            rel="noopener"
           >
             Jump to the setup steps &rarr;
-          </Link>
+          </a>
         </p>
       </div>
     </div>

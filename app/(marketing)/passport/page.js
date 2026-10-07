@@ -121,12 +121,14 @@ export default function PassportPage() {
               >
                 Get started free
               </Link>
-              <Link
-                href="/connect"
+              <a
+                href="https://soulprintpassport.ai/connect"
                 className="inline-flex items-center justify-center h-14 px-8 rounded-xl border border-[rgba(255,255,255,0.28)] hover:border-[rgba(255,255,255,0.55)] text-[#ffffff] font-semibold transition-colors"
+                target="_blank"
+                rel="noopener"
               >
                 See how to connect
-              </Link>
+              </a>
               {/* The product's own home. This page is the explainer; that is the
                   site. External, so it opens in a new tab. */}
               <a
@@ -194,13 +196,15 @@ export default function PassportPage() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-600 leading-relaxed mt-4">{i.note}</p>
-                <Link
-                  href="/connect"
+                <a
+                  href="https://soulprintpassport.ai/connect"
                   className="inline-flex items-center gap-2 mt-5 font-semibold text-[#F5531A] hover:text-[#E24A12]"
+                  target="_blank"
+                  rel="noopener"
                 >
                   Connect
                   <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
-                </Link>
+                </a>
               </div>
             ))}
           </div>

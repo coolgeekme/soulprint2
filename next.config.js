@@ -26,6 +26,27 @@ const nextConfig = {
     maxInactiveAge: 10000,
     pagesBufferLength: 2,
   },
+  // /connect now lives on the product domain. The page describes how to connect
+  // YOUR SoulPrint — that is product documentation, so it belongs on
+  // soulprintpassport.ai, not on the engine's marketing site.
+  //
+  // statusCode 301 rather than `permanent: true` (which emits a 308): both are
+  // permanent, and for a GET-only marketing page they behave identically, but
+  // 301 is what was asked for and is unambiguous when checked.
+  //
+  // Redirects run BEFORE filesystem routes, so this shadows any /connect page
+  // that exists under app/. The old page has been deleted rather than left in
+  // place as unreachable dead code — re-adding it without removing this entry
+  // would look correct in the route table and silently never render.
+  async redirects() {
+    return [
+      {
+        source: '/connect',
+        destination: 'https://soulprintpassport.ai/connect',
+        statusCode: 301,
+      },
+    ];
+  },
   // NOTE: a /kidsprint -> kidsprint.ai redirect used to live here. It was removed
   // because KidSprint is in development and we want visitors to land on an
   // in-site explainer rather than being handed off to a product that isn't

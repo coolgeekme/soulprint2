@@ -5616,13 +5616,17 @@ function ChatPageInner() {
                 </p>
                 <div className="flex gap-2 shrink-0">
                   <a
-                    href="/connect#extension"
+                    href="https://soulprintpassport.ai/connect#extension"
+                    target="_blank"
+                    rel="noopener"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white text-xs font-semibold transition-colors"
                   >
                     Extension <ArrowRight size={13} />
                   </a>
                   <a
-                    href="/connect#mcp"
+                    href="https://soulprintpassport.ai/connect#mcp"
+                    target="_blank"
+                    rel="noopener"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/15 hover:border-orange-500/50 hover:text-orange-400 text-gray-300 text-xs font-semibold transition-colors"
                   >
                     Connect MCP <ArrowRight size={13} />

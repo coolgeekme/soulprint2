@@ -38,7 +38,6 @@ const STATIC_ROUTES = [
   { path: '/how-it-works', changeFrequency: 'monthly', priority: 0.9 },
   { path: '/features', changeFrequency: 'monthly', priority: 0.9 },
   { path: '/integrations', changeFrequency: 'monthly', priority: 0.9 },
-  { path: '/connect', changeFrequency: 'monthly', priority: 0.8 },
   { path: '/pricing', changeFrequency: 'weekly', priority: 0.8 },
   { path: '/early-access', changeFrequency: 'monthly', priority: 0.7 },
   { path: '/faq', changeFrequency: 'monthly', priority: 0.7 },
