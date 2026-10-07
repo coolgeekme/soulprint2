@@ -4,9 +4,9 @@ import { Check } from 'lucide-react';
 import { pageMetadata } from '@/lib/seo';
 
 export const metadata = pageMetadata({
-  title: 'Pricing — Free During Beta',
+  title: 'SoulPrint Passport pricing — free during beta',
   description:
-    "SoulPrint is free while we're in beta — no credit card, no commitment. See what each plan includes and what happens when beta ends.",
+    "SoulPrint Passport is free while it's in beta — no credit card, no commitment. See what each plan includes and what happens when beta ends.",
   path: '/pricing',
 });
 
@@ -29,8 +29,11 @@ const extensionFeatures = [
 export default function Pricing() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+      {/* Names the product, not just the concept: this page prices Passport
+          alone, and a bare "Pricing" on the engine domain reads as if the
+          engine were for sale. */}
       <p className="font-condensed font-bold uppercase tracking-[0.3em] text-orange-600 text-sm text-center mb-3">
-        Pricing
+        SoulPrint Passport pricing
       </p>
       <h1 className="font-condensed font-black uppercase text-center text-gray-900 text-4xl md:text-6xl mb-5">
         Free while we&apos;re in beta.
@@ -113,6 +116,18 @@ export default function Pricing() {
         </div>
       </div>
 
+      <div className="mt-10 max-w-2xl mx-auto">
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 text-center">
+          <p className="text-gray-600 text-sm leading-relaxed">
+            <Link href="/" className="font-semibold text-gray-900 hover:text-orange-600 transition-colors">
+              SoulPrint Engine
+            </Link>{' '}
+            is the platform underneath Passport. It is not sold on its own &mdash; the plans on
+            this page are Passport&rsquo;s, and they are the only thing here you can buy.
+          </p>
+        </div>
+      </div>
+
       <div className="mt-10 text-center">
         <p className="text-gray-500 text-sm">
           The free extension stays free forever. Want to try first? Install the extension, feel
@@ -120,14 +135,12 @@ export default function Pricing() {
         </p>
         <p className="text-gray-400 text-sm mt-4">
           Looking for images, video, files, or PDFs? That is{' '}
-          <a
-            href="https://foundryagents.ai"
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            href="/foundry"
             className="text-orange-600 font-semibold hover:text-orange-700 transition-colors"
           >
-            The Foundry
-          </a>
+            Foundry
+          </Link>
           .
         </p>
         <p className="text-gray-400 text-sm mt-8">

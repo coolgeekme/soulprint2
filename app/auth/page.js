@@ -488,6 +488,13 @@ export default function AuthPage() {
             </span>
             <div className="h-px flex-1 bg-orange-500/30" />
           </div>
+          {/* This page sits on soulprintengine.ai but belongs to Passport. Naming
+              the engine here is what connects the two for a visitor who arrived
+              from soulprintpassport.ai or the browser extension and has never
+              seen the engine brand. Same wording Foundry's own site uses. */}
+          <span className="text-[10px] text-gray-500 tracking-widest uppercase mt-3">
+            Powered by SoulPrint Engine
+          </span>
         </div>
 
         {/* Age & Terms Confirmation - Show at top for signup mode */}
