@@ -4116,9 +4116,14 @@ function ChatPageInner() {
           </button>
           {!sidebarCollapsed && <p className="text-gray-700 text-[10px] text-center truncate">{user?.email}</p>}
           
-          {/* View Home Page link */}
+          {/* View Home Page link — points at the PRODUCT's home, not the engine.
+              This is Passport's app chrome, so "home" means soulprintpassport.ai;
+              sending a signed-in Passport user to the engine marketing page was
+              a dead end. External by design, hence the ExternalLink icon. */}
           <a 
-            href="/"
+            href="https://soulprintpassport.ai"
+            target="_blank"
+            rel="noopener"
             className={`flex items-center justify-center ${sidebarCollapsed ? '' : 'gap-1.5'} w-full py-2 px-3 text-gray-600 hover:text-white hover:bg-white/5 rounded-lg text-xs transition-colors`}
             title="View Home Page"
           >
