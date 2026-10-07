@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Check } from 'lucide-react';
 
+import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { pageMetadata } from '@/lib/seo';
 
 export const metadata = pageMetadata({
@@ -29,11 +30,23 @@ const extensionFeatures = [
 export default function Pricing() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-      {/* Names the product, not just the concept: this page prices Passport
-          alone, and a bare "Pricing" on the engine domain reads as if the
-          engine were for sale. */}
+      {/* The product lockup. /pricing sits on the engine domain but prices
+          Passport alone, so the page says which product it belongs to before
+          anything else — same structure as /auth (mark, wordmark, subline) so
+          both Passport surfaces here read identically.
+          variant="ink": this page is hard-coded white, like the marketing nav. */}
+      <div className="flex flex-col items-center mb-9">
+        <SoulPrintLogo mark="passport" variant="ink" size={56} />
+        <span className="font-condensed font-black uppercase text-gray-900 text-2xl tracking-[0.25em] mt-4">
+          SoulPrint
+        </span>
+        <span className="font-condensed font-bold uppercase text-gray-900 text-[11px] tracking-[0.34em] mt-2">
+          Passport
+        </span>
+      </div>
+
       <p className="font-condensed font-bold uppercase tracking-[0.3em] text-orange-600 text-sm text-center mb-3">
-        SoulPrint Passport pricing
+        Pricing
       </p>
       <h1 className="font-condensed font-black uppercase text-center text-gray-900 text-4xl md:text-6xl mb-5">
         Free while we&apos;re in beta.
