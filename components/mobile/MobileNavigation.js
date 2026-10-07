@@ -34,7 +34,7 @@ const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
             >
               <div className="relative">
                 {tab.useLogo ? (
-                  <SoulPrintLogo variant="reverse" size={24} className={`transition-opacity ${isActive ? 'opacity-100' : 'opacity-50'}`} />
+                  <SoulPrintLogo mark="passport" variant="reverse" size={24} className={`transition-opacity ${isActive ? 'opacity-100' : 'opacity-50'}`} />
                 ) : (
                   <Icon className={`w-6 h-6 transition-colors ${isActive ? 'text-orange-400' : 'text-gray-500'}`} />
                 )}
@@ -65,7 +65,7 @@ const ChatHeader = ({ assistantName, model, onModelClick, isOnline, webSearchEna
       <div className="flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-3">
           <div className="relative">
-            <SoulPrintLogo variant="reverse" size={36} />
+            <SoulPrintLogo mark="passport" variant="reverse" size={36} />
             <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${isOnline ? 'bg-green-500' : 'bg-gray-500'}`} />
           </div>
           <div>

@@ -3,10 +3,25 @@
 import { useId } from 'react';
 
 /**
- * SoulPrint official logo component.
+ * SoulPrint logo component — renders one of TWO marks.
  *
- * The mark is a tilted passport card: an orange fingerprint whorl inside a
- * card outline, with a gold scanner and blue lens on the right edge.
+ *   mark="swirl"     SoulPrint Engine. The platform / parent brand. THE DEFAULT.
+ *   mark="passport"  SoulPrint Passport. The product.
+ *
+ * The company rule is swirl everywhere EXCEPT the Passport product surfaces:
+ * the standalone soulprintpassport.ai site and the Passport app chrome (chat,
+ * memories, settings, mobile nav). Those four surfaces pass mark="passport";
+ * everything else — marketing, legal, auth, blog, admin, OG pages — inherits
+ * the swirl. Do not flip the default; opt in at the call site.
+ *
+ * ── the swirl ──────────────────────────────────────────────────────────
+ * A single-colour brand-orange mark on a square 10240 canvas, served from
+ * /logos/soulprint-swirl.svg. It takes no `variant`: one colour reads
+ * correctly on the white nav and the dark hero alike.
+ *
+ * ── the passport mark ─────────────────────────────────────────────────
+ * A tilted passport card: an orange fingerprint whorl inside a card outline,
+ * with a gold scanner and blue lens on the right edge.
  *
  * The brand kit ships two colourways and they differ in EXACTLY three
  * attributes - the card fill, the card outline stroke, and the scanner
@@ -21,9 +36,9 @@ import { useId } from 'react';
  * declared in globals.css. "auto" is the default; hard-coded surfaces pass
  * "ink" (always-white) or "reverse" (always-dark).
  *
- * The mark is drawn on a 318x408 portrait canvas. It is NOT square - forcing
- * it into a square box squashes the card and distorts the whorl. Width is
- * derived from height so callers only ever pass one number.
+ * The passport mark is drawn on a 318x408 portrait canvas. It is NOT square -
+ * forcing it into a square box squashes the card and distorts the whorl.
+ * Width is derived from height so callers only ever pass one number.
  *
  * Gradient and clip ids are namespaced per instance via useId so an ink logo
  * and a reverse logo can coexist on the same page.
@@ -48,11 +63,41 @@ export default function SoulPrintLogo({
   size = 32,
   className = '',
   variant = 'auto',
+  mark = 'swirl',
   style,
   ...rest
 }) {
-  const uid = useId().replace(/:/g, '');
   const height = typeof size === 'number' ? size : 32;
+
+  // ── SPE swirl: the parent-brand mark, and the DEFAULT ──────────────────
+  // Two marks ship in this company and they mean different things:
+  //
+  //   swirl    — SoulPrint Engine. The platform. Parent brand.
+  //   passport — SoulPrint Passport. The product.
+  //
+  // The rule is swirl everywhere EXCEPT the Passport product surfaces — the
+  // standalone soulprintpassport.ai site and the Passport app chrome (chat,
+  // memories, settings, mobile nav). Those pass mark="passport" explicitly.
+  //
+  // The swirl is a single-colour mark, so it needs no variant: brand orange
+  // reads correctly on the white nav and on the dark hero alike.
+  if (mark === 'swirl') {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src="/logos/soulprint-swirl.svg"
+        width={height}
+        height={height}
+        alt="SoulPrint"
+        className={className}
+        style={{ flexShrink: 0, display: 'block', ...style }}
+        {...rest}
+      />
+    );
+  }
+
+  // ── Passport product mark ──────────────────────────────────────────────
+  const uid = useId().replace(/:/g, '');
   const width = Math.round(height * RATIO * 100) / 100;
   const colors = variant in VARIANTS ? VARIANTS[variant] : null;
 
