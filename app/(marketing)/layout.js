@@ -22,6 +22,14 @@ const footerLinks = [
   { href: '/contact', label: 'Contact' },
 ];
 
+// The products live on their own domains. They belong in the footer as well as
+// the nav — a visitor who scrolls to the bottom should still be able to leave
+// for a product without hunting back up to the header.
+const footerProducts = [
+  { href: 'https://soulprintpassport.ai', label: 'SoulPrint Passport' },
+  { href: 'https://kidsprint.ai', label: 'KidSprint' },
+];
+
 const footerExternal = [{ href: 'https://foundryagents.ai', label: 'The Foundry' }];
 
 function Wordmark() {
@@ -146,7 +154,19 @@ export default function PassportLayout({ children }) {
             <SoulPrintLogo variant="ink" size={24} />
             <Wordmark />
           </div>
-          <nav className="flex items-center gap-6 text-sm text-gray-600">
+          <nav className="flex items-center gap-6 flex-wrap justify-center text-sm text-gray-600">
+            {footerProducts.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-gray-700 hover:text-gray-900 transition-colors"
+              >
+                {l.label}
+              </a>
+            ))}
+            <span className="hidden sm:block w-px h-4 bg-gray-300" aria-hidden="true" />
             {footerLinks.map((l) => (
               <Link key={l.href} href={l.href} className="hover:text-gray-900 transition-colors">
                 {l.label}
