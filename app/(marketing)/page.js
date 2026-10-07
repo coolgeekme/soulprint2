@@ -44,14 +44,19 @@ const family = [
   },
   {
     // Foundry's own site carries "Powered by SoulPrint Engine", so it belongs in
-    // this family rather than in a separate "also from us" band.
+    // this family rather than in a separate "also from us" band. All three now
+    // have an in-site page here; the product site is linked FROM that page.
     name: 'Foundry',
     logo: '/logos/foundry-mark.png',
     domain: 'foundryagents.ai',
-    href: 'https://foundryagents.ai',
-    status: 'Beta',
-    body: 'A working crew of specialized AI agents for your team. Brief them once on your mission, tone and people, then work in direct or group chat.',
-    cta: 'Open foundryagents.ai',
+    href: '/foundry',
+    internal: true,
+    // Foundry is live and running today, so its chip now matches Passport's
+    // rather than sitting at plain "Beta" while the nav sends people to a page
+    // that says it is live.
+    status: 'Live in beta',
+    body: 'A crew of 169 specialist AI agents for your team. Brief them once on your mission, tone and people, then work in direct or group chat.',
+    cta: 'What is Foundry?',
   },
 ];
 
@@ -194,12 +199,17 @@ const faq = [
   {
     tag: 'Foundry',
     q: 'What is Foundry?',
-    a: 'A working crew of specialized AI agents for a team. You brief them once on your mission, your tone and your people, then work with them in direct or group chat. It lives at foundryagents.ai and is in beta.',
+    a: 'A crew of 169 specialist AI agents for a team, across 14 divisions. You brief them once on your mission, your tone and your people, then work with them in direct or group chat. Foundry is live now at foundryagents.ai.',
   },
   {
     tag: 'Foundry',
     q: 'How is Foundry different from SoulPrint Passport?',
     a: 'Passport is built for one person moving between AI tools. Foundry is built for a team working alongside a set of agents. Both run on the same engine, so context does not have to be rebuilt for either.',
+  },
+  {
+    tag: 'Foundry',
+    q: 'How do I get into Foundry?',
+    a: 'Foundry is invite-only — signup needs an access code. You can request one, or try a Signal Audit, which includes a free 24-hour trial. Both are linked from the Foundry page on this site.',
   },
 
   /* Shared */

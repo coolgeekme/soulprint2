@@ -17,8 +17,10 @@ const navLinks = [
   // site rather than handing visitors off to a product that is not ready.
   { href: '/kidsprint', label: 'KidSprint' },
   // Foundry is powered by SoulPrint Engine (its own site says so), so it is a
-  // product built on the engine alongside Passport and KidSprint.
-  { href: 'https://foundryagents.ai', label: 'Foundry', external: true },
+  // product built on the engine alongside Passport and KidSprint. Its own site
+  // is live, but the nav stays on-site so all three products are reached the
+  // same way; /foundry links out to foundryagents.ai in several places.
+  { href: '/foundry', label: 'Foundry' },
   // No bare "Pricing" here. /pricing prices SoulPrint Passport only, and this
   // FAQ answers "Is SoulPrint Engine something I can buy?" with a flat no — so a
   // generic Pricing entry in the PARENT nav would imply the parent is for sale.
@@ -40,9 +42,12 @@ const footerLinks = [
 const footerProducts = [
   { href: '/passport', label: 'SoulPrint Passport' },
   { href: '/kidsprint', label: 'KidSprint' },
+  { href: '/foundry', label: 'Foundry' },
 ];
 
-const footerExternal = [{ href: 'https://foundryagents.ai', label: 'Foundry' }];
+// Foundry's product site, kept separate so the footer can still offer a direct
+// route to the live app rather than only the explainer.
+const footerExternal = [{ href: 'https://foundryagents.ai', label: 'foundryagents.ai' }];
 
 function Wordmark() {
   return (
