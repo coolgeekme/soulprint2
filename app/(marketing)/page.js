@@ -33,7 +33,7 @@ const family = [
     name: 'KidSprint',
     domain: 'kidsprint.ai',
     href: 'https://kidsprint.ai',
-    status: 'Live',
+    status: 'Beta',
     body: 'A safe AI learning sidekick for kids. Helps children work through homework and big questions while parents stay in the loop.',
     cta: 'Open kidsprint.ai',
   },
@@ -138,7 +138,7 @@ const faq = [
   },
   {
     q: 'What is KidSprint?',
-    a: 'A safe AI learning sidekick for kids. It helps children work through homework and big questions while parents stay in the loop. It lives at kidsprint.ai.',
+    a: 'A safe AI learning sidekick for kids, currently in beta. It helps children work through homework and big questions while parents stay in the loop. It lives at kidsprint.ai.',
   },
   {
     q: 'Do I need both?',

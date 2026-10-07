@@ -11,6 +11,10 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 const navLinks = [
   { href: 'https://soulprintpassport.ai', label: 'Passport', external: true },
   { href: 'https://kidsprint.ai', label: 'KidSprint', external: true },
+  // Foundry is a sibling ArcheForge offering, not a product built on SoulPrint
+  // Engine — so it is linked here rather than given a card in the family section,
+  // which is specifically "products built on the engine".
+  { href: 'https://foundryagents.ai', label: 'Foundry', external: true },
   { href: '/pricing', label: 'Pricing' },
   { href: '/faq', label: 'FAQ' },
 ];
@@ -30,7 +34,7 @@ const footerProducts = [
   { href: 'https://kidsprint.ai', label: 'KidSprint' },
 ];
 
-const footerExternal = [{ href: 'https://foundryagents.ai', label: 'The Foundry' }];
+const footerExternal = [{ href: 'https://foundryagents.ai', label: 'Foundry' }];
 
 function Wordmark() {
   return (
