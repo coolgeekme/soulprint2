@@ -11,15 +11,18 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 const navLinks = [
   { href: 'https://soulprintpassport.ai', label: 'Passport', external: true },
   { href: 'https://kidsprint.ai', label: 'KidSprint', external: true },
-  // Foundry is a sibling ArcheForge offering, not a product built on SoulPrint
-  // Engine — so it is linked here rather than given a card in the family section,
-  // which is specifically "products built on the engine".
+  // Foundry is powered by SoulPrint Engine (its own site says so), so it is a
+  // product built on the engine alongside Passport and KidSprint.
   { href: 'https://foundryagents.ai', label: 'Foundry', external: true },
-  { href: '/pricing', label: 'Pricing' },
+  // No bare "Pricing" here. /pricing prices SoulPrint Passport only, and this
+  // FAQ answers "Is SoulPrint Engine something I can buy?" with a flat no — so a
+  // generic Pricing entry in the PARENT nav would imply the parent is for sale.
+  // Passport pricing stays reachable from the footer, labelled explicitly.
   { href: '/faq', label: 'FAQ' },
 ];
 
 const footerLinks = [
+  { href: '/pricing', label: 'Passport pricing' },
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },
   { href: '/security', label: 'Security' },

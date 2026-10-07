@@ -14,7 +14,7 @@ export const metadata = pageMetadata({
   title: 'SoulPrint Engine — One engine. Every product that remembers.',
   absoluteTitle: true,
   description:
-    'SoulPrint Engine is the identity, memory and portability layer underneath every SoulPrint product. SoulPrint Passport and KidSprint are built on it. Free during beta.',
+    'SoulPrint Engine is the identity, memory and portability layer underneath every SoulPrint product. SoulPrint Passport, KidSprint and Foundry are built on it. Free during beta.',
   path: '/',
 });
 
@@ -36,6 +36,17 @@ const family = [
     status: 'Beta',
     body: 'A safe AI learning sidekick for kids. Helps children work through homework and big questions while parents stay in the loop.',
     cta: 'Open kidsprint.ai',
+  },
+  {
+    // Foundry's own site carries "Powered by SoulPrint Engine", so it belongs in
+    // this family rather than in a separate "also from us" band.
+    name: 'Foundry',
+    domain: 'foundryagents.ai',
+    href: 'https://foundryagents.ai',
+    // No status chip: Foundry's live stage has not been confirmed, and guessing
+    // "Live" here is how KidSprint ended up mislabelled. Set `status` once known.
+    body: 'A working crew of specialized AI agents for your team. Brief them once on your mission, tone and people, then work in direct or group chat.',
+    cta: 'Open foundryagents.ai',
   },
 ];
 
@@ -130,7 +141,7 @@ const coverage = [
 const faq = [
   {
     q: 'Is SoulPrint Engine something I can buy?',
-    a: 'No. The engine is the platform, not a product. SoulPrint Passport and KidSprint are the products built on it — those are what you sign up for.',
+    a: 'No. The engine is the platform, not a product. SoulPrint Passport, KidSprint and Foundry are the products built on it — those are what you sign up for.',
   },
   {
     q: 'What is SoulPrint Passport?',
@@ -205,15 +216,17 @@ export default function SoulPrintEngineHome() {
             Different audiences, different jobs, one thing underneath.
           </p>
 
-          <div className="grid md:grid-cols-2 gap-8 mt-14">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mt-14">
             {family.map((p) => (
               <div
                 key={p.name}
                 className="border border-gray-200 rounded-2xl p-8 flex flex-col hover:border-gray-300 hover:shadow-lg transition-all"
               >
-                <span className="inline-flex self-start items-center text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-green-50 text-green-600 border border-green-200">
-                  {p.status}
-                </span>
+                {p.status ? (
+                  <span className="inline-flex self-start items-center text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-green-50 text-green-600 border border-green-200">
+                    {p.status}
+                  </span>
+                ) : null}
                 <h3 className="font-condensed font-black uppercase text-2xl md:text-3xl text-gray-900 mt-6">
                   {p.name}
                 </h3>
@@ -487,7 +500,7 @@ export default function SoulPrintEngineHome() {
             Both products run on the same platform, so neither is a bet on the other.
           </p>
 
-          <div className="grid md:grid-cols-2 gap-8 mt-14">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mt-14">
             {family.map((p) => (
               <a
                 key={p.name}
