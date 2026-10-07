@@ -508,7 +508,12 @@ export default function SoulPrintEngineHome() {
             between them. SoulPrint Passport is the product that connects to them today.
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5 mt-14">
+          {/* lg, not md: at 768-1023px four columns are ~165px wide, and the
+              "Coming soon" pill plus a name like "Perplexity" cannot fit inside
+              that — the pill is whitespace-nowrap, so it pushed the page into a
+              horizontal scroll instead of shrinking. Two columns until there is
+              genuinely room for four. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-14">
             {coverage.map((c) => (
               <div
                 key={c.name}
