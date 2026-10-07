@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {
   Database,
   Compass,
@@ -32,10 +33,11 @@ const family = [
   {
     name: 'KidSprint',
     domain: 'kidsprint.ai',
-    href: 'https://kidsprint.ai',
-    status: 'Beta',
-    body: 'A safe AI learning sidekick for kids. Helps children work through homework and big questions while parents stay in the loop.',
-    cta: 'Open kidsprint.ai',
+    href: '/kidsprint',
+    internal: true,
+    status: 'In development',
+    body: 'A safe AI learning sidekick for kids. Homework help, big questions and curiosity, with parents in the loop. Still being built.',
+    cta: 'What is KidSprint?',
   },
   {
     // Foundry's own site carries "Powered by SoulPrint Engine", so it belongs in
@@ -43,8 +45,7 @@ const family = [
     name: 'Foundry',
     domain: 'foundryagents.ai',
     href: 'https://foundryagents.ai',
-    // No status chip: Foundry's live stage has not been confirmed, and guessing
-    // "Live" here is how KidSprint ended up mislabelled. Set `status` once known.
+    status: 'Beta',
     body: 'A working crew of specialized AI agents for your team. Brief them once on your mission, tone and people, then work in direct or group chat.',
     cta: 'Open foundryagents.ai',
   },
@@ -149,7 +150,7 @@ const faq = [
   },
   {
     q: 'What is KidSprint?',
-    a: 'A safe AI learning sidekick for kids, currently in beta. It helps children work through homework and big questions while parents stay in the loop. It lives at kidsprint.ai.',
+    a: 'A safe AI learning sidekick for kids, currently in development. It helps children work through homework and big questions while parents stay in the loop. There is a page about it here on this site.',
   },
   {
     q: 'Do I need both?',
@@ -232,15 +233,27 @@ export default function SoulPrintEngineHome() {
                 </h3>
                 <p className="text-sm font-medium text-gray-400 mt-1">{p.domain}</p>
                 <p className="text-base text-gray-600 leading-relaxed mt-5 flex-1">{p.body}</p>
-                <a
-                  href={p.href}
-                  target="_blank"
-                  rel="noopener"
-                  className="inline-flex items-center gap-2 mt-7 font-semibold text-[#F5531A] hover:text-[#E24A12]"
-                >
-                  {p.cta}
-                  <span aria-hidden="true">&rarr;</span>
-                </a>
+                {/* An internal href is a page on this site, so open it in the same
+                    tab. Only genuinely external product sites get a new tab. */}
+                {p.internal ? (
+                  <Link
+                    href={p.href}
+                    className="inline-flex items-center gap-2 mt-7 font-semibold text-[#F5531A] hover:text-[#E24A12]"
+                  >
+                    {p.cta}
+                    <span aria-hidden="true">&rarr;</span>
+                  </Link>
+                ) : (
+                  <a
+                    href={p.href}
+                    target="_blank"
+                    rel="noopener"
+                    className="inline-flex items-center gap-2 mt-7 font-semibold text-[#F5531A] hover:text-[#E24A12]"
+                  >
+                    {p.cta}
+                    <span aria-hidden="true">&rarr;</span>
+                  </a>
+                )}
               </div>
             ))}
           </div>
@@ -502,11 +515,10 @@ export default function SoulPrintEngineHome() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mt-14">
             {family.map((p) => (
-              <a
+              <Link
                 key={p.name}
                 href={p.href}
-                target="_blank"
-                rel="noopener"
+                {...(p.internal ? {} : { target: '_blank', rel: 'noopener' })}
                 className="border border-gray-200 rounded-2xl p-8 hover:border-orange-400/60 hover:shadow-lg transition-all block"
               >
                 <h3 className="font-condensed font-black uppercase text-2xl text-gray-900">
@@ -514,10 +526,10 @@ export default function SoulPrintEngineHome() {
                 </h3>
                 <p className="text-sm font-medium text-gray-400 mt-2">{p.domain}</p>
                 <span className="inline-flex items-center gap-2 mt-6 font-semibold text-[#F5531A]">
-                  Visit
+                  {p.internal ? 'Read more' : 'Visit'}
                   <span aria-hidden="true">&rarr;</span>
                 </span>
-              </a>
+              </Link>
             ))}
           </div>
         </div>

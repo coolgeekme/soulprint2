@@ -26,25 +26,17 @@ const nextConfig = {
     maxInactiveAge: 10000,
     pagesBufferLength: 2,
   },
-  // The two products each live on their own domain. These paths exist only so a
-  // URL-guesser (or an old link) lands somewhere real instead of a 404.
+  // NOTE: a /kidsprint -> kidsprint.ai redirect used to live here. It was removed
+  // because KidSprint is in development and we want visitors to land on an
+  // in-site explainer rather than being handed off to a product that isn't
+  // ready. The path is now a real route: app/(marketing)/kidsprint/page.js.
   //
-  // `/passport` is deliberately ABSENT: it has a real route
-  // (app/(marketing)/passport/page.js) and, until soulprintpassport.ai is live,
-  // that page is the only working Passport destination. Redirecting it now would
-  // send visitors to a domain that does not answer. Add it once the domain is
-  // verified — and remember redirects() runs BEFORE filesystem routes, so adding
-  // it while the page still exists would silently make the page unreachable.
-  async redirects() {
-    return [
-      { source: '/kidsprint', destination: 'https://kidsprint.ai', permanent: true },
-      { source: '/kidsprint/:path*', destination: 'https://kidsprint.ai/:path*', permanent: true },
-    ];
-  },
-  // NOTE: the `/passport` -> `/` redirects that used to live here were removed when the
-  // real /passport route was added (app/(marketing)/passport/page.js). Next.js resolves
-  // redirects() BEFORE filesystem routes, so leaving them in would have made the new page
-  // permanently unreachable — it would 308 to `/` with no error anywhere.
+  // Redirects run BEFORE filesystem routes, so re-adding it would silently make
+  // that page unreachable.
+  //
+  // `/passport` is likewise absent for the same class of reason: it has a real
+  // route and, until soulprintpassport.ai answers, that page is the only working
+  // Passport destination.
   async headers() {
     return [
       {

@@ -10,7 +10,9 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 // app's own marketing pages. Passport and KidSprint live on their own domains.
 const navLinks = [
   { href: 'https://soulprintpassport.ai', label: 'Passport', external: true },
-  { href: 'https://kidsprint.ai', label: 'KidSprint', external: true },
+  // Internal: KidSprint is in development, so it has an explainer on this
+  // site rather than handing visitors off to a product that is not ready.
+  { href: '/kidsprint', label: 'KidSprint' },
   // Foundry is powered by SoulPrint Engine (its own site says so), so it is a
   // product built on the engine alongside Passport and KidSprint.
   { href: 'https://foundryagents.ai', label: 'Foundry', external: true },
@@ -34,7 +36,7 @@ const footerLinks = [
 // for a product without hunting back up to the header.
 const footerProducts = [
   { href: 'https://soulprintpassport.ai', label: 'SoulPrint Passport' },
-  { href: 'https://kidsprint.ai', label: 'KidSprint' },
+  { href: '/kidsprint', label: 'KidSprint' },
 ];
 
 const footerExternal = [{ href: 'https://foundryagents.ai', label: 'Foundry' }];
