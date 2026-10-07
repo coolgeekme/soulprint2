@@ -9,10 +9,11 @@ import { useId } from 'react';
  *   mark="passport"  SoulPrint Passport. The product.
  *
  * The company rule is swirl everywhere EXCEPT the Passport product surfaces:
- * the standalone soulprintpassport.ai site and the Passport app chrome (chat,
- * memories, settings, mobile nav). Those four surfaces pass mark="passport";
- * everything else — marketing, legal, auth, blog, admin, OG pages — inherits
- * the swirl. Do not flip the default; opt in at the call site.
+ * the standalone soulprintpassport.ai site, the Passport app chrome (chat,
+ * memories, settings, mobile nav), and /auth — which is strictly Passport's
+ * sign-in now, not a general engine door. Those surfaces pass mark="passport";
+ * everything else — marketing, legal, blog, admin, OG pages — inherits the
+ * swirl. Do not flip the default; opt in at the call site.
  *
  * ── the swirl ──────────────────────────────────────────────────────────
  * A single-colour brand-orange mark on a square 10240 canvas, served from
@@ -76,8 +77,9 @@ export default function SoulPrintLogo({
   //   passport — SoulPrint Passport. The product.
   //
   // The rule is swirl everywhere EXCEPT the Passport product surfaces — the
-  // standalone soulprintpassport.ai site and the Passport app chrome (chat,
-  // memories, settings, mobile nav). Those pass mark="passport" explicitly.
+  // standalone soulprintpassport.ai site, the Passport app chrome (chat,
+  // memories, settings, mobile nav), and /auth. Those pass mark="passport"
+  // explicitly.
   //
   // The swirl is a single-colour mark, so it needs no variant: brand orange
   // reads correctly on the white nav and on the dark hero alike.

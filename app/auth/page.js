@@ -356,7 +356,7 @@ export default function AuthPage() {
         
         <div className="relative z-10 w-full max-w-md">
           <div className="flex flex-col items-center mb-8">
-            <SoulPrintLogo size={64} />
+            <SoulPrintLogo mark="passport" size={64} />
             <h1 className="font-condensed font-black text-white text-2xl tracking-[0.2em] mt-4 uppercase">Reset Password</h1>
           </div>
 
@@ -471,7 +471,7 @@ export default function AuthPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <SoulPrintLogo size={64} />
+          <SoulPrintLogo mark="passport" size={64} />
           <h1 className="font-condensed font-black text-white text-3xl tracking-[0.25em] mt-4 uppercase">SOULPRINT</h1>
           <div className="flex items-center gap-3 mt-2">
             <div className="h-px flex-1 bg-orange-500/30" />
