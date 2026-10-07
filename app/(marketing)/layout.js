@@ -29,6 +29,7 @@ const navLinks = [
 ];
 
 const footerLinks = [
+  { href: '/auth', label: 'SoulPrint Passport sign in' },
   { href: '/pricing', label: 'Passport pricing' },
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },
@@ -47,7 +48,12 @@ const footerProducts = [
 
 // Foundry's product site, kept separate so the footer can still offer a direct
 // route to the live app rather than only the explainer.
-const footerExternal = [{ href: 'https://foundryagents.ai', label: 'foundryagents.ai' }];
+// Both product sites, so the footer can reach the live apps directly as well
+// as their explainers above.
+const footerExternal = [
+  { href: 'https://soulprintpassport.ai', label: 'soulprintpassport.ai' },
+  { href: 'https://foundryagents.ai', label: 'foundryagents.ai' },
+];
 
 function Wordmark() {
   return (
@@ -110,13 +116,18 @@ export default function PassportLayout({ children }) {
 
           {/* Discreet sign-in only. SPE is the parent brand, not a product, so the
               loud "Get Started" CTA belongs on the product sites. This stays so
-              existing users landing on the engine domain are never stranded. */}
+              existing users landing on the engine domain are never stranded.
+
+              Labelled "Passport Sign In", not "Sign In": /auth is Passport's door
+              and nothing else's, so a generic label implied the engine had
+              accounts of its own. "Passport" rather than the full product name
+              because this sits in the nav beside a "Passport" link already. */}
           <div className="hidden md:flex items-center gap-4">
             <Link
               href="/auth"
               className="text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
             >
-              Sign In
+              Passport Sign In
             </Link>
           </div>
 
@@ -155,7 +166,7 @@ export default function PassportLayout({ children }) {
                 href="/auth"
                 className="block px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 font-medium border-t border-gray-100 mt-2 pt-3"
               >
-                Sign In
+                Passport Sign In
               </Link>
             </div>
           </details>

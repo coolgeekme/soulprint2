@@ -6,6 +6,7 @@ import {
   Lock,
   Check,
   ArrowRight,
+  ArrowUpRight,
   Download,
   Link2,
   Play,
@@ -126,6 +127,17 @@ export default function PassportPage() {
               >
                 See how to connect
               </Link>
+              {/* The product's own home. This page is the explainer; that is the
+                  site. External, so it opens in a new tab. */}
+              <a
+                href="https://soulprintpassport.ai"
+                target="_blank"
+                rel="noopener"
+                className="inline-flex items-center justify-center gap-2 h-14 px-8 rounded-xl border border-[rgba(255,255,255,0.28)] hover:border-[rgba(255,255,255,0.55)] text-[#ffffff] font-semibold transition-colors"
+              >
+                soulprintpassport.ai
+                <ArrowUpRight className="w-4 h-4" strokeWidth={2.5} />
+              </a>
             </div>
             <p className="text-sm text-[rgba(255,255,255,0.55)] mt-5">
               Free during beta. No credit card required.
