@@ -25,10 +25,11 @@ const family = [
   {
     name: 'SoulPrint Passport',
     domain: 'soulprintpassport.ai',
-    href: 'https://soulprintpassport.ai',
+    href: '/passport',
+    internal: true,
     status: 'Live in beta',
     body: 'Your AI, remembering you. One memory that follows you across ChatGPT, Claude and every agent tool you use, so switching tools never resets the thread.',
-    cta: 'Open soulprintpassport.ai',
+    cta: 'What is Passport?',
   },
   {
     name: 'KidSprint',

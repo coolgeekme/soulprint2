@@ -9,7 +9,10 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 // SPE is the parent brand now, so the chrome leads with the PRODUCTS, not the
 // app's own marketing pages. Passport and KidSprint live on their own domains.
 const navLinks = [
-  { href: 'https://soulprintpassport.ai', label: 'Passport', external: true },
+  // Internal while soulprintpassport.ai has no DNS: sending visitors to a
+  // parked domain produced a blank page. The in-site page covers the same
+  // ground, so nobody leaves to find nothing.
+  { href: '/passport', label: 'Passport' },
   // Internal: KidSprint is in development, so it has an explainer on this
   // site rather than handing visitors off to a product that is not ready.
   { href: '/kidsprint', label: 'KidSprint' },
@@ -35,7 +38,7 @@ const footerLinks = [
 // the nav — a visitor who scrolls to the bottom should still be able to leave
 // for a product without hunting back up to the header.
 const footerProducts = [
-  { href: 'https://soulprintpassport.ai', label: 'SoulPrint Passport' },
+  { href: '/passport', label: 'SoulPrint Passport' },
   { href: '/kidsprint', label: 'KidSprint' },
 ];
 
@@ -164,17 +167,27 @@ export default function PassportLayout({ children }) {
             <Wordmark />
           </div>
           <nav className="flex items-center gap-6 flex-wrap justify-center text-sm text-gray-600">
-            {footerProducts.map((l) => (
-              <a
-                key={l.href}
-                href={l.href}
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-gray-700 hover:text-gray-900 transition-colors"
-              >
-                {l.label}
-              </a>
-            ))}
+            {footerProducts.map((l) =>
+              /^https?:/.test(l.href) ? (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                >
+                  {l.label}
+                </a>
+              ) : (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                >
+                  {l.label}
+                </Link>
+              )
+            )}
             <span className="hidden sm:block w-px h-4 bg-gray-300" aria-hidden="true" />
             {footerLinks.map((l) => (
               <Link key={l.href} href={l.href} className="hover:text-gray-900 transition-colors">
