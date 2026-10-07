@@ -160,7 +160,7 @@ export default function SoulPrintEngineHome() {
   return (
     <div className="bg-white">
       {/* ── HERO ─────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-[#0A1C2D] text-white">
+      <section className="relative overflow-hidden bg-[#0A1C2D] text-[#ffffff]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
           <div className="max-w-3xl">
             <p className="font-condensed font-bold uppercase tracking-[0.2em] text-[#F5531A] text-sm">
@@ -169,20 +169,20 @@ export default function SoulPrintEngineHome() {
             <h1 className="font-condensed font-black uppercase text-4xl md:text-6xl lg:text-7xl leading-[1.02] mt-5">
               One engine. Every product that remembers.
             </h1>
-            <p className="text-lg md:text-xl text-white/70 mt-7 max-w-2xl leading-relaxed">
+            <p className="text-lg md:text-xl text-[rgba(255,255,255,0.72)] mt-7 max-w-2xl leading-relaxed">
               SoulPrint Engine is the platform underneath every product we build. Same identity,
               same memory, same portability &mdash; each product just points it at a different job.
             </p>
             <div className="flex flex-wrap items-center gap-4 mt-10">
               <a
                 href="#family"
-                className="inline-flex items-center justify-center h-14 px-8 rounded-xl bg-[#F5531A] hover:bg-[#E24A12] font-semibold text-white transition-colors"
+                className="inline-flex items-center justify-center h-14 px-8 rounded-xl bg-[#F5531A] hover:bg-[#E24A12] font-semibold text-[#ffffff] transition-colors"
               >
                 See the products
               </a>
               <a
                 href="#engine"
-                className="inline-flex items-center justify-center h-14 px-8 rounded-xl border border-white/25 hover:border-white/50 font-semibold transition-colors"
+                className="inline-flex items-center justify-center h-14 px-8 rounded-xl border border-[rgba(255,255,255,0.28)] hover:border-[rgba(255,255,255,0.55)] text-[#ffffff] font-semibold transition-colors"
               >
                 How it works
               </a>
@@ -266,7 +266,7 @@ export default function SoulPrintEngineHome() {
                   {s.name}
                 </h3>
                 {s.tag ? (
-                  <span className="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-gray-900 text-white mt-3">
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#0A1C2D] text-[#ffffff] mt-3">
                     {s.tag}
                   </span>
                 ) : null}
@@ -426,7 +426,7 @@ export default function SoulPrintEngineHome() {
           </p>
 
           {/* ownership */}
-          <div className="mt-16 bg-[#0A1C2D] text-white rounded-2xl px-8 py-12 md:px-14 md:py-16">
+          <div className="mt-16 bg-[#0A1C2D] text-[#ffffff] rounded-2xl px-8 py-12 md:px-14 md:py-16">
             <h3 className="font-condensed font-black uppercase text-3xl md:text-4xl">
               The engine is ours. The memory is yours.
             </h3>
