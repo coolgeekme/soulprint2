@@ -6,10 +6,11 @@ import SoulPrintLogo from '@/components/SoulPrintLogo';
 // which is exactly the duplicate-metadata problem we are fixing. Each page in
 // this group exports its own title and description via lib/seo.js instead.
 
+// SPE is the parent brand now, so the chrome leads with the PRODUCTS, not the
+// app's own marketing pages. Passport and KidSprint live on their own domains.
 const navLinks = [
-  { href: '/how-it-works', label: 'How It Works' },
-  { href: '/integrations', label: 'Integrations' },
-  { href: '/features', label: 'Features' },
+  { href: 'https://soulprintpassport.ai', label: 'Passport', external: true },
+  { href: 'https://kidsprint.ai', label: 'KidSprint', external: true },
   { href: '/pricing', label: 'Pricing' },
   { href: '/faq', label: 'FAQ' },
 ];
@@ -59,29 +60,38 @@ export default function PassportLayout({ children }) {
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-7">
-            {navLinks.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
-              >
-                {l.label}
-              </Link>
-            ))}
+            {navLinks.map((l) =>
+              l.external ? (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                >
+                  {l.label}
+                </a>
+              ) : (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
+                >
+                  {l.label}
+                </Link>
+              )
+            )}
           </div>
 
+          {/* Discreet sign-in only. SPE is the parent brand, not a product, so the
+              loud "Get Started" CTA belongs on the product sites. This stays so
+              existing users landing on the engine domain are never stranded. */}
           <div className="hidden md:flex items-center gap-4">
             <Link
               href="/auth"
               className="text-sm text-gray-700 hover:text-gray-900 font-medium transition-colors"
             >
               Sign In
-            </Link>
-            <Link
-              href="/auth"
-              className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-all"
-            >
-              Get Started Free
             </Link>
           </div>
 
@@ -95,20 +105,32 @@ export default function PassportLayout({ children }) {
               </svg>
             </summary>
             <div className="absolute right-0 top-12 w-56 bg-white border border-gray-200 rounded-xl shadow-lg p-3 space-y-1">
-              {navLinks.map((l) => (
-                <Link
-                  key={l.href}
-                  href={l.href}
-                  className="block px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 font-medium"
-                >
-                  {l.label}
-                </Link>
-              ))}
+              {navLinks.map((l) =>
+                l.external ? (
+                  <a
+                    key={l.href}
+                    href={l.href}
+                    target="_blank"
+                    rel="noopener"
+                    className="block px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 font-medium"
+                  >
+                    {l.label}
+                  </a>
+                ) : (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    className="block px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 font-medium"
+                  >
+                    {l.label}
+                  </Link>
+                )
+              )}
               <Link
                 href="/auth"
-                className="block px-3 py-2 rounded-lg text-sm text-white font-semibold bg-gradient-to-r from-orange-500 to-red-500 mt-2 text-center"
+                className="block px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 font-medium border-t border-gray-100 mt-2 pt-3"
               >
-                Get Started Free
+                Sign In
               </Link>
             </div>
           </details>
