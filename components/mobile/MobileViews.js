@@ -103,7 +103,7 @@ const ProfileView = ({ profile, soulPrint, onSettingsClick, isAdmin, onAdminClic
 
     {/* Visit Website Button */}
     <button 
-      onClick={() => window.location.href = '/'}
+      onClick={() => window.open('https://soulprintpassport.ai', '_blank', 'noopener')}
       className="w-full bg-gradient-to-r from-orange-500/10 to-amber-500/10 hover:from-orange-500/20 hover:to-amber-500/20 border border-orange-500/20 rounded-2xl p-4 flex items-center justify-between transition-colors mb-3"
     >
       <div className="flex items-center gap-3">

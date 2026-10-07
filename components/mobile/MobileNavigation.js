@@ -12,7 +12,10 @@ const TabBar = ({ activeTab, onTabChange, assistantName, unreadCount = 0 }) => {
 
   const handleTabClick = (tab) => {
     if (tab.isExternal) {
-      window.location.href = '/';
+      // "Website" means the PRODUCT's site, not the engine's marketing page —
+      // this is Passport's app chrome and the engine page is a dead end for a
+      // signed-in user. New tab so an open chat is not lost.
+      window.open('https://soulprintpassport.ai', '_blank', 'noopener');
     } else {
       onTabChange(tab.id);
     }

@@ -512,7 +512,7 @@ function PrivacyTab({ token }) {
         alert('Your account has been deleted. You will be logged out.');
         localStorage.removeItem('sp_token');
         localStorage.removeItem('sp_user');
-        window.location.href = '/';
+        window.location.href = 'https://soulprintpassport.ai';
       } else {
         const data = await res.json();
         alert(data.error || 'Failed to delete account');

@@ -29,7 +29,7 @@ const MoreOptionsSheet = ({ isOpen, onClose, onSettings, onImprints }) => {
             </div>
           </button>
           <button 
-            onClick={() => { window.location.href = '/'; onClose(); }}
+            onClick={() => { window.open('https://soulprintpassport.ai', '_blank', 'noopener'); onClose(); }}
             className="w-full p-4 rounded-2xl bg-white/5 text-left flex items-center gap-3"
           >
             <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
