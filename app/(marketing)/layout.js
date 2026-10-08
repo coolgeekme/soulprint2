@@ -26,11 +26,16 @@ const navLinks = [
   // generic Pricing entry in the PARENT nav would imply the parent is for sale.
   // Passport pricing stays reachable from the footer, labelled explicitly.
   { href: '/faq', label: 'FAQ' },
+  // The blog has always existed at /blog but was never linked from the
+  // marketing site — reachable only by typing the URL, from the chat sidebar,
+  // or via the sitemap. Surfacing it here is the whole fix.
+  { href: '/blog', label: 'Blog' },
 ];
 
 const footerLinks = [
   { href: '/auth', label: 'SoulPrint Passport sign in' },
   { href: '/pricing', label: 'Passport pricing' },
+  { href: '/blog', label: 'Blog' },
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },
   { href: '/security', label: 'Security' },
