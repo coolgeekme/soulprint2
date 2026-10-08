@@ -45,6 +45,13 @@ const nextConfig = {
         destination: 'https://soulprintpassport.ai/connect',
         statusCode: 301,
       },
+      // /pricing prices SoulPrint Passport only. It is a Passport surface, so it
+      // belongs on the product domain next to /connect — not on the engine.
+      {
+        source: '/pricing',
+        destination: 'https://soulprintpassport.ai/pricing',
+        statusCode: 301,
+      },
     ];
   },
   // NOTE: a /kidsprint -> kidsprint.ai redirect used to live here. It was removed

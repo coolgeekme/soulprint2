@@ -21,10 +21,11 @@ const navLinks = [
   // is live, but the nav stays on-site so all three products are reached the
   // same way; /foundry links out to foundryagents.ai in several places.
   { href: '/foundry', label: 'Foundry' },
-  // No bare "Pricing" here. /pricing prices SoulPrint Passport only, and this
-  // FAQ answers "Is SoulPrint Engine something I can buy?" with a flat no — so a
-  // generic Pricing entry in the PARENT nav would imply the parent is for sale.
-  // Passport pricing stays reachable from the footer, labelled explicitly.
+  // No bare "Pricing" here. Pricing on this domain was Passport's, never the
+  // engine's, and it now lives on the product's own site — as does /connect. A
+  // generic Pricing entry in the PARENT nav would imply the parent is for sale,
+  // which the FAQ flatly denies. Passport pricing stays in the footer instead,
+  // labelled explicitly and pointed at soulprintpassport.ai.
   { href: '/faq', label: 'FAQ' },
   // The blog has always existed at /blog but was never linked from the
   // marketing site — reachable only by typing the URL, from the chat sidebar,
@@ -34,7 +35,7 @@ const navLinks = [
 
 const footerLinks = [
   { href: '/auth', label: 'SoulPrint Passport sign in' },
-  { href: '/pricing', label: 'Passport pricing' },
+  { href: 'https://soulprintpassport.ai/pricing', label: 'Passport pricing' },
   { href: '/blog', label: 'Blog' },
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },

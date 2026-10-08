@@ -38,7 +38,7 @@ A Passport carries three things:
 - [Features](${SITE_URL}/features): Identity, memory with provenance, auto-extraction, and Imprints.
 - [Integrations](${SITE_URL}/integrations): Every AI and agent the Passport connects to, and how.
 - [Connect Your AI](https://soulprintpassport.ai/connect): Setup instructions for the browser extension and the MCP server. Lives on the Passport site.
-- [Pricing](${SITE_URL}/pricing): Current pricing and what happens when beta ends.
+- [Pricing](https://soulprintpassport.ai/pricing): Current pricing and what happens when beta ends.
 - [FAQ](${SITE_URL}/faq): Direct answers on storage, privacy, supported AIs, and beta terms.
 - [Early Access](${SITE_URL}/early-access): Access to the Chrome extension before it reaches the store.
 - [Blog](${SITE_URL}/blog): Product updates and writing on persistent AI memory.

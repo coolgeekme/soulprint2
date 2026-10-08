@@ -423,9 +423,14 @@ export default function PassportPage() {
 
           <p className="text-sm text-gray-500 mt-8">
             Full plan detail sits on the{' '}
-            <Link href="/pricing" className="font-semibold text-[#F5531A] hover:text-[#E24A12]">
+            <a
+              href="https://soulprintpassport.ai/pricing"
+              target="_blank"
+              rel="noopener"
+              className="font-semibold text-[#F5531A] hover:text-[#E24A12]"
+            >
               pricing page
-            </Link>
+            </a>
             .
           </p>
         </div>
