@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import {
+  encryptMemory,
+  decryptMemoryDoc,
+  decryptMemoryDocs,
+  memoryContentHash,
+} from '@/lib/memory-crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { ok, err, authenticate } from '@/lib/api-utils';
@@ -204,7 +210,8 @@ async function handleCreateMemory(request) {
   const memory = {
     id: uuidv4(),
     user_id: user.id,
-    content: content.trim(),
+    content: encryptMemory(content.trim()),
+    content_hash: memoryContentHash(content.trim()),
     category: MEMORY_CATEGORIES.includes(category) ? category : 'other',
     importance: ['high', 'medium', 'low'].includes(importance) ? importance : 'medium',
     source: 'manual',
@@ -216,7 +223,7 @@ async function handleCreateMemory(request) {
   await db.collection('user_memories').insertOne(memory);
   invalidateSystemPromptCache(user.id);
 
-  return ok({ success: true, memory });
+  return ok({ success: true, memory: { ...memory, content: content.trim() } });
 }
 
 async function handleUpdateMemory(request, memoryId) {
@@ -232,7 +239,10 @@ async function handleUpdateMemory(request, memoryId) {
   if (!memory) return err('Memory not found', 404);
 
   const updates = { updated_at: new Date() };
-  if (content !== undefined) updates.content = content.trim();
+  if (content !== undefined) {
+  updates.content = encryptMemory(content.trim());
+  updates.content_hash = memoryContentHash(content.trim());
+  }
   if (category !== undefined && MEMORY_CATEGORIES.includes(category)) updates.category = category;
   if (importance !== undefined && ['high', 'medium', 'low'].includes(importance)) updates.importance = importance;
 

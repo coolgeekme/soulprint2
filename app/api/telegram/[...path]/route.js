@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import {
+  encryptMemory,
+  decryptMemoryDoc,
+  decryptMemoryDocs,
+  memoryContentHash,
+} from '@/lib/memory-crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { getProvider, AVAILABLE_MODELS } from '@/lib/llm/providers';
@@ -1305,7 +1311,10 @@ async function handleTelegramWebhook(request) {
         
         case 'get_user_memories':
         case 'recall_memory': {
-          const memories = await db.collection('user_memories').find({ user_id: userId }).sort({ created_at: -1 }).limit(15).toArray();
+          // Decrypt: this content is grouped and returned as a tool result.
+          const memories = decryptMemoryDocs(
+          await db.collection('user_memories').find({ user_id: userId }).sort({ created_at: -1 }).limit(15).toArray()
+          ).filter(m => !m.unreadable);
           if (!memories.length) return { message: 'No memories stored yet' };
           const grouped = {};
           for (const mem of memories) {

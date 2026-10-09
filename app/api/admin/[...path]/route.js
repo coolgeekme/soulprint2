@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import {
+  encryptMemory,
+  decryptMemoryDoc,
+  decryptMemoryDocs,
+  memoryContentHash,
+} from '@/lib/memory-crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { generateToken, verifyToken, hashPassword, comparePassword, getTokenFromRequest } from '@/lib/auth';
@@ -1486,11 +1492,13 @@ async function handleAdminGetUserDetails(request, userId) {
   // Get total messages
   const totalMessages = await db.collection('messages').countDocuments({ user_id: userId });
 
-  // Get memories
-  const memories = await db.collection('user_memories')
-    .find({ user_id: userId })
-    .sort({ created_at: -1 })
-    .toArray();
+  // Get memories — decrypt, or the admin view shows ciphertext.
+  const memories = decryptMemoryDocs(
+  await db.collection('user_memories')
+  .find({ user_id: userId })
+  .sort({ created_at: -1 })
+  .toArray()
+  ).filter(m => !m.unreadable);
 
   // Get assessment answers
   const assessmentAnswers = await db.collection('assessment_answers')

@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import {
+  encryptMemory,
+  decryptMemoryDoc,
+  decryptMemoryDocs,
+  memoryContentHash,
+} from '@/lib/memory-crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { getProvider, AVAILABLE_MODELS } from '@/lib/llm/providers';
@@ -7,11 +13,14 @@ import { ok, err, authenticate, getValidGoogleToken, getAllGoogleConnections } f
 // Helper function to get user memories for prompt
 async function getUserMemoriesForPrompt(db, userId) {
   try {
-    return await db.collection('user_memories')
-      .find({ user_id: userId })
-      .sort({ importance: -1, created_at: -1 })
-      .limit(20)
-      .toArray();
+    // Decrypt — this is injected into the live conversation context.
+    return decryptMemoryDocs(
+      await db.collection('user_memories')
+        .find({ user_id: userId })
+        .sort({ importance: -1, created_at: -1 })
+        .limit(20)
+        .toArray()
+    ).filter((m) => !m.unreadable);
   } catch (error) {
     console.error('[Memory] Error fetching memories:', error);
     return [];
@@ -1137,11 +1146,14 @@ async function handleVoiceToolExecute(request) {
       case 'recall_memory': {
         // Get the user's stored memories
         try {
-          const memories = await db.collection('user_memories')
-            .find({ user_id: user.id })
-            .sort({ created_at: -1 })
-            .limit(20)
-            .toArray();
+          // Decrypt — this content is returned as a tool result.
+          const memories = decryptMemoryDocs(
+            await db.collection('user_memories')
+              .find({ user_id: user.id })
+              .sort({ created_at: -1 })
+              .limit(20)
+              .toArray()
+          ).filter(m => !m.unreadable);
           
           if (memories.length === 0) {
             return NextResponse.json({ success: true, result: { 
@@ -1180,10 +1192,13 @@ async function handleVoiceToolExecute(request) {
           const profile = await db.collection('profiles').findOne({ user_id: user.id });
           const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
           const commProfile = await db.collection('communication_profiles').findOne({ user_id: user.id });
-          const memories = await db.collection('user_memories')
-            .find({ user_id: user.id, importance: 'high' })
-            .limit(10)
-            .toArray();
+          // Decrypt — feeds the soul-profile tool result.
+          const memories = decryptMemoryDocs(
+            await db.collection('user_memories')
+              .find({ user_id: user.id, importance: 'high' })
+              .limit(10)
+              .toArray()
+          ).filter(m => !m.unreadable);
           
           const soulData = {
             display_name: profile?.display_name,
