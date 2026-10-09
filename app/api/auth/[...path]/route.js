@@ -5,6 +5,7 @@ import { generateToken, hashPassword, comparePassword, getTokenFromRequest, veri
 import { sendWelcomeEmail, sendBetaCodeEmail } from '@/lib/email';
 import { ok, err, authenticate, requireAdmin, checkRateLimit, setTokenCookie } from '@/lib/api-utils';
 import { isTeamProEmail } from '@/lib/handlers/team-access';
+import { betaGrantsAccess } from '@/lib/beta';
 import { 
   handleGoogleAuthStart, 
   handleGoogleAuthCallback 
@@ -728,6 +729,19 @@ async function resolveIdentityTier(userId, email) {
       family: 'family',
       team: 'team',
     };
+
+    // ── Beta: every user gets the full product ──────────────────────────────
+    // Passport's core features (auto-extraction, MCP, custom Imprints) live on
+    // capability flags only Pro/Team carry. During beta nobody has a paid
+    // subscription, so without this every user resolved to `free` with all three
+    // switched off — while /pricing promised "everything included". The old
+    // pre-launch bypass and the OG/early grace windows all expired in May 2026.
+    // Placed AFTER the paid-subscription lookup so a real subscriber resolves
+    // through their own plan and beta never masks a billing problem.
+    // Off switch: BETA_MODE=false. See lib/beta.js.
+    if (betaGrantsAccess(sub)) {
+      return { id: 'pro', ...IDENTITY_TIERS.pro };
+    }
 
     // Known plan → mapped tier. Unknown paid plan → Pro. No subscription → Free.
     let tierId
