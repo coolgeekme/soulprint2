@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   seedPlans, getPlans, getPlan, updatePlan, syncPlansToStripe,
   getUserSubscription, createCheckoutSession, createCreditPackCheckout, createMessagePackCheckout,
+  resolveCheckoutOrigin,
   getCheckoutStatus, cancelSubscription, getCustomerPortalUrl,
   trackUsage, getUsage, getUserUsageSummary,
   getVideoCredits, addVideoCredits,
@@ -317,25 +318,36 @@ export async function POST(request, { params }) {
     // POST /api/pricing/checkout — Create subscription checkout
     if (pathStr === 'checkout') {
       const user = await requireAuth(request);
+      // originUrl is optional: the success/cancel origin is resolved server-side
+      // (see resolveCheckoutOrigin) so a caller cannot redirect the customer after
+      // payment. It is still accepted for logging, but is not trusted.
       const { planId, billingPeriod, originUrl, discountCode } = await request.json();
-      if (!planId || !billingPeriod || !originUrl) {
-        return err('planId, billingPeriod, and originUrl are required');
+      if (!planId || !billingPeriod) {
+        return err('planId and billingPeriod are required');
       }
-      
+
       // Special handling for Free plan - no Stripe needed
       if (planId === 'free') {
         const result = await adminSetUserPlan(user.userId || user.id, 'free', 'user_selected_free_plan');
-        return ok({ 
-          success: true, 
+        return ok({
+          success: true,
           subscription: result,
-          redirect: `${originUrl}/thank-you?plan=free`
+          redirect: `${resolveCheckoutOrigin(originUrl)}/thank-you?plan=free`
         });
       }
-      
-      const session = await createCheckoutSession(
-        user.userId || user.id, planId, billingPeriod, originUrl, discountCode
-      );
-      return ok(session);
+
+      try {
+        const session = await createCheckoutSession(
+          user.userId || user.id, planId, billingPeriod, originUrl, discountCode
+        );
+        return ok(session);
+      } catch (e) {
+        // A retired plan or an unsynced plan lands here. These are expected
+        // conditions, not server faults, so they return a message the UI can show
+        // instead of a bare 500.
+        console.warn(`[Pricing] Checkout refused for plan ${planId}: ${e.message}`);
+        return err(e.message || 'Unable to start checkout', 400);
+      }
     }
 
     // POST /api/pricing/checkout/credits — Buy media credit pack
