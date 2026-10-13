@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, EyeOff, Mail, Lock, KeyRound, Loader2, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, KeyRound, Loader2, CheckCircle, ArrowLeft } from 'lucide-react';
 import SoulPrintLogo from '@/components/SoulPrintLogo';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } from '@/lib/firebase';
 import Script from 'next/script';
@@ -465,6 +465,15 @@ export default function AuthPage() {
       />
       
       <div className="min-h-screen grid-bg flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Back to the Passport site */}
+      <a
+        href="https://soulprintpassport.ai"
+        aria-label="Back to SoulPrint Passport"
+        className="absolute top-5 left-5 z-20 inline-flex items-center gap-2 text-gray-400 hover:text-orange-400 text-[11px] tracking-[0.2em] uppercase transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back
+      </a>
       {/* Orange glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.2)_0%,transparent_70%)]" />
 
