@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-import { NextResponse } from 'next/server';
 import { ok, err, authenticate } from '@/lib/api-utils';
 import { getDb } from '@/lib/mongodb';
 import { v4 as uuidv4 } from 'uuid';
@@ -34,32 +32,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 const ALLOWED_EVENTS = new Set(['prompt', 'extract', 'import', 'export', 'mcp_connect']);
 const ALLOWED_SURFACES = new Set(['chatgpt', 'claude', 'gemini', 'web', 'mcp', 'other', 'unknown']);
-
-// ─── Cross-origin admin dashboard (soulprintpassport.ai/admin) ───────────────
-// The dashboard is a static page on the Passport domain; it reads these aggregates
-// from here with a Bearer ADMIN_TOKEN. CORS is scoped to that single origin and the
-// token is compared timing-safely. When ADMIN_TOKEN is unset this path is inert and
-// only the existing cookie/JWT admin check applies.
-
-const DASHBOARD_ORIGIN = 'https://soulprintpassport.ai';
-
-function cors(response) {
-  response.headers.set('Access-Control-Allow-Origin', DASHBOARD_ORIGIN);
-  response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-  response.headers.set('Access-Control-Max-Age', '86400');
-  return response;
-}
-
-function adminTokenMatches(request) {
-  const token = process.env.ADMIN_TOKEN;
-  if (!token) return false;
-  const auth = request.headers.get('authorization') || '';
-  if (!auth.startsWith('Bearer ')) return false;
-  const supplied = Buffer.from(auth.slice('Bearer '.length));
-  const expected = Buffer.from(token);
-  return supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
-}
 
 export async function POST(request) {
   const user = await authenticate(request);
@@ -107,17 +79,10 @@ export async function POST(request) {
  * and it contains no per-user detail and no content.
  */
 export async function GET(request) {
-  if (request.method === 'OPTIONS') {
-    return cors(new NextResponse(null, { status: 204 }));
-  }
-
-  let authorized = adminTokenMatches(request);
-  if (!authorized) {
-    const user = await authenticate(request);
-    authorized = Boolean(user && (user.role === 'admin' || user.role === 'superadmin'));
-  }
-  if (!authorized) {
-    return cors(err('Unauthorized', 401));
+  const user = await authenticate(request);
+  if (!user) return err('Unauthorized', 401);
+  if (user.role !== 'admin' && user.role !== 'superadmin') {
+    return err('Forbidden', 403);
   }
 
   const db = await getDb();
@@ -134,7 +99,7 @@ export async function GET(request) {
     col.distinct('user_id'),
   ]);
 
-  return cors(ok({
+  return ok({
     total_events: (await col.estimatedDocumentCount?.()) ?? undefined,
     by_event: Object.fromEntries(byEvent.map((r) => [r._id, r.count])),
     by_surface: Object.fromEntries(bySurface.map((r) => [r._id, r.count])),
