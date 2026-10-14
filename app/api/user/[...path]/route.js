@@ -5,6 +5,7 @@ import {
   decryptMemoryDocs,
   memoryContentHash,
 } from '@/lib/memory-crypto';
+import { embedForWrite } from '@/lib/memory-embedding';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { ok, err, authenticate } from '@/lib/api-utils';
@@ -212,6 +213,7 @@ async function handleCreateMemory(request) {
     user_id: user.id,
     content: encryptMemory(content.trim()),
     content_hash: memoryContentHash(content.trim()),
+    ...(await embedForWrite(content.trim())),
     category: MEMORY_CATEGORIES.includes(category) ? category : 'other',
     importance: ['high', 'medium', 'low'].includes(importance) ? importance : 'medium',
     source: 'manual',
@@ -240,8 +242,11 @@ async function handleUpdateMemory(request, memoryId) {
 
   const updates = { updated_at: new Date() };
   if (content !== undefined) {
-  updates.content = encryptMemory(content.trim());
-  updates.content_hash = memoryContentHash(content.trim());
+    const plaintext = content.trim();
+    updates.content = encryptMemory(plaintext);
+    updates.content_hash = memoryContentHash(plaintext);
+    const { embedding } = await embedForWrite(plaintext);
+    updates.embedding = embedding ?? null;  // clear any stale vector if recompute fails
   }
   if (category !== undefined && MEMORY_CATEGORIES.includes(category)) updates.category = category;
   if (importance !== undefined && ['high', 'medium', 'low'].includes(importance)) updates.importance = importance;
