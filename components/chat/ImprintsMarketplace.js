@@ -572,7 +572,7 @@ export function ActiveImprintBadge({ token, onClick }) {
 }
 
 // ── Main Marketplace Modal ──────────────────────────────────────────────────
-export default function ImprintsMarketplace({ open, onClose, token, projects, onAssignmentsChanged, canCustom = false }) {
+export default function ImprintsMarketplace({ open, onClose, token, projects, onAssignmentsChanged, canCustom: canCustomProp = false }) {
   const [view, setView] = useState('library'); // library | myimprints | detail | generator
   const [imprints, setImprints] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -583,6 +583,7 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('popular');
   const [activeTab, setActiveTab] = useState('browse'); // browse | mine
+  const [canCustom, setCanCustom] = useState(canCustomProp);
 
   const fetchImprints = useCallback(async () => {
     if (!token) return;
@@ -618,8 +619,15 @@ export default function ImprintsMarketplace({ open, onClose, token, projects, on
       fetchImprints();
       setView('library');
       setSelectedImprint(null);
+      // Resolve custom-create eligibility from the server (tier-gated: Pro/Team only).
+      // The `canCustom` prop was never wired from any parent, so the Create Custom
+      // button was always disabled. Fetch the real access flag on open instead.
+      fetch('/api/imprints/access', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d && typeof d.custom === 'boolean') setCanCustom(d.custom); })
+        .catch(() => {});
     }
-  }, [open, fetchImprints]);
+  }, [open, fetchImprints, token]);
 
   // Check if an imprint is installed
   function isImprintInstalled(imprintId) {
