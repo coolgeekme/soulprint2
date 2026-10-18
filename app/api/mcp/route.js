@@ -12,6 +12,7 @@ import { getMcpAccess } from '@/lib/handlers/mcp-access';
 import { TOOLS } from '@/lib/mcp/tools';
 import { handleMcpTool } from '@/lib/mcp/handlers';
 import { getOAuth } from '@/lib/mcp/oauth';
+import { recordEvent } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -36,6 +37,9 @@ async function handleMessage(db, user, msg) {
 
   switch (method) {
     case 'initialize':
+      // One mcp_connect per connection handshake. recordEvent swallows its own
+      // errors, so a failed write never affects the MCP response.
+      await recordEvent(user.id, 'mcp_connect', 'mcp');
       return rpcResult(id, {
         capabilities: { experimental: {}, tools: { listChanged: false } },
         protocolVersion: PROTOCOL_VERSION,
