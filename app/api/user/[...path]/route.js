@@ -95,7 +95,11 @@ async function handleGetSoulProfile(request) {
   const profile = await db.collection('profiles').findOne({ user_id: user.id });
   const soulProfile = await db.collection('soul_profiles').findOne({ user_id: user.id });
   const assessmentAnswers = await db.collection('assessment_answers').find({ user_id: user.id }).toArray();
-  const memoryCount = await db.collection('user_memories').countDocuments({ user_id: user.id });
+  // Count only memories that decrypt. `countDocuments` includes rows with a null
+  // or wrong-key `content` that /memories drops, which made this profile report a
+  // total that disagreed with the memory list the extension actually syncs.
+  const memoryDocs = await db.collection('user_memories').find({ user_id: user.id }).toArray();
+  const memoryCount = decryptMemoryDocs(memoryDocs).filter((m) => !m.unreadable).length;
   const latestSnapshot = await db.collection('soulprint_snapshots')
     .findOne({ user_id: user.id }, { sort: { created_at: -1 } });
   const commProfile = await db.collection('communication_profiles').findOne({ user_id: user.id });
