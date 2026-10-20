@@ -52,6 +52,17 @@ const nextConfig = {
         destination: 'https://soulprintpassport.ai/pricing',
         statusCode: 301,
       },
+      // Phase 1 of the content move: the marketing surface belongs on the product
+      // domain. /faq was ported to soulprintpassport.ai/faq and verified live (200,
+      // canonical pointing at the passport host, 8 Q&As, FAQPage JSON-LD) BEFORE
+      // this redirect was added. The route stays in app/(marketing)/faq/page.js so
+      // removing this entry restores it instantly.
+      // See /root/projects/soulprint-domain-migration/PHASE1-REDIRECT-MAP.md
+      {
+        source: '/faq',
+        destination: 'https://soulprintpassport.ai/faq',
+        statusCode: 301,
+      },
     ];
   },
   // NOTE: a /kidsprint -> kidsprint.ai redirect used to live here. It was removed
