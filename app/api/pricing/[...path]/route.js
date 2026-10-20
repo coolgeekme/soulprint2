@@ -11,7 +11,8 @@ import {
   handleStripeWebhook,
   getAdminSubscriptionOverview, adminSetUserPlan, getPaymentHistory,
   PREMIUM_MESSAGE_PACKS,
-} from '@/lib/handlers/pricing';
+  } from '@/lib/handlers/pricing';
+  import { getFounderStatus } from '@/lib/handlers/founder';
 import { checkUserAccess } from '@/lib/handlers/access-check';
 import { getUserEnforcementStatus, checkActionAllowed, getUserUsageSummary as getEnforcementUsage } from '@/lib/handlers/access-enforcement';
 import jwt from 'jsonwebtoken';
@@ -85,6 +86,14 @@ export async function GET(request, { params }) {
     if (pathStr === 'plans') {
       const plans = await getPlans();
       return ok({ plans });
+    }
+
+    // GET /api/pricing/founder/status — Live state of the founder offer.
+    // Public: the pricing page shows spots remaining, and it must not require
+    // a login to say how many are left.
+    if (pathStr === 'founder/status') {
+      const founder = await getFounderStatus();
+      return ok({ founder });
     }
 
     // GET /api/pricing/credit-packs — List media credit packs

@@ -130,8 +130,13 @@ test('every known read site actually CALLS a decrypt helper', () => {
 test('files using the crypto helpers actually import them', () => {
   for (const { path: p, text } of SOURCES) {
     if (/encryptMemory\(|decryptMemoryDoc/.test(text)) {
-      assert.ok(/from '@\/lib\/memory-crypto'/.test(text),
-        `${p} uses the crypto helpers without importing them`);
+      // Accept the @/lib alias OR a relative path. Both resolve; the intent of
+      // this guard is that the helper is imported at all, not which specifier
+      // style the file happens to use.
+      assert.ok(
+        /from\s+'(?:@\/lib\/memory-crypto|\.{1,2}\/[^']*memory-crypto(?:\.js)?)'/.test(text),
+        `${p} uses the crypto helpers without importing them`
+      );
     }
   }
 });
