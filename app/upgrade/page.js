@@ -65,7 +65,12 @@ function UpgradeContent() {
 
     (async () => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('sp_token') : null;
-      if (!token) {
+      const isOneTime = ONE_TIME_PLANS.has(planId);
+
+      // Purchase-first: a one-time plan does NOT require an account. Founders pay
+      // first and the account is created from the payment. Only subscriptions gate
+      // on sign-in, because a recurring plan needs an account to manage and cancel.
+      if (!token && !isOneTime) {
         if (!cancelled) setState('signedout');
         goToAuth();
         return;
@@ -74,7 +79,7 @@ function UpgradeContent() {
       try {
         // One-time plans are not in the subscription plan catalog — they have their
         // own live offer state. Ask that instead of the plans list.
-        if (ONE_TIME_PLANS.has(planId)) {
+        if (isOneTime) {
           const res = await fetch('/api/pricing/founder/status');
           const data = res.ok ? await res.json() : null;
           const founder = data?.founder || data?.data;
@@ -107,14 +112,26 @@ function UpgradeContent() {
   const startCheckout = async () => {
     setState('redirecting');
     const token = localStorage.getItem('sp_token');
+    const isOneTime = ONE_TIME_PLANS.has(planId);
+
     try {
-      const res = await fetch('/api/pricing/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        // originUrl is no longer trusted or required — the server resolves the
-        // post-checkout origin itself. Sent only so older server builds still work.
-        body: JSON.stringify({ planId, billingPeriod: 'monthly', originUrl: window.location.origin }),
-      });
+      // One-time plans use their own public endpoint, which deliberately works
+      // signed out — that is the whole point of purchase-first.
+      const res = isOneTime
+        ? await fetch('/api/pricing/founder/checkout', {
+            method: 'POST',
+            headers: token
+              ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+              : { 'Content-Type': 'application/json' },
+          })
+        : await fetch('/api/pricing/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            // originUrl is no longer trusted or required — the server resolves the
+            // post-checkout origin itself. Sent only so older server builds still work.
+            body: JSON.stringify({ planId, billingPeriod: 'monthly', originUrl: window.location.origin }),
+          });
+
       const data = await res.json();
       if (data.url) { window.location.href = data.url; return; }
       if (data.redirect) { window.location.href = data.redirect; return; }

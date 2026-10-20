@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, ensureCriticalIndexes } from '@/lib/mongodb';
 import { generateToken, hashPassword, comparePassword, getTokenFromRequest, verifyToken } from '@/lib/auth';
+import { claimFounderByToken } from '@/lib/handlers/founder';
 import { sendWelcomeEmail, sendBetaCodeEmail } from '@/lib/email';
 import { ok, err, authenticate, requireAdmin, checkRateLimit, setTokenCookie } from '@/lib/api-utils';
 import { isTeamProEmail } from '@/lib/handlers/team-access';
@@ -636,6 +637,33 @@ async function handleVerifyToken(request) {
   });
 }
 
+/**
+ * POST /api/auth/claim — finish a guest founder purchase.
+ *
+ * The payment already happened and the token was emailed to the address that paid.
+ * This sets a password, creates or attaches the account, grants lifetime access, and
+ * returns a session token so the buyer arrives signed in rather than being asked to
+ * log in to the thing they just bought.
+ */
+async function handleFounderClaim(request) {
+  const body = await request.json().catch(() => ({}));
+  const { token, password } = body || {};
+
+  const result = await claimFounderByToken({ token, password });
+  if (result?.error) return err(result.error, 400);
+
+  const sessionToken = generateToken(result.user_id);
+  return ok({
+    success: true,
+    token: sessionToken,
+    userId: result.user_id,
+    email: result.email,
+    founder: true,
+    tier: result.tier,
+    price: result.price,
+  });
+}
+
 // ── Identity Platform Tier Definitions ──────────────────────────────────
 const IDENTITY_TIERS = {
   free: {
@@ -793,6 +821,10 @@ export async function POST(request, { params }) {
         return await handleVerifyEmail(request);
       case 'verify-token':
         return await handleVerifyToken(request);
+      case 'claim':
+        // Finish a guest founder purchase: set a password, grant lifetime access,
+        // and hand back a session token so they land signed in.
+        return await handleFounderClaim(request);
       default:
         return err('Auth endpoint not found', 404);
     }

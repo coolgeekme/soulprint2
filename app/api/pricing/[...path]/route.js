@@ -12,7 +12,7 @@ import {
   getAdminSubscriptionOverview, adminSetUserPlan, getPaymentHistory,
   PREMIUM_MESSAGE_PACKS,
   } from '@/lib/handlers/pricing';
-  import { getFounderStatus } from '@/lib/handlers/founder';
+  import { getFounderStatus, createFounderCheckout, claimFounderByToken } from '@/lib/handlers/founder';
 import { checkUserAccess } from '@/lib/handlers/access-check';
 import { getUserEnforcementStatus, checkActionAllowed, getUserUsageSummary as getEnforcementUsage } from '@/lib/handlers/access-enforcement';
 import jwt from 'jsonwebtoken';
@@ -323,6 +323,26 @@ export async function POST(request, { params }) {
     }
 
     // ── Authenticated Routes ───────────────────────────────────────────
+
+    // POST /api/pricing/founder/checkout — PUBLIC, no account required.
+    //
+    // Purchase-first: a stranger can buy a founding spot without creating an account
+    // first. Stripe collects the email; the webhook then either grants an existing
+    // account or parks the purchase and emails a claim link. If the caller happens to
+    // be signed in we attribute to that account instead.
+    if (pathStr === 'founder/checkout') {
+      let userId = null;
+      try {
+        const user = await requireAuth(request);
+        userId = user?.userId || user?.id || null;
+      } catch {
+        userId = null;   // signed out is expected here, not an error
+      }
+
+      const result = await createFounderCheckout({ userId });
+      if (result?.error) return err(result.error);
+      return ok(result);
+    }
 
     // POST /api/pricing/checkout — Create subscription checkout
     if (pathStr === 'checkout') {
