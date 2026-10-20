@@ -63,6 +63,37 @@ const nextConfig = {
         destination: 'https://soulprintpassport.ai/faq',
         statusCode: 301,
       },
+      // Remaining phase-1 content routes. Each passport destination was ported,
+      // validated and verified 200 before this block was written:
+      // /how-it-works /features /integrations /security /contact
+      // Contact stays a form — it posts to this domain's /api/contact, which does
+      // NOT move; only the page shell lives on passport now.
+      // Rollback: delete any entry below and that engine page serves again.
+      {
+        source: '/how-it-works',
+        destination: 'https://soulprintpassport.ai/how-it-works',
+        statusCode: 301,
+      },
+      {
+        source: '/features',
+        destination: 'https://soulprintpassport.ai/features',
+        statusCode: 301,
+      },
+      {
+        source: '/integrations',
+        destination: 'https://soulprintpassport.ai/integrations',
+        statusCode: 301,
+      },
+      {
+        source: '/security',
+        destination: 'https://soulprintpassport.ai/security',
+        statusCode: 301,
+      },
+      {
+        source: '/contact',
+        destination: 'https://soulprintpassport.ai/contact',
+        statusCode: 301,
+      },
     ];
   },
   // NOTE: a /kidsprint -> kidsprint.ai redirect used to live here. It was removed
