@@ -30,9 +30,11 @@ import { Loader2, Check, AlertCircle, ArrowLeft } from 'lucide-react';
 // no further changes, because it asks the API which plans are purchasable instead of
 // assuming.
 
-// Plans that are one-time purchases rather than subscriptions. The founding lifetime
-// tiers are not modelled in the billing backend yet (createCheckoutSession only does
-// recurring subscriptions), so they get an honest message instead of a broken button.
+// Plans that are one-time purchases rather than subscriptions. Founders are backed
+// by lib/handlers/founder.js — a one-time 'payment' checkout, NOT a subscription —
+// so they do not appear in /api/pricing/plans and must not be looked up there.
+// Checking the plans list for them made this page report "isn't on sale yet" to a
+// signed-in buyer, dead-ending the CTA on the pricing page.
 const ONE_TIME_PLANS = new Set(['founder', 'founding']);
 
 const PLAN_LABELS = {
@@ -70,6 +72,16 @@ function UpgradeContent() {
       }
 
       try {
+        // One-time plans are not in the subscription plan catalog — they have their
+        // own live offer state. Ask that instead of the plans list.
+        if (ONE_TIME_PLANS.has(planId)) {
+          const res = await fetch('/api/pricing/founder/status');
+          const data = res.ok ? await res.json() : null;
+          const founder = data?.founder || data?.data;
+          if (!cancelled) setState(founder && !founder.sold_out ? 'ready' : 'beta');
+          return;
+        }
+
         const res = await fetch('/api/pricing/plans');
         const data = await res.json();
         const plans = data.plans || [];
