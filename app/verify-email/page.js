@@ -83,12 +83,19 @@ function VerifyEmailPageInner() {
               </div>
               <h2 className="text-white text-xl font-semibold mb-2">Email Verified!</h2>
               <p className="text-gray-400 text-sm mb-6">{message}</p>
-              <Link 
-                href="/auth"
+              {/* Verification is the moment registration actually completes, so this is
+                  where we hand off to Passport rather than dropping the user into the app.
+                  /welcome confirms the account and routes them into connecting their first
+                  AI — and it is the page GTM fires the sign_up conversion from. */}
+              <a
+                href="https://soulprintpassport.ai/welcome"
                 className="btn-orange inline-flex items-center justify-center gap-2 px-8 py-3 rounded-xl text-sm tracking-widest"
               >
-                SIGN IN NOW
-              </Link>
+                CONTINUE
+              </a>
+              <p className="text-gray-500 text-xs mt-4">
+                or <Link href="/auth" className="underline hover:text-gray-300">sign in directly</Link>
+              </p>
             </>
           )}
 
