@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb, ensureCriticalIndexes } from '@/lib/mongodb';
 import { generateToken, hashPassword, comparePassword, getTokenFromRequest, verifyToken } from '@/lib/auth';
 import { claimFounderByToken } from '@/lib/handlers/founder';
-import { sendWelcomeEmail, sendBetaCodeEmail } from '@/lib/email';
+import { sendWelcomeEmail, sendBetaCodeEmail, getAppUrl } from '@/lib/email';
 import { ok, err, authenticate, requireAdmin, checkRateLimit, setTokenCookie } from '@/lib/api-utils';
 import { isTeamProEmail } from '@/lib/handlers/team-access';
 import { betaGrantsAccess } from '@/lib/beta';
@@ -555,7 +555,10 @@ async function handleSendVerificationEmail(request) {
     );
 
     const RESEND_API_KEY = process.env.RESEND_API_KEY;
-    const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'https://soulprintengine.ai';
+    // getAppUrl() rewrites the Emergent preview host to the production domain.
+    // Reading NEXT_PUBLIC_BASE_URL directly here shipped preview.emergentagent.com
+    // inside account-verification emails.
+    const BASE_URL = getAppUrl();
     const verifyUrl = `${BASE_URL}/verify-email?token=${verificationToken}`;
 
     const emailRes = await fetch('https://api.resend.com/emails', {

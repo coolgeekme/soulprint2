@@ -1,3 +1,4 @@
+import { getAppUrl } from '@/lib/app-url';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
@@ -310,7 +311,9 @@ async function handleGoogleAuthCallback(request) {
     return NextResponse.redirect(new URL('/integrations?google=success', origin));
   } catch (err) {
     console.error('Google callback error:', err);
-    const fallbackOrigin = process.env.NEXT_PUBLIC_BASE_URL || new URL(request.url).origin;
+    // Never fall back to request.url.origin: on Emergent that resolves to the
+    // preview host, so a failed Google link would redirect the user off-domain.
+    const fallbackOrigin = getAppUrl();
     return NextResponse.redirect(new URL('/integrations?google=error&message=' + encodeURIComponent(err.message), fallbackOrigin));
   }
 }
