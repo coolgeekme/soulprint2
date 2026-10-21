@@ -1998,7 +1998,9 @@ async function handleAdminGetMetrics(request) {
     // Perplexity
     'sonar-pro':                     { input: 3.00,  output: 15.00 },
     'sonar':                         { input: 1.00,  output: 1.00  },
-    'sonar-reasoning':               { input: 1.00,  output: 5.00  },
+    // Sonar Reasoning Pro replaced the deprecated 'sonar-reasoning'. Price carried
+    // over from the old entry — re-verify against Perplexity's current rate card.
+    'sonar-reasoning-pro':           { input: 1.00,  output: 5.00  },
     // Kimi / Moonshot AI pricing (per 1M tokens, converted from CNY to USD)
     'kimi-k2-0711-preview':          { input: 2.00,  output: 8.00  },
     'moonshot-v1-8k':                { input: 1.50,  output: 1.50  },

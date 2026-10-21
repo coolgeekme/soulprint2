@@ -35,7 +35,7 @@
 | Claude Sonnet 4.5 | Anthropic | `claude-sonnet-4-5-20250929` | $3.00 | $15.00 | ~$0.017 | 200K | Best quality/speed balance |
 | Gemini 2.5 Pro | Google | `gemini-2.5-pro` | $1.25 | $10.00 | ~$0.011 | 1M | Google flagship (>200K: $2.50/$15) |
 | Sonar Pro (Online) | Perplexity | `sonar-pro` | $3.00 | $15.00 | ~$0.017 | — | Premium web search (+$6-14/1K req) |
-| Sonar Reasoning | Perplexity | `sonar-reasoning` | $1.00 | $5.00 | ~$0.006 | — | Reasoning + web (+$6-14/1K req) |
+| Sonar Reasoning Pro | Perplexity | `sonar-reasoning-pro` | $1.00 | $5.00 | ~$0.006 | — | Reasoning + web (price re-verify) |
 | Kimi K2 (Flagship) | Kimi | `kimi-k2-0711-preview` | $0.55 | $2.20 | ~$0.003 | 131K | Cheapest premium — MoonShot flagship |
 | Moonshot 32k | Kimi | `moonshot-v1-32k` | $0.55 | $2.20 | ~$0.003 | 32K | Extended context |
 

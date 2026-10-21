@@ -21,7 +21,7 @@ const MODELS = [
   // Perplexity
   { value: 'sonar-pro', label: 'Sonar Pro (Online)', provider: 'perplexity', group: 'Perplexity' },
   { value: 'sonar', label: 'Sonar (Online)', provider: 'perplexity', group: 'Perplexity' },
-  { value: 'sonar-reasoning', label: 'Sonar Reasoning', provider: 'perplexity', group: 'Perplexity' },
+  { value: 'sonar-reasoning-pro', label: 'Sonar Reasoning Pro', provider: 'perplexity', group: 'Perplexity' },
   // Kimi
   { value: 'kimi-k2-0711-preview', label: 'Kimi K2 (Flagship)', provider: 'kimi', group: 'Kimi' },
   { value: 'moonshot-v1-32k', label: 'Moonshot 32k', provider: 'kimi', group: 'Kimi' },
