@@ -2524,6 +2524,11 @@ async function handleAdminExportUsers(request) {
       beta_code_used: u.beta_code_used || '',
       invited_by: u.invited_by ? 'Yes' : 'No',
       auth_provider: u.auth_provider || 'legacy',
+      // Verification state was invisible to every admin route, which is why an
+      // unverified-account count could not be produced. 'legacy' = no email_verified
+      // field at all; those accounts are exempt from the login gate.
+      email_verified: u.email_verified === undefined ? 'legacy' : (u.email_verified ? 'Yes' : 'No'),
+      verification_pending: !!u.verification_token,
       discovery_source: profile.discovery_source || '',
       onboarding_complete: profile.onboarding_completed ? 'Yes' : 'No',
       assessment_complete: profile.assessment_complete ? 'Yes' : 'No',
@@ -2572,7 +2577,8 @@ async function handleAdminExportUsers(request) {
   // Return as CSV or JSON
   if (format === 'csv') {
     const headers = ['email', 'display_name', 'created_at', 'last_active_at', 'acquisition_channel', 
-                     'beta_code_used', 'invited_by', 'auth_provider', 'discovery_source', 
+                     'beta_code_used', 'invited_by', 'auth_provider', 'email_verified', 'verification_pending',
+                     'discovery_source', 
                      'onboarding_complete', 'assessment_complete', 'message_count', 'field', 'assistant_name'];
     
     const csvRows = [headers.join(',')];
