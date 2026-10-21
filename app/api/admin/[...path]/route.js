@@ -2483,15 +2483,16 @@ async function handleAdminExportUsers(request) {
     .toArray();
   const profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p]));
 
-  // Get message counts if filtering by engagement
-  let messageCounts = {};
-  if (hasMessages) {
-    const msgAgg = await db.collection('messages').aggregate([
-      { $match: { user_id: { $in: userIds }, role: 'user' } },
-      { $group: { _id: '$user_id', count: { $sum: 1 } } }
-    ]).toArray();
-    messageCounts = Object.fromEntries(msgAgg.map(m => [m._id, m.count]));
-  }
+  // Message counts feed BOTH the engagement filters and the stats block below, so
+  // they must always be computed. Fetching them only when ?has_messages was supplied
+  // meant the normal dashboard load evaluated `engaged` against an empty map and
+  // reported 0, while the has_messages=true/false filters silently returned the wrong
+  // set. Indexed on { user_id: 1, created_at: -1 }, so this is a cheap lookup.
+  const msgAgg = await db.collection('messages').aggregate([
+    { $match: { user_id: { $in: userIds }, role: 'user' } },
+    { $group: { _id: '$user_id', count: { $sum: 1 } } }
+  ]).toArray();
+  const messageCounts = Object.fromEntries(msgAgg.map(m => [m._id, m.count]));
 
   // Build export data
   let exportData = users.map(u => {
