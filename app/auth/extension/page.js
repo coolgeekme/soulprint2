@@ -139,9 +139,10 @@ export default function ExtensionAuthPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
             <div className="h-3 w-3 rounded-full bg-[#F5531A]" />
-            <span className="text-white text-lg font-semibold tracking-tight">SoulPrint</span>
+            <span className="text-white text-lg font-semibold tracking-tight">SoulPrint Passport</span>
           </div>
-          <p className="text-[#707176] text-sm">Connect your account to the extension</p>
+          <p className="text-[#707176] text-sm">Connect your Passport to the extension</p>
+          <p className="text-[#4a5563] text-xs mt-1">Powered by SoulPrint Engine</p>
         </div>
 
         {/* Success state */}
@@ -150,7 +151,7 @@ export default function ExtensionAuthPage() {
             <div className="text-green-400 text-5xl mb-3">✓</div>
             <h2 className="text-white text-lg font-semibold mb-1">Connected!</h2>
             <p className="text-[#707176] text-sm">
-              Your SoulPrint account is now linked to the extension.
+              Your Passport is now linked to the extension.
               You can close this tab and return to the extension.
             </p>
           </div>
@@ -234,7 +235,7 @@ export default function ExtensionAuthPage() {
               </button>
 
               <p className="text-[#505056] text-xs text-center mt-4">
-                Enter the same email and passcode you use at soulprintengine.ai
+                Enter the email and passcode you used to create your Passport
               </p>
             </form>
           </div>
