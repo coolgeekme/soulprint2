@@ -49,7 +49,7 @@ const FALLBACK = {
   ],
 };
 
-const VALID_STRATEGIES = new Set(['system-message', 'prepend-prompt', 'prepend-last-message']);
+const VALID_STRATEGIES = new Set(['system-message', 'prepend-prompt', 'prepend-last-message', 'generic-chat']);
 
 /** Drop anything the client would reject anyway, so one bad row can't poison the set. */
 function sanitise(raw) {

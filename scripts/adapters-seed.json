@@ -1,0 +1,64 @@
+{
+  "_comment": [
+    "Candidate adapters for the assistants we want to cover.",
+    "All of these use the generic-chat strategy, which decides from the request body shape",
+    "rather than a known URL — that is what lets us add a site without reverse-engineering",
+    "its API first.",
+    "",
+    "HONEST STATUS: generic-chat covers OpenAI-compatible chats, which is most of them.",
+    "It will NOT work on assistants that encode the conversation in a custom format.",
+    "Known problem cases are flagged below and need a dedicated strategy."
+  ],
+  "adapters": [
+    {
+      "id": "deepseek",
+      "hostnames": ["chat.deepseek.com"],
+      "apiPatterns": ["*"],
+      "strategy": "generic-chat",
+      "assistantSelector": null
+    },
+    {
+      "id": "kimi",
+      "hostnames": ["kimi.com", "www.kimi.com", "kimi.moonshot.cn"],
+      "apiPatterns": ["*"],
+      "strategy": "generic-chat",
+      "assistantSelector": null
+    },
+    {
+      "id": "perplexity",
+      "hostnames": ["perplexity.ai", "www.perplexity.ai"],
+      "apiPatterns": ["*"],
+      "strategy": "generic-chat",
+      "assistantSelector": null
+    },
+    {
+      "id": "copilot",
+      "hostnames": ["copilot.microsoft.com"],
+      "apiPatterns": ["*"],
+      "strategy": "generic-chat",
+      "assistantSelector": null
+    },
+    {
+      "id": "gemini",
+      "hostnames": ["gemini.google.com"],
+      "apiPatterns": ["*"],
+      "strategy": "generic-chat",
+      "assistantSelector": null,
+      "_warning": "Likely WILL NOT work. Gemini sends its conversation as a nested array inside Google's batchexecute RPC, not JSON with a messages field. Needs a dedicated strategy."
+    },
+    {
+      "id": "grok",
+      "hostnames": ["grok.com"],
+      "apiPatterns": ["*"],
+      "strategy": "generic-chat",
+      "assistantSelector": null
+    },
+    {
+      "id": "mistral",
+      "hostnames": ["chat.mistral.ai"],
+      "apiPatterns": ["*"],
+      "strategy": "generic-chat",
+      "assistantSelector": null
+    }
+  ]
+}
