@@ -2643,6 +2643,66 @@ async function handleAdminGetExportFilters(request) {
   });
 }
 
+// ─── Extension adapters (admin) ──────────────────────────────────────────────
+// Supporting an assistant is a data operation, not a release. The extension fetches this
+// config from /api/extension/adapters and caches it for an hour, so a new row reaches
+// users without a build, a store review, or an engine deploy.
+//
+// A strategy name that the client does not implement is rejected here rather than
+// stored: a row the extension cannot execute looks like support and behaves like a bug.
+const ADAPTER_STRATEGIES = new Set(['system-message', 'prepend-prompt', 'prepend-last-message'])
+
+async function handleAdminUpsertAdapter(request) {
+  const admin = await requireAdmin(request);
+  if (!admin) return err('Forbidden', 403);
+
+  const body = await request.json().catch(() => null);
+  if (!body) return err('Invalid JSON', 400);
+
+  const db = await getDb();
+  const coll = db.collection('extension_adapters');
+  const doc = (await coll.findOne({ _id: 'current' })) || { adapters: [] };
+  let adapters = Array.isArray(doc.adapters) ? doc.adapters.slice() : [];
+
+  if (body.remove) {
+    const id = String(body.remove);
+    adapters = adapters.filter(a => a.id !== id);
+    await coll.updateOne(
+      { _id: 'current' },
+      { $set: { adapters, updated_at: new Date() }, $inc: { version: 1 } },
+      { upsert: true }
+    );
+    return ok({ success: true, removed: id, count: adapters.length, adapters });
+  }
+
+  const a = body.adapter || body;
+  const id = String(a.id || '').trim();
+  if (!id) return err('id is required', 400);
+  if (!Array.isArray(a.hostnames) || !a.hostnames.length) return err('hostnames is required', 400);
+  if (!ADAPTER_STRATEGIES.has(a.strategy)) {
+    return err(`unknown strategy "${a.strategy}" — client implements: ${[...ADAPTER_STRATEGIES].join(', ')}`, 400);
+  }
+
+  const entry = {
+    id,
+    hostnames: a.hostnames.map(h => String(h).trim()).filter(Boolean),
+    apiPatterns: Array.isArray(a.apiPatterns) ? a.apiPatterns.map(String) : [],
+    strategy: a.strategy,
+    assistantSelector: typeof a.assistantSelector === 'string' ? a.assistantSelector : null
+  };
+
+  const idx = adapters.findIndex(x => x && x.id === id);
+  if (idx === -1) adapters.push(entry); else adapters[idx] = entry;
+
+  await coll.updateOne(
+    { _id: 'current' },
+    { $set: { adapters, updated_at: new Date() }, $inc: { version: 1 } },
+    { upsert: true }
+  );
+
+  return ok({ success: true, adapter: entry, count: adapters.length });
+}
+
 async function handleAdminSeedQuestions(request) {
   const admin = await requireAdmin(request);
   if (!admin) return err('Forbidden', 403);
@@ -5931,6 +5991,7 @@ export async function POST(request, { params }) {
 
   try {
     if (pathStr === 'questions/seed') return handleAdminSeedQuestions(request);
+    if (pathStr === 'extension/adapters') return handleAdminUpsertAdapter(request);
     if (pathStr === 'invite') return handleAdminInviteAdmin(request);
     if (pathStr === 'users') return handleAdminCreateUser(request);
     if (pathStr === 'settings') return handleAdminUpdateSettings(request);
