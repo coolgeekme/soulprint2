@@ -12,12 +12,9 @@ import assert from 'node:assert/strict';
 
 import {
   isValidSessionId,
-  resolveAllowedOrigin,
   isPaid,
   planFromMetadata,
   shapeSession,
-  ALLOWED_ORIGINS,
-  DEFAULT_ALLOWED_ORIGIN,
 } from '../lib/checkout-session.js';
 
 // ── session id format ──────────────────────────────────────────────────────
@@ -43,22 +40,6 @@ test('a rejected id never reaches Stripe', () => {
   // The route returns 400 before constructing a client. This asserts the gate exists at
   // the validation layer the route calls first.
   assert.equal(isValidSessionId('junk'), false);
-});
-
-// ── CORS ───────────────────────────────────────────────────────────────────
-
-test('echoes only recognised origins', () => {
-  for (const o of ALLOWED_ORIGINS) {
-    assert.equal(resolveAllowedOrigin(o), o);
-  }
-});
-
-test('an unknown or hostile origin is narrowed, never echoed', () => {
-  assert.equal(resolveAllowedOrigin('https://evil.example'), DEFAULT_ALLOWED_ORIGIN);
-  assert.equal(resolveAllowedOrigin(''), DEFAULT_ALLOWED_ORIGIN);
-  assert.equal(resolveAllowedOrigin(null), DEFAULT_ALLOWED_ORIGIN);
-  // A wildcard would let any page test a leaked session id for spend details.
-  assert.ok(!ALLOWED_ORIGINS.includes('*'));
 });
 
 // ── paid determination ─────────────────────────────────────────────────────

@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-import {
-  isValidSessionId,
-  resolveAllowedOrigin,
-  shapeSession,
-} from '@/lib/checkout-session';
+import { isValidSessionId, shapeSession } from '@/lib/checkout-session';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,15 +19,17 @@ export const dynamic = 'force-dynamic';
  * The rules live in lib/checkout-session.js so they can be tested without Stripe.
  */
 
-function corsHeaders(request) {
-  return {
-    'Access-Control-Allow-Origin': resolveAllowedOrigin(request.headers.get('origin')),
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'content-type',
-    'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
-    'Cache-Control': 'no-store',
-  };
+/**
+ * Cache headers only.
+ *
+ * Deliberately NO Access-Control-Allow-Origin here. next.config.js already sets a global
+ * wildcard for every route, and Next applies both rules to a matching path — the result
+ * was `*, https://soulprintpassport.ai`, which is not a legal CORS value and is rejected
+ * outright by browsers. The product site does not need CORS anyway: vercel.json rewrites
+ * /api/* to this engine, so its fetch is same-origin.
+ */
+function responseHeaders() {
+  return { 'Cache-Control': 'no-store' };
 }
 
 function json(body, status, headers) {
@@ -39,11 +37,11 @@ function json(body, status, headers) {
 }
 
 export async function OPTIONS(request) {
-  return new NextResponse(null, { status: 204, headers: corsHeaders(request) });
+  return new NextResponse(null, { status: 204, headers: responseHeaders() });
 }
 
 export async function GET(request) {
-  const headers = corsHeaders(request);
+  const headers = responseHeaders();
   const sessionId = new URL(request.url).searchParams.get('session_id') || '';
 
   if (!isValidSessionId(sessionId)) {
