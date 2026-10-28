@@ -6,6 +6,7 @@ import {
   memoryContentHash,
 } from '@/lib/memory-crypto';
 import { embedForWrite } from '@/lib/memory-embedding';
+import { saveMemory } from '@/lib/memory-write';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '@/lib/mongodb';
 import { ok, err, authenticate } from '@/lib/api-utils';
@@ -98,7 +99,7 @@ async function handleGetSoulProfile(request) {
   // Count only memories that decrypt. `countDocuments` includes rows with a null
   // or wrong-key `content` that /memories drops, which made this profile report a
   // total that disagreed with the memory list the extension actually syncs.
-  const memoryDocs = await db.collection('user_memories').find({ user_id: user.id }).toArray();
+  const memoryDocs = await db.collection('user_memories').find({ user_id: user.id, review_state: { $ne: 'superseded' } }).toArray();
   const memoryCount = decryptMemoryDocs(memoryDocs).filter((m) => !m.unreadable).length;
   const latestSnapshot = await db.collection('soulprint_snapshots')
     .findOne({ user_id: user.id }, { sort: { created_at: -1 } });
@@ -182,7 +183,7 @@ async function handleGetMemories(request) {
   }
 
   const memories = await db.collection('user_memories')
-    .find(query)
+    .find({ ...query, review_state: { $ne: 'superseded' } })
     .sort({ importance: 1, created_at: -1 })
     .toArray();
 
@@ -212,24 +213,25 @@ async function handleCreateMemory(request) {
 
   const db = await getDb();
 
-  const memory = {
-    id: uuidv4(),
-    user_id: user.id,
-    content: encryptMemory(content.trim()),
-    content_hash: memoryContentHash(content.trim()),
-    ...(await embedForWrite(content.trim())),
-    category: MEMORY_CATEGORIES.includes(category) ? category : 'other',
-    importance: ['high', 'medium', 'low'].includes(importance) ? importance : 'medium',
+  // Shared gate: exact match, then semantic neighbour, then insert / reinforce / flag.
+  // This route previously inserted unconditionally, so anything saved through the API
+  // bypassed dedupe entirely.
+  const { action, memory } = await saveMemory(db, user.id, {
+    content,
+    category,
+    importance,
     source: 'manual',
-    source_conversation_id: null,
-    created_at: new Date(),
-    updated_at: new Date(),
-  };
+  });
 
-  await db.collection('user_memories').insertOne(memory);
-  invalidateSystemPromptCache(user.id);
-
-  return ok({ success: true, memory: { ...memory, content: content.trim() } });
+  return ok({
+    success: true,
+    ...(action === 'reinforced'
+      ? { duplicate: true, reinforced: true }
+      : action === 'flagged'
+        ? { needs_review: true, duplicate_candidate_id: memory.duplicate_candidate_id }
+        : {}),
+    memory: { ...memory, content: memory.content },
+  });
 }
 
 async function handleUpdateMemory(request, memoryId) {
