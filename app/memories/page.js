@@ -97,6 +97,16 @@ export default function MemoriesPage() {
     await load(token);
   };
 
+  // Saved-on date. The API has always returned created_at; the list simply never showed
+  // it, so the web UI could not answer "when was this added?" either — the same gap the
+  // MCP surface had. Client-rendered only, so toLocaleDateString cannot mismatch a
+  // server render.
+  const savedOn = (v) => {
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   const filtered = memories.filter((m) => {
     const q = query.trim().toLowerCase();
     const matchQ = !q || (m.content || '').toLowerCase().includes(q);
@@ -215,7 +225,10 @@ export default function MemoriesPage() {
                   ) : (
                     <div style={{ fontSize: 14, color: '#fff' }}>{m.content}</div>
                   )}
-                  <div style={{ fontSize: 12, color: '#707176', marginTop: 3 }}>{m.category} · {m.importance}</div>
+                  <div style={{ fontSize: 12, color: '#707176', marginTop: 3 }}>
+                       {m.category} · {m.importance}
+                       {savedOn(m.created_at) ? ` · added ${savedOn(m.created_at)}` : ''}
+                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                   {editId === m.id ? (
