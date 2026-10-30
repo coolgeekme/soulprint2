@@ -275,6 +275,7 @@ import {
   handleGetSoulProfile,
   ensureUploadsDir,
 } from '@/lib/handlers/memory-system';
+import { handleListTokens, handleCreateToken, handleRevokeToken } from '@/lib/handlers/api-tokens';
 import { handleMemoryCleanupScan } from '@/lib/handlers/memory-cleanup';
 
 // ── Auth handlers (extracted) ──
@@ -547,6 +548,7 @@ export async function GET(request, { params }) {
     if (pathStr === 'schedules') return handleGetSchedules(request);
     if (pathStr === 'schedules/templates') return ok(SCHEDULE_TEMPLATES);
     if (pathStr === 'memories') return handleGetMemories(request);
+    if (pathStr === 'tokens') return handleListTokens(request);
     if (pathStr === 'memories/export') return handleGetMemories(request);
     
     // Aliases for user/* prefixed routes (frontend compatibility)
@@ -946,6 +948,9 @@ export async function POST(request, { params }) {
     // REST mirror of the MCP soulprint_sweep tool, for harnesses whose hooks can only
     // run a shell command. Same gate, same dedupe rules.
     if (pathStr === 'sweep') return handleMemorySweep(request);
+    // Token management requires a real session — a personal token cannot mint or revoke
+    // tokens, so a leaked 'sweep' credential cannot widen its own access.
+    if (pathStr === 'tokens') return handleCreateToken(request);
     if (pathStr === 'user/memories') return handleCreateMemory(request);
     if (pathStr === 'memories/extract') return handleExtractMemories(request);
     if (pathStr === 'user/memories/extract') return handleExtractMemories(request);
@@ -1106,6 +1111,7 @@ export async function DELETE(request, { params }) {
   const pathStr = pathArr.join('/');
 
   try {
+    if (pathStr.startsWith('tokens/')) return handleRevokeToken(request, pathStr.slice('tokens/'.length));
     // Conversation delete: conversations/:id
     if (pathStr.startsWith('conversations/') && pathArr.length === 2) {
       const conversationId = pathArr[1];
