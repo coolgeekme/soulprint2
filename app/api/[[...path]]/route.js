@@ -263,6 +263,7 @@ import {
   getUserMemoriesForPrompt,
   handleGetMemories,
   handleCreateMemory,
+  handleMemorySweep,
   handleExtractMemories,
   handleImportMemories,
   handleUpdateMemory,
@@ -942,6 +943,9 @@ export async function POST(request, { params }) {
     if (pathStr === 'assessment/reset') return handleResetAssessment(request);
     if (pathStr === 'memories/cleanup') return handleMemoryCleanupScan(request);
     if (pathStr === 'memories') return handleCreateMemory(request);
+    // REST mirror of the MCP soulprint_sweep tool, for harnesses whose hooks can only
+    // run a shell command. Same gate, same dedupe rules.
+    if (pathStr === 'sweep') return handleMemorySweep(request);
     if (pathStr === 'user/memories') return handleCreateMemory(request);
     if (pathStr === 'memories/extract') return handleExtractMemories(request);
     if (pathStr === 'user/memories/extract') return handleExtractMemories(request);
