@@ -9,19 +9,49 @@ export default function ThankYouPage() {
   return <Suspense fallback={null}><ThankYouPageInner /></Suspense>;
 }
 
+const KNOWN_PLANS = ["base", "free", "plus", "power"];
+
 function ThankYouPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [plan, setPlan] = useState('base');
   const [loading, setLoading] = useState(true);
+  // null = still checking, true = payment confirmed, false = nothing to confirm
+  const [verified, setVerified] = useState(null);
 
   useEffect(() => {
-    // Get plan from URL params
-    const planParam = searchParams.get('plan');
-    if (planParam) {
-      setPlan(planParam.toLowerCase());
+    const planParam = (searchParams.get('plan') || '').toLowerCase();
+    const sessionId = searchParams.get('session_id') || '';
+    if (planParam) setPlan(planParam);
+    else setPlan('base');
+
+    // A free signup involves no payment, so there is nothing to confirm.
+    if (planParam === 'free') {
+      setVerified(true);
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+
+    // THE OLD BUG: this page rendered 'Thank You for Subscribing' from the `plan` query
+    // param alone, so /thank-you?plan=power with no session claimed a purchase that never
+    // happened. A confirmation page must be able to prove a charge before it makes one.
+    if (!sessionId) {
+      setVerified(false);
+      setLoading(false);
+      return;
+    }
+
+    // Same verifier the product site uses — one source of truth for 'did this person pay'.
+    fetch(`/api/checkout/session?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'omit' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const paid = Boolean(d && d.ok && d.paid);
+        setVerified(paid);
+        // Trust the server's plan over the query string when we have one.
+        if (paid && d.plan && KNOWN_PLANS.includes(d.plan)) setPlan(d.plan);
+      })
+      .catch(() => setVerified(false))
+      .finally(() => setLoading(false));
   }, [searchParams]);
 
   const planConfig = {
@@ -91,6 +121,45 @@ function ThankYouPageInner() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
+
+  // NOTHING TO CONFIRM. Someone landed here without a completed checkout — a stale link,
+  // a shared URL, or a hand-typed ?plan=. Previously this rendered a receipt-shaped page
+  // claiming a subscription, which is a false statement to a customer and, if it ever
+  // reached analytics, invented revenue.
+  if (verified === false) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center p-4">
+        <div className="max-w-lg w-full">
+          <div className="flex justify-center mb-8">
+            <SoulPrintLogo variant="reverse" size={96} />
+          </div>
+          <div className="bg-white/95 backdrop-blur-xl border border-orange-200 rounded-2xl p-8 md:p-10 text-center shadow-2xl">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+              We couldn&apos;t confirm a payment
+            </h1>
+            <p className="text-gray-700 mb-8 leading-relaxed">
+              This link doesn&apos;t have a completed checkout attached to it. If you just
+              paid, a receipt will be in your email — check there before doing anything else.
+              Nothing has been charged twice.
+            </p>
+            <button
+              onClick={() => router.push('/pricing')}
+              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-3.5 px-8 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              See plans
+              <ArrowRight className="w-5 h-5" />
+            </button>
+            <p className="text-gray-400 text-sm mt-6">
+              Still stuck? Email{' '}
+              <a href="mailto:support@soulprint.ai" className="text-orange-400 hover:text-orange-300 underline">
+                support@soulprint.ai
+              </a>
+            </p>
+          </div>
+        </div>
       </div>
     );
   }

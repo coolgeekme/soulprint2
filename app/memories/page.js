@@ -127,6 +127,7 @@ export default function MemoriesPage() {
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <a href="/chat" style={{ color: '#707176', fontSize: 14, textDecoration: 'none', padding: '10px 16px', border: '1px solid rgba(255,255,255,.08)', borderRadius: 8 }}>Back to chat</a>
+              <a href="/settings/tokens" style={{ color: '#707176', fontSize: 14, textDecoration: 'none', padding: '10px 16px', border: '1px solid rgba(255,255,255,.08)', borderRadius: 8 }}>Access tokens</a>
             <button onClick={runScan} disabled={scanning}
               style={{ background: '#F5531A', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 18px', fontSize: 14, fontWeight: 600, cursor: scanning ? 'default' : 'pointer', opacity: scanning ? 0.7 : 1 }}>
               {scanning ? 'Scanning…' : 'Scan for issues'}
