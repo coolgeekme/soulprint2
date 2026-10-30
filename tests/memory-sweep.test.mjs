@@ -10,7 +10,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { sweepMemories, MAX_SWEEP_ITEMS } from '../lib/memory-sweep.js';
+import { sweepMemories, toItems, MAX_SWEEP_ITEMS } from '../lib/memory-sweep.js';
 import { DUPLICATE_THRESHOLD, REVIEW_THRESHOLD } from '../lib/semantic-dedupe.js';
 
 // ── minimal Mongo stand-in (same shape as the write-gate tests) ────────────
@@ -215,9 +215,11 @@ test('a batch at the cap is not reported as truncated', async () => {
   assert.equal(out.truncated, false);
 });
 
-test('rejects a non-array and a missing user', async () => {
+test('rejects a malformed batch and a missing user', async () => {
+  // NOTE: a plain string is VALID input (see toItems) — hooks can only send strings, so
+  // 'not an array' is no longer the rejection case it once was.
   const db = makeDb([]);
-  await assert.rejects(() => sweepMemories(db, 'u1', 'not an array'), /must be an array/);
+  await assert.rejects(() => sweepMemories(db, 'u1', { nope: true }), /array or a newline-separated string/);
   await assert.rejects(() => sweepMemories(db, null, []), /requires a userId/);
 });
 
@@ -234,4 +236,39 @@ test('the sweep uses the same thresholds as the write gate', () => {
   // If these drift, the MCP tool and the REST mirror would disagree about duplicates.
   assert.ok(DUPLICATE_THRESHOLD > REVIEW_THRESHOLD);
   assert.ok(DUPLICATE_THRESHOLD <= 1 && REVIEW_THRESHOLD > 0);
+});
+
+// ── string input, for lifecycle hooks ──────────────────────────────────────
+
+test('a newline-separated string becomes one fact per line', () => {
+  // Hooks substitute strings, so this is the shape a hook actually sends.
+  const items = toItems('Lives in Phoenix\nWorks at Acme\nPrefers morning meetings');
+  assert.deepEqual(items, ['Lives in Phoenix', 'Works at Acme', 'Prefers morning meetings']);
+});
+
+test('bullets, blank lines and stray whitespace are tolerated', () => {
+  const items = toItems('  - Lives in Phoenix  \n\n* Works at Acme\n   \n\u2022 Prefers mornings ');
+  assert.deepEqual(items, ['Lives in Phoenix', 'Works at Acme', 'Prefers mornings']);
+});
+
+test('a string batch saves exactly like an array batch', async () => {
+  const db = makeDb([]);
+  const out = await sweepMemories(db, 'u1', 'Lives in Phoenix\nWorks at Acme', { embedImpl: embedderFor() });
+  assert.equal(out.received, 2);
+  assert.equal(out.inserted, 2);
+  assert.equal(db._rows.length, 2);
+});
+
+test('a string batch is capped the same way', async () => {
+  const db = makeDb([]);
+  const many = Array.from({ length: MAX_SWEEP_ITEMS + 10 }, (_, i) => `fact ${i}`).join('\n');
+  const out = await sweepMemories(db, 'u1', many, { embedImpl: embedderFor() });
+  assert.equal(out.processed, MAX_SWEEP_ITEMS);
+  assert.equal(out.truncated, true);
+});
+
+test('a non-string, non-array is still rejected', async () => {
+  const db = makeDb([]);
+  await assert.rejects(() => sweepMemories(db, 'u1', 42), /array or a newline-separated string/);
+  await assert.rejects(() => sweepMemories(db, 'u1', { memories: [] }), /array or a newline-separated string/);
 });
