@@ -22,7 +22,7 @@ import {
   factLine,
   MAX_MEMORIES,
   MAX_MEMORY_LIMIT,
-  MAX_CONTEXT_CHARS,
+  MAX_CONTEXT_CHARS, MAX_CONTEXT_MEMORIES,
   MAX_PROFILE_CHARS,
 } from '../lib/mcp/memory-engine.js';
 
@@ -107,9 +107,31 @@ test('context never exceeds maxChars', () => {
   assert.ok(ctx.length <= MAX_CONTEXT_CHARS, `context was ${ctx.length} chars`);
 });
 
-test('context budget is 2000 chars, matching the extension', () => {
-  // The deployed value was 600, which is what made defect #1 possible.
-  assert.equal(MAX_CONTEXT_CHARS, 2000);
+test('context injection is bounded by its own caps, not the page-size default', () => {
+  // These were pinned to 8 / 2000, which is what made "name every dog I have owned" return
+  // only the handful that happened to rank highest. Context injection is a different job
+  // from a page of search results, so it gets its own cap and a larger char budget.
+  assert.equal(MAX_CONTEXT_MEMORIES, 25);
+  assert.equal(MAX_CONTEXT_CHARS, 3500);
+
+  // The page-size default is deliberately NOT raised with it.
+  assert.equal(MAX_MEMORIES, 8);
+});
+
+test('the context caps match the extension when it is checked out alongside', async () => {
+  // Cross-surface parity is enforced for real by the extension's
+  // scripts/check-context-parity.mjs. This is the cheap early warning when both repos are
+  // available, because a mismatch means the same user gets different recall per client.
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const bg = path.resolve(process.cwd(), '../soulprint-extension/src/background/background.js');
+  if (!fs.existsSync(bg)) return; // engine checked out alone — parity gate covers it
+
+  const src = fs.readFileSync(bg, 'utf8');
+  const mem = Number((src.match(/matchMemories\([^)]*maxMemories:\s*(\d+)/) || [])[1] || NaN);
+  const chars = Number((src.match(/buildContext\([^)]*maxChars:\s*(\d+)/) || [])[1] || NaN);
+  assert.equal(mem, MAX_CONTEXT_MEMORIES, 'extension and engine disagree on the memory cap');
+  assert.equal(chars, MAX_CONTEXT_CHARS, 'extension and engine disagree on the char budget');
 });
 
 // ── defect #2: the caller-supplied limit must be bounded ────────────────────
