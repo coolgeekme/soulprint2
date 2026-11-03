@@ -50,7 +50,9 @@ async function requireAdmin(request) {
   const user = await requireAuth(request);
   const db = await getDb();
   const dbUser = await db.collection('users').findOne({ id: user.userId || user.id });
-  const isAdmin = dbUser?.is_admin || dbUser?.role === 'admin' || dbUser?.role === 'superadmin';
+  // Bootstrap admins are not in the database as admins yet; resolve the same way the API
+  // does so pricing preview and admin-only plans agree with the rest of the product.
+  const isAdmin = dbUser?.is_admin || effectiveRole(dbUser) === 'admin' || dbUser?.role === 'superadmin';
   if (!isAdmin) throw new Error('Admin access required');
   return user;
 }

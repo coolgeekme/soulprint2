@@ -5,7 +5,7 @@ import { generateToken, hashPassword, comparePassword, getTokenFromRequest, veri
 import { claimFounderByToken } from '@/lib/handlers/founder';
 import { sendWelcomeEmail, sendBetaCodeEmail, getAppUrl } from '@/lib/email';
 import { ok, err, authenticate, requireAdmin, checkRateLimit, setTokenCookie } from '@/lib/api-utils';
-import { isTeamProEmail } from '@/lib/handlers/team-access';
+import { isTeamProEmail, effectiveRole } from '@/lib/handlers/team-access';
 import { betaGrantsAccess } from '@/lib/beta';
 import { 
   handleGoogleAuthStart, 
@@ -887,7 +887,12 @@ async function handleMe(request) {
       { id: decoded.userId },
       { $set: { last_active_at: new Date() } }
     );
-    
+
+    // /me is what every client reads identity from, and it queries the row directly rather
+    // than going through authenticate(). Elevate here too, or the API says admin and the UI
+    // still renders a non-admin.
+    user.role = effectiveRole(user);
+
     const profile = await db.collection('profiles').findOne({ user_id: user.id });
     const googleConnections = await db.collection('google_connections')
       .find({ user_id: user.id })

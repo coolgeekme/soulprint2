@@ -52,3 +52,32 @@ test('the lists are exported so other call sites cannot drift', () => {
   assert.deepEqual(TEAM_PRO_DOMAINS, ['archeforge.com']);
   assert.ok(TEAM_PRO_EMAILS.includes('reggie@coolgeek.me'));
 });
+
+// ── bootstrap admin ─────────────────────────────────────────────────────────
+import { isBootstrapAdmin, effectiveRole, BOOTSTRAP_ADMIN_EMAILS } from '../lib/handlers/team-access.js';
+
+test('the bootstrap admin address is recognised', () => {
+  assert.equal(isBootstrapAdmin('reggie@coolgeek.me'), true);
+  assert.equal(isBootstrapAdmin('  REGGIE@CoolGeek.me '), true);
+});
+
+test('nobody else is silently an admin', () => {
+  // Admin is read by ~37 separate checks. Anything on this list is a standing privilege grant,
+  // so it stays short and it stays code.
+  assert.equal(isBootstrapAdmin('someone@coolgeek.me'), false);
+  assert.equal(isBootstrapAdmin('ben@archeforge.com'), false, 'team domain != admin');
+  assert.equal(isBootstrapAdmin(null), false);
+  assert.equal(isBootstrapAdmin(''), false);
+  assert.deepEqual(BOOTSTRAP_ADMIN_EMAILS, ['reggie@coolgeek.me']);
+});
+
+test('effectiveRole elevates a bootstrap admin over a stored role', () => {
+  assert.equal(effectiveRole({ email: 'reggie@coolgeek.me', role: 'user' }), 'admin');
+  assert.equal(effectiveRole({ email: 'reggie@coolgeek.me' }), 'admin');
+});
+
+test('effectiveRole leaves everyone else exactly as stored', () => {
+  assert.equal(effectiveRole({ email: 'ben@archeforge.com', role: 'user' }), 'user');
+  assert.equal(effectiveRole({ email: 'x@y.com', role: 'superadmin' }), 'superadmin');
+  assert.equal(effectiveRole(null), null);
+});
