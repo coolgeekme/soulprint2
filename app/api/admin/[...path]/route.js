@@ -15,6 +15,7 @@ import { handleCreateSupportAgent, handleGetSupportAgents } from '@/lib/handlers
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import {
+import { isTeamProEmail } from '@/lib/handlers/team-access';
   handleAdminGetFeatureFlags,
   handleAdminCreateFeatureFlag,
   handleAdminUpdateFeatureFlag,
@@ -3486,7 +3487,7 @@ async function handleAdminGetBusinessInsights(request) {
   const isInternalEmail = (email) => {
     if (!email) return false;
     const lower = email.toLowerCase();
-    return lower.endsWith('@archeforge.com') || lower === 'reggie@coolgeek.me';
+    return isTeamProEmail(lower);
   };
 
   // ── USER SEGMENTATION BY USAGE ─────────────────────────────────────────────
