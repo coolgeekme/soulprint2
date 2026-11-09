@@ -11,11 +11,11 @@ import { generateToken, verifyToken, hashPassword, comparePassword, getTokenFrom
 import { getProvider, AVAILABLE_MODELS } from '@/lib/llm/providers';
 import { sendWelcomeEmail, sendAcceptedEmail, sendBetaCodeEmail, sendGraceExpiredEmail } from '@/lib/email';
 import { ok, err, authenticate } from '@/lib/api-utils';
+import { isTeamProEmail } from '@/lib/handlers/team-access';
 import { handleCreateSupportAgent, handleGetSupportAgents } from '@/lib/handlers/support-tickets';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import {
-import { isTeamProEmail } from '@/lib/handlers/team-access';
   handleAdminGetFeatureFlags,
   handleAdminCreateFeatureFlag,
   handleAdminUpdateFeatureFlag,
