@@ -54,3 +54,18 @@ test('the returned shape stays { memory, score } — no internal fields leak', (
   ], 25);
   assert.deepEqual(Object.keys(out[0]).sort(), ['memory', 'score']);
 });
+
+test('a long memory containing the answer is retrieved, not filtered (coverage, not Jaccard)', () => {
+  const longMemory = {
+    id: 'dogs-long',
+    content:
+      'Household and pets: Reggie lives in Phoenix with his partner Tiffany. ' +
+      'He has four dogs named Ouzo, Skyy, Stoli and Maui. The dogs are small breeds with ' +
+      'dental problems and one has had teeth removed. Feeding duties rotate between kids.',
+    importance: 'medium',
+    created_at: daysAgo(240),
+  };
+  const out = matchMemories('what are my current dogs names?', [...business(20), longMemory], 25);
+  assert.ok(out.some((m) => m.memory.id === 'dogs-long'),
+    'Jaccard divided by union, so a 60-word memory scored 0.033 and was dropped');
+});
