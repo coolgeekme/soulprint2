@@ -264,6 +264,7 @@ import {
   handleGetMemories,
   handleCreateMemory,
   handleMemorySweep,
+  handleContext,
   handleExtractMemories,
   handleImportMemories,
   handleUpdateMemory,
@@ -950,6 +951,8 @@ export async function POST(request, { params }) {
     // REST mirror of the MCP soulprint_sweep tool, for harnesses whose hooks can only
     // run a shell command. Same gate, same dedupe rules.
     if (pathStr === 'sweep') return handleMemorySweep(request);
+    // Semantic recall for the extension's low-confidence fallback.
+    if (pathStr === 'context') return handleContext(request);
     // Token management requires a real session — a personal token cannot mint or revoke
     // tokens, so a leaked 'sweep' credential cannot widen its own access.
     if (pathStr === 'tokens') return handleCreateToken(request);
