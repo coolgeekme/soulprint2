@@ -124,3 +124,67 @@ test('semantic rank surfaces a paraphrase the lexical rank would miss', () => {
   assert.equal(fused[0], 'school');
   assert.ok(fused.indexOf('school') < fused.indexOf('gym'));
 });
+// ── whole-store semantic retrieval ──────────────────────────────────────────
+// Imported from the pure library rather than the handler: handlers.js uses the '@/lib'
+// alias, which only resolves inside the Next bundler, not under node --test.
+import { rankVectorHits, fuseLexicalAndVector, MIN_VECTOR_SIMILARITY } from '../lib/hybrid-retrieval.js';
+import { matchMemories } from '../lib/mcp/memory-engine.js';
+
+const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString();
+
+const QUERY_VEC = [1, 0, 0];
+
+const business = (n) =>
+  Array.from({ length: n }, (_, i) => ({
+    id: 'biz-' + i,
+    content: `Practice management advisory for oral surgery group ${i} in metro area ${i}.`,
+    importance: 'medium',
+    created_at: daysAgo(1),
+    embedding: [0, 1, 0],   // orthogonal to the query
+  }));
+
+function retrieve(prompt, memories, maxMemories = 5) {
+  const lexical = matchMemories(prompt, memories, memories.length || 1);
+  const vectorHits = rankVectorHits(QUERY_VEC, memories);
+  return fuseLexicalAndVector({
+    lexicalIds: lexical.map((m) => m.memory.id),
+    lexicalScores: new Map(lexical.map((m) => [m.memory.id, m.score])),
+    vectorHits,
+    memories,
+    maxMemories,
+  });
+}
+
+test('the similarity floor is a real number, not a formality', () => {
+  assert.ok(MIN_VECTOR_SIMILARITY > 0.2 && MIN_VECTOR_SIMILARITY < 0.6);
+});
+
+test('a vector-only match is retrieved with zero keyword overlap', () => {
+  const memories = [
+    ...business(10),
+    { id: 'dogs', content: 'Ouzo and Skyy are the two here.', importance: 'medium',
+      created_at: daysAgo(300), embedding: [1, 0, 0] },
+  ];
+  const ids = retrieve('what are the names of my animals?', memories).map((m) => m.memory.id);
+  assert.ok(ids.includes('dogs'), `semantic match must surface; got ${ids.join(',')}`);
+});
+
+test('a weak vector match stays out', () => {
+  const memories = [
+    ...business(10),
+    { id: 'weak', content: 'Quarterly partner review covers regional expansion planning.',
+      importance: 'medium', created_at: daysAgo(1), embedding: [0.15, 0.99, 0] },
+  ];
+  const ids = retrieve('what are the names of my animals?', memories).map((m) => m.memory.id);
+  assert.ok(!ids.includes('weak'), 'on-topic-but-weak must not clear the floor');
+});
+
+test('an un-embedded memory is still reachable by keyword', () => {
+  const memories = [
+    ...business(5),
+    { id: 'unembedded', content: 'My dogs are Ouzo and Skyy.', importance: 'medium', created_at: daysAgo(300) },
+  ];
+  const ids = retrieve('what are my dogs called?', memories).map((m) => m.memory.id);
+  assert.ok(ids.includes('unembedded'),
+    'a row without a vector must not become invisible once other rows have one');
+});

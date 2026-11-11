@@ -317,6 +317,7 @@ import {
   handleUpdateSchedule,
   handleDeleteSchedule,
   handleRunSchedules,
+  handleBackfillEmbeddings,
 } from '@/lib/handlers/scheduling';
 
 // ── Telegram (extracted) ──
@@ -920,6 +921,7 @@ export async function POST(request, { params }) {
     
     if (pathStr === 'schedules') return handleCreateSchedule(request);
     if (pathStr === 'cron/run-schedules') return handleRunSchedules(request);
+    if (pathStr === 'cron/backfill-embeddings') return handleBackfillEmbeddings(request);
     if (pathStr === 'places/search') return handlePlacesSearch(request);
     if (pathStr === 'profile/soulprint/generate') return handleGenerateSoulPrint(request);
     if (pathStr === 'privacy/purge-chats') return handlePurgeChatHistory(request);
