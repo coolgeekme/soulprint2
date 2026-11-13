@@ -69,3 +69,16 @@ test('a long memory containing the answer is retrieved, not filtered (coverage, 
   assert.ok(out.some((m) => m.memory.id === 'dogs-long'),
     'Jaccard divided by union, so a 60-word memory scored 0.033 and was dropped');
 });
+
+test('"pets" retrieves a memory that says "dogs" (personal-life synonyms)', () => {
+  const dogs = {
+    id: 'dogs',
+    content: 'User has four dogs named Stoli, Skyy, Maui, and Ouzo',
+    importance: 'medium',
+    created_at: daysAgo(220),
+  };
+  const out = matchMemories('what are my pets names?', [...business(20), dogs], 25);
+  const ids = out.map((m) => m.memory.id);
+  assert.ok(ids.includes('dogs'), 'pets must bridge to dogs');
+  assert.ok(!ids.some((i) => i.startsWith('biz-')));
+});
