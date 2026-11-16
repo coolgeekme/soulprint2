@@ -475,6 +475,7 @@ export async function GET(request, { params }) {
       status: 'ok',
       timestamp: new Date().toISOString(),
       build: process.env.BUILD_SHA || 'unknown',
+      build_ref: process.env.BUILD_REF || null,
       built_at: process.env.BUILD_TIME || null,
     }, { status: 200 });
   }

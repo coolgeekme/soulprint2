@@ -3,13 +3,24 @@
 // stamped here and reported by /api/health.
 const { execSync } = require('child_process');
 let BUILD_SHA = 'unknown';
+let BUILD_REF = 'none';
 let BUILD_TIME = new Date().toISOString();
+// Try the REMOTE ref first. The deploy flow here does `git checkout <remote>/main -- .`,
+// which updates the working tree WITHOUT moving HEAD — so `git rev-parse HEAD` reports the
+// previous commit and the stamp would confidently lie. That is worse than no stamp at all.
 try {
-  BUILD_SHA = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+  const candidates = ['github/main', 'origin/main', 'HEAD'];
+  for (const ref of candidates) {
+    try {
+      BUILD_SHA = execSync(`git rev-parse --short ${ref}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      BUILD_REF = ref;
+      break;
+    } catch { /* try the next ref */ }
+  }
 } catch { /* no git in the build image — 'unknown' is honest */ }
 
 const nextConfig = {
-  env: { BUILD_SHA, BUILD_TIME },
+  env: { BUILD_SHA, BUILD_TIME, BUILD_REF },
   output: 'standalone',
   images: {
     unoptimized: true,
