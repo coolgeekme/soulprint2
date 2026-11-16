@@ -1,4 +1,15 @@
+// Capture the commit at BUILD time. The running server cannot know its own git state (the
+// container may have no .git, and a stale process keeps serving regardless), so the value is
+// stamped here and reported by /api/health.
+const { execSync } = require('child_process');
+let BUILD_SHA = 'unknown';
+let BUILD_TIME = new Date().toISOString();
+try {
+  BUILD_SHA = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+} catch { /* no git in the build image — 'unknown' is honest */ }
+
 const nextConfig = {
+  env: { BUILD_SHA, BUILD_TIME },
   output: 'standalone',
   images: {
     unoptimized: true,

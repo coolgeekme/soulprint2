@@ -467,7 +467,16 @@ export async function GET(request, { params }) {
   if (pathStr === 'health') {
     // Trigger release notes generation check on health checks (non-blocking)
     checkAndGenerateReleaseNotes().catch(() => {});
-    return NextResponse.json({ status: 'ok', timestamp: new Date().toISOString() }, { status: 200 });
+    // Report the build so a deploy can be verified from outside with one curl.
+    // Every deploy today had to be confirmed by proxy — a route existing, a behaviour
+    // observed — because nothing said which commit was serving. Failed builds and stale
+    // running processes then look exactly like successful ones.
+    return NextResponse.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      build: process.env.BUILD_SHA || 'unknown',
+      built_at: process.env.BUILD_TIME || null,
+    }, { status: 200 });
   }
 
   try {
